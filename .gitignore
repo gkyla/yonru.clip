@@ -1,0 +1,82 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+*.env
+.env.*
+!.env.example
+
+# Agent files
+.agents/
+
+# Backend
+backend/venv/
+backend/venv_win/
+backend/cookies.txt
+backend/temp_assets/
+backend/static/output/
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+backend/scratch/
+__pycache__/
+*.pyc
+
+# Frontend
+frontend/node_modules/
+frontend/.nuxt/
+frontend/.output/
+frontend/.nitro/
+frontend/.cache/
+frontend/dist/
+frontend/app/assets/fonts/
+
+# Remotion Engine
+remotion_engine/node_modules/
+remotion_engine/out/
+remotion_engine/.remotion/
+remotion_engine/public/fonts/
+remotion_engine/src/assets/fonts/
+
+# Logs
+*.log
+logs/
+
+# Media & Large Files (Source & Generated)
+*.mp4
+*.mov
+*.avi
+*.wmv
+*.mkv
+*.mp3
+*.wav
+*.m4a
+*.flac
+*.aac
+
+# AI Models & Weights
+models/
+weights/
+.models/
+.weights/
+
+# Debugging & Temporary Assets
+temp_assets/
+
+# Remotion Engine Generated Assets
+remotion_engine/public/source_render_*
+remotion_engine/public/thumb_*
+remotion_engine/public/*.mp4
+remotion_engine/public/*.jpg
+remotion_engine/public/*.png
+remotion_engine/public/*.json
+
+# Fonts (managed via script)
+*.ttf
+*.otf
+*.woff
+*.woff2
+**/assets/fonts/
+**/public/fonts/

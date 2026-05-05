@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+yt-dlp
+faster-whisper
+google-genai
+opencv-python-headless
+python-multipart
+ffmpeg-python
+mediapipe==0.10.15
+numpy<2.0.0

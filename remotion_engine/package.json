@@ -1,0 +1,26 @@
+{
+  "name": "remotion_engine",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "remotion studio",
+    "build": "remotion render",
+    "preview": "vite"
+  },
+  "dependencies": {
+    "@remotion/bundler": "latest",
+    "@remotion/cli": "latest",
+    "@remotion/google-fonts": "^4.0.451",
+    "@remotion/player": "^4.0.451",
+    "@remotion/renderer": "latest",
+    "@remotion/studio": "latest",
+    "@vitejs/plugin-react-swc": "^4.3.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "remotion": "latest",
+    "vite": "^8.0.10"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}
