@@ -855,42 +855,22 @@ async function fetchReadyClips() {
 }
 
 async function loadReadyClip(clip: any) {
-  // To load a ready clip, we need a job_id (fake one is fine if we have the folder)
-  // But our backend/frontend expects a job_id to poll.
-  // We'll create a "re-analysis" job or similar, or just navigate to editor with folder/clip_id
+  console.log('Loading ready clip:', clip)
+  showAllReadyClips.value = false
   
-  // Actually, extract-clip with the specific hook info will detect the file and return 'ready'
-  const hook = {
-    theme: clip.theme || 'Extracted Clip',
-    start: clip.start || 0,
-    end: clip.end || clip.duration || 0,
-    duration: clip.duration || 0
-  }
-  
-  // We need the original URL or video_id to start a job if none exists
-  // For now, let's just trigger analyze-cached to get a job_id, then immediately navigate
-  state.jobStatus.value = 'queued'
   try {
-    const videoId = clip.folder_name.split('_').pop()
-    const res = await $fetch<{ job_id: string; status: string }>(`${API_BASE}/api/analyze-cached/${videoId}`, { 
-      method: 'POST'
-    })
-    state.jobId.value = res.job_id
-    state.folderName.value = clip.folder_name
+    // Load the clip into state first to get a job_id
+    await state.loadReadyClipIntoEditor(clip.folder_name, clip.clip_id)
     
-    // Now trigger extraction (will be instant)
-    state.extractClip(hook)
-    
+    // Then navigate with the job_id for persistence/refresh
     await navigateTo({
       path: '/editor',
       query: { 
-        job_id: res.job_id, 
-        folder: clip.folder_name,
-        clip_id: clip.clip_id
+        job_id: state.jobId.value
       }
     })
   } catch (e) {
-    console.error('Failed to load ready clip', e)
+    console.error('Failed to load ready clip:', e)
   }
 }
 

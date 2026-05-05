@@ -138,6 +138,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   <OffthreadVideo 
                     src={videoSrc} 
                     volume={volume}
+                    crossOrigin="anonymous"
                     startFrom={mediaStartFrame}
                     endAt={mediaStartFrame + durationFrames}
                     style={{ 

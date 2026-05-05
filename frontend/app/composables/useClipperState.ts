@@ -381,6 +381,39 @@ export const useClipperState = () => {
     }
   }
 
+  async function loadReadyClipIntoEditor(folder: string, id: string) {
+    jobStatus.value = 'queued'
+    jobError.value = null
+    
+    // Reset state for loading
+    isPlaying.value = false
+    currentTime.value = 0
+    activeHook.value = null
+    clipId.value = id
+    folderName.value = folder
+    videoUrl.value = null
+    fullTranscript.value = []
+    timelineTracks.value[0].items = []
+    isMediaLoading.value = true
+
+    try {
+      const res = await $fetch<{ job_id: string; status: string }>(`${API_BASE}/api/load-ready-clip`, {
+        method: 'POST',
+        body: { folder_name: folder, clip_id: id }
+      })
+      
+      jobId.value = res.job_id
+      jobStatus.value = res.status
+      
+      // Since it's marked 'ready' in backend, startPolling will trigger the asset load instantly
+      startPolling()
+    } catch (e: any) {
+      jobStatus.value = 'error'
+      jobError.value = e.message || 'Failed to load ready clip'
+      isMediaLoading.value = false
+    }
+  }
+
   async function renderClip(hookIndex = 0, outputName?: string) {
     if (!jobId.value) return
     renderStatus.value = 'rendering'
@@ -890,7 +923,7 @@ export const useClipperState = () => {
     thumbnailEnabled, thumbnailUrl, thumbnailDuration, thumbnailScreenshotTime,
     thumbnailTextOverlays, thumbnailEditMode,
     // Actions
-    analyzeUrl, extractClip, renderClip, startPolling,
+    analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling,
     formatDuration, fetchPrompts, editPrompt, fetchSavedHooks, saveHook, deleteSavedHook,
     saveTranscript, saveStyleSettings, saveDefaultStyleSettings, updateHooks,
     saveTimelineTracks,

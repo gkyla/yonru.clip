@@ -185,6 +185,28 @@ class YouTubeParser:
                     }
         return None
 
+    def get_cached_video_by_folder(self, folder_name: str) -> dict:
+        """Search sources/ subfolders by exact folder name."""
+        target_dir = os.path.join(self.source_dir, folder_name)
+        if os.path.exists(target_dir) and os.path.isdir(target_dir):
+            file_path = os.path.join(target_dir, "full.mp4")
+            if os.path.exists(file_path):
+                video_id = folder_name.split("_")[-1]
+                w, h = self._get_video_resolution(file_path)
+                return {
+                    "video_id": video_id,
+                    "title": folder_name.replace(f"_{video_id}", ""),
+                    "duration": self._get_video_duration(file_path),
+                    "fps": self._get_video_fps(file_path),
+                    "file_path": file_path,
+                    "folder_name": folder_name,
+                    "asset_url": f"/assets/sources/{folder_name}/full.mp4",
+                    "width": w,
+                    "height": h,
+                    "heatmap": []
+                }
+        return None
+
     def fetch_transcript(self, video_id: str) -> list:
         """
         Fetch timestamped transcript and split into word-level for snappier sync.
@@ -467,17 +489,27 @@ class YouTubeParser:
                     if "_" in parent_name:
                         title = " ".join(parent_name.split("_")[:-1])
                     
-                    # Try to find theme from transcript or clip_id
+                    # Try to find theme and start/end from transcript or clip_id
                     theme = ""
+                    start_time = 0.0
+                    end_time = 0.0
                     parts = clip_id.split("_")
-                    if len(parts) >= 3:
-                        theme = " ".join(parts[2:])
+                    if len(parts) >= 2:
+                        try:
+                            start_time = float(parts[0])
+                            end_time = float(parts[1])
+                            if len(parts) >= 3:
+                                theme = " ".join(parts[2:])
+                        except:
+                            pass
                     
                     results.append({
                         "clip_id": clip_id,
                         "folder_name": parent_name,
                         "title": title,
                         "theme": theme.replace("_", " "),
+                        "start_time": start_time,
+                        "end_time": end_time,
                         "duration": duration,
                         "mtime": mtime,
                         "asset_url": f"/assets/clips/{parent_name}/{clip_id}/video.mp4"

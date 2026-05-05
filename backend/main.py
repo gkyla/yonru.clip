@@ -98,6 +98,10 @@ class RenderRequest(BaseModel):
     subtitle_text_transform: str = "uppercase"
     subtitle_background: str = "none"
     subtitle_background_opacity: float = 0.7
+    
+class LoadReadyClipRequest(BaseModel):
+    folder_name: str
+    clip_id: str
     volume: float = 0.5
     fps: float = 30.0
     transcript: Optional[list] = None
@@ -1385,3 +1389,64 @@ async def get_thumbnail_config(folder_name: str, clip_id: str):
             config = json.load(f)
         return {"config": config}
     return {"config": None}
+
+@app.post("/api/load-ready-clip")
+async def load_ready_clip(req: LoadReadyClipRequest):
+    """Initialize a job state from an existing ready clip."""
+    import uuid
+    parser = YouTubeParser(output_dir="temp_assets")
+    
+    # 1. Verify clip exists
+    clip_dir = os.path.join("temp_assets", "clips", req.folder_name, req.clip_id)
+    clip_path = os.path.join(clip_dir, "video.mp4")
+    transcript_path = os.path.join(clip_dir, "transcript.json")
+    
+    if not os.path.exists(clip_path) or not os.path.exists(transcript_path):
+        raise HTTPException(status_code=404, detail="Ready clip assets not found")
+        
+    # 2. Get source video info
+    video_info = parser.get_cached_video_by_folder(req.folder_name)
+    if not video_info:
+        raise HTTPException(status_code=404, detail="Source video folder not found")
+        
+    # 3. Parse clip metadata from ID
+    start_time = 0.0
+    end_time = 0.0
+    theme = ""
+    parts = req.clip_id.split("_")
+    if len(parts) >= 2:
+        try:
+            start_time = float(parts[0])
+            end_time = float(parts[1])
+            if len(parts) >= 3:
+                theme = " ".join(parts[2:]).replace("_", " ")
+        except:
+            pass
+
+    # 4. Create a job marked as ready
+    job_id = str(uuid.uuid4())[:8]
+    duration = parser._get_video_duration(clip_path)
+    
+    jobs[job_id] = {
+        "status": "ready",
+        "url": f"https://youtube.com/watch?v={video_info['video_id']}",
+        "video_info": video_info,
+        "full_video_path": video_info["file_path"],
+        "clip_path": clip_path,
+        "clip_duration": duration,
+        "clip": {
+            "asset_url": f"/assets/clips/{req.folder_name}/{req.clip_id}/video.mp4",
+            "duration": duration,
+            "file_path": clip_path,
+            "start": start_time,
+            "end": end_time,
+            "theme": theme
+        },
+        "hooks": None,
+        "fps": video_info.get("fps", 30.0),
+        "error": None
+    }
+    
+    save_jobs()
+    print(f"[api] Loaded ready clip {req.clip_id} into job {job_id}")
+    return {"job_id": job_id, "status": "ready"}

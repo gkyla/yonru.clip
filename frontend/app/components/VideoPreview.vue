@@ -51,7 +51,7 @@
           @loadstart="state.isMediaLoading.value = true"
           @canplay="onVideoReady"
           @canplaythrough="onVideoReady"
-          @error="(e) => { console.error('Video error:', e); if (state?.videoUrl?.value) onVideoReady() }"
+          @error="(e) => onNativeVideoError(e)"
           playsinline
           crossorigin="anonymous"
           preload="auto"
@@ -300,7 +300,23 @@ function onVideoReady() {
   if (readyTimeout) clearTimeout(readyTimeout)
   readyTimeout = setTimeout(() => {
     state.isMediaLoading.value = false
+    console.log('[clipper] Video ready and loaded')
   }, 400)
+}
+
+function onNativeVideoError(e: Event) {
+  const video = e.target as HTMLVideoElement
+  const error = video.error
+  console.error('[clipper] Native Video Error:', {
+    code: error?.code,
+    message: error?.message,
+    url: state.videoUrl.value
+  })
+  
+  // If we have a URL, treat it as ready to clear the loader, but log the failure
+  if (state?.videoUrl.value) {
+    onVideoReady()
+  }
 }
 
 let safetyTimeout: any = null
@@ -389,8 +405,14 @@ watch(() => state.videoUrl.value, (url) => {
     // Probe actual width vs percent. The backend sends cropX pixel. We send cropX pixel.
     const cropXPixel = ((state.cropPercentX.value ?? 50) / 100) * 1920
     
+    // Add cache-buster for local assets to prevent "Format error" from stale cache
+    let videoSrc = state.videoUrl.value || ''
+    if (videoSrc.includes('localhost:8000') && !videoSrc.includes('?t=')) {
+      videoSrc += (videoSrc.includes('?') ? '&' : '?') + 't=' + Date.now()
+    }
+
     const remotionProps = {
-      videoPath: state.videoUrl.value || '',
+      videoPath: videoSrc,
       words: wordsData,
       wordTimings: allWordTimings,
       cropX: isNaN(cropXPixel) ? 960 : cropXPixel,
