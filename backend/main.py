@@ -164,6 +164,9 @@ class ThumbnailConfigRequest(BaseModel):
     clip_id: str
     config: dict  # { enabled, duration, screenshotTime, textOverlays }
 
+class BatchDeleteClipsRequest(BaseModel):
+    clips: list[dict] # list of {folder_name, clip_id}
+
 # --- Helpers ---
 
 def run_full_analysis(job_id: str, url: str, language: str, force_reanalyze: bool = False, prompt_file: str = "prompt.json", num_hooks: int = 10, auto_hooks: bool = False):
@@ -1115,6 +1118,19 @@ async def delete_ready_clip(folder_name: str, clip_id: str):
     if not success:
         raise HTTPException(status_code=404, detail="Clip not found")
     return {"status": "deleted", "clip_id": clip_id}
+
+@app.post("/api/ready-clips/delete-batch")
+async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
+    """Delete multiple clips in one go."""
+    parser = YouTubeParser(output_dir="temp_assets")
+    results = []
+    for item in req.clips:
+        folder_name = item.get("folder_name")
+        clip_id = item.get("clip_id")
+        if folder_name and clip_id:
+            success = parser.delete_clip(folder_name, clip_id)
+            results.append({"clip_id": clip_id, "success": success})
+    return {"status": "ok", "results": results}
 
 @app.delete("/api/cached/{folder_name}")
 async def delete_cached(folder_name: str):

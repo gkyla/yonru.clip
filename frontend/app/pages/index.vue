@@ -91,7 +91,7 @@
         </div>
 
         <!-- Ready to Edit -->
-        <div v-if="(readyClips.length > 0 || isReadyClipsLoading) && !isProcessing && !state.hooks.value.length" class="mb-4 overflow-visible p-8 pt-0">
+        <div v-if="!isProcessing && !state.hooks.value.length" class="mb-4 overflow-visible p-8 pt-0">
           <div class="flex items-center justify-between mb-6">
             <h3 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
               <Icon name="ri:scissors-cut-fill" class="text-accent-500" />
@@ -122,6 +122,15 @@
                    <div class="w-2/3 h-2.5 bg-surface-dark/50 rounded"></div>
                 </div>
              </div>
+          </div>
+
+          <!-- Empty State for Section -->
+          <div v-else-if="readyClips.length === 0" class="bg-surface-panel/30 border border-surface-border/50 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center text-center">
+            <div class="w-16 h-16 bg-surface-dark rounded-full flex items-center justify-center mb-4 border border-surface-border/50">
+               <Icon name="ri:movie-2-line" class="text-3xl text-slate-600" />
+            </div>
+            <h4 class="text-white font-bold text-lg mb-1">Your Video Library is Empty</h4>
+            <p class="text-slate-500 text-sm max-w-sm">Paste a YouTube URL above to start generating viral clips automatically.</p>
           </div>
 
           <!-- Real Clips -->
@@ -596,68 +605,160 @@
        
        <div class="relative w-full max-w-7xl bg-surface-dark border border-surface-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300 h-[85vh]">
           <div class="p-6 border-b border-surface-border flex items-center justify-between bg-surface-panel/30">
-             <h3 class="text-xl font-bold text-white flex items-center gap-3">
-                <Icon name="ri:scissors-cut-fill" class="text-accent-500" />
-                All Ready Clips
-                <span class="text-sm font-mono text-slate-500 ml-2">({{ readyClips.length }})</span>
-             </h3>
-             <button @click="showAllReadyClips = false" class="text-slate-400 hover:text-white transition-colors">
-                <Icon name="ri:close-line" class="text-2xl" />
-             </button>
+             <div class="flex items-center gap-3">
+                <h3 class="text-xl font-bold text-white flex items-center gap-3">
+                   <Icon name="ri:scissors-cut-fill" class="text-accent-500" />
+                   All Ready Clips
+                   <span class="text-sm font-mono text-slate-500 ml-2">({{ readyClips.length }})</span>
+                </h3>
+                
+                <!-- Selection Controls -->
+                <div v-if="isManageMode" class="flex items-center gap-2 ml-4 animate-in fade-in slide-in-from-left-2 duration-300">
+                   <button 
+                     @click="selectAllClips"
+                     class="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 bg-accent-500/10 text-accent-500 border border-accent-500/20 rounded-lg hover:bg-accent-500 hover:text-black transition-all"
+                   >
+                     {{ selectedClips.size === readyClips.length ? 'Deselect All' : 'Select All' }}
+                   </button>
+                </div>
+             </div>
+
+             <div class="flex items-center gap-4">
+                <button 
+                  @click="toggleManageMode"
+                  class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all"
+                  :class="isManageMode ? 'bg-accent-500 text-black shadow-[0_0_15px_rgba(207,255,80,0.3)]' : 'bg-surface-dark text-slate-400 border border-surface-border hover:text-white'"
+                >
+                   <Icon :name="isManageMode ? 'ri:check-line' : 'ri:settings-4-line'" />
+                   {{ isManageMode ? 'Done' : 'Manage' }}
+                </button>
+                <button @click="showAllReadyClips = false" class="text-slate-400 hover:text-white transition-colors">
+                   <Icon name="ri:close-line" class="text-2xl" />
+                </button>
+             </div>
           </div>
           
           <div class="flex-1 relative overflow-hidden">
              <!-- Global Loading Overlay -->
-             <div v-if="!readyClips.some(c => loadedClips.has(c.clip_id))" class="absolute inset-0 z-40 bg-surface-dark/60 backdrop-blur-md flex flex-col items-center justify-center">
+             <div v-if="readyClips.length > 0 && !readyClips.some(c => loadedClips.has(c.clip_id))" class="absolute inset-0 z-40 bg-surface-dark/60 backdrop-blur-md flex flex-col items-center justify-center">
                 <div class="w-12 h-12 border-4 border-accent-500/20 border-t-accent-500 rounded-full animate-spin mb-4"></div>
                 <p class="text-accent-500 font-black uppercase tracking-[0.2em] text-[10px] animate-pulse">Initializing Library...</p>
              </div>
 
+             <!-- Empty State -->
+             <div v-else-if="readyClips.length === 0" class="h-full flex flex-col items-center justify-center text-center p-8 animate-in fade-in zoom-in duration-500">
+               <div class="w-20 h-20 bg-surface-panel rounded-full flex items-center justify-center mb-6 border border-surface-border">
+                 <Icon name="ri:inbox-line" class="text-4xl text-slate-600" />
+               </div>
+               <h3 class="text-xl font-bold text-white mb-2">No Ready Clips Found</h3>
+               <p class="text-slate-500 text-sm max-w-xs mb-8">Your library is currently empty. Start generating clips in the editor to populate this space.</p>
+               <button @click="showAllReadyClips = false" class="bg-accent-500 text-black px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-accent-500/20">
+                 Back to Editor
+               </button>
+             </div>
+
              <div class="p-8 h-full overflow-y-auto custom-scrollbar">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                   <div 
-                     v-for="clip in paginatedReadyClips" :key="clip.clip_id"
-                  @click="loadReadyClip(clip)"
-                  class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-xl flex flex-col group hover:border-accent-500/50 hover:shadow-[0_0_30px_rgba(207,255,80,0.05)] transition-all cursor-pointer relative overflow-hidden"
-                >
-                  <div class="aspect-video bg-black overflow-hidden relative">
-                    <!-- Skeleton Loader -->
-                    <div v-if="!loadedClips.has(clip.clip_id)" class="absolute inset-0 bg-surface-dark animate-pulse flex items-center justify-center z-10">
-                       <div class="w-6 h-6 border-2 border-accent-500/20 border-t-accent-500 rounded-full animate-spin"></div>
-                    </div>
-
-                    <video 
-                      :src="`${API_BASE}${clip.asset_url}`"
-                      muted
-                      preload="metadata"
-                      class="w-full h-full object-cover opacity-80 group-hover:opacity-40 transition-opacity duration-500"
-                      :class="{ 'opacity-0': !loadedClips.has(clip.clip_id) }"
-                      @loadedmetadata="loadedClips.add(clip.clip_id)"
-                      @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
-                      @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = 0; }"
-                    ></video>
-                    <div class="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[9px] text-white font-mono font-bold tracking-widest backdrop-blur-md border border-white/10">
-                      {{ formatSec(clip.duration) }}
-                    </div>
-
-                    <!-- Delete Button -->
-                    <button 
-                      @click.stop="deleteReadyClip(clip)"
-                      class="absolute top-1 right-1 w-6 h-6 bg-red-500/80 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-30"
+                    <div 
+                      v-for="clip in paginatedReadyClips" :key="clip.clip_id"
+                      @click="handleClipClick(clip)"
+                      class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-xl flex flex-col group hover:border-accent-500/50 hover:shadow-[0_0_30px_rgba(207,255,80,0.05)] transition-all cursor-pointer relative overflow-hidden"
+                      :class="{ 'ring-2 ring-accent-500 ring-offset-4 ring-offset-[#060608]': isManageMode && selectedClips.has(clip.clip_id) }"
                     >
-                      <Icon name="ri:close-line" class="text-base" />
-                    </button>
-                  </div>
-                  <div class="p-3">
-                    <h4 class="text-white font-bold text-xs line-clamp-1 leading-snug group-hover:text-accent-500 transition-colors">{{ clip.theme || 'Untitled Clip' }}</h4>
-                    <p class="text-[9px] text-slate-500 font-medium mt-1 truncate">{{ clip.title }}</p>
-                  </div>
-                </div>
-             </div>
-          </div>
-       </div>
+                      <!-- Selection Checkbox -->
+                      <div v-if="isManageMode" class="absolute top-2 left-2 z-40">
+                         <div class="w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all" 
+                              :class="selectedClips.has(clip.clip_id) ? 'bg-accent-500 border-accent-500 shadow-[0_0_10px_rgba(207,255,80,0.5)]' : 'bg-black/50 border-white/30 hover:border-white/60'">
+                           <Icon v-if="selectedClips.has(clip.clip_id)" name="ri:check-line" class="text-black text-sm font-bold" />
+                         </div>
+                      </div>
 
-       <!-- Pagination Footer (Fixed to Bottom) -->
+                      <div class="aspect-video bg-black overflow-hidden relative">
+                        <!-- Skeleton Loader -->
+                        <div v-if="!loadedClips.has(clip.clip_id)" class="absolute inset-0 bg-surface-dark animate-pulse flex items-center justify-center z-10">
+                           <div class="w-6 h-6 border-2 border-accent-500/20 border-t-accent-500 rounded-full animate-spin"></div>
+                        </div>
+
+                        <video 
+                          :src="`${API_BASE}${clip.asset_url}`"
+                          muted
+                          preload="metadata"
+                          class="w-full h-full object-cover opacity-80 group-hover:opacity-40 transition-opacity duration-500"
+                          :class="{ 'opacity-0': !loadedClips.has(clip.clip_id), 'opacity-30': isManageMode && selectedClips.has(clip.clip_id) }"
+                          @loadedmetadata="loadedClips.add(clip.clip_id)"
+                          @mouseenter="e => { if (!isManageMode) { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); } }"
+                          @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = 0; }"
+                        ></video>
+                        <div class="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[9px] text-white font-mono font-bold tracking-widest backdrop-blur-md border border-white/10">
+                          {{ formatSec(clip.duration) }}
+                        </div>
+
+                        <!-- Delete Button (Hidden in Manage Mode) -->
+                        <button 
+                          v-if="!isManageMode"
+                          @click.stop="deleteReadyClip(clip)"
+                          class="absolute top-1 right-1 w-6 h-6 bg-red-500/80 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-30"
+                        >
+                          <Icon name="ri:close-line" class="text-base" />
+                        </button>
+                      </div>
+                      <div class="p-3">
+                        <h4 class="text-white font-bold text-xs line-clamp-1 leading-snug group-hover:text-accent-500 transition-colors" :class="{ 'text-accent-500': isManageMode && selectedClips.has(clip.clip_id) }">{{ clip.theme || 'Untitled Clip' }}</h4>
+                        <p class="text-[9px] text-slate-500 font-medium mt-1 truncate">{{ clip.title }}</p>
+                      </div>
+                    </div>
+             </div>
+              </div>
+           </div>
+
+           <!-- Floating Action Bar / Success Bar -->
+           <div 
+             v-if="(isManageMode && selectedClips.size > 0) || showSuccessState"
+             class="absolute bottom-24 inset-x-0 flex justify-center z-50 px-8"
+           >
+             <!-- Success Bar -->
+             <div v-if="showSuccessState" class="bg-emerald-500/90 backdrop-blur-2xl border border-emerald-400/30 rounded-2xl p-4 px-8 flex items-center gap-4 shadow-[0_20px_50px_rgba(16,185,129,0.3)] animate-in slide-in-from-bottom-10 duration-500">
+                <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                  <Icon name="ri:check-double-line" class="text-white text-xl" />
+                </div>
+                <div class="flex flex-col">
+                   <span class="text-white font-black text-sm uppercase tracking-tight">Success!</span>
+                   <span class="text-white/80 text-[10px] font-bold uppercase tracking-widest">{{ lastDeletedCount }} Clips removed forever</span>
+                </div>
+                <button @click="showSuccessState = false" class="ml-4 text-white/50 hover:text-white transition-colors">
+                  <Icon name="ri:close-line" class="text-xl" />
+                </button>
+             </div>
+
+             <!-- Manage Bar -->
+             <div v-else class="bg-surface-panel/80 backdrop-blur-2xl border border-white/10 rounded-2xl p-3 px-6 flex items-center gap-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom-10 duration-500 ring-1 ring-white/5">
+               <div class="flex flex-col">
+                  <span class="text-accent-500 font-black text-xs uppercase tracking-tighter">{{ selectedClips.size }} CLIPS SELECTED</span>
+                  <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Bulk Actions</span>
+               </div>
+               
+               <div class="h-8 w-px bg-white/10 mx-2"></div>
+               
+               <button 
+                 @click="deleteSelectedClips"
+                 :disabled="isBatchDeleting"
+                 class="bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-xl hover:scale-105 active:scale-95"
+               >
+                 <Icon v-if="isBatchDeleting" name="ri:loader-4-line" class="animate-spin" />
+                 <Icon v-else name="ri:delete-bin-line" />
+                 {{ isBatchDeleting ? 'Deleting...' : 'Delete Permanently' }}
+               </button>
+               
+               <button 
+                 @click="selectedClips.clear()"
+                 class="text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+               >
+                 Cancel
+               </button>
+             </div>
+           </div>
+
+           <!-- Pagination Footer (Fixed to Bottom) -->
        <div class="p-4 border-t border-surface-border bg-surface-panel/30 flex items-center justify-between px-8 shrink-0 z-50">
           <div class="text-[10px] font-black uppercase tracking-widest text-slate-500">
              Page {{ clipsCurrentPage }} of {{ totalClipsPages || 1 }}
@@ -701,6 +802,14 @@ const selectedModalHook = ref<any | null>(null)
 const showAllReadyClips = ref(false)
 const loadedClips = ref(new Set<string>())
 
+// Manage Mode
+const isManageMode = ref(false)
+const selectedClips = ref(new Set<string>())
+const isBatchDeleting = ref(false)
+const showSuccessState = ref(false)
+const lastDeletedCount = ref(0)
+let successTimeout: any = null
+
 // Pagination for Ready Clips Modal
 const clipsCurrentPage = ref(1)
 const clipsPageSize = 9
@@ -711,8 +820,73 @@ const paginatedReadyClips = computed(() => {
 const totalClipsPages = computed(() => Math.ceil(readyClips.value.length / clipsPageSize))
 
 watch(showAllReadyClips, (val) => {
-  if (val) clipsCurrentPage.value = 1
+  if (val) {
+    clipsCurrentPage.value = 1
+    isManageMode.value = false
+    selectedClips.value.clear()
+  }
 })
+
+function toggleManageMode() {
+  isManageMode.value = !isManageMode.value
+  if (!isManageMode.value) {
+    selectedClips.value.clear()
+  }
+}
+
+function handleClipClick(clip: any) {
+  if (isManageMode.value) {
+    if (selectedClips.value.has(clip.clip_id)) {
+      selectedClips.value.delete(clip.clip_id)
+    } else {
+      selectedClips.value.add(clip.clip_id)
+    }
+  } else {
+    loadReadyClip(clip)
+  }
+}
+
+function selectAllClips() {
+  if (selectedClips.value.size === readyClips.value.length) {
+    selectedClips.value.clear()
+  } else {
+    readyClips.value.forEach(c => selectedClips.value.add(c.clip_id))
+  }
+}
+
+async function deleteSelectedClips() {
+  if (selectedClips.value.size === 0) return
+  if (!window.confirm(`Are you sure you want to delete ${selectedClips.value.size} clips? This cannot be undone.`)) return
+  
+  const count = selectedClips.value.size
+  isBatchDeleting.value = true
+  try {
+    const clipsToDelete = readyClips.value
+      .filter(c => selectedClips.value.has(c.clip_id))
+      .map(c => ({ folder_name: c.folder_name, clip_id: c.clip_id }))
+    
+    await $fetch(`${API_BASE}/api/ready-clips/delete-batch`, {
+      method: 'POST',
+      body: { clips: clipsToDelete }
+    })
+    
+    lastDeletedCount.value = count
+    showSuccessState.value = true
+    if (successTimeout) clearTimeout(successTimeout)
+    successTimeout = setTimeout(() => {
+      showSuccessState.value = false
+    }, 5000)
+
+    selectedClips.value.clear()
+    isManageMode.value = false
+    await fetchReadyClips()
+  } catch (e: any) {
+    console.error('Failed to delete clips batch', e)
+    alert('Failed to delete some clips. Please try again.')
+  } finally {
+    isBatchDeleting.value = false
+  }
+}
 
 function resetToStart() {
   state.hooks.value = []
