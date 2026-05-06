@@ -2,6 +2,8 @@ import os
 import re
 import subprocess
 import json
+import sys
+import yt_dlp
 
 class YouTubeParser:
     def __init__(self, output_dir="temp_assets"):
@@ -12,23 +14,6 @@ class YouTubeParser:
         os.makedirs(self.source_dir, exist_ok=True)
         os.makedirs(self.clips_dir, exist_ok=True)
         
-        import sys
-        import shutil
-        
-        # 1. Resolve yt-dlp binary safely across OS platforms
-        base_bin = "yt-dlp.exe" if sys.platform.startswith("win") else "yt-dlp"
-        bundled_bin = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), f"bin/{base_bin}"))
-        
-        if os.path.exists(bundled_bin):
-            self.yt_dlp_bin = bundled_bin
-        else:
-            system_bin = shutil.which("yt-dlp")
-            if system_bin:
-                self.yt_dlp_bin = system_bin
-            else:
-                # Provide friendly alert
-                raise RuntimeError("Friendly Alert: yt-dlp binary not found. Please bundle yt-dlp inside backend/bin/ or install it on your system PATH.")
-
         self.cookie_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "cookies.txt"))
         self._env = os.environ.copy()
 
@@ -78,24 +63,22 @@ class YouTubeParser:
 
     def _get_video_info_fast(self, url: str) -> dict:
         """Get video title and ID without downloading."""
-        args = ["--get-title", "--get-id", "--no-playlist", url]
-        out = self._run_yt_dlp(args).strip().split('\n')
-        if len(out) >= 2:
-            return {"title": out[0], "id": out[1]}
-        return {"title": "Unknown", "id": self._extract_video_id(url)}
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'cookiefile': self.cookie_path if os.path.exists(self.cookie_path) else None,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                info = ydl.extract_info(url, download=False)
+                return {
+                    "title": info.get("title", "Unknown"),
+                    "id": info.get("id", self._extract_video_id(url))
+                }
+            except Exception as e:
+                print(f"[youtube] Info Extraction Error: {e}")
+                return {"title": "Unknown", "id": self._extract_video_id(url)}
 
-    def _run_yt_dlp(self, args: list, use_cookies=True):
-        cmd = [self.yt_dlp_bin]
-        if use_cookies and os.path.exists(self.cookie_path):
-            cmd.extend(["--cookies", self.cookie_path])
-        cmd.extend(args)
-        print(f"[youtube] Running: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, env=self._env)
-        if result.returncode != 0:
-            error_msg = result.stderr.strip() or f"yt-dlp failed with code {result.returncode}"
-            print(f"[youtube] Error: {error_msg}")
-            raise RuntimeError(f"YouTube Download Error: {error_msg}")
-        return result.stdout
 
     def _run_ffmpeg(self, args: list):
         cmd = ["ffmpeg"] + args
@@ -363,14 +346,21 @@ class YouTubeParser:
         target_dir = os.path.join(self.source_dir, folder_name)
         os.makedirs(target_dir, exist_ok=True)
         
-        ydl_args = [
-            "-f", "bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=1080]+bestaudio",
-            "--merge-output-format", "mp4",
-            "-o", os.path.join(target_dir, "full.%(ext)s"),
-            "--print-json", "--no-playlist", url
-        ]
+        ydl_opts = {
+            'format': 'bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=1080]+bestaudio',
+            'merge_output_format': 'mp4',
+            'outtmpl': os.path.join(target_dir, "full.%(ext)s"),
+            'cookiefile': self.cookie_path if os.path.exists(self.cookie_path) else None,
+            'quiet': False,
+            'no_playlist': True,
+        }
         
-        self._run_yt_dlp(ydl_args)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                ydl.download([url])
+            except Exception as e:
+                print(f"[youtube] Download Error: {e}")
+                raise RuntimeError(f"YouTube Download Error: {e}")
         file_path = os.path.join(target_dir, "full.mp4")
         w, h = self._get_video_resolution(file_path)
         
