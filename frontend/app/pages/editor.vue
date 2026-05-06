@@ -378,7 +378,7 @@
                 </span>
               </div>
               <p class="font-medium truncate" :class="isActiveHook(hook) ? 'text-white' : 'text-slate-300'">{{ hook.theme || 'Untitled' }}</p>
-              <p class="text-[10px] mt-1 line-clamp-2 italic opacity-70">"{{ hook.transcript_quote }}"</p>
+              <p class="text-[10px] mt-1 line-clamp-2 italic opacity-70">"{{ (hook.transcript_quote || '').length > 80 ? (hook.transcript_quote || '').substring(0, 77) + '...' : (hook.transcript_quote || '') }}"</p>
             </button>
           </div>
 
@@ -410,7 +410,7 @@
                  </span>
               </div>
               <p class="font-medium truncate" :class="isActiveHook(hook) ? 'text-white' : 'text-slate-300'">{{ hook.theme || 'Untitled' }}</p>
-              <p class="text-[10px] mt-1 line-clamp-2 italic opacity-70">"{{ hook.transcript_quote }}"</p>
+              <p class="text-[10px] mt-1 line-clamp-2 italic opacity-70">"{{ (hook.transcript_quote || '').length > 80 ? (hook.transcript_quote || '').substring(0, 77) + '...' : (hook.transcript_quote || '') }}"</p>
             </button>
           </div>
        </div>

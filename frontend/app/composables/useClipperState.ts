@@ -203,7 +203,7 @@ export const useClipperState = () => {
         if (res.clip && res.clip.asset_url) {
           if (res.fps) videoFps.value = res.fps
           const targetUrl = `${API_BASE}${res.clip.asset_url}`
-          if (videoUrl.value !== targetUrl) {
+          if (videoUrl.value !== targetUrl || fullTranscript.value.length === 0) {
             videoUrl.value = targetUrl
             // Set video duration to clip duration
             if (res.clip.duration) {
@@ -221,7 +221,30 @@ export const useClipperState = () => {
                 theme: res.clip.theme || 'Extracted Clip',
                 start: res.clip.start || 0,
                 end: res.clip.end || res.clip.duration || 0,
-                duration: res.clip.duration || 0
+                duration: res.clip.duration || 0,
+                transcript_quote: res.clip.transcript_quote || ''
+              }
+            } else if (res.clip.transcript_quote && !activeHook.value.transcript_quote) {
+              activeHook.value.transcript_quote = res.clip.transcript_quote
+            }
+
+            // Sync hooks list if provided (essential for Ready to Edit hydration)
+            if (res.hooks && res.hooks.length > 0) {
+              // Always update if current hooks is empty, or if length changed, or if content seems missing (e.g. no quotes)
+              const currentHasQuotes = hooks.value.some(h => h.transcript_quote && h.transcript_quote !== 'No transcript preview available.')
+              const newHasQuotes = res.hooks.some((h: any) => h.transcript_quote && h.transcript_quote !== 'No transcript preview available.')
+              
+              if (hooks.value.length === 0 || hooks.value.length !== res.hooks.length || (!currentHasQuotes && newHasQuotes)) {
+                console.log('[polling] Syncing hooks list, count:', res.hooks.length)
+                hooks.value = res.hooks
+              }
+            }
+            
+            // Sync active hook metadata (especially transcript_quote)
+            if (res.clip && activeHook.value) {
+              if (res.clip.transcript_quote && (!activeHook.value.transcript_quote || activeHook.value.transcript_quote === 'No transcript preview available.')) {
+                console.log('[polling] Syncing active hook quote')
+                activeHook.value.transcript_quote = res.clip.transcript_quote
               }
             }
             
@@ -385,10 +408,28 @@ export const useClipperState = () => {
     jobStatus.value = 'queued'
     jobError.value = null
     
+    // Parse synthetic hook from ID (format: start_end_theme)
+    let start_time = 0
+    let end_time = 0
+    let theme = 'Ready Clip'
+    const parts = id.split('_')
+    if (parts.length >= 2) {
+      start_time = parseFloat(parts[0]) || 0
+      end_time = parseFloat(parts[1]) || 0
+      if (parts.length >= 3) {
+        theme = parts.slice(2).join(' ').replace(/_/g, ' ')
+      }
+    }
+
     // Reset state for loading
     isPlaying.value = false
     currentTime.value = 0
-    activeHook.value = null
+    activeHook.value = {
+      theme: theme,
+      start: start_time,
+      end: end_time,
+      duration: end_time - start_time
+    }
     clipId.value = id
     folderName.value = folder
     videoUrl.value = null
@@ -397,7 +438,7 @@ export const useClipperState = () => {
     isMediaLoading.value = true
 
     try {
-      const res = await $fetch<{ job_id: string; status: string }>(`${API_BASE}/api/load-ready-clip`, {
+      const res = await $fetch<any>(`${API_BASE}/api/load-ready-clip`, {
         method: 'POST',
         body: { folder_name: folder, clip_id: id }
       })
@@ -405,13 +446,53 @@ export const useClipperState = () => {
       jobId.value = res.job_id
       jobStatus.value = res.status
       
-      // Since it's marked 'ready' in backend, startPolling will trigger the asset load instantly
-      startPolling()
-    } catch (e: any) {
-      jobStatus.value = 'error'
-      jobError.value = e.message || 'Failed to load ready clip'
-      isMediaLoading.value = false
-    }
+      if (res.hooks) {
+        hooks.value = res.hooks
+      }
+
+      if (res.clip && res.clip.asset_url) {
+        if (res.fps) videoFps.value = res.fps
+        videoUrl.value = `${API_BASE}${res.clip.asset_url}`
+        if (res.clip.duration) {
+          videoDuration.value = res.clip.duration
+        }
+        
+        // Update activeHook with full metadata from backend (including transcript_quote)
+        activeHook.value = {
+          ...activeHook.value,
+          ...res.clip
+        }
+      }
+        
+        // Ensure timeline has the main video track populated
+        if (timelineTracks.value[0]) {
+          timelineTracks.value[0].items = [{
+            id: 'main-video',
+            name: 'Main Video',
+            start: 0,
+            mediaStart: 0,
+            duration: res.clip.duration || videoDuration.value
+          }]
+          console.log('[clipper] Populated default video track for ready clip')
+        }
+
+        // Initialize activeHook if missing
+        if (!activeHook.value) {
+          activeHook.value = {
+            theme: res.clip.theme || 'Ready Clip',
+            start: res.clip.start || 0,
+            end: res.clip.end || res.clip.duration || 0,
+            duration: res.clip.duration || 0
+          }
+        }
+      
+        // Since it's marked 'ready' in backend, startPolling will trigger the asset load instantly (transcript, styles)
+        startPolling()
+      } catch (e: any) {
+        jobStatus.value = 'error'
+        jobError.value = e.message || 'Failed to load ready clip'
+        isMediaLoading.value = false
+      }
   }
 
   async function renderClip(hookIndex = 0, outputName?: string) {

@@ -414,6 +414,14 @@ def run_local_cut(job_id: str, start_time: float, end_time: float, theme: Option
                 with open(transcript_path, "w", encoding="utf-8") as f:
                     json.dump(precise_words, f, ensure_ascii=False, indent=2)
                 print(f"[transcribe] Saved high-precision clip transcript ({len(precise_words)} words)")
+                
+                # Update in-memory job object so polling picks it up immediately
+                if "clip" in jobs[job_id] and jobs[job_id]["clip"]:
+                    # Use full transcript for the quote field (frontend will truncate for cards)
+                    c_quote = " ".join([s.get("text", "") for s in precise_words]).strip()
+                    if len(c_quote) > 1000: c_quote = c_quote[:997] + "..."
+                    jobs[job_id]["clip"]["transcript_quote"] = c_quote
+                    print(f"[transcribe] Updated in-memory clip quote for job {job_id}")
         except Exception as e:
             print(f"[transcribe] Whisper failed for clip, falling back to global: {e}")
 
@@ -660,7 +668,8 @@ async def get_job(job_id: str):
             "duration": job["clip"].get("duration"),
             "start": job["clip"].get("start"),
             "end": job["clip"].get("end"),
-            "theme": job["clip"].get("theme")
+            "theme": job["clip"].get("theme"),
+            "transcript_quote": job["clip"].get("transcript_quote", "")
         }
         
         # Load clip-specific transcript if it exists
@@ -1443,6 +1452,33 @@ async def load_ready_clip(req: LoadReadyClipRequest):
     job_id = str(uuid.uuid4())[:8]
     duration = parser._get_video_duration(clip_path)
     
+    # 5. Load generated hooks from sources folder
+    ready_hooks = []
+    source_hooks_path = os.path.join("temp_assets", "sources", req.folder_name, "hooks.json")
+    if os.path.exists(source_hooks_path):
+        try:
+            with open(source_hooks_path, "r", encoding="utf-8") as f:
+                ready_hooks = json.load(f)
+                print(f"[debug] Loaded {len(ready_hooks)} hooks from sources/{req.folder_name}/hooks.json")
+        except Exception as e:
+            print(f"[debug] Failed to read source hooks: {e}")
+
+    # 6. Extract transcript quote for the CURRENT active clip so the editor is populated
+    active_quote = "No transcript preview available."
+    active_transcript_path = os.path.join(os.path.dirname(clip_path), "transcript.json")
+    if os.path.exists(active_transcript_path):
+        try:
+            with open(active_transcript_path, "r", encoding="utf-8") as f:
+                t_data = json.load(f)
+                if isinstance(t_data, list) and len(t_data) > 0:
+                    active_quote = " ".join([s.get("text", "") for s in t_data]).strip()
+                    if len(active_quote) > 1000: active_quote = active_quote[:997] + "..."
+        except Exception as e:
+            print(f"[debug] Failed to read active transcript: {e}")
+    
+    # Sort hooks so the current one is likely found correctly by index
+    ready_hooks.sort(key=lambda x: x["start"])
+
     jobs[job_id] = {
         "status": "ready",
         "url": f"https://youtube.com/watch?v={video_info['video_id']}",
@@ -1456,13 +1492,20 @@ async def load_ready_clip(req: LoadReadyClipRequest):
             "file_path": clip_path,
             "start": start_time,
             "end": end_time,
-            "theme": theme
+            "theme": theme,
+            "transcript_quote": active_quote
         },
-        "hooks": None,
+        "hooks": ready_hooks,
         "fps": video_info.get("fps", 30.0),
         "error": None
     }
     
     save_jobs()
     print(f"[api] Loaded ready clip {req.clip_id} into job {job_id}")
-    return {"job_id": job_id, "status": "ready"}
+    return {
+        "job_id": job_id, 
+        "status": "ready",
+        "clip": jobs[job_id]["clip"],
+        "hooks": jobs[job_id]["hooks"],
+        "fps": jobs[job_id]["fps"]
+    }

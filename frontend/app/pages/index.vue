@@ -451,7 +451,7 @@
                 </div>
                 
                 <h4 class="text-white font-bold mb-2 text-lg pr-2 leading-tight">{{ hook.theme || 'Untitled Hook' }}</h4>
-                <p class="text-slate-400 text-sm line-clamp-2 italic leading-relaxed flex-1">"{{ hook.transcript_quote }}"</p>
+                <p class="text-slate-400 text-sm line-clamp-2 italic leading-relaxed flex-1">"{{ (hook.transcript_quote || '').length > 120 ? (hook.transcript_quote || '').substring(0, 117) + '...' : (hook.transcript_quote || '') }}"</p>
                 
                 <div class="mt-4 pt-4 border-t border-surface-border/50 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-accent-500 transition-colors">
                    <span>Preview Segment</span>
@@ -507,7 +507,7 @@
                 </div>
                 
                 <h4 class="text-white font-bold mb-2 text-lg pr-2 leading-tight">{{ hook.theme || 'Untitled Hook' }}</h4>
-                <p class="text-slate-400 text-sm line-clamp-2 italic leading-relaxed flex-1">"{{ hook.transcript_quote }}"</p>
+                <p class="text-slate-400 text-sm line-clamp-2 italic leading-relaxed flex-1">"{{ (hook.transcript_quote || '').length > 120 ? (hook.transcript_quote || '').substring(0, 117) + '...' : (hook.transcript_quote || '') }}"</p>
                 
                 <div class="mt-4 pt-4 border-t border-surface-border/50 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-amber-500/50 group-hover:text-amber-400 transition-colors">
                    <span>Preview Segment</span>
@@ -580,7 +580,7 @@
 
                    <div class="bg-black/30 p-5 rounded-xl border border-surface-border relative group overflow-y-auto max-h-[250px] custom-scrollbar">
                       <Icon name="ri:quote-text" class="absolute -top-2 -right-2 text-6xl text-surface-border opacity-30 group-hover:text-accent-500/10 transition-colors" />
-                      <p class="text-slate-300 text-sm italic leading-relaxed relative z-10">"{{ selectedModalHook.transcript_quote }}"</p>
+                      <p class="text-slate-300 text-sm italic leading-relaxed relative z-10">"{{ (selectedModalHook.transcript_quote || '').length > 300 ? (selectedModalHook.transcript_quote || '').substring(0, 297) + '...' : (selectedModalHook.transcript_quote || '') }}"</p>
                    </div>
                 </div>
 
