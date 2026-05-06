@@ -350,7 +350,7 @@
             </div>
           </div>
 
-          <div v-if="panelTab === 'generated'" class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
+          <div v-if="panelTab === 'generated'" ref="hooksContainer" class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
             <div v-if="!state.hooks.value.length" class="text-center text-slate-600 text-xs p-6">
               No hooks generated yet.
             </div>
@@ -362,7 +362,7 @@
               class="w-full text-left p-3 rounded-lg border transition-all text-xs group relative overflow-hidden"
               :class="[
                 isActiveHook(hook)
-                  ? 'bg-amber-500/10 border-amber-500/50 text-amber-200 shadow-[inset_0_0_10px_rgba(245,158,11,0.05)]' 
+                  ? 'bg-amber-500/10 border-amber-500/50 text-amber-200 shadow-[inset_0_0_10px_rgba(245,158,11,0.05)] hook-item-active' 
                   : 'bg-surface-dark/50 border-surface-border hover:border-amber-500/30 hover:bg-surface-card text-slate-400',
                 isPipelineActive ? 'opacity-50 cursor-not-allowed' : ''
               ]"
@@ -628,20 +628,28 @@ const bulkHighlightHTML = computed(() => {
 
 function isActiveHook(hook: any) {
   if (!state?.activeHook?.value) return false
-  return Math.abs(state?.activeHook?.value?.start - hook.start) < 0.1 && 
-         Math.abs(state?.activeHook?.value?.end - hook.end) < 0.1
+  const active = state.activeHook.value
+  const hStart = typeof hook.start === 'string' ? parseFloat(hook.start) : hook.start
+  const hEnd = typeof hook.end === 'string' ? parseFloat(hook.end) : hook.end
+  const aStart = typeof active.start === 'string' ? parseFloat(active.start) : active.start
+  const aEnd = typeof active.end === 'string' ? parseFloat(active.end) : active.end
+  
+  return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
 }
 
-const isCurrentHookSaved = computed(() => {
-  if (!state?.activeHook?.value) return false
-  return state?.savedHooks?.value?.some(h => 
-    Math.abs(h.start - state?.activeHook?.value?.start) < 0.1 && 
-    Math.abs(h.end - state?.activeHook?.value?.end) < 0.1
-  )
-})
+const hooksContainer = ref<HTMLElement | null>(null)
 
-// Merged into top watcher
-
+watch([() => state.activeHook.value, () => state.hooks.value], async ([active, hooks]) => {
+  if (!active || !hooks?.length) return
+  
+  await nextTick()
+  setTimeout(() => {
+    const activeEl = document.querySelector('.hook-item-active')
+    if (activeEl && hooksContainer.value) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, 100)
+}, { immediate: true })
 
 function jumpTo(time: number) {
   const video = document.querySelector('video')

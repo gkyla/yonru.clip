@@ -1479,6 +1479,16 @@ async def load_ready_clip(req: LoadReadyClipRequest):
     # Sort hooks so the current one is likely found correctly by index
     ready_hooks.sort(key=lambda x: x["start"])
 
+    # 7. Snap the active clip's start/end to the closest hook in the list 
+    # to ensure the frontend highlight logic (matching by timestamp) works perfectly.
+    snapped_start, snapped_end = start_time, end_time
+    for h in ready_hooks:
+        if abs(h.get("start", 0) - start_time) < 0.5 and abs(h.get("end", 0) - end_time) < 0.5:
+            snapped_start = h.get("start", 0)
+            snapped_end = h.get("end", 0)
+            print(f"[debug] Snapped active clip to matching hook: {snapped_start} - {snapped_end}")
+            break
+
     jobs[job_id] = {
         "status": "ready",
         "url": f"https://youtube.com/watch?v={video_info['video_id']}",
@@ -1490,8 +1500,8 @@ async def load_ready_clip(req: LoadReadyClipRequest):
             "asset_url": f"/assets/clips/{req.folder_name}/{req.clip_id}/video.mp4",
             "duration": duration,
             "file_path": clip_path,
-            "start": start_time,
-            "end": end_time,
+            "start": snapped_start,
+            "end": snapped_end,
             "theme": theme,
             "transcript_quote": active_quote
         },
