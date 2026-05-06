@@ -35,6 +35,7 @@
         <button 
           @click="isCollapsed = !isCollapsed"
           class="w-6 h-6 bg-surface-card border border-surface-border rounded-full flex items-center justify-center text-slate-400 hover:text-accent-500 hover:border-accent-500/50 shadow-md transition-colors"
+          :title="isCollapsed ? 'Expand Sidebar (Cmd+B)' : 'Collapse Sidebar (Cmd+B)'"
         >
           <Icon :name="isCollapsed ? 'ri:arrow-right-s-line' : 'ri:arrow-left-s-line'" />
         </button>
@@ -243,6 +244,13 @@ function stopDrag() {
   }
 }
 
+function handleKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+    e.preventDefault()
+    isCollapsed.value = !isCollapsed.value
+  }
+}
+
 onMounted(() => {
   const savedWidth = localStorage.getItem('yonru_sidebar_width')
   if (savedWidth) {
@@ -250,11 +258,13 @@ onMounted(() => {
   }
   window.addEventListener('mousemove', onDrag)
   window.addEventListener('mouseup', stopDrag)
+  window.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
   window.removeEventListener('mousemove', onDrag)
   window.removeEventListener('mouseup', stopDrag)
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
