@@ -1,84 +1,188 @@
 <template>
-  <aside 
-    class="bg-surface-dark border-r border-surface-border flex flex-col h-full shrink-0 relative transition-all duration-300 ease-in-out"
-    :style="{ width: isCollapsed ? '64px' : `${sidebarWidth}px` }"
+  <!-- Backdrop Overlay (Only in floating mode) -->
+  <Transition
+    v-if="isFloating"
+    enter-active-class="transition duration-300 ease-out"
+    enter-from-class="opacity-0"
+    enter-to-class="opacity-100"
+    leave-active-class="transition duration-200 ease-in"
+    leave-from-class="opacity-100"
+    leave-to-class="opacity-0"
   >
-    <!-- Toggle Button -->
-    <div class="absolute -right-3 top-6 z-10">
-      <button 
-        @click="isCollapsed = !isCollapsed"
-        class="w-6 h-6 bg-surface-card border border-surface-border rounded-full flex items-center justify-center text-slate-400 hover:text-accent-500 hover:border-accent-500/50 shadow-md transition-colors"
-      >
-        <Icon :name="isCollapsed ? 'ri:arrow-right-s-line' : 'ri:arrow-left-s-line'" />
-      </button>
-    </div>
-
-    <!-- Resizer Handle -->
     <div 
-      v-if="!isCollapsed"
-      class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent-500/50 transition-colors z-10 group"
-      @mousedown="startDrag"
+      v-if="!isCollapsed" 
+      @click="isCollapsed = true"
+      class="fixed inset-0 bg-black/60 backdrop-blur-[2px] z-[55]"
+    ></div>
+  </Transition>
+
+  <!-- Container with dynamic footprint -->
+  <div 
+    class="h-full shrink-0 transition-all duration-300 ease-in-out"
+    :class="isFloating ? 'w-[64px] relative z-[60]' : 'relative border-r border-surface-border z-30'"
+    :style="{ width: isFloating ? '64px' : (isCollapsed ? '64px' : `${sidebarWidth}px`) }"
+  >
+    <aside 
+      class="bg-surface-dark flex flex-col h-full transition-all duration-300 ease-in-out overflow-visible"
+      :class="[
+        isFloating ? 'absolute top-0 left-0 shadow-2xl border-r border-surface-border' : 'relative w-full h-full',
+        !isCollapsed && isFloating ? 'backdrop-blur-xl bg-surface-dark/95' : ''
+      ]"
+      :style="{ width: isCollapsed ? '64px' : `${sidebarWidth}px` }"
     >
-      <div class="absolute inset-y-0 -left-1 -right-1"></div>
-    </div>
-
-    <!-- Sidebar Content -->
-    <div class="flex flex-col h-full overflow-hidden w-full">
-      
-      <!-- Header -->
-      <div class="h-14 border-b border-surface-border flex items-center px-4 gap-3 shrink-0">
-        <NuxtLink to="/" class="w-7 h-7 bg-accent-500 flex items-center justify-center text-black font-black text-lg shadow-[0_0_15px_rgba(207,255,80,0.3)] hover:scale-105 transition-transform cursor-pointer shrink-0">Y</NuxtLink>
-        <div v-if="!isCollapsed" class="overflow-hidden">
-          <h1 class="font-bold text-white tracking-widest text-[11px] leading-tight flex items-center gap-2 whitespace-nowrap">YONRU <span class="bg-surface-border text-[7px] px-1.5 py-0.5 rounded text-slate-400 normal-case">INTERNAL</span></h1>
-          <p class="text-[9px] text-accent-500 mono whitespace-nowrap">AI SHORT ENGINE</p>
-        </div>
+      <!-- Toggle Button -->
+      <div class="absolute -right-3 top-[72px] z-[9999]">
+        <button 
+          @click="isCollapsed = !isCollapsed"
+          class="w-6 h-6 bg-surface-card border border-surface-border rounded-full flex items-center justify-center text-slate-400 hover:text-accent-500 hover:border-accent-500/50 shadow-md transition-colors"
+        >
+          <Icon :name="isCollapsed ? 'ri:arrow-right-s-line' : 'ri:arrow-left-s-line'" />
+        </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col p-3 gap-6">
+      <!-- Resizer Handle -->
+      <div 
+        v-if="!isCollapsed"
+        class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent-500/50 transition-colors z-40 group"
+        @mousedown="startDrag"
+      >
+        <div class="absolute inset-y-0 -left-1 -right-1"></div>
+      </div>
+
+      <!-- Sidebar Content -->
+      <div class="flex flex-col h-full overflow-hidden w-full">
         
-        <!-- Navigation -->
-        <div class="flex flex-col gap-1">
-          <button 
-            @click="$emit('update:activeView', 'home')"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
-            :class="activeView === 'home' ? 'bg-accent-500/10 text-accent-500 font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-panel'"
-            :title="isCollapsed ? 'Home' : ''"
-          >
-            <Icon name="ri:home-smile-fill" class="text-xl shrink-0" />
-            <span v-if="!isCollapsed" class="whitespace-nowrap">Home</span>
-          </button>
-          <button 
-            @click="$emit('update:activeView', 'settings')"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
-            :class="activeView === 'settings' ? 'bg-accent-500/10 text-accent-500 font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-panel'"
-            :title="isCollapsed ? 'Settings' : ''"
-          >
-            <Icon name="ri:settings-4-fill" class="text-xl shrink-0" />
-            <span v-if="!isCollapsed" class="whitespace-nowrap">Settings</span>
-          </button>
-          <button 
-            @click="$emit('update:activeView', 'prompts')"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
-            :class="activeView === 'prompts' ? 'bg-accent-500/10 text-accent-500 font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-panel'"
-            :title="isCollapsed ? 'Prompts' : ''"
-          >
-            <Icon name="ri:chat-quote-fill" class="text-xl shrink-0" />
-            <span v-if="!isCollapsed" class="whitespace-nowrap">Prompts</span>
-          </button>
-          <button 
-            @click="$emit('update:activeView', 'docs')"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
-            :class="activeView === 'docs' ? 'bg-accent-500/10 text-accent-500 font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-panel'"
-            :title="isCollapsed ? 'Documentation' : ''"
-          >
-            <Icon name="ri:book-read-fill" class="text-xl shrink-0" />
-            <span v-if="!isCollapsed" class="whitespace-nowrap">Documentation</span>
-          </button>
+        <!-- Header -->
+        <div class="h-14 border-b border-surface-border flex items-center px-4 gap-3 shrink-0">
+          <NuxtLink to="/" class="w-7 h-7 bg-accent-500 flex items-center justify-center text-black font-black text-lg shadow-[0_0_15px_rgba(207,255,80,0.3)] hover:scale-105 transition-transform cursor-pointer shrink-0">Y</NuxtLink>
+          <div v-if="!isCollapsed" class="overflow-hidden">
+            <h1 class="font-bold text-white tracking-widest text-[11px] leading-tight flex items-center gap-2 whitespace-nowrap">YONRU <span class="bg-surface-border text-[7px] px-1.5 py-0.5 rounded text-slate-400 normal-case">INTERNAL</span></h1>
+            <p class="text-[9px] text-accent-500 mono whitespace-nowrap">AI SHORT ENGINE</p>
+          </div>
         </div>
 
+        <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col p-3 gap-6">
+          
+          <!-- Navigation -->
+          <div class="flex flex-col gap-1">
+            <button 
+              @click="handleNav('home')"
+              class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
+              :class="activeView === 'home' ? 'bg-accent-500/10 text-accent-500 font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-panel'"
+              :title="isCollapsed ? 'Home' : ''"
+            >
+              <Icon name="ri:home-smile-fill" class="text-xl shrink-0" />
+              <span v-if="!isCollapsed" class="whitespace-nowrap">Home</span>
+            </button>
+
+            <!-- Editor (Dynamic) -->
+            <button 
+              v-if="activeView === 'editor'"
+              @click="handleNav('editor')"
+              class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all bg-accent-500/10 text-accent-500 font-bold"
+              :title="isCollapsed ? 'Editor' : ''"
+            >
+              <Icon name="ri:scissors-cut-fill" class="text-xl shrink-0" />
+              <span v-if="!isCollapsed" class="whitespace-nowrap">Editor</span>
+            </button>
+            <button 
+              @click="handleNav('settings')"
+              class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
+              :class="activeView === 'settings' ? 'bg-accent-500/10 text-accent-500 font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-panel'"
+              :title="isCollapsed ? 'Settings' : ''"
+            >
+              <Icon name="ri:settings-4-fill" class="text-xl shrink-0" />
+              <span v-if="!isCollapsed" class="whitespace-nowrap">Settings</span>
+            </button>
+            <button 
+              @click="handleNav('prompts')"
+              class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
+              :class="activeView === 'prompts' ? 'bg-accent-500/10 text-accent-500 font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-panel'"
+              :title="isCollapsed ? 'Prompts' : ''"
+            >
+              <Icon name="ri:chat-quote-fill" class="text-xl shrink-0" />
+              <span v-if="!isCollapsed" class="whitespace-nowrap">Prompts</span>
+            </button>
+            <button 
+              @click="handleNav('docs')"
+              class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
+              :class="activeView === 'docs' ? 'bg-accent-500/10 text-accent-500 font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-panel'"
+              :title="isCollapsed ? 'Documentation' : ''"
+            >
+              <Icon name="ri:book-read-fill" class="text-xl shrink-0" />
+              <span v-if="!isCollapsed" class="whitespace-nowrap">Documentation</span>
+            </button>
+
+            <!-- Separator -->
+            <div class="my-2 border-t border-surface-border/50 mx-2"></div>
+
+            <!-- Quick Return (Shortcut) -->
+            <button 
+              v-if="lastVideo && !isProcessing"
+              @click="handleNav('home')"
+              class="flex items-center gap-3 px-2 py-2 rounded-lg transition-all group hover:bg-surface-panel"
+              :title="isCollapsed ? `Return to: ${lastVideo.title}` : ''"
+            >
+              <div class="w-8 h-8 rounded bg-surface-dark overflow-hidden shrink-0 border border-white/5 group-hover:border-accent-500/30">
+                 <img v-if="lastVideo.thumbnail" :src="`${API_BASE}/api/proxy-image?url=${encodeURIComponent(lastVideo.thumbnail)}`" class="w-full h-full object-cover" />
+                 <div v-else class="w-full h-full flex items-center justify-center bg-accent-500/10 text-accent-500 text-xs">
+                   <Icon name="ri:movie-2-line" />
+                 </div>
+              </div>
+              <div v-if="!isCollapsed" class="overflow-hidden text-left">
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-tighter leading-none mb-1">Quick Return</p>
+                <p class="text-[11px] text-slate-200 font-medium truncate">{{ lastVideo.title || 'Untitled Video' }}</p>
+              </div>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Footer / Status Dashboard -->
+        <div class="mt-auto border-t border-surface-border">
+          <!-- Expanded Status -->
+          <div v-if="!isCollapsed" class="p-4 flex flex-col gap-4">
+            
+            <!-- Active Task -->
+            <div v-if="isProcessing" class="bg-surface-panel/50 rounded-xl p-3 border border-amber-500/20 animate-pulse-subtle">
+              <div class="flex items-center gap-2 mb-2">
+                <div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                <span class="text-[10px] font-bold text-amber-500 tracking-tighter uppercase">Active Job</span>
+              </div>
+              <p class="text-[11px] text-white font-medium line-clamp-1 mb-1">{{ processingTitle }}</p>
+              <p class="text-[9px] text-slate-400 uppercase tracking-widest">{{ processingStatus }}</p>
+            </div>
+
+            <!-- Storage Summary -->
+            <div class="flex items-center justify-between px-1">
+              <div class="flex items-center gap-2 text-slate-500">
+                <Icon name="ri:database-2-line" class="text-xs" />
+                <span class="text-[9px] uppercase font-bold tracking-widest">{{ cachedVideos.length }} SOURCES</span>
+              </div>
+              <span class="text-[9px] text-slate-600 font-mono">V.0.4.2</span>
+            </div>
+          </div>
+
+          <!-- Collapsed Status -->
+          <div v-else class="flex flex-col items-center py-4 gap-4">
+            <div 
+              class="w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group"
+              :class="isProcessing ? 'bg-amber-500/10 text-amber-500' : 'bg-surface-panel/50 text-slate-500'"
+              @click="isCollapsed = false"
+            >
+              <Icon :name="isProcessing ? 'ri:loader-4-line' : 'ri:database-2-line'" :class="{ 'animate-spin': isProcessing }" class="text-xl" />
+              <div v-if="isProcessing" class="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-surface-dark animate-pulse"></div>
+              
+              <!-- Tooltip -->
+              <div class="absolute left-full ml-3 px-3 py-1.5 bg-surface-card border border-surface-border rounded-md text-[10px] text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                {{ isProcessing ? `Processing: ${processingTitle}` : `${cachedVideos.length} Sources` }}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  </aside>
+    </aside>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -88,7 +192,12 @@ const props = defineProps<{
   activeView: string
   cachedVideos: any[]
   isProcessing: boolean
+  processingTitle?: string
+  processingStatus?: string
+  lastVideo?: any
   API_BASE: string
+  defaultCollapsed?: boolean
+  isFloating?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -98,16 +207,17 @@ const emit = defineEmits<{
   (e: 'delete', vid: any): void
 }>()
 
-const isCollapsed = ref(false)
+const isCollapsed = ref(props.defaultCollapsed ?? false)
 const sidebarWidth = ref(320)
 const minWidth = 280
 const maxWidth = 600
 let isDragging = false
 
-function formatSec(sec: number) {
-  const m = Math.floor(sec / 60)
-  const s = Math.floor(sec % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
+function handleNav(view: string) {
+  emit('update:activeView', view)
+  if (props.isFloating) {
+    isCollapsed.value = true
+  }
 }
 
 function startDrag(e: MouseEvent) {
@@ -129,10 +239,15 @@ function stopDrag() {
     isDragging = false
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
+    localStorage.setItem('yonru_sidebar_width', sidebarWidth.value.toString())
   }
 }
 
 onMounted(() => {
+  const savedWidth = localStorage.getItem('yonru_sidebar_width')
+  if (savedWidth) {
+    sidebarWidth.value = parseInt(savedWidth)
+  }
   window.addEventListener('mousemove', onDrag)
   window.addEventListener('mouseup', stopDrag)
 })
@@ -153,5 +268,14 @@ onUnmounted(() => {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.05);
   border-radius: 0;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 </style>

@@ -1,9 +1,24 @@
 <template>
-  <div v-if="state" class="flex-1 flex flex-col overflow-hidden relative">
-    <TheTopbar />
-    <div class="flex-1 flex overflow-hidden">
-       <!-- Settings Sidebar -->
-       <SidebarSettings />
+  <div v-if="state" class="flex h-screen w-full bg-[#060608] overflow-hidden">
+    <!-- Navigation Sidebar -->
+    <HomeSidebar 
+      v-model:activeView="sidebarView"
+      :cached-videos="state.cachedVideos.value"
+      :is-processing="isProcessing"
+      :processing-title="state.videoTitle.value"
+      :processing-status="loadingLabel"
+      :last-video="state.lastAccessedVideo.value"
+      :API_BASE="state.API_BASE"
+      :default-collapsed="true"
+      :is-floating="true"
+      @update:activeView="handleSidebarNav"
+    />
+
+    <div class="flex-1 flex flex-col overflow-hidden relative">
+      <TheTopbar />
+      <div class="flex-1 flex overflow-hidden">
+         <!-- Settings Sidebar -->
+         <SidebarSettings />
        
        <!-- Content / Preview Area -->
     <div class="flex-1 flex flex-col items-center bg-surface-dark relative">
@@ -421,6 +436,7 @@
        <TimelineEditor />
     </div>
 
+    </div>
   </div>
 </template>
 
@@ -429,7 +445,44 @@ import { ref, computed, watch, onMounted } from 'vue'
 const state = useClipperState()
 const route = useRoute()
 
-onMounted(() => {
+// Sidebar View for Editor page
+const sidebarView = ref('editor')
+
+function handleSidebarNav(view: string) {
+  if (view !== 'editor') {
+    navigateTo('/')
+    // We could pass a state here to tell index.vue which view to show
+  }
+}
+
+const isProcessing = computed(() => {
+  return ['queued', 'checking_transcript', 'downloading_video', 'downloading_ai_models', 'transcribing', 'generating_hooks', 'cutting', 'extracting_video'].includes(state.jobStatus.value)
+})
+
+const loadingLabel = computed(() => {
+  const map: Record<string, string> = {
+    queued: 'STARTING PIPELINE...',
+    checking_transcript: 'VERIFYING TRANSCRIPT ACCESSIBILITY...',
+    downloading_video: 'DOWNLOADING 1080p VIDEO...',
+    downloading_ai_models: 'FETCHING AI MODELS (FIRST RUN)...',
+    transcribing: `TRANSCRIBING WITH WHISPER (${state.whisperModel.value.toUpperCase()})...`,
+    generating_hooks: 'GEMINI AI ANALYZING...',
+    cutting: 'CUTTING SEGMENT...',
+    extracting_video: 'EXTRACTING VIDEO FRAME...',
+  }
+  return map[state.jobStatus.value] || 'PROCESSING...'
+})
+
+onMounted(async () => {
+  // Ensure library data is loaded for the sidebar dashboard
+  state.fetchCached()
+  state.fetchSavedHooks()
+  
+  if (process.client) {
+    const saved = localStorage.getItem('yonru_last_video')
+    if (saved) state.lastAccessedVideoId.value = saved
+  }
+
   // Restore state from URL if refreshing
   const jobId = route.query.job_id as string
   const folder = route.query.folder as string
@@ -441,11 +494,12 @@ onMounted(() => {
     state.folderName.value = folder
     
     // We need to wait for hooks to load before we can select the active one
-    stop = watch([() => state?.jobStatus?.value, () => state?.hooks?.value, () => state?.savedHooks?.value], () => {
+    let stopWatcher: any = null
+    stopWatcher = watch([() => state?.jobStatus?.value, () => state?.hooks?.value, () => state?.savedHooks?.value], () => {
       const status = state?.jobStatus?.value || 'idle'
       const hooksAvailable = (state?.hooks?.value?.length || 0) > 0 || (state?.savedHooks?.value?.length || 0) > 0
       
-      if ((status === 'ready' || status === 'hooks_ready') && hooksAvailable) {
+      if (status === 'ready' || (status === 'hooks_ready' && hooksAvailable)) {
         const hooksList = tab === 'saved' ? state?.savedHooks?.value : state?.hooks?.value
         if (hooksList && hooksList[hookIndex]) {
           console.log('[editor] Restoring hook from index:', hookIndex)
@@ -454,8 +508,8 @@ onMounted(() => {
           if (status !== 'ready') {
             state?.extractClip?.(hooksList[hookIndex])
           }
-          if (stop) stop()
         }
+        if (stopWatcher) stopWatcher()
       }
     }, { immediate: true })
 

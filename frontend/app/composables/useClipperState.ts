@@ -97,6 +97,39 @@ export const useClipperState = () => {
   const renderStage = useState<string>('renderStage', () => '')
   const renderEta = useState<number>('renderEta', () => 0)
   const outputUrl = useState<string | null>('outputUrl', () => null)
+  
+  // Cache / Library
+  const cachedVideos = useState<any[]>('cachedVideos', () => [])
+  const isCachedLoading = useState<boolean>('isCachedLoading', () => false)
+  const lastAccessedVideoId = useState<string | null>('lastAccessedVideoId', () => null)
+  const lastAccessedClip = useState<{folder: string, clip_id: string} | null>('lastAccessedClip', () => null)
+
+  const lastAccessedVideo = computed(() => {
+    if (!lastAccessedVideoId.value) return null
+    return cachedVideos.value.find(v => v.video_id === lastAccessedVideoId.value)
+  })
+
+  async function fetchCached() {
+    isCachedLoading.value = true
+    try {
+      const res = await $fetch<{ videos: any[] }>(`${API_BASE}/api/cached`)
+      cachedVideos.value = res.videos || []
+    } catch { 
+      cachedVideos.value = [] 
+    } finally {
+      isCachedLoading.value = false
+    }
+  }
+
+  function setLastAccessed(vidId: string) {
+    lastAccessedVideoId.value = vidId
+    if (process.client) localStorage.setItem('yonru_last_video', vidId)
+  }
+
+  function setLastClip(folder: string, clipId: string) {
+    lastAccessedClip.value = { folder, clip_id: clipId }
+    if (process.client) localStorage.setItem('yonru_last_clip', JSON.stringify({ folder, clip_id: clipId }))
+  }
 
   // Timeline state
   const timelineTracks = useState<any[]>('timelineTracks', () => [
@@ -999,6 +1032,7 @@ export const useClipperState = () => {
     subtitleBackground, subtitleBackgroundOpacity, subtitlePreset, volume,
     isPlaying, currentTime,
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
+    cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip,
     timelineTracks, timelineDuration, selectedTimelineItem,
     // Thumbnail
     thumbnailEnabled, thumbnailUrl, thumbnailDuration, thumbnailScreenshotTime,
@@ -1007,6 +1041,7 @@ export const useClipperState = () => {
     analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling,
     formatDuration, fetchPrompts, editPrompt, fetchSavedHooks, saveHook, deleteSavedHook,
     saveTranscript, saveStyleSettings, saveDefaultStyleSettings, updateHooks,
+    fetchCached, setLastAccessed, setLastClip,
     saveTimelineTracks,
     addTimelineItem, deleteTimelineItem, updateTimelineItem,
     captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig,

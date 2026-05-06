@@ -2,8 +2,19 @@
   <div class="flex h-screen w-full bg-[#060608] overflow-hidden">
     <!-- Resizable Sidebar -->
     <HomeSidebar 
-      v-model:activeView="activeView"
-      class="z-20 relative"
+      :active-view="activeView"
+      :cached-videos="cachedVideos"
+      :is-processing="isProcessing"
+      :processing-title="state.videoTitle.value"
+      :processing-status="loadingLabel"
+      :last-video="lastAccessedVideo"
+      :API_BASE="API_BASE"
+      :default-collapsed="false"
+      :is-floating="false"
+      @analyze="analyzeCached"
+      @redownload="confirmRedownload"
+      @delete="confirmDelete"
+      @update:activeView="handleViewUpdate"
     />
 
     <!-- Main Content Area -->
@@ -19,7 +30,7 @@
       </div>
 
       <!-- Home View -->
-      <div v-if="activeView === 'home'" class="w-full max-w-7xl z-10 flex flex-col">
+      <div v-if="activeView === 'home'" class="w-full max-w-5xl z-10 flex flex-col">
         <!-- Header Input Area -->
         <div class="text-center mt-12 mb-10">
           <h2 class="text-4xl font-bold tracking-tight text-white mb-4">Paste URL. Extract Hooks.</h2>
@@ -792,8 +803,7 @@ const API_BASE = 'http://localhost:8000'
 // UI States
 const activeView = ref('home')
 const viewMode = ref<'grid' | 'list'>('grid')
-const cachedVideos = ref<any[]>([])
-const isCachedLoading = ref(false)
+const { cachedVideos, isCachedLoading, lastAccessedVideo, lastAccessedVideoId, setLastAccessed } = state
 const readyClips = ref<any[]>([])
 const isReadyClipsLoading = ref(false)
 const activeTab = ref<'generated' | 'saved'>('generated')
@@ -801,6 +811,41 @@ const hoveredHookIndex = ref<number | null>(null)
 const selectedModalHook = ref<any | null>(null)
 const showAllReadyClips = ref(false)
 const loadedClips = ref(new Set<string>())
+
+function handleViewUpdate(view: string) {
+  if (view === 'editor') {
+    if (state.lastAccessedClip.value) {
+      navigateTo({
+        path: '/editor',
+        query: { job_id: state.jobId.value || '' }
+      })
+    } else {
+      state.showToast('Select a clip first!', 'info')
+    }
+  } else {
+    activeView.value = view
+  }
+}
+
+onMounted(async () => {
+  await state.fetchPrompts()
+  await state.fetchSavedHooks()
+  await state.fetchCached()
+  await fetchReadyClips()
+  state.initPersistence()
+  
+  if (process.client) {
+    const savedVid = localStorage.getItem('yonru_last_video')
+    if (savedVid) state.lastAccessedVideoId.value = savedVid
+    
+    const savedClip = localStorage.getItem('yonru_last_clip')
+    if (savedClip) {
+      try {
+        state.lastAccessedClip.value = JSON.parse(savedClip)
+      } catch (e) {}
+    }
+  }
+})
 
 // Manage Mode
 const isManageMode = ref(false)
@@ -842,6 +887,7 @@ function handleClipClick(clip: any) {
       selectedClips.value.add(clip.clip_id)
     }
   } else {
+    if (clip.video_id) setLastAccessed(clip.video_id)
     loadReadyClip(clip)
   }
 }
@@ -916,7 +962,7 @@ const currentPrompt = computed(() => {
 })
 
 const isProcessing = computed(() => {
-  return ['queued', 'checking_transcript', 'downloading_video', 'downloading_ai_models', 'transcribing', 'generating_hooks', 'cutting'].includes(state.jobStatus.value)
+  return ['queued', 'checking_transcript', 'downloading_video', 'downloading_ai_models', 'transcribing', 'generating_hooks', 'cutting', 'extracting_video'].includes(state.jobStatus.value)
 })
 
 const loadingLabel = computed(() => {
@@ -928,8 +974,14 @@ const loadingLabel = computed(() => {
     transcribing: `TRANSCRIBING WITH WHISPER (${state.whisperModel.value.toUpperCase()})...`,
     generating_hooks: 'GEMINI AI ANALYZING...',
     cutting: 'CUTTING SEGMENT...',
+    extracting_video: 'EXTRACTING VIDEO FRAME...',
   }
   return map[state.jobStatus.value] || 'PROCESSING...'
+})
+
+const processingTitle = computed(() => {
+  if (!isProcessing.value) return ''
+  return state.videoTitle.value || 'Untitled Project'
 })
 
 function formatSec(sec: number) {
@@ -947,17 +999,7 @@ function formatHookDuration(start: number, end: number) {
   return `(${m}m ${s}s)`
 }
 
-async function fetchCached() {
-  isCachedLoading.value = true
-  try {
-    const res = await $fetch<{ videos: any[] }>(`${API_BASE}/api/cached`)
-    cachedVideos.value = res.videos || []
-  } catch { 
-    cachedVideos.value = [] 
-  } finally {
-    isCachedLoading.value = false
-  }
-}
+// fetchCached moved to useClipperState.ts
 
 async function analyzeCached(videoId: string, force = false) {
   state.jobStatus.value = 'queued'
@@ -995,7 +1037,7 @@ async function deleteThenRedownload(folderName: string, videoId: string) {
     await $fetch(`${API_BASE}/api/cached/${folderName}`, { method: 'DELETE' })
     state.youtubeUrl.value = `https://youtube.com/watch?v=${videoId}`
     state.analyzeUrl()
-    await fetchCached()
+    await state.fetchCached()
   } catch (e: any) {
     state.jobError.value = e.message || 'Failed to re-download'
   }
@@ -1010,7 +1052,7 @@ function confirmDelete(vid: any) {
 async function deleteVideo(folderName: string) {
   try {
     await $fetch(`${API_BASE}/api/cached/${folderName}`, { method: 'DELETE' })
-    await fetchCached()
+    await state.fetchCached()
   } catch (e: any) {
     state.jobError.value = e.message || 'Failed to delete'
   }
@@ -1029,22 +1071,31 @@ async function fetchReadyClips() {
 }
 
 async function loadReadyClip(clip: any) {
-  console.log('Loading ready clip:', clip)
+  console.log('[yonru] Loading ready clip:', clip.clip_id, 'from folder:', clip.folder_name)
   showAllReadyClips.value = false
   
   try {
     // Load the clip into state first to get a job_id
     await state.loadReadyClipIntoEditor(clip.folder_name, clip.clip_id)
     
+    console.log('[yonru] State loaded. JobID:', state.jobId.value, 'FolderName:', state.folderName.value)
+    
+    // Save this as the last accessed clip
+    state.setLastClip(clip.folder_name, clip.clip_id)
+    
     // Then navigate with the job_id for persistence/refresh
+    console.log('[yonru] Navigating to editor...')
     await navigateTo({
       path: '/editor',
       query: { 
-        job_id: state.jobId.value
+        job_id: state.jobId.value || '',
+        folder: clip.folder_name,
+        hook_index: 0
       }
     })
   } catch (e) {
-    console.error('Failed to load ready clip:', e)
+    console.error('[yonru] Failed to load ready clip:', e)
+    state.showToast('Failed to load clip data', 'error')
   }
 }
 
@@ -1081,10 +1132,5 @@ async function selectHook(hook: any) {
   })
 }
 
-onMounted(() => {
-  fetchCached()
-  fetchReadyClips()
-  state.fetchPrompts()
-  state.initPersistence()
-})
+// onMounted moved up to unify initialization logic
 </script>

@@ -484,7 +484,7 @@ watch([
   () => state.timelineTracks.value,
 ], () => {
   syncRemotionProps()
-}, { deep: true })
+}, { deep: true, immediate: true })
 
 // --- PLAY/PAUSE ---
 watch(() => state.isPlaying.value, (playing) => {
