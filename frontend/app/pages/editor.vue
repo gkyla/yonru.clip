@@ -474,7 +474,10 @@ const loadingLabel = computed(() => {
   return map[state.jobStatus.value] || 'PROCESSING...'
 })
 
+const hasBeenMounted = ref(false)
+
 onMounted(async () => {
+  console.log('[yonru] Editor mounted (first time)')
   // Clear navigation overlay
   state.isNavigatingToEditor.value = false
 
@@ -520,6 +523,19 @@ onMounted(async () => {
     state?.startPolling?.()
   }
   state.initPersistence()
+  // Defer flag so onActivated (fires same tick) still sees false on first load
+  nextTick(() => {
+    hasBeenMounted.value = true
+  })
+})
+
+onActivated(() => {
+  if (hasBeenMounted.value) {
+    console.log('[yonru] Editor activated (returned from cache)')
+    // With keepalive, onMounted only fires once.
+    // Clear navigation overlay on subsequent visits.
+    state.isNavigatingToEditor.value = false
+  }
 })
 
 const panelTab = ref<'generated' | 'saved'>((route.query.tab as any) || 'generated')

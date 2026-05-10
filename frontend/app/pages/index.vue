@@ -840,8 +840,8 @@ async function handleViewUpdate(view: string) {
   }
 }
 
-onMounted(async () => {
-  isNavigatingToEditor.value = false // Reset state on mount
+async function initDashboard() {
+  isNavigatingToEditor.value = false // Reset state on mount/activate
   
   // Clear any finished hit lists when returning to the dashboard
   // so the default "Ready to Edit" and "Cached Library" sections are shown.
@@ -868,6 +868,24 @@ onMounted(async () => {
         state.lastAccessedClip.value = JSON.parse(savedClip)
       } catch (e) {}
     }
+  }
+}
+
+const hasBeenMounted = ref(false)
+
+onMounted(() => {
+  console.log('[yonru] Dashboard mounted (first time)')
+  initDashboard()
+  // Defer flag so onActivated (fires same tick) still sees false on first load
+  nextTick(() => {
+    hasBeenMounted.value = true
+  })
+})
+
+onActivated(() => {
+  if (hasBeenMounted.value) {
+    console.log('[yonru] Dashboard activated (returned from cache)')
+    initDashboard()
   }
 })
 
@@ -1084,12 +1102,14 @@ async function deleteVideo(folderName: string) {
 }
 
 async function fetchReadyClips() {
-  isReadyClipsLoading.value = true
+  if (readyClips.value.length === 0) {
+    isReadyClipsLoading.value = true
+  }
   try {
     const res = await $fetch<{ clips: any[] }>(`${API_BASE}/api/ready-clips`)
     readyClips.value = res.clips || []
   } catch { 
-    readyClips.value = [] 
+    if (readyClips.value.length === 0) readyClips.value = [] 
   } finally {
     isReadyClipsLoading.value = false
   }

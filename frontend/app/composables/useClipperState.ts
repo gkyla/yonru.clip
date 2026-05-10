@@ -117,12 +117,14 @@ export const useClipperState = () => {
   })
 
   async function fetchCached() {
-    isCachedLoading.value = true
+    if (cachedVideos.value.length === 0) {
+      isCachedLoading.value = true
+    }
     try {
       const res = await $fetch<{ videos: any[] }>(`${API_BASE}/api/cached`)
       cachedVideos.value = res.videos || []
     } catch { 
-      cachedVideos.value = [] 
+      if (cachedVideos.value.length === 0) cachedVideos.value = [] 
     } finally {
       isCachedLoading.value = false
     }

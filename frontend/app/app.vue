@@ -2,7 +2,7 @@
   <div class="h-screen bg-[#060608] text-slate-300 font-sans flex flex-col overflow-hidden selection:bg-accent-500/30">
     <!-- Page Content -->
     <NuxtErrorBoundary>
-      <NuxtPage />
+      <NuxtPage keepalive />
       <template #error="{ error, clearError }">
         <div class="flex-1 flex items-center justify-center bg-red-950/50 p-8">
           <div class="max-w-xl bg-surface-panel border border-red-500/30 rounded-2xl p-8 text-center">
