@@ -15,6 +15,7 @@ export const useClipperState = () => {
   const isMediaLoading = useState<boolean>('isMediaLoading', () => false)
   const jobStatus = useState<string>('jobStatus', () => 'idle') // idle, queued, downloading, transcribing, ready, error
   const jobError = useState<string | null>('jobError', () => null)
+  const isNavigatingToEditor = useState<boolean>('isNavigatingToEditor', () => false)
 
   // Video info
   const videoTitle = useState<string>('videoTitle', () => '')
@@ -1036,6 +1037,7 @@ export const useClipperState = () => {
   return {
     // State
     jobId, isMediaLoading, jobStatus, jobError,
+    isNavigatingToEditor,
     videoTitle, videoDuration, hasHeatmap, videoUrl, videoFps,
     hooks, savedHooks, activeHook, segmentPadding, folderName, clipId, fullTranscript,
     promptsList, selectedPrompt,

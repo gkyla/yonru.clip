@@ -475,6 +475,9 @@ const loadingLabel = computed(() => {
 })
 
 onMounted(async () => {
+  // Clear navigation overlay
+  state.isNavigatingToEditor.value = false
+
   // Ensure library data is loaded for the sidebar dashboard
   state.fetchCached()
   state.fetchSavedHooks()

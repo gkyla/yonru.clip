@@ -1,5 +1,7 @@
 <template>
-  <div class="flex h-screen w-full bg-[#060608] overflow-hidden">
+  <div class="flex h-screen w-full bg-[#060608] overflow-hidden relative">
+
+
     <!-- Resizable Sidebar -->
     <HomeSidebar 
       :active-view="activeView"
@@ -804,7 +806,7 @@ const API_BASE = 'http://localhost:8000'
 // UI States
 const activeView = ref('home')
 const viewMode = ref<'grid' | 'list'>('grid')
-const { cachedVideos, isCachedLoading, lastAccessedVideo, lastAccessedVideoId, setLastAccessed } = state
+const { cachedVideos, isCachedLoading, lastAccessedVideo, lastAccessedVideoId, setLastAccessed, isNavigatingToEditor } = state
 const readyClips = ref<any[]>([])
 const isReadyClipsLoading = ref(false)
 const activeTab = ref<'generated' | 'saved'>('generated')
@@ -817,8 +819,11 @@ async function handleViewUpdate(view: string) {
   if (view === 'editor') {
     const clip = state.lastAccessedClip.value
     if (clip) {
+      isNavigatingToEditor.value = true
+      const minWait = new Promise(resolve => setTimeout(resolve, 600))
       // Load clip into editor state first (gets job_id, video, transcript etc.)
       await state.loadReadyClipIntoEditor(clip.folder, clip.clip_id)
+      await minWait
       navigateTo({
         path: '/editor',
         query: { 
@@ -836,6 +841,7 @@ async function handleViewUpdate(view: string) {
 }
 
 onMounted(async () => {
+  isNavigatingToEditor.value = false // Reset state on mount
   await state.fetchPrompts()
   await state.fetchSavedHooks()
   await state.fetchCached()
@@ -1084,6 +1090,8 @@ async function loadReadyClip(clip: any) {
   showAllReadyClips.value = false
   
   try {
+    isNavigatingToEditor.value = true
+    const minWait = new Promise(resolve => setTimeout(resolve, 600))
     // Load the clip into state first to get a job_id
     await state.loadReadyClipIntoEditor(clip.folder_name, clip.clip_id)
     
@@ -1092,6 +1100,7 @@ async function loadReadyClip(clip: any) {
     // Save this as the last accessed clip
     state.setLastClip(clip.folder_name, clip.clip_id, clip.theme || clip.title)
     
+    await minWait
     // Then navigate with the job_id for persistence/refresh
     console.log('[yonru] Navigating to editor...')
     await navigateTo({
@@ -1120,6 +1129,8 @@ async function deleteReadyClip(clip: any) {
 
 async function selectHook(hook: any) {
   if (isProcessing.value) return
+  isNavigatingToEditor.value = true
+  const minWait = new Promise(resolve => setTimeout(resolve, 600))
   state.activeHook.value = hook
   console.log('[clipper] Navigating to editor...')
   
@@ -1130,6 +1141,7 @@ async function selectHook(hook: any) {
   const hooksList = activeTab.value === 'saved' ? state.savedHooks.value : state.hooks.value
   const hookIndex = hooksList.indexOf(hook)
   
+  await minWait
   await navigateTo({
     path: '/editor',
     query: { 
