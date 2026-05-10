@@ -98,6 +98,15 @@ class RenderRequest(BaseModel):
     subtitle_text_transform: str = "uppercase"
     subtitle_background: str = "none"
     subtitle_background_opacity: float = 0.7
+    # Render Controls
+    volume: float = 0.5
+    fps: float = 30.0
+    transcript: Optional[list] = None
+    output_name: Optional[str] = None
+    # Thumbnail
+    thumbnail_enabled: bool = False
+    thumbnail_duration: float = 1.0
+    thumbnail_text_overlays: Optional[list] = None
     
 class LoadReadyClipRequest(BaseModel):
     folder_name: str
