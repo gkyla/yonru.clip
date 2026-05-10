@@ -842,6 +842,16 @@ async function handleViewUpdate(view: string) {
 
 onMounted(async () => {
   isNavigatingToEditor.value = false // Reset state on mount
+  
+  // Clear any finished hit lists when returning to the dashboard
+  // so the default "Ready to Edit" and "Cached Library" sections are shown.
+  const processingStatuses = ['queued', 'checking_transcript', 'downloading_video', 'downloading_ai_models', 'transcribing', 'generating_hooks', 'cutting', 'extracting_video']
+  if (!processingStatuses.includes(state.jobStatus.value)) {
+    state.hooks.value = []
+    state.jobStatus.value = 'idle'
+    state.jobId.value = null
+  }
+
   await state.fetchPrompts()
   await state.fetchSavedHooks()
   await state.fetchCached()
