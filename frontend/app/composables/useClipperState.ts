@@ -102,11 +102,17 @@ export const useClipperState = () => {
   const cachedVideos = useState<any[]>('cachedVideos', () => [])
   const isCachedLoading = useState<boolean>('isCachedLoading', () => false)
   const lastAccessedVideoId = useState<string | null>('lastAccessedVideoId', () => null)
-  const lastAccessedClip = useState<{folder: string, clip_id: string} | null>('lastAccessedClip', () => null)
+  const lastAccessedClip = useState<{folder: string, clip_id: string, title?: string} | null>('lastAccessedClip', () => null)
 
   const lastAccessedVideo = computed(() => {
+    // Prioritize parent video of the last accessed clip
+    if (lastAccessedClip.value?.folder) {
+      const vid = cachedVideos.value.find(v => v.folder_name === lastAccessedClip.value.folder)
+      if (vid) return vid
+    }
+    // Fallback to last accessed video ID
     if (!lastAccessedVideoId.value) return null
-    return cachedVideos.value.find(v => v.video_id === lastAccessedVideoId.value)
+    return cachedVideos.value.find(v => v.video_id === lastAccessedVideoId.value) || null
   })
 
   async function fetchCached() {
@@ -123,12 +129,12 @@ export const useClipperState = () => {
 
   function setLastAccessed(vidId: string) {
     lastAccessedVideoId.value = vidId
-    if (process.client) localStorage.setItem('yonru_last_video', vidId)
+    if (import.meta.client) localStorage.setItem('yonru_last_video', vidId)
   }
 
-  function setLastClip(folder: string, clipId: string) {
-    lastAccessedClip.value = { folder, clip_id: clipId }
-    if (process.client) localStorage.setItem('yonru_last_clip', JSON.stringify({ folder, clip_id: clipId }))
+  function setLastClip(folder: string, clipId: string, title?: string) {
+    lastAccessedClip.value = { folder, clip_id: clipId, title: title || 'Current Clip' }
+    if (import.meta.client) localStorage.setItem('yonru_last_clip', JSON.stringify({ folder, clip_id: clipId, title: title || 'Current Clip' }))
   }
 
   // Timeline state
@@ -895,6 +901,14 @@ export const useClipperState = () => {
     
     const m = localStorage.getItem('yonru_model')
     if (m) whisperModel.value = m
+
+    const lv = localStorage.getItem('yonru_last_video')
+    if (lv) lastAccessedVideoId.value = lv
+
+    const lc = localStorage.getItem('yonru_last_clip')
+    if (lc) {
+      try { lastAccessedClip.value = JSON.parse(lc) } catch {}
+    }
 
     // Watch
     watch(selectedPrompt, (val) => localStorage.setItem('yonru_prompt', val))

@@ -8,6 +8,7 @@
       :processing-title="state.videoTitle.value"
       :processing-status="loadingLabel"
       :last-video="state.lastAccessedVideo.value"
+      :last-clip="state.lastAccessedClip.value"
       :API_BASE="state.API_BASE"
       :default-collapsed="true"
       :is-floating="true"

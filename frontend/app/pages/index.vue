@@ -8,6 +8,7 @@
       :processing-title="state.videoTitle.value"
       :processing-status="loadingLabel"
       :last-video="lastAccessedVideo"
+      :last-clip="state.lastAccessedClip.value"
       :API_BASE="API_BASE"
       :default-collapsed="false"
       :is-floating="false"
@@ -812,12 +813,19 @@ const selectedModalHook = ref<any | null>(null)
 const showAllReadyClips = ref(false)
 const loadedClips = ref(new Set<string>())
 
-function handleViewUpdate(view: string) {
+async function handleViewUpdate(view: string) {
   if (view === 'editor') {
-    if (state.lastAccessedClip.value) {
+    const clip = state.lastAccessedClip.value
+    if (clip) {
+      // Load clip into editor state first (gets job_id, video, transcript etc.)
+      await state.loadReadyClipIntoEditor(clip.folder, clip.clip_id)
       navigateTo({
         path: '/editor',
-        query: { job_id: state.jobId.value || '' }
+        query: { 
+          job_id: state.jobId.value || '',
+          folder: clip.folder,
+          hook_index: 0
+        }
       })
     } else {
       state.showToast('Select a clip first!', 'info')
@@ -834,7 +842,7 @@ onMounted(async () => {
   await fetchReadyClips()
   state.initPersistence()
   
-  if (process.client) {
+  if (import.meta.client) {
     const savedVid = localStorage.getItem('yonru_last_video')
     if (savedVid) state.lastAccessedVideoId.value = savedVid
     
@@ -887,7 +895,8 @@ function handleClipClick(clip: any) {
       selectedClips.value.add(clip.clip_id)
     }
   } else {
-    if (clip.video_id) setLastAccessed(clip.video_id)
+    const parentVid = cachedVideos.value.find(v => v.folder_name === clip.folder_name)
+    if (parentVid) setLastAccessed(parentVid.video_id)
     loadReadyClip(clip)
   }
 }
@@ -1081,7 +1090,7 @@ async function loadReadyClip(clip: any) {
     console.log('[yonru] State loaded. JobID:', state.jobId.value, 'FolderName:', state.folderName.value)
     
     // Save this as the last accessed clip
-    state.setLastClip(clip.folder_name, clip.clip_id)
+    state.setLastClip(clip.folder_name, clip.clip_id, clip.theme || clip.title)
     
     // Then navigate with the job_id for persistence/refresh
     console.log('[yonru] Navigating to editor...')

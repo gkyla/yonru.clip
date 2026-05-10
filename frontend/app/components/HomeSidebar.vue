@@ -76,16 +76,7 @@
               <span v-if="!isCollapsed" class="whitespace-nowrap">Home</span>
             </button>
 
-            <!-- Editor (Dynamic) -->
-            <button 
-              v-if="activeView === 'editor'"
-              @click="handleNav('editor')"
-              class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all bg-accent-500/10 text-accent-500 font-bold"
-              :title="isCollapsed ? 'Editor' : ''"
-            >
-              <Icon name="ri:scissors-cut-fill" class="text-xl shrink-0" />
-              <span v-if="!isCollapsed" class="whitespace-nowrap">Editor</span>
-            </button>
+
             <button 
               @click="handleNav('settings')"
               class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
@@ -117,22 +108,28 @@
             <!-- Separator -->
             <div class="my-2 border-t border-surface-border/50 mx-2"></div>
 
-            <!-- Quick Return (Shortcut) -->
+            <!-- Continue Editing -->
             <button 
-              v-if="lastVideo && !isProcessing"
-              @click="handleNav('home')"
+              v-if="lastClip && lastVideo && !isProcessing"
+              @click="handleNav('editor')"
               class="flex items-center gap-3 px-2 py-2 rounded-lg transition-all group hover:bg-surface-panel"
-              :title="isCollapsed ? `Return to: ${lastVideo.title}` : ''"
+              :title="isCollapsed ? `Continue Editing: ${lastClip.title || 'Clip'}` : ''"
             >
-              <div class="w-8 h-8 rounded bg-surface-dark overflow-hidden shrink-0 border border-white/5 group-hover:border-accent-500/30">
+              <div class="w-8 h-8 rounded bg-surface-dark overflow-hidden shrink-0 border border-white/5 group-hover:border-accent-500/30 relative">
                  <img v-if="lastVideo.thumbnail" :src="`${API_BASE}/api/proxy-image?url=${encodeURIComponent(lastVideo.thumbnail)}`" class="w-full h-full object-cover" />
                  <div v-else class="w-full h-full flex items-center justify-center bg-accent-500/10 text-accent-500 text-xs">
                    <Icon name="ri:movie-2-line" />
                  </div>
+                 <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                   <Icon name="ri:edit-2-fill" class="text-white text-xs" />
+                 </div>
               </div>
-              <div v-if="!isCollapsed" class="overflow-hidden text-left">
-                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-tighter leading-none mb-1">Quick Return</p>
-                <p class="text-[11px] text-slate-200 font-medium truncate">{{ lastVideo.title || 'Untitled Video' }}</p>
+              <div v-if="!isCollapsed" class="overflow-hidden text-left flex-1">
+                <div class="flex items-center justify-between mb-1">
+                   <p class="text-[10px] text-accent-500 font-black uppercase tracking-tighter leading-none">{{ isFloating ? 'CURRENT WORK' : 'CONTINUE EDITING' }}</p>
+                </div>
+                <p class="text-[11px] text-white font-bold truncate leading-tight">{{ lastClip.title || 'Untitled Clip' }}</p>
+                <p class="text-[9px] text-slate-500 truncate mt-0.5">{{ lastVideo.title || 'Untitled Video' }}</p>
               </div>
             </button>
           </div>
@@ -196,6 +193,7 @@ const props = defineProps<{
   processingTitle?: string
   processingStatus?: string
   lastVideo?: any
+  lastClip?: any
   API_BASE: string
   defaultCollapsed?: boolean
   isFloating?: boolean
