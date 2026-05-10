@@ -385,9 +385,14 @@
             >
               <div v-if="isActiveHook(hook)" class="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 shadow-[0_0_10px_#f59e0b]"></div>
               <div class="flex justify-between items-center mb-1">
-                <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
-                  HOOK {{ String(idx + 1).padStart(2, '0') }}
-                </span>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
+                    HOOK {{ String(idx + 1).padStart(2, '0') }}
+                  </span>
+                  <div v-if="isHookRendered(hook)" class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
+                    <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Rendered
+                  </div>
+                </div>
                 <span class="mono text-[10px]" :class="isActiveHook(hook) ? 'text-sky-400 font-bold' : 'text-slate-300'">
                   {{ state.formatDuration(hook.start) }} – {{ state.formatDuration(hook.end) }}
                   <span class="ml-1 text-accent-500 font-bold">({{ Math.floor(hook.end - hook.start) >= 60 ? Math.floor((hook.end - hook.start) / 60) + 'm ' + Math.floor((hook.end - hook.start) % 60) + 's' : Math.floor(hook.end - hook.start) + 's' }})</span>
@@ -417,9 +422,14 @@
             >
               <div v-if="isActiveHook(hook)" class="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 shadow-[0_0_10px_#f59e0b]"></div>
               <div class="flex justify-between items-center mb-1">
-                <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
-                  SAVED {{ String(idx + 1).padStart(2, '0') }}
-                </span>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
+                    SAVED {{ String(idx + 1).padStart(2, '0') }}
+                  </span>
+                  <div v-if="isHookRendered(hook)" class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
+                    <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Rendered
+                  </div>
+                </div>
                 <span class="mono text-[10px]" :class="isActiveHook(hook) ? 'text-sky-400 font-bold' : 'text-slate-300'">
                   {{ state.formatDuration(hook.start) }} – {{ state.formatDuration(hook.end) }}
                   <span class="ml-1 text-accent-500 font-bold">({{ Math.floor(hook.end - hook.start) >= 60 ? Math.floor((hook.end - hook.start) / 60) + 'm ' + Math.floor((hook.end - hook.start) % 60) + 's' : Math.floor(hook.end - hook.start) + 's' }})</span>
@@ -445,6 +455,32 @@
 import { ref, computed, watch, onMounted } from 'vue'
 const state = useClipperState()
 const route = useRoute()
+
+// Read shared readyClips from dashboard (populated via useState in index.vue)
+const readyClips = useState<any[]>('readyClips', () => [])
+const API_BASE = 'http://localhost:8000'
+
+async function fetchReadyClips() {
+  try {
+    const res = await $fetch<{ clips: any[] }>(`${API_BASE}/api/ready-clips`)
+    readyClips.value = res.clips || []
+  } catch (e) {
+    console.error('[yonru] Failed to fetch ready clips in background:', e)
+  }
+}
+
+function isHookRendered(hook: any) {
+  if (!readyClips.value?.length || !state.folderName.value || !hook) return false
+  return readyClips.value.some(c => {
+    if (c.folder_name !== state.folderName.value) return false
+    const parts = c.clip_id.split('_')
+    if (parts.length < 2) return false
+    const cStart = parseFloat(parts[0])
+    const cEnd = parseFloat(parts[1])
+    // Use 1.1s tolerance because the backend uses int() which truncates decimals (e.g. 15.9 -> 15)
+    return Math.abs(cStart - hook.start) < 1.1 && Math.abs(cEnd - hook.end) < 1.1
+  })
+}
 
 // Sidebar View for Editor page
 const sidebarView = ref('editor')
@@ -480,6 +516,11 @@ onMounted(async () => {
   console.log('[yonru] Editor mounted (first time)')
   // Clear navigation overlay
   state.isNavigatingToEditor.value = false
+
+  // Background fetch for ready clips if missing
+  if (!readyClips.value || readyClips.value.length === 0) {
+    fetchReadyClips()
+  }
 
   // Ensure library data is loaded for the sidebar dashboard
   state.fetchCached()
@@ -535,6 +576,9 @@ onActivated(() => {
     // With keepalive, onMounted only fires once.
     // Clear navigation overlay on subsequent visits.
     state.isNavigatingToEditor.value = false
+    
+    // Background fetch for ready clips to ensure it's fresh
+    fetchReadyClips()
   }
 })
 

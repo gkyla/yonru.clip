@@ -807,7 +807,7 @@ const API_BASE = 'http://localhost:8000'
 const activeView = ref('home')
 const viewMode = ref<'grid' | 'list'>('grid')
 const { cachedVideos, isCachedLoading, lastAccessedVideo, lastAccessedVideoId, setLastAccessed, isNavigatingToEditor } = state
-const readyClips = ref<any[]>([])
+const readyClips = useState<any[]>('readyClips', () => [])
 const isReadyClipsLoading = ref(false)
 const activeTab = ref<'generated' | 'saved'>('generated')
 const hoveredHookIndex = ref<number | null>(null)
