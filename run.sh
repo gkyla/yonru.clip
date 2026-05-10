@@ -17,7 +17,7 @@ run_backend() {
     echo "🚀 Starting Backend (Port 8000)..."
     cd backend
     source venv/bin/activate
-    uvicorn main:app --env-file .env --host 0.0.0.0 --port 8000 --reload
+    ./venv/bin/python -m uvicorn main:app --env-file .env --host 0.0.0.0 --port 8000 --reload
 }
 
 run_frontend() {
