@@ -46,14 +46,22 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   );
 
   // Determine active cropX
-  let activeCropX = cropX;
-    if (cropMap && cropMap.length > 0) {
-      // Find the latest cropMap entry that is <= currentTime
-      const entry = [...cropMap].reverse().find(e => e.time <= currentTime);
-      if (entry) {
-        activeCropX = entry.x;
+  const activeCropX = useMemo(() => {
+    if (!cropMap || cropMap.length === 0) return cropX;
+    
+    // Find the latest entry that is <= currentTime (the "Hold" logic)
+    // Since cropMap is sorted by time, we look for the last one that has passed.
+    let lastValid = cropMap[0];
+    for (const entry of cropMap) {
+      if (entry.time <= currentTime) {
+        lastValid = entry;
+      } else {
+        break; // We found a future point, stop searching
       }
     }
+    
+    return lastValid.x;
+  }, [cropMap, currentTime, cropX]);
   
     if (frame % 30 === 0) {
       console.log(`[Remotion] frame=${frame} time=${currentTime.toFixed(2)} activeCropX=${activeCropX}`);
