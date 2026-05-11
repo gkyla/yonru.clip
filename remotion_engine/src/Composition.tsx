@@ -47,13 +47,17 @@ export const YonruClip: React.FC<YonruClipProps> = ({
 
   // Determine active cropX
   let activeCropX = cropX;
-  if (cropMap && cropMap.length > 0) {
-    // Find the latest cropMap entry that is <= currentTime
-    const entry = [...cropMap].reverse().find(e => e.time <= currentTime);
-    if (entry) {
-      activeCropX = entry.x;
+    if (cropMap && cropMap.length > 0) {
+      // Find the latest cropMap entry that is <= currentTime
+      const entry = [...cropMap].reverse().find(e => e.time <= currentTime);
+      if (entry) {
+        activeCropX = entry.x;
+      }
     }
-  }
+  
+    if (frame % 30 === 0) {
+      console.log(`[Remotion] frame=${frame} time=${currentTime.toFixed(2)} activeCropX=${activeCropX}`);
+    }
 
   // Exact math from VideoPreview.vue to guarantee 1:1 match
   const videoAspect = (sourceWidth && sourceHeight) ? (sourceWidth / sourceHeight) : (16 / 9);

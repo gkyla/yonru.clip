@@ -216,6 +216,8 @@ class VideoRenderer:
             }
             
             props_path = os.path.abspath(os.path.join(self.output_dir, f"props_{out_filename}.json"))
+            print(f"[render-stream] Writing props to {props_path}")
+            print(f"[render-stream] cropX: {props['cropX']}, cropMap points: {len(props['cropMap'])}")
             with open(props_path, "w") as f:
                 json.dump(props, f, cls=SafeEncoder)
             

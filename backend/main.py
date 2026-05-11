@@ -1032,7 +1032,9 @@ async def render_clip_stream(req: RenderRequest):
     # Determine crop
     if req.face_tracking:
         tracker = FaceTracker()
+        print(f"[main:streaming] Calling analyze_video...")
         crop_x = tracker.analyze_video(video_path, words_data=words_data)
+        print(f"[main:streaming] analyze_video returned {len(crop_x) if isinstance(crop_x, list) else 1} points")
     else:
         crop_x = int((req.crop_percent_x / 100.0) * source_width)
     
