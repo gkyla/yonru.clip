@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AbsoluteFill, Video, OffthreadVideo, Audio, Img, Sequence, staticFile, useCurrentFrame, useVideoConfig, useRemotionEnvironment } from 'remotion';
 import { AnimatedSubtitles } from './AnimatedSubtitles';
 import { YonruClipProps, ThumbnailTextOverlay } from './types';
