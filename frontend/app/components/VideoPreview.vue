@@ -574,12 +574,12 @@ watch(() => state.currentTime.value, (newTime) => {
       // Still in thumbnail — native video should be paused at 0
       nativeVideoStarted = false
     } else if (!nativeVideoStarted) {
-      // Just crossed the boundary! Start native video from time 0.
+      // Just crossed the boundary! Start native video from appropriate relative time.
       nativeVideoStarted = true
-      previewVideo.value.currentTime = 0
+      previewVideo.value.currentTime = videoTime.value
       previewVideo.value.muted = true // Force muted, Remotion handles audio
       previewVideo.value.play().catch(e => console.warn('Native play at boundary:', e))
-      console.log('[VideoPreview] Crossed thumb boundary — started native video from 0')
+      console.log(`[VideoPreview] Crossed thumb boundary — started native video from ${videoTime.value}s`)
     }
   }
 

@@ -183,13 +183,12 @@ const thumbOffsetPx = computed(() => thumbW.value)
 
 function getItemLeft(track: any, item: any) {
   const base = item.start * pxPerSec.value
-  return track.type === 'video' && state.thumbnailEnabled.value ? base + thumbOffsetPx.value : base
+  return state.thumbnailEnabled.value ? base + thumbOffsetPx.value : base
 }
 
 // --- Layout ---
 const totalW = computed(() => {
-  const dur = state.timelineDuration.value + (state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0)
-  return Math.max(dur * pxPerSec.value, 2000)
+  return Math.max(state.timelineDuration.value * pxPerSec.value, 2000)
 })
 
 const containerW = computed(() => scrollEl.value?.clientWidth || 800)
@@ -296,7 +295,7 @@ function startRaf() {
     // During thumbnail, Remotion is the sole clock (via REMOTION_TIMEUPDATE messages).
     // In Remotion mode, REMOTION_TIMEUPDATE overrides this, so this only matters
     // for useNativePlayer fallback mode.
-    if (video && !video.paused && video.volume > 0 && state.currentTime.value >= thumbSec) {
+    if (state.useNativePlayer.value && video && !video.paused && video.volume > 0 && state.currentTime.value >= thumbSec) {
       state.currentTime.value = video.currentTime + thumbSec
     }
     // Auto-scroll to center playhead
@@ -379,7 +378,8 @@ function snapValue(val: number, trackId?: string): number {
   targets.push(nearestRuler)
 
   // Playhead snap
-  targets.push(state.currentTime.value)
+  const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
+  targets.push(state.currentTime.value - offset)
 
   // Clip edge snap
   state.timelineTracks.value.forEach(track => {
@@ -479,15 +479,30 @@ function deleteSelected() {
     })
   })
 
+  // Update playhead position:
+  const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
+  const relTime = state.currentTime.value - offset
+
+  if (relTime > itemToDelete.start + itemToDelete.duration) {
+    state.currentTime.value = Math.max(0, state.currentTime.value - itemToDelete.duration)
+  } else if (relTime >= itemToDelete.start) {
+    state.currentTime.value = itemToDelete.start + offset
+  }
+
   // Perform Ripple Edit on subtitles
   if (state.fullTranscript.value && state.fullTranscript.value.length > 0) {
     const newTranscript: any[] = []
     const delStart = itemToDelete.start
     const delEnd = itemToDelete.start + itemToDelete.duration
     
+    // Normalize coordinates for comparison: 
+    // Subtitle start is 0-based relative to video start (which is at thumbnailDuration on timeline)
+    const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
+    
     state.fullTranscript.value.forEach(s => {
-      const segStart = s.start
-      const segEnd = s.start + s.duration
+      // Subtitle time in timeline-absolute coordinates
+      const segStart = s.start + offset
+      const segEnd = (s.start + s.duration) + offset
       
       // Case 1: Segment is completely before deleted item -> Keep as is
       if (segEnd <= delStart + 0.001) {
@@ -520,7 +535,6 @@ function deleteSelected() {
             block2Words.push(w)
             if (block2StartIndex === -1) block2StartIndex = i
           }
-          // else word overlaps with the cut and is completely dropped
         })
         
         if (block1Words.length > 0) {
@@ -532,7 +546,7 @@ function deleteSelected() {
         }
         
         if (block2Words.length > 0) {
-          const originalStart = segStart + (block2StartIndex * wordDur)
+          const originalStart = (segStart + (block2StartIndex * wordDur)) - offset
           newTranscript.push({
             ...s,
             id: s.id + '_shifted',
@@ -545,15 +559,21 @@ function deleteSelected() {
     })
     state.fullTranscript.value = newTranscript
   }
+  
+  // Auto-save changes immediately to prevent data loss on refresh
+  state.saveTranscript()
+  state.saveTimelineTracks()
 }
 
 function splitSelected() {
   const item = state.selectedTimelineItem.value
   if (!item) return
-  const cut = state.currentTime.value
+  const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
+  const cut = state.currentTime.value - offset
+
   if (cut > item.start && cut < item.start + item.duration) {
     const splitOffset = cut - item.start
-    const originalMediaStart = item.mediaStart !== undefined ? item.mediaStart : item.start
+    const originalMediaStart = item.mediaStart !== undefined ? item.mediaStart : 0
     const newMediaStart = originalMediaStart + splitOffset
     
     const dur2 = (item.start + item.duration) - cut
@@ -568,6 +588,8 @@ function splitSelected() {
         duration: dur2,
         mediaStart: newMediaStart
       })
+      // Auto-save timeline state
+      state.saveTimelineTracks()
     }
   }
 }

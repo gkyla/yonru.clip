@@ -1223,12 +1223,13 @@ async def update_transcript(req: TranscriptEditRequest):
     
     try:
         os.makedirs(os.path.dirname(clip_transcript_path), exist_ok=True)
+        word_count = len(req.transcript)
         with open(clip_transcript_path, "w", encoding="utf-8") as f:
             json.dump(req.transcript, f, ensure_ascii=False, indent=2)
-        print(f"[edit] Updated isolated clip transcript at {clip_transcript_path}")
+        print(f"[edit] Updated isolated clip transcript at {clip_transcript_path} ({word_count} words)")
         return {"status": "ok"}
     except Exception as e:
-        print(f"[edit] Clip save failed: {e}")
+        print(f"[edit] Clip save failed for {req.folder_name}/{req.clip_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

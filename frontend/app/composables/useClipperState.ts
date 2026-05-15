@@ -156,10 +156,12 @@ export const useClipperState = () => {
       })
     })
     
+    const offset = (thumbnailEnabled.value ? thumbnailDuration.value : 0)
+    
     if (hasItems) {
-      return max > 0 ? max : 1
+      return (max > 0 ? max : 1) + offset
     }
-    return videoDuration.value > 0 ? videoDuration.value : 60
+    return (videoDuration.value > 0 ? videoDuration.value : 60) + offset
   })
   const selectedTimelineItem = useState<any | null>('selectedTimelineItem', () => null)
   const isSavingLocked = ref(false)
@@ -290,15 +292,15 @@ export const useClipperState = () => {
               }
             }
             
-            // Store the clip ID (extracted from asset_url: /assets/clips/<folder>/<clip_id>/video.mp4)
+            // Extract Clip ID for tracking
             const parts = res.clip.asset_url.split('/')
-            if (parts.length >= 5) {
-              clipId.value = parts[4]
-            }
-
-            // Clip is ready. Load its specific assets.
-            isSavingLocked.value = true
-            try {
+            const newClipId = parts.length >= 5 ? parts[4] : null
+            
+            // Load its specific assets if not already loaded for this clip
+            if (videoUrl.value !== targetUrl || fullTranscript.value.length === 0 || (newClipId && clipId.value !== newClipId)) {
+              if (newClipId) clipId.value = newClipId
+              isSavingLocked.value = true
+              try {
               const baseClipUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/'))
               const transcriptUrl = baseClipUrl + '/transcript.json?t=' + Date.now()
               const styleUrl = baseClipUrl + '/style_settings.json?t=' + Date.now()
@@ -386,23 +388,24 @@ export const useClipperState = () => {
             }
           }
         }
-
-        if (res.hooks) {
-          hooks.value = res.hooks
-        }
-
-        if (res.error) {
-          jobError.value = res.error
-        }
-
-        // Stop polling when hooks ready, clip ready, or error
-        if (['hooks_ready', 'ready', 'error'].includes(res.status)) {
-          stopPolling()
-        }
-      } catch (e) {
-        // Keep polling on network blip
       }
-    }, 2000)
+
+      if (res.hooks) {
+        hooks.value = res.hooks
+      }
+
+      if (res.error) {
+        jobError.value = res.error
+      }
+
+      // Stop polling when hooks ready, clip ready, or error
+      if (['hooks_ready', 'ready', 'error'].includes(res.status)) {
+        stopPolling()
+      }
+    } catch (e) {
+      // Keep polling on network blip
+    }
+  }, 2000)
   }
 
   function stopPolling() {
@@ -765,7 +768,7 @@ export const useClipperState = () => {
       const newItem = {
         id: Math.random().toString(36).substr(2, 9),
         start: 0,
-        mediaStart: item.start || 0, // Fallback to start if mediaStart not provided
+        mediaStart: item.mediaStart ?? 0,
         duration: 5,
         content: '',
         ...item

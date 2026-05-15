@@ -142,7 +142,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
           timelineVideoItems.map(item => {
             const startFrame = Math.round(item.start * fps);
             const durationFrames = Math.round(item.duration * fps);
-            const mediaStartFrame = Math.round((item.mediaStart !== undefined ? item.mediaStart : item.start) * fps);
+            const mediaStartFrame = Math.round((item.mediaStart ?? 0) * fps);
             
             return (
               <Sequence key={item.id} from={startFrame} durationInFrames={durationFrames} name={`VideoSegment-${item.id}`}>
