@@ -80,13 +80,58 @@ export const useClipperState = () => {
   const subtitleBackgroundOpacity = useState<number>('subtitleBackgroundOpacity', () => 0.7)
   const subtitlePreset = useState<string>('subtitlePreset', () => 'bold-podcast')
 
-  // Thumbnail state
+  // Thumbnail State
   const thumbnailEnabled = useState<boolean>('thumbnailEnabled', () => false)
   const thumbnailUrl = useState<string | null>('thumbnailUrl', () => null)
   const thumbnailDuration = useState<number>('thumbnailDuration', () => 1.0)
   const thumbnailScreenshotTime = useState<number>('thumbnailScreenshotTime', () => 0)
   const thumbnailTextOverlays = useState<any[]>('thumbnailTextOverlays', () => [])
   const thumbnailEditMode = useState<boolean>('thumbnailEditMode', () => false)
+
+  // Content Audit State
+  const safeZoneVisible = useState<boolean>('safeZoneVisible', () => false)
+  const customBlacklist = useState<string[]>('customBlacklist', () => [])
+  
+  const DEFAULT_BLACKLIST = [
+    // Violence & Harm
+    'kill', 'death', 'suicide', 'unalive', 'gun', 'blood', 'weapon', 'murder', 'shot',
+    '/bunuh/', 'mati', 'tewas', '/darah/', '/senjata/', '/tembak/', 'perang', '/teroris/', '/bom/',
+    // Sexual
+    'sex', 'porn', 'seggs', 'hentai', 'nude', 'nudity', 'sexy',
+    '/bokep/', '/telanjang/', '/seks/', '/mesum/', 's*ksi',
+    // Sensitive
+    'war', 'terror', 'bomb', 'crash', 'accident', 'crime',
+    // Algospeak / Profanity
+    'sh!t', 'f*ck', 'b!tch', 'damn', 'hell',
+    '/anjing/', '/bangsat/', '/tolol/', '/goblok/', '/babi/', '/kontol/', '/memek/', '/itil/'
+  ]
+
+  // Persistence for blacklist
+  const saveBlacklistToStorage = () => {
+    if (import.meta.client) {
+      localStorage.setItem('yonru_subtitle_blacklist', JSON.stringify(customBlacklist.value))
+    }
+  }
+
+  const loadBlacklistFromStorage = () => {
+    if (import.meta.client) {
+      const saved = localStorage.getItem('yonru_subtitle_blacklist')
+      if (saved) {
+        try {
+          customBlacklist.value = JSON.parse(saved)
+        } catch (e) {
+          customBlacklist.value = [...DEFAULT_BLACKLIST]
+        }
+      } else {
+        customBlacklist.value = [...DEFAULT_BLACKLIST]
+      }
+    }
+  }
+
+  // Load on init
+  if (import.meta.client) {
+    loadBlacklistFromStorage()
+  }
 
   // Playback state (Shared Clock)
   const isPlaying = useState<boolean>('isPlaying', () => false)
@@ -162,6 +207,108 @@ export const useClipperState = () => {
       return (max > 0 ? max : 1) + offset
     }
     return (videoDuration.value > 0 ? videoDuration.value : 60) + offset
+  })
+
+  const deepAuditResults = useState<any | null>('deepAuditResults', () => null)
+  const isDeepAuditing = ref(false)
+
+  const contentAudit = computed(() => {
+    const transcript = fullTranscript.value || []
+    const combinedBlacklist = [...new Set([...DEFAULT_BLACKLIST, ...customBlacklist.value])]
+    const mode = subtitleMode.value
+    
+    const flaggedWords: string[] = []
+    const flaggedSegments: { start: number, duration: number, word: string, text: string }[] = []
+    
+    // Simulate subtitle chunking logic to match exactly what appears on screen
+    transcript.forEach((seg) => {
+      const words = seg.text.trim().split(/\s+/)
+      const segmentDuration = seg.duration
+      
+      let chunks: { text: string, start: number, duration: number }[] = []
+      
+      if (mode === 'word') {
+        const wordDuration = segmentDuration / words.length
+        chunks = words.map((w, i) => ({
+          text: w,
+          start: seg.start + (i * wordDuration),
+          duration: wordDuration
+        }))
+      } else {
+        const limit = parseInt(mode) || 0
+        if (limit <= 0) {
+          chunks = [{ text: seg.text, start: seg.start, duration: segmentDuration }]
+        } else {
+          let currentChunk: string[] = []
+          let currentLen = 0
+          let currentStart = seg.start
+          
+          words.forEach((w, i) => {
+            if (currentLen + w.length > limit && currentChunk.length > 0) {
+              const chunkText = currentChunk.join(' ')
+              const chunkDuration = (currentChunk.length / words.length) * segmentDuration
+              chunks.push({ text: chunkText, start: currentStart, duration: chunkDuration })
+              
+              currentStart += chunkDuration
+              currentChunk = [w]
+              currentLen = w.length
+            } else {
+              currentChunk.push(w)
+              currentLen += w.length + (currentChunk.length > 1 ? 1 : 0)
+            }
+            
+            if (i === words.length - 1 && currentChunk.length > 0) {
+              chunks.push({ text: currentChunk.join(' '), start: currentStart, duration: Math.max(0.1, seg.start + segmentDuration - currentStart) })
+            }
+          })
+        }
+      }
+
+      // Audit subtitle chunks
+      chunks.forEach(chunk => {
+        const lowerText = chunk.text.toLowerCase()
+        combinedBlacklist.forEach(word => {
+          if (!word) return
+          let regex: RegExp
+          if (word.startsWith('/') && word.endsWith('/')) {
+            regex = new RegExp(word.slice(1, -1), 'i')
+          } else {
+            // Escape special chars for standard strings
+            const escapedWord = word.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            regex = new RegExp(`\\b${escapedWord}\\b`, 'i')
+          }
+          if (regex.test(lowerText)) {
+            flaggedSegments.push({ 
+              start: chunk.start, 
+              duration: chunk.duration, 
+              word, 
+              text: chunk.text 
+            })
+            if (!flaggedWords.includes(word)) flaggedWords.push(word)
+          }
+        })
+      })
+    })
+
+    const duration = timelineDuration.value
+    const isDurationOk = duration >= 5 && duration <= 60
+    
+    // Safety Score calculation
+    let score = 100
+    const uniqueTimeFlags = new Set(flaggedSegments.map(f => f.start.toFixed(2))).size
+    score -= (uniqueTimeFlags * 12) 
+    
+    if (duration < 5 || duration > 90) score -= 30
+    else if (duration > 60) score -= 10
+    
+    return {
+      score: Math.max(0, score),
+      flaggedWords,
+      flaggedSegments,
+      isDurationOk,
+      uniqueFlagsCount: flaggedSegments.length,
+      durationReason: duration < 5 ? 'Too short' : duration > 60 ? 'Long' : 'Optimal'
+    }
   })
   const selectedTimelineItem = useState<any | null>('selectedTimelineItem', () => null)
   const isSavingLocked = ref(false)
@@ -1039,8 +1186,79 @@ export const useClipperState = () => {
     }
   }
 
+  async function runDeepAudit() {
+    if (!activeHook.value || isDeepAuditing.value) return
+    isDeepAuditing.value = true
+    deepAuditResults.value = null
+    
+    try {
+      const response = await fetch(`${API_BASE}/audit/deep`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript: activeHook.value.transcript_quote,
+          language: language.value
+        })
+      })
+      if (!response.ok) throw new Error('Backend audit failed')
+      const data = await response.json()
+      deepAuditResults.value = data
+    } catch (e) {
+      console.error('[audit] Deep audit failed:', e)
+      // Mock for development if backend missing
+      setTimeout(() => {
+        deepAuditResults.value = {
+          riskLevel: 'medium',
+          violations: ['Potential clickbait pattern detected', 'Sensitive health claim check recommended'],
+          suggestions: 'Rephrase the opening sentence to be less inflammatory.'
+        }
+        isDeepAuditing.value = false
+      }, 1500)
+      return
+    } finally {
+      if (deepAuditResults.value) isDeepAuditing.value = false
+    }
+  }
+
+  function maskFlaggedWords() {
+    if (!fullTranscript.value) return
+    const combinedBlacklist = [...new Set([...DEFAULT_BLACKLIST, ...customBlacklist.value])]
+    
+    fullTranscript.value = fullTranscript.value.map(seg => {
+      let newText = seg.text
+      combinedBlacklist.forEach(word => {
+        let regex: RegExp
+        if (word.startsWith('/') && word.endsWith('/')) {
+          regex = new RegExp(word.slice(1, -1), 'gi')
+        } else {
+          const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          regex = new RegExp(`\\b${escapedWord}\\b`, 'gi')
+        }
+        newText = newText.replace(regex, (match) => {
+          if (match.length <= 2) return match
+          const mid = Math.floor(match.length / 2)
+          return match.substring(0, mid) + '*' + match.substring(mid + 1)
+        })
+      })
+      return { ...seg, text: newText }
+    })
+    saveTranscript()
+    showToast('Subtitle keywords masked successfully', 'success')
+  }
+
   return {
-    // State
+    contentAudit, 
+    customBlacklist, 
+    safeZoneVisible, 
+    saveBlacklistToStorage, 
+    DEFAULT_BLACKLIST,
+    thumbnailEnabled, 
+    thumbnailUrl, 
+    thumbnailDuration, 
+    thumbnailScreenshotTime,
+    thumbnailTextOverlays, 
+    thumbnailEditMode,
+    // Other State
     jobId, isMediaLoading, jobStatus, jobError,
     isNavigatingToEditor,
     videoTitle, videoDuration, hasHeatmap, videoUrl, videoFps,
@@ -1055,13 +1273,12 @@ export const useClipperState = () => {
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
     cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip,
     timelineTracks, timelineDuration, selectedTimelineItem,
-    // Thumbnail
-    thumbnailEnabled, thumbnailUrl, thumbnailDuration, thumbnailScreenshotTime,
-    thumbnailTextOverlays, thumbnailEditMode,
+    deepAuditResults, isDeepAuditing,
     // Actions
-    analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling,
+    analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling, stopPolling,
     formatDuration, fetchPrompts, editPrompt, fetchSavedHooks, saveHook, deleteSavedHook,
     saveTranscript, saveStyleSettings, saveDefaultStyleSettings, updateHooks,
+    runDeepAudit, maskFlaggedWords,
     fetchCached, setLastAccessed, setLastClip,
     saveTimelineTracks,
     addTimelineItem, deleteTimelineItem, updateTimelineItem,

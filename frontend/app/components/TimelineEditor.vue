@@ -108,6 +108,15 @@
                 <div class="absolute left-[1px] top-1/2 -translate-y-1/2 w-[1px] h-3 bg-white/20 rounded"></div>
               </div>
             </div>
+
+            <!-- Flagged markers layer (only for subtitle track) -->
+            <template v-if="track.id === 'subtitles' && state.contentAudit.value?.flaggedSegments">
+               <div v-for="(v, i) in state.contentAudit.value.flaggedSegments" :key="'v-'+i"
+                    class="absolute top-0 bottom-0 bg-rose-500/20 border-x border-rose-500/40 pointer-events-none z-10"
+                    :style="{ left: getMarkerLeft(v.start) + 'px', width: (v.duration * pxPerSec) + 'px' }">
+                  <div class="absolute -top-[1px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-rose-500 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.8)]"></div>
+               </div>
+            </template>
           </div>
         </div>
 
@@ -183,6 +192,11 @@ const thumbOffsetPx = computed(() => thumbW.value)
 
 function getItemLeft(track: any, item: any) {
   const base = item.start * pxPerSec.value
+  return state.thumbnailEnabled.value ? base + thumbOffsetPx.value : base
+}
+
+function getMarkerLeft(val: number) {
+  const base = val * pxPerSec.value
   return state.thumbnailEnabled.value ? base + thumbOffsetPx.value : base
 }
 

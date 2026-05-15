@@ -1,6 +1,14 @@
 <template>
   <div v-if="state" class="flex h-screen w-full bg-[#060608] overflow-hidden">
     <!-- Navigation Sidebar -->
+    <!-- Blacklist Settings Modal -->
+    <div v-if="showBlacklistSettings" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+       <div class="absolute inset-0 bg-black/80 backdrop-blur-xl" @click="showBlacklistSettings = false"></div>
+       <div class="w-full max-w-md bg-surface-panel border border-surface-border rounded-3xl shadow-2xl relative overflow-hidden">
+          <BlacklistSettings @close="showBlacklistSettings = false" />
+       </div>
+    </div>
+
     <HomeSidebar 
       v-model:activeView="sidebarView"
       :cached-videos="state.cachedVideos.value"
@@ -333,7 +341,15 @@
 </div>
 
     <!-- Hooks Panel -->
-       <div class="w-80 border-l border-surface-border bg-surface-panel flex flex-col overflow-hidden text-white">
+       <div class="w-80 border-l border-surface-border bg-surface-panel flex flex-col overflow-hidden text-white relative">
+          <!-- Content Safety Audit Panel -->
+          <ContentAuditPanel 
+            class="border-b border-surface-border min-h-0 shrink-0" 
+            :expanded="isAuditExpanded"
+            @toggle-expand="isAuditExpanded = !isAuditExpanded"
+            @settings="showBlacklistSettings = true" 
+          />
+
           <div class="border-b border-surface-border flex flex-col shrink-0">
             <div class="flex items-center justify-between px-4 h-10">
                <span class="text-[10px] uppercase text-slate-400 font-bold tracking-widest flex items-center gap-2">
@@ -366,7 +382,7 @@
             </div>
           </div>
 
-          <div v-if="panelTab === 'generated'" ref="hooksContainer" class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
+          <div v-if="panelTab === 'generated'" ref="hooksContainer" class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar min-h-0">
             <div v-if="!state.hooks.value.length" class="text-center text-slate-600 text-xs p-6">
               No hooks generated yet.
             </div>
@@ -403,7 +419,7 @@
             </button>
           </div>
 
-          <div v-else class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
+          <div v-else class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar min-h-0">
             <div v-if="!state.savedHooks.value.length" class="text-center text-slate-600 text-xs p-6">
               No saved hooks for this video yet.
             </div>
@@ -449,12 +465,21 @@
 
     </div>
   </div>
+
+  <!-- Blacklist Settings Modal Overlay -->
+  <div v-if="showBlacklistSettings" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" @click.self="showBlacklistSettings = false">
+     <div class="w-full max-w-lg">
+        <BlacklistSettings @close="showBlacklistSettings = false" />
+     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, onActivated } from 'vue'
 const state = useClipperState()
 const route = useRoute()
+
+const isAuditExpanded = ref(false)
 
 // Read shared readyClips from dashboard (populated via useState in index.vue)
 const readyClips = useState<any[]>('readyClips', () => [])
@@ -582,6 +607,7 @@ onActivated(() => {
   }
 })
 
+const showBlacklistSettings = ref(false)
 const panelTab = ref<'generated' | 'saved'>((route.query.tab as any) || 'generated')
 
 function selectSidebarHook(hook: any) {

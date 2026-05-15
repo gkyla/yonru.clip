@@ -1,5 +1,7 @@
 <template>
   <div v-if="state" class="h-full flex flex-col p-5 gap-6 overflow-y-auto custom-scrollbar">
+
+    
     <!-- Editor Sidebar -->
 
     <!-- Style Presets -->
@@ -487,6 +489,24 @@
         </div>
       </Transition>
     </Teleport>
+    <!-- Blacklist Settings Modal -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div v-if="showBlacklistSettings" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+           <div class="absolute inset-0 bg-black/80 backdrop-blur-xl" @click="showBlacklistSettings = false"></div>
+           <div class="relative bg-surface-panel border border-surface-border rounded-3xl shadow-2xl max-w-lg w-full animate-in zoom-in-95 duration-300 overflow-hidden">
+              <BlacklistSettings @close="showBlacklistSettings = false" />
+           </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -495,6 +515,7 @@ import { ref } from 'vue'
 import { FONT_OPTIONS } from '../composables/useClipperState'
 const state = useClipperState()
 
+const showBlacklistSettings = ref(false)
 const isNamingClip = ref(false)
 const renderName = ref('')
 

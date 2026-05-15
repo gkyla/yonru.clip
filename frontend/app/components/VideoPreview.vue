@@ -5,10 +5,12 @@
     <div class="absolute top-1/2 left-1/2 w-[1080px] h-[1920px] overflow-hidden rounded-[36px] bg-black" :style="contentStyle">
       
       <!-- Safe Area UI overlay -->
-      <div class="absolute inset-0 z-20 pointer-events-none p-12 pb-36 flex flex-col justify-between">
-         <div class="flex justify-between items-start opacity-30">
-            <Icon name="ri:focus-3-line" class="text-6xl" />
-            <div class="text-[30px] mono border-[3px] border-white/20 px-3 py-1">1080x1920 PREVIEW</div>
+      <div class="absolute inset-0 z-50 pointer-events-none p-12 pb-36 flex flex-col justify-between">
+         <div class="flex justify-between items-start">
+            <div class="flex flex-col gap-4 opacity-30">
+               <Icon name="ri:focus-3-line" class="text-6xl" />
+               <div class="text-[30px] mono border-[3px] border-white/20 px-3 py-1">1080x1920 PREVIEW</div>
+            </div>
          </div>
          <div class="flex justify-between items-end opacity-30">
             <Icon name="ri:add-line" class="text-[72px] rotate-45" />
@@ -75,6 +77,7 @@
           <div class="absolute inset-x-0 h-[3px] bg-white/20" style="top: 33.33%"></div>
           <div class="absolute inset-x-0 h-[3px] bg-white/20" style="top: 66.66%"></div>
         </div>
+
 
         <!-- Drag indicator -->
         <div class="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center gap-4">
