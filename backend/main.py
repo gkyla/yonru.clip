@@ -734,6 +734,25 @@ async def render_clip(req: RenderRequest):
         clip_start = 0
         clip_duration = job.get("video_info", {}).get("duration") or 0
 
+    # Overwrite clip_duration from timeline tracks if present
+    max_timeline_end = 0.0
+    has_timeline_items = False
+    if req.timeline_tracks:
+        for track in req.timeline_tracks:
+            items = track.get("items", [])
+            if items:
+                has_timeline_items = True
+                for item in items:
+                    start = float(item.get("start") or 0.0)
+                    dur = float(item.get("duration") or 0.0)
+                    end = start + dur
+                    if end > max_timeline_end:
+                        max_timeline_end = end
+
+    if has_timeline_items and max_timeline_end > 0.0:
+        print(f"[api:render] Overriding clip_duration with timeline duration: {max_timeline_end:.2f}s (was: {clip_duration}s)")
+        clip_duration = max_timeline_end
+
     clip_end = float(clip_start or 0) + float(clip_duration or 0)
     
     # Use clip-specific high-precision transcript if available, else fallback to source
@@ -966,6 +985,25 @@ async def render_clip_stream(req: RenderRequest):
     else:
         clip_start = 0
         clip_duration = job.get("video_info", {}).get("duration") or 0
+
+    # Overwrite clip_duration from timeline tracks if present
+    max_timeline_end = 0.0
+    has_timeline_items = False
+    if req.timeline_tracks:
+        for track in req.timeline_tracks:
+            items = track.get("items", [])
+            if items:
+                has_timeline_items = True
+                for item in items:
+                    start = float(item.get("start") or 0.0)
+                    dur = float(item.get("duration") or 0.0)
+                    end = start + dur
+                    if end > max_timeline_end:
+                        max_timeline_end = end
+
+    if has_timeline_items and max_timeline_end > 0.0:
+        print(f"[api:render-stream] Overriding clip_duration with timeline duration: {max_timeline_end:.2f}s (was: {clip_duration}s)")
+        clip_duration = max_timeline_end
 
     clip_end = float(clip_start or 0) + float(clip_duration or 0)
     
