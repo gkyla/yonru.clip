@@ -84,6 +84,52 @@ class VideoRenderer:
                     thumb_duration = thumbnail_config.get("duration", 1.0)
                     print(f"[render] Thumbnail enabled: {thumb_duration}s prepend")
             
+            # Calculate timeline duration if timeline items exist
+            max_timeline_end = 0.0
+            has_timeline_items = False
+
+            if timeline_tracks:
+                for track in timeline_tracks:
+                    items = track.get("items", [])
+                    if items:
+                        has_timeline_items = True
+                        for item in items:
+                            start = float(item.get("start") or 0.0)
+                            dur = float(item.get("duration") or 0.0)
+                            end = start + dur
+                            if end > max_timeline_end:
+                                max_timeline_end = end
+
+            if timeline_text_items:
+                has_timeline_items = True
+                for item in timeline_text_items:
+                    start = float(item.get("start") or 0.0)
+                    dur = float(item.get("duration") or 0.0)
+                    end = start + dur
+                    if end > max_timeline_end:
+                        max_timeline_end = end
+
+            if timeline_audio_items:
+                has_timeline_items = True
+                for item in timeline_audio_items:
+                    start = float(item.get("start") or 0.0)
+                    dur = float(item.get("duration") or 0.0)
+                    end = start + dur
+                    if end > max_timeline_end:
+                        max_timeline_end = end
+
+            if has_timeline_items and max_timeline_end > 0.0:
+                print(f"[render] Overriding clip_duration with timeline duration: {max_timeline_end:.2f}s (was: {clip_duration}s)")
+                clip_duration = max_timeline_end
+
+            timeline_video_items = []
+            if timeline_tracks:
+                video_track = next((t for t in timeline_tracks if t.get('id') == 'video'), None)
+                if video_track:
+                    timeline_video_items = video_track.get('items', [])
+                elif len(timeline_tracks) > 0:
+                    timeline_video_items = timeline_tracks[0].get('items', [])
+
             video_frames = max(1, int((clip_duration or 10.0) * fps))
             thumbnail_frames = int(thumb_duration * fps)
             frames = video_frames + thumbnail_frames
@@ -100,7 +146,7 @@ class VideoRenderer:
                 "subtitleStyle": subtitle_style or {},
                 "timelineTextItems": timeline_text_items or [],
                 "timelineAudioItems": timeline_audio_items or [],
-                "timelineVideoItems": timeline_tracks[0].get("items", []) if timeline_tracks and len(timeline_tracks) > 0 else [],
+                "timelineVideoItems": timeline_video_items,
                 "volume": volume,
                 "fps": fps,
                 "thumbnailEnabled": thumbnail_image_name is not None,
@@ -188,6 +234,52 @@ class VideoRenderer:
                     shutil.copy2(thumb_src, os.path.join(public_dir, thumbnail_image_name))
                     thumb_duration = thumbnail_config.get("duration", 1.0)
             
+            # Calculate timeline duration if timeline items exist
+            max_timeline_end = 0.0
+            has_timeline_items = False
+
+            if timeline_tracks:
+                for track in timeline_tracks:
+                    items = track.get("items", [])
+                    if items:
+                        has_timeline_items = True
+                        for item in items:
+                            start = float(item.get("start") or 0.0)
+                            dur = float(item.get("duration") or 0.0)
+                            end = start + dur
+                            if end > max_timeline_end:
+                                max_timeline_end = end
+
+            if timeline_text_items:
+                has_timeline_items = True
+                for item in timeline_text_items:
+                    start = float(item.get("start") or 0.0)
+                    dur = float(item.get("duration") or 0.0)
+                    end = start + dur
+                    if end > max_timeline_end:
+                        max_timeline_end = end
+
+            if timeline_audio_items:
+                has_timeline_items = True
+                for item in timeline_audio_items:
+                    start = float(item.get("start") or 0.0)
+                    dur = float(item.get("duration") or 0.0)
+                    end = start + dur
+                    if end > max_timeline_end:
+                        max_timeline_end = end
+
+            if has_timeline_items and max_timeline_end > 0.0:
+                print(f"[render-stream] Overriding clip_duration with timeline duration: {max_timeline_end:.2f}s (was: {clip_duration}s)")
+                clip_duration = max_timeline_end
+
+            timeline_video_items = []
+            if timeline_tracks:
+                video_track = next((t for t in timeline_tracks if t.get('id') == 'video'), None)
+                if video_track:
+                    timeline_video_items = video_track.get('items', [])
+                elif len(timeline_tracks) > 0:
+                    timeline_video_items = timeline_tracks[0].get('items', [])
+
             video_frames = max(1, int((clip_duration or 10.0) * fps))
             thumbnail_frames = int(thumb_duration * fps)
             frames = video_frames + thumbnail_frames
@@ -204,7 +296,7 @@ class VideoRenderer:
                 "subtitleStyle": subtitle_style or {},
                 "timelineTextItems": timeline_text_items or [],
                 "timelineAudioItems": timeline_audio_items or [],
-                "timelineVideoItems": timeline_tracks[0].get("items", []) if timeline_tracks and len(timeline_tracks) > 0 else [],
+                "timelineVideoItems": timeline_video_items,
                 "volume": volume,
                 "fps": fps,
                 "thumbnailEnabled": thumbnail_image_name is not None,
