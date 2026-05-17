@@ -78,6 +78,7 @@ export const useClipperState = () => {
   const subtitleTextTransform = useState<string>('subtitleTextTransform', () => 'uppercase')
   const subtitleBackground = useState<string>('subtitleBackground', () => 'none')
   const subtitleBackgroundOpacity = useState<number>('subtitleBackgroundOpacity', () => 0.7)
+  const subtitleWordSpacing = useState<number>('subtitleWordSpacing', () => 0)
   const subtitlePreset = useState<string>('subtitlePreset', () => 'bold-podcast')
 
   // Thumbnail State
@@ -521,6 +522,7 @@ export const useClipperState = () => {
                   if (styles.subtitleTextTransform) subtitleTextTransform.value = styles.subtitleTextTransform
                   if (styles.subtitleBackground) subtitleBackground.value = styles.subtitleBackground
                   if (styles.subtitleBackgroundOpacity !== undefined) subtitleBackgroundOpacity.value = styles.subtitleBackgroundOpacity
+                  if (styles.subtitleWordSpacing !== undefined) subtitleWordSpacing.value = styles.subtitleWordSpacing
                   if (styles.volume !== undefined) volume.value = styles.volume
                   console.log('[clipper] Loaded clip style settings')
                 }
@@ -757,6 +759,7 @@ export const useClipperState = () => {
         subtitle_text_transform: subtitleTextTransform.value,
         subtitle_background: subtitleBackground.value,
         subtitle_background_opacity: subtitleBackgroundOpacity.value,
+        subtitle_word_spacing: subtitleWordSpacing.value,
         volume: volume.value,
         fps: videoFps.value,
         transcript: fullTranscript.value,
@@ -1002,6 +1005,7 @@ export const useClipperState = () => {
       subtitleTextTransform: subtitleTextTransform.value,
       subtitleBackground: subtitleBackground.value,
       subtitleBackgroundOpacity: subtitleBackgroundOpacity.value,
+      subtitleWordSpacing: subtitleWordSpacing.value,
       volume: volume.value
     }
 
@@ -1064,6 +1068,7 @@ export const useClipperState = () => {
       subtitleTextTransform: subtitleTextTransform.value,
       subtitleBackground: subtitleBackground.value,
       subtitleBackgroundOpacity: subtitleBackgroundOpacity.value,
+      subtitleWordSpacing: subtitleWordSpacing.value,
       volume: volume.value
     }
 
@@ -1304,7 +1309,7 @@ export const useClipperState = () => {
     font, fontSize, faceTracking, cropMode, cropPercentX, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
     subtitleAnimation, subtitleHighlightMode, subtitleHighlightColor, subtitleTextColor,
     subtitleStrokeColor, subtitleStrokeWidth, subtitleFontWeight, subtitleTextTransform,
-    subtitleBackground, subtitleBackgroundOpacity, subtitlePreset, volume,
+    subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing, subtitlePreset, volume,
     isPlaying, currentTime,
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
     cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip,

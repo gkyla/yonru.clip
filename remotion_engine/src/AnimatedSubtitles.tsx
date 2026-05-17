@@ -57,6 +57,7 @@ export const AnimatedSubtitles: React.FC<AnimatedSubtitlesProps> = ({
       ? `-${s.strokeWidth}px -${s.strokeWidth}px 0 ${s.strokeColor}, ${s.strokeWidth}px -${s.strokeWidth}px 0 ${s.strokeColor}, -${s.strokeWidth}px ${s.strokeWidth}px 0 ${s.strokeColor}, ${s.strokeWidth}px ${s.strokeWidth}px 0 ${s.strokeColor}, 0 10px 20px rgba(0,0,0,0.8)`
       : `0 10px 20px rgba(0,0,0,0.8)`,
     textTransform: s.textTransform,
+    wordSpacing: s.wordSpacing ? `${s.wordSpacing}px` : undefined,
     lineHeight: 1.1,
     textAlign: 'center' as const,
     maxWidth: '900px',

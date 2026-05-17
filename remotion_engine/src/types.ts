@@ -46,6 +46,7 @@ export interface SubtitleStyle {
   highlightMode: HighlightMode;
   background: TextBackground;
   backgroundOpacity: number;
+  wordSpacing?: number;
 }
 
 export interface YonruClipProps {
@@ -89,6 +90,7 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   highlightMode: 'color',
   background: 'none',
   backgroundOpacity: 0.7,
+  wordSpacing: 0,
 };
 
 // Style presets

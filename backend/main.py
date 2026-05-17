@@ -98,6 +98,7 @@ class RenderRequest(BaseModel):
     subtitle_text_transform: str = "uppercase"
     subtitle_background: str = "none"
     subtitle_background_opacity: float = 0.7
+    subtitle_word_spacing: int = 0
     # Render Controls
     volume: float = 0.5
     fps: float = 30.0
@@ -927,7 +928,8 @@ async def render_clip(req: RenderRequest):
             "animation": req.subtitle_animation,
             "highlightMode": req.subtitle_highlight_mode,
             "background": req.subtitle_background,
-            "backgroundOpacity": req.subtitle_background_opacity
+            "backgroundOpacity": req.subtitle_background_opacity,
+            "wordSpacing": req.subtitle_word_spacing
         },
         volume=req.volume,
         fps=fps,
@@ -1158,7 +1160,8 @@ async def render_clip_stream(req: RenderRequest):
                 "animation": req.subtitle_animation,
                 "highlightMode": req.subtitle_highlight_mode,
                 "background": req.subtitle_background,
-                "backgroundOpacity": req.subtitle_background_opacity
+                "backgroundOpacity": req.subtitle_background_opacity,
+                "wordSpacing": req.subtitle_word_spacing
             },
             volume=req.volume,
             fps=fps,

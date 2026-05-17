@@ -108,10 +108,12 @@
                fontFamily: state.font.value, 
                fontSize: `${state.fontSize.value}px`, 
                color: 'white',
-               fontWeight: state.subtitleFontWeight.value ? String(state.subtitleFontWeight.value) : '900'
+               fontWeight: state.subtitleFontWeight.value ? String(state.subtitleFontWeight.value) : '900',
+               wordSpacing: `${state.subtitleWordSpacing.value}px`
              }">
           <template v-for="(w, idx) in activeSubtitleWords" :key="idx">
             <span :style="getWordStyle(w)">{{ formatWordText(w.text) }}</span>
+            <span v-if="idx < activeSubtitleWords.length - 1" style="display: inline-block; white-space: pre;" class="select-none"> </span>
           </template>
         </div>
         <div v-else class="bg-accent-500/20 border-[3px] border-accent-500/40 rounded-xl px-12 py-4 text-[30px] text-accent-500 mono text-center whitespace-nowrap backdrop-blur-md transition-opacity duration-500" :class="state.isPlaying.value ? 'opacity-0' : 'opacity-100'">
@@ -500,6 +502,7 @@ watch(() => state.videoUrl.value, (url) => {
         highlightMode: state.subtitleHighlightMode.value,
         background: state.subtitleBackground.value,
         backgroundOpacity: state.subtitleBackgroundOpacity.value,
+        wordSpacing: state.subtitleWordSpacing.value,
       }
     }
   
@@ -536,6 +539,7 @@ watch([
   () => state.subtitleTextTransform.value,
   () => state.subtitleBackground.value,
   () => state.subtitleBackgroundOpacity.value,
+  () => state.subtitleWordSpacing.value,
   () => state.timelineTracks.value,
 ], () => {
   syncRemotionProps()

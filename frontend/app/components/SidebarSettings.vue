@@ -303,6 +303,22 @@
           </div>
         </div>
 
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-xs text-slate-400">Word Spacing</span>
+            <div class="flex items-center gap-2">
+              <input 
+                v-model.number="state.subtitleWordSpacing.value" 
+                type="number" 
+                :disabled="state.renderStatus.value === 'rendering'"
+                class="w-16 bg-surface-dark border border-surface-border rounded px-1.5 py-0.5 text-[10px] mono text-accent-500 focus:border-accent-500 outline-none transition-colors"
+              />
+              <span class="text-[10px] text-slate-500">px</span>
+            </div>
+          </div>
+          <input v-model.number="state.subtitleWordSpacing.value" :disabled="state.renderStatus.value === 'rendering'" type="range" min="-20" max="80" step="1" class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" />
+        </div>
+
         <div v-if="state.subtitleBackground.value !== 'none'">
           <label class="text-xs text-slate-400 flex justify-between mb-2">
             <span>BG Opacity</span>
