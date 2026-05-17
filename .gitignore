@@ -8,8 +8,6 @@ Thumbs.db
 .env.*
 !.env.example
 
-# Agent files
-.agents/
 
 # Backend
 backend/venv/
