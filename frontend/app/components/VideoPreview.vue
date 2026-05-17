@@ -368,14 +368,26 @@ watch(() => state.videoUrl.value, (url) => {
             })
           })
 
-          if (mode === 'word') {
-            rawWords.forEach((w: string, i: number) => {
-               wordsData.push({
-                 word: w,
-                 start: relativeStart + (i * wordDur),
-                 end: relativeStart + ((i + 1) * wordDur)
-               })
-            })
+          if (mode === 'word' || mode.endsWith('_words')) {
+             let numWords = 1
+             const match = mode.match(/^(\d+)_(?:word|words)$/)
+             if (match) {
+               numWords = parseInt(match[1]) || 1
+             }
+             
+             const chunksList: string[][] = []
+             for (let i = 0; i < rawWords.length; i += numWords) {
+               chunksList.push(rawWords.slice(i, i + numWords))
+             }
+             
+             const chunkDuration = segmentDuration / Math.max(1, chunksList.length)
+             chunksList.forEach((c: string[], i: number) => {
+                wordsData.push({
+                  word: c.join(' '),
+                  start: relativeStart + (i * chunkDuration),
+                  end: relativeStart + ((i + 1) * chunkDuration)
+                })
+             })
           } else {
              const limit = parseInt(mode as string) || 10
              const chunks: string[] = []
@@ -395,11 +407,11 @@ watch(() => state.videoUrl.value, (url) => {
              
              const chunkDuration = segmentDuration / Math.max(1, chunks.length)
              chunks.forEach((c: string, i: number) => {
-               wordsData.push({
-                 word: c,
-                 start: relativeStart + (i * chunkDuration),
-                 end: relativeStart + ((i + 1) * chunkDuration)
-               })
+                wordsData.push({
+                  word: c,
+                  start: relativeStart + (i * chunkDuration),
+                  end: relativeStart + ((i + 1) * chunkDuration)
+                })
              })
           }
       })
@@ -794,10 +806,19 @@ const currentSubtitleText = computed(() => {
   const mode = state.subtitleMode.value
   const words = segment.text.trim().split(/\s+/)
   
-  if (mode === 'word') {
-    const wordDuration = segment.duration / words.length
-    const wordIndex = Math.max(0, Math.floor((absoluteTime - segment.start) / wordDuration))
-    return words[Math.min(wordIndex, words.length - 1)] || ''
+  if (mode === 'word' || mode.endsWith('_words')) {
+    let numWords = 1
+    const match = mode.match(/^(\d+)_(?:word|words)$/)
+    if (match) {
+      numWords = parseInt(match[1]) || 1
+    }
+    const chunks: string[] = []
+    for (let i = 0; i < words.length; i += numWords) {
+      chunks.push(words.slice(i, i + numWords).join(' '))
+    }
+    const chunkDuration = segment.duration / Math.max(1, chunks.length)
+    const chunkIndex = Math.max(0, Math.floor((absoluteTime - segment.start) / chunkDuration))
+    return chunks[Math.min(chunkIndex, chunks.length - 1)] || ''
   }
 
   // Handle letter-based limits (10_chars, 15_chars, 20_chars)

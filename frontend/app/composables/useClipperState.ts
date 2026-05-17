@@ -61,7 +61,7 @@ export const useClipperState = () => {
   const faceTracking = useState<boolean>('faceTracking', () => false)
   const cropMode = useState<string>('cropMode', () => 'manual') // 'manual' | 'face_tracking'
   const cropPercentX = useState<number>('cropPercentX', () => 50) // 0=left, 50=center, 100=right
-  const subtitleMode = useState<'word' | '10_chars' | '15_chars' | '20_chars'>('subtitleMode', () => 'word')
+  const subtitleMode = useState<'word' | '3_words' | '4_words' | '10_chars' | '15_chars' | '20_chars'>('subtitleMode', () => 'word')
   const whisperModel = useState<string>('whisperModel', () => 'base')
   const useNativePlayer = useState<boolean>('useNativePlayer', () => false)
   const showIframeDebug = useState<boolean>('showIframeDebug', () => false)
@@ -227,12 +227,21 @@ export const useClipperState = () => {
       
       let chunks: { text: string, start: number, duration: number }[] = []
       
-      if (mode === 'word') {
-        const wordDuration = segmentDuration / words.length
-        chunks = words.map((w, i) => ({
-          text: w,
-          start: seg.start + (i * wordDuration),
-          duration: wordDuration
+      if (mode === 'word' || mode.endsWith('_words')) {
+        let numWords = 1
+        const match = mode.match(/^(\d+)_(?:word|words)$/)
+        if (match) {
+          numWords = parseInt(match[1]) || 1
+        }
+        const chunksList: string[][] = []
+        for (let i = 0; i < words.length; i += numWords) {
+          chunksList.push(words.slice(i, i + numWords))
+        }
+        const chunkDuration = segmentDuration / Math.max(1, chunksList.length)
+        chunks = chunksList.map((c, i) => ({
+          text: c.join(' '),
+          start: seg.start + (i * chunkDuration),
+          duration: chunkDuration
         }))
       } else {
         const limit = parseInt(mode) || 0

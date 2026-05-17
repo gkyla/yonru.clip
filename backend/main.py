@@ -793,8 +793,14 @@ async def render_clip(req: RenderRequest):
             if not words: continue
                 
             # Split based on mode
-            if req.subtitle_mode == "word":
-                chunks = words
+            if req.subtitle_mode == "word" or "word" in req.subtitle_mode:
+                try:
+                    num_words = int(req.subtitle_mode.split('_')[0])
+                except:
+                    num_words = 1
+                chunks = []
+                for i in range(0, len(words), num_words):
+                    chunks.append(" ".join(words[i:i+num_words]))
             elif "chars" in req.subtitle_mode:
                 try:
                     limit = int(req.subtitle_mode.split('_')[0])
@@ -982,8 +988,14 @@ async def render_clip_stream(req: RenderRequest):
             words = text.split()
             if not words: continue
                 
-            if req.subtitle_mode == "word":
-                chunks = words
+            if req.subtitle_mode == "word" or "word" in req.subtitle_mode:
+                try:
+                    num_words = int(req.subtitle_mode.split('_')[0])
+                except:
+                    num_words = 1
+                chunks = []
+                for i in range(0, len(words), num_words):
+                    chunks.append(" ".join(words[i:i+num_words]))
             elif "chars" in req.subtitle_mode:
                 try:
                     limit = int(req.subtitle_mode.split('_')[0])

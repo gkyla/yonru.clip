@@ -48,13 +48,12 @@
 
         <div>
           <label class="text-xs text-slate-400 block mb-2">Display Mode</label>
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-3 gap-1.5">
             <button 
               v-for="mode in [
-                { id: 'word', label: 'One Word' },
-                { id: '10_chars', label: '10 Letters' },
-                { id: '15_chars', label: '15 Letters' },
-                { id: '20_chars', label: '20 Letters' }
+                { id: 'word', label: '1 Word' },
+                { id: '3_words', label: '3 Words' },
+                { id: '4_words', label: '4 Words' }
               ]" :key="mode.id"
               @click="state.subtitleMode.value = mode.id"
               :disabled="state.renderStatus.value === 'rendering'"
