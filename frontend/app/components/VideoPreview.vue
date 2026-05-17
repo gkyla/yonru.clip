@@ -53,6 +53,7 @@
           @loadstart="state.isMediaLoading.value = true"
           @canplay="onVideoReady"
           @canplaythrough="onVideoReady"
+          @timeupdate="onNativeTimeUpdate"
           @error="(e) => onNativeVideoError(e)"
           playsinline
           crossorigin="anonymous"
@@ -101,17 +102,17 @@
       
       <!-- Subtitle Overlay / position indicator (Hidden if Remotion handles it) -->
       <div class="absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none w-full px-[5%] flex justify-center transition-opacity duration-300" :class="state.useNativePlayer.value ? 'opacity-100' : 'opacity-0 hidden'" :style="subtitleIndicatorStyle">
-        <div v-if="currentSubtitleText" 
-             class="font-bold text-center leading-tight tracking-wide"
+        <div v-if="activeSubtitleWords && activeSubtitleWords.length > 0" 
+             class="font-bold text-center leading-tight tracking-wide flex flex-wrap justify-center items-center gap-x-4 gap-y-2"
              :style="{ 
                fontFamily: state.font.value, 
                fontSize: `${state.fontSize.value}px`, 
                color: 'white',
-               textShadow: state.subtitleStrokeWidth.value > 0 
-                 ? `-${state.subtitleStrokeWidth.value}px -${state.subtitleStrokeWidth.value}px 0 ${state.subtitleStrokeColor.value}, ${state.subtitleStrokeWidth.value}px -${state.subtitleStrokeWidth.value}px 0 ${state.subtitleStrokeColor.value}, -${state.subtitleStrokeWidth.value}px ${state.subtitleStrokeWidth.value}px 0 ${state.subtitleStrokeColor.value}, ${state.subtitleStrokeWidth.value}px ${state.subtitleStrokeWidth.value}px 0 ${state.subtitleStrokeColor.value}, 0 8px 16px rgba(0,0,0,0.8)`
-                 : `0 8px 16px rgba(0,0,0,0.8)`
+               fontWeight: state.subtitleFontWeight.value ? String(state.subtitleFontWeight.value) : '900'
              }">
-          {{ currentSubtitleText.toUpperCase() }}
+          <template v-for="(w, idx) in activeSubtitleWords" :key="idx">
+            <span :style="getWordStyle(w)">{{ formatWordText(w.text) }}</span>
+          </template>
         </div>
         <div v-else class="bg-accent-500/20 border-[3px] border-accent-500/40 rounded-xl px-12 py-4 text-[30px] text-accent-500 mono text-center whitespace-nowrap backdrop-blur-md transition-opacity duration-500" :class="state.isPlaying.value ? 'opacity-0' : 'opacity-100'">
           SUBTITLE — {{ state.font.value }} {{ state.fontSize.value }}px
@@ -347,74 +348,113 @@ watch(() => state.videoUrl.value, (url) => {
     const hookDuration = hook ? (hook.duration || (hook.end - hook.start)) : 15
     const syncOffsetSec = state.subtitleSyncOffset.value / 1000
     
+    const flatWords: { text: string, start: number, duration: number, end: number }[] = []
     if (state.fullTranscript.value) {
-      const mode = state.subtitleMode.value || 'word'
       state.fullTranscript.value.forEach(s => {
-          const relativeStart = s.start + syncOffsetSec
-          const relativeEnd = s.start + s.duration + syncOffsetSec
-          const segmentDuration = s.duration
+        const segText = (s.text || '').trim()
+        if (!segText) return
+        
+        const relativeStart = s.start + syncOffsetSec
+        const segmentDuration = s.duration
+        if (segmentDuration <= 0) return
+        
+        const rawWords = segText.split(/\s+/)
+        const wordDur = segmentDuration / Math.max(1, rawWords.length)
+        
+        rawWords.forEach((w: string, idx: number) => {
+          const wStart = relativeStart + (idx * wordDur)
+          const wEnd = relativeStart + ((idx + 1) * wordDur)
           
-          if (segmentDuration <= 0) return
+          flatWords.push({
+            text: w,
+            start: wStart,
+            duration: wordDur,
+            end: wEnd
+          })
           
-          const rawWords = s.text.trim().split(/\s+/)
-          
-          // Add to allWordTimings (always word-level)
-          const wordDur = segmentDuration / Math.max(1, rawWords.length)
-          rawWords.forEach((w: string, i: number) => {
-            allWordTimings.push({
-              word: w,
-              start: relativeStart + (i * wordDur),
-              end: relativeStart + ((i + 1) * wordDur)
+          allWordTimings.push({
+            word: w,
+            start: wStart,
+            end: wEnd
+          })
+        })
+      })
+    }
+    
+    if (flatWords.length > 0) {
+      const mode = state.subtitleMode.value || 'word'
+      
+      if (mode === 'word' || mode === '1_word') {
+        flatWords.forEach(w => {
+          wordsData.push({
+            word: w.text,
+            start: w.start,
+            end: w.end
+          })
+        })
+      } else if (mode.endsWith('_words')) {
+        let numWords = 1
+        const match = mode.match(/^(\d+)_(?:word|words)$/)
+        if (match) {
+          numWords = parseInt(match[1]) || 1
+        }
+        
+        for (let i = 0; i < flatWords.length; i += numWords) {
+          const chunk = flatWords.slice(i, i + numWords)
+          const start = chunk[0].start
+          const end = chunk[chunk.length - 1].end
+          const text = chunk.map(w => w.text).join(' ')
+          wordsData.push({
+            word: text,
+            start,
+            end
+          })
+        }
+      } else {
+        // Character limit based (e.g. 10_chars, 15_chars, 20_chars)
+        const limit = parseInt(mode) || 0
+        if (limit <= 0) {
+          flatWords.forEach(w => {
+            wordsData.push({
+              word: w.text,
+              start: w.start,
+              end: w.end
             })
           })
-
-          if (mode === 'word' || mode.endsWith('_words')) {
-             let numWords = 1
-             const match = mode.match(/^(\d+)_(?:word|words)$/)
-             if (match) {
-               numWords = parseInt(match[1]) || 1
-             }
-             
-             const chunksList: string[][] = []
-             for (let i = 0; i < rawWords.length; i += numWords) {
-               chunksList.push(rawWords.slice(i, i + numWords))
-             }
-             
-             const chunkDuration = segmentDuration / Math.max(1, chunksList.length)
-             chunksList.forEach((c: string[], i: number) => {
-                wordsData.push({
-                  word: c.join(' '),
-                  start: relativeStart + (i * chunkDuration),
-                  end: relativeStart + ((i + 1) * chunkDuration)
-                })
-             })
-          } else {
-             const limit = parseInt(mode as string) || 10
-             const chunks: string[] = []
-             let currentChunk: string[] = []
-             let currentLen = 0
-             for (const w of rawWords) {
-               if (currentLen + w.length > limit && currentChunk.length > 0) {
-                 chunks.push(currentChunk.join(' '))
-                 currentChunk = [w]
-                 currentLen = w.length
-               } else {
-                 currentChunk.push(w)
-                 currentLen += w.length + (currentChunk.length > 1 ? 1 : 0)
-               }
-             }
-             if (currentChunk.length) chunks.push(currentChunk.join(' '))
-             
-             const chunkDuration = segmentDuration / Math.max(1, chunks.length)
-             chunks.forEach((c: string, i: number) => {
-                wordsData.push({
-                  word: c,
-                  start: relativeStart + (i * chunkDuration),
-                  end: relativeStart + ((i + 1) * chunkDuration)
-                })
-             })
+        } else {
+          let currentChunk: typeof flatWords = []
+          let currentLen = 0
+          
+          for (const w of flatWords) {
+            if (currentLen + w.text.length > limit && currentChunk.length > 0) {
+              const start = currentChunk[0].start
+              const end = currentChunk[currentChunk.length - 1].end
+              const text = currentChunk.map(c => c.text).join(' ')
+              wordsData.push({
+                word: text,
+                start,
+                end
+              })
+              
+              currentChunk = [w]
+              currentLen = w.text.length
+            } else {
+              currentChunk.push(w)
+              currentLen += w.text.length + (currentChunk.length > 1 ? 1 : 0)
+            }
           }
-      })
+          if (currentChunk.length > 0) {
+            const start = currentChunk[0].start
+            const end = currentChunk[currentChunk.length - 1].end
+            const text = currentChunk.map(c => c.text).join(' ')
+            wordsData.push({
+              word: text,
+              start,
+              end
+            })
+          }
+        }
+      }
     }
   
     // Probe actual width vs percent. The backend sends cropX pixel. We send cropX pixel.
@@ -514,7 +554,10 @@ watch(() => state.isPlaying.value, (playing) => {
         // Don't call play()
       } else {
         // Normal play
-        previewVideo.value.muted = true // Force muted, Remotion handles audio
+        previewVideo.value.muted = !state.useNativePlayer.value
+        if (state.useNativePlayer.value) {
+          previewVideo.value.volume = state.volume.value
+        }
         previewVideo.value.currentTime = videoTime.value
         previewVideo.value.play().catch(e => console.warn('Native play blocked:', e))
       }
@@ -574,6 +617,35 @@ function onRemotionMessage(event: MessageEvent) {
   }
 }
 
+function onNativeTimeUpdate(e: Event) {
+  if (!state.useNativePlayer.value) return
+  const video = e.target as HTMLVideoElement
+  if (!video || video.paused) return
+
+  isInternalTimeUpdate = true
+  const thumbSec = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
+  const videoTrack = state.timelineTracks.value.find(tr => tr.id === 'video')
+  
+  if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) {
+    state.currentTime.value = video.currentTime + thumbSec
+  } else {
+    const activeItem = videoTrack.items.find((i: any) => {
+      const mediaStart = i.mediaStart !== undefined ? i.mediaStart : i.start
+      return video.currentTime >= mediaStart && video.currentTime <= mediaStart + i.duration
+    })
+    if (activeItem) {
+      const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : activeItem.start
+      const relativeOffset = video.currentTime - mediaStart
+      state.currentTime.value = activeItem.start + relativeOffset + thumbSec
+    } else {
+      state.currentTime.value = video.currentTime + thumbSec
+    }
+  }
+  nextTick(() => {
+    isInternalTimeUpdate = false
+  })
+}
+
 // Track whether native video has started for this playback session
 let nativeVideoStarted = false
 
@@ -592,7 +664,10 @@ watch(() => state.currentTime.value, (newTime) => {
       // Just crossed the boundary! Start native video from appropriate relative time.
       nativeVideoStarted = true
       previewVideo.value.currentTime = videoTime.value
-      previewVideo.value.muted = true // Force muted, Remotion handles audio
+      previewVideo.value.muted = !state.useNativePlayer.value
+      if (state.useNativePlayer.value) {
+        previewVideo.value.volume = state.volume.value
+      }
       previewVideo.value.play().catch(e => console.warn('Native play at boundary:', e))
       console.log(`[VideoPreview] Crossed thumb boundary — started native video from ${videoTime.value}s`)
     }
@@ -613,6 +688,17 @@ watch(() => state.currentTime.value, (newTime) => {
       type: 'SEEK',
       frame: Math.floor(newTime * (state.videoFps.value || 30))
     }, '*')
+  }
+})
+
+watch(() => state.useNativePlayer.value, (useNative) => {
+  if (previewVideo.value) {
+    if (useNative) {
+      previewVideo.value.muted = false
+      previewVideo.value.volume = state.volume.value
+    } else {
+      previewVideo.value.muted = true
+    }
   }
 })
 
@@ -796,55 +882,262 @@ const currentSubtitleText = computed(() => {
   if (!state?.fullTranscript?.value || !state?.activeHook?.value) return ''
   
   const offsetSec = state.subtitleSyncOffset.value / 1000
-  const absoluteTime = (state?.activeHook?.value?.start || 0) + state.currentTime.value + offsetSec
+  const firstStart = state.fullTranscript.value[0]?.start || 0
+  const isTranscriptZeroBased = firstStart < (state?.activeHook?.value?.start || 0) - 2
   
-  const segment = state.fullTranscript.value.find((s: any) => 
-    absoluteTime >= s.start && absoluteTime <= (s.start + s.duration)
-  )
-  if (!segment) return ''
+  const thumbSec = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
+  const relativeTime = Math.max(0, state.currentTime.value - thumbSec)
+  
+  const searchTime = isTranscriptZeroBased 
+    ? relativeTime + offsetSec
+    : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec
+
+  // 1. Flatten all segments in fullTranscript into individual words
+  const flatWords: { text: string, start: number, duration: number, end: number }[] = []
+  
+  for (const seg of state.fullTranscript.value) {
+    const segText = (seg.text || '').trim()
+    if (!segText) continue
+    
+    const words = segText.split(/\s+/)
+    if (words.length === 1) {
+      flatWords.push({
+        text: words[0],
+        start: seg.start,
+        duration: seg.duration,
+        end: seg.start + seg.duration
+      })
+    } else {
+      const wordDur = seg.duration / words.length
+      words.forEach((w, idx) => {
+        flatWords.push({
+          text: w,
+          start: seg.start + (idx * wordDur),
+          duration: wordDur,
+          end: seg.start + ((idx + 1) * wordDur)
+        })
+      })
+    }
+  }
+
+  if (flatWords.length === 0) return ''
 
   const mode = state.subtitleMode.value
-  const words = segment.text.trim().split(/\s+/)
-  
-  if (mode === 'word' || mode.endsWith('_words')) {
+
+  // 2. Group flatWords based on subtitleMode
+  let groupedSegments: { text: string, start: number, duration: number, end: number }[] = []
+
+  if (mode === 'word' || mode === '1_word') {
+    groupedSegments = flatWords
+  } else if (mode.endsWith('_words')) {
     let numWords = 1
     const match = mode.match(/^(\d+)_(?:word|words)$/)
     if (match) {
       numWords = parseInt(match[1]) || 1
     }
-    const chunks: string[] = []
-    for (let i = 0; i < words.length; i += numWords) {
-      chunks.push(words.slice(i, i + numWords).join(' '))
+    
+    for (let i = 0; i < flatWords.length; i += numWords) {
+      const chunk = flatWords.slice(i, i + numWords)
+      const start = chunk[0].start
+      const end = chunk[chunk.length - 1].end
+      const text = chunk.map(w => w.text).join(' ')
+      groupedSegments.push({ text, start, duration: end - start, end })
     }
-    const chunkDuration = segment.duration / Math.max(1, chunks.length)
-    const chunkIndex = Math.max(0, Math.floor((absoluteTime - segment.start) / chunkDuration))
-    return chunks[Math.min(chunkIndex, chunks.length - 1)] || ''
-  }
-
-  // Handle letter-based limits (10_chars, 15_chars, 20_chars)
-  const limit = parseInt(mode) || 0
-  if (limit <= 0) return segment.text
-
-  const chunks: string[] = []
-  let currentChunk: string[] = []
-  let currentLen = 0
-
-  for (const w of words) {
-    if (currentLen + w.length > limit && currentChunk.length > 0) {
-      chunks.push(currentChunk.join(' '))
-      currentChunk = [w]
-      currentLen = w.length
+  } else {
+    // Character limit based (e.g. 10_chars, 15_chars, 20_chars)
+    const limit = parseInt(mode) || 0
+    if (limit <= 0) {
+      groupedSegments = flatWords
     } else {
-      currentChunk.push(w)
-      currentLen += w.length + (currentChunk.length > 1 ? 1 : 0)
+      let currentChunk: typeof flatWords = []
+      let currentLen = 0
+      
+      for (const w of flatWords) {
+        if (currentLen + w.text.length > limit && currentChunk.length > 0) {
+          const start = currentChunk[0].start
+          const end = currentChunk[currentChunk.length - 1].end
+          const text = currentChunk.map(c => c.text).join(' ')
+          groupedSegments.push({ text, start, duration: end - start, end })
+          
+          currentChunk = [w]
+          currentLen = w.text.length
+        } else {
+          currentChunk.push(w)
+          currentLen += w.text.length + (currentChunk.length > 1 ? 1 : 0)
+        }
+      }
+      if (currentChunk.length > 0) {
+        const start = currentChunk[0].start
+        const end = currentChunk[currentChunk.length - 1].end
+        const text = currentChunk.map(c => c.text).join(' ')
+        groupedSegments.push({ text, start, duration: end - start, end })
+      }
     }
   }
-  if (currentChunk.length) chunks.push(currentChunk.join(' '))
 
-  const chunkDuration = segment.duration / chunks.length
-  const chunkIndex = Math.max(0, Math.floor((absoluteTime - segment.start) / chunkDuration))
-  return chunks[Math.min(chunkIndex, chunks.length - 1)] || ''
+  // 3. Find the active grouped segment matching searchTime
+  const activeGroup = groupedSegments.find(s => searchTime >= s.start && searchTime <= s.end)
+  return activeGroup ? activeGroup.text : ''
 })
+
+const activeSubtitleWords = computed(() => {
+  if (!state?.fullTranscript?.value || !state?.activeHook?.value) return []
+  
+  const offsetSec = state.subtitleSyncOffset.value / 1000
+  const firstStart = state.fullTranscript.value[0]?.start || 0
+  const isTranscriptZeroBased = firstStart < (state?.activeHook?.value?.start || 0) - 2
+  
+  const thumbSec = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
+  const relativeTime = Math.max(0, state.currentTime.value - thumbSec)
+  
+  const searchTime = isTranscriptZeroBased 
+    ? relativeTime + offsetSec
+    : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec
+
+  // 1. Flatten all segments in fullTranscript into individual words
+  const flatWords: { text: string, start: number, duration: number, end: number }[] = []
+  
+  for (const seg of state.fullTranscript.value) {
+    const segText = (seg.text || '').trim()
+    if (!segText) continue
+    
+    const words = segText.split(/\s+/)
+    if (words.length === 1) {
+      flatWords.push({
+        text: words[0],
+        start: seg.start,
+        duration: seg.duration,
+        end: seg.start + seg.duration
+      })
+    } else {
+      const wordDur = seg.duration / words.length
+      words.forEach((w, idx) => {
+        flatWords.push({
+          text: w,
+          start: seg.start + (idx * wordDur),
+          duration: wordDur,
+          end: seg.start + ((idx + 1) * wordDur)
+        })
+      })
+    }
+  }
+
+  if (flatWords.length === 0) return []
+
+  const mode = state.subtitleMode.value
+
+  // 2. Group flatWords based on subtitleMode
+  let groupedSegments: { words: typeof flatWords, start: number, duration: number, end: number }[] = []
+
+  if (mode === 'word' || mode === '1_word') {
+    groupedSegments = flatWords.map(w => ({ words: [w], start: w.start, duration: w.duration, end: w.end }))
+  } else if (mode.endsWith('_words')) {
+    let numWords = 1
+    const match = mode.match(/^(\d+)_(?:word|words)$/)
+    if (match) {
+      numWords = parseInt(match[1]) || 1
+    }
+    
+    for (let i = 0; i < flatWords.length; i += numWords) {
+      const chunk = flatWords.slice(i, i + numWords)
+      const start = chunk[0].start
+      const end = chunk[chunk.length - 1].end
+      groupedSegments.push({ words: chunk, start, duration: end - start, end })
+    }
+  } else {
+    // Character limit based (e.g. 10_chars, 15_chars, 20_chars)
+    const limit = parseInt(mode) || 0
+    if (limit <= 0) {
+      groupedSegments = flatWords.map(w => ({ words: [w], start: w.start, duration: w.duration, end: w.end }))
+    } else {
+      let currentChunk: typeof flatWords = []
+      let currentLen = 0
+      
+      for (const w of flatWords) {
+        if (currentLen + w.text.length > limit && currentChunk.length > 0) {
+          const start = currentChunk[0].start
+          const end = currentChunk[currentChunk.length - 1].end
+          groupedSegments.push({ words: currentChunk, start, duration: end - start, end })
+          
+          currentChunk = [w]
+          currentLen = w.text.length
+        } else {
+          currentChunk.push(w)
+          currentLen += w.text.length + (currentChunk.length > 1 ? 1 : 0)
+        }
+      }
+      if (currentChunk.length > 0) {
+        const start = currentChunk[0].start
+        const end = currentChunk[currentChunk.length - 1].end
+        groupedSegments.push({ words: currentChunk, start, duration: end - start, end })
+      }
+    }
+  }
+
+  // 3. Find the active grouped segment matching searchTime
+  const activeGroup = groupedSegments.find(s => searchTime >= s.start && searchTime <= s.end)
+  if (!activeGroup) return []
+
+  // 4. Return the words in the active group, with their individual timing and state relative to searchTime
+  return activeGroup.words.map(w => {
+    const isActive = searchTime >= w.start && searchTime <= w.end
+    const isPast = searchTime > w.end
+    return {
+      text: w.text,
+      start: w.start,
+      end: w.end,
+      isActive,
+      isPast
+    }
+  })
+})
+
+const getWordStyle = (w: { text: string, isActive: boolean, isPast: boolean }) => {
+  const hlMode = state.subtitleHighlightMode.value
+  const hlColor = state.subtitleHighlightColor.value
+  const strokeWidth = state.subtitleStrokeWidth.value
+  const strokeColor = state.subtitleStrokeColor.value
+
+  const baseStyle: Record<string, string | number> = {
+    display: 'inline-block',
+    transition: 'all 0.1s ease',
+  }
+
+  // Apply base stroke/textShadow to each word span
+  if (strokeWidth > 0) {
+    baseStyle.textShadow = `-${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, -${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}, 0 8px 16px rgba(0,0,0,0.8)`
+  } else {
+    baseStyle.textShadow = '0 8px 16px rgba(0,0,0,0.8)'
+  }
+
+  if (w.isActive) {
+    if (hlMode === 'color') {
+      baseStyle.color = hlColor
+      baseStyle.transform = 'scale(1.08)'
+    } else if (hlMode === 'scale') {
+      baseStyle.transform = 'scale(1.15)'
+    } else if (hlMode === 'underline') {
+      baseStyle.borderBottom = `6px solid ${hlColor}`
+      baseStyle.paddingBottom = '4px'
+    } else if (hlMode === 'box') {
+      baseStyle.background = hlColor
+      baseStyle.color = '#000000'
+      baseStyle.borderRadius = '12px'
+      baseStyle.padding = '4px 16px'
+      baseStyle.textShadow = 'none' // Remove text shadow for box highlight
+      baseStyle.transform = 'scale(1.05)'
+    }
+  }
+
+  return baseStyle
+}
+
+const formatWordText = (text: string) => {
+  if (state.subtitleTextTransform.value === 'uppercase') {
+    return text.toUpperCase()
+  }
+  return text
+}
 
 // --- Timeline Text Overlays ---
 const activeTextItems = computed(() => {

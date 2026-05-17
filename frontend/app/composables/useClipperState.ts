@@ -220,56 +220,83 @@ export const useClipperState = () => {
     const flaggedWords: string[] = []
     const flaggedSegments: { start: number, duration: number, word: string, text: string }[] = []
     
-    // Simulate subtitle chunking logic to match exactly what appears on screen
-    transcript.forEach((seg) => {
-      const words = seg.text.trim().split(/\s+/)
-      const segmentDuration = seg.duration
+    // 1. Flatten all segments in fullTranscript into individual words
+    const flatWords: { text: string, start: number, duration: number, end: number }[] = []
+    
+    for (const seg of transcript) {
+      const segText = (seg.text || '').trim()
+      if (!segText) continue
       
+      const words = segText.split(/\s+/)
+      if (words.length === 1) {
+        flatWords.push({
+          text: words[0],
+          start: seg.start,
+          duration: seg.duration,
+          end: seg.start + seg.duration
+        })
+      } else {
+        const wordDur = seg.duration / words.length
+        words.forEach((w, idx) => {
+          flatWords.push({
+            text: w,
+            start: seg.start + (idx * wordDur),
+            duration: wordDur,
+            end: seg.start + ((idx + 1) * wordDur)
+          })
+        })
+      }
+    }
+
+    if (flatWords.length > 0) {
+      // 2. Group flatWords based on subtitleMode into chunks
       let chunks: { text: string, start: number, duration: number }[] = []
-      
-      if (mode === 'word' || mode.endsWith('_words')) {
+
+      if (mode === 'word' || mode === '1_word') {
+        chunks = flatWords.map(w => ({ text: w.text, start: w.start, duration: w.duration }))
+      } else if (mode.endsWith('_words')) {
         let numWords = 1
         const match = mode.match(/^(\d+)_(?:word|words)$/)
         if (match) {
           numWords = parseInt(match[1]) || 1
         }
-        const chunksList: string[][] = []
-        for (let i = 0; i < words.length; i += numWords) {
-          chunksList.push(words.slice(i, i + numWords))
+        
+        for (let i = 0; i < flatWords.length; i += numWords) {
+          const chunk = flatWords.slice(i, i + numWords)
+          const start = chunk[0].start
+          const end = chunk[chunk.length - 1].end
+          const text = chunk.map(w => w.text).join(' ')
+          chunks.push({ text, start, duration: end - start })
         }
-        const chunkDuration = segmentDuration / Math.max(1, chunksList.length)
-        chunks = chunksList.map((c, i) => ({
-          text: c.join(' '),
-          start: seg.start + (i * chunkDuration),
-          duration: chunkDuration
-        }))
       } else {
+        // Character limit based (e.g. 10_chars, 15_chars, 20_chars)
         const limit = parseInt(mode) || 0
         if (limit <= 0) {
-          chunks = [{ text: seg.text, start: seg.start, duration: segmentDuration }]
+          chunks = flatWords.map(w => ({ text: w.text, start: w.start, duration: w.duration }))
         } else {
-          let currentChunk: string[] = []
+          let currentChunk: typeof flatWords = []
           let currentLen = 0
-          let currentStart = seg.start
           
-          words.forEach((w, i) => {
-            if (currentLen + w.length > limit && currentChunk.length > 0) {
-              const chunkText = currentChunk.join(' ')
-              const chunkDuration = (currentChunk.length / words.length) * segmentDuration
-              chunks.push({ text: chunkText, start: currentStart, duration: chunkDuration })
+          for (const w of flatWords) {
+            if (currentLen + w.text.length > limit && currentChunk.length > 0) {
+              const start = currentChunk[0].start
+              const end = currentChunk[currentChunk.length - 1].end
+              const text = currentChunk.map(c => c.text).join(' ')
+              chunks.push({ text, start, duration: end - start })
               
-              currentStart += chunkDuration
               currentChunk = [w]
-              currentLen = w.length
+              currentLen = w.text.length
             } else {
               currentChunk.push(w)
-              currentLen += w.length + (currentChunk.length > 1 ? 1 : 0)
+              currentLen += w.text.length + (currentChunk.length > 1 ? 1 : 0)
             }
-            
-            if (i === words.length - 1 && currentChunk.length > 0) {
-              chunks.push({ text: currentChunk.join(' '), start: currentStart, duration: Math.max(0.1, seg.start + segmentDuration - currentStart) })
-            }
-          })
+          }
+          if (currentChunk.length > 0) {
+            const start = currentChunk[0].start
+            const end = currentChunk[currentChunk.length - 1].end
+            const text = currentChunk.map(c => c.text).join(' ')
+            chunks.push({ text, start, duration: end - start })
+          }
         }
       }
 
@@ -297,7 +324,7 @@ export const useClipperState = () => {
           }
         })
       })
-    })
+    }
 
     const duration = timelineDuration.value
     const isDurationOk = duration >= 5 && duration <= 60

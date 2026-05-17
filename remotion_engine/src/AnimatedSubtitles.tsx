@@ -126,25 +126,116 @@ function renderAnimation(
 ): React.ReactElement {
   switch (animation) {
     case 'pop':
-      return renderPop(activeWord, s, baseStyle, frame, fps);
+      return renderPop(activeWord, s, baseStyle, frame, fps, wordTimings, currentTime);
     case 'slide-up':
-      return renderSlideUp(activeWord, s, baseStyle, frame, fps);
+      return renderSlideUp(activeWord, s, baseStyle, frame, fps, wordTimings, currentTime);
     case 'fade':
-      return renderFade(activeWord, s, baseStyle, frame, fps);
+      return renderFade(activeWord, s, baseStyle, frame, fps, wordTimings, currentTime);
     case 'bounce':
-      return renderBounce(activeWord, s, baseStyle, frame, fps);
+      return renderBounce(activeWord, s, baseStyle, frame, fps, wordTimings, currentTime);
     case 'typewriter':
       return renderTypewriter(activeWord, s, baseStyle, frame, fps);
     case 'karaoke':
       return renderKaraoke(activeWord, wordTimings, s, baseStyle, frame, fps, currentTime);
     case 'none':
     default:
-      return <span style={{ ...baseStyle, display: 'inline-block' }}>{activeWord.word}</span>;
+      return (
+        <span style={{ ...baseStyle, display: 'inline-block' }}>
+          {renderChunkTextWithHighlight(activeWord, wordTimings, s, currentTime)}
+        </span>
+      );
   }
 }
 
+// --- HIGHLIGHT UTILITY FOR CHUNKS ---
+function renderChunkTextWithHighlight(
+  activeChunk: SubtitleWord,
+  wordTimings: SubtitleWord[] | undefined,
+  s: SubtitleStyle,
+  currentTime: number,
+  options?: { dimPast?: boolean }
+) {
+  if (s.highlightMode === 'none' || !s.highlightMode) {
+    return activeChunk.word;
+  }
+
+  // Find per-word timings within this chunk's time range
+  const chunkWords = wordTimings?.filter(
+    w => w.start >= activeChunk.start - 0.05 && w.end <= activeChunk.end + 0.05
+  ) || [];
+
+  // Fallback: split chunk text into individual words with evenly distributed timing
+  if (chunkWords.length === 0) {
+    const splitWords = activeChunk.word.split(/\s+/);
+    const chunkDuration = activeChunk.end - activeChunk.start;
+    const wordDur = chunkDuration / splitWords.length;
+    splitWords.forEach((w, i) => {
+      chunkWords.push({
+        word: w,
+        start: activeChunk.start + i * wordDur,
+        end: activeChunk.start + (i + 1) * wordDur,
+      });
+    });
+  }
+
+  const dimPast = options?.dimPast ?? false;
+
+  return (
+    <>
+      {chunkWords.map((w, i) => {
+        const isActive = currentTime >= w.start && currentTime <= w.end;
+        const isPast = currentTime > w.end;
+
+        let wordStyle: React.CSSProperties = { display: 'inline', transition: 'all 0.1s' };
+
+        if (isActive) {
+          switch (s.highlightMode) {
+            case 'color':
+              wordStyle.color = s.highlightColor;
+              wordStyle.transform = 'scale(1.08)';
+              wordStyle.display = 'inline-block';
+              break;
+            case 'scale':
+              wordStyle.transform = 'scale(1.15)';
+              wordStyle.display = 'inline-block';
+              break;
+            case 'underline':
+              wordStyle.borderBottom = `4px solid ${s.highlightColor}`;
+              wordStyle.paddingBottom = '4px';
+              break;
+            case 'box':
+              wordStyle.background = s.highlightColor;
+              wordStyle.color = '#000';
+              wordStyle.borderRadius = '8px';
+              wordStyle.padding = '2px 8px';
+              wordStyle.WebkitTextStroke = 'none';
+              break;
+          }
+        } else if (isPast && dimPast) {
+          wordStyle.opacity = 0.5;
+        }
+
+        return (
+          <React.Fragment key={i}>
+            <span style={wordStyle}>{w.word}</span>
+            {i < chunkWords.length - 1 && ' '}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+}
+
 // --- POP (Enhanced) ---
-function renderPop(word: SubtitleWord, s: SubtitleStyle, style: React.CSSProperties, frame: number, fps: number) {
+function renderPop(
+  word: SubtitleWord,
+  s: SubtitleStyle,
+  style: React.CSSProperties,
+  frame: number,
+  fps: number,
+  wordTimings: SubtitleWord[] | undefined,
+  currentTime: number
+) {
   const startFrame = word.start * fps;
   const progress = spring({
     fps,
@@ -164,13 +255,21 @@ function renderPop(word: SubtitleWord, s: SubtitleStyle, style: React.CSSPropert
       transform: `scale(${scale}) rotate(${rotate}deg)`,
       opacity,
     }}>
-      {word.word}
+      {renderChunkTextWithHighlight(word, wordTimings, s, currentTime)}
     </span>
   );
 }
 
 // --- SLIDE UP ---
-function renderSlideUp(word: SubtitleWord, s: SubtitleStyle, style: React.CSSProperties, frame: number, fps: number) {
+function renderSlideUp(
+  word: SubtitleWord,
+  s: SubtitleStyle,
+  style: React.CSSProperties,
+  frame: number,
+  fps: number,
+  wordTimings: SubtitleWord[] | undefined,
+  currentTime: number
+) {
   const startFrame = word.start * fps;
   const progress = spring({
     fps,
@@ -189,13 +288,21 @@ function renderSlideUp(word: SubtitleWord, s: SubtitleStyle, style: React.CSSPro
       transform: `translateY(${translateY}px)`,
       opacity,
     }}>
-      {word.word}
+      {renderChunkTextWithHighlight(word, wordTimings, s, currentTime)}
     </span>
   );
 }
 
 // --- FADE ---
-function renderFade(word: SubtitleWord, s: SubtitleStyle, style: React.CSSProperties, frame: number, fps: number) {
+function renderFade(
+  word: SubtitleWord,
+  s: SubtitleStyle,
+  style: React.CSSProperties,
+  frame: number,
+  fps: number,
+  wordTimings: SubtitleWord[] | undefined,
+  currentTime: number
+) {
   const startFrame = word.start * fps;
   const endFrame = word.end * fps;
   const duration = endFrame - startFrame;
@@ -214,13 +321,21 @@ function renderFade(word: SubtitleWord, s: SubtitleStyle, style: React.CSSProper
       display: 'inline-block',
       opacity,
     }}>
-      {word.word}
+      {renderChunkTextWithHighlight(word, wordTimings, s, currentTime)}
     </span>
   );
 }
 
 // --- BOUNCE ---
-function renderBounce(word: SubtitleWord, s: SubtitleStyle, style: React.CSSProperties, frame: number, fps: number) {
+function renderBounce(
+  word: SubtitleWord,
+  s: SubtitleStyle,
+  style: React.CSSProperties,
+  frame: number,
+  fps: number,
+  wordTimings: SubtitleWord[] | undefined,
+  currentTime: number
+) {
   const startFrame = word.start * fps;
   const drop = spring({
     fps,
@@ -241,7 +356,7 @@ function renderBounce(word: SubtitleWord, s: SubtitleStyle, style: React.CSSProp
       transform: `translateY(${translateY}px) scaleX(${scaleX}) scaleY(${scaleY})`,
       opacity,
     }}>
-      {word.word}
+      {renderChunkTextWithHighlight(word, wordTimings, s, currentTime)}
     </span>
   );
 }
@@ -285,25 +400,6 @@ function renderKaraoke(
   fps: number,
   currentTime: number,
 ) {
-  // If we have per-word timings, find those within this chunk's time range
-  const chunkWords = wordTimings?.filter(
-    w => w.start >= activeChunk.start - 0.05 && w.end <= activeChunk.end + 0.05
-  ) || [];
-
-  // Fallback: split chunk text into individual words with evenly distributed timing
-  if (chunkWords.length === 0) {
-    const splitWords = activeChunk.word.split(/\s+/);
-    const chunkDuration = activeChunk.end - activeChunk.start;
-    const wordDur = chunkDuration / splitWords.length;
-    splitWords.forEach((w, i) => {
-      chunkWords.push({
-        word: w,
-        start: activeChunk.start + i * wordDur,
-        end: activeChunk.start + (i + 1) * wordDur,
-      });
-    });
-  }
-
   // Entry animation for the whole chunk
   const chunkStartFrame = activeChunk.start * fps;
   const entryProgress = spring({
@@ -322,47 +418,7 @@ function renderKaraoke(
       transform: `scale(${chunkScale})`,
       opacity: chunkOpacity,
     }}>
-      {chunkWords.map((w, i) => {
-        const isActive = currentTime >= w.start && currentTime <= w.end;
-        const isPast = currentTime > w.end;
-
-        let wordStyle: React.CSSProperties = { display: 'inline', transition: 'all 0.1s' };
-
-        if (isActive) {
-          // Active word highlight
-          switch (s.highlightMode) {
-            case 'color':
-              wordStyle.color = s.highlightColor;
-              wordStyle.transform = 'scale(1.08)';
-              wordStyle.display = 'inline-block';
-              break;
-            case 'scale':
-              wordStyle.transform = 'scale(1.15)';
-              wordStyle.display = 'inline-block';
-              break;
-            case 'underline':
-              wordStyle.borderBottom = `4px solid ${s.highlightColor}`;
-              wordStyle.paddingBottom = '4px';
-              break;
-            case 'box':
-              wordStyle.background = s.highlightColor;
-              wordStyle.color = '#000';
-              wordStyle.borderRadius = '8px';
-              wordStyle.padding = '2px 8px';
-              wordStyle.WebkitTextStroke = 'none';
-              break;
-          }
-        } else if (isPast) {
-          wordStyle.opacity = 0.5;
-        }
-
-        return (
-          <React.Fragment key={i}>
-            <span style={wordStyle}>{w.word}</span>
-            {i < chunkWords.length - 1 && ' '}
-          </React.Fragment>
-        );
-      })}
+      {renderChunkTextWithHighlight(activeChunk, wordTimings, s, currentTime, { dimPast: true })}
     </span>
   );
 }
