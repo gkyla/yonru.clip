@@ -38,3 +38,10 @@ Once a Pull Request is fully tested and verified, the agent MUST programmaticall
    - Pull the remote merged code: `rtk git pull origin main`
    - Delete the temporary local branch: `rtk git branch -d <branch_name>`
 
+## MANDATORY RULE 4: CLASSIFICATION NOTE ON SOLUTIONS (CRITICAL)
+
+YOU MUST ALWAYS explicitly append a classification note at the end of every answer or task resolution where code is modified or proposed. This note must state the complexity classification of the problem and the rationale behind the decision.
+
+Format the note exactly as follows:
+> **Category Change**: `Trivial/Simple` OR `Complex Bug/Feature`
+> **Reason**: `[A concise explanation of the complexity assessment]`
