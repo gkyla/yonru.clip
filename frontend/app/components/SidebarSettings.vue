@@ -1,5 +1,11 @@
 <template>
-  <div v-if="state" class="h-full flex flex-col p-5 gap-6 overflow-y-auto custom-scrollbar">
+  <div 
+    ref="sidebarRef"
+    v-if="state" 
+    class="h-full flex flex-row relative bg-[#060608] border-r border-surface-border shrink-0 select-none"
+    :style="{ width: sidebarWidth + 'px' }"
+  >
+    <div class="flex-1 h-full flex flex-col p-5 gap-6 overflow-y-auto custom-scrollbar">
 
     
     <!-- Editor Sidebar -->
@@ -449,6 +455,18 @@
         {{ state.renderStatus.value === 'rendering' ? 'RENDERING...' : 'RENDER CLIP' }}
       </button>
     </div>
+  </div>
+
+  <!-- Drag Handle -->
+    <div 
+      class="absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-30 group"
+      @mousedown="startResize"
+    >
+      <div 
+        class="absolute inset-y-0 right-0 w-[2px] bg-transparent group-hover:bg-accent-500 group-active:bg-accent-500 transition-all group-hover:shadow-[0_0_8px_#CFFF50]"
+        :class="{ 'bg-accent-500 shadow-[0_0_8px_#CFFF50]': isResizing }"
+      ></div>
+    </div>
 
     <!-- Naming Modal -->
     <Teleport to="body">
@@ -526,13 +544,61 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { FONT_OPTIONS } from '../composables/useClipperState'
 const state = useClipperState()
 
 const showBlacklistSettings = ref(false)
 const isNamingClip = ref(false)
 const renderName = ref('')
+
+// Resize variables
+const sidebarWidth = ref(340)
+const isResizing = ref(false)
+const sidebarRef = ref(null)
+
+function startResize(e) {
+  isResizing.value = true
+  document.addEventListener('mousemove', handleResize)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.userSelect = 'none'
+  document.body.style.cursor = 'col-resize'
+}
+
+function handleResize(e) {
+  if (!isResizing.value || !sidebarRef.value) return
+  const rect = sidebarRef.value.getBoundingClientRect()
+  const newWidth = e.clientX - rect.left
+  // Clamp width between 280px and 340px
+  sidebarWidth.value = Math.max(280, Math.min(340, newWidth))
+}
+
+function stopResize() {
+  if (!isResizing.value) return
+  isResizing.value = false
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.userSelect = ''
+  document.body.style.cursor = ''
+  
+  // Persist computed sidebar width to localStorage
+  localStorage.setItem('yonru_sidebar_width', sidebarWidth.value.toString())
+}
+
+onMounted(() => {
+  const savedWidth = localStorage.getItem('yonru_sidebar_width')
+  if (savedWidth) {
+    const widthNum = parseInt(savedWidth, 10)
+    if (!isNaN(widthNum)) {
+      sidebarWidth.value = Math.max(280, Math.min(340, widthNum))
+    }
+  }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+})
 
 function prepareRender() {
   if (state.activeHook.value) {
