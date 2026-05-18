@@ -481,6 +481,19 @@ const route = useRoute()
 
 const isAuditExpanded = ref(false)
 
+const isCurrentHookSaved = computed(() => {
+  if (!state?.activeHook?.value || !state?.savedHooks?.value?.length) return false
+  const active = state.activeHook.value
+  const aStart = typeof active.start === 'string' ? parseFloat(active.start) : active.start
+  const aEnd = typeof active.end === 'string' ? parseFloat(active.end) : active.end
+
+  return state.savedHooks.value.some((h: any) => {
+    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
+    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
+    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
+  })
+})
+
 // Read shared readyClips from dashboard (populated via useState in index.vue)
 const readyClips = useState<any[]>('readyClips', () => [])
 const API_BASE = 'http://localhost:8000'
