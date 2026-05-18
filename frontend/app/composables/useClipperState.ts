@@ -88,6 +88,7 @@ export const useClipperState = () => {
   const thumbnailScreenshotTime = useState<number>('thumbnailScreenshotTime', () => 0)
   const thumbnailTextOverlays = useState<any[]>('thumbnailTextOverlays', () => [])
   const thumbnailEditMode = useState<boolean>('thumbnailEditMode', () => false)
+  const thumbnailXOffset = useState<number>('thumbnailXOffset', () => 50)
 
   // Content Audit State
   const safeZoneVisible = useState<boolean>('safeZoneVisible', () => false)
@@ -209,6 +210,21 @@ export const useClipperState = () => {
     }
     return (videoDuration.value > 0 ? videoDuration.value : 60) + offset
   })
+
+  const videoTime = computed(() => {
+    const thumbSec = thumbnailEnabled.value ? thumbnailDuration.value : 0
+    const t = Math.max(0, currentTime.value - thumbSec)
+    const videoTrack = timelineTracks.value.find(tr => tr.id === 'video')
+    if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) return t
+    
+    const activeItem = videoTrack.items.find((i: any) => t >= i.start && t < i.start + i.duration)
+    if (activeItem) {
+      const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : activeItem.start
+      return mediaStart + (t - activeItem.start)
+    }
+    return t
+  })
+
 
   const deepAuditResults = useState<any | null>('deepAuditResults', () => null)
   const isDeepAuditing = ref(false)
@@ -766,6 +782,7 @@ export const useClipperState = () => {
         thumbnail_enabled: thumbnailEnabled.value,
         thumbnail_duration: thumbnailDuration.value,
         thumbnail_text_overlays: thumbnailTextOverlays.value,
+        thumbnail_x_offset: thumbnailXOffset.value,
         output_name: outputName
       }
 
@@ -1176,7 +1193,8 @@ export const useClipperState = () => {
             enabled: thumbnailEnabled.value,
             duration: thumbnailDuration.value,
             screenshotTime: thumbnailScreenshotTime.value,
-            textOverlays: thumbnailTextOverlays.value
+            textOverlays: thumbnailTextOverlays.value,
+            xOffset: thumbnailXOffset.value
           }
         }
       })
@@ -1194,6 +1212,7 @@ export const useClipperState = () => {
         thumbnailEnabled.value = res.config.enabled ?? false
         thumbnailDuration.value = res.config.duration ?? 1.0
         thumbnailScreenshotTime.value = res.config.screenshotTime ?? 0
+        thumbnailXOffset.value = res.config.xOffset ?? 50
         thumbnailTextOverlays.value = (res.config.textOverlays ?? []).map((o: any) => ({
           x: 540,
           y: 960,
@@ -1299,6 +1318,7 @@ export const useClipperState = () => {
     thumbnailScreenshotTime,
     thumbnailTextOverlays, 
     thumbnailEditMode,
+    thumbnailXOffset,
     // Other State
     jobId, isMediaLoading, jobStatus, jobError,
     isNavigatingToEditor,
@@ -1310,7 +1330,7 @@ export const useClipperState = () => {
     subtitleAnimation, subtitleHighlightMode, subtitleHighlightColor, subtitleTextColor,
     subtitleStrokeColor, subtitleStrokeWidth, subtitleFontWeight, subtitleTextTransform,
     subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing, subtitlePreset, volume,
-    isPlaying, currentTime,
+    isPlaying, currentTime, videoTime,
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
     cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip,
     timelineTracks, timelineDuration, selectedTimelineItem,

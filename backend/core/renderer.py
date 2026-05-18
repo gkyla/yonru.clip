@@ -153,6 +153,7 @@ class VideoRenderer:
                 "thumbnailDuration": thumb_duration,
                 "thumbnailImagePath": thumbnail_image_name,
                 "thumbnailTextOverlays": thumbnail_config.get("textOverlays", []) if thumbnail_config else [],
+                "thumbnailXOffset": thumbnail_config.get("xOffset", 50.0) if thumbnail_config else 50.0,
                 "sourceWidth": source_width,
                 "sourceHeight": source_height,
             }
@@ -303,6 +304,7 @@ class VideoRenderer:
                 "thumbnailDuration": thumb_duration,
                 "thumbnailImagePath": thumbnail_image_name,
                 "thumbnailTextOverlays": thumbnail_config.get("textOverlays", []) if thumbnail_config else [],
+                "thumbnailXOffset": thumbnail_config.get("xOffset", 50.0) if thumbnail_config else 50.0,
                 "sourceWidth": source_width,
                 "sourceHeight": source_height,
             }

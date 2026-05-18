@@ -74,6 +74,7 @@ export interface YonruClipProps {
   thumbnailDuration?: number;  // seconds
   thumbnailImagePath?: string;
   thumbnailTextOverlays?: ThumbnailTextOverlay[];
+  thumbnailXOffset?: number;
 }
 
 // Default subtitle style

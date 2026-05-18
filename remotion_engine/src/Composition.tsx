@@ -23,6 +23,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   thumbnailDuration = 1,
   thumbnailImagePath,
   thumbnailTextOverlays = [],
+  thumbnailXOffset = 50,
   sourceWidth,
   sourceHeight,
 }) => {
@@ -91,7 +92,8 @@ export const YonruClip: React.FC<YonruClipProps> = ({
               style={{ 
                 width: '100%', 
                 height: '100%', 
-                objectFit: 'cover' 
+                objectFit: 'cover',
+                objectPosition: `${thumbnailXOffset}% center`
               }} 
             />
             {/* Thumbnail text overlays */}

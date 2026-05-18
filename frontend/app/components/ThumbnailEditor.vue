@@ -75,7 +75,7 @@
             Random Frame
           </button>
           <button 
-            @click="state.captureScreenshot(state.currentTime.value)"
+            @click="state.captureScreenshot(state.videoTime.value)"
             class="flex-1 py-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-400 text-[10px] font-black uppercase tracking-widest hover:bg-sky-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
           >
             <Icon name="ri:focus-3-line" class="text-sm" />
@@ -117,6 +117,37 @@
           <div class="flex justify-between text-[8px] text-slate-600 mt-1">
             <span>0.5s</span>
             <span>5s</span>
+          </div>
+        </div>
+
+        <!-- Horizontal Position Slider -->
+        <div v-if="state.thumbnailUrl.value" class="bg-surface-dark/50 border border-surface-border/50 rounded-xl p-4">
+          <div class="flex justify-between items-center mb-2">
+            <label class="text-[10px] font-black uppercase tracking-widest text-slate-500">Horizontal Shift</label>
+            <div class="flex items-center gap-1.5 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              <input 
+                type="number" 
+                v-model.number="state.thumbnailXOffset.value"
+                min="0"
+                max="100"
+                step="1"
+                class="bg-transparent text-[10px] mono text-emerald-400 font-bold w-8 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                @input="state.saveThumbnailConfig()"
+              />
+              <span class="text-[9px] mono text-emerald-400/60 font-bold">%</span>
+            </div>
+          </div>
+          <input 
+            type="range" 
+            v-model.number="state.thumbnailXOffset.value"
+            min="0" max="100" step="1" 
+            class="w-full accent-emerald-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+            @change="state.saveThumbnailConfig()"
+          />
+          <div class="flex justify-between text-[8px] text-slate-600 mt-1">
+            <span>Left</span>
+            <span>Center</span>
+            <span>Right</span>
           </div>
         </div>
 

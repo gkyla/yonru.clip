@@ -108,6 +108,7 @@ class RenderRequest(BaseModel):
     thumbnail_enabled: bool = False
     thumbnail_duration: float = 1.0
     thumbnail_text_overlays: Optional[list] = None
+    thumbnail_x_offset: float = 50.0
     
 class LoadReadyClipRequest(BaseModel):
     folder_name: str
@@ -119,6 +120,7 @@ class LoadReadyClipRequest(BaseModel):
     thumbnail_enabled: bool = False
     thumbnail_duration: float = 1.0
     thumbnail_text_overlays: Optional[list] = None
+    thumbnail_x_offset: float = 50.0
 
     # Output
     output_name: Optional[str] = None
@@ -912,6 +914,7 @@ async def render_clip(req: RenderRequest):
             "enabled": True,
             "duration": req.thumbnail_duration,
             "textOverlays": req.thumbnail_text_overlays or [],
+            "xOffset": req.thumbnail_x_offset,
         }
         # Find thumbnail image in clip folder
         clip_dir = os.path.dirname(video_path)
@@ -1145,6 +1148,7 @@ async def render_clip_stream(req: RenderRequest):
             "enabled": True,
             "duration": req.thumbnail_duration,
             "textOverlays": req.thumbnail_text_overlays or [],
+            "xOffset": req.thumbnail_x_offset,
         }
         clip_dir = os.path.dirname(video_path)
         thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
@@ -1479,8 +1483,8 @@ async def thumbnail_screenshot(req: ThumbnailScreenshotRequest):
     
     cmd = [
         "ffmpeg", "-y",
-        "-ss", str(round(ts, 2)),
         "-i", clip_path,
+        "-ss", f"{ts:.3f}",
         "-frames:v", "1",
         "-q:v", "2",
         thumb_path
@@ -1502,8 +1506,8 @@ async def thumbnail_screenshot(req: ThumbnailScreenshotRequest):
     except:
         asset_url = f"/assets/clips/thumbnail.jpg"
     
-    print(f"[thumbnail] Captured frame at {ts:.2f}s → {thumb_path}")
-    return {"status": "ok", "timestamp": round(ts, 2), "thumbnail_url": asset_url}
+    print(f"[thumbnail] Captured frame at {ts:.3f}s → {thumb_path}")
+    return {"status": "ok", "timestamp": round(ts, 3), "thumbnail_url": asset_url}
 
 @app.put("/api/thumbnail/config")
 async def save_thumbnail_config(req: ThumbnailConfigRequest):
