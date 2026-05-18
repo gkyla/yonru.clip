@@ -9,13 +9,14 @@
 
     <template v-else>
       <div 
-        class="px-4 py-3 bg-surface-card border-b border-surface-border flex items-center justify-between cursor-pointer hover:bg-surface-card/80 shrink-0 transition-all duration-500"
+        class="px-4 h-10 bg-surface-panel border-b border-surface-border flex items-center justify-between cursor-pointer hover:bg-white/[0.03] shrink-0 transition-all duration-500"
         :class="{'ring-1 ring-inset ring-rose-500 shadow-[inset_0_0_10px_rgba(244,63,94,0.3)] animate-pulse': audit && audit.flaggedWords.length > 0}"
         @click="$emit('toggle-expand')"
       >
         <div class="flex items-center gap-2">
-          <div class="w-2 h-2 rounded-full animate-pulse" :class="scoreColorClass"></div>
-          <h3 class="text-[10px] font-black uppercase tracking-tighter italic text-slate-200">Content Safety Audit</h3>
+          <Icon name="ri:shield-keyhole-line" class="text-sky-500 text-xs" />
+          <h3 class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Content Safety Audit</h3>
+          <div class="w-1.5 h-1.5 rounded-full animate-pulse ml-0.5" :class="scoreBgClass"></div>
         </div>
         <div class="flex items-center gap-1.5">
            <span class="text-xs font-black italic tracking-tighter" :class="scoreTextClass">{{ audit ? Math.round(audit.score) : 'Lite' }}</span>
