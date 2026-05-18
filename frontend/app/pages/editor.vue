@@ -406,7 +406,7 @@
                     HOOK {{ String(idx + 1).padStart(2, '0') }}
                   </span>
                   <div v-if="isHookRendered(hook)" class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
-                    <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Rendered
+                    <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
                   </div>
                 </div>
                 <span class="mono text-[10px]" :class="isActiveHook(hook) ? 'text-sky-400 font-bold' : 'text-slate-300'">
