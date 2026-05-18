@@ -164,7 +164,8 @@
           <!-- Thumbnail Background Image -->
           <img 
             :src="state.thumbnailUrl.value" 
-            class="absolute inset-0 w-full h-full object-cover"
+            class="absolute inset-0 w-full h-full object-cover select-none"
+            :style="{ objectPosition: `${state.thumbnailXOffset.value}% center` }"
           />
           
           <!-- Thumbnail Text Overlays (Konva for dragging) -->
@@ -172,6 +173,16 @@
           <div class="absolute inset-0 z-[55]">
             <v-stage :config="{ width: 1080, height: 1920 }">
               <v-layer>
+                <!-- Background click/drag area for panning the background image -->
+                <v-rect
+                  :config="{
+                    width: 1080,
+                    height: 1920,
+                    fill: 'transparent'
+                  }"
+                  @mousedown="startThumbBgDrag"
+                  @touchstart="startThumbBgDragTouch"
+                />
                 <v-label 
                   v-for="overlay in state.thumbnailTextOverlays.value" 
                   :key="`${fontsLoaded}-${overlay.id}-${overlay.text}-${overlay.fontSize}-${overlay.fontFamily}-${overlay.fontWeight}-${overlay.showStroke}-${overlay.showBackground}-${overlay.backgroundPadding}-${overlay.textTransform}-${overlay.color}`"
@@ -712,6 +723,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('message', onRemotionMessage)
+  handleWindowMouseUp()
+  handleWindowTouchEnd()
 })
 
 // Native dimensions from metadata
@@ -1161,6 +1174,87 @@ function onTextDragEnd(e: any, item: any) {
 function onThumbnailLabelDragEnd(e: any, overlay: any) {
   overlay.x = e.target.x()
   overlay.y = e.target.y()
+}
+
+const isThumbBgDragging = ref(false)
+const thumbBgDragStartX = ref(0)
+const thumbBgDragStartOffset = ref(50)
+
+function handleWindowMouseMove(e: MouseEvent) {
+  if (!isThumbBgDragging.value) return
+  const dx = e.clientX - thumbBgDragStartX.value
+  const scaledDx = dx / previewScale.value
+  
+  // Calculate source aspect ratio
+  const srcW = state.sourceWidth?.value || 1920
+  const srcH = state.sourceHeight?.value || 1080
+  
+  // Width of panned landscape background under 'object-cover' (locked to 1920 height)
+  const imgWidth = 1920 * (srcW / srcH)
+  const excessWidth = Math.max(1, imgWidth - 1080)
+  
+  // Percent delta mapping client coordinates to offset percent
+  const percentDelta = (scaledDx / excessWidth) * -100
+  
+  state.thumbnailXOffset.value = Math.max(0, Math.min(100, thumbBgDragStartOffset.value + percentDelta))
+}
+
+function handleWindowMouseUp() {
+  if (isThumbBgDragging.value) {
+    isThumbBgDragging.value = false
+    window.removeEventListener('mousemove', handleWindowMouseMove)
+    window.removeEventListener('mouseup', handleWindowMouseUp)
+    // Save configuration auto-pushed to DB on drag release
+    state.saveThumbnailConfig()
+  }
+}
+
+function startThumbBgDrag(e: any) {
+  if (!state.thumbnailEditMode.value) return
+  const evt = e.evt || e
+  isThumbBgDragging.value = true
+  thumbBgDragStartX.value = evt.clientX
+  thumbBgDragStartOffset.value = state.thumbnailXOffset.value
+  
+  window.addEventListener('mousemove', handleWindowMouseMove)
+  window.addEventListener('mouseup', handleWindowMouseUp)
+}
+
+function handleWindowTouchMove(e: TouchEvent) {
+  if (!isThumbBgDragging.value || !e.touches.length) return
+  const dx = e.touches[0].clientX - thumbBgDragStartX.value
+  const scaledDx = dx / previewScale.value
+  
+  const srcW = state.sourceWidth?.value || 1920
+  const srcH = state.sourceHeight?.value || 1080
+  
+  const imgWidth = 1920 * (srcW / srcH)
+  const excessWidth = Math.max(1, imgWidth - 1080)
+  
+  const percentDelta = (scaledDx / excessWidth) * -100
+  
+  state.thumbnailXOffset.value = Math.max(0, Math.min(100, thumbBgDragStartOffset.value + percentDelta))
+}
+
+function handleWindowTouchEnd() {
+  if (isThumbBgDragging.value) {
+    isThumbBgDragging.value = false
+    window.removeEventListener('touchmove', handleWindowTouchMove)
+    window.removeEventListener('touchend', handleWindowTouchEnd)
+    state.saveThumbnailConfig()
+  }
+}
+
+function startThumbBgDragTouch(e: any) {
+  if (!state.thumbnailEditMode.value) return
+  const evt = e.evt || e
+  if (!evt.touches || !evt.touches.length) return
+  isThumbBgDragging.value = true
+  thumbBgDragStartX.value = evt.touches[0].clientX
+  thumbBgDragStartOffset.value = state.thumbnailXOffset.value
+  
+  window.addEventListener('touchmove', handleWindowTouchMove)
+  window.addEventListener('touchend', handleWindowTouchEnd)
 }
 
 </script>
