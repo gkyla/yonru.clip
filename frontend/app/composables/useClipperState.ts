@@ -193,6 +193,7 @@ export const useClipperState = () => {
     { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
     { id: 'text', name: 'Text layers', type: 'text', items: [] }
   ])
+  const defaultTimelineTextStyle = useState<any | null>('defaultTimelineTextStyle', () => null)
   const timelineDuration = computed(() => {
     let max = 0
     let hasItems = false
@@ -973,17 +974,80 @@ export const useClipperState = () => {
       const defaultDuration = item.duration ?? 5
       const durationSec = Math.min(defaultDuration, maxRemaining)
 
+      let styleOverrides = {}
+      if (trackId === 'text') {
+        if (defaultTimelineTextStyle.value) {
+          styleOverrides = { ...defaultTimelineTextStyle.value }
+        } else {
+          styleOverrides = {
+            font: font.value || 'Outfit',
+            fontSize: 80,
+            fontWeight: subtitleFontWeight.value ? String(subtitleFontWeight.value) : '900',
+            textTransform: subtitleTextTransform.value || 'uppercase',
+            align: 'center',
+            color: subtitleTextColor.value || '#FFFFFF',
+            opacity: 1,
+            strokeColor: subtitleStrokeColor.value || '#000000',
+            strokeWidth: subtitleStrokeWidth.value ?? 5,
+            showStroke: (subtitleStrokeWidth.value ?? 0) > 0,
+            showBackground: (subtitleBackground.value || 'none') !== 'none',
+            backgroundColor: '#000000',
+            backgroundOpacity: subtitleBackgroundOpacity.value ?? 0.7,
+            letterSpacing: 0,
+            wordSpacing: subtitleWordSpacing.value ?? 0,
+            lineHeight: 1.1,
+            shadowBlur: 10,
+            shadowColor: '#000000',
+            shadowOpacity: 0.5,
+            shadowOffsetX: 5,
+            shadowOffsetY: 5,
+          }
+        }
+      }
+
       const newItem = {
         id: Math.random().toString(36).substr(2, 9),
         start: startSec,
         mediaStart: item.mediaStart ?? 0,
         duration: durationSec,
         content: '',
+        ...styleOverrides,
         ...item
       }
       track.items.push(newItem)
       selectedTimelineItem.value = newItem
     }
+  }
+
+  function saveTimelineTextStyleAsDefault(item: any) {
+    const style = {
+      font: item.font || font.value,
+      fontSize: item.fontSize || 80,
+      fontWeight: item.fontWeight || '900',
+      textTransform: item.textTransform || 'none',
+      align: item.align || 'center',
+      color: item.color || '#FFFFFF',
+      opacity: item.opacity ?? 1,
+      strokeColor: item.strokeColor || '#000000',
+      strokeWidth: item.strokeWidth ?? 5,
+      showStroke: item.showStroke ?? false,
+      showBackground: item.showBackground ?? false,
+      backgroundColor: item.backgroundColor || '#000000',
+      backgroundOpacity: item.backgroundOpacity ?? 0.7,
+      letterSpacing: item.letterSpacing ?? 0,
+      wordSpacing: item.wordSpacing ?? 0,
+      lineHeight: item.lineHeight ?? 1.1,
+      shadowBlur: item.shadowBlur ?? 10,
+      shadowColor: item.shadowColor || '#000000',
+      shadowOpacity: item.shadowOpacity ?? 0.5,
+      shadowOffsetX: item.shadowOffsetX ?? 5,
+      shadowOffsetY: item.shadowOffsetY ?? 5,
+    }
+    defaultTimelineTextStyle.value = style
+    if (import.meta.client) {
+      localStorage.setItem('defaultTimelineTextStyle', JSON.stringify(style))
+    }
+    showToast('Saved current style as manual text default!', 'success')
   }
 
   function deleteTimelineItem(trackId: string, itemId: string) {
@@ -1124,6 +1188,11 @@ export const useClipperState = () => {
     const lc = localStorage.getItem('yonru_last_clip')
     if (lc) {
       try { lastAccessedClip.value = JSON.parse(lc) } catch {}
+    }
+
+    const savedStyle = localStorage.getItem('defaultTimelineTextStyle')
+    if (savedStyle) {
+      try { defaultTimelineTextStyle.value = JSON.parse(savedStyle) } catch {}
     }
 
     // Watch
@@ -1339,6 +1408,7 @@ export const useClipperState = () => {
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
     cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip,
     timelineTracks, timelineDuration, selectedTimelineItem,
+    defaultTimelineTextStyle,
     deepAuditResults, isDeepAuditing,
     // Actions
     analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling, stopPolling,
@@ -1347,7 +1417,7 @@ export const useClipperState = () => {
     runDeepAudit, maskFlaggedWords,
     fetchCached, setLastAccessed, setLastClip,
     saveTimelineTracks,
-    addTimelineItem, deleteTimelineItem, updateTimelineItem,
+    addTimelineItem, deleteTimelineItem, updateTimelineItem, saveTimelineTextStyleAsDefault,
     captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig,
     toast, showToast, initPersistence
   }

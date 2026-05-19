@@ -123,28 +123,77 @@
 
       <!-- Text Layers (Konva) -->
       <ClientOnly>
-      <div v-if="state.videoUrl.value && !state.thumbnailEditMode.value" class="absolute inset-0 z-[45] pointer-events-none">
-        <v-stage :config="{ width: 1080, height: 1920 }">
+      <div v-if="state.videoUrl.value && !state.thumbnailEditMode.value" 
+           class="absolute inset-0 z-[45]" 
+           :class="activeTextItems.length > 0 ? 'pointer-events-auto' : 'pointer-events-none'">
+        <v-stage :config="{ width: 1080, height: 1920 }" @click="handleStageClick" @tap="handleStageClick">
           <v-layer>
-            <v-text 
+            <v-label 
               v-for="item in activeTextItems" 
-              :key="`${fontsLoaded}-${item.id}`" 
+              :key="`${fontsLoaded}-${item.id}-${item.content}-${item.fontSize}-${item.font}-${item.fontWeight}-${item.showStroke}-${item.showBackground}-${item.textTransform}-${item.color}`"
               :config="{
-                x: item.x || 540,
-                y: item.y || 960,
-                text: item.content || 'NEW TEXT',
-                fontSize: item.fontSize || 80,
-                fill: item.color || 'white',
-                fontFamily: item.font || 'Outfit',
-                align: 'center',
-                verticalAlign: 'middle',
+                x: item.x ?? 540,
+                y: item.y ?? 960,
+                name: item.id,
                 draggable: true,
-                shadowColor: 'black',
-                shadowBlur: 10,
-                shadowOffset: { x: 5, y: 5 },
-                shadowOpacity: 0.5
+                offset: { x: 0, y: 0 }
               }" 
               @dragend="onTextDragEnd($event, item)"
+              @dragmove="onTextDragEnd($event, item)"
+              @transform="handleTransform($event, item)"
+              @click="selectItem(item)"
+              @tap="selectItem(item)"
+              @mouseenter="handleMouseEnterLabel"
+              @mouseleave="handleMouseLeaveLabel"
+              @draw="onLabelRender"
+            >
+              <v-tag 
+                :config="{
+                  fill: item.backgroundColor || '#000000',
+                  opacity: item.showBackground ? (item.backgroundOpacity ?? 0.7) : 0,
+                  cornerRadius: 10,
+                  padding: 0,
+                  listening: false
+                }"
+              />
+              <v-text 
+                :config="{
+                  text: (item.textTransform === 'uppercase' ? (item.content || 'NEW TEXT').toUpperCase() : (item.textTransform === 'lowercase' ? (item.content || 'NEW TEXT').toLowerCase() : (item.content || 'NEW TEXT'))),
+                  fontSize: item.fontSize || 80,
+                  fill: item.color || '#FFFFFF',
+                  fontFamily: item.font || 'Outfit',
+                  fontStyle: item.fontWeight ? String(item.fontWeight) : '900',
+                  align: item.align || 'center',
+                  verticalAlign: 'middle',
+                  lineHeight: item.lineHeight ?? 1.1,
+                  stroke: item.strokeColor || '#000000',
+                  strokeWidth: item.showStroke ? (item.strokeWidth ?? 5) : 0,
+                  strokeEnabled: item.showStroke,
+                  shadowColor: item.shadowColor || '#000000',
+                  shadowBlur: item.shadowBlur ?? 10,
+                  shadowOffset: { x: item.shadowOffsetX ?? 5, y: item.shadowOffsetY ?? 5 },
+                  shadowOpacity: item.shadowOpacity ?? 0.5,
+                  shadowEnabled: true,
+                  letterSpacing: item.letterSpacing ?? 0,
+                  opacity: item.opacity ?? 1,
+                  padding: 15,
+                  perfectDrawEnabled: false
+                }" 
+              />
+            </v-label>
+            <v-transformer
+              v-if="isTimelineTextActiveAndSelected"
+              ref="transformerRef"
+              :config="{
+                enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+                rotateEnabled: false,
+                keepRatio: true,
+                borderStroke: '#ef4444',
+                anchorStroke: '#ef4444',
+                anchorFill: '#ffffff',
+                anchorSize: 12,
+                borderDash: [3, 3]
+              }"
             />
           </v-layer>
         </v-stage>
@@ -804,6 +853,8 @@ const dragStartPercent = ref(50)
 
 function startDrag(e: MouseEvent) {
   if (state.cropMode.value !== 'manual') return
+  // Don't start pan drag if a timeline text overlay is selected (let Konva handle it)
+  if (state.selectedTimelineItem.value?.type === 'text' && activeTextItems.value.length > 0) return
   isDragging.value = true
   dragStartX.value = e.clientX
   dragStartPercent.value = state.cropPercentX.value
@@ -830,6 +881,7 @@ function stopDrag() {
 
 function startDragTouch(e: TouchEvent) {
   if (state.cropMode.value !== 'manual') return
+  if (state.selectedTimelineItem.value?.type === 'text' && activeTextItems.value.length > 0) return
   isDragging.value = true
   dragStartX.value = e.touches[0].clientX
   dragStartPercent.value = state.cropPercentX.value
@@ -1171,8 +1223,100 @@ const activeTextItems = computed(() => {
 })
 
 function onTextDragEnd(e: any, item: any) {
-  item.x = e.target.x()
-  item.y = e.target.y()
+  item.x = Math.round(e.target.x())
+  item.y = Math.round(e.target.y())
+}
+
+const transformerRef = ref<any>(null)
+
+function isCurrentItemActive(item: any) {
+  if (!item) return false
+  return state.currentTime.value >= item.start && state.currentTime.value <= (item.start + item.duration)
+}
+
+const isTimelineTextActiveAndSelected = computed(() => {
+  const item = state.selectedTimelineItem.value
+  if (!item || item.type !== 'text') return false
+  return isCurrentItemActive(item)
+})
+
+function updateTransformer() {
+  if (!transformerRef.value) return
+  const transformerNode = transformerRef.value.getNode()
+  const stage = transformerNode.getStage()
+  if (!stage) return
+
+  const item = state.selectedTimelineItem.value
+  if (item && item.type === 'text' && isTimelineTextActiveAndSelected.value) {
+    const selectedNode = stage.findOne('.' + item.id)
+    if (selectedNode) {
+      transformerNode.nodes([selectedNode])
+      transformerNode.getLayer().batchDraw()
+      return
+    }
+  }
+  transformerNode.nodes([])
+  transformerNode.getLayer().batchDraw()
+}
+
+watch([() => state.selectedTimelineItem.value, () => state.currentTime.value, isTimelineTextActiveAndSelected], () => {
+  nextTick(() => {
+    updateTransformer()
+  })
+})
+
+function handleTransform(e: any, item: any) {
+  const node = e.target
+  const scaleX = node.scaleX()
+  
+  // Calculate new font size based on scale
+  const currentFontSize = item.fontSize || 80
+  const newSize = Math.max(12, Math.round(currentFontSize * scaleX))
+  
+  // Update state properties
+  item.fontSize = newSize
+  
+  // Reset scales to prevent visual stretching
+  node.scaleX(1)
+  node.scaleY(1)
+  
+  // Recalculate centering offset because size changed
+  const width = node.width()
+  const height = node.height()
+  node.offsetX(width / 2)
+  node.offsetY(height / 2)
+  
+  // Request redraw
+  node.getLayer().batchDraw()
+}
+
+function onLabelRender(e: any) {
+  const node = e.target
+  const width = node.width()
+  const height = node.height()
+  node.offsetX(width / 2)
+  node.offsetY(height / 2)
+}
+
+function handleStageClick(e: any) {
+  const clickedOnStage = e.target === e.target.getStage()
+  if (clickedOnStage) {
+    state.selectedTimelineItem.value = null
+  }
+}
+
+function handleMouseEnterLabel(e: any) {
+  const stage = e.target.getStage()
+  if (stage) stage.container().style.cursor = 'move'
+}
+
+function handleMouseLeaveLabel(e: any) {
+  const stage = e.target.getStage()
+  if (stage) stage.container().style.cursor = 'default'
+}
+
+function selectItem(item: any) {
+  state.selectedTimelineItem.value = item
 }
 
 function onThumbnailLabelDragEnd(e: any, overlay: any) {
