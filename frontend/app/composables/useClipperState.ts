@@ -968,11 +968,16 @@ export const useClipperState = () => {
   function addTimelineItem(trackId: string, item: any) {
     const track = timelineTracks.value.find(t => t.id === trackId)
     if (track) {
+      const startSec = item.start ?? currentTime.value
+      const maxRemaining = Math.max(0.5, timelineDuration.value - startSec)
+      const defaultDuration = item.duration ?? 5
+      const durationSec = Math.min(defaultDuration, maxRemaining)
+
       const newItem = {
         id: Math.random().toString(36).substr(2, 9),
-        start: 0,
+        start: startSec,
         mediaStart: item.mediaStart ?? 0,
-        duration: 5,
+        duration: durationSec,
         content: '',
         ...item
       }

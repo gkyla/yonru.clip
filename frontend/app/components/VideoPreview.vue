@@ -493,7 +493,7 @@ watch(() => state.videoUrl.value, (url) => {
       hideSubtitles: !!state.outputUrl.value && state.videoUrl.value === state.outputUrl.value,
       showDebug: state.showIframeDebug.value,
       volume: state.volume.value, // Let Remotion handle audio for perfect sync
-      timelineTextItems: JSON.parse(JSON.stringify(state.timelineTracks.value.find(t => t.id === 'text')?.items || [])),
+      timelineTextItems: [], // Pass empty array to prevent double rendering in preview (interactive Konva renders them instead)
       timelineAudioItems: JSON.parse(JSON.stringify(state.timelineTracks.value.find(t => t.id === 'audio')?.items || [])),
       timelineVideoItems: JSON.parse(JSON.stringify(state.timelineTracks.value.find(t => t.id === 'video')?.items || [])),
       // Thumbnail props (preview only — actual thumbnail image is handled by renderer)
