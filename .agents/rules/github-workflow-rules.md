@@ -32,7 +32,7 @@ YOU MUST ALWAYS explicitly ask the USER for approval before performing any Git c
 Once a Pull Request is fully tested and verified, the agent MUST programmatically manage the final merge and local synchronization workflow under the following strict checklist:
 1. **Verification**: Confirm all automated unit and integration tests pass successfully.
 2. **Approval**: Explicitly ask the USER for permission: *"Would you like me to merge this PR to main now?"* or *"Do you want me to merge the PR and synchronize your local workspace now?"* and wait for their explicit confirmation.
-3. **Merge**: Programmatically call the GitHub MCP tool `merge_pull_request` to merge the PR on GitHub, triggering automatic closing of the linked issue.
+3. **Merge**: Programmatically call the GitHub MCP tool `merge_pull_request` to merge the PR on GitHub using the **"squash"** merge method (setting the `merge_method` parameter to `"squash"`), triggering automatic closing of the linked issue.
 4. **Synchronization**:
    - Switch local workspace back to `main`: `rtk git checkout main`
    - Pull the remote merged code: `rtk git pull origin main`
