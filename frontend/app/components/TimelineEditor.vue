@@ -480,102 +480,110 @@ function deleteSelected() {
   const itemToDelete = { ...state.selectedTimelineItem.value }
   const id = itemToDelete.id
   
+  // Find which track this item belongs to before we delete it
+  const track = state.timelineTracks.value.find(t => t.items.some((i: any) => i.id === id))
+  const trackId = track?.id
+  
   // Actually delete the item
   state.timelineTracks.value.forEach(track => state.deleteTimelineItem(track.id, id))
 
-  // Perform Ripple Edit: Shift all items that start AT OR AFTER the deleted item to the left
-  state.timelineTracks.value.forEach(track => {
-    track.items.forEach((item: any) => {
-      // Use a tiny epsilon because floating point math
-      if (item.start >= itemToDelete.start - 0.001) {
-        item.start = Math.max(0, item.start - itemToDelete.duration)
-      }
+  // ONLY perform ripple edit if we deleted a video segment!
+  if (trackId === 'video') {
+    // Perform Ripple Edit: Shift all items that start AT OR AFTER the deleted item to the left
+    state.timelineTracks.value.forEach(track => {
+      track.items.forEach((item: any) => {
+        // Use a tiny epsilon because floating point math
+        if (item.start >= itemToDelete.start - 0.001) {
+          item.start = Math.max(0, item.start - itemToDelete.duration)
+        }
+      })
     })
-  })
 
-  // Update playhead position:
-  const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
-  const relTime = state.currentTime.value - offset
-
-  if (relTime > itemToDelete.start + itemToDelete.duration) {
-    state.currentTime.value = Math.max(0, state.currentTime.value - itemToDelete.duration)
-  } else if (relTime >= itemToDelete.start) {
-    state.currentTime.value = itemToDelete.start + offset
-  }
-
-  // Perform Ripple Edit on subtitles
-  if (state.fullTranscript.value && state.fullTranscript.value.length > 0) {
-    const newTranscript: any[] = []
-    const delStart = itemToDelete.start
-    const delEnd = itemToDelete.start + itemToDelete.duration
-    
-    // Normalize coordinates for comparison: 
-    // Subtitle start is 0-based relative to video start (which is at thumbnailDuration on timeline)
+    // Update playhead position:
     const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
-    
-    state.fullTranscript.value.forEach(s => {
-      // Subtitle time in timeline-absolute coordinates
-      const segStart = s.start + offset
-      const segEnd = (s.start + s.duration) + offset
+    const relTime = state.currentTime.value - offset
+
+    if (relTime > itemToDelete.start + itemToDelete.duration) {
+      state.currentTime.value = Math.max(0, state.currentTime.value - itemToDelete.duration)
+    } else if (relTime >= itemToDelete.start) {
+      state.currentTime.value = itemToDelete.start + offset
+    }
+
+    // Perform Ripple Edit on subtitles
+    if (state.fullTranscript.value && state.fullTranscript.value.length > 0) {
+      const newTranscript: any[] = []
+      const delStart = itemToDelete.start
+      const delEnd = itemToDelete.start + itemToDelete.duration
       
-      // Case 1: Segment is completely before deleted item -> Keep as is
-      if (segEnd <= delStart + 0.001) {
-        newTranscript.push(s)
-      }
-      // Case 2: Segment is completely after deleted item -> Shift left
-      else if (segStart >= delEnd - 0.001) {
-        newTranscript.push({
-          ...s,
-          start: Math.max(0, s.start - itemToDelete.duration)
-        })
-      }
-      // Case 3: Segment overlaps with deleted item
-      else {
-        const rawWords = s.text.trim().split(/\s+/)
-        if (!rawWords.length || !s.text.trim()) return
-        const wordDur = s.duration / rawWords.length
+      // Normalize coordinates for comparison: 
+      // Subtitle start is 0-based relative to video start (which is at thumbnailDuration on timeline)
+      const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
+      
+      state.fullTranscript.value.forEach(s => {
+        // Subtitle time in timeline-absolute coordinates
+        const segStart = s.start + offset
+        const segEnd = (s.start + s.duration) + offset
         
-        let block1Words: string[] = []
-        let block2Words: string[] = []
-        let block2StartIndex = -1
-        
-        rawWords.forEach((w: string, i: number) => {
-          const wordStart = segStart + (i * wordDur)
-          const wordEnd = wordStart + wordDur
+        // Case 1: Segment is completely before deleted item -> Keep as is
+        if (segEnd <= delStart + 0.001) {
+          newTranscript.push(s)
+        }
+        // Case 2: Segment is completely after deleted item -> Shift left
+        else if (segStart >= delEnd - 0.001) {
+          newTranscript.push({
+            ...s,
+            start: Math.max(0, s.start - itemToDelete.duration)
+          })
+        }
+        // Case 3: Segment overlaps with deleted item
+        else {
+          const rawWords = s.text.trim().split(/\s+/)
+          if (!rawWords.length || !s.text.trim()) return
+          const wordDur = s.duration / rawWords.length
           
-          if (wordEnd <= delStart + 0.001) {
-            block1Words.push(w)
-          } else if (wordStart >= delEnd - 0.001) {
-            block2Words.push(w)
-            if (block2StartIndex === -1) block2StartIndex = i
+          let block1Words: string[] = []
+          let block2Words: string[] = []
+          let block2StartIndex = -1
+          
+          rawWords.forEach((w: string, i: number) => {
+            const wordStart = segStart + (i * wordDur)
+            const wordEnd = wordStart + wordDur
+            
+            if (wordEnd <= delStart + 0.001) {
+              block1Words.push(w)
+            } else if (wordStart >= delEnd - 0.001) {
+              block2Words.push(w)
+              if (block2StartIndex === -1) block2StartIndex = i
+            }
+          })
+          
+          if (block1Words.length > 0) {
+            newTranscript.push({
+              ...s,
+              text: block1Words.join(' '),
+              duration: block1Words.length * wordDur
+            })
           }
-        })
-        
-        if (block1Words.length > 0) {
-          newTranscript.push({
-            ...s,
-            text: block1Words.join(' '),
-            duration: block1Words.length * wordDur
-          })
+          
+          if (block2Words.length > 0) {
+            const originalStart = (segStart + (block2StartIndex * wordDur)) - offset
+            newTranscript.push({
+              ...s,
+              id: s.id + '_shifted',
+              text: block2Words.join(' '),
+              start: Math.max(0, originalStart - itemToDelete.duration),
+              duration: block2Words.length * wordDur
+            })
+          }
         }
-        
-        if (block2Words.length > 0) {
-          const originalStart = (segStart + (block2StartIndex * wordDur)) - offset
-          newTranscript.push({
-            ...s,
-            id: s.id + '_shifted',
-            text: block2Words.join(' '),
-            start: Math.max(0, originalStart - itemToDelete.duration),
-            duration: block2Words.length * wordDur
-          })
-        }
-      }
-    })
-    state.fullTranscript.value = newTranscript
+      })
+      state.fullTranscript.value = newTranscript
+    }
+    
+    // Auto-save changes immediately to prevent data loss on refresh
+    state.saveTranscript()
   }
   
-  // Auto-save changes immediately to prevent data loss on refresh
-  state.saveTranscript()
   state.saveTimelineTracks()
 }
 

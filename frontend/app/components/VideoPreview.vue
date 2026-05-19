@@ -336,9 +336,13 @@ function onNativeVideoError(e: Event) {
   }
 }
 
+const stableVideoBuster = ref<string>(Date.now().toString())
 let safetyTimeout: any = null
 
 watch(() => state.videoUrl.value, (url) => {
+  if (url) {
+    stableVideoBuster.value = Date.now().toString()
+  }
   if (readyTimeout) clearTimeout(readyTimeout)
   if (safetyTimeout) clearTimeout(safetyTimeout)
   if (url) {
@@ -476,7 +480,7 @@ watch(() => state.videoUrl.value, (url) => {
     // Add cache-buster for local assets to prevent "Format error" from stale cache
     let videoSrc = state.videoUrl.value || ''
     if (videoSrc.includes('localhost:8000') && !videoSrc.includes('?t=')) {
-      videoSrc += (videoSrc.includes('?') ? '&' : '?') + 't=' + Date.now()
+      videoSrc += (videoSrc.includes('?') ? '&' : '?') + 't=' + stableVideoBuster.value
     }
 
     const remotionProps = {
