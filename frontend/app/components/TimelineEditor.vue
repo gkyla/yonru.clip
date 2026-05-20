@@ -808,6 +808,7 @@ function splitSelected() {
 // --- Keyboard ---
 function onKeyDown(e: KeyboardEvent) {
   if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return
+  if (e.target instanceof HTMLElement && e.target.isContentEditable) return
   if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePlay() }
   else if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected()
   else if (e.key === 'k' || e.key === 'K') splitSelected()
