@@ -336,7 +336,26 @@ onMounted(() => {
   }
 })
 
-watch(() => state.thumbnailTextOverlays.value.map(o => `${o.fontWeight || 900}-${o.fontFamily || 'Montserrat'}`), (fontKeys) => {
+const allUsedFonts = computed(() => {
+  const fonts = new Set<string>()
+  
+  // Thumbnail overlays
+  state.thumbnailTextOverlays.value.forEach(o => {
+    fonts.add(`${o.fontWeight || 900}-${o.fontFamily || 'Montserrat'}`)
+  })
+  
+  // Timeline text items
+  const track = state.timelineTracks.value.find(t => t.id === 'text')
+  if (track && track.items) {
+    track.items.forEach((item: any) => {
+      fonts.add(`${item.fontWeight || 900}-${item.font || 'Outfit'}`)
+    })
+  }
+  
+  return Array.from(fonts)
+})
+
+watch(allUsedFonts, (fontKeys) => {
   if (typeof document === 'undefined' || !document.fonts) return
   fontKeys.forEach(fontKey => {
     if (!loadedFonts.has(fontKey)) {
