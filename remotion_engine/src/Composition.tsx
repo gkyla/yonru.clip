@@ -203,34 +203,82 @@ export const YonruClip: React.FC<YonruClipProps> = ({
         )}
 
         {/* Timeline Text layers */}
-        {activeTextItems.map((item) => (
-          <AbsoluteFill 
-            key={item.id}
-            style={{
-              zIndex: 20,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              pointerEvents: 'none'
-            }}
-          >
-            <div style={{
-              position: 'absolute',
-              left: `${item.x}px`,
-              top: `${item.y}px`,
-              color: item.color || 'white',
-              fontSize: `${item.fontSize || 80}px`,
-              fontFamily: item.font || 'Outfit',
-              transform: 'translate(-50%, -50%)',
-              textAlign: 'center',
-              textShadow: '0 5px 15px rgba(0,0,0,0.5)',
-              whiteSpace: 'pre-wrap',
-              maxWidth: '900px'
-            }}>
-              {item.content || 'NEW TEXT'}
-            </div>
-          </AbsoluteFill>
-        ))}
+        {activeTextItems.map((item) => {
+          const getBgColor = (it: any) => {
+            if (!it.showBackground) return 'transparent';
+            const baseColor = it.backgroundColor || '#000000';
+            if (baseColor.startsWith('#')) {
+              const opacityVal = it.backgroundOpacity !== undefined ? it.backgroundOpacity : 0.7;
+              const hexOpacity = Math.round(opacityVal * 255).toString(16).padStart(2, '0');
+              return `${baseColor}${hexOpacity}`;
+            }
+            return baseColor;
+          };
+
+          const getTextShadow = (it: any) => {
+            if (it.shadowGlow === 'glow') {
+              const glow = it.glowColor || '#FFFFFF';
+              return `0 0 10px ${glow}, 0 0 20px ${glow}, 0 0 30px ${glow}`;
+            }
+            if (it.shadowGlow === 'shadow') {
+              const dist = it.shadowDistance !== undefined ? it.shadowDistance : 4;
+              const blur = it.shadowBlur !== undefined ? it.shadowBlur : 8;
+              const color = it.shadowColor || 'rgba(0,0,0,0.6)';
+              return `${dist}px ${dist}px ${blur}px ${color}`;
+            }
+            return 'none';
+          };
+
+          const textStroke = item.strokeWidth && item.strokeWidth > 0 
+            ? `${item.strokeWidth}px ${item.strokeColor || '#000000'}` 
+            : undefined;
+
+          return (
+            <AbsoluteFill 
+              key={item.id}
+              style={{
+                zIndex: 20,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                pointerEvents: 'none'
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                left: `${item.x}px`,
+                top: `${item.y}px`,
+                color: item.color || '#FFFFFF',
+                fontSize: `${item.fontSize || 80}px`,
+                fontFamily: getFont(item.font || 'Outfit'),
+                fontWeight: item.fontWeight || 900,
+                fontStyle: item.fontStyle || 'normal',
+                textDecoration: item.textDecoration || 'none',
+                textTransform: item.textTransform || 'none',
+                textAlign: item.textAlign || 'center',
+                letterSpacing: `${item.letterSpacing !== undefined ? item.letterSpacing : 0}px`,
+                wordSpacing: `${item.wordSpacing !== undefined ? item.wordSpacing : 0}px`,
+                lineHeight: item.lineHeight !== undefined ? item.lineHeight : 1.1,
+                opacity: item.opacity !== undefined ? item.opacity : 1.0,
+                transform: 'translate(-50%, -50%)',
+                whiteSpace: 'pre-wrap',
+                maxWidth: '900px',
+                // Background Box
+                backgroundColor: getBgColor(item),
+                padding: item.showBackground ? `${item.backgroundPadding !== undefined ? item.backgroundPadding : 15}px` : 0,
+                borderRadius: item.showBackground ? `${item.backgroundRoundness !== undefined ? item.backgroundRoundness : 10}px` : 0,
+                display: 'inline-block',
+                width: 'fit-content',
+                // Text Stroke
+                WebkitTextStroke: textStroke,
+                // Text Shadow / Glow
+                textShadow: getTextShadow(item),
+              }}>
+                {item.content || ''}
+              </div>
+            </AbsoluteFill>
+          );
+        })}
 
         {/* Timeline Audio layers */}
         {timelineAudioItems.map((item) => (
