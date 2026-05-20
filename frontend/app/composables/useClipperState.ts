@@ -974,34 +974,13 @@ export const useClipperState = () => {
       const defaultDuration = item.duration ?? 5
       const durationSec = Math.min(defaultDuration, maxRemaining)
 
-      let styleOverrides = {}
+      let styleOverrides: any = {}
       if (trackId === 'text') {
         if (defaultTimelineTextStyle.value) {
-          styleOverrides = { ...defaultTimelineTextStyle.value }
+          styleOverrides = { ...defaultTimelineTextStyle.value, linkToGlobal: true }
         } else {
-          styleOverrides = {
-            font: font.value || 'Outfit',
-            fontSize: 80,
-            fontWeight: subtitleFontWeight.value ? String(subtitleFontWeight.value) : '900',
-            textTransform: subtitleTextTransform.value || 'uppercase',
-            align: 'center',
-            color: subtitleTextColor.value || '#FFFFFF',
-            opacity: 1,
-            strokeColor: subtitleStrokeColor.value || '#000000',
-            strokeWidth: subtitleStrokeWidth.value ?? 5,
-            showStroke: (subtitleStrokeWidth.value ?? 0) > 0,
-            showBackground: (subtitleBackground.value || 'none') !== 'none',
-            backgroundColor: '#000000',
-            backgroundOpacity: subtitleBackgroundOpacity.value ?? 0.7,
-            letterSpacing: 0,
-            wordSpacing: subtitleWordSpacing.value ?? 0,
-            lineHeight: 1.1,
-            shadowBlur: 10,
-            shadowColor: '#000000',
-            shadowOpacity: 0.5,
-            shadowOffsetX: 5,
-            shadowOffsetY: 5,
-          }
+          styleOverrides = getGlobalStyleSnapshot()
+          styleOverrides.linkToGlobal = true
         }
       }
 
@@ -1048,6 +1027,40 @@ export const useClipperState = () => {
       localStorage.setItem('defaultTimelineTextStyle', JSON.stringify(style))
     }
     showToast('Saved current style as manual text default!', 'success')
+  }
+
+  /** Build a style snapshot from the current global subtitle settings */
+  function getGlobalStyleSnapshot() {
+    return {
+      font: font.value || 'Outfit',
+      fontSize: 80,
+      fontWeight: subtitleFontWeight.value ? String(subtitleFontWeight.value) : '900',
+      textTransform: subtitleTextTransform.value || 'uppercase',
+      align: 'center',
+      color: subtitleTextColor.value || '#FFFFFF',
+      opacity: 1,
+      strokeColor: subtitleStrokeColor.value || '#000000',
+      strokeWidth: subtitleStrokeWidth.value ?? 5,
+      showStroke: (subtitleStrokeWidth.value ?? 0) > 0,
+      showBackground: (subtitleBackground.value || 'none') !== 'none',
+      backgroundColor: '#000000',
+      backgroundOpacity: subtitleBackgroundOpacity.value ?? 0.7,
+      letterSpacing: 0,
+      wordSpacing: subtitleWordSpacing.value ?? 0,
+      lineHeight: 1.1,
+      shadowBlur: 10,
+      shadowColor: '#000000',
+      shadowOpacity: 0.5,
+      shadowOffsetX: 5,
+      shadowOffsetY: 5,
+    }
+  }
+
+  /** Sync current global subtitle styles into a single timeline text item */
+  function syncGlobalStylesToItem(item: any) {
+    const snap = getGlobalStyleSnapshot()
+    Object.assign(item, snap)
+    item.linkToGlobal = true
   }
 
   function deleteTimelineItem(trackId: string, itemId: string) {
@@ -1203,6 +1216,21 @@ export const useClipperState = () => {
     watch(timelineTracks, () => {
       saveTimelineTracks()
     }, { deep: true })
+
+    // Watch global subtitle style changes and sync to linked timeline text items
+    watch(
+      [font, fontSize, subtitleFontWeight, subtitleTextTransform, subtitleTextColor,
+       subtitleStrokeColor, subtitleStrokeWidth, subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing],
+      () => {
+        const textTrack = timelineTracks.value.find((t: any) => t.id === 'text')
+        if (!textTrack) return
+        textTrack.items.forEach((item: any) => {
+          if (item.linkToGlobal !== false) {
+            syncGlobalStylesToItem(item)
+          }
+        })
+      }
+    )
   }
 
   // --- Thumbnail Actions ---
@@ -1417,7 +1445,7 @@ export const useClipperState = () => {
     runDeepAudit, maskFlaggedWords,
     fetchCached, setLastAccessed, setLastClip,
     saveTimelineTracks,
-    addTimelineItem, deleteTimelineItem, updateTimelineItem, saveTimelineTextStyleAsDefault,
+    addTimelineItem, deleteTimelineItem, updateTimelineItem, saveTimelineTextStyleAsDefault, syncGlobalStylesToItem,
     captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig,
     toast, showToast, initPersistence
   }
