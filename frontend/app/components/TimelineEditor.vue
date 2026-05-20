@@ -144,20 +144,33 @@
     >
     <div v-if="state.selectedTimelineItem.value" class="fixed top-[72px] right-6 bottom-[276px] w-[460px] bg-[#111113]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-[60] flex flex-col overflow-hidden">
       <!-- Header -->
-      <div class="px-5 py-3.5 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+      <div class="px-5 py-3.5 border-b border-white/5 flex items-center justify-between bg-white/[0.02] relative z-20">
         <div class="flex items-center gap-2">
           <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
           <span class="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Properties</span>
         </div>
         <div class="flex items-center gap-2">
           <!-- Link with Global Style toggle (inline in header) -->
-          <button v-if="state.selectedTimelineItem.value?.content !== undefined" @click="toggleGlobalLink()" 
-                  class="flex items-center gap-1.5 px-2.5 py-1 text-[8px] font-bold uppercase tracking-wider rounded-lg border transition-all duration-300"
-                  :class="isLinkedToGlobal ? 'bg-violet-500/15 text-violet-300 border-violet-500/30 hover:bg-violet-500/25' : 'border-white/10 text-slate-500 hover:text-slate-400 hover:bg-white/5'"
-                  :title="isLinkedToGlobal ? 'Syncing with subtitle theme' : 'Using custom overrides'">
-            <Icon :name="isLinkedToGlobal ? 'ri:link' : 'ri:link-unlink'" class="text-[10px]" />
-            {{ isLinkedToGlobal ? 'LINKED' : 'CUSTOM' }}
-          </button>
+          <div v-if="state.selectedTimelineItem.value?.content !== undefined" class="relative group">
+            <button @click="toggleGlobalLink()" 
+                    class="flex items-center gap-1.5 px-2.5 py-1 text-[8px] font-bold uppercase tracking-wider rounded-lg border transition-all duration-300"
+                    :class="isLinkedToGlobal ? 'bg-violet-500/15 text-violet-300 border-violet-500/30 hover:bg-violet-500/25' : 'border-white/10 text-slate-500 hover:text-slate-400 hover:bg-white/5'">
+              <Icon :name="isLinkedToGlobal ? 'ri:link' : 'ri:link-unlink'" class="text-[10px]" />
+              {{ isLinkedToGlobal ? 'LINKED' : 'CUSTOM' }}
+            </button>
+            
+            <!-- Tooltip -->
+            <div class="absolute right-0 top-full mt-2 w-56 bg-slate-950 border border-white/10 rounded-lg p-2.5 shadow-2xl text-[9px] text-slate-400 normal-case leading-normal pointer-events-none opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 z-[70] origin-top-right backdrop-blur-md">
+              <div v-if="isLinkedToGlobal">
+                <span class="font-bold text-violet-400 block mb-0.5">Linked Mode</span>
+                This text inherits styles from global settings. Editing any styling below will automatically unlink it.
+              </div>
+              <div v-else>
+                <span class="font-bold text-amber-400 block mb-0.5">Custom Mode</span>
+                This subtitle has unique custom styling. Click to link it back and reset it to global style settings.
+              </div>
+            </div>
+          </div>
           <button @click="state.selectedTimelineItem.value = null" class="text-slate-600 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors"><Icon name="ri:close-line" class="text-sm" /></button>
         </div>
       </div>
@@ -165,41 +178,45 @@
       <div class="flex-1 overflow-y-auto p-4 space-y-3 select-none">
         
         <!-- SECTION 1: TIMING & SPACING -->
-        <div class="border border-white/5 rounded-xl bg-black/20 overflow-hidden">
+        <div class="border rounded-xl bg-black/20 overflow-hidden transition-all duration-300"
+             :class="activeSections.timing ? 'border-sky-500/20 shadow-[0_0_12px_rgba(56,189,248,0.03)]' : 'border-white/5'">
           <button @click="toggleSection('timing')" class="w-full px-3 py-2 flex items-center justify-between bg-white/[0.02] hover:bg-white/[0.05] transition-colors text-[9px] font-bold uppercase tracking-wider text-slate-400">
             <span class="flex items-center gap-2"><Icon name="ri:time-line" class="text-sky-400 text-xs" /> Timing & Spacing</span>
-            <Icon :name="activeSections.timing ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-xs" />
+            <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-300" :class="{ 'rotate-180': activeSections.timing }" />
           </button>
-          <div v-show="activeSections.timing" class="p-3 space-y-2.5 border-t border-white/5">
-            <div v-if="state.selectedTimelineItem.value.content !== undefined">
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Text Content</label>
-              <textarea v-model="state.selectedTimelineItem.value.content" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500/50 resize-none" rows="2"></textarea>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Start (s)</label>
-                <input type="number" step="0.1" v-model.number="state.selectedTimelineItem.value.start" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white mono" />
-              </div>
-              <div>
-                <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Duration (s)</label>
-                <input type="number" step="0.1" v-model.number="state.selectedTimelineItem.value.duration" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white mono" />
-              </div>
-            </div>
-            <div v-if="state.selectedTimelineItem.value.align !== undefined">
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Alignment</label>
-              <div class="grid grid-cols-3 gap-1 bg-black/40 p-0.5 rounded-lg border border-white/10">
-                <button v-for="align in ['left', 'center', 'right']" :key="align"
-                        @click="state.selectedTimelineItem.value.align = align"
-                        class="py-1 text-[9px] font-bold uppercase rounded-md transition-colors"
-                        :class="state.selectedTimelineItem.value.align === align ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'text-slate-500 hover:text-slate-300'">
-                  {{ align }}
-                </button>
+          <div class="grid transition-[grid-template-rows] duration-300 ease-in-out"
+               :class="activeSections.timing ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
+            <div class="overflow-hidden">
+              <div class="p-3 space-y-2.5 border-t border-white/5">
+                <div v-if="state.selectedTimelineItem.value.content !== undefined">
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Text Content</label>
+                  <textarea v-model="state.selectedTimelineItem.value.content" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500/50 resize-none" rows="2"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Start (s)</label>
+                    <input type="number" step="0.1" v-model.number="state.selectedTimelineItem.value.start" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white mono" />
+                  </div>
+                  <div>
+                    <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Duration (s)</label>
+                    <input type="number" step="0.1" v-model.number="state.selectedTimelineItem.value.duration" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white mono" />
+                  </div>
+                </div>
+                <div v-if="state.selectedTimelineItem.value.align !== undefined">
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Alignment</label>
+                  <div class="grid grid-cols-3 gap-1 bg-black/40 p-0.5 rounded-lg border border-white/10">
+                    <button v-for="align in ['left', 'center', 'right']" :key="align"
+                            @click="state.selectedTimelineItem.value.align = align"
+                            class="py-1 text-[9px] font-bold uppercase rounded-md transition-colors"
+                            :class="state.selectedTimelineItem.value.align === align ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'text-slate-500 hover:text-slate-300'">
+                      {{ align }}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
-
-
 
         <!-- STYLE SECTIONS WRAPPER (dimmed when linked) -->
         <div v-if="state.selectedTimelineItem.value?.content !== undefined" 
@@ -217,162 +234,186 @@
           </div>
 
         <!-- SECTION 2: TYPOGRAPHY -->
-        <div class="border border-white/5 rounded-xl bg-black/20 overflow-hidden">
+        <div class="border rounded-xl bg-black/20 overflow-hidden transition-all duration-300"
+             :class="activeSections.typography ? 'border-amber-500/20 shadow-[0_0_12px_rgba(245,158,11,0.03)]' : 'border-white/5'">
           <button @click="toggleSection('typography')" class="w-full px-3 py-2 flex items-center justify-between bg-white/[0.02] hover:bg-white/[0.05] transition-colors text-[9px] font-bold uppercase tracking-wider text-slate-400">
             <span class="flex items-center gap-2"><Icon name="ri:font-size-2" class="text-amber-400 text-xs" /> Typography</span>
-            <Icon :name="activeSections.typography ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-xs" />
+            <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-300" :class="{ 'rotate-180': activeSections.typography }" />
           </button>
-          <div v-show="activeSections.typography" class="p-3 space-y-2.5 border-t border-white/5">
-            <div>
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Font Family</label>
-              <select v-model="state.selectedTimelineItem.value.font" class="w-full bg-black border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none">
-                <option v-for="f in FONT_OPTIONS" :key="f" :value="f">{{ f }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Font Size ({{ state.selectedTimelineItem.value.fontSize ?? 80 }})</label>
-              <input type="range" min="20" max="250" v-model.number="state.selectedTimelineItem.value.fontSize" class="w-full accent-red-500 h-1" />
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Weight</label>
-                <select v-model="state.selectedTimelineItem.value.fontWeight" class="w-full bg-black border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none">
-                  <option value="100">100 (Thin)</option>
-                  <option value="300">300 (Light)</option>
-                  <option value="400">400 (Regular)</option>
-                  <option value="500">500 (Medium)</option>
-                  <option value="700">700 (Bold)</option>
-                  <option value="900">900 (Black)</option>
-                </select>
+          <div class="grid transition-[grid-template-rows] duration-300 ease-in-out"
+               :class="activeSections.typography ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
+            <div class="overflow-hidden">
+              <div class="p-3 space-y-2.5 border-t border-white/5">
+                <div>
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Font Family</label>
+                  <select v-model="state.selectedTimelineItem.value.font" class="w-full bg-black border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none">
+                    <option v-for="f in FONT_OPTIONS" :key="f" :value="f">{{ f }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Font Size ({{ state.selectedTimelineItem.value.fontSize ?? 80 }})</label>
+                  <input type="range" min="20" max="250" v-model.number="state.selectedTimelineItem.value.fontSize" class="w-full accent-red-500 h-1" />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Weight</label>
+                    <select v-model="state.selectedTimelineItem.value.fontWeight" class="w-full bg-black border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none">
+                      <option value="100">100 (Thin)</option>
+                      <option value="300">300 (Light)</option>
+                      <option value="400">400 (Regular)</option>
+                      <option value="500">500 (Medium)</option>
+                      <option value="700">700 (Bold)</option>
+                      <option value="900">900 (Black)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Case</label>
+                    <select v-model="state.selectedTimelineItem.value.textTransform" class="w-full bg-black border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none">
+                      <option value="none">Normal</option>
+                      <option value="uppercase">UPPERCASE</option>
+                      <option value="lowercase">lowercase</option>
+                      <option value="capitalize">Capitalize</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Line Height ({{ state.selectedTimelineItem.value.lineHeight ?? 1.1 }})</label>
+                  <input type="range" min="0.8" max="2.5" step="0.05" v-model.number="state.selectedTimelineItem.value.lineHeight" class="w-full accent-red-500 h-1" />
+                </div>
+                <div>
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Letter Spacing ({{ state.selectedTimelineItem.value.letterSpacing ?? 0 }}px)</label>
+                  <input type="range" min="-10" max="30" step="1" v-model.number="state.selectedTimelineItem.value.letterSpacing" class="w-full accent-red-500 h-1" />
+                </div>
+                <div>
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Word Spacing ({{ state.selectedTimelineItem.value.wordSpacing ?? 0 }}px)</label>
+                  <input type="range" min="-10" max="50" step="1" v-model.number="state.selectedTimelineItem.value.wordSpacing" class="w-full accent-red-500 h-1" />
+                </div>
               </div>
-              <div>
-                <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Case</label>
-                <select v-model="state.selectedTimelineItem.value.textTransform" class="w-full bg-black border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none">
-                  <option value="none">Normal</option>
-                  <option value="uppercase">UPPERCASE</option>
-                  <option value="lowercase">lowercase</option>
-                  <option value="capitalize">Capitalize</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Line Height ({{ state.selectedTimelineItem.value.lineHeight ?? 1.1 }})</label>
-              <input type="range" min="0.8" max="2.5" step="0.05" v-model.number="state.selectedTimelineItem.value.lineHeight" class="w-full accent-red-500 h-1" />
-            </div>
-            <div>
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Letter Spacing ({{ state.selectedTimelineItem.value.letterSpacing ?? 0 }}px)</label>
-              <input type="range" min="-10" max="30" step="1" v-model.number="state.selectedTimelineItem.value.letterSpacing" class="w-full accent-red-500 h-1" />
-            </div>
-            <div>
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Word Spacing ({{ state.selectedTimelineItem.value.wordSpacing ?? 0 }}px)</label>
-              <input type="range" min="-10" max="50" step="1" v-model.number="state.selectedTimelineItem.value.wordSpacing" class="w-full accent-red-500 h-1" />
             </div>
           </div>
         </div>
 
         <!-- SECTION 3: COLORS & BORDERS -->
-        <div class="border border-white/5 rounded-xl bg-black/20 overflow-hidden">
+        <div class="border rounded-xl bg-black/20 overflow-hidden transition-all duration-300"
+             :class="activeSections.colors ? 'border-rose-500/20 shadow-[0_0_12px_rgba(244,63,94,0.03)]' : 'border-white/5'">
           <button @click="toggleSection('colors')" class="w-full px-3 py-2 flex items-center justify-between bg-white/[0.02] hover:bg-white/[0.05] transition-colors text-[9px] font-bold uppercase tracking-wider text-slate-400">
             <span class="flex items-center gap-2"><Icon name="ri:palette-line" class="text-rose-400 text-xs" /> Colors & Borders</span>
-            <Icon :name="activeSections.colors ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-xs" />
+            <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-300" :class="{ 'rotate-180': activeSections.colors }" />
           </button>
-          <div v-show="activeSections.colors" class="p-3 space-y-2.5 border-t border-white/5">
-            <div>
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Text Color</label>
-              <div class="flex gap-2">
-                <input type="color" v-model="state.selectedTimelineItem.value.color" class="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-none" />
-                <input type="text" v-model="state.selectedTimelineItem.value.color" class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1 text-[10px] text-white mono" />
-              </div>
-            </div>
-            <div>
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Opacity ({{ Math.round((state.selectedTimelineItem.value.opacity ?? 1) * 100) }}%)</label>
-              <input type="range" min="0" max="1" step="0.05" v-model.number="state.selectedTimelineItem.value.opacity" class="w-full accent-red-500 h-1" />
-            </div>
-            <div class="flex items-center justify-between py-1">
-              <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Show Stroke</span>
-              <button @click="decoupleItem(); state.selectedTimelineItem.value.showStroke = !state.selectedTimelineItem.value.showStroke" 
-                      class="px-2.5 py-1 text-[9px] font-bold uppercase rounded-lg border transition-all"
-                      :class="state.selectedTimelineItem.value.showStroke ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'border-white/10 text-slate-500 hover:text-slate-400'">
-                {{ state.selectedTimelineItem.value.showStroke ? 'ON' : 'OFF' }}
-              </button>
-            </div>
-            <div v-if="state.selectedTimelineItem.value.showStroke" class="space-y-2.5 bg-black/20 p-2.5 rounded-lg border border-white/5">
-              <div>
-                <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Stroke Color</label>
-                <div class="flex gap-2">
-                  <input type="color" v-model="state.selectedTimelineItem.value.strokeColor" class="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-none" />
-                  <input type="text" v-model="state.selectedTimelineItem.value.strokeColor" class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1 text-[10px] text-white mono" />
+          <div class="grid transition-[grid-template-rows] duration-300 ease-in-out"
+               :class="activeSections.colors ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
+            <div class="overflow-hidden">
+              <div class="p-3 space-y-2.5 border-t border-white/5">
+                <div>
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Text Color</label>
+                  <div class="flex gap-2">
+                    <input type="color" v-model="state.selectedTimelineItem.value.color" class="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-none" />
+                    <input type="text" v-model="state.selectedTimelineItem.value.color" class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1 text-[10px] text-white mono" />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Stroke Width ({{ state.selectedTimelineItem.value.strokeWidth ?? 5 }}px)</label>
-                <input type="range" min="1" max="25" step="1" v-model.number="state.selectedTimelineItem.value.strokeWidth" class="w-full accent-red-500 h-1" />
+                <div>
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Opacity ({{ Math.round((state.selectedTimelineItem.value.opacity ?? 1) * 100) }}%)</label>
+                  <input type="range" min="0" max="1" step="0.05" v-model.number="state.selectedTimelineItem.value.opacity" class="w-full accent-red-500 h-1" />
+                </div>
+                <div class="flex items-center justify-between py-1">
+                  <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Show Stroke</span>
+                  <button @click="decoupleItem(); state.selectedTimelineItem.value.showStroke = !state.selectedTimelineItem.value.showStroke" 
+                          class="px-2.5 py-1 text-[9px] font-bold uppercase rounded-lg border transition-all"
+                          :class="state.selectedTimelineItem.value.showStroke ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'border-white/10 text-slate-500 hover:text-slate-400'">
+                    {{ state.selectedTimelineItem.value.showStroke ? 'ON' : 'OFF' }}
+                  </button>
+                </div>
+                <div v-if="state.selectedTimelineItem.value.showStroke" class="space-y-2.5 bg-black/20 p-2.5 rounded-lg border border-white/5">
+                  <div>
+                    <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Stroke Color</label>
+                    <div class="flex gap-2">
+                      <input type="color" v-model="state.selectedTimelineItem.value.strokeColor" class="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-none" />
+                      <input type="text" v-model="state.selectedTimelineItem.value.strokeColor" class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1 text-[10px] text-white mono" />
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Stroke Width ({{ state.selectedTimelineItem.value.strokeWidth ?? 5 }}px)</label>
+                    <input type="range" min="1" max="25" step="1" v-model.number="state.selectedTimelineItem.value.strokeWidth" class="w-full accent-red-500 h-1" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         <!-- SECTION 4: BACKGROUND BOX -->
-        <div class="border border-white/5 rounded-xl bg-black/20 overflow-hidden">
+        <div class="border rounded-xl bg-black/20 overflow-hidden transition-all duration-300"
+             :class="activeSections.box ? 'border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.03)]' : 'border-white/5'">
           <button @click="toggleSection('box')" class="w-full px-3 py-2 flex items-center justify-between bg-white/[0.02] hover:bg-white/[0.05] transition-colors text-[9px] font-bold uppercase tracking-wider text-slate-400">
             <span class="flex items-center gap-2"><Icon name="ri:checkbox-blank-line" class="text-emerald-400 text-xs" /> Background Box</span>
-            <Icon :name="activeSections.box ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-xs" />
+            <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-300" :class="{ 'rotate-180': activeSections.box }" />
           </button>
-          <div v-show="activeSections.box" class="p-3 space-y-2.5 border-t border-white/5">
-            <div class="flex items-center justify-between py-1">
-              <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Show Background</span>
-              <button @click="decoupleItem(); state.selectedTimelineItem.value.showBackground = !state.selectedTimelineItem.value.showBackground" 
-                      class="px-2.5 py-1 text-[9px] font-bold uppercase rounded-lg border transition-all"
-                      :class="state.selectedTimelineItem.value.showBackground ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'border-white/10 text-slate-500 hover:text-slate-400'">
-                {{ state.selectedTimelineItem.value.showBackground ? 'ON' : 'OFF' }}
-              </button>
-            </div>
-            <div v-if="state.selectedTimelineItem.value.showBackground" class="space-y-2.5 bg-black/20 p-2.5 rounded-lg border border-white/5">
-              <div>
-                <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">BG Color</label>
-                <div class="flex gap-2">
-                  <input type="color" v-model="state.selectedTimelineItem.value.backgroundColor" class="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-none" />
-                  <input type="text" v-model="state.selectedTimelineItem.value.backgroundColor" class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1 text-[10px] text-white mono" />
+          <div class="grid transition-[grid-template-rows] duration-300 ease-in-out"
+               :class="activeSections.box ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
+            <div class="overflow-hidden">
+              <div class="p-3 space-y-2.5 border-t border-white/5">
+                <div class="flex items-center justify-between py-1">
+                  <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Show Background</span>
+                  <button @click="decoupleItem(); state.selectedTimelineItem.value.showBackground = !state.selectedTimelineItem.value.showBackground" 
+                          class="px-2.5 py-1 text-[9px] font-bold uppercase rounded-lg border transition-all"
+                          :class="state.selectedTimelineItem.value.showBackground ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'border-white/10 text-slate-500 hover:text-slate-400'">
+                    {{ state.selectedTimelineItem.value.showBackground ? 'ON' : 'OFF' }}
+                  </button>
                 </div>
-              </div>
-              <div>
-                <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">BG Opacity ({{ Math.round((state.selectedTimelineItem.value.backgroundOpacity ?? 0.7) * 100) }}%)</label>
-                <input type="range" min="0" max="1" step="0.05" v-model.number="state.selectedTimelineItem.value.backgroundOpacity" class="w-full accent-red-500 h-1" />
+                <div v-if="state.selectedTimelineItem.value.showBackground" class="space-y-2.5 bg-black/20 p-2.5 rounded-lg border border-white/5">
+                  <div>
+                    <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">BG Color</label>
+                    <div class="flex gap-2">
+                      <input type="color" v-model="state.selectedTimelineItem.value.backgroundColor" class="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-none" />
+                      <input type="text" v-model="state.selectedTimelineItem.value.backgroundColor" class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1 text-[10px] text-white mono" />
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">BG Opacity ({{ Math.round((state.selectedTimelineItem.value.backgroundOpacity ?? 0.7) * 100) }}%)</label>
+                    <input type="range" min="0" max="1" step="0.05" v-model.number="state.selectedTimelineItem.value.backgroundOpacity" class="w-full accent-red-500 h-1" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         <!-- SECTION 5: SHADOWS -->
-        <div class="border border-white/5 rounded-xl bg-black/20 overflow-hidden">
+        <div class="border rounded-xl bg-black/20 overflow-hidden transition-all duration-300"
+             :class="activeSections.shadows ? 'border-indigo-500/20 shadow-[0_0_12px_rgba(99,102,241,0.03)]' : 'border-white/5'">
           <button @click="toggleSection('shadows')" class="w-full px-3 py-2 flex items-center justify-between bg-white/[0.02] hover:bg-white/[0.05] transition-colors text-[9px] font-bold uppercase tracking-wider text-slate-400">
             <span class="flex items-center gap-2"><Icon name="ri:shadow-line" class="text-indigo-400 text-xs" /> Text Shadows</span>
-            <Icon :name="activeSections.shadows ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-xs" />
+            <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-300" :class="{ 'rotate-180': activeSections.shadows }" />
           </button>
-          <div v-show="activeSections.shadows" class="p-3 space-y-2.5 border-t border-white/5">
-            <div>
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Shadow Color</label>
-              <div class="flex gap-2">
-                <input type="color" v-model="state.selectedTimelineItem.value.shadowColor" class="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-none" />
-                <input type="text" v-model="state.selectedTimelineItem.value.shadowColor" class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1 text-[10px] text-white mono" />
-              </div>
-            </div>
-            <div>
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Shadow Blur ({{ state.selectedTimelineItem.value.shadowBlur ?? 10 }}px)</label>
-              <input type="range" min="0" max="50" step="1" v-model.number="state.selectedTimelineItem.value.shadowBlur" class="w-full accent-red-500 h-1" />
-            </div>
-            <div>
-              <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Shadow Opacity ({{ Math.round((state.selectedTimelineItem.value.shadowOpacity ?? 0.5) * 100) }}%)</label>
-              <input type="range" min="0" max="1" step="0.05" v-model.number="state.selectedTimelineItem.value.shadowOpacity" class="w-full accent-red-500 h-1" />
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Offset X</label>
-                <input type="number" v-model.number="state.selectedTimelineItem.value.shadowOffsetX" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white mono" />
-              </div>
-              <div>
-                <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Offset Y</label>
-                <input type="number" v-model.number="state.selectedTimelineItem.value.shadowOffsetY" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white mono" />
+          <div class="grid transition-[grid-template-rows] duration-300 ease-in-out"
+               :class="activeSections.shadows ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
+            <div class="overflow-hidden">
+              <div class="p-3 space-y-2.5 border-t border-white/5">
+                <div>
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Shadow Color</label>
+                  <div class="flex gap-2">
+                    <input type="color" v-model="state.selectedTimelineItem.value.shadowColor" class="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-none" />
+                    <input type="text" v-model="state.selectedTimelineItem.value.shadowColor" class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1 text-[10px] text-white mono" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Shadow Blur ({{ state.selectedTimelineItem.value.shadowBlur ?? 10 }}px)</label>
+                  <input type="range" min="0" max="50" step="1" v-model.number="state.selectedTimelineItem.value.shadowBlur" class="w-full accent-red-500 h-1" />
+                </div>
+                <div>
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Shadow Opacity ({{ Math.round((state.selectedTimelineItem.value.shadowOpacity ?? 0.5) * 100) }}%)</label>
+                  <input type="range" min="0" max="1" step="0.05" v-model.number="state.selectedTimelineItem.value.shadowOpacity" class="w-full accent-red-500 h-1" />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Offset X</label>
+                    <input type="number" v-model.number="state.selectedTimelineItem.value.shadowOffsetX" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white mono" />
+                  </div>
+                  <div>
+                    <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Offset Y</label>
+                    <input type="number" v-model.number="state.selectedTimelineItem.value.shadowOffsetY" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white mono" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -391,10 +432,10 @@
           </button>
           <button @click="state.saveTimelineTextStyleAsDefault(state.selectedTimelineItem.value)"
                   class="flex-1 py-2 rounded-lg bg-red-600/15 border border-red-500/25 text-red-400 text-[9px] font-bold uppercase tracking-wider hover:bg-red-500 hover:text-white transition-colors">
-            Save as Default
+            Save as Default Style
           </button>
         </div>
-        <button @click="deleteSelected" class="w-full py-2 rounded-lg border border-red-500/20 text-red-400 text-[9px] font-bold uppercase tracking-wider hover:bg-red-500 hover:text-white transition-colors">Delete Item</button>
+        <button @click="deleteSelected" class="w-full py-2 rounded-lg border border-red-500/20 text-red-400 text-[9px] font-bold uppercase tracking-wider hover:bg-red-500 hover:text-white transition-colors">Delete Text</button>
       </div>
     </div>
     </Transition>
