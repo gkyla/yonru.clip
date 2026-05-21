@@ -1254,12 +1254,14 @@ export const useClipperState = () => {
 
   // --- Thumbnail Actions ---
 
-  async function captureScreenshot(timestamp?: number) {
+  async function captureScreenshot(timestamp?: number, isAutoCapture = false) {
     if (!jobId.value) return
     isCapturingThumbnail.value = true
     try {
-      // Delay 0.5s before requesting the capture to let the UI transition and player settle
-      await new Promise(resolve => setTimeout(resolve, 500))
+      if (isAutoCapture) {
+        // Delay 0.5s before requesting the capture to let the player seek and settle
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
 
       let requestTimestamp = timestamp ?? null
       if (timestamp !== undefined && timestamp !== null) {
@@ -1405,7 +1407,7 @@ export const useClipperState = () => {
 
       // Auto-capture on first-time toggle using the original time
       if (!thumbnailUrl.value) {
-        await captureScreenshot(originalTime)
+        await captureScreenshot(originalTime, true)
       }
     } else {
       // Disabling thumbnail
