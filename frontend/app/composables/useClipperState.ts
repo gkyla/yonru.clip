@@ -1258,6 +1258,9 @@ export const useClipperState = () => {
     if (!jobId.value) return
     isCapturingThumbnail.value = true
     try {
+      // Delay 0.5s before requesting the capture to let the UI transition and player settle
+      await new Promise(resolve => setTimeout(resolve, 500))
+
       let requestTimestamp = timestamp ?? null
       if (timestamp !== undefined && timestamp !== null) {
         // Option B1: Dynamic Frame-rate Offset (3 frames back)
@@ -1278,6 +1281,9 @@ export const useClipperState = () => {
       thumbnailScreenshotTime.value = timestamp ?? res.timestamp
       thumbnailEnabled.value = true
       showToast('Thumbnail captured!', 'success')
+      
+      // Delay 0.5s to allow the browser to fully download and paint the cover image
+      await new Promise(resolve => setTimeout(resolve, 500))
     } catch (e: any) {
       showToast('Failed to capture thumbnail', 'error')
     } finally {
@@ -1386,6 +1392,12 @@ export const useClipperState = () => {
     if (!thumbnailEnabled.value) {
       // Enabling thumbnail
       const originalTime = currentTime.value
+      
+      // Raise capture flag immediately if no thumbnail exists to visually cover the seek before it starts
+      if (!thumbnailUrl.value) {
+        isCapturingThumbnail.value = true
+      }
+
       currentTime.value += thumbnailDuration.value
       thumbnailEnabled.value = true
 

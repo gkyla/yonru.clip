@@ -311,14 +311,14 @@
 
       <!-- Premium Glassmorphic Capturing Overlay -->
       <Transition
-        enter-active-class="transition duration-300 ease-out"
-        enter-from-class="opacity-0"
+        enter-active-class="transition duration-0"
+        enter-from-class="opacity-100"
         enter-to-class="opacity-100"
-        leave-active-class="transition duration-200 ease-in"
+        leave-active-class="transition duration-500 ease-in-out"
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
       >
-        <div v-if="state.isCapturingThumbnail.value" class="absolute inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-xl">
+        <div v-if="state.isCapturingThumbnail.value" class="absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-3xl">
           <div class="flex flex-col items-center justify-center bg-black/60 border border-white/10 p-12 rounded-[48px] max-w-[650px] shadow-[0_24px_50px_-12px_rgba(0,0,0,0.8)]">
             <!-- Spinner Container -->
             <div class="relative w-32 h-32 flex items-center justify-center mb-8">
