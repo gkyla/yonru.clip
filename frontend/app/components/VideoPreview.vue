@@ -311,8 +311,8 @@
 
       <!-- Premium Glassmorphic Capturing Overlay -->
       <Transition
-        enter-active-class="transition duration-0"
-        enter-from-class="opacity-100"
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="opacity-0"
         enter-to-class="opacity-100"
         leave-active-class="transition duration-500 ease-in-out"
         leave-from-class="opacity-100"

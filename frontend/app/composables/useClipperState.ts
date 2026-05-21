@@ -1396,6 +1396,8 @@ export const useClipperState = () => {
       // Raise capture flag immediately if no thumbnail exists to visually cover the seek before it starts
       if (!thumbnailUrl.value) {
         isCapturingThumbnail.value = true
+        // Wait 350ms for the transition overlay to become 100% opaque
+        await new Promise(resolve => setTimeout(resolve, 350))
       }
 
       currentTime.value += thumbnailDuration.value
