@@ -366,6 +366,8 @@ export const useClipperState = () => {
   })
   const selectedTimelineItem = useState<any | null>('selectedTimelineItem', () => null)
   const isSavingLocked = ref(false)
+  const isDeletingThumbnail = ref(false)
+  const isTimelineShifting = useState<boolean>('isTimelineShifting', () => false)
   let isPersistenceInitialized = false
 
   // Polling interval ref
@@ -1217,11 +1219,14 @@ export const useClipperState = () => {
       saveTimelineTracks()
     }, { deep: true })
 
-    // Watch thumbnail config to auto-save and auto-capture on first-time toggle
-    watch(thumbnailEnabled, (val) => {
-      if (val && !thumbnailUrl.value && !isSavingLocked.value) {
-        captureScreenshot(currentTime.value)
+    // Track previous duration to handle changes dynamically
+    let prevDuration = thumbnailDuration.value
+    watch(thumbnailDuration, (newVal) => {
+      if (thumbnailEnabled.value) {
+        const diff = newVal - prevDuration
+        currentTime.value = Math.max(0, currentTime.value + diff)
       }
+      prevDuration = newVal
     })
 
     watch([thumbnailEnabled, thumbnailDuration, thumbnailTextOverlays], () => {
@@ -1370,6 +1375,72 @@ export const useClipperState = () => {
     }
   }
 
+  async function toggleThumbnail() {
+    isTimelineShifting.value = true
+    isSavingLocked.value = true
+
+    if (!thumbnailEnabled.value) {
+      // Enabling thumbnail
+      const originalTime = currentTime.value
+      currentTime.value += thumbnailDuration.value
+      thumbnailEnabled.value = true
+
+      // Auto-capture on first-time toggle using the original time
+      if (!thumbnailUrl.value) {
+        await captureScreenshot(originalTime)
+      }
+    } else {
+      // Disabling thumbnail
+      currentTime.value = Math.max(0, currentTime.value - thumbnailDuration.value)
+      thumbnailEnabled.value = false
+    }
+
+    await saveThumbnailConfig()
+
+    nextTick(() => {
+      isTimelineShifting.value = false
+      isSavingLocked.value = false
+    })
+  }
+
+  async function deleteThumbnail() {
+    if (!folderName.value || !clipId.value) return
+    try {
+      await $fetch(`${API_BASE}/api/thumbnail/${folderName.value}/${clipId.value}`, {
+        method: 'DELETE'
+      })
+      
+      isTimelineShifting.value = true
+      isSavingLocked.value = true
+      isDeletingThumbnail.value = true
+      
+      // Shift playhead back if it was in the thumbnail duration window
+      if (thumbnailEnabled.value) {
+        currentTime.value = Math.max(0, currentTime.value - thumbnailDuration.value)
+      }
+      
+      thumbnailUrl.value = null
+      thumbnailEnabled.value = false
+      thumbnailScreenshotTime.value = 0
+      thumbnailTextOverlays.value = []
+      thumbnailDuration.value = 1.0
+      
+      nextTick(() => {
+        isTimelineShifting.value = false
+        isSavingLocked.value = false
+        isDeletingThumbnail.value = false
+      })
+      
+      showToast('Thumbnail deleted!', 'success')
+    } catch (e: any) {
+      isTimelineShifting.value = false
+      isSavingLocked.value = false
+      isDeletingThumbnail.value = false
+      showToast('Failed to delete thumbnail', 'error')
+    }
+  }
+
+
   async function runDeepAudit() {
     if (!activeHook.value || isDeepAuditing.value) return
     isDeepAuditing.value = true
@@ -1455,6 +1526,7 @@ export const useClipperState = () => {
     subtitleStrokeColor, subtitleStrokeWidth, subtitleFontWeight, subtitleTextTransform,
     subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing, subtitlePreset, volume,
     isPlaying, currentTime, videoTime,
+    isTimelineShifting,
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
     cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip,
     timelineTracks, timelineDuration, selectedTimelineItem,
@@ -1468,7 +1540,8 @@ export const useClipperState = () => {
     fetchCached, setLastAccessed, setLastClip,
     saveTimelineTracks,
     addTimelineItem, deleteTimelineItem, updateTimelineItem, saveTimelineTextStyleAsDefault, syncGlobalStylesToItem,
-    captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig,
+    captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig, deleteThumbnail,
+    toggleThumbnail,
     toast, showToast, initPersistence
   }
 }

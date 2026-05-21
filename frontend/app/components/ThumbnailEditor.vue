@@ -33,7 +33,7 @@
           </div>
         </div>
         <button 
-          @click="state.thumbnailEnabled.value = !state.thumbnailEnabled.value"
+          @click="state.toggleThumbnail()"
           class="w-10 h-5 rounded-none transition-all relative"
           :class="state.thumbnailEnabled.value ? 'bg-emerald-500' : 'bg-white/10'"
         >
@@ -65,7 +65,7 @@
           </div>
         </div>
 
-        <!-- Capture Buttons -->
+        <!-- Capture & Delete Buttons -->
         <div class="flex gap-2">
           <button 
             @click="state.captureScreenshot()"
@@ -80,6 +80,14 @@
           >
             <Icon name="ri:focus-3-line" class="text-sm" />
             Current Frame
+          </button>
+          <button 
+            v-if="state.thumbnailUrl.value"
+            @click="state.deleteThumbnail()"
+            class="py-2.5 px-3.5 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-500/50 transition-all flex items-center justify-center active:scale-95"
+            title="Delete Thumbnail"
+          >
+            <Icon name="ri:delete-bin-line" class="text-sm" />
           </button>
         </div>
 

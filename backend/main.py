@@ -1532,6 +1532,26 @@ async def get_thumbnail_config(folder_name: str, clip_id: str):
         return {"config": config}
     return {"config": None}
 
+@app.delete("/api/thumbnail/{folder_name}/{clip_id}")
+async def delete_thumbnail(folder_name: str, clip_id: str):
+    """Delete thumbnail image and config for a clip."""
+    clip_dir = os.path.join("temp_assets", "clips", folder_name, clip_id)
+    thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
+    config_path = os.path.join(clip_dir, "thumbnail_config.json")
+    
+    deleted_files = []
+    try:
+        if os.path.exists(thumb_path):
+            os.remove(thumb_path)
+            deleted_files.append("thumbnail.jpg")
+        if os.path.exists(config_path):
+            os.remove(config_path)
+            deleted_files.append("thumbnail_config.json")
+        return {"status": "ok", "deleted": deleted_files}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/load-ready-clip")
 async def load_ready_clip(req: LoadReadyClipRequest):
     """Initialize a job state from an existing ready clip."""

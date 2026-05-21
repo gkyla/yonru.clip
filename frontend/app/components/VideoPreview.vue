@@ -323,6 +323,7 @@ const state = useClipperState()
 
 const previewVideo = ref<HTMLVideoElement | null>(null)
 const remotionIframe = ref<HTMLIFrameElement | null>(null)
+const lastSeekFrame = ref<number | null>(null)
 
 // --- FONT LOADING SYNC ---
 const fontsLoaded = ref(0)
@@ -648,6 +649,33 @@ watch([
   syncRemotionProps()
 }, { deep: true, immediate: true })
 
+watch(() => state.thumbnailEnabled.value, (enabled) => {
+  if (state.isTimelineShifting.value) return
+  if (previewVideo.value) {
+    if (enabled) {
+      if (isInThumbnailWindow.value) {
+        if (!previewVideo.value.paused) {
+          previewVideo.value.pause()
+        }
+        previewVideo.value.currentTime = 0
+        previewVideo.value.muted = true
+        nativeVideoStarted = false
+      } else {
+        previewVideo.value.currentTime = videoTime.value
+        previewVideo.value.muted = !state.useNativePlayer.value
+        nativeVideoStarted = true
+      }
+    } else {
+      nativeVideoStarted = false
+      previewVideo.value.currentTime = videoTime.value
+      previewVideo.value.muted = !state.useNativePlayer.value
+      if (state.isPlaying.value && previewVideo.value.paused) {
+        previewVideo.value.play().catch(e => console.warn('[VideoPreview] Failed to play native video on disabling thumbnail:', e))
+      }
+    }
+  }
+})
+
 // --- PLAY/PAUSE ---
 watch(() => state.isPlaying.value, (playing) => {
   console.log('[VideoPreview] isPlaying →', playing)
@@ -762,6 +790,8 @@ watch(() => state.isPlaying.value, (playing) => {
 
 // --- SEEKING / BOUNDARY CROSSING ---
 watch(() => state.currentTime.value, (newTime) => {
+  if (state.isTimelineShifting.value) return
+
   // During playback: handle thumbnail→video boundary
   if (state.isPlaying.value && previewVideo.value && state.thumbnailEnabled.value) {
     if (isInThumbnailWindow.value) {
@@ -789,17 +819,54 @@ watch(() => state.currentTime.value, (newTime) => {
   
   if (previewVideo.value && !state.isPlaying.value) {
     if (isInThumbnailWindow.value) {
-      previewVideo.value.currentTime = 0
+      if (previewVideo.value.currentTime !== 0) {
+        previewVideo.value.currentTime = 0
+      }
     } else {
-      previewVideo.value.currentTime = videoTime.value
+      const targetTime = videoTime.value
+      if (Math.abs(previewVideo.value.currentTime - targetTime) > 0.001) {
+        previewVideo.value.currentTime = targetTime
+      }
     }
   }
   
   if (remotionIframe.value && remotionIframe.value.contentWindow && !state.isPlaying.value) {
-    remotionIframe.value.contentWindow.postMessage({
-      type: 'SEEK',
-      frame: Math.floor(newTime * (state.videoFps.value || 30))
-    }, '*')
+    const targetFrame = Math.floor(newTime * (state.videoFps.value || 30))
+    if (lastSeekFrame.value !== targetFrame) {
+      remotionIframe.value.contentWindow.postMessage({
+        type: 'SEEK',
+        frame: targetFrame
+      }, '*')
+      lastSeekFrame.value = targetFrame
+    }
+  }
+})
+
+watch(() => state.isTimelineShifting.value, (shifting) => {
+  if (!shifting) {
+    // Perform settled seek
+    if (previewVideo.value) {
+      if (isInThumbnailWindow.value) {
+        if (previewVideo.value.currentTime !== 0) {
+          previewVideo.value.currentTime = 0
+        }
+      } else {
+        const targetTime = videoTime.value
+        if (Math.abs(previewVideo.value.currentTime - targetTime) > 0.001) {
+          previewVideo.value.currentTime = targetTime
+        }
+      }
+    }
+    if (remotionIframe.value && remotionIframe.value.contentWindow && !state.isPlaying.value) {
+      const targetFrame = Math.floor(state.currentTime.value * (state.videoFps.value || 30))
+      if (lastSeekFrame.value !== targetFrame) {
+        remotionIframe.value.contentWindow.postMessage({
+          type: 'SEEK',
+          frame: targetFrame
+        }, '*')
+        lastSeekFrame.value = targetFrame
+      }
+    }
   }
 })
 
