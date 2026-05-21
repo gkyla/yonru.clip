@@ -260,12 +260,13 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                 wordSpacing: `${item.wordSpacing !== undefined ? item.wordSpacing : 0}px`,
                 lineHeight: item.lineHeight !== undefined ? item.lineHeight : 1.1,
                 opacity: item.opacity !== undefined ? item.opacity : 1.0,
-                transform: 'translate(-50%, -50%)',
+                // No transform: Konva label config resets offset to {x:0,y:0} on every
+                // reactive update, so stored coordinates are top-left based, not center.
                 whiteSpace: 'pre-wrap',
                 maxWidth: '900px',
                 // Background Box
                 backgroundColor: getBgColor(item),
-                padding: item.showBackground ? `${item.backgroundPadding !== undefined ? item.backgroundPadding : 15}px` : 0,
+                padding: `${item.showBackground ? (item.backgroundPadding !== undefined ? item.backgroundPadding : 15) : 15}px`,
                 borderRadius: item.showBackground ? `${item.backgroundRoundness !== undefined ? item.backgroundRoundness : 10}px` : 0,
                 display: 'inline-block',
                 width: 'fit-content',
