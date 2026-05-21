@@ -641,6 +641,9 @@ watch([
   () => state.subtitleBackgroundOpacity.value,
   () => state.subtitleWordSpacing.value,
   () => state.timelineTracks.value,
+  () => state.thumbnailEnabled.value,
+  () => state.thumbnailDuration.value,
+  () => state.thumbnailTextOverlays.value,
 ], () => {
   syncRemotionProps()
 }, { deep: true, immediate: true })
@@ -762,7 +765,12 @@ watch(() => state.currentTime.value, (newTime) => {
   // During playback: handle thumbnail→video boundary
   if (state.isPlaying.value && previewVideo.value && state.thumbnailEnabled.value) {
     if (isInThumbnailWindow.value) {
-      // Still in thumbnail — native video should be paused at 0
+      // Still in thumbnail — native video should be paused at 0 and muted
+      if (!previewVideo.value.paused) {
+        previewVideo.value.pause()
+      }
+      previewVideo.value.currentTime = 0
+      previewVideo.value.muted = true
       nativeVideoStarted = false
     } else if (!nativeVideoStarted) {
       // Just crossed the boundary! Start native video from appropriate relative time.

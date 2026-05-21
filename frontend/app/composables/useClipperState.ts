@@ -1217,6 +1217,19 @@ export const useClipperState = () => {
       saveTimelineTracks()
     }, { deep: true })
 
+    // Watch thumbnail config to auto-save and auto-capture on first-time toggle
+    watch(thumbnailEnabled, (val) => {
+      if (val && !thumbnailUrl.value && !isSavingLocked.value) {
+        captureScreenshot(currentTime.value)
+      }
+    })
+
+    watch([thumbnailEnabled, thumbnailDuration, thumbnailTextOverlays], () => {
+      if (!isSavingLocked.value) {
+        saveThumbnailConfig()
+      }
+    }, { deep: true })
+
     // Watch global subtitle style changes and sync to linked timeline text items
     watch(
       [font, fontSize, subtitleFontWeight, subtitleTextTransform, subtitleTextColor,
@@ -1238,15 +1251,24 @@ export const useClipperState = () => {
   async function captureScreenshot(timestamp?: number) {
     if (!jobId.value) return
     try {
+      let requestTimestamp = timestamp ?? null
+      if (timestamp !== undefined && timestamp !== null) {
+        // Option B1: Dynamic Frame-rate Offset (3 frames back)
+        const fps = videoFps.value || 30
+        const frameOffset = 3 / fps
+        requestTimestamp = Math.max(0, timestamp - frameOffset)
+      }
+
       const res = await $fetch<{ status: string; timestamp: number; thumbnail_url: string }>(`${API_BASE}/api/thumbnail/screenshot`, {
         method: 'POST',
         body: {
           job_id: jobId.value,
-          timestamp: timestamp ?? null
+          timestamp: requestTimestamp
         }
       })
       thumbnailUrl.value = `${API_BASE}${res.thumbnail_url}?t=${Date.now()}`
-      thumbnailScreenshotTime.value = res.timestamp
+      // Keep the original requested playhead timestamp for the UI badge
+      thumbnailScreenshotTime.value = timestamp ?? res.timestamp
       thumbnailEnabled.value = true
       showToast('Thumbnail captured!', 'success')
     } catch (e: any) {
