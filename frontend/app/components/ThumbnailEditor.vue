@@ -33,7 +33,7 @@
           </div>
         </div>
         <button 
-          @click="state.thumbnailEnabled.value = !state.thumbnailEnabled.value"
+          @click="state.toggleThumbnail()"
           class="w-10 h-5 rounded-none transition-all relative"
           :class="state.thumbnailEnabled.value ? 'bg-emerald-500' : 'bg-white/10'"
         >
@@ -65,21 +65,32 @@
           </div>
         </div>
 
-        <!-- Capture Buttons -->
+        <!-- Capture & Delete Buttons -->
         <div class="flex gap-2">
           <button 
             @click="state.captureScreenshot()"
-            class="flex-1 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+            :disabled="state.isCapturingThumbnail.value"
+            class="flex-1 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 active:scale-95"
           >
-            <Icon name="ri:refresh-line" class="text-sm" />
+            <Icon :name="state.isCapturingThumbnail.value ? 'ri:loader-4-line' : 'ri:refresh-line'" class="text-sm" :class="{ 'animate-spin': state.isCapturingThumbnail.value }" />
             Random Frame
           </button>
           <button 
             @click="state.captureScreenshot(state.videoTime.value)"
-            class="flex-1 py-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-400 text-[10px] font-black uppercase tracking-widest hover:bg-sky-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+            :disabled="state.isCapturingThumbnail.value"
+            class="flex-1 py-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-400 text-[10px] font-black uppercase tracking-widest hover:bg-sky-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 active:scale-95"
           >
-            <Icon name="ri:focus-3-line" class="text-sm" />
+            <Icon :name="state.isCapturingThumbnail.value ? 'ri:loader-4-line' : 'ri:focus-3-line'" class="text-sm" :class="{ 'animate-spin': state.isCapturingThumbnail.value }" />
             Current Frame
+          </button>
+          <button 
+            v-if="state.thumbnailUrl.value"
+            @click="state.deleteThumbnail()"
+            :disabled="state.isCapturingThumbnail.value"
+            class="py-2.5 px-3.5 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center active:scale-95"
+            title="Delete Thumbnail"
+          >
+            <Icon name="ri:delete-bin-line" class="text-sm" />
           </button>
         </div>
 

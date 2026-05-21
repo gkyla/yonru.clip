@@ -309,6 +309,37 @@
         </div>
       </Transition>
 
+      <!-- Premium Glassmorphic Capturing Overlay -->
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-500 ease-in-out"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div v-if="state.isCapturingThumbnail.value" class="absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-3xl">
+          <div class="flex flex-col items-center justify-center bg-black/60 border border-white/10 p-12 rounded-[48px] max-w-[650px] shadow-[0_24px_50px_-12px_rgba(0,0,0,0.8)]">
+            <!-- Spinner Container -->
+            <div class="relative w-32 h-32 flex items-center justify-center mb-8">
+              <!-- Background Ring -->
+              <div class="absolute inset-0 rounded-full border-[8px] border-emerald-500/20"></div>
+              <!-- Spinning Ring -->
+              <div class="absolute inset-0 rounded-full border-[8px] border-transparent border-t-emerald-500 animate-spin"></div>
+              <!-- Inner Pulsing Glow -->
+              <div class="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 animate-pulse flex items-center justify-center">
+                <Icon name="ri:camera-lens-line" class="text-[36px] text-emerald-400" />
+              </div>
+            </div>
+            <!-- Typography -->
+            <h3 class="text-[32px] font-black text-white tracking-widest text-center animate-pulse mb-3">CAPTURING FRAME...</h3>
+            <p class="text-[24px] font-medium text-slate-400 text-center px-4 leading-relaxed">
+              Generating high-quality thumbnail preview from frame
+            </p>
+          </div>
+        </div>
+      </Transition>
+
       <!-- Title safe area -->
       <div class="absolute border-[6px] border-red-500/20 pointer-events-none rounded-[24px] z-10 mix-blend-screen border-dashed" style="top: 10%; bottom: 15%; left: 10%; right: 10%;"></div>
 
@@ -323,6 +354,7 @@ const state = useClipperState()
 
 const previewVideo = ref<HTMLVideoElement | null>(null)
 const remotionIframe = ref<HTMLIFrameElement | null>(null)
+const lastSeekFrame = ref<number | null>(null)
 
 // --- FONT LOADING SYNC ---
 const fontsLoaded = ref(0)
@@ -379,7 +411,7 @@ const thumbOffset = computed(() => {
 
 // True when playhead is in the thumbnail window
 const isInThumbnailWindow = computed(() => {
-  return state.thumbnailEnabled.value && state.currentTime.value < thumbOffset.value
+  return state.thumbnailEnabled.value && state.currentTime.value < thumbOffset.value && !state.isCapturingThumbnail.value
 })
 
 const videoTime = computed(() => {
@@ -641,9 +673,39 @@ watch([
   () => state.subtitleBackgroundOpacity.value,
   () => state.subtitleWordSpacing.value,
   () => state.timelineTracks.value,
+  () => state.thumbnailEnabled.value,
+  () => state.thumbnailDuration.value,
+  () => state.thumbnailTextOverlays.value,
 ], () => {
   syncRemotionProps()
 }, { deep: true, immediate: true })
+
+watch(() => state.thumbnailEnabled.value, (enabled) => {
+  if (state.isTimelineShifting.value) return
+  if (previewVideo.value) {
+    if (enabled) {
+      if (isInThumbnailWindow.value) {
+        if (!previewVideo.value.paused) {
+          previewVideo.value.pause()
+        }
+        previewVideo.value.currentTime = 0
+        previewVideo.value.muted = true
+        nativeVideoStarted = false
+      } else {
+        previewVideo.value.currentTime = videoTime.value
+        previewVideo.value.muted = !state.useNativePlayer.value
+        nativeVideoStarted = true
+      }
+    } else {
+      nativeVideoStarted = false
+      previewVideo.value.currentTime = videoTime.value
+      previewVideo.value.muted = !state.useNativePlayer.value
+      if (state.isPlaying.value && previewVideo.value.paused) {
+        previewVideo.value.play().catch(e => console.warn('[VideoPreview] Failed to play native video on disabling thumbnail:', e))
+      }
+    }
+  }
+})
 
 // --- PLAY/PAUSE ---
 watch(() => state.isPlaying.value, (playing) => {
@@ -759,10 +821,17 @@ watch(() => state.isPlaying.value, (playing) => {
 
 // --- SEEKING / BOUNDARY CROSSING ---
 watch(() => state.currentTime.value, (newTime) => {
+  if (state.isTimelineShifting.value) return
+
   // During playback: handle thumbnail→video boundary
   if (state.isPlaying.value && previewVideo.value && state.thumbnailEnabled.value) {
     if (isInThumbnailWindow.value) {
-      // Still in thumbnail — native video should be paused at 0
+      // Still in thumbnail — native video should be paused at 0 and muted
+      if (!previewVideo.value.paused) {
+        previewVideo.value.pause()
+      }
+      previewVideo.value.currentTime = 0
+      previewVideo.value.muted = true
       nativeVideoStarted = false
     } else if (!nativeVideoStarted) {
       // Just crossed the boundary! Start native video from appropriate relative time.
@@ -781,17 +850,54 @@ watch(() => state.currentTime.value, (newTime) => {
   
   if (previewVideo.value && !state.isPlaying.value) {
     if (isInThumbnailWindow.value) {
-      previewVideo.value.currentTime = 0
+      if (previewVideo.value.currentTime !== 0) {
+        previewVideo.value.currentTime = 0
+      }
     } else {
-      previewVideo.value.currentTime = videoTime.value
+      const targetTime = videoTime.value
+      if (Math.abs(previewVideo.value.currentTime - targetTime) > 0.001) {
+        previewVideo.value.currentTime = targetTime
+      }
     }
   }
   
   if (remotionIframe.value && remotionIframe.value.contentWindow && !state.isPlaying.value) {
-    remotionIframe.value.contentWindow.postMessage({
-      type: 'SEEK',
-      frame: Math.floor(newTime * (state.videoFps.value || 30))
-    }, '*')
+    const targetFrame = Math.floor(newTime * (state.videoFps.value || 30))
+    if (lastSeekFrame.value !== targetFrame) {
+      remotionIframe.value.contentWindow.postMessage({
+        type: 'SEEK',
+        frame: targetFrame
+      }, '*')
+      lastSeekFrame.value = targetFrame
+    }
+  }
+})
+
+watch(() => state.isTimelineShifting.value, (shifting) => {
+  if (!shifting) {
+    // Perform settled seek
+    if (previewVideo.value) {
+      if (isInThumbnailWindow.value) {
+        if (previewVideo.value.currentTime !== 0) {
+          previewVideo.value.currentTime = 0
+        }
+      } else {
+        const targetTime = videoTime.value
+        if (Math.abs(previewVideo.value.currentTime - targetTime) > 0.001) {
+          previewVideo.value.currentTime = targetTime
+        }
+      }
+    }
+    if (remotionIframe.value && remotionIframe.value.contentWindow && !state.isPlaying.value) {
+      const targetFrame = Math.floor(state.currentTime.value * (state.videoFps.value || 30))
+      if (lastSeekFrame.value !== targetFrame) {
+        remotionIframe.value.contentWindow.postMessage({
+          type: 'SEEK',
+          frame: targetFrame
+        }, '*')
+        lastSeekFrame.value = targetFrame
+      }
+    }
   }
 })
 

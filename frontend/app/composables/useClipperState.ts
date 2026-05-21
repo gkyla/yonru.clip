@@ -366,6 +366,9 @@ export const useClipperState = () => {
   })
   const selectedTimelineItem = useState<any | null>('selectedTimelineItem', () => null)
   const isSavingLocked = ref(false)
+  const isDeletingThumbnail = ref(false)
+  const isTimelineShifting = useState<boolean>('isTimelineShifting', () => false)
+  const isCapturingThumbnail = useState<boolean>('isCapturingThumbnail', () => false)
   let isPersistenceInitialized = false
 
   // Polling interval ref
@@ -1217,6 +1220,22 @@ export const useClipperState = () => {
       saveTimelineTracks()
     }, { deep: true })
 
+    // Track previous duration to handle changes dynamically
+    let prevDuration = thumbnailDuration.value
+    watch(thumbnailDuration, (newVal) => {
+      if (thumbnailEnabled.value) {
+        const diff = newVal - prevDuration
+        currentTime.value = Math.max(0, currentTime.value + diff)
+      }
+      prevDuration = newVal
+    })
+
+    watch([thumbnailEnabled, thumbnailDuration, thumbnailTextOverlays], () => {
+      if (!isSavingLocked.value) {
+        saveThumbnailConfig()
+      }
+    }, { deep: true })
+
     // Watch global subtitle style changes and sync to linked timeline text items
     watch(
       [font, fontSize, subtitleFontWeight, subtitleTextTransform, subtitleTextColor,
@@ -1237,20 +1256,38 @@ export const useClipperState = () => {
 
   async function captureScreenshot(timestamp?: number) {
     if (!jobId.value) return
+    isCapturingThumbnail.value = true
     try {
+      // Delay 0.5s before requesting the capture to let the UI transition and player settle
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      let requestTimestamp = timestamp ?? null
+      if (timestamp !== undefined && timestamp !== null) {
+        // Option B1: Dynamic Frame-rate Offset (3 frames back)
+        const fps = videoFps.value || 30
+        const frameOffset = 3 / fps
+        requestTimestamp = Math.max(0, timestamp - frameOffset)
+      }
+
       const res = await $fetch<{ status: string; timestamp: number; thumbnail_url: string }>(`${API_BASE}/api/thumbnail/screenshot`, {
         method: 'POST',
         body: {
           job_id: jobId.value,
-          timestamp: timestamp ?? null
+          timestamp: requestTimestamp
         }
       })
       thumbnailUrl.value = `${API_BASE}${res.thumbnail_url}?t=${Date.now()}`
-      thumbnailScreenshotTime.value = res.timestamp
+      // Keep the original requested playhead timestamp for the UI badge
+      thumbnailScreenshotTime.value = timestamp ?? res.timestamp
       thumbnailEnabled.value = true
       showToast('Thumbnail captured!', 'success')
+      
+      // Delay 0.5s to allow the browser to fully download and paint the cover image
+      await new Promise(resolve => setTimeout(resolve, 500))
     } catch (e: any) {
       showToast('Failed to capture thumbnail', 'error')
+    } finally {
+      isCapturingThumbnail.value = false
     }
   }
 
@@ -1348,6 +1385,80 @@ export const useClipperState = () => {
     }
   }
 
+  async function toggleThumbnail() {
+    isTimelineShifting.value = true
+    isSavingLocked.value = true
+
+    if (!thumbnailEnabled.value) {
+      // Enabling thumbnail
+      const originalTime = currentTime.value
+      
+      // Raise capture flag immediately if no thumbnail exists to visually cover the seek before it starts
+      if (!thumbnailUrl.value) {
+        isCapturingThumbnail.value = true
+        // Wait 350ms for the transition overlay to become 100% opaque
+        await new Promise(resolve => setTimeout(resolve, 350))
+      }
+
+      currentTime.value += thumbnailDuration.value
+      thumbnailEnabled.value = true
+
+      // Auto-capture on first-time toggle using the original time
+      if (!thumbnailUrl.value) {
+        await captureScreenshot(originalTime)
+      }
+    } else {
+      // Disabling thumbnail
+      currentTime.value = Math.max(0, currentTime.value - thumbnailDuration.value)
+      thumbnailEnabled.value = false
+    }
+
+    await saveThumbnailConfig()
+
+    nextTick(() => {
+      isTimelineShifting.value = false
+      isSavingLocked.value = false
+    })
+  }
+
+  async function deleteThumbnail() {
+    if (!folderName.value || !clipId.value) return
+    try {
+      await $fetch(`${API_BASE}/api/thumbnail/${folderName.value}/${clipId.value}`, {
+        method: 'DELETE'
+      })
+      
+      isTimelineShifting.value = true
+      isSavingLocked.value = true
+      isDeletingThumbnail.value = true
+      
+      // Shift playhead back if it was in the thumbnail duration window
+      if (thumbnailEnabled.value) {
+        currentTime.value = Math.max(0, currentTime.value - thumbnailDuration.value)
+      }
+      
+      thumbnailUrl.value = null
+      thumbnailEnabled.value = false
+      thumbnailScreenshotTime.value = 0
+      thumbnailTextOverlays.value = []
+      thumbnailDuration.value = 1.0
+      
+      nextTick(() => {
+        isTimelineShifting.value = false
+        isSavingLocked.value = false
+        isDeletingThumbnail.value = false
+      })
+      
+      showToast('Thumbnail deleted!', 'success')
+    } catch (e: any) {
+      isTimelineShifting.value = false
+      isSavingLocked.value = false
+      isDeletingThumbnail.value = false
+      showToast('Failed to delete thumbnail', 'error')
+    }
+  }
+
+
   async function runDeepAudit() {
     if (!activeHook.value || isDeepAuditing.value) return
     isDeepAuditing.value = true
@@ -1421,6 +1532,7 @@ export const useClipperState = () => {
     thumbnailTextOverlays, 
     thumbnailEditMode,
     thumbnailXOffset,
+    isCapturingThumbnail,
     // Other State
     jobId, isMediaLoading, jobStatus, jobError,
     isNavigatingToEditor,
@@ -1433,6 +1545,7 @@ export const useClipperState = () => {
     subtitleStrokeColor, subtitleStrokeWidth, subtitleFontWeight, subtitleTextTransform,
     subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing, subtitlePreset, volume,
     isPlaying, currentTime, videoTime,
+    isTimelineShifting,
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
     cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip,
     timelineTracks, timelineDuration, selectedTimelineItem,
@@ -1446,7 +1559,8 @@ export const useClipperState = () => {
     fetchCached, setLastAccessed, setLastClip,
     saveTimelineTracks,
     addTimelineItem, deleteTimelineItem, updateTimelineItem, saveTimelineTextStyleAsDefault, syncGlobalStylesToItem,
-    captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig,
+    captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig, deleteThumbnail,
+    toggleThumbnail,
     toast, showToast, initPersistence
   }
 }
