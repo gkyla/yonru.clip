@@ -631,6 +631,7 @@ export const useClipperState = () => {
     videoUrl.value = null
     fullTranscript.value = []
     timelineTracks.value[0].items = []
+    resetThumbnailState()
     
     // Start with loading state (checks cache first)
     isMediaLoading.value = true
@@ -686,6 +687,7 @@ export const useClipperState = () => {
     fullTranscript.value = []
     timelineTracks.value[0].items = []
     isMediaLoading.value = true
+    resetThumbnailState()
 
     try {
       const res = await $fetch<any>(`${API_BASE}/api/load-ready-clip`, {
@@ -949,7 +951,7 @@ export const useClipperState = () => {
     }
   }
 
-  async function saveTranscript() {
+  async function saveTranscript(isSilent = false) {
     if (!folderName.value || !fullTranscript.value) return
     try {
       await $fetch(`${API_BASE}/api/transcript`, {
@@ -960,10 +962,14 @@ export const useClipperState = () => {
           transcript: fullTranscript.value
         }
       })
-      showToast('Edits saved successfully!', 'success')
+      if (!isSilent) {
+        showToast('Edits saved successfully!', 'success')
+      }
       console.log('[clipper] Transcript saved successfully')
     } catch (e) {
-      showToast('Failed to save edits', 'error')
+      if (!isSilent) {
+        showToast('Failed to save edits', 'error')
+      }
       console.error('[clipper] Failed to save transcript:', e)
     }
   }
@@ -1252,6 +1258,20 @@ export const useClipperState = () => {
     )
   }
 
+  function resetThumbnailState() {
+    isSavingLocked.value = true
+    thumbnailEnabled.value = false
+    thumbnailUrl.value = null
+    thumbnailDuration.value = 1.0
+    thumbnailScreenshotTime.value = 0
+    thumbnailXOffset.value = 50
+    thumbnailTextOverlays.value = []
+    thumbnailEditMode.value = false
+    nextTick(() => {
+      isSavingLocked.value = false
+    })
+  }
+
   // --- Thumbnail Actions ---
 
   async function captureScreenshot(timestamp?: number, isAutoCapture = false) {
@@ -1350,6 +1370,7 @@ export const useClipperState = () => {
     try {
       const res = await $fetch<{ config: any }>(`${API_BASE}/api/thumbnail/config/${folderName.value}/${clipId.value}`)
       if (res.config) {
+        isSavingLocked.value = true
         thumbnailEnabled.value = res.config.enabled ?? false
         thumbnailDuration.value = res.config.duration ?? 1.0
         thumbnailScreenshotTime.value = res.config.screenshotTime ?? 0
@@ -1380,10 +1401,16 @@ export const useClipperState = () => {
           thumbnailUrl.value = thumbUrl
         } catch { }
         
+        nextTick(() => {
+          isSavingLocked.value = false
+        })
         console.log('[clipper] Thumbnail config loaded')
+      } else {
+        resetThumbnailState()
       }
     } catch (e) {
       console.log('[clipper] No thumbnail config for this clip')
+      resetThumbnailState()
     }
   }
 

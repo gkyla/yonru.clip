@@ -623,8 +623,14 @@ onActivated(() => {
 const showBlacklistSettings = ref(false)
 const panelTab = ref<'generated' | 'saved'>((route.query.tab as any) || 'generated')
 
-function selectSidebarHook(hook: any) {
+async function selectSidebarHook(hook: any) {
   if (state.jobStatus.value === 'cutting') return
+  
+  // Explicitly save the current active hook settings before switching!
+  if (state?.activeHook?.value && state?.clipId?.value) {
+    console.log('[editor] Saving current hook state before switching...')
+    await handleSave(true)
+  }
   
   // Find hook index
   const hooksList = panelTab.value === 'saved' ? state.savedHooks.value : state.hooks.value
@@ -819,9 +825,9 @@ function autoGrow(e: any) {
   e.target.style.height = 'auto'
   e.target.style.height = e.target.scrollHeight + 'px'
 }
-async function handleSave() {
+async function handleSave(isSilent = false) {
   await Promise.all([
-    state.saveTranscript(),
+    state.saveTranscript(isSilent),
     state.saveStyleSettings(),
     state.saveTimelineTracks(),
     state.saveThumbnailConfig()

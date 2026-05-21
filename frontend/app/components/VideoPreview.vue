@@ -431,10 +431,24 @@ let readyTimeout: any = null
 
 function onVideoReady() {
   if (!state.videoUrl.value) return
+
+  // Seek immediately to prevent blank canvas on load
+  if (previewVideo.value) {
+    const targetTime = videoTime.value
+    if (Math.abs(previewVideo.value.currentTime - targetTime) > 0.01) {
+      console.log('[VideoPreview] Forcing instant native video seek to start time:', targetTime)
+      previewVideo.value.currentTime = targetTime
+    }
+  }
+
   if (readyTimeout) clearTimeout(readyTimeout)
   readyTimeout = setTimeout(() => {
     state.isMediaLoading.value = false
     console.log('[clipper] Video ready and loaded')
+    if (previewVideo.value) {
+      const targetTime = videoTime.value
+      previewVideo.value.currentTime = targetTime
+    }
   }, 400)
 }
 
@@ -459,6 +473,7 @@ let safetyTimeout: any = null
 watch(() => state.videoUrl.value, (url) => {
   if (url) {
     stableVideoBuster.value = Date.now().toString()
+    lastSeekFrame.value = null
   }
   if (readyTimeout) clearTimeout(readyTimeout)
   if (safetyTimeout) clearTimeout(safetyTimeout)
@@ -647,6 +662,17 @@ watch(() => state.videoUrl.value, (url) => {
       type: 'UPDATE_PROPS',
       payload: JSON.parse(JSON.stringify(remotionProps))
     }, '*')
+
+    // Seek iframe to current time immediately if paused to force paint of the first frame
+    if (!state.isPlaying.value) {
+      const targetFrame = Math.floor(state.currentTime.value * (state.videoFps.value || 30))
+      console.log('[VideoPreview] Forcing instant Remotion seek on props sync:', targetFrame)
+      remotionIframe.value.contentWindow.postMessage({
+        type: 'SEEK',
+        frame: targetFrame
+      }, '*')
+      lastSeekFrame.value = targetFrame
+    }
   }
 
 watch([
@@ -780,6 +806,15 @@ function onRemotionMessage(event: MessageEvent) {
   } else if (data.type === 'IFRAME_READY') {
     console.log('[VideoPreview] Remotion Iframe Ready. Syncing...')
     syncRemotionProps()
+    if (remotionIframe.value && remotionIframe.value.contentWindow) {
+      const targetFrame = Math.floor(state.currentTime.value * (state.videoFps.value || 30))
+      console.log('[VideoPreview] Forcing instant Remotion seek on IFRAME_READY:', targetFrame)
+      remotionIframe.value.contentWindow.postMessage({
+        type: 'SEEK',
+        frame: targetFrame
+      }, '*')
+      lastSeekFrame.value = targetFrame
+    }
   }
 }
 
