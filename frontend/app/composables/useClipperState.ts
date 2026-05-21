@@ -368,6 +368,7 @@ export const useClipperState = () => {
   const isSavingLocked = ref(false)
   const isDeletingThumbnail = ref(false)
   const isTimelineShifting = useState<boolean>('isTimelineShifting', () => false)
+  const isCapturingThumbnail = useState<boolean>('isCapturingThumbnail', () => false)
   let isPersistenceInitialized = false
 
   // Polling interval ref
@@ -1255,6 +1256,7 @@ export const useClipperState = () => {
 
   async function captureScreenshot(timestamp?: number) {
     if (!jobId.value) return
+    isCapturingThumbnail.value = true
     try {
       let requestTimestamp = timestamp ?? null
       if (timestamp !== undefined && timestamp !== null) {
@@ -1278,6 +1280,8 @@ export const useClipperState = () => {
       showToast('Thumbnail captured!', 'success')
     } catch (e: any) {
       showToast('Failed to capture thumbnail', 'error')
+    } finally {
+      isCapturingThumbnail.value = false
     }
   }
 
@@ -1514,6 +1518,7 @@ export const useClipperState = () => {
     thumbnailTextOverlays, 
     thumbnailEditMode,
     thumbnailXOffset,
+    isCapturingThumbnail,
     // Other State
     jobId, isMediaLoading, jobStatus, jobError,
     isNavigatingToEditor,

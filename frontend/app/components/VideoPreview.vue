@@ -309,6 +309,37 @@
         </div>
       </Transition>
 
+      <!-- Premium Glassmorphic Capturing Overlay -->
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div v-if="state.isCapturingThumbnail.value" class="absolute inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-xl">
+          <div class="flex flex-col items-center justify-center bg-black/60 border border-white/10 p-12 rounded-[48px] max-w-[650px] shadow-[0_24px_50px_-12px_rgba(0,0,0,0.8)]">
+            <!-- Spinner Container -->
+            <div class="relative w-32 h-32 flex items-center justify-center mb-8">
+              <!-- Background Ring -->
+              <div class="absolute inset-0 rounded-full border-[8px] border-emerald-500/20"></div>
+              <!-- Spinning Ring -->
+              <div class="absolute inset-0 rounded-full border-[8px] border-transparent border-t-emerald-500 animate-spin"></div>
+              <!-- Inner Pulsing Glow -->
+              <div class="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 animate-pulse flex items-center justify-center">
+                <Icon name="ri:camera-lens-line" class="text-[36px] text-emerald-400" />
+              </div>
+            </div>
+            <!-- Typography -->
+            <h3 class="text-[32px] font-black text-white tracking-widest text-center animate-pulse mb-3">CAPTURING FRAME...</h3>
+            <p class="text-[24px] font-medium text-slate-400 text-center px-4 leading-relaxed">
+              Generating high-quality thumbnail preview from frame
+            </p>
+          </div>
+        </div>
+      </Transition>
+
       <!-- Title safe area -->
       <div class="absolute border-[6px] border-red-500/20 pointer-events-none rounded-[24px] z-10 mix-blend-screen border-dashed" style="top: 10%; bottom: 15%; left: 10%; right: 10%;"></div>
 
@@ -380,7 +411,7 @@ const thumbOffset = computed(() => {
 
 // True when playhead is in the thumbnail window
 const isInThumbnailWindow = computed(() => {
-  return state.thumbnailEnabled.value && state.currentTime.value < thumbOffset.value
+  return state.thumbnailEnabled.value && state.currentTime.value < thumbOffset.value && !state.isCapturingThumbnail.value
 })
 
 const videoTime = computed(() => {
