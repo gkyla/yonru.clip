@@ -213,7 +213,7 @@
                                 </div>
                             </div>
                             <button 
-                              @click="handleSave" 
+                              @click="handleSave()" 
                               class="bg-accent-500 hover:bg-accent-400 text-black px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-lg active:scale-95"
                             >
                               Save Edits
@@ -826,8 +826,9 @@ function autoGrow(e: any) {
   e.target.style.height = e.target.scrollHeight + 'px'
 }
 async function handleSave(isSilent = false) {
+  const silent = isSilent === true
   await Promise.all([
-    state.saveTranscript(isSilent),
+    state.saveTranscript(silent),
     state.saveStyleSettings(),
     state.saveTimelineTracks(),
     state.saveThumbnailConfig()

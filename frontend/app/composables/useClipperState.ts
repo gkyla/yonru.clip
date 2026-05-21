@@ -953,6 +953,7 @@ export const useClipperState = () => {
 
   async function saveTranscript(isSilent = false) {
     if (!folderName.value || !fullTranscript.value) return
+    const silent = isSilent === true
     try {
       await $fetch(`${API_BASE}/api/transcript`, {
         method: 'PUT',
@@ -962,12 +963,12 @@ export const useClipperState = () => {
           transcript: fullTranscript.value
         }
       })
-      if (!isSilent) {
+      if (!silent) {
         showToast('Edits saved successfully!', 'success')
       }
       console.log('[clipper] Transcript saved successfully')
     } catch (e) {
-      if (!isSilent) {
+      if (!silent) {
         showToast('Failed to save edits', 'error')
       }
       console.error('[clipper] Failed to save transcript:', e)
