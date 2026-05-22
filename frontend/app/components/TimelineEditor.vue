@@ -189,7 +189,32 @@
             <div class="overflow-hidden">
               <div class="p-3 space-y-2.5 border-t border-white/5">
                 <div v-if="state.selectedTimelineItem.value.content !== undefined">
-                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Text Content</label>
+                  <div class="flex justify-between items-center mb-1.5">
+                    <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500">Text Content</label>
+                    <div class="flex gap-1">
+                      <button 
+                        @click="state.selectedTimelineItem.value.content = state.selectedTimelineItem.value.content.toUpperCase()"
+                        class="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded text-[8px] font-mono font-bold uppercase transition-all"
+                        title="Convert to uppercase"
+                      >
+                        UPPER
+                      </button>
+                      <button 
+                        @click="state.selectedTimelineItem.value.content = state.selectedTimelineItem.value.content.toLowerCase()"
+                        class="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded text-[8px] font-mono font-bold uppercase transition-all"
+                        title="Convert to lowercase"
+                      >
+                        lower
+                      </button>
+                      <button 
+                        @click="state.selectedTimelineItem.value.content = state.selectedTimelineItem.value.content.replace(/\b\w/g, c => c.toUpperCase())"
+                        class="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded text-[8px] font-mono font-bold uppercase transition-all"
+                        title="Convert to title case"
+                      >
+                        Title
+                      </button>
+                    </div>
+                  </div>
                   <textarea v-model="state.selectedTimelineItem.value.content" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500/50 resize-none" rows="2"></textarea>
                 </div>
                 <div class="grid grid-cols-2 gap-3">

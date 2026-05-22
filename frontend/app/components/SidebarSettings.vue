@@ -16,18 +16,50 @@
         Style Presets
         <Icon name="ri:palette-line" />
       </h2>
-      <div class="grid grid-cols-3 gap-2">
+      <div class="grid grid-cols-2 gap-3">
         <button 
           v-for="preset in presets" :key="preset.id"
           @click="applyPreset(preset)"
           :disabled="state.renderStatus.value === 'rendering'"
-          class="bg-surface-dark border rounded-lg p-2 text-center text-[9px] transition-all flex flex-col items-center gap-1.5 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+          class="bg-surface-dark border rounded-xl p-3 text-left transition-all flex flex-col gap-2 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
           :class="state.subtitlePreset.value === preset.id 
-            ? 'border-accent-500 text-accent-500 shadow-[inset_0_0_8px_rgba(207,255,80,0.15)]' 
-            : 'border-surface-border text-slate-400 hover:border-accent-500/50 hover:text-white'"
+            ? 'border-accent-500 text-accent-500 shadow-[0_0_15px_rgba(207,255,80,0.1)]' 
+            : 'border-surface-border text-slate-400 hover:border-accent-500/30 hover:text-white'"
         >
-          <span class="text-lg">{{ preset.icon }}</span>
-          <span class="font-bold tracking-wider uppercase leading-tight">{{ preset.name }}</span>
+          <div class="flex items-center gap-2">
+            <span class="text-sm shrink-0">{{ preset.icon }}</span>
+            <span class="font-black uppercase tracking-widest text-[9px] truncate">{{ preset.name }}</span>
+          </div>
+          
+          <!-- Mini Preview Box -->
+          <div class="w-full h-12 bg-black/40 rounded-lg flex items-center justify-center border border-white/5 relative overflow-hidden">
+            <span 
+              :style="{
+                fontFamily: preset.font,
+                fontSize: '11px',
+                fontWeight: preset.fontWeight,
+                color: preset.color,
+                textTransform: preset.textTransform === 'uppercase' ? 'uppercase' : 'none',
+                WebkitTextStroke: preset.strokeWidth ? `${preset.strokeWidth / 5.5}px black` : 'none',
+                textShadow: '0 2px 4px rgba(0,0,0,0.8)'
+              }"
+              class="px-1.5 py-0.5 rounded leading-none transition-all text-center inline-block"
+              :class="{
+                'bg-slate-950/80 px-2 py-1 rounded': preset.background === 'box',
+                'bg-slate-900/40 backdrop-blur px-2.5 py-1 rounded-full border border-white/10': preset.background === 'blur',
+                'bg-gradient-to-r from-red-500/20 to-amber-500/20 px-2 py-1 rounded border border-red-500/20': preset.background === 'gradient',
+                'underline decoration-amber-400 decoration-2 underline-offset-2': preset.highlightMode === 'underline'
+              }"
+            >
+              <template v-if="preset.highlightMode === 'color' || preset.highlightMode === 'box' || preset.highlightMode === 'scale'">
+                <span>Cool </span>
+                <span :style="{ color: preset.highlightColor }" :class="{ 'bg-red-500/25 px-1 rounded border border-red-500/40': preset.highlightMode === 'box', 'scale-110 inline-block font-black': preset.highlightMode === 'scale' }">Clip</span>
+              </template>
+              <template v-else>
+                <span>Cool Clip</span>
+              </template>
+            </span>
+          </div>
         </button>
       </div>
     </div>

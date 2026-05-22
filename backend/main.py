@@ -152,6 +152,9 @@ class SystemSettingsRequest(BaseModel):
     FFMPEG_PATH: Optional[str] = None
     NODE_PATH: Optional[str] = None
 
+class ValidateKeyRequest(BaseModel):
+    api_key: str
+
 class AddPromptRequest(BaseModel):
     promptName: str
     suitableFor: list[str]
@@ -1453,6 +1456,107 @@ async def update_system_settings(req: SystemSettingsRequest):
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {e}")
+
+@app.post("/api/validate-gemini-key")
+async def validate_gemini_key(req: ValidateKeyRequest):
+    """Validate if the given Gemini API key is active and functional."""
+    try:
+        from google import genai
+        client = genai.Client(api_key=req.api_key)
+        # Call a tiny content generation request to verify the key
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents="Say 'OK'",
+        )
+        if response.text:
+            return {"status": "valid"}
+        else:
+            return {"status": "invalid", "error": "Empty response from Gemini."}
+    except Exception as e:
+        error_msg = str(e)
+        # Clean up standard error messages to be plain and simple (MANDATORY RULE 5)
+        if "API_KEY_INVALID" in error_msg or "400" in error_msg:
+            error_msg = "The API key is invalid. Please check your spelling and try again."
+        elif "quota" in error_msg.lower() or "429" in error_msg:
+            error_msg = "Gemini API Quota exceeded. Please check your Google AI Studio billing/plan."
+        return {"status": "invalid", "error": error_msg}
+
+@app.get("/api/system-health")
+async def system_health():
+    """Perform a diagnostic check on system dependencies."""
+    import shutil
+    
+    # 1. FFmpeg
+    # Check if a custom path is specified in the environment or if it exists in the standard PATH
+    custom_ffmpeg = os.environ.get("FFMPEG_PATH", "")
+    ffmpeg_ok = False
+    ffmpeg_bin = ""
+    
+    if custom_ffmpeg:
+        # Check standard binary names in the custom folder path
+        for name in ["ffmpeg", "ffmpeg.exe"]:
+            test_path = os.path.join(custom_ffmpeg, name)
+            if os.path.exists(test_path) and os.path.isfile(test_path):
+                ffmpeg_ok = True
+                ffmpeg_bin = test_path
+                break
+                
+    if not ffmpeg_ok:
+        found = shutil.which("ffmpeg")
+        if found:
+            ffmpeg_ok = True
+            ffmpeg_bin = found
+            
+    # 2. Node.js
+    custom_node = os.environ.get("NODE_PATH", "")
+    node_ok = False
+    node_bin = ""
+    
+    if custom_node:
+        for name in ["node", "node.exe"]:
+            test_path = os.path.join(custom_node, name)
+            if os.path.exists(test_path) and os.path.isfile(test_path):
+                node_ok = True
+                node_bin = test_path
+                break
+                
+    if not node_ok:
+        found = shutil.which("node")
+        if found:
+            node_ok = True
+            node_bin = found
+            
+    # 3. Virtualenv check
+    venv_ok = True
+    try:
+        import fastapi
+        import uvicorn
+        import google.genai
+    except ImportError:
+        venv_ok = False
+        
+    # 4. Check GEMINI_API_KEY
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    has_key = len(gemini_key.strip()) > 0
+    
+    return {
+        "ffmpeg": {
+            "status": "OK" if ffmpeg_ok else "Missing",
+            "path": ffmpeg_bin or "Not Found"
+        },
+        "node": {
+            "status": "OK" if node_ok else "Missing",
+            "path": node_bin or "Not Found"
+        },
+        "python_env": {
+            "status": "OK" if venv_ok else "Degraded",
+            "active": True
+        },
+        "gemini_api": {
+            "status": "Configured" if has_key else "Not Configured",
+            "has_key": has_key
+        }
+    }
 
 # --- Thumbnail Endpoints ---
 
