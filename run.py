@@ -132,22 +132,24 @@ def bootstrap_backend():
     return venv_python
 
 def bootstrap_fonts(venv_python, force=False):
-    # Check if fonts are downloaded
-    font_dir = "frontend/app/assets/fonts"
+    # Check if fonts are downloaded in frontend
+    frontend_font_dir = "frontend/app/assets/fonts"
+    remotion_font_dir = "remotion_engine/src/assets/fonts"
     fonts_missing = True
     
     if force:
         log_system("Force-redownload flag detected. Deleting existing offline fonts...")
-        if os.path.exists(font_dir):
-            try:
-                shutil.rmtree(font_dir)
-                log_system("Cleaned local fonts directory.")
-            except Exception as e:
-                log_error(f"Failed to clean local fonts directory: {e}")
-                
-    if os.path.exists(font_dir) and not force:
-        # Count woff2 files recursively
-        woff2_count = sum(len([f for f in files if f.endswith('.woff2')]) for r, d, files in os.walk(font_dir))
+        for path in [frontend_font_dir, remotion_font_dir]:
+            if os.path.exists(path):
+                try:
+                    shutil.rmtree(path)
+                    log_system(f"Cleaned {path} directory.")
+                except Exception as e:
+                    log_error(f"Failed to clean {path} directory: {e}")
+                    
+    if os.path.exists(frontend_font_dir) and not force:
+        # Count woff2 files recursively in frontend
+        woff2_count = sum(len([f for f in files if f.endswith('.woff2')]) for r, d, files in os.walk(frontend_font_dir))
         if woff2_count >= 10:
             fonts_missing = False
             
@@ -155,6 +157,27 @@ def bootstrap_fonts(venv_python, force=False):
         log_system("Local offline fonts missing. Downloading automatically...")
         # Run download_fonts.py using virtual environment's python since it contains requests dependency
         subprocess.run([venv_python, "download_fonts.py"], check=True)
+        
+    # Ensure fonts are synchronized to remotion_engine
+    remotion_missing = True
+    if os.path.exists(remotion_font_dir):
+        woff2_count = sum(len([f for f in files if f.endswith('.woff2')]) for r, d, files in os.walk(remotion_font_dir))
+        if woff2_count >= 10:
+            remotion_missing = False
+            
+    if remotion_missing:
+        log_system("Synchronizing offline fonts to Remotion Engine...")
+        if os.path.exists(remotion_font_dir):
+            try:
+                shutil.rmtree(remotion_font_dir)
+            except Exception:
+                pass
+        try:
+            shutil.copytree(frontend_font_dir, remotion_font_dir)
+            log_system("Successfully synchronized offline fonts to Remotion Engine.")
+        except Exception as e:
+            log_error(f"Failed to copy fonts to Remotion Engine: {e}")
+
 
 
 def bootstrap_node_project(directory, name):
@@ -307,6 +330,21 @@ def main():
     if target in ["all", "remotion"]:
         bootstrap_fonts(venv_python, force=args.force_fonts)
         bootstrap_node_project("remotion_engine", "Remotion Engine")
+        
+        # Ensure Chrome Headless Shell is downloaded for Remotion
+        log_system("Verifying Remotion browser configuration (Chrome Headless Shell)...")
+        use_shell = (sys.platform == "win32")
+        try:
+            subprocess.run(
+                ["npx", "remotion", "browser", "ensure"], 
+                cwd="remotion_engine", 
+                shell=use_shell, 
+                check=True
+            )
+            log_system("Remotion browser check complete.")
+        except Exception as e:
+            log_system(f"\033[33m[WARNING] Remotion browser verification failed: {e}. Proceeding...\033[0m")
+
 
 
     # 3. Execution Commands Configuration
