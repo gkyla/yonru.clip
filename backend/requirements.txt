@@ -6,6 +6,6 @@ google-genai
 opencv-python-headless
 python-multipart
 ffmpeg-python
-mediapipe==0.10.15
+mediapipe>=0.10.15
 numpy<2.0.0
 youtube-transcript-api
