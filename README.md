@@ -16,59 +16,85 @@ Before running the stack, confirm your host machine possesses the following core
 
 ---
 
-## Local Setup
+## Quick Start (Recommended)
 
-### 1. Environment Variables
-Before running anything, set up your secrets:
+Yonru features a unified, self-healing cross-platform launcher script (`run.py`) that handles dependency checks, creates virtual environments, installs packages (both Python and Node), downloads offline fonts, and runs all services concurrently.
+
+### 1. Prerequisite Binaries
+Ensure you have the core runtimes installed:
+- **Node.js** (18+)
+- **Python** (3.9 - 3.12)
+- **FFmpeg**:
+  - **macOS**: `brew install ffmpeg`
+  - **Windows**: Use Chocolatey (`choco install ffmpeg`), Scoop (`scoop install ffmpeg`), or download manually.
+
+### 2. Set API Key
+Create a `.env` file inside the `backend/` folder and insert your Gemini API Key:
 ```bash
-cd backend
-cp .env.example .env
+# Inside backend/.env
+GEMINI_API_KEY="your_api_key_here"
 ```
-Edit `backend/.env` and add your `GEMINI_API_KEY`.
+*(If you run the launcher, it will automatically copy the example file for you if missing!)*
 
-### 2. Configure the Backend (Python)
-Navigate inside the `/backend` folder:
+### 3. Bootstrap & Launch
+From the root directory, simply run:
 ```bash
-cd backend
-python -m venv venv
-# On Windows: venv\Scripts\activate
-source venv/bin/activate
-pip install -r requirements.txt
+python run.py
 ```
+This single command will:
+1. Verify Node, Python, and FFmpeg installations.
+2. Automatically create the Python virtual environment and run `pip install`.
+3. Automatically download offline fonts and compile stylesheets.
+4. Run `npm install` inside `/frontend` and `/remotion_engine` if needed.
+5. Concurrently boot the Backend (Port 8000), Nuxt Frontend (Port 3000), and Remotion Preview (Port 3003) with beautiful color-coded terminal log multiplexing.
 
-### 3. Download Local Fonts
-Yonru uses a fully local, offline-capable font system for rendering. Download the required fonts (~25MB) by running this script from the project root:
-```bash
-# From the root directory (where download_fonts.py is located)
-# Ensure you have the `requests` module installed (e.g., pip install requests)
-python3 download_fonts.py
-```
-This automatically populates the `frontend` and `remotion_engine` with all necessary font weights.
+To exit, press `Ctrl+C`. All child processes will be terminated cleanly.
 
-### 4. Configure the Frontend (Nuxt)
-Navigate inside the `/frontend` folder:
-```bash
-cd frontend
-npm install
-```
+---
 
-### 5. Configure the Video Render Engine
-Navigate inside the `/remotion_engine` folder:
+## Advanced CLI Controls
+
+The launcher supports selective service starting via command-line targets:
+
 ```bash
-cd remotion_engine
-npm install
+# Start all services (default)
+python run.py all
+
+# Start only the FastAPI backend (Port 8000)
+python run.py backend
+
+# Start only the Nuxt frontend (Port 3000)
+python run.py frontend
+
+# Start only the Remotion Preview Studio (Port 3003)
+python run.py remotion
 ```
 
 ---
 
-## Execution
-Run the launch commands safely:
-```bash
-# Unix platforms (Mac/Linux)
-./run.sh
+## Legacy Execution (Manual)
 
-# Windows platforms (Powershell / Command line triggers)
-cd backend && uvicorn main:app --env-file .env
-cd frontend && npm run dev
-cd remotion_engine && npm run preview
+If you prefer manual control, you can still initialize and execute services individually:
+
+```bash
+# Configure & Run Backend
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --env-file .env --reload
+
+# Download fonts manually
+python download_fonts.py
+
+# Run Frontend
+cd frontend
+npm install
+npm run dev
+
+# Run Remotion Preview
+cd remotion_engine
+npm install
+npm run preview
 ```
+
