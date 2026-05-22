@@ -3,6 +3,9 @@ import os
 import json
 import base64
 import numpy as np
+import sys
+import subprocess
+
 
 class SafeEncoder(json.JSONEncoder):
     """JSON encoder that safely handles numpy types from MediaPipe/OpenCV."""
@@ -184,8 +187,10 @@ class VideoRenderer:
                 cwd=remotion_dir,
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                shell=(sys.platform == "win32")
             )
+
             
             if result.returncode != 0:
                 print(f"[render] Remotion failed:\n{result.stderr}")
@@ -345,8 +350,10 @@ class VideoRenderer:
                 stderr=subprocess.STDOUT,  # Merge stderr into stdout
                 text=True,
                 bufsize=0,  # Unbuffered
-                env=env
+                env=env,
+                shell=(sys.platform == "win32")
             )
+
             
             start_time = time.time()
             render_start_time = None
