@@ -188,8 +188,10 @@ class VideoRenderer:
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE,
                 text=True,
-                shell=(sys.platform == "win32")
+                shell=(sys.platform == "win32"),
+                encoding="utf-8"
             )
+
 
             
             if result.returncode != 0:
@@ -351,8 +353,10 @@ class VideoRenderer:
                 text=True,
                 bufsize=0,  # Unbuffered
                 env=env,
-                shell=(sys.platform == "win32")
+                shell=(sys.platform == "win32"),
+                encoding="utf-8"
             )
+
 
             
             start_time = time.time()
