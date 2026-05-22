@@ -131,13 +131,31 @@ def bootstrap_backend():
     
     return venv_python
 
-def bootstrap_fonts(venv_python):
+def bootstrap_fonts(venv_python, force=False):
     # Check if fonts are downloaded
-    fonts_css = "frontend/app/assets/css/fonts.css"
-    if not os.path.exists(fonts_css) or os.path.getsize(fonts_css) < 100:
+    font_dir = "frontend/app/assets/fonts"
+    fonts_missing = True
+    
+    if force:
+        log_system("Force-redownload flag detected. Deleting existing offline fonts...")
+        if os.path.exists(font_dir):
+            try:
+                shutil.rmtree(font_dir)
+                log_system("Cleaned local fonts directory.")
+            except Exception as e:
+                log_error(f"Failed to clean local fonts directory: {e}")
+                
+    if os.path.exists(font_dir) and not force:
+        # Count woff2 files recursively
+        woff2_count = sum(len([f for f in files if f.endswith('.woff2')]) for r, d, files in os.walk(font_dir))
+        if woff2_count >= 10:
+            fonts_missing = False
+            
+    if fonts_missing:
         log_system("Local offline fonts missing. Downloading automatically...")
         # Run download_fonts.py using virtual environment's python since it contains requests dependency
         subprocess.run([venv_python, "download_fonts.py"], check=True)
+
 
 def bootstrap_node_project(directory, name):
     node_modules = os.path.join(directory, "node_modules")
@@ -258,12 +276,23 @@ def main():
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
     
-    target = "all"
-    if len(sys.argv) > 1:
-        target = sys.argv[1].lower()
-        if target not in ["all", "backend", "frontend", "remotion"]:
-            log_error(f"Unknown target: '{target}'. Available targets: all, backend, frontend, remotion")
-            sys.exit(1)
+    import argparse
+    parser = argparse.ArgumentParser(description="Yonru Services Launcher")
+    parser.add_argument(
+        "target", 
+        nargs="?", 
+        default="all", 
+        choices=["all", "backend", "frontend", "remotion"],
+        help="Target service to run (all, backend, frontend, remotion)"
+    )
+    parser.add_argument(
+        "--force-fonts", 
+        action="store_true", 
+        help="Force redownload of offline fonts"
+    )
+    args = parser.parse_args()
+    
+    target = args.target.lower()
 
     # 1. Dependency and Environment Checks
     check_dependencies()
@@ -272,12 +301,13 @@ def main():
     venv_python = bootstrap_backend()
     
     if target in ["all", "frontend"]:
-        bootstrap_fonts(venv_python)
+        bootstrap_fonts(venv_python, force=args.force_fonts)
         bootstrap_node_project("frontend", "Frontend")
         
     if target in ["all", "remotion"]:
-        bootstrap_fonts(venv_python)
+        bootstrap_fonts(venv_python, force=args.force_fonts)
         bootstrap_node_project("remotion_engine", "Remotion Engine")
+
 
     # 3. Execution Commands Configuration
     use_shell = (sys.platform == "win32")
