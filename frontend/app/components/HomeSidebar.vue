@@ -77,15 +77,76 @@
             </button>
 
 
-            <button 
-              @click="handleNav('settings')"
-              class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
-              :class="activeView === 'settings' ? 'bg-accent-500/10 text-accent-500 font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-panel'"
-              :title="isCollapsed ? 'Settings' : ''"
-            >
-              <Icon name="ri:settings-4-fill" class="text-xl shrink-0" />
-              <span v-if="!isCollapsed" class="whitespace-nowrap">Settings</span>
-            </button>
+            <div class="flex flex-col">
+              <button 
+                @click="handleNav('settings')"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group/settings w-full text-left"
+                :class="activeView === 'settings' ? 'bg-accent-500/10 text-accent-500 font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-panel'"
+                :title="isCollapsed ? 'Settings' : ''"
+              >
+                <div class="relative flex items-center justify-center">
+                  <Icon name="ri:settings-4-fill" class="text-xl shrink-0" />
+                  <div 
+                    v-if="state.isAnyPrerequisiteMissing.value && isCollapsed"
+                    class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-500 rounded-full border border-surface-dark animate-pulse-amber"
+                  ></div>
+                </div>
+                <div v-if="!isCollapsed" class="flex items-center justify-between flex-1 min-w-0">
+                  <span class="whitespace-nowrap font-semibold">Settings</span>
+                  <div class="flex items-center gap-2">
+                    <div 
+                      v-if="state.isAnyPrerequisiteMissing.value"
+                      class="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse-amber mr-1 shrink-0"
+                      title="Prerequisite health check is missing or unconfigured"
+                    ></div>
+                    <div
+                      @click.stop="isSettingsSubnavExpanded = !isSettingsSubnavExpanded"
+                      class="p-1 rounded hover:bg-white/10 text-slate-500 hover:text-slate-300 transition-colors flex items-center justify-center cursor-pointer"
+                    >
+                      <Icon 
+                        :name="isSettingsSubnavExpanded ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" 
+                        class="text-base transition-transform duration-200"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              <!-- Collapsible Subsection List -->
+              <Transition
+                enter-active-class="transition-all duration-300 ease-out"
+                enter-from-class="opacity-0 -translate-y-2 max-h-0"
+                enter-to-class="opacity-100 translate-y-0 max-h-60"
+                leave-active-class="transition-all duration-200 ease-in"
+                leave-from-class="opacity-100 translate-y-0 max-h-60"
+                leave-to-class="opacity-0 -translate-y-2 max-h-0"
+              >
+                <div 
+                  v-if="!isCollapsed && isSettingsSubnavExpanded" 
+                  class="pl-4 pr-2 py-1.5 flex flex-col gap-1 border-l border-surface-border/50 ml-5 overflow-hidden"
+                >
+                  <button 
+                    v-for="sub in [
+                      { id: 'settings-health', name: 'Prerequisites & Health', icon: 'ri:shield-cross-line', hasWarning: isHealthWarning },
+                      { id: 'settings-api', name: 'API Configuration', icon: 'ri:key-2-line', hasWarning: isApiWarning },
+                      { id: 'settings-whisper', name: 'Transcription Engine', icon: 'ri:cpu-line', hasWarning: false },
+                      { id: 'settings-cookies', name: 'YouTube Cookies', icon: 'ri:shield-keyhole-line', hasWarning: isCookiesWarning },
+                      { id: 'settings-env', name: 'Environment Paths', icon: 'ri:terminal-window-line', hasWarning: false }
+                    ]"
+                    :key="sub.id"
+                    @click="scrollToSettingsSection(sub.id)"
+                    class="flex items-center gap-2 py-1 px-1.5 text-[10px] font-bold text-slate-400 hover:text-slate-200 transition-colors text-left rounded hover:bg-surface-panel/40 w-full"
+                  >
+                    <Icon :name="sub.icon" class="text-xs shrink-0 text-slate-500" />
+                    <span class="truncate flex-1 tracking-wider uppercase text-[9px]">{{ sub.name }}</span>
+                    <div 
+                      v-if="sub.hasWarning" 
+                      class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0 shadow-[0_0_6px_rgba(245,158,11,0.6)] mr-1"
+                    ></div>
+                  </button>
+                </div>
+              </Transition>
+            </div>
             <button 
               @click="handleNav('prompts')"
               class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
@@ -184,7 +245,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+
+const state = useClipperState()
+
+const isHealthWarning = computed(() => {
+  const health = state.systemHealth.value
+  if (!health) return false
+  return ['ffmpeg', 'node', 'python_env'].some(key => health[key]?.status !== 'OK')
+})
+
+const isApiWarning = computed(() => {
+  const health = state.systemHealth.value
+  if (!health) return false
+  return health.gemini_api?.status !== 'Configured'
+})
+
+const isCookiesWarning = computed(() => {
+  const health = state.systemHealth.value
+  if (!health) return false
+  return health.cookies?.status !== 'Configured'
+})
 
 const props = defineProps<{
   activeView: string
@@ -207,6 +288,7 @@ const emit = defineEmits<{
 }>()
 
 const isCollapsed = ref(props.defaultCollapsed ?? false)
+const isSettingsSubnavExpanded = ref(true)
 const sidebarWidth = ref(320)
 const minWidth = 280
 const maxWidth = 600
@@ -214,9 +296,19 @@ let isDragging = false
 
 function handleNav(view: string) {
   emit('update:activeView', view)
+  if (view === 'settings') {
+    isSettingsSubnavExpanded.value = true
+  }
   if (props.isFloating) {
     isCollapsed.value = true
   }
+}
+
+function scrollToSettingsSection(sectionId: string) {
+  if (props.activeView !== 'settings') {
+    handleNav('settings')
+  }
+  state.settingsScrollTarget.value = sectionId
 }
 
 function startDrag(e: MouseEvent) {
@@ -285,5 +377,21 @@ onUnmounted(() => {
 
 .animate-pulse-subtle {
   animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-amber {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0);
+  }
+}
+.animate-pulse-amber {
+  animation: pulse-amber 2s infinite;
 }
 </style>

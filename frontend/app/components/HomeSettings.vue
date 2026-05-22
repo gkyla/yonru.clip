@@ -3,10 +3,42 @@
     <h2 class="text-4xl font-bold tracking-tight text-white mb-4">Settings</h2>
     <p class="text-slate-400 mb-8">Configure your API keys and local environment setups here.</p>
 
+    <!-- Global Prerequisite Alert Banner -->
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="opacity-0 -translate-y-4"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 -translate-y-4"
+    >
+      <div 
+        v-if="state.isAnyPrerequisiteMissing.value"
+        class="mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-pulse-subtle"
+      >
+        <div class="flex items-start sm:items-center gap-3">
+          <div class="p-2 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
+            <Icon :name="warningDetails.icon" class="text-xl" />
+          </div>
+          <div>
+            <h4 class="text-sm font-bold text-white leading-snug">{{ warningDetails.title }}</h4>
+            <p class="text-xs text-slate-400 mt-0.5">{{ warningDetails.description }}</p>
+          </div>
+        </div>
+        
+        <button 
+          @click="scrollToSection(firstMissingPrerequisiteSection)"
+          class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold uppercase tracking-wider text-[10px] rounded-lg shadow-[0_0_15px_rgba(245,158,11,0.2)] hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all shrink-0 self-start sm:self-center"
+        >
+          {{ warningDetails.buttonText }}
+        </button>
+      </div>
+    </Transition>
+
     <div class="bg-surface-panel border border-surface-border rounded-xl p-6 flex flex-col gap-6 shadow-xl">
       
       <!-- System Health Diagnostics Dashboard -->
-      <div>
+      <div id="settings-health" class="scroll-mt-24">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-bold text-white flex items-center gap-2">
             <Icon name="ri:shield-cross-fill" class="text-accent-500" /> Prerequisite Health & Diagnostics
@@ -145,7 +177,7 @@
       <div class="h-px bg-surface-border w-full"></div>
 
       <!-- API Key Setting -->
-      <div>
+      <div id="settings-api" class="scroll-mt-24">
         <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
           <Icon name="ri:key-2-fill" class="text-accent-500" /> API Configuration
         </h3>
@@ -204,9 +236,9 @@
       <div class="h-px bg-surface-border w-full"></div>
 
       <!-- Whisper AI Configuration -->
-      <div>
+      <div id="settings-whisper" class="scroll-mt-24">
         <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
-          <Icon name="ri:microchip-fill" class="text-accent-500" /> Transcription Engine (Whisper)
+          <Icon name="ri:cpu-fill" class="text-accent-500" /> Transcription Engine (Whisper)
         </h3>
         <p class="text-sm text-slate-400 mb-6">Choose the AI model size used for local transcription. Larger models are more accurate but slower and require more VRAM/CPU.</p>
         
@@ -242,7 +274,7 @@
       <div class="h-px bg-surface-border w-full"></div>
 
       <!-- YouTube Cookies Configuration -->
-      <div>
+      <div id="settings-cookies" class="scroll-mt-24">
         <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
           <Icon name="ri:shield-keyhole-fill" class="text-accent-500" /> YouTube Cookies (yt-dlp)
         </h3>
@@ -394,7 +426,7 @@
       <div class="h-px bg-surface-border w-full"></div>
 
       <!-- Environment Setup -->
-      <div>
+      <div id="settings-env" class="scroll-mt-24">
         <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
           <Icon name="ri:terminal-window-fill" class="text-accent-500" /> Environment Paths
         </h3>
@@ -435,10 +467,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 
 const state = useClipperState()
 const API_BASE = 'http://localhost:8000'
+
+const scrollToSection = (id: string) => {
+  const el = document.getElementById(id)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth' })
+  }
+}
+
+watch(() => state.settingsScrollTarget.value, async (newTarget) => {
+  if (newTarget) {
+    await nextTick()
+    scrollToSection(newTarget)
+    state.settingsScrollTarget.value = null
+  }
+}, { immediate: true })
 
 const apiKey = ref('')
 const showKey = ref(false)
@@ -460,26 +507,66 @@ interface HealthResponse {
   gemini_api: HealthItem
   cookies: HealthItem
 }
+const healthData = computed(() => state.systemHealth.value)
+const checkingHealth = computed(() => state.checkingHealth.value)
 
-const healthData = ref<HealthResponse | null>(null)
-const checkingHealth = ref(false)
+const firstMissingPrerequisiteSection = computed(() => {
+  const health = state.systemHealth.value
+  if (!health) return 'settings-health'
+  
+  // 1. Core system prerequisites (FFmpeg, Node, Python)
+  const systemKeys = ['ffmpeg', 'node', 'python_env']
+  const isSystemMissing = systemKeys.some(key => {
+    const item = health[key]
+    return !item || item.status !== 'OK'
+  })
+  if (isSystemMissing) return 'settings-health'
+  
+  // 2. API Configuration
+  if (health.gemini_api?.status !== 'Configured') {
+    return 'settings-api'
+  }
+  
+  // 3. YouTube Cookies
+  if (health.cookies?.status !== 'Configured') {
+    return 'settings-cookies'
+  }
+  
+  return 'settings-health'
+})
+
+const warningDetails = computed(() => {
+  const section = firstMissingPrerequisiteSection.value
+  if (section === 'settings-api') {
+    return {
+      title: 'Gemini API Key Required',
+      description: 'The Gemini API Key is missing or invalid. Please configure it to enable transcription analysis and AI clipping features.',
+      icon: 'ri:key-2-fill',
+      buttonText: 'Configure API Key'
+    }
+  } else if (section === 'settings-cookies') {
+    return {
+      title: 'YouTube Cookies Missing',
+      description: 'A cookies.txt file has not been provided. Restricted or age-gated YouTube videos may fail to download without valid cookies.',
+      icon: 'ri:shield-keyhole-fill',
+      buttonText: 'Upload Cookies'
+    }
+  } else {
+    return {
+      title: 'System Prerequisites Missing',
+      description: 'Essential system tools (FFmpeg, Node.js, or Python environment) are not fully configured. Let\'s fix them to enable all features.',
+      icon: 'ri:alert-fill',
+      buttonText: 'Resolve Prerequisites'
+    }
+  }
+})
 
 const dragOver = ref(false)
 const activeStep = ref(1)
 const deletingCookies = ref(false)
 const cookiesStatus = ref({ exists: false, size_bytes: 0, last_modified: null })
 
-async function checkSystemHealth() {
-  checkingHealth.value = true
-  try {
-    const res = await $fetch<HealthResponse>(`${API_BASE}/api/system-health`)
-    healthData.value = res
-  } catch (e) {
-    console.error('Failed to fetch system health', e)
-  } finally {
-    checkingHealth.value = false
-  }
-}
+const checkSystemHealth = () => state.checkSystemHealth()
 
 // API Key Validation state
 const testingKey = ref(false)
@@ -654,3 +741,13 @@ onMounted(() => {
   fetchCookiesStatus()
 })
 </script>
+
+<style scoped>
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.9; }
+}
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+</style>

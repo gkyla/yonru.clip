@@ -861,6 +861,7 @@ async function initDashboard() {
   await state.fetchCached()
   await fetchReadyClips()
   state.initPersistence()
+  state.checkSystemHealth()
   
   if (import.meta.client) {
     const savedVid = localStorage.getItem('yonru_last_video')
