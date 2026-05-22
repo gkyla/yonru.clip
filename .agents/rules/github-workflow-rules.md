@@ -45,3 +45,7 @@ YOU MUST ALWAYS explicitly prepend a classification note at the start of every a
 Format the note exactly as follows:
 > **Category Change**: `Trivial/Simple` OR `Complex Bug/Feature`
 > **Reason**: `[A concise explanation of the complexity assessment]`
+
+## MANDATORY RULE 5: PLAIN LANGUAGE & SIMPLE WORDS (CRITICAL)
+
+YOU MUST ALWAYS use plain, straightforward, and simple language in your explanations, comments, and Git commit messages. Avoid overly complex, high-brow, or jargon-heavy words (such as 'decommission', 'ameliorate', 'facilitate', etc.). Prefer simple, active verbs (such as 'remove', 'fix', 'help', 'use', etc.) so that all communications, comments, and Git history logs remain clear, direct, and accessible to everyone.
