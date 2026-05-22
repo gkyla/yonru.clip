@@ -155,6 +155,9 @@ class SystemSettingsRequest(BaseModel):
 class ValidateKeyRequest(BaseModel):
     api_key: str
 
+class UploadCookiesRequest(BaseModel):
+    cookies_text: str
+
 class AddPromptRequest(BaseModel):
     promptName: str
     suitableFor: list[str]
@@ -1481,6 +1484,68 @@ async def validate_gemini_key(req: ValidateKeyRequest):
             error_msg = "Gemini API Quota exceeded. Please check your Google AI Studio billing/plan."
         return {"status": "invalid", "error": error_msg}
 
+COOKIES_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "cookies.txt"))
+
+@app.get("/api/cookies-status")
+async def get_cookies_status():
+    """Check if cookies.txt exists and return metadata."""
+    exists = os.path.exists(COOKIES_PATH)
+    size_bytes = 0
+    last_modified = None
+    if exists:
+        try:
+            size_bytes = os.path.getsize(COOKIES_PATH)
+            mtime = os.path.getmtime(COOKIES_PATH)
+            import datetime
+            last_modified = datetime.datetime.fromtimestamp(mtime).isoformat()
+        except Exception:
+            pass
+            
+    return {
+        "exists": exists,
+        "size_bytes": size_bytes,
+        "last_modified": last_modified,
+        "path": COOKIES_PATH
+    }
+
+@app.post("/api/upload-cookies")
+async def upload_cookies(req: UploadCookiesRequest):
+    """Validate and write cookies.txt locally."""
+    content = req.cookies_text.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Cookie content cannot be empty.")
+        
+    # Netscape HTTP Cookie File format validation (Option A)
+    # Check if first 150 chars contains "# Netscape" (typical header: "# Netscape HTTP Cookie File")
+    first_chunk = content[:150]
+    if "# Netscape" not in first_chunk:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid cookie format. Please ensure you upload/paste a Netscape format cookies.txt file."
+        )
+        
+    try:
+        with open(COOKIES_PATH, "w", encoding="utf-8", newline="\n") as f:
+            f.write(content + "\n")
+        print(f"[system] Saved cookies.txt at {COOKIES_PATH} (size: {len(content)} bytes)")
+        return {"status": "ok", "message": "Cookies saved successfully."}
+    except Exception as e:
+        print(f"[system] Failed to save cookies.txt: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to write cookie file: {e}")
+
+@app.delete("/api/delete-cookies")
+async def delete_cookies():
+    """Safely delete cookies.txt locally."""
+    if os.path.exists(COOKIES_PATH):
+        try:
+            os.remove(COOKIES_PATH)
+            print(f"[system] Deleted cookies.txt at {COOKIES_PATH}")
+            return {"status": "ok", "message": "Cookies deleted successfully."}
+        except Exception as e:
+            print(f"[system] Failed to delete cookies.txt: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to delete cookie file: {e}")
+    return {"status": "ok", "message": "No cookies file to delete."}
+
 @app.get("/api/system-health")
 async def system_health():
     """Perform a diagnostic check on system dependencies."""
@@ -1539,6 +1604,9 @@ async def system_health():
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     has_key = len(gemini_key.strip()) > 0
     
+    # 5. Check cookies.txt
+    cookies_configured = os.path.exists(COOKIES_PATH)
+    
     return {
         "ffmpeg": {
             "status": "OK" if ffmpeg_ok else "Missing",
@@ -1555,6 +1623,10 @@ async def system_health():
         "gemini_api": {
             "status": "Configured" if has_key else "Not Configured",
             "has_key": has_key
+        },
+        "cookies": {
+            "status": "Configured" if cookies_configured else "Not Configured",
+            "exists": cookies_configured
         }
     }
 

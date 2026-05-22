@@ -52,6 +52,18 @@ To exit, press `Ctrl+C`. All child processes will be terminated cleanly.
 
 ---
 
+## YouTube Download Restrictions & cookies.txt
+
+YouTube aggressively blocks automated scrapers and CLI tools. To avoid downloads failing with "Sign in to confirm you are not a bot" or other captcha restrictions, you should import your YouTube browser session cookies:
+
+1. **Get a Cookie Extractor Extension**: Install the open-source [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/ccloeocionehidjhhicdjiijlkocoodm) extension in Google Chrome / Brave or Firefox.
+2. **Export YouTube Cookies**: Navigate to [YouTube](https://youtube.com), make sure you are logged in, click the extension icon, and export/download the cookies for `youtube.com` in Netscape format.
+3. **Upload in Settings**: Open the **Settings** panel inside the Yonru web interface, and drag and drop your downloaded `.txt` file directly onto the upload card.
+
+The application will validate the file format and save it locally as `backend/cookies.txt` to keep all video downloading operations functional and robust.
+
+---
+
 ## Advanced CLI Controls
 
 The launcher supports selective service starting via command-line targets:
