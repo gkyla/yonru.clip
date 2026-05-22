@@ -75,8 +75,13 @@
               <p class="text-[10px] text-slate-500 truncate font-mono mt-1.5" :title="healthData?.ffmpeg?.path">
                 Path: {{ healthData?.ffmpeg?.path || 'Not checked' }}
               </p>
-              <p v-if="healthData && healthData.ffmpeg?.status !== 'OK'" class="text-[10px] text-amber-500 mt-1">
-                Install FFmpeg to support sound track extraction and video conversion.
+              <p v-if="healthData && healthData.ffmpeg?.status !== 'OK'" class="text-[10px] text-amber-500 mt-1 leading-normal">
+                Missing! Install FFmpeg to extract audio and convert video. 
+                <span class="block text-slate-400 mt-1">
+                  <strong>macOS:</strong> <code class="bg-black/30 px-1 py-0.5 rounded text-[9px] text-slate-300">brew install ffmpeg</code><br>
+                  <strong>Ubuntu/Debian:</strong> <code class="bg-black/30 px-1 py-0.5 rounded text-[9px] text-slate-300">sudo apt install ffmpeg</code><br>
+                  <strong>Windows:</strong> Download from <a href="https://ffmpeg.org" target="_blank" class="underline hover:text-white">ffmpeg.org</a> and add to system PATH.
+                </span>
               </p>
             </div>
           </div>
@@ -100,8 +105,13 @@
               <p class="text-[10px] text-slate-500 truncate font-mono mt-1.5" :title="healthData?.node?.path">
                 Path: {{ healthData?.node?.path || 'Not checked' }}
               </p>
-              <p v-if="healthData && healthData.node?.status !== 'OK'" class="text-[10px] text-amber-500 mt-1">
-                Required to compile React Remotion templates.
+              <p v-if="healthData && healthData.node?.status !== 'OK'" class="text-[10px] text-amber-500 mt-1 leading-normal">
+                Missing! Required to compile and render React Remotion video templates.
+                <span class="block text-slate-400 mt-1">
+                  <strong>macOS:</strong> <code class="bg-black/30 px-1 py-0.5 rounded text-[9px] text-slate-300">brew install node</code><br>
+                  <strong>Ubuntu/Debian:</strong> <code class="bg-black/30 px-1 py-0.5 rounded text-[9px] text-slate-300">curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs</code><br>
+                  <strong>Windows/macOS:</strong> Download from <a href="https://nodejs.org" target="_blank" class="underline hover:text-white">nodejs.org</a>.
+                </span>
               </p>
             </div>
           </div>
@@ -124,6 +134,13 @@
               </div>
               <p class="text-[10px] text-slate-500 mt-1.5 leading-normal">
                 Virtual environment packages (FastAPI, google-genai) are loaded.
+              </p>
+              <p v-if="healthData && healthData.python_env?.status !== 'OK'" class="text-[10px] text-amber-500 mt-1 leading-normal">
+                Degraded! Essential virtual environment packages (FastAPI, google-genai) are not fully loaded.
+                <span class="block text-slate-400 mt-1">
+                  Please run the setup script or install missing dependencies:<br>
+                  <code class="bg-black/30 px-1 py-0.5 rounded text-[9px] text-slate-300">pip install -r requirements.txt</code>
+                </span>
               </p>
             </div>
           </div>

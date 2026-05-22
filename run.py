@@ -33,7 +33,17 @@ def check_dependencies():
 
     # 1. Check Node.js
     if not shutil.which("node"):
-        log_error("Node.js was not detected on this machine. Please install Node.js (18+) first.")
+        log_error("Node.js (18+) was not detected on this machine.")
+        if sys.platform == "win32":
+            log_error("To install Node.js on Windows:")
+            log_error("  - Download and run the installer from: https://nodejs.org/")
+            log_error("  - Or use winget: 'winget install OpenJS.NodeJS'")
+        elif sys.platform == "darwin":
+            log_error("To install Node.js on macOS:")
+            log_error("  - Run: 'brew install node'")
+        else:
+            log_error("To install Node.js on Linux (Debian/Ubuntu):")
+            log_error("  - Run: 'curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs'")
         sys.exit(1)
 
     # 2. Check FFmpeg
@@ -104,7 +114,16 @@ def bootstrap_backend():
                 shutil.rmtree(venv_dir)
             except Exception:
                 pass
-        subprocess.run([sys.executable, "-m", "venv", "venv"], cwd=backend_dir, check=True)
+        try:
+            subprocess.run([sys.executable, "-m", "venv", "venv"], cwd=backend_dir, check=True)
+        except subprocess.CalledProcessError:
+            log_error("Failed to create Python virtual environment.")
+            if sys.platform != "win32" and sys.platform != "darwin":
+                log_error("On Ubuntu/Debian, you may need to install python3-venv first:")
+                log_error("  - Run: 'sudo apt install python3-venv'")
+            else:
+                log_error("Please make sure you have the 'venv' standard module installed in your Python interpreter.")
+            sys.exit(1)
 
     # Check if packages need installation using python -m pip to bypass path / shebang issues
     log_system("Verifying Python backend dependencies (this may take a moment)...")

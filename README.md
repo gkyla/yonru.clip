@@ -8,11 +8,18 @@ Welcome! This document will help you configure and run the Yonru clipping ecosys
 
 Before running the stack, confirm your host machine possesses the following core binary environments:
 
-1. **Node.js**: (Version 18.0.0 or greater). [Download Node here](https://nodejs.org/).
-2. **Python**: (Version 3.9 through 3.12). [Download Python here](https://www.python.org/).
-3. **FFmpeg**: Required for overlay processing tasks.
-   - **MacOS**: `brew install ffmpeg`
-   - **Windows**: Use [Chocolatey](https://chocolatey.org/): `choco install ffmpeg` or extract binaries manually.
+1. **Node.js**: (Version 18.0.0 or greater).
+   - **macOS**: `brew install node`
+   - **Ubuntu/Debian**: `curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs`
+   - **Windows**: Download installer from [nodejs.org](https://nodejs.org/) or run `winget install OpenJS.NodeJS`.
+2. **Python**: (Version 3.9 through 3.12).
+   - **macOS**: `brew install python`
+   - **Ubuntu/Debian**: `sudo apt install python3 python3-pip python3-venv`
+   - **Windows**: Download from [python.org](https://www.python.org/).
+3. **FFmpeg**: Required for overlay and video processing tasks.
+   - **macOS**: `brew install ffmpeg`
+   - **Ubuntu/Debian**: `sudo apt update && sudo apt install -y ffmpeg`
+   - **Windows**: Use Chocolatey (`choco install ffmpeg`), Scoop (`scoop install ffmpeg`), or download pre-compiled static builds manually and append to system PATH.
 
 ---
 
@@ -21,12 +28,7 @@ Before running the stack, confirm your host machine possesses the following core
 Yonru features a unified, self-healing cross-platform launcher script (`run.py`) that handles dependency checks, creates virtual environments, installs packages (both Python and Node), downloads offline fonts, and runs all services concurrently.
 
 ### 1. Prerequisite Binaries
-Ensure you have the core runtimes installed:
-- **Node.js** (18+)
-- **Python** (3.9 - 3.12)
-- **FFmpeg**:
-  - **macOS**: `brew install ffmpeg`
-  - **Windows**: Use Chocolatey (`choco install ffmpeg`), Scoop (`scoop install ffmpeg`), or download manually.
+Ensure you have the core runtimes installed according to the commands in the **Prerequisites** section above.
 
 ### 2. Set API Key
 Create a `.env` file inside the `backend/` folder and insert your Gemini API Key:
