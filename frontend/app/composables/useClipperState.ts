@@ -152,6 +152,37 @@ export const useClipperState = () => {
   const lastAccessedVideoId = useState<string | null>('lastAccessedVideoId', () => null)
   const lastAccessedClip = useState<{folder: string, clip_id: string, title?: string} | null>('lastAccessedClip', () => null)
 
+  // System Health & Diagnostics State
+  const systemHealth = useState<any | null>('systemHealth', () => null)
+  const checkingHealth = useState<boolean>('checkingHealth', () => false)
+  const settingsScrollTarget = useState<string | null>('settingsScrollTarget', () => null)
+
+  const isAnyPrerequisiteMissing = computed(() => {
+    if (!systemHealth.value) return false
+    const keys = ['ffmpeg', 'node', 'python_env', 'gemini_api', 'cookies']
+    return keys.some(key => {
+      const item = systemHealth.value[key]
+      if (!item) return false
+      if (['ffmpeg', 'node', 'python_env'].includes(key)) {
+        return item.status !== 'OK'
+      } else {
+        return item.status !== 'Configured'
+      }
+    })
+  })
+
+  async function checkSystemHealth() {
+    checkingHealth.value = true
+    try {
+      const res = await $fetch<any>(`${API_BASE}/api/system-health`)
+      systemHealth.value = res
+    } catch (e) {
+      console.error('Failed to fetch system health', e)
+    } finally {
+      checkingHealth.value = false
+    }
+  }
+
   const lastAccessedVideo = computed(() => {
     // Prioritize parent video of the last accessed clip
     if (lastAccessedClip.value?.folder) {
@@ -1581,8 +1612,10 @@ export const useClipperState = () => {
     timelineTracks, timelineDuration, selectedTimelineItem,
     defaultTimelineTextStyle,
     deepAuditResults, isDeepAuditing,
+    systemHealth, checkingHealth, isAnyPrerequisiteMissing, settingsScrollTarget,
     // Actions
     analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling, stopPolling,
+    checkSystemHealth,
     formatDuration, fetchPrompts, editPrompt, fetchSavedHooks, saveHook, deleteSavedHook,
     saveTranscript, saveStyleSettings, saveDefaultStyleSettings, updateHooks,
     runDeepAudit, maskFlaggedWords,
