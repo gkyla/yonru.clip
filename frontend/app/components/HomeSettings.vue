@@ -117,6 +117,28 @@
               </p>
             </div>
           </div>
+
+          <!-- YouTube Cookies Diagnostics -->
+          <div class="p-4 rounded-xl border bg-[#111318] border-surface-border flex items-start gap-3">
+            <div class="p-2 rounded-lg bg-surface-dark">
+              <Icon 
+                :name="healthData?.cookies?.exists ? 'ri:checkbox-circle-fill' : 'ri:error-warning-fill'"
+                :class="healthData?.cookies?.exists ? 'text-accent-500' : 'text-slate-500'"
+                class="text-2xl shrink-0" 
+              />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-black uppercase tracking-widest text-slate-400">YouTube Cookies</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter" :class="healthData?.cookies?.exists ? 'bg-accent-500/10 text-accent-500' : 'bg-surface-dark border border-surface-border text-slate-500'">
+                  {{ healthData?.cookies?.status || 'Detecting...' }}
+                </span>
+              </div>
+              <p class="text-[10px] text-slate-500 mt-1.5 leading-normal">
+                Helps bypass YouTube's download rate-limits and bot-detection filters.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -219,6 +241,158 @@
 
       <div class="h-px bg-surface-border w-full"></div>
 
+      <!-- YouTube Cookies Configuration -->
+      <div>
+        <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
+          <Icon name="ri:shield-keyhole-fill" class="text-accent-500" /> YouTube Cookies (yt-dlp)
+        </h3>
+        <p class="text-sm text-slate-400 mb-6">Import your YouTube cookies to bypass rate limits, captchas, and bot detection when fetching or downloading videos.</p>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- Uploader / Manager Box -->
+          <div class="lg:col-span-7 flex flex-col gap-4">
+            
+            <!-- Upload Drag & Drop Area -->
+            <div 
+              @dragover.prevent="dragOver = true"
+              @dragleave.prevent="dragOver = false"
+              @drop.prevent="handleFileDrop"
+              :class="dragOver ? 'border-accent-500 bg-accent-500/5' : 'border-surface-border bg-surface-dark/30 hover:border-slate-700'"
+              class="w-full h-44 rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-6 text-center transition-all cursor-pointer relative"
+              @click="$refs.fileInput.click()"
+            >
+              <input 
+                ref="fileInput" 
+                type="file" 
+                accept=".txt" 
+                class="hidden" 
+                @change="handleFileSelect" 
+              />
+              
+              <Icon 
+                name="ri:file-upload-line" 
+                class="text-4xl text-slate-500 mb-3 group-hover:text-accent-500 transition-colors"
+                :class="{ 'text-accent-500 scale-110': dragOver }"
+              />
+              <span class="text-sm font-bold text-slate-300">
+                Drag & drop your <code class="font-mono text-accent-500">cookies.txt</code> here
+              </span>
+              <span class="text-xs text-slate-500 mt-1.5">
+                Or click to browse files from your computer
+              </span>
+            </div>
+
+            <!-- Cookies Status / Actions -->
+            <div v-if="cookiesStatus.exists" class="flex flex-col p-4 rounded-xl border border-surface-border bg-surface-dark/50">
+              <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                  <Icon name="ri:file-text-fill" class="text-accent-500 text-lg" />
+                  <div class="flex flex-col">
+                    <span class="text-xs font-bold text-white">cookies.txt (Active)</span>
+                    <span class="text-[10px] text-slate-500 font-mono mt-0.5">
+                      Size: {{ formatBytes(cookiesStatus.size_bytes) }} • Updated: {{ formatDate(cookiesStatus.last_modified) }}
+                    </span>
+                  </div>
+                </div>
+                
+                <button 
+                  @click="deleteCookies"
+                  :disabled="deletingCookies"
+                  class="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                >
+                  <Icon name="ri:delete-bin-line" />
+                  {{ deletingCookies ? 'Deleting...' : 'Delete' }}
+                </button>
+              </div>
+            </div>
+            
+            <div v-else class="flex items-center gap-2.5 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-500 text-xs leading-relaxed">
+              <Icon name="ri:alert-fill" class="text-lg shrink-0" />
+              <p>No cookies active. Downloads may succeed but are highly vulnerable to YouTube's "Sign in to confirm you're not a bot" restriction.</p>
+            </div>
+
+          </div>
+
+          <!-- Interactive Guide Accordion -->
+          <div class="lg:col-span-5 flex flex-col gap-3">
+            <h4 class="text-xs font-black uppercase tracking-widest text-slate-500 mb-1 pl-1">How to obtain cookies?</h4>
+            
+            <div class="border border-surface-border rounded-xl overflow-hidden bg-surface-dark/30">
+              <!-- Step 1 Accordion -->
+              <div class="border-b border-surface-border">
+                <button 
+                  @click="activeStep = activeStep === 1 ? 0 : 1"
+                  class="w-full flex justify-between items-center p-3 text-left hover:bg-surface-dark/50 transition-colors"
+                >
+                  <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                    <span class="w-5 h-5 rounded-full bg-accent-500/10 text-accent-500 flex items-center justify-center text-[10px] font-black">1</span>
+                    Install Browser Extension
+                  </span>
+                  <Icon :name="activeStep === 1 ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-slate-500" />
+                </button>
+                <div v-show="activeStep === 1" class="p-3 bg-surface-dark/10 border-t border-surface-border/50 text-[11px] leading-relaxed text-slate-400 flex flex-col gap-2">
+                  <p>Install the trusted, open-source <strong>"Get cookies.txt LOCALLY"</strong> extension in your browser:</p>
+                  <a 
+                    href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/ccloeocionehidjhhicdjiijlkocoodm" 
+                    target="_blank"
+                    class="inline-flex items-center gap-1.5 self-start text-accent-500 font-bold hover:underline"
+                  >
+                    <Icon name="ri:chrome-fill" /> Get extension for Chrome / Brave
+                  </a>
+                  <a 
+                    href="https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/" 
+                    target="_blank"
+                    class="inline-flex items-center gap-1.5 self-start text-accent-500 font-bold hover:underline"
+                  >
+                    <Icon name="ri:firefox-fill" /> Get extension for Firefox
+                  </a>
+                </div>
+              </div>
+
+              <!-- Step 2 Accordion -->
+              <div class="border-b border-surface-border">
+                <button 
+                  @click="activeStep = activeStep === 2 ? 0 : 2"
+                  class="w-full flex justify-between items-center p-3 text-left hover:bg-surface-dark/50 transition-colors"
+                >
+                  <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                    <span class="w-5 h-5 rounded-full bg-accent-500/10 text-accent-500 flex items-center justify-center text-[10px] font-black">2</span>
+                    Navigate & Log In
+                  </span>
+                  <Icon :name="activeStep === 2 ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-slate-500" />
+                </button>
+                <div v-show="activeStep === 2" class="p-3 bg-surface-dark/10 border-t border-surface-border/50 text-[11px] leading-relaxed text-slate-400 flex flex-col gap-2">
+                  <p>Go to <a href="https://youtube.com" target="_blank" class="text-accent-500 hover:underline font-bold">youtube.com</a> in a new tab.</p>
+                  <p>For best results, make sure you are logged in to your Google Account. This ensures YouTube treats your request as a real session.</p>
+                </div>
+              </div>
+
+              <!-- Step 3 Accordion -->
+              <div>
+                <button 
+                  @click="activeStep = activeStep === 3 ? 0 : 3"
+                  class="w-full flex justify-between items-center p-3 text-left hover:bg-surface-dark/50 transition-colors"
+                >
+                  <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                    <span class="w-5 h-5 rounded-full bg-accent-500/10 text-accent-500 flex items-center justify-center text-[10px] font-black">3</span>
+                    Export & Upload
+                  </span>
+                  <Icon :name="activeStep === 3 ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-slate-500" />
+                </button>
+                <div v-show="activeStep === 3" class="p-3 bg-surface-dark/10 border-t border-surface-border/50 text-[11px] leading-relaxed text-slate-400 flex flex-col gap-2.5">
+                  <p>1. While on the YouTube tab, click the <strong>Get cookies.txt LOCALLY</strong> extension icon in your toolbar.</p>
+                  <p>2. Select the option <strong>"youtube.com"</strong> (under Active Tab) and click the <strong>"Export as Netscape format"</strong> or download icon.</p>
+                  <p>3. Drop the downloaded <code class="font-mono text-accent-500">youtube.com_cookies.txt</code> file directly into the drag box on the left!</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="h-px bg-surface-border w-full"></div>
+
       <!-- Environment Setup -->
       <div>
         <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
@@ -277,16 +451,23 @@ interface HealthItem {
   path?: string
   has_key?: boolean
   active?: boolean
+  exists?: boolean
 }
 interface HealthResponse {
   ffmpeg: HealthItem
   node: HealthItem
   python_env: HealthItem
   gemini_api: HealthItem
+  cookies: HealthItem
 }
 
 const healthData = ref<HealthResponse | null>(null)
 const checkingHealth = ref(false)
+
+const dragOver = ref(false)
+const activeStep = ref(1)
+const deletingCookies = ref(false)
+const cookiesStatus = ref({ exists: false, size_bytes: 0, last_modified: null })
 
 async function checkSystemHealth() {
   checkingHealth.value = true
@@ -378,8 +559,98 @@ async function saveEnvPaths() {
   }
 }
 
+async function fetchCookiesStatus() {
+  try {
+    const res = await $fetch<{ exists: boolean; size_bytes: number; last_modified: string | null }>(`${API_BASE}/api/cookies-status`)
+    cookiesStatus.value = res
+  } catch (e) {
+    console.error('Failed to fetch cookies status', e)
+  }
+}
+
+async function uploadCookiesText(text: string) {
+  try {
+    const res = await $fetch<{ status: string; message: string }>(`${API_BASE}/api/upload-cookies`, {
+      method: 'POST',
+      body: { cookies_text: text }
+    })
+    if (res.status === 'ok') {
+      state.showToast('cookies.txt uploaded successfully!', 'success')
+      fetchCookiesStatus()
+      checkSystemHealth()
+    } else {
+      state.showToast('Failed to upload cookies', 'error')
+    }
+  } catch (e: any) {
+    const errDetail = e.data?.detail || 'Invalid cookies format. Ensure it is Netscape format.'
+    state.showToast(errDetail, 'error')
+  }
+}
+
+function handleFileSelect(event: any) {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const text = e.target?.result as string
+    uploadCookiesText(text)
+  }
+  reader.readAsText(file)
+}
+
+function handleFileDrop(event: any) {
+  dragOver.value = false
+  const file = event.dataTransfer?.files[0]
+  if (!file) return
+  
+  if (!file.name.endsWith('.txt')) {
+    state.showToast('Please upload a valid .txt cookie file', 'error')
+    return
+  }
+  
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const text = e.target?.result as string
+    uploadCookiesText(text)
+  }
+  reader.readAsText(file)
+}
+
+async function deleteCookies() {
+  deletingCookies.value = true
+  try {
+    await $fetch(`${API_BASE}/api/delete-cookies`, {
+      method: 'DELETE'
+    })
+    state.showToast('cookies.txt deleted successfully', 'success')
+    fetchCookiesStatus()
+    checkSystemHealth()
+  } catch (e) {
+    state.showToast('Failed to delete cookies', 'error')
+  } finally {
+    deletingCookies.value = false
+  }
+}
+
+// Helpers
+function formatBytes(bytes: number) {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+function formatDate(isoString: string | null) {
+  if (!isoString) return 'Never'
+  const date = new Date(isoString)
+  return date.toLocaleString()
+}
+
 onMounted(() => {
   fetchSettings()
   checkSystemHealth()
+  fetchCookiesStatus()
 })
 </script>
