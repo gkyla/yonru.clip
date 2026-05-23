@@ -7,10 +7,10 @@
       :active-view="activeView"
       :cached-videos="cachedVideos"
       :is-processing="isProcessing"
-      :processing-title="state.videoTitle.value"
+      :processing-title="videoTitle"
       :processing-status="loadingLabel"
       :last-video="lastAccessedVideo"
-      :last-clip="state.lastAccessedClip.value"
+      :last-clip="lastAccessedClip"
       :API_BASE="API_BASE"
       :default-collapsed="false"
       :is-floating="false"
@@ -610,8 +610,76 @@
                 </div>
              </div>
           </div>
-       </div>
-    </div>
+        </div>
+     </div>
+
+     <!-- Beautiful Glass Deletion Warning Modal -->
+     <div v-if="deleteConfirmModalOpen && videoToDelete" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <!-- Backdrop filter blurring background -->
+        <div class="absolute inset-0 bg-black/85 backdrop-blur-md" @click="deleteConfirmModalOpen = false"></div>
+        
+        <!-- Content Card -->
+        <div class="relative w-full max-w-lg bg-surface-dark border border-surface-border rounded-3xl p-8 shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
+           <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
+           
+           <!-- Large warning shield icon -->
+           <div class="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
+              <Icon name="ri:error-warning-fill" class="text-3xl" />
+           </div>
+
+           <h3 class="text-2xl font-black text-white tracking-wide mb-3">Delete Video Source?</h3>
+           
+           <!-- Subtitle / target filename -->
+           <div class="bg-surface-panel/30 border border-surface-border rounded-xl p-3 mb-6 flex flex-col gap-1">
+              <span class="text-[10px] uppercase font-bold tracking-widest text-slate-500">Source Name</span>
+              <span class="text-white font-mono text-xs font-bold truncate">{{ videoToDelete.title }}</span>
+           </div>
+
+           <!-- Bullet details about what is deleted vs preserved -->
+           <div class="flex flex-col gap-4 text-xs mb-8">
+              <div class="flex items-start gap-3 bg-red-500/5 border border-red-500/10 rounded-2xl p-4">
+                 <Icon name="ri:delete-bin-2-line" class="text-red-400 text-lg shrink-0 mt-0.5" />
+                 <div>
+                    <h4 class="text-red-400 font-bold uppercase tracking-wider text-[10px] mb-1">Permanently Deleted</h4>
+                    <p class="text-slate-400 leading-relaxed font-semibold">Raw high-resolution video file, audio tracks, transcripts, draft timelines, and AI-suggested hooks. This frees up major local disk space.</p>
+                 </div>
+              </div>
+
+              <div class="flex items-start gap-3 bg-accent-500/5 border border-accent-500/10 rounded-2xl p-4">
+                 <Icon name="ri:checkbox-circle-line" class="text-accent-500 text-lg shrink-0 mt-0.5" />
+                 <div>
+                    <h4 class="text-accent-500 font-bold uppercase tracking-wider text-[10px] mb-1">Preserved & Saved</h4>
+                    <p class="text-slate-400 leading-relaxed font-semibold">Your completed, fully rendered videos in your download folder are completely safe and will not be touched.</p>
+                 </div>
+              </div>
+              
+              <!-- Warning if workspace is currently loaded with this video -->
+              <div v-if="state.folderName.value === videoToDelete.folder_name" class="flex items-start gap-3 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4">
+                 <Icon name="ri:refresh-line" class="text-amber-400 text-lg shrink-0 mt-0.5" />
+                 <div>
+                    <h4 class="text-amber-400 font-bold uppercase tracking-wider text-[10px] mb-1">Active Editor Reset</h4>
+                    <p class="text-slate-400 leading-relaxed font-semibold">This source is currently active. Deleting it will clear the editor workspace and reset your view.</p>
+                 </div>
+              </div>
+           </div>
+
+           <!-- Buttons -->
+           <div class="flex items-center gap-3 w-full">
+              <button 
+                @click="deleteConfirmModalOpen = false"
+                class="flex-1 py-3 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-[0.98]"
+              >
+                 Cancel
+              </button>
+              <button 
+                @click="deleteVideo(videoToDelete.folder_name)"
+                class="flex-1 py-3 bg-red-500 text-white hover:bg-red-400 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_30px_rgba(239,68,68,0.2)] active:scale-[0.98]"
+              >
+                 Confirm Delete
+              </button>
+           </div>
+        </div>
+     </div>
 
     <!-- View All Ready Clips Modal -->
     <div v-if="showAllReadyClips" class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -809,13 +877,16 @@ const viewMode = ref<'grid' | 'list'>('grid')
 const { 
   cachedVideos, isCachedLoading, lastAccessedVideo, lastAccessedVideoId, 
   setLastAccessed, isNavigatingToEditor,
-  thumbnailEnabled, contentAudit, customBlacklist 
+  thumbnailEnabled, contentAudit, customBlacklist,
+  videoTitle, lastAccessedClip
 } = state
 const readyClips = useState<any[]>('readyClips', () => [])
 const isReadyClipsLoading = ref(false)
 const activeTab = ref<'generated' | 'saved'>('generated')
 const hoveredHookIndex = ref<number | null>(null)
 const selectedModalHook = ref<any | null>(null)
+const deleteConfirmModalOpen = ref(false)
+const videoToDelete = ref<any | null>(null)
 const showAllReadyClips = ref(false)
 const loadedClips = ref(new Set<string>())
 
@@ -1092,17 +1163,28 @@ async function deleteThenRedownload(folderName: string, videoId: string) {
 }
 
 function confirmDelete(vid: any) {
-  if (window.confirm(`Are you sure you want to delete "${vid.title}" and all related clips? This cannot be undone.`)) {
-    deleteVideo(vid.folder_name)
-  }
+  videoToDelete.value = vid
+  deleteConfirmModalOpen.value = true
 }
 
 async function deleteVideo(folderName: string) {
   try {
     await $fetch(`${API_BASE}/api/cached/${folderName}`, { method: 'DELETE' })
+    
+    // Check if the deleted video is the active workspace video
+    if (state.folderName.value === folderName) {
+      state.resetWorkspace()
+      state.showToast('Workspace reset because active video was deleted.', 'info')
+    }
+    
     await state.fetchCached()
+    state.showToast('Video source successfully deleted.', 'success')
   } catch (e: any) {
     state.jobError.value = e.message || 'Failed to delete'
+    state.showToast(e.message || 'Failed to delete', 'error')
+  } finally {
+    deleteConfirmModalOpen.value = false
+    videoToDelete.value = null
   }
 }
 

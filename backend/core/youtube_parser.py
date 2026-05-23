@@ -318,17 +318,37 @@ class YouTubeParser:
         return hooks
 
     def delete_cached_video(self, folder_name: str) -> int:
-        """Delete titled folders in sources and clips."""
+        """Delete titled folders in sources and clips with strict security validation."""
         import shutil
+        
+        # 1. Strict name validation (alphanumeric, underscores, hyphens, dots only)
+        if not folder_name or not re.match(r"^[a-zA-Z0-9_.-]+$", folder_name) or ".." in folder_name:
+            raise ValueError(f"Invalid or unsafe folder name: {folder_name}")
+
         count = 0
-        src_path = os.path.join(self.source_dir, folder_name)
-        if os.path.exists(src_path):
+        
+        # 2. Source folder absolute validation & deletion
+        base_src = os.path.abspath(self.source_dir)
+        src_path = os.path.abspath(os.path.join(base_src, folder_name))
+        
+        if os.path.commonpath([base_src, src_path]) != base_src:
+            raise ValueError(f"Path traversal detected: {folder_name}")
+
+        if os.path.exists(src_path) and os.path.isdir(src_path):
             shutil.rmtree(src_path)
             count += 1
-        clip_path = os.path.join(self.clips_dir, folder_name)
-        if os.path.exists(clip_path):
+
+        # 3. Clips folder absolute validation & deletion
+        base_clips = os.path.abspath(self.clips_dir)
+        clip_path = os.path.abspath(os.path.join(base_clips, folder_name))
+
+        if os.path.commonpath([base_clips, clip_path]) != base_clips:
+            raise ValueError(f"Path traversal detected: {folder_name}")
+
+        if os.path.exists(clip_path) and os.path.isdir(clip_path):
             shutil.rmtree(clip_path)
             count += 1
+
         return count
 
     # ── Phase 1: Download ─────────────────────────────────────────────
