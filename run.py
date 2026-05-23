@@ -179,6 +179,46 @@ def bootstrap_fonts(venv_python, force=False):
             log_error(f"Failed to copy fonts to Remotion Engine: {e}")
 
 
+def clear_console():
+    """Clears the terminal screen cleanly on all platforms."""
+    if sys.platform == "win32":
+        os.system("cls")
+    else:
+        os.system("clear")
+
+def print_dashboard(target):
+    """Prints a beautiful neon-lime green Doom-style Yonru.Clip ASCII logo and target-specific entrypoint links."""
+    clear_console()
+    
+    logo = r"""
+__   __                      _____ _ _       
+\ \ / /                     /  __ \ (_)      
+ \ V /___  _ __  _ __ _   _ | /  \/ |_ _ __  
+  \ // _ \| '_ \| '__| | | || |   | | | '_ \ 
+  | | (_) | | | | |  | |_| || \__/\ | | |_) |
+  \_/\___/|_| |_|_|   \__,_(_)____/_|_| .__/ 
+                                      | |    
+                                      |_|    """
+    print(f"\033[92m{logo}\033[0m")
+
+    print("\033[1;30m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m")
+    print(" 🚀 \033[1;32mYonru Clip Studio is active and ready!\033[0m")
+    print(" \033[90mAccess the running service components below:\033[0m\n")
+    
+    if target in ["all", "frontend"]:
+        print("  • \033[1mWeb App (Frontend):\033[0m  \033[1;36mhttp://localhost:3000\033[0m  \033[1;33m👈 🌟 access Yonru UI\033[0m")
+        
+    if target in ["all", "backend"]:
+        print("  • \033[1mAPI Server (Backend):\033[0m \033[1;36mhttp://localhost:8000\033[0m")
+        
+    if target in ["all", "remotion"]:
+        print("  • \033[1mStudio (Remotion):\033[0m   \033[1;36mhttp://localhost:3003\033[0m")
+        
+    print("\033[1;30m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m")
+    print(" \033[90mBackground logs will stream below. Press Ctrl+C to terminate.\033[0m\n")
+
+
+
 
 def bootstrap_node_project(directory, name):
     node_modules = os.path.join(directory, "node_modules")
@@ -191,9 +231,13 @@ def bootstrap_node_project(directory, name):
 # --- Process Execution & Logging ---
 active_processes = {}
 shutdown_initiated = False
+pending_ready_services = set()
+dashboard_printed = False
+ready_lock = threading.Lock()
 
-def run_stream_reader(pipe, prefix, color_code):
-    """Reads lines from a subprocess pipe and outputs them with a colored prefix."""
+def run_stream_reader(pipe, prefix, color_code, name, target):
+    """Reads lines from a subprocess pipe and outputs them with a colored prefix. Triggers dashboard when ready."""
+    global dashboard_printed
     try:
         # bufsize=1 and text=True ensures we get line-buffered string inputs
         for line in iter(pipe.readline, ''):
@@ -205,6 +249,22 @@ def run_stream_reader(pipe, prefix, color_code):
             # 36=Cyan (Backend), 32=Green (Frontend), 35=Magenta (Remotion)
             sys.stdout.write(f"\033[{color_code}m{prefix}\033[0m {stripped}\n")
             sys.stdout.flush()
+            
+            # Check for ready pattern if dashboard has not been printed yet
+            if not dashboard_printed:
+                is_ready = False
+                if prefix == "[BACKEND]" and "Application startup complete" in line:
+                    is_ready = True
+                elif prefix in ["[FRONTEND]", "[REMOTION]"] and ("ready in" in line.lower() or "local:" in line.lower() or "http://localhost" in line):
+                    is_ready = True
+                    
+                if is_ready:
+                    with ready_lock:
+                        if name in pending_ready_services:
+                            pending_ready_services.remove(name)
+                            if not pending_ready_services:
+                                dashboard_printed = True
+                                print_dashboard(target)
     except Exception:
         pass
     finally:
@@ -213,7 +273,7 @@ def run_stream_reader(pipe, prefix, color_code):
         except Exception:
             pass
 
-def spawn_service(name, cmd, cwd, prefix, color_code):
+def spawn_service(name, cmd, cwd, prefix, color_code, target):
     """Spawns a subprocess and starts a reader thread for its output."""
     log_system(f"Launching {name}...")
     use_shell = (sys.platform == "win32")
@@ -241,7 +301,7 @@ def spawn_service(name, cmd, cwd, prefix, color_code):
     # Start output streaming thread
     t = threading.Thread(
         target=run_stream_reader, 
-        args=(proc.stdout, prefix, color_code), 
+        args=(proc.stdout, prefix, color_code, name, target), 
         daemon=True
     )
     t.start()
@@ -367,17 +427,43 @@ def main():
     # 4. Spawn Active Services
     log_system(f"Starting services in target mode: '{target}'")
     
+    # Populate waiting list for dashboard trigger
+    active_services = []
+    if target in ["all", "backend"]:
+        active_services.append("Backend")
+    if target in ["all", "frontend"]:
+        active_services.append("Frontend")
+    if target in ["all", "remotion"]:
+        active_services.append("Remotion Studio")
+        
+    global pending_ready_services
+    pending_ready_services = set(active_services)
+    
     try:
         if target in ["all", "backend"]:
-            spawn_service("Backend", backend_cmd, "backend", "[BACKEND]", "36") # Cyan
+            spawn_service("Backend", backend_cmd, "backend", "[BACKEND]", "36", target) # Cyan
             
         if target in ["all", "frontend"]:
-            spawn_service("Frontend", frontend_cmd, "frontend", "[FRONTEND]", "32") # Green
+            spawn_service("Frontend", frontend_cmd, "frontend", "[FRONTEND]", "32", target) # Green
             
         if target in ["all", "remotion"]:
-            spawn_service("Remotion Studio", remotion_cmd, "remotion_engine", "[REMOTION]", "35") # Magenta
+            spawn_service("Remotion Studio", remotion_cmd, "remotion_engine", "[REMOTION]", "35", target) # Magenta
 
-        log_system("All requested services launched! Press Ctrl+C to terminate.")
+        log_system("All requested services launched! Waiting for initialization...")
+        
+        # Start a daemon fallback timer (5.0 seconds) to ensure dashboard prints regardless
+        def fallback_timer():
+            import time
+            time.sleep(5.0)
+            global dashboard_printed
+            with ready_lock:
+                if not dashboard_printed:
+                    dashboard_printed = True
+                    print_dashboard(target)
+                    
+        threading.Thread(target=fallback_timer, daemon=True).start()
+
+
 
         # Keep main thread alive and monitor processes for unexpected crashes
         while True:
