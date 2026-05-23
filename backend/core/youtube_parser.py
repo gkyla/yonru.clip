@@ -83,7 +83,7 @@ class YouTubeParser:
     def _run_ffmpeg(self, args: list):
         cmd = ["ffmpeg"] + args
         print(f"[ffmpeg] Running: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, env=self._env)
+        result = subprocess.run(cmd, capture_output=True, text=True, env=self._env, encoding="utf-8")
         if result.returncode != 0:
             error_msg = result.stderr.strip()[-500:] or f"ffmpeg failed with code {result.returncode}"
             print(f"[ffmpeg] Error: {error_msg}")
@@ -96,7 +96,7 @@ class YouTubeParser:
             "ffprobe", "-v", "quiet", "-print_format", "json",
             "-show_format", "-show_streams", file_path
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, env=self._env)
+        result = subprocess.run(cmd, capture_output=True, text=True, env=self._env, encoding="utf-8")
         if result.returncode != 0:
             return {}
         try:

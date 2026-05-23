@@ -1666,7 +1666,7 @@ async def thumbnail_screenshot(req: ThumbnailScreenshotRequest):
         thumb_path
     ]
     
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
     if result.returncode != 0:
         print(f"[thumbnail] FFmpeg failed: {result.stderr}")
         raise HTTPException(status_code=500, detail="Failed to extract thumbnail frame")
