@@ -1580,6 +1580,23 @@ export const useClipperState = () => {
     showToast('Subtitle keywords masked successfully', 'success')
   }
 
+  function resetWorkspace() {
+    folderName.value = null
+    clipId.value = null
+    jobId.value = null
+    jobStatus.value = 'idle'
+    hooks.value = []
+    savedHooks.value = []
+    activeHook.value = null
+    fullTranscript.value = []
+    if (timelineTracks.value && timelineTracks.value[0]) {
+      timelineTracks.value[0].items = []
+    }
+    videoUrl.value = null
+    isMediaLoading.value = false
+    resetThumbnailState()
+  }
+
   return {
     contentAudit, 
     customBlacklist, 
@@ -1624,6 +1641,7 @@ export const useClipperState = () => {
     addTimelineItem, deleteTimelineItem, updateTimelineItem, saveTimelineTextStyleAsDefault, syncGlobalStylesToItem,
     captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig, deleteThumbnail,
     toggleThumbnail,
+    resetWorkspace,
     toast, showToast, initPersistence
   }
 }

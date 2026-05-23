@@ -1265,12 +1265,44 @@ async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
 
 @app.delete("/api/cached/{folder_name}")
 async def delete_cached(folder_name: str):
-    """Delete titled folders in sources and clips."""
-    parser = YouTubeParser(output_dir="temp_assets")
-    count = parser.delete_cached_video(folder_name)
-    if count == 0:
-        raise HTTPException(status_code=404, detail="Folder not found")
-    return {"deleted": count, "folder": folder_name}
+    """Delete titled folders in sources and clips with graceful job cancellation and strict security checks."""
+    try:
+        parser = YouTubeParser(output_dir="temp_assets")
+        
+        # 1. Terminate or cancel active background jobs for this folder
+        target_video_id = None
+        if len(folder_name) >= 12 and folder_name[-12] == "_":
+            target_video_id = folder_name[-11:]
+            
+        for j_id, j_info in list(jobs.items()):
+            is_match = False
+            # Check direct folder match
+            if j_info.get("video_info") and j_info["video_info"].get("folder_name") == folder_name:
+                is_match = True
+            # Check video_id fallback match
+            elif target_video_id and j_info.get("url") and target_video_id in j_info["url"]:
+                is_match = True
+                
+            if is_match:
+                current_status = j_info.get("status")
+                if current_status in ["queued", "downloading", "processing", "checking_transcript", "extracting_audio", "generating_hooks"]:
+                    print(f"[delete] Cancelling active background job {j_id} for deleted source {folder_name}")
+                    jobs[j_id]["status"] = "cancelled"
+                    jobs[j_id]["error"] = "Source video deleted by user."
+        
+        save_jobs()
+        
+        # 2. Perform deletion on disk
+        count = parser.delete_cached_video(folder_name)
+        if count == 0:
+            raise HTTPException(status_code=404, detail="Folder not found or already deleted")
+            
+        return {"deleted": count, "folder": folder_name}
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 class AnalyzeCachedRequest(BaseModel):
     prompt_file: Optional[str] = "prompt.json"
