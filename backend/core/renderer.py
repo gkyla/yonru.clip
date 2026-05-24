@@ -4,9 +4,10 @@ import numpy as np
 from core.render_engine import RemotionRenderEngine, RenderComposition
 
 class VideoRenderer:
-    def __init__(self, output_dir="static/output", render_engine=None):
+    def __init__(self, output_dir="static/output", render_engine=None, config_store=None):
         self.output_dir = output_dir
-        self.engine = render_engine or RemotionRenderEngine(output_dir=output_dir)
+        self.engine = render_engine or RemotionRenderEngine(output_dir=output_dir, config_store=config_store)
+
 
     def format_time(self, seconds):
         h = int(seconds / 3600)

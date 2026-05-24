@@ -3,10 +3,22 @@ from core.youtube_client import YouTubeClient
 from core.asset_repository import AssetRepository
 
 class YouTubeParser:
-    def __init__(self, output_dir="temp_assets"):
+    def __init__(self, output_dir="temp_assets", config_store=None):
         self.cookie_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "cookies.txt"))
         self.client = YouTubeClient(cookie_path=self.cookie_path)
-        self.repo = AssetRepository(output_dir=output_dir, youtube_client=self.client)
+        
+        if config_store is None:
+            try:
+                import sys
+                main_module = sys.modules.get("main")
+                if main_module and hasattr(main_module, "config_store"):
+                    config_store = main_module.config_store
+            except:
+                pass
+                
+        self.repo = AssetRepository(output_dir=output_dir, youtube_client=self.client, config_store=config_store)
+
+
 
     def get_cached_video(self, url: str) -> dict:
         return self.repo.get_cached_video(url)
