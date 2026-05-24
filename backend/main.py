@@ -78,6 +78,9 @@ prompt_repository = FilePromptRepository(prompts_dir)
 from core.config_store import DotEnvConfigStore
 config_store = DotEnvConfigStore(os.path.join(backend_dir, ".env"))
 
+from core.subtitle_engine import DefaultSubtitleEngine
+subtitle_engine = DefaultSubtitleEngine()
+
 
 
 def save_jobs():
@@ -765,95 +768,14 @@ async def render_clip(req: RenderRequest):
     # If transcript comes from clips folder, it's high-precision 0-based.
     is_relative = "/clips/" in transcript_path.replace("\\", "/") or req.transcript is not None
     
-    if segments:
-        words_data = []
-        
-        # Apply manual sync offset (convert ms to seconds)
-        offset_sec = req.subtitle_sync_offset / 1000
-        
-        # 1. Flatten all matching segment words into absolute clip-relative timeline
-        flat_words = []
-        for s in segments:
-            if is_relative:
-                w_start_abs = s["start"] + offset_sec
-                w_end_abs = (s["start"] + s["duration"]) + offset_sec
-                if w_start_abs >= clip_duration: continue
-            else:
-                seg_start = s["start"] + offset_sec
-                seg_end = (s["start"] + s["duration"]) + offset_sec
-                if seg_end > clip_start and seg_start < clip_end:
-                    w_start_abs = max(0.0, seg_start - clip_start)
-                    w_end_abs = min(clip_duration, seg_end - clip_start)
-                else:
-                    continue
-            
-            text = s["text"].strip()
-            words = text.split()
-            if not words:
-                continue
-                
-            seg_dur = w_end_abs - w_start_abs
-            word_dur = seg_dur / len(words)
-            for idx, w in enumerate(words):
-                flat_words.append({
-                    "text": w,
-                    "start": w_start_abs + (idx * word_dur),
-                    "end": w_start_abs + ((idx + 1) * word_dur)
-                })
-
-        if flat_words:
-            # 2. Group flat_words based on req.subtitle_mode
-            grouped_chunks = []
-            
-            if req.subtitle_mode in ("word", "1_word"):
-                grouped_chunks = flat_words
-            elif "word" in req.subtitle_mode:
-                try:
-                    num_words = int(req.subtitle_mode.split('_')[0])
-                except:
-                    num_words = 1
-                
-                for i in range(0, len(flat_words), num_words):
-                    chunk = flat_words[i : i + num_words]
-                    start = chunk[0]["start"]
-                    end = chunk[-1]["end"]
-                    text = " ".join([cw["text"] for cw in chunk])
-                    grouped_chunks.append({"text": text, "start": start, "end": end})
-            elif "chars" in req.subtitle_mode:
-                try:
-                    limit = int(req.subtitle_mode.split('_')[0])
-                except:
-                    limit = 999
-                
-                curr_chunk = []
-                curr_len = 0
-                for cw in flat_words:
-                    if curr_len + len(cw["text"]) > limit and curr_chunk:
-                        start = curr_chunk[0]["start"]
-                        end = curr_chunk[-1]["end"]
-                        text = " ".join([c["text"] for c in curr_chunk])
-                        grouped_chunks.append({"text": text, "start": start, "end": end})
-                        
-                        curr_chunk = [cw]
-                        curr_len = len(cw["text"])
-                    else:
-                        curr_chunk.append(cw)
-                        curr_len += len(cw["text"]) + (1 if len(curr_chunk) > 1 else 0)
-                if curr_chunk:
-                    start = curr_chunk[0]["start"]
-                    end = curr_chunk[-1]["end"]
-                    text = " ".join([c["text"] for c in curr_chunk])
-                    grouped_chunks.append({"text": text, "start": start, "end": end})
-            else:
-                grouped_chunks = flat_words
-
-            # 3. Append to words_data
-            for gc in grouped_chunks:
-                words_data.append({
-                    "start": gc["start"],
-                    "end": gc["end"],
-                    "word": gc["text"]
-                })
+    words_data = subtitle_engine.format_subtitles(
+        segments=segments,
+        subtitle_mode=req.subtitle_mode,
+        sync_offset_ms=req.subtitle_sync_offset,
+        clip_duration=clip_duration,
+        clip_start=clip_start,
+        is_relative=is_relative
+    )
         
         print(f"[render] Generated {len(words_data)} subtitle chunks")
         
@@ -998,7 +920,6 @@ async def render_clip_stream(req: RenderRequest):
         transcript_path = os.path.join(os.path.dirname(job["video_info"]["file_path"]), "transcript.json")
     
     # Process transcript (same logic as /api/render)
-    words_data = []
     if req.transcript:
         segments = req.transcript
     elif os.path.exists(transcript_path):
@@ -1009,91 +930,14 @@ async def render_clip_stream(req: RenderRequest):
     
     is_relative = "/clips/" in transcript_path.replace("\\", "/") or req.transcript is not None
     
-    if segments:
-        offset_sec = req.subtitle_sync_offset / 1000
-        # 1. Flatten all matching segment words into absolute clip-relative timeline
-        flat_words = []
-        for s in segments:
-            if is_relative:
-                w_start_abs = s["start"] + offset_sec
-                w_end_abs = (s["start"] + s["duration"]) + offset_sec
-                if w_start_abs >= clip_duration: continue
-            else:
-                seg_start = s["start"] + offset_sec
-                seg_end = (s["start"] + s["duration"]) + offset_sec
-                if seg_end > clip_start and seg_start < clip_end:
-                    w_start_abs = max(0.0, seg_start - clip_start)
-                    w_end_abs = min(clip_duration, seg_end - clip_start)
-                else:
-                    continue
-            
-            text = s["text"].strip()
-            words = text.split()
-            if not words:
-                continue
-                
-            seg_dur = w_end_abs - w_start_abs
-            word_dur = seg_dur / len(words)
-            for idx, w in enumerate(words):
-                flat_words.append({
-                    "text": w,
-                    "start": w_start_abs + (idx * word_dur),
-                    "end": w_start_abs + ((idx + 1) * word_dur)
-                })
-
-        if flat_words:
-            # 2. Group flat_words based on req.subtitle_mode
-            grouped_chunks = []
-            
-            if req.subtitle_mode in ("word", "1_word"):
-                grouped_chunks = flat_words
-            elif "word" in req.subtitle_mode:
-                try:
-                    num_words = int(req.subtitle_mode.split('_')[0])
-                except:
-                    num_words = 1
-                
-                for i in range(0, len(flat_words), num_words):
-                    chunk = flat_words[i : i + num_words]
-                    start = chunk[0]["start"]
-                    end = chunk[-1]["end"]
-                    text = " ".join([cw["text"] for cw in chunk])
-                    grouped_chunks.append({"text": text, "start": start, "end": end})
-            elif "chars" in req.subtitle_mode:
-                try:
-                    limit = int(req.subtitle_mode.split('_')[0])
-                except:
-                    limit = 999
-                
-                curr_chunk = []
-                curr_len = 0
-                for cw in flat_words:
-                    if curr_len + len(cw["text"]) > limit and curr_chunk:
-                        start = curr_chunk[0]["start"]
-                        end = curr_chunk[-1]["end"]
-                        text = " ".join([c["text"] for c in curr_chunk])
-                        grouped_chunks.append({"text": text, "start": start, "end": end})
-                        
-                        curr_chunk = [cw]
-                        curr_len = len(cw["text"])
-                    else:
-                        curr_chunk.append(cw)
-                        curr_len += len(cw["text"]) + (1 if len(curr_chunk) > 1 else 0)
-                if curr_chunk:
-                    start = curr_chunk[0]["start"]
-                    end = curr_chunk[-1]["end"]
-                    text = " ".join([c["text"] for c in curr_chunk])
-                    grouped_chunks.append({"text": text, "start": start, "end": end})
-            else:
-                grouped_chunks = flat_words
-
-            # 3. Append to words_data
-            for gc in grouped_chunks:
-                words_data.append({
-                    "start": gc["start"],
-                    "end": gc["end"],
-                    "word": gc["text"]
-                })
+    words_data = subtitle_engine.format_subtitles(
+        segments=segments,
+        subtitle_mode=req.subtitle_mode,
+        sync_offset_ms=req.subtitle_sync_offset,
+        clip_duration=clip_duration,
+        clip_start=clip_start,
+        is_relative=is_relative
+    )
     
     # Extract timeline items
     timeline_text = []
