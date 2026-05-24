@@ -70,6 +70,12 @@ job_store = JSONFileJobStore("temp_assets/jobs.json")
 job_manager = JobManager(job_store)
 jobs = JobsDictProxy(job_manager)
 
+from core.prompt_repository import FilePromptRepository
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+prompts_dir = os.path.join(backend_dir, "prompts")
+prompt_repository = FilePromptRepository(prompts_dir)
+
+
 def save_jobs():
     try:
         # Write back any in-memory dictionary modifications to trigger store.set()
@@ -307,7 +313,7 @@ def run_full_analysis(job_id: str, url: str, language: str, force_reanalyze: boo
             
             api_key = os.environ.get("GEMINI_API_KEY")
             if api_key:
-                generator = HookGenerator(api_key=api_key)
+                generator = HookGenerator(api_key=api_key, prompt_repository=prompt_repository)
                 
                 # Generate from transcript
                 if transcript_segments and len(transcript_segments) > 0:
@@ -495,94 +501,37 @@ def index():
 @app.get("/api/prompts")
 def list_prompts():
     """List all available prompt JSON files in prompts folder"""
-    prompts_dir = "prompts"
-    prompt_list = []
-    if os.path.exists(prompts_dir):
-        for f in os.listdir(prompts_dir):
-            if f.endswith(".json"):
-                path_str = os.path.join(prompts_dir, f)
-                try:
-                    with open(path_str, "r", encoding="utf-8") as file:
-                        data = json.load(file)
-                        if isinstance(data, list):
-                            for idx, item in enumerate(data):
-                                name = item.get("promptName", f"{f} - {idx + 1}")
-                                suitable = item.get("suitableFor", [])
-                                prompt_list.append({"id": f"{f}::{idx}", "name": name, "suitableFor": suitable, "prompt": item.get("prompt", ""), "numHooks": item.get("numHooks", 10), "autoHooks": item.get("autoHooks", False)})
-                        elif isinstance(data, dict):
-                            name = data.get("promptName", f)
-                            suitable = data.get("suitableFor", [])
-                            prompt_list.append({"id": f"{f}::-1", "name": name, "suitableFor": suitable, "prompt": data.get("prompt", ""), "numHooks": data.get("numHooks", 10), "autoHooks": data.get("autoHooks", False)})
-                except Exception as e:
-                    print(f"Failed to load {f}: {e}")
-    return {"prompts": prompt_list}
+    prompts = prompt_repository.list_prompts()
+    return {"prompts": [p.to_dict() for p in prompts]}
 
 @app.post("/api/prompts/add")
 async def add_prompt(req: AddPromptRequest):
     """Append a new prompt template to prompt.json"""
-    prompts_dir = "prompts"
-    prompt_file = os.path.join(prompts_dir, "prompt.json")
-    
-    os.makedirs(prompts_dir, exist_ok=True)
-    
-    data = []
-    if os.path.exists(prompt_file):
-        try:
-            with open(prompt_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if not isinstance(data, list):
-                    data = [data]
-        except Exception:
-            data = []
-            
-    data.append({
-        "promptName": req.promptName,
-        "suitableFor": req.suitableFor,
-        "prompt": req.prompt,
-        "numHooks": req.numHooks,
-        "autoHooks": req.autoHooks
-    })
-    
-    with open(prompt_file, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-        
+    prompt_repository.add_prompt(
+        name=req.promptName,
+        suitable_for=req.suitableFor,
+        prompt=req.prompt,
+        num_hooks=req.numHooks or 10,
+        auto_hooks=req.autoHooks or False
+    )
     return {"status": "ok"}
 
 @app.put("/api/prompts/edit")
 async def edit_prompt(req: EditPromptRequest):
     """Edit an existing prompt template"""
-    if "::" not in req.id:
-        raise HTTPException(status_code=400, detail="Invalid prompt id")
-        
-    filename, idx_str = req.id.split("::")
-    idx = int(idx_str)
-    
-    prompt_file = os.path.join("prompts", filename)
-    if not os.path.exists(prompt_file):
-        raise HTTPException(status_code=404, detail="Prompt file not found")
-        
-    with open(prompt_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        
-    if isinstance(data, list) and 0 <= idx < len(data):
-        data[idx]["promptName"] = req.promptName
-        data[idx]["suitableFor"] = req.suitableFor
-        data[idx]["prompt"] = req.prompt
-        data[idx]["numHooks"] = req.numHooks
-        data[idx]["autoHooks"] = req.autoHooks
-    elif isinstance(data, dict) and idx == -1:
-        data["promptName"] = req.promptName
-        data["suitableFor"] = req.suitableFor
-        data["prompt"] = req.prompt
-        data["numHooks"] = req.numHooks
-        data["autoHooks"] = req.autoHooks
-    else:
-        raise HTTPException(status_code=404, detail="Prompt index not found")
-        
-    with open(prompt_file, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-        
-    return {"status": "ok"}
+    try:
+        prompt_repository.edit_prompt(
+            id=req.id,
+            name=req.promptName,
+            suitable_for=req.suitableFor,
+            prompt=req.prompt,
+            num_hooks=req.numHooks or 10,
+            auto_hooks=req.autoHooks or False
+        )
+        return {"status": "ok"}
+    except (ValueError, FileNotFoundError, IndexError) as e:
+        raise HTTPException(status_code=400 if isinstance(e, ValueError) else 404, detail=str(e))
+
 
 @app.post("/api/analyze-url")
 async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, force: bool = False):
