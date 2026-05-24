@@ -268,9 +268,9 @@ def run_full_analysis(job_id: str, url: str, language: str, force_reanalyze: boo
 
         # Step 0: Check Transcript FIRST
         jobs[job_id]["status"] = "checking_transcript"
-        video_id = parser._extract_video_id(url)
+        video_id = parser.extract_video_id(url)
         if not video_id:
-            info = parser._get_video_info_fast(url)
+            info = parser.get_video_info_fast(url)
             video_id = info.get("id")
             
         if not video_id:
@@ -876,7 +876,7 @@ async def render_clip(req: RenderRequest):
     
     # Get video resolution for proper scaling
     parser = YouTubeParser(output_dir="temp_assets")
-    w, h = parser._get_video_resolution(video_path)
+    w, h = parser.get_video_resolution(video_path)
     source_width = w if w > 0 else 1920
     source_height = h if h > 0 else 1080
 
@@ -1108,7 +1108,7 @@ async def render_clip_stream(req: RenderRequest):
     
     # Get video resolution for proper scaling
     parser = YouTubeParser(output_dir="temp_assets")
-    w, h = parser._get_video_resolution(video_path)
+    w, h = parser.get_video_resolution(video_path)
     source_width = w if w > 0 else 1920
     source_height = h if h > 0 else 1080
 
@@ -1737,7 +1737,7 @@ async def load_ready_clip(req: LoadReadyClipRequest):
 
     # 4. Create a job marked as ready
     job_id = str(uuid.uuid4())[:8]
-    duration = parser._get_video_duration(clip_path)
+    duration = parser.get_video_duration(clip_path)
     
     # 5. Load generated hooks from sources folder
     ready_hooks = []
