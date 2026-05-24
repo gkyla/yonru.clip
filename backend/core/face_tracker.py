@@ -1,14 +1,12 @@
 import cv2
-import mediapipe as mp
 import numpy as np
+from core.frame_source import OpenCVFrameSource
+from core.face_detector_seam import MediaPipeFaceDetector
 
 class FaceTracker:
-    def __init__(self):
-        self.mp_face_detection = mp.solutions.face_detection
-        self.face_detection = self.mp_face_detection.FaceDetection(
-            model_selection=1,  # 1 = full-range (further faces)
-            min_detection_confidence=0.3
-        )
+    def __init__(self, frame_source=None, face_detector=None):
+        self.frame_source = frame_source
+        self.face_detector = face_detector
 
     def analyze_video(self, video_path: str, words_data: list = None):
         """
@@ -19,13 +17,14 @@ class FaceTracker:
           - Verification: Hard cuts require 2 frames of confirmation to prevent ghosting.
         """
         print(f"[face-track] Analyzing {video_path}...")
-        cap = cv2.VideoCapture(video_path)
         
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        if fps <= 0:
-            fps = 30.0
+        # 1. Fallback to production wrappers if no stubs are injected
+        source = self.frame_source or OpenCVFrameSource(video_path)
+        detector = self.face_detector or MediaPipeFaceDetector()
+        
+        width = source.width
+        height = source.height
+        fps = source.fps
 
         # Thresholds
         DEADZONE = width * 0.025
@@ -39,23 +38,16 @@ class FaceTracker:
         pending_snap_x = None
         snap_frames_count = 0
         
-        while cap.isOpened():
-            ret, frame = cap.read()
+        while True:
+            ret, frame = source.read()
             if not ret:
                 break
             
             if frame_idx % 2 == 0:
                 t_sec = frame_idx / fps
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                rgb_frame.flags.writeable = False
-                results = self.face_detection.process(rgb_frame)
                 
-                detected_target = None
-                if results.detections:
-                    # Pick the largest face (Solo-Mode focus)
-                    best_detection = max(results.detections, key=lambda d: d.location_data.relative_bounding_box.width * d.location_data.relative_bounding_box.height)
-                    bboxC = best_detection.location_data.relative_bounding_box
-                    detected_target = float(bboxC.xmin + bboxC.width / 2) * width
+                # Locate face position using deep seam
+                detected_target = detector.locate_face(frame, width)
                 
                 # ── APPLY Triple-B STABILITY ──
                 if detected_target is not None:
@@ -114,7 +106,7 @@ class FaceTracker:
             
             frame_idx += 1
         
-        cap.release()
+        source.close()
 
         if not crop_map:
             print("[face-track] No faces found in entire video. Defaulting to center.")
