@@ -75,6 +75,10 @@ backend_dir = os.path.dirname(os.path.abspath(__file__))
 prompts_dir = os.path.join(backend_dir, "prompts")
 prompt_repository = FilePromptRepository(prompts_dir)
 
+from core.config_store import DotEnvConfigStore
+config_store = DotEnvConfigStore(os.path.join(backend_dir, ".env"))
+
+
 
 def save_jobs():
     try:
@@ -311,9 +315,10 @@ def run_full_analysis(job_id: str, url: str, language: str, force_reanalyze: boo
             if force_reanalyze:
                 print(f"[cache] Force reanalyze requested, bypassing {hooks_cache_path}...")
             
-            api_key = os.environ.get("GEMINI_API_KEY")
+            api_key = config_store.get("GEMINI_API_KEY")
             if api_key:
                 generator = HookGenerator(api_key=api_key, prompt_repository=prompt_repository)
+
                 
                 # Generate from transcript
                 if transcript_segments and len(transcript_segments) > 0:
@@ -1406,60 +1411,27 @@ async def update_default_style_settings(req: DefaultStyleSettingsRequest):
 
 @app.get("/api/system-settings")
 async def get_system_settings():
-    """Retrieve system settings from .env file."""
-    settings = {}
-    env_file = ".env"
-    if os.path.exists(env_file):
-        with open(env_file, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, val = line.split("=", 1)
-                    settings[key.strip()] = val.strip().strip("'\"")
+    """Retrieve system settings from config store."""
     return {"settings": {
-        "GEMINI_API_KEY": settings.get("GEMINI_API_KEY", ""),
-        "FFMPEG_PATH": settings.get("FFMPEG_PATH", ""),
-        "NODE_PATH": settings.get("NODE_PATH", "")
+        "GEMINI_API_KEY": config_store.get("GEMINI_API_KEY", ""),
+        "FFMPEG_PATH": config_store.get("FFMPEG_PATH", ""),
+        "NODE_PATH": config_store.get("NODE_PATH", "")
     }}
 
 @app.put("/api/system-settings")
 async def update_system_settings(req: SystemSettingsRequest):
-    """Update system settings in .env file and environment."""
-    settings = {}
-    env_file = ".env"
-    
-    # Read existing
-    if os.path.exists(env_file):
-        with open(env_file, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, val = line.split("=", 1)
-                    settings[key.strip()] = val.strip()
-    
-    # Update from request
-    if req.GEMINI_API_KEY is not None:
-        settings["GEMINI_API_KEY"] = req.GEMINI_API_KEY
-    if req.FFMPEG_PATH is not None:
-        settings["FFMPEG_PATH"] = req.FFMPEG_PATH
-    if req.NODE_PATH is not None:
-        settings["NODE_PATH"] = req.NODE_PATH
-        
-    # Write back
+    """Update system settings in config store."""
     try:
-        with open(env_file, "w", encoding="utf-8") as f:
-            for k, v in settings.items():
-                if v:
-                    f.write(f"{k}={v}\n")
-                    
-        # Update live environment for the current process
-        for k in ["GEMINI_API_KEY", "FFMPEG_PATH", "NODE_PATH"]:
-            if getattr(req, k) is not None:
-                os.environ[k] = getattr(req, k)
-                
+        if req.GEMINI_API_KEY is not None:
+            config_store.set("GEMINI_API_KEY", req.GEMINI_API_KEY)
+        if req.FFMPEG_PATH is not None:
+            config_store.set("FFMPEG_PATH", req.FFMPEG_PATH)
+        if req.NODE_PATH is not None:
+            config_store.set("NODE_PATH", req.NODE_PATH)
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {e}")
+
 
 @app.post("/api/validate-gemini-key")
 async def validate_gemini_key(req: ValidateKeyRequest):
@@ -1553,8 +1525,8 @@ async def system_health():
     import shutil
     
     # 1. FFmpeg
-    # Check if a custom path is specified in the environment or if it exists in the standard PATH
-    custom_ffmpeg = os.environ.get("FFMPEG_PATH", "")
+    # Check if a custom path is specified in the config store or if it exists in the standard PATH
+    custom_ffmpeg = config_store.get("FFMPEG_PATH", "")
     ffmpeg_ok = False
     ffmpeg_bin = ""
     
@@ -1574,7 +1546,7 @@ async def system_health():
             ffmpeg_bin = found
             
     # 2. Node.js
-    custom_node = os.environ.get("NODE_PATH", "")
+    custom_node = config_store.get("NODE_PATH", "")
     node_ok = False
     node_bin = ""
     
@@ -1602,11 +1574,12 @@ async def system_health():
         venv_ok = False
         
     # 4. Check GEMINI_API_KEY
-    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    gemini_key = config_store.get("GEMINI_API_KEY", "")
     has_key = len(gemini_key.strip()) > 0
     
     # 5. Check cookies.txt
     cookies_configured = os.path.exists(COOKIES_PATH)
+
     
     return {
         "ffmpeg": {

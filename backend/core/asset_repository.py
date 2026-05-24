@@ -8,7 +8,7 @@ import shutil
 from core.youtube_client import YouTubeClient
 
 class AssetRepository:
-    def __init__(self, output_dir="temp_assets", youtube_client=None):
+    def __init__(self, output_dir="temp_assets", youtube_client=None, config_store=None):
         self.output_dir = output_dir
         self.source_dir = os.path.join(output_dir, "sources")
         self.clips_dir = os.path.join(output_dir, "clips")
@@ -18,12 +18,13 @@ class AssetRepository:
         
         self.cookie_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "cookies.txt"))
         self.client = youtube_client or YouTubeClient(cookie_path=self.cookie_path)
+        self.config_store = config_store
         
         self._env = os.environ.copy()
         
         # Update execution PATH securely
         extra_paths = []
-        custom_ffmpeg = os.environ.get("FFMPEG_PATH")
+        custom_ffmpeg = self.config_store.get("FFMPEG_PATH") if self.config_store else os.environ.get("FFMPEG_PATH")
         if custom_ffmpeg:
             if os.path.isdir(custom_ffmpeg):
                 extra_paths.append(custom_ffmpeg)
@@ -43,6 +44,7 @@ class AssetRepository:
                 current_path = f"{p}{sep}{current_path}" if current_path else p
                 
         self._env["PATH"] = current_path
+
 
     def _sanitize_filename(self, title: str) -> str:
         """Sanitize title for folder naming, truncating to 50 chars."""

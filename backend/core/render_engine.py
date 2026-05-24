@@ -53,14 +53,26 @@ class SafeEncoder(json.JSONEncoder):
 
 
 class RemotionRenderEngine(RenderEngine):
-    def __init__(self, output_dir="static/output"):
+    def __init__(self, output_dir="static/output", config_store=None):
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
+        
+        if config_store is None:
+            try:
+                import sys
+                main_module = sys.modules.get("main")
+                if main_module and hasattr(main_module, "config_store"):
+                    config_store = main_module.config_store
+            except:
+                pass
+                
+        self.config_store = config_store
+
         
         env_path = os.environ.get("PATH", "")
         extra_paths = []
         
-        custom_ffmpeg = os.environ.get("FFMPEG_PATH")
+        custom_ffmpeg = self.config_store.get("FFMPEG_PATH") if self.config_store else os.environ.get("FFMPEG_PATH")
         if custom_ffmpeg:
             if os.path.isdir(custom_ffmpeg):
                 extra_paths.append(custom_ffmpeg)
@@ -81,6 +93,7 @@ class RemotionRenderEngine(RenderEngine):
         
         if not shutil.which("ffmpeg"):
             raise RuntimeError("Friendly Alert: FFmpeg was not detected on this machine. Please download/install FFmpeg and map it to your execution variables.")
+
 
     def _prepare_props_and_paths(self, comp: RenderComposition, out_filename: str) -> tuple:
         remotion_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../remotion_engine"))
