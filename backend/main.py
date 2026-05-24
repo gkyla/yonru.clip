@@ -777,24 +777,24 @@ async def render_clip(req: RenderRequest):
         is_relative=is_relative
     )
         
-        print(f"[render] Generated {len(words_data)} subtitle chunks")
-        
-        # REMOVED: .ass file generation, as we now use Remotion
-        subtitle_ass = None
-        
-        # Extract text items from timeline
-        timeline_text = []
-        if req.timeline_tracks:
-            text_track = next((t for t in req.timeline_tracks if t['id'] == 'text'), None)
-            if text_track:
-                timeline_text = text_track.get('items', [])
-        
-        # Extract audio items from timeline
-        timeline_audio = []
-        if req.timeline_tracks:
-            audio_track = next((t for t in req.timeline_tracks if t['id'] == 'audio'), None)
-            if audio_track:
-                timeline_audio = audio_track.get('items', [])
+    print(f"[render] Generated {len(words_data)} subtitle chunks")
+    
+    # REMOVED: .ass file generation, as we now use Remotion
+    subtitle_ass = None
+    
+    # Extract text items from timeline
+    timeline_text = []
+    if req.timeline_tracks:
+        text_track = next((t for t in req.timeline_tracks if t['id'] == 'text'), None)
+        if text_track:
+            timeline_text = text_track.get('items', [])
+    
+    # Extract audio items from timeline
+    timeline_audio = []
+    if req.timeline_tracks:
+        audio_track = next((t for t in req.timeline_tracks if t['id'] == 'audio'), None)
+        if audio_track:
+            timeline_audio = audio_track.get('items', [])
     
     # Get video resolution for proper scaling
     parser = YouTubeParser(output_dir="temp_assets")
