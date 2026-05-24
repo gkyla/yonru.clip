@@ -100,5 +100,10 @@ TRANSCRIPT DATA:
                     return json.dumps(parsed)
             except Exception as e:
                 print(f"[gemini] Error analyzing transcript (Retry {attempt+1}): {e}")
+                # Check for fatal HTTP/API status codes to fail fast (TDD transient retry loop)
+                code = getattr(e, "code", None) or getattr(e, "status_code", None)
+                if code and code in [400, 401, 403, 404]:
+                    print(f"[gemini] Fatal error {code}. Failing fast without retry.")
+                    break
         
         return None
