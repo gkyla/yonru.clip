@@ -1,11 +1,17 @@
 import os
 import json
 from core.genai_client import GeminiGenAIClient
+from core.prompt_repository import FilePromptRepository
 
 class HookGenerator:
-    def __init__(self, api_key=None, genai_client=None):
+    def __init__(self, api_key=None, genai_client=None, prompt_repository=None):
         self.client = genai_client or GeminiGenAIClient(api_key=api_key)
         self.model_name = "gemini-2.5-flash"
+        if prompt_repository is not None:
+            self.repository = prompt_repository
+        else:
+            base_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts")
+            self.repository = FilePromptRepository(base_dir)
 
     def find_hooks_from_transcript(self, transcript_segments: list, num_hooks: int = 3, auto_hooks: bool = False, video_duration: float = None, prompt_file: str = "prompt.json"):
         """
@@ -25,36 +31,19 @@ class HookGenerator:
         if video_duration:
             duration_constraint = f"\n            VIDEO DURATION: The total length is {video_duration:.1f} seconds. ALL timestamps MUST be within 0 and {video_duration:.1f}."
 
-        if "::" in prompt_file:
-            filename, idx_str = prompt_file.split("::", 1)
-            try:
-                idx = int(idx_str)
-            except ValueError:
-                idx = -1
-        else:
-            filename = prompt_file
-            idx = -1
+        prompt_template = self.repository.get_prompt_text(prompt_file)
+        if prompt_template is None:
+            print(f"[gemini] Failed to load prompt file {prompt_file} via repository")
+            return None
             
-        # Load prompt from file
-        prompt_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts", filename)
         try:
-            with open(prompt_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            # Build hook count instruction
+            if auto_hooks:
+                hook_count_instruction = "Find ALL naturally compelling hooks in the transcript. Do not force a specific number — return as many or as few as genuinely qualify. Quality over quantity."
+            else:
+                hook_count_instruction = f"Find exactly {num_hooks} hooks."
                 
-                if isinstance(data, list) and idx >= 0 and idx < len(data):
-                    prompt_template = data[idx].get("prompt", "")
-                elif isinstance(data, dict):
-                    prompt_template = data.get("prompt", "")
-                else:
-                    prompt_template = ""
-                
-                # Build hook count instruction
-                if auto_hooks:
-                    hook_count_instruction = "Find ALL naturally compelling hooks in the transcript. Do not force a specific number — return as many or as few as genuinely qualify. Quality over quantity."
-                else:
-                    hook_count_instruction = f"Find exactly {num_hooks} hooks."
-                    
-                fixed_suffix = """
+            fixed_suffix = """
 
 OUTPUT FORMAT (JSON Array):
 Each object must have:
@@ -66,16 +55,17 @@ Each object must have:
 
 TRANSCRIPT DATA:
 {transcript_text}"""
-                prompt_template += fixed_suffix
-                    
-                prompt = prompt_template.format(
-                    num_hooks=hook_count_instruction,
-                    duration_constraint=duration_constraint,
-                    transcript_text=transcript_text
-                )
+            prompt_template += fixed_suffix
+                
+            prompt = prompt_template.format(
+                num_hooks=hook_count_instruction,
+                duration_constraint=duration_constraint,
+                transcript_text=transcript_text
+            )
         except Exception as e:
-            print(f"[gemini] Failed to load prompt file {filename}: {e}")
+            print(f"[gemini] Failed to build prompt template: {e}")
             return None
+
             
         max_retries = 3
         for attempt in range(max_retries):
