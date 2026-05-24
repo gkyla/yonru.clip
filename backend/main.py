@@ -33,31 +33,51 @@ os.makedirs("temp_assets/clips", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/assets", StaticFiles(directory="temp_assets"), name="assets")
 
-# Persistence for jobs to survive reloads
-JOBS_FILE = "temp_assets/jobs.json"
-jobs = {}
+# Thread-safe Job Management Seam
+from core.job_store import JSONFileJobStore
+from core.job_manager import JobManager
+
+class JobsDictProxy:
+    def __init__(self, manager: JobManager):
+        self._manager = manager
+
+    def __getitem__(self, key: str) -> dict:
+        res = self._manager.get_job(key)
+        if res is None:
+            raise KeyError(key)
+        return res
+
+    def __setitem__(self, key: str, value: dict) -> None:
+        self._manager.store.set(key, value)
+
+    def __contains__(self, key: str) -> bool:
+        return self._manager.get_job(key) is not None
+
+    def get(self, key: str, default=None) -> Optional[dict]:
+        res = self._manager.get_job(key)
+        return res if res is not None else default
+
+    def values(self):
+        return self._manager.list_all_jobs().values()
+
+    def items(self):
+        return self._manager.list_all_jobs().items()
+
+    def __len__(self) -> int:
+        return len(self._manager.list_all_jobs())
+
+job_store = JSONFileJobStore("temp_assets/jobs.json")
+job_manager = JobManager(job_store)
+jobs = JobsDictProxy(job_manager)
 
 def save_jobs():
     try:
-        # Convert to serializable dict
-        serializable = {}
+        # Write back any in-memory dictionary modifications to trigger store.set()
         for jid, data in jobs.items():
-            serializable[jid] = data
-        with open(JOBS_FILE, "w") as f:
-            json.dump(serializable, f)
+            job_manager.store.set(jid, data)
     except:
         pass
 
-def load_jobs():
-    global jobs
-    if os.path.exists(JOBS_FILE):
-        try:
-            with open(JOBS_FILE, "r") as f:
-                jobs = json.load(f)
-        except:
-            jobs = {}
-
-load_jobs()
 
 # --- Request Models ---
 
