@@ -347,7 +347,10 @@ def terminate_all_services():
     log_system("\033[32mAll services successfully stopped. Clean exit.\033[0m")
 
 def handle_signal(sig, frame):
-    log_system("Interruption signal received.")
+    # Ignore subsequent Ctrl+C signals to protect the shutdown routine from violent interruptions
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    log_system("Interruption signal received. Cleaning up services safely (do not force quit)...")
     terminate_all_services()
     sys.exit(0)
 
