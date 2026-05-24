@@ -1,13 +1,11 @@
 import os
-from google import genai
-from google.genai import types
+import json
+from core.genai_client import GeminiGenAIClient
 
 class HookGenerator:
-    def __init__(self, api_key=None):
-        self.client = genai.Client(api_key=api_key)
+    def __init__(self, api_key=None, genai_client=None):
+        self.client = genai_client or GeminiGenAIClient(api_key=api_key)
         self.model_name = "gemini-2.5-flash"
-        
-
 
     def find_hooks_from_transcript(self, transcript_segments: list, num_hooks: int = 3, auto_hooks: bool = False, video_duration: float = None, prompt_file: str = "prompt.json"):
         """
@@ -27,8 +25,6 @@ class HookGenerator:
         if video_duration:
             duration_constraint = f"\n            VIDEO DURATION: The total length is {video_duration:.1f} seconds. ALL timestamps MUST be within 0 and {video_duration:.1f}."
 
-        import json
-        
         if "::" in prompt_file:
             filename, idx_str = prompt_file.split("::", 1)
             try:
@@ -80,27 +76,19 @@ TRANSCRIPT DATA:
         except Exception as e:
             print(f"[gemini] Failed to load prompt file {filename}: {e}")
             return None
+            
         max_retries = 3
-        
         for attempt in range(max_retries):
             print(f"[gemini] Requesting text analysis (Attempt {attempt + 1}/{max_retries})...")
             try:
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                    ),
-                )
-                
-                raw_json = response.text
+                raw_json = self.client.generate_json(prompt, self.model_name)
                 parsed = json.loads(raw_json)
                 if isinstance(parsed, list) and len(parsed) > 0:
                     print(f"[gemini] Successfully generated {len(parsed)} hooks from transcript.")
                     return json.dumps(parsed)
             except Exception as e:
                 print(f"[gemini] Error analyzing transcript (Retry {attempt+1}): {e}")
-                # Check for fatal HTTP/API status codes to fail fast (TDD transient retry loop)
+                # Check for fatal HTTP/API status codes to fail fast
                 code = getattr(e, "code", None) or getattr(e, "status_code", None)
                 if code and code in [400, 401, 403, 404]:
                     print(f"[gemini] Fatal error {code}. Failing fast without retry.")
