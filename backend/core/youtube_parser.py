@@ -1,11 +1,12 @@
 import os
-from core.youtube_client import YouTubeClient
+from typing import Optional
+from core.youtube_client import YouTubeClient, AbstractYouTubeClient
 from core.asset_repository import AssetRepository
 
 class YouTubeParser:
-    def __init__(self, output_dir="temp_assets", config_store=None):
+    def __init__(self, output_dir="temp_assets", youtube_client: Optional[AbstractYouTubeClient] = None, config_store=None):
         self.cookie_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "cookies.txt"))
-        self.client = YouTubeClient(cookie_path=self.cookie_path)
+        self.client = youtube_client or YouTubeClient(cookie_path=self.cookie_path)
         
         if config_store is None:
             try:
@@ -17,6 +18,22 @@ class YouTubeParser:
                 pass
                 
         self.repo = AssetRepository(output_dir=output_dir, youtube_client=self.client, config_store=config_store)
+
+    @property
+    def clips_dir(self) -> str:
+        return self.repo.clips_dir
+
+    def extract_video_id(self, url: str) -> str:
+        return self.client.extract_video_id(url)
+
+    def get_video_info_fast(self, url: str) -> dict:
+        return self.client.get_video_info_fast(url)
+
+    def get_video_resolution(self, video_path: str) -> tuple:
+        return self.repo.get_video_resolution(video_path)
+
+    def get_video_duration(self, video_path: str) -> float:
+        return self.repo.get_video_duration(video_path)
 
 
 

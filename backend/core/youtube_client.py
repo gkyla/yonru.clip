@@ -1,8 +1,32 @@
 import os
 import re
+from abc import ABC, abstractmethod
+from typing import Optional, List, Dict
 import yt_dlp
 
-class YouTubeClient:
+class AbstractYouTubeClient(ABC):
+    @abstractmethod
+    def extract_video_id(self, url: str) -> Optional[str]:
+        """Extract YouTube video ID from URL."""
+        pass
+
+    @abstractmethod
+    def get_video_info_fast(self, url: str) -> dict:
+        """Get video title and ID without downloading."""
+        pass
+
+    @abstractmethod
+    def fetch_transcript(self, video_id: str) -> list:
+        """Fetch transcript and segment into snappy word-level structure."""
+        pass
+
+    @abstractmethod
+    def download_video(self, url: str, target_dir: str) -> None:
+        """Download high-quality video into target directory."""
+        pass
+
+
+class YouTubeClient(AbstractYouTubeClient):
     def __init__(self, cookie_path: str = None):
         self.cookie_path = cookie_path
 
@@ -101,3 +125,31 @@ class YouTubeClient:
             except Exception as e:
                 print(f"[youtube-client] Download Error: {e}")
                 raise RuntimeError(f"YouTube Download Error: {e}")
+
+
+class MockYouTubeClient(AbstractYouTubeClient):
+    def __init__(self, mock_info: dict = None, mock_transcript: list = None):
+        self.mock_info = mock_info or {"title": "Mock Video", "id": "mock_id_123"}
+        self.mock_transcript = mock_transcript or []
+        self.downloaded_urls = []
+        self.downloaded_dirs = []
+
+    def extract_video_id(self, url: str) -> Optional[str]:
+        if "watch?v=" in url:
+            return url.split("watch?v=")[-1][:11]
+        elif "youtu.be/" in url:
+            return url.split("youtu.be/")[-1][:11]
+        return "mock_id_123"
+
+    def get_video_info_fast(self, url: str) -> dict:
+        return {
+            "title": self.mock_info.get("title", "Mock Video"),
+            "id": self.mock_info.get("id", self.extract_video_id(url))
+        }
+
+    def fetch_transcript(self, video_id: str) -> list:
+        return self.mock_transcript
+
+    def download_video(self, url: str, target_dir: str) -> None:
+        self.downloaded_urls.append(url)
+        self.downloaded_dirs.append(target_dir)

@@ -75,7 +75,7 @@ class AssetRepository:
         except:
             return {}
 
-    def _get_video_resolution(self, file_path: str) -> tuple:
+    def get_video_resolution(self, file_path: str) -> tuple:
         """Returns (width, height)."""
         info = self._ffprobe_info(file_path)
         for stream in info.get("streams", []):
@@ -83,7 +83,7 @@ class AssetRepository:
                 return (stream.get("width", 0), stream.get("height", 0))
         return (0, 0)
 
-    def _get_video_duration(self, file_path: str) -> float:
+    def get_video_duration(self, file_path: str) -> float:
         """Returns duration in seconds."""
         info = self._ffprobe_info(file_path)
         fmt = info.get("format", {})
@@ -140,11 +140,11 @@ class AssetRepository:
             if entry.is_dir() and entry.name.endswith(f"_{video_id}"):
                 file_path = os.path.join(entry.path, "full.mp4")
                 if os.path.exists(file_path):
-                    w, h = self._get_video_resolution(file_path)
+                    w, h = self.get_video_resolution(file_path)
                     return {
                         "video_id": video_id,
                         "title": entry.name.replace(f"_{video_id}", ""),
-                        "duration": self._get_video_duration(file_path),
+                        "duration": self.get_video_duration(file_path),
                         "fps": self._get_video_fps(file_path),
                         "file_path": file_path,
                         "folder_name": entry.name,
@@ -162,11 +162,11 @@ class AssetRepository:
             file_path = os.path.join(target_dir, "full.mp4")
             if os.path.exists(file_path):
                 video_id = folder_name.split("_")[-1]
-                w, h = self._get_video_resolution(file_path)
+                w, h = self.get_video_resolution(file_path)
                 return {
                     "video_id": video_id,
                     "title": folder_name.replace(f"_{video_id}", ""),
-                    "duration": self._get_video_duration(file_path),
+                    "duration": self.get_video_duration(file_path),
                     "fps": self._get_video_fps(file_path),
                     "file_path": file_path,
                     "folder_name": folder_name,
@@ -198,12 +198,12 @@ class AssetRepository:
         
         self.client.download_video(url, target_dir)
         file_path = os.path.join(target_dir, "full.mp4")
-        w, h = self._get_video_resolution(file_path)
+        w, h = self.get_video_resolution(file_path)
         
         return {
             "video_id": video_id,
             "title": info["title"],
-            "duration": self._get_video_duration(file_path),
+            "duration": self.get_video_duration(file_path),
             "fps": self._get_video_fps(file_path),
             "file_path": file_path,
             "folder_name": folder_name,
@@ -300,7 +300,7 @@ class AssetRepository:
                 if not os.path.exists(file_path):
                     continue
                 
-                w, h = self._get_video_resolution(file_path)
+                w, h = self.get_video_resolution(file_path)
                 thumb_path = self._generate_thumbnail(entry.path, video_id)
                 
                 results.append({
@@ -308,7 +308,7 @@ class AssetRepository:
                     "title": entry.name.replace(f"_{video_id}", "").replace("_", " "),
                     "folder_name": entry.name,
                     "resolution": f"{w}x{h}",
-                    "duration": self._get_video_duration(file_path),
+                    "duration": self.get_video_duration(file_path),
                     "asset_url": f"/assets/sources/{entry.name}/full.mp4",
                     "thumbnail_url": f"/assets/sources/{entry.name}/thumb.jpg" if thumb_path else None,
                     "youtube_url": f"https://youtube.com/watch?v={video_id}"
@@ -335,7 +335,7 @@ class AssetRepository:
                 if os.path.exists(video_path) and os.path.exists(transcript_path):
                     mtime = os.path.getmtime(video_path)
                     clip_id = clip_entry.name
-                    duration = self._get_video_duration(video_path)
+                    duration = self.get_video_duration(video_path)
                     
                     parent_name = video_entry.name
                     title = "Unknown Clip"
