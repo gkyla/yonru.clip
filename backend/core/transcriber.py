@@ -1,13 +1,18 @@
 import os
 import re
-from faster_whisper import WhisperModel
+from core.speech_transcriber import FasterWhisperSpeechTranscriber
 
 class Transcriber:
-    def __init__(self, model_size="base", device="cpu", compute_type="int8"):
+    def __init__(self, model_size="base", device="cpu", compute_type="int8", transcriber_client=None):
         # "base" is fast and relatively accurate. 
         # For Mac, device="cpu" is usually best for faster-whisper unless using specialized builds.
         # But faster-whisper can use "auto" or "cuda". On Mac, CPU is the default.
-        self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
+        if transcriber_client is not None:
+            self.client = transcriber_client
+        else:
+            self.client = FasterWhisperSpeechTranscriber(
+                model_size=model_size, device=device, compute_type=compute_type
+            )
 
     def clean_text(self, text: str):
         """Only remove commas from the text."""
@@ -18,13 +23,7 @@ class Transcriber:
         """
         Transcribe audio and return word-level timestamps.
         """
-        print(f"[whisper] Transcribing {audio_path}...")
-        segments, info = self.model.transcribe(
-            audio_path, 
-            beam_size=5, 
-            word_timestamps=True,
-            language=language
-        )
+        segments = self.client.transcribe(audio_path, language=language)
         
         word_level = []
         for segment in segments:
@@ -48,3 +47,4 @@ class Transcriber:
                     })
         
         return word_level
+
