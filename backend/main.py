@@ -11,7 +11,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional
 
-from core.youtube_parser import YouTubeParser
+from core.youtube_client import YouTubeClient
+from core.asset_repository import AssetRepository
 from core.hook_generator import HookGenerator
 from core.face_tracker import FaceTracker
 from core.renderer import VideoRenderer
@@ -77,6 +78,10 @@ prompt_repository = FilePromptRepository(prompts_dir)
 
 from core.config_store import DotEnvConfigStore
 config_store = DotEnvConfigStore(os.path.join(backend_dir, ".env"))
+
+cookie_path = os.path.abspath(os.path.join(backend_dir, "cookies.txt"))
+youtube_client = YouTubeClient(cookie_path=cookie_path)
+asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store)
 
 from core.subtitle_engine import DefaultSubtitleEngine
 subtitle_engine = DefaultSubtitleEngine()
@@ -223,11 +228,9 @@ class BatchDeleteClipsRequest(BaseModel):
 def run_full_analysis(job_id: str, url: str, language: str, force_reanalyze: bool = False, prompt_file: str = "prompt.json", num_hooks: int = 10, auto_hooks: bool = False):
     """Background: check transcript → download full 1080p → Gemini hooks"""
     try:
-        parser = YouTubeParser(output_dir="temp_assets")
-        
         # Step -1: Check for cached video and hooks FIRST to avoid YouTube network calls
         if not force_reanalyze:
-            cached_video = parser.get_cached_video(url)
+            cached_video = asset_repository.get_cached_video(url)
             if cached_video and cached_video.get("file_path"):
                 hooks_cache_path = os.path.join(os.path.dirname(cached_video["file_path"]), "hooks.json")
                 if os.path.exists(hooks_cache_path):
@@ -271,9 +274,9 @@ def run_full_analysis(job_id: str, url: str, language: str, force_reanalyze: boo
 
         # Step 0: Check Transcript FIRST
         jobs[job_id]["status"] = "checking_transcript"
-        video_id = parser.extract_video_id(url)
+        video_id = youtube_client.extract_video_id(url)
         if not video_id:
-            info = parser.get_video_info_fast(url)
+            info = youtube_client.get_video_info_fast(url)
             video_id = info.get("id")
             
         if not video_id:
@@ -282,7 +285,7 @@ def run_full_analysis(job_id: str, url: str, language: str, force_reanalyze: boo
             save_jobs()
             return
             
-        transcript_segments = parser.fetch_transcript(video_id)
+        transcript_segments = youtube_client.fetch_transcript(video_id)
         if not transcript_segments or len(transcript_segments) == 0:
             jobs[job_id]["status"] = "error"
             jobs[job_id]["error"] = "No transcript found. Yonru requires videos with available closed-captions to guarantee accurate frame synchronization."
@@ -291,7 +294,7 @@ def run_full_analysis(job_id: str, url: str, language: str, force_reanalyze: boo
 
         # Step 1: Download full 1080p video (single network call)
         jobs[job_id]["status"] = "downloading_video"
-        video_info = parser.download_full_video(url)
+        video_info = asset_repository.get_or_create_source(url)
         
         if not video_info:
             jobs[job_id]["status"] = "error"
@@ -416,8 +419,7 @@ def run_local_cut(job_id: str, start_time: float, end_time: float, theme: Option
             jobs[job_id]["error"] = "Full video not found. Re-analyze first."
             return
         
-        parser = YouTubeParser(output_dir="temp_assets")
-        clip = parser.cut_segment(full_path, start_time, end_time, theme=theme)
+        clip = asset_repository.create_clip(full_path, start_time, end_time, theme=theme)
         
         if not clip:
             jobs[job_id]["status"] = "error"
@@ -451,7 +453,7 @@ def run_local_cut(job_id: str, start_time: float, end_time: float, theme: Option
         
         try:
             # Extract audio from clip
-            clip_audio = parser.extract_audio_from_local(clip["file_path"])
+            clip_audio = asset_repository.extract_audio_from_local(clip["file_path"])
             
             from core.transcriber import Transcriber
             print(f"[transcribe] Using Whisper model: {whisper_model}")
@@ -571,7 +573,6 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
     
     # If clip already exists and is ready, return ready immediately
     # We can use the logic from run_local_cut Step 1 to check
-    parser = YouTubeParser(output_dir="temp_assets")
     cached_info = jobs[req.job_id].get("video_info")
     if cached_info and cached_info.get("file_path"):
         folder_name = os.path.basename(os.path.dirname(cached_info["file_path"]))
@@ -582,7 +583,7 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
             safe_theme = re.sub(r'[^\w\s-]', '', req.theme).strip().replace(' ', '_')[:50]
         
         clip_id = f"{int(req.start_time)}_{int(req.end_time)}_{safe_theme}" if safe_theme else f"{int(req.start_time)}_{int(req.end_time)}"
-        target_dir = os.path.join(parser.clips_dir, folder_name, clip_id)
+        target_dir = os.path.join(asset_repository.clips_dir, folder_name, clip_id)
         transcript_path = os.path.join(target_dir, "transcript.json")
         
         if os.path.exists(os.path.join(target_dir, "video.mp4")) and os.path.exists(transcript_path):
@@ -795,10 +796,8 @@ async def render_clip(req: RenderRequest):
         audio_track = next((t for t in req.timeline_tracks if t['id'] == 'audio'), None)
         if audio_track:
             timeline_audio = audio_track.get('items', [])
-    
     # Get video resolution for proper scaling
-    parser = YouTubeParser(output_dir="temp_assets")
-    w, h = parser.get_video_resolution(video_path)
+    w, h = asset_repository.get_video_resolution(video_path)
     source_width = w if w > 0 else 1920
     source_height = h if h > 0 else 1080
 
@@ -949,10 +948,8 @@ async def render_clip_stream(req: RenderRequest):
         audio_track = next((t for t in req.timeline_tracks if t['id'] == 'audio'), None)
         if audio_track:
             timeline_audio = audio_track.get('items', [])
-    
     # Get video resolution for proper scaling
-    parser = YouTubeParser(output_dir="temp_assets")
-    w, h = parser.get_video_resolution(video_path)
+    w, h = asset_repository.get_video_resolution(video_path)
     source_width = w if w > 0 else 1920
     source_height = h if h > 0 else 1080
 
@@ -1048,22 +1045,19 @@ async def render_clip_stream(req: RenderRequest):
 @app.get("/api/cached")
 async def list_cached():
     """List all cached full videos in temp_assets with resolution and size."""
-    parser = YouTubeParser(output_dir="temp_assets")
-    videos = parser.list_cached_videos()
+    videos = asset_repository.list_cached_videos()
     return {"videos": videos}
 
 @app.get("/api/ready-clips")
 async def list_ready_clips():
     """List all segments that have been cut and transcribed."""
-    parser = YouTubeParser(output_dir="temp_assets")
-    clips = parser.list_all_clips()
+    clips = asset_repository.list_all_clips()
     return {"clips": clips}
 
 @app.delete("/api/ready-clips/{folder_name}/{clip_id}")
 async def delete_ready_clip(folder_name: str, clip_id: str):
     """Delete a specific clip folder."""
-    parser = YouTubeParser(output_dir="temp_assets")
-    success = parser.delete_clip(folder_name, clip_id)
+    success = asset_repository.delete_clip(folder_name, clip_id)
     if not success:
         raise HTTPException(status_code=404, detail="Clip not found")
     return {"status": "deleted", "clip_id": clip_id}
@@ -1071,13 +1065,12 @@ async def delete_ready_clip(folder_name: str, clip_id: str):
 @app.post("/api/ready-clips/delete-batch")
 async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
     """Delete multiple clips in one go."""
-    parser = YouTubeParser(output_dir="temp_assets")
     results = []
     for item in req.clips:
         folder_name = item.get("folder_name")
         clip_id = item.get("clip_id")
         if folder_name and clip_id:
-            success = parser.delete_clip(folder_name, clip_id)
+            success = asset_repository.delete_clip(folder_name, clip_id)
             results.append({"clip_id": clip_id, "success": success})
     return {"status": "ok", "results": results}
 
@@ -1085,8 +1078,6 @@ async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
 async def delete_cached(folder_name: str):
     """Delete titled folders in sources and clips with graceful job cancellation and strict security checks."""
     try:
-        parser = YouTubeParser(output_dir="temp_assets")
-        
         # 1. Terminate or cancel active background jobs for this folder
         target_video_id = None
         if len(folder_name) >= 12 and folder_name[-12] == "_":
@@ -1111,7 +1102,7 @@ async def delete_cached(folder_name: str):
         save_jobs()
         
         # 2. Perform deletion on disk
-        count = parser.delete_cached_video(folder_name)
+        count = asset_repository.delete_cached_video(folder_name)
         if count == 0:
             raise HTTPException(status_code=404, detail="Folder not found or already deleted")
             
@@ -1131,8 +1122,7 @@ class AnalyzeCachedRequest(BaseModel):
 async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force: bool = False, req: AnalyzeCachedRequest = AnalyzeCachedRequest()):
     """Re-analyze a cached video using the new folder lookup. Supports forcing a re-analysis bypassing hooks.json."""
     import uuid
-    parser = YouTubeParser(output_dir="temp_assets")
-    cached = parser.get_cached_video(f"https://youtube.com/watch?v={video_id}")
+    cached = asset_repository.get_cached_video(f"https://youtube.com/watch?v={video_id}")
     
     if not cached:
         raise HTTPException(status_code=404, detail=f"Cached video for ID {video_id} not found in titled folders")
@@ -1161,20 +1151,17 @@ class SaveHookRequest(BaseModel):
 
 @app.get("/api/cached/{folder_name}/saved_hooks")
 def get_saved_hooks(folder_name: str):
-    parser = YouTubeParser(output_dir="temp_assets")
-    hooks = parser.get_saved_hooks(folder_name)
+    hooks = asset_repository.get_saved_hooks(folder_name)
     return {"saved_hooks": hooks}
 
 @app.post("/api/cached/saved_hooks")
 def add_saved_hook(req: SaveHookRequest):
-    parser = YouTubeParser(output_dir="temp_assets")
-    hooks = parser.add_saved_hook(req.folder_name, req.hook)
+    hooks = asset_repository.add_saved_hook(req.folder_name, req.hook)
     return {"saved_hooks": hooks}
 
 @app.delete("/api/cached/{folder_name}/saved_hooks/{hook_id}")
 def remove_saved_hook(folder_name: str, hook_id: str):
-    parser = YouTubeParser(output_dir="temp_assets")
-    hooks = parser.delete_saved_hook(folder_name, hook_id)
+    hooks = asset_repository.delete_saved_hook(folder_name, hook_id)
     return {"saved_hooks": hooks}
 
 @app.put("/api/transcript")
@@ -1550,7 +1537,6 @@ async def delete_thumbnail(folder_name: str, clip_id: str):
 async def load_ready_clip(req: LoadReadyClipRequest):
     """Initialize a job state from an existing ready clip."""
     import uuid
-    parser = YouTubeParser(output_dir="temp_assets")
     
     # 1. Verify clip exists
     clip_dir = os.path.join("temp_assets", "clips", req.folder_name, req.clip_id)
@@ -1561,7 +1547,7 @@ async def load_ready_clip(req: LoadReadyClipRequest):
         raise HTTPException(status_code=404, detail="Ready clip assets not found")
         
     # 2. Get source video info
-    video_info = parser.get_cached_video_by_folder(req.folder_name)
+    video_info = asset_repository.get_cached_video_by_folder(req.folder_name)
     if not video_info:
         raise HTTPException(status_code=404, detail="Source video folder not found")
         
@@ -1581,7 +1567,7 @@ async def load_ready_clip(req: LoadReadyClipRequest):
 
     # 4. Create a job marked as ready
     job_id = str(uuid.uuid4())[:8]
-    duration = parser.get_video_duration(clip_path)
+    duration = asset_repository.get_video_duration(clip_path)
     
     # 5. Load generated hooks from sources folder
     ready_hooks = []

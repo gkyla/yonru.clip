@@ -6,28 +6,25 @@ import sys
 # Dynamic path resolution to root of backend
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from core.youtube_parser import YouTubeParser
 from core.asset_repository import AssetRepository
 
 class TestSecureDeletion(unittest.TestCase):
     def test_invalid_folder_names(self):
-        parser = YouTubeParser(output_dir="temp_assets")
         repo = AssetRepository(output_dir="temp_assets")
         
-        for engine in [parser, repo]:
-            # Test directory traversal characters
-            with self.assertRaises(ValueError):
-                engine.delete_cached_video("../../some_folder")
-                
-            with self.assertRaises(ValueError):
-                engine.delete_cached_video("some_folder/../other")
-    
-            # Test invalid characters
-            with self.assertRaises(ValueError):
-                engine.delete_cached_video("invalid@folder")
-                
-            with self.assertRaises(ValueError):
-                engine.delete_cached_video("")
+        # Test directory traversal characters
+        with self.assertRaises(ValueError):
+            repo.delete_cached_video("../../some_folder")
+            
+        with self.assertRaises(ValueError):
+            repo.delete_cached_video("some_folder/../other")
+
+        # Test invalid characters
+        with self.assertRaises(ValueError):
+            repo.delete_cached_video("invalid@folder")
+            
+        with self.assertRaises(ValueError):
+            repo.delete_cached_video("")
 
     @patch('shutil.rmtree')
     @patch('os.path.exists')
@@ -36,17 +33,14 @@ class TestSecureDeletion(unittest.TestCase):
         mock_exists.return_value = True
         mock_isdir.return_value = True
         
-        parser = YouTubeParser(output_dir="temp_assets")
         repo = AssetRepository(output_dir="temp_assets")
         
         # Clean alphanumeric and underscore name should succeed
-        count1 = parser.delete_cached_video("Valid_Title_abc123-456")
-        count2 = repo.delete_cached_video("Valid_Title_abc123-456")
+        count = repo.delete_cached_video("Valid_Title_abc123-456")
         
         # Must return deleted count (1 source + 1 clip = 2)
-        self.assertEqual(count1, 2)
-        self.assertEqual(count2, 2)
-        self.assertEqual(mock_rmtree.call_count, 4)
+        self.assertEqual(count, 2)
+        self.assertEqual(mock_rmtree.call_count, 2)
         
         print("\n[OK] delete_cached_video securely validated name and cleared folders successfully!")
 
