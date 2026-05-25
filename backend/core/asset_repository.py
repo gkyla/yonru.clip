@@ -5,9 +5,60 @@ import subprocess
 import json
 import uuid
 import shutil
+from typing import Optional, Dict, Any, List
+from abc import ABC, abstractmethod
 from core.youtube_client import YouTubeClient
 
-class AssetRepository:
+class AssetStore(ABC):
+    @abstractmethod
+    def get_cached_video(self, url: str) -> Optional[dict]:
+        pass
+
+    @abstractmethod
+    def get_cached_video_by_folder(self, folder_name: str) -> Optional[dict]:
+        pass
+
+    @abstractmethod
+    def get_or_create_source(self, url: str, force_download: bool = False) -> Optional[dict]:
+        pass
+
+    @abstractmethod
+    def extract_audio_from_local(self, video_path: str) -> str:
+        pass
+
+    @abstractmethod
+    def create_clip(self, video_path: str, start_time: float, end_time: float, theme: str = None) -> Optional[dict]:
+        pass
+
+    @abstractmethod
+    def list_cached_videos(self) -> list:
+        pass
+
+    @abstractmethod
+    def list_all_clips(self) -> list:
+        pass
+
+    @abstractmethod
+    def delete_cached_video(self, folder_name: str) -> int:
+        pass
+
+    @abstractmethod
+    def delete_clip(self, folder_name: str, clip_id: str) -> bool:
+        pass
+
+    @abstractmethod
+    def get_saved_hooks(self, folder_name: str) -> list:
+        pass
+
+    @abstractmethod
+    def add_saved_hook(self, folder_name: str, hook: dict) -> list:
+        pass
+
+    @abstractmethod
+    def delete_saved_hook(self, folder_name: str, hook_id: str) -> list:
+        pass
+
+class AssetRepository(AssetStore):
     def __init__(self, output_dir="temp_assets", youtube_client=None, config_store=None):
         self.output_dir = output_dir
         self.source_dir = os.path.join(output_dir, "sources")
@@ -448,3 +499,93 @@ class AssetRepository:
         with open(saved_hooks_path, "w", encoding="utf-8") as f:
             json.dump(hooks, f, indent=4)
         return hooks
+
+
+class MockAssetStore(AssetStore):
+    def __init__(self, cached_videos=None, ready_clips=None, saved_hooks=None):
+        self.cached_videos = cached_videos or []
+        self.ready_clips = ready_clips or []
+        self.saved_hooks = saved_hooks or {}
+        self.calls = []
+
+    def get_cached_video(self, url: str) -> Optional[dict]:
+        self.calls.append(("get_cached_video", url))
+        for v in self.cached_videos:
+            if url in v.get("youtube_url", "") or url == v.get("video_id") or v.get("video_id") in url:
+                return v
+        return None
+
+    def get_cached_video_by_folder(self, folder_name: str) -> Optional[dict]:
+        self.calls.append(("get_cached_video_by_folder", folder_name))
+        for v in self.cached_videos:
+            if v.get("folder_name") == folder_name:
+                return v
+        return None
+
+    def get_or_create_source(self, url: str, force_download: bool = False) -> Optional[dict]:
+        self.calls.append(("get_or_create_source", url, force_download))
+        cached = self.get_cached_video(url)
+        if cached:
+            return cached
+        mock_source = {
+            "video_id": "mock_id",
+            "title": "Mock Video",
+            "duration": 60.0,
+            "fps": 30.0,
+            "file_path": "mock_path/full.mp4",
+            "folder_name": "Mock_Video_mock_id",
+            "asset_url": "/assets/sources/Mock_Video_mock_id/full.mp4",
+            "width": 1920,
+            "height": 1080
+        }
+        self.cached_videos.append(mock_source)
+        return mock_source
+
+    def extract_audio_from_local(self, video_path: str) -> str:
+        self.calls.append(("extract_audio_from_local", video_path))
+        return video_path.replace("full.mp4", "audio_v2.wav")
+
+    def create_clip(self, video_path: str, start_time: float, end_time: float, theme: str = None) -> Optional[dict]:
+        self.calls.append(("create_clip", video_path, start_time, end_time, theme))
+        return {
+            "file_path": video_path.replace("full.mp4", "video.mp4"),
+            "asset_url": "/assets/clips/mock_folder/mock_clip/video.mp4",
+            "duration": end_time - start_time,
+            "clip_id": "mock_clip",
+            "start": start_time,
+            "end": end_time,
+            "theme": theme
+        }
+
+    def list_cached_videos(self) -> list:
+        self.calls.append(("list_cached_videos",))
+        return self.cached_videos
+
+    def list_all_clips(self) -> list:
+        self.calls.append(("list_all_clips",))
+        return self.ready_clips
+
+    def delete_cached_video(self, folder_name: str) -> int:
+        self.calls.append(("delete_cached_video", folder_name))
+        return 1
+
+    def delete_clip(self, folder_name: str, clip_id: str) -> bool:
+        self.calls.append(("delete_clip", folder_name, clip_id))
+        return True
+
+    def get_saved_hooks(self, folder_name: str) -> list:
+        self.calls.append(("get_saved_hooks", folder_name))
+        return self.saved_hooks.get(folder_name, [])
+
+    def add_saved_hook(self, folder_name: str, hook: dict) -> list:
+        self.calls.append(("add_saved_hook", folder_name, hook))
+        if folder_name not in self.saved_hooks:
+            self.saved_hooks[folder_name] = []
+        self.saved_hooks[folder_name].append(hook)
+        return self.saved_hooks[folder_name]
+
+    def delete_saved_hook(self, folder_name: str, hook_id: str) -> list:
+        self.calls.append(("delete_saved_hook", folder_name, hook_id))
+        if folder_name in self.saved_hooks:
+            self.saved_hooks[folder_name] = [h for h in self.saved_hooks[folder_name] if h.get("_id") != hook_id]
+        return self.saved_hooks.get(folder_name, [])
