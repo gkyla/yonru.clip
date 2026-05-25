@@ -5,13 +5,12 @@ import os
 # Dynamic path resolution to backend root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from core.transcriber import Transcriber
 from core.speech_transcriber import MockSpeechTranscriber, MockSegment, MockWord
 
 
 def test_clean_text():
     """Verify that clean_text removes commas and trims whitespace."""
-    transcriber = Transcriber(transcriber_client=MockSpeechTranscriber())
+    transcriber = MockSpeechTranscriber()
     
     assert transcriber.clean_text("Hello, world!") == "Hello world!"
     assert transcriber.clean_text("   text, with, commas   ") == "text with commas"
@@ -29,9 +28,7 @@ def test_transcribe_with_word_timestamps():
     ]
     
     mock_client = MockSpeechTranscriber(mock_segments=mock_segments)
-    transcriber = Transcriber(transcriber_client=mock_client)
-    
-    results = transcriber.transcribe("dummy_audio.wav", language="en")
+    results = mock_client.transcribe("dummy_audio.wav", language="en")
     
     assert mock_client.last_audio_path == "dummy_audio.wav"
     assert len(results) == 2
@@ -56,9 +53,7 @@ def test_transcribe_fallback_to_segment_text():
     ]
     
     mock_client = MockSpeechTranscriber(mock_segments=mock_segments)
-    transcriber = Transcriber(transcriber_client=mock_client)
-    
-    results = transcriber.transcribe("dummy_audio.wav")
+    results = mock_client.transcribe("dummy_audio.wav")
     
     assert len(results) == 2
     assert results[0] == {
@@ -87,9 +82,7 @@ def test_transcribe_skips_empty_cleaned_text():
     ]
     
     mock_client = MockSpeechTranscriber(mock_segments=mock_segments)
-    transcriber = Transcriber(transcriber_client=mock_client)
-    
-    results = transcriber.transcribe("dummy_audio.wav")
+    results = mock_client.transcribe("dummy_audio.wav")
     
     assert len(results) == 1
     assert results[0] == {

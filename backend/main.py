@@ -16,6 +16,7 @@ from core.asset_repository import AssetRepository
 from core.hook_generator import HookGenerator
 from core.face_tracker import FaceTracker
 from core.render_engine import RemotionRenderEngine, RenderComposition
+from core.speech_transcriber import FasterWhisperSpeechTranscriber
 
 app = FastAPI(title="Yonru API", version="2.0.0")
 
@@ -50,6 +51,7 @@ cookie_path = os.path.abspath(os.path.join(backend_dir, "cookies.txt"))
 youtube_client = YouTubeClient(cookie_path=cookie_path)
 asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store)
 render_engine = RemotionRenderEngine(output_dir="static/output", config_store=config_store)
+speech_transcriber = FasterWhisperSpeechTranscriber(model_size="base")
 
 from core.subtitle_engine import DefaultSubtitleEngine
 subtitle_engine = DefaultSubtitleEngine()
@@ -420,11 +422,8 @@ def run_local_cut(job_id: str, start_time: float, end_time: float, theme: Option
         try:
             # Extract audio from clip
             clip_audio = asset_repository.extract_audio_from_local(clip["file_path"])
-            
-            from core.transcriber import Transcriber
-            print(f"[transcribe] Using Whisper model: {whisper_model}")
-            transcriber = Transcriber(model_size=whisper_model)
-            precise_words = transcriber.transcribe(clip_audio)
+            print(f"[transcribe] Transcribing clip audio...")
+            precise_words = speech_transcriber.transcribe(clip_audio)
             
             if precise_words:
                 # Keep timestamps relative to the clip (0-based) for true isolation
