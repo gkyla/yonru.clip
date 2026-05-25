@@ -36,40 +36,7 @@ app.mount("/assets", StaticFiles(directory="temp_assets"), name="assets")
 
 # Thread-safe Job Management Seam
 from core.job_store import JSONFileJobStore
-from core.job_manager import JobManager
-
-class JobsDictProxy:
-    def __init__(self, manager: JobManager):
-        self._manager = manager
-
-    def __getitem__(self, key: str) -> dict:
-        res = self._manager.get_job(key)
-        if res is None:
-            raise KeyError(key)
-        return res
-
-    def __setitem__(self, key: str, value: dict) -> None:
-        self._manager.store.set(key, value)
-
-    def __contains__(self, key: str) -> bool:
-        return self._manager.get_job(key) is not None
-
-    def get(self, key: str, default=None) -> Optional[dict]:
-        res = self._manager.get_job(key)
-        return res if res is not None else default
-
-    def values(self):
-        return self._manager.list_all_jobs().values()
-
-    def items(self):
-        return self._manager.list_all_jobs().items()
-
-    def __len__(self) -> int:
-        return len(self._manager.list_all_jobs())
-
-job_store = JSONFileJobStore("temp_assets/jobs.json")
-job_manager = JobManager(job_store)
-jobs = JobsDictProxy(job_manager)
+jobs = JSONFileJobStore("temp_assets/jobs.json")
 
 from core.prompt_repository import FilePromptRepository
 backend_dir = os.path.dirname(os.path.abspath(__file__))
@@ -90,9 +57,7 @@ subtitle_engine = DefaultSubtitleEngine()
 
 def save_jobs():
     try:
-        # Write back any in-memory dictionary modifications to trigger store.set()
-        for jid, data in jobs.items():
-            job_manager.store.set(jid, data)
+        jobs.save()
     except:
         pass
 
