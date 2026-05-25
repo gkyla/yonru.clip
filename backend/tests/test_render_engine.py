@@ -41,3 +41,98 @@ class TestRenderEngine(unittest.TestCase):
         self.assertEqual(progress_yields[3]["stage"], "encoding")
         self.assertEqual(progress_yields[4]["stage"], "done")
         self.assertEqual(progress_yields[4]["percent"], 100)
+
+    def test_compile_composition(self):
+        mock_req = MagicMock()
+        mock_req.fps = 30.0
+        mock_req.hook_index = 0
+        mock_req.timeline_tracks = []
+        mock_req.transcript = [{"text": "Hello", "start": 0.0, "duration": 1.0}]
+        mock_req.subtitle_mode = "word"
+        mock_req.subtitle_sync_offset = 0.0
+        mock_req.font = "Arial"
+        mock_req.font_size = 24
+        mock_req.subtitle_offset = 50
+        mock_req.subtitle_font_weight = 900
+        mock_req.subtitle_text_color = "#FFFFFF"
+        mock_req.subtitle_highlight_color = "#CFFF50"
+        mock_req.subtitle_stroke_color = "#000000"
+        mock_req.subtitle_stroke_width = 4.0
+        mock_req.subtitle_text_transform = "uppercase"
+        mock_req.subtitle_animation = "pop"
+        mock_req.subtitle_highlight_mode = "color"
+        mock_req.subtitle_background = "none"
+        mock_req.subtitle_background_opacity = 0.7
+        mock_req.subtitle_word_spacing = 0
+        mock_req.volume = 0.5
+        mock_req.thumbnail_enabled = False
+        mock_req.face_tracking = False
+        mock_req.crop_percent_x = 50.0
+        mock_req.subtitle_position = "bottom"
+
+        mock_job = {
+            "clip_path": "temp_assets/sources/video.mp4",
+            "video_info": {"file_path": "temp_assets/sources/video.mp4", "duration": 10.0, "fps": 30.0},
+            "hooks": []
+        }
+
+        mock_asset_repo = MagicMock()
+        mock_asset_repo.get_video_resolution.return_value = (1920, 1080)
+
+        with patch("os.path.exists", return_value=False):
+            engine = FakeRenderEngine()
+            comp = engine.compile_composition(mock_job, mock_req, mock_asset_repo)
+
+            self.assertEqual(comp.original_video, "temp_assets/sources/video.mp4")
+            self.assertEqual(comp.crop_center_x, 960)  # 50% of 1920
+            self.assertEqual(comp.volume, 0.5)
+            self.assertEqual(comp.fps, 30.0)
+            self.assertEqual(comp.position, "bottom")
+
+    def test_compile_and_render_methods(self):
+        mock_req = MagicMock()
+        mock_req.fps = 30.0
+        mock_req.hook_index = 0
+        mock_req.timeline_tracks = []
+        mock_req.transcript = None
+        mock_req.subtitle_mode = "word"
+        mock_req.subtitle_sync_offset = 0.0
+        mock_req.font = "Arial"
+        mock_req.font_size = 24
+        mock_req.subtitle_offset = 50
+        mock_req.subtitle_font_weight = 900
+        mock_req.subtitle_text_color = "#FFFFFF"
+        mock_req.subtitle_highlight_color = "#CFFF50"
+        mock_req.subtitle_stroke_color = "#000000"
+        mock_req.subtitle_stroke_width = 4.0
+        mock_req.subtitle_text_transform = "uppercase"
+        mock_req.subtitle_animation = "pop"
+        mock_req.subtitle_highlight_mode = "color"
+        mock_req.subtitle_background = "none"
+        mock_req.subtitle_background_opacity = 0.7
+        mock_req.subtitle_word_spacing = 0
+        mock_req.volume = 0.5
+        mock_req.thumbnail_enabled = False
+        mock_req.face_tracking = False
+        mock_req.crop_percent_x = 50.0
+        mock_req.subtitle_position = "bottom"
+
+        mock_job = {
+            "clip_path": "temp_assets/sources/video.mp4",
+            "video_info": {"file_path": "temp_assets/sources/video.mp4", "duration": 10.0, "fps": 30.0},
+            "hooks": []
+        }
+
+        mock_asset_repo = MagicMock()
+        mock_asset_repo.get_video_resolution.return_value = (1920, 1080)
+
+        with patch("os.path.exists", return_value=False):
+            engine = FakeRenderEngine()
+            
+            # Test compile_and_render
+            path = engine.compile_and_render(mock_job, mock_req, mock_asset_repo, "output.mp4")
+            self.assertEqual(path, "static/output/output.mp4")
+
+            # Test compile_and_render_streaming
+            yields = list(engine.compile_and_render_streaming(mock_job, mock_req, mock_asset_repo, "output.mp4"))
+            self.assertEqual(yields[-1]["stage"], "done")

@@ -38,6 +38,153 @@ class RenderEngine(ABC):
         """Asynchronously render and yield progress dictionaries."""
         pass
 
+    def compile_composition(self, job: dict, req: Any, asset_repository: Any) -> RenderComposition:
+        """
+        Translates raw timestamps, subtitle grouping modes, face tracking paths, 
+        and thumbnail options directly from job metadata and request options 
+        into a consolidated RenderComposition DTO.
+        """
+        video_path = job.get("clip_path") or job["video_info"]["file_path"]
+        fps = job.get("fps") or job["video_info"].get("fps") or req.fps or 30.0
+        
+        hook = job["hooks"][req.hook_index] if "hooks" in job and len(job["hooks"]) > req.hook_index else None
+        
+        if job.get("clip_path"):
+            clip_start = 0 
+            clip_duration = job.get("clip_duration") or 0
+            if not clip_duration and job.get("clip"):
+                clip_duration = job["clip"].get("duration") or 0
+        elif hook:
+            clip_start = hook["start"]
+            clip_duration = hook["duration"]
+        else:
+            clip_start = 0
+            clip_duration = job.get("video_info", {}).get("duration") or 0
+
+        # Overwrite clip_duration from timeline tracks if present
+        max_timeline_end = 0.0
+        has_timeline_items = False
+        if req.timeline_tracks:
+            for track in req.timeline_tracks:
+                items = track.get("items", [])
+                if items:
+                    has_timeline_items = True
+                    for item in items:
+                        start = float(item.get("start") or 0.0)
+                        dur = float(item.get("duration") or 0.0)
+                        end = start + dur
+                        if end > max_timeline_end:
+                            max_timeline_end = end
+
+        if has_timeline_items and max_timeline_end > 0.0:
+            print(f"[render-engine] Overriding clip_duration with timeline duration: {max_timeline_end:.2f}s (was: {clip_duration}s)")
+            clip_duration = max_timeline_end
+
+        clip_transcript = os.path.join(os.path.dirname(video_path), "transcript.json")
+        if os.path.exists(clip_transcript):
+            transcript_path = clip_transcript
+        else:
+            transcript_path = os.path.join(os.path.dirname(job["video_info"]["file_path"]), "transcript.json")
+        
+        if req.transcript:
+            segments = req.transcript
+        elif os.path.exists(transcript_path):
+            with open(transcript_path, "r", encoding="utf-8") as f:
+                segments = json.load(f)
+        else:
+            segments = []
+        
+        is_relative = "/clips/" in transcript_path.replace("\\", "/") or req.transcript is not None
+        
+        from core.subtitle_engine import DefaultSubtitleEngine
+        subtitle_engine = DefaultSubtitleEngine()
+        words_data = subtitle_engine.format_subtitles(
+            segments=segments,
+            subtitle_mode=req.subtitle_mode,
+            sync_offset_ms=req.subtitle_sync_offset,
+            clip_duration=clip_duration,
+            clip_start=clip_start,
+            is_relative=is_relative
+        )
+        
+        timeline_text = []
+        timeline_audio = []
+        if req.timeline_tracks:
+            text_track = next((t for t in req.timeline_tracks if t['id'] == 'text'), None)
+            if text_track:
+                timeline_text = text_track.get('items', [])
+            audio_track = next((t for t in req.timeline_tracks if t['id'] == 'audio'), None)
+            if audio_track:
+                timeline_audio = audio_track.get('items', [])
+                
+        w, h = asset_repository.get_video_resolution(video_path)
+        source_width = w if w > 0 else 1920
+        source_height = h if h > 0 else 1080
+        
+        if req.face_tracking:
+            from core.face_tracker import FaceTracker
+            tracker = FaceTracker()
+            crop_x = tracker.analyze_video(video_path, words_data=words_data)
+        else:
+            crop_x = int((req.crop_percent_x / 100.0) * source_width)
+            
+        thumbnail_config = None
+        if req.thumbnail_enabled:
+            thumbnail_config = {
+                "enabled": True,
+                "duration": req.thumbnail_duration,
+                "textOverlays": req.thumbnail_text_overlays or [],
+                "xOffset": req.thumbnail_x_offset,
+            }
+            clip_dir = os.path.dirname(video_path)
+            thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
+            if os.path.exists(thumb_path):
+                thumbnail_config["imagePath"] = thumb_path
+            else:
+                thumbnail_config["enabled"] = False
+                
+        return RenderComposition(
+            original_video=video_path,
+            crop_center_x=crop_x or 960,
+            timeline_tracks=req.timeline_tracks,
+            words_data=words_data,
+            timeline_text_items=timeline_text,
+            timeline_audio_items=timeline_audio,
+            position=req.subtitle_position,
+            clip_duration=clip_duration,
+            subtitle_style={
+                "fontFamily": req.font,
+                "fontSize": req.font_size,
+                "subtitleOffset": req.subtitle_offset,
+                "fontWeight": req.subtitle_font_weight,
+                "color": req.subtitle_text_color,
+                "highlightColor": req.subtitle_highlight_color,
+                "strokeColor": req.subtitle_stroke_color,
+                "strokeWidth": req.subtitle_stroke_width,
+                "textTransform": req.subtitle_text_transform,
+                "animation": req.subtitle_animation,
+                "highlightMode": req.subtitle_highlight_mode,
+                "background": req.subtitle_background,
+                "backgroundOpacity": req.subtitle_background_opacity,
+                "wordSpacing": req.subtitle_word_spacing
+            },
+            volume=req.volume,
+            fps=fps,
+            thumbnail_config=thumbnail_config,
+            source_width=source_width,
+            source_height=source_height
+        )
+
+    def compile_and_render(self, job: dict, req: Any, asset_repository: Any, out_filename: str) -> Optional[str]:
+        """Compiles composition properties and triggers rendering."""
+        comp = self.compile_composition(job, req, asset_repository)
+        return self.render(comp, out_filename)
+
+    def compile_and_render_streaming(self, job: dict, req: Any, asset_repository: Any, out_filename: str) -> Generator[dict, None, None]:
+        """Compiles composition properties and yields progress dicts streaming."""
+        comp = self.compile_composition(job, req, asset_repository)
+        yield from self.render_streaming(comp, out_filename)
+
 
 class SafeEncoder(json.JSONEncoder):
     """JSON encoder that safely handles numpy types from MediaPipe/OpenCV."""

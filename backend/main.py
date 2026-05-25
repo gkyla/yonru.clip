@@ -14,8 +14,7 @@ from typing import Optional
 from core.youtube_client import YouTubeClient
 from core.asset_repository import AssetRepository
 from core.hook_generator import HookGenerator
-from core.face_tracker import FaceTracker
-from core.render_engine import RemotionRenderEngine, RenderComposition
+from core.render_engine import RemotionRenderEngine
 from core.speech_transcriber import FasterWhisperSpeechTranscriber
 
 app = FastAPI(title="Yonru API", version="2.0.0")
@@ -52,9 +51,6 @@ youtube_client = YouTubeClient(cookie_path=cookie_path)
 asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store)
 render_engine = RemotionRenderEngine(output_dir="static/output", config_store=config_store)
 speech_transcriber = FasterWhisperSpeechTranscriber(model_size="base")
-
-from core.subtitle_engine import DefaultSubtitleEngine
-subtitle_engine = DefaultSubtitleEngine()
 
 from core.workflow_coordinator import ClipWorkflowCoordinator
 workflow_coordinator = ClipWorkflowCoordinator(
@@ -400,164 +396,12 @@ async def render_clip(req: RenderRequest):
         raise HTTPException(status_code=404, detail="Job not found")
     
     job = jobs[req.job_id]
-    video_path = job.get("clip_path") or job["video_info"]["file_path"]
-    fps = job.get("fps") or job["video_info"].get("fps") or req.fps or 30.0
+    out_filename = f"{req.job_id}_clip_{req.hook_index}.mp4"
     
-    # Get hook boundaries
-    hook = job["hooks"][req.hook_index] if "hooks" in job and len(job["hooks"]) > req.hook_index else None
-    
-    # Logic: if we have a cut clip_path, use 0-duration. 
-    # If we are using full.mp4, use hook start-end.
-    # Logic: if we have a cut clip_path, the video file itself is already the isolated segment.
-    # Therefore, we start at 0 and use the clip's duration.
-    if job.get("clip_path"):
-        clip_start = 0 
-        clip_duration = job.get("clip_duration") or 0
-        if not clip_duration and job.get("clip"):
-            clip_duration = job["clip"].get("duration") or 0
-    elif hook:
-        clip_start = hook["start"]
-        clip_duration = hook["duration"]
-    else:
-        clip_start = 0
-        clip_duration = job.get("video_info", {}).get("duration") or 0
-
-    # Overwrite clip_duration from timeline tracks if present
-    max_timeline_end = 0.0
-    has_timeline_items = False
-    if req.timeline_tracks:
-        for track in req.timeline_tracks:
-            items = track.get("items", [])
-            if items:
-                has_timeline_items = True
-                for item in items:
-                    start = float(item.get("start") or 0.0)
-                    dur = float(item.get("duration") or 0.0)
-                    end = start + dur
-                    if end > max_timeline_end:
-                        max_timeline_end = end
-
-    if has_timeline_items and max_timeline_end > 0.0:
-        print(f"[api:render] Overriding clip_duration with timeline duration: {max_timeline_end:.2f}s (was: {clip_duration}s)")
-        clip_duration = max_timeline_end
-
-    clip_end = float(clip_start or 0) + float(clip_duration or 0)
-    
-    # Use clip-specific high-precision transcript if available, else fallback to source
-    clip_transcript = os.path.join(os.path.dirname(video_path), "transcript.json")
-    if os.path.exists(clip_transcript):
-        transcript_path = clip_transcript
-        print(f"[render] Using high-precision clip transcript from {transcript_path}")
-    else:
-        transcript_path = os.path.join(os.path.dirname(job["video_info"]["file_path"]), "transcript.json")
-        print(f"[render] Using fallback source transcript from {transcript_path}")
-    
-    if req.transcript:
-        segments = req.transcript
-        print(f"[render] Using transcript provided in request ({len(segments)} segments)")
-    elif os.path.exists(transcript_path):
-        import json
-        with open(transcript_path, "r", encoding="utf-8") as f:
-            segments = json.load(f)
-        print(f"[render] Using disk transcript from {transcript_path}")
-    else:
-        segments = []
-        print("[render] Warning: No transcript found")
-
-    # Determine if segments are already relative (0-based) or absolute
-    # If transcript comes from clips folder, it's high-precision 0-based.
-    is_relative = "/clips/" in transcript_path.replace("\\", "/") or req.transcript is not None
-    
-    words_data = subtitle_engine.format_subtitles(
-        segments=segments,
-        subtitle_mode=req.subtitle_mode,
-        sync_offset_ms=req.subtitle_sync_offset,
-        clip_duration=clip_duration,
-        clip_start=clip_start,
-        is_relative=is_relative
-    )
-        
-    print(f"[render] Generated {len(words_data)} subtitle chunks")
-    
-    # Extract text items from timeline
-    timeline_text = []
-    if req.timeline_tracks:
-        text_track = next((t for t in req.timeline_tracks if t['id'] == 'text'), None)
-        if text_track:
-            timeline_text = text_track.get('items', [])
-    
-    # Extract audio items from timeline
-    timeline_audio = []
-    if req.timeline_tracks:
-        audio_track = next((t for t in req.timeline_tracks if t['id'] == 'audio'), None)
-        if audio_track:
-            timeline_audio = audio_track.get('items', [])
-    # Get video resolution for proper scaling
-    w, h = asset_repository.get_video_resolution(video_path)
-    source_width = w if w > 0 else 1920
-    source_height = h if h > 0 else 1080
-
-    # Determine crop center X
-    if req.face_tracking:
-        tracker = FaceTracker()
-        crop_x = tracker.analyze_video(video_path, words_data=words_data)
-    else:
-        crop_x = int((req.crop_percent_x / 100.0) * source_width)
-    
-    # Build thumbnail config for renderer
-    thumbnail_config = None
-    if req.thumbnail_enabled:
-        thumbnail_config = {
-            "enabled": True,
-            "duration": req.thumbnail_duration,
-            "textOverlays": req.thumbnail_text_overlays or [],
-            "xOffset": req.thumbnail_x_offset,
-        }
-        # Find thumbnail image in clip folder
-        clip_dir = os.path.dirname(video_path)
-        thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
-        if os.path.exists(thumb_path):
-            thumbnail_config["imagePath"] = thumb_path
-        else:
-            thumbnail_config["enabled"] = False
-            print("[render] Thumbnail enabled but no thumbnail.jpg found, disabling")
-
-    comp = RenderComposition(
-        original_video=video_path,
-        crop_center_x=crop_x or 960,
-        timeline_tracks=req.timeline_tracks,
-        words_data=words_data,
-        timeline_text_items=timeline_text,
-        timeline_audio_items=timeline_audio,
-        position=req.subtitle_position,
-        clip_duration=clip_duration,
-        subtitle_style={
-            "fontFamily": req.font,
-            "fontSize": req.font_size,
-            "subtitleOffset": req.subtitle_offset,
-            "fontWeight": req.subtitle_font_weight,
-            "color": req.subtitle_text_color,
-            "highlightColor": req.subtitle_highlight_color,
-            "strokeColor": req.subtitle_stroke_color,
-            "strokeWidth": req.subtitle_stroke_width,
-            "textTransform": req.subtitle_text_transform,
-            "animation": req.subtitle_animation,
-            "highlightMode": req.subtitle_highlight_mode,
-            "background": req.subtitle_background,
-            "backgroundOpacity": req.subtitle_background_opacity,
-            "wordSpacing": req.subtitle_word_spacing
-        },
-        volume=req.volume,
-        fps=fps,
-        thumbnail_config=thumbnail_config,
-        source_width=source_width,
-        source_height=source_height
-    )
-    
-    output = render_engine.render(comp, f"{req.job_id}_clip_{req.hook_index}.mp4")
+    output = render_engine.compile_and_render(job, req, asset_repository, out_filename)
     
     if output:
-        return {"status": "done", "output_url": f"/static/output/{req.job_id}_clip_{req.hook_index}.mp4"}
+        return {"status": "done", "output_url": f"/static/output/{out_filename}"}
     else:
         raise HTTPException(status_code=500, detail="Render failed")
 
@@ -568,111 +412,7 @@ async def render_clip_stream(req: RenderRequest):
         raise HTTPException(status_code=404, detail="Job not found")
     
     job = jobs[req.job_id]
-    video_path = job.get("clip_path") or job["video_info"]["file_path"]
-    fps = job.get("fps") or job["video_info"].get("fps") or req.fps or 30.0
     
-    hook = job["hooks"][req.hook_index] if "hooks" in job and len(job["hooks"]) > req.hook_index else None
-    
-    if job.get("clip_path"):
-        clip_start = 0 
-        clip_duration = job.get("clip_duration") or 0
-        if not clip_duration and job.get("clip"):
-            clip_duration = job["clip"].get("duration") or 0
-    elif hook:
-        clip_start = hook["start"]
-        clip_duration = hook["duration"]
-    else:
-        clip_start = 0
-        clip_duration = job.get("video_info", {}).get("duration") or 0
-
-    # Overwrite clip_duration from timeline tracks if present
-    max_timeline_end = 0.0
-    has_timeline_items = False
-    if req.timeline_tracks:
-        for track in req.timeline_tracks:
-            items = track.get("items", [])
-            if items:
-                has_timeline_items = True
-                for item in items:
-                    start = float(item.get("start") or 0.0)
-                    dur = float(item.get("duration") or 0.0)
-                    end = start + dur
-                    if end > max_timeline_end:
-                        max_timeline_end = end
-
-    if has_timeline_items and max_timeline_end > 0.0:
-        print(f"[api:render-stream] Overriding clip_duration with timeline duration: {max_timeline_end:.2f}s (was: {clip_duration}s)")
-        clip_duration = max_timeline_end
-
-    clip_end = float(clip_start or 0) + float(clip_duration or 0)
-    
-    # Use clip-specific transcript if available
-    clip_transcript = os.path.join(os.path.dirname(video_path), "transcript.json")
-    if os.path.exists(clip_transcript):
-        transcript_path = clip_transcript
-    else:
-        transcript_path = os.path.join(os.path.dirname(job["video_info"]["file_path"]), "transcript.json")
-    
-    # Process transcript (same logic as /api/render)
-    if req.transcript:
-        segments = req.transcript
-    elif os.path.exists(transcript_path):
-        with open(transcript_path, "r", encoding="utf-8") as f:
-            segments = json.load(f)
-    else:
-        segments = []
-    
-    is_relative = "/clips/" in transcript_path.replace("\\", "/") or req.transcript is not None
-    
-    words_data = subtitle_engine.format_subtitles(
-        segments=segments,
-        subtitle_mode=req.subtitle_mode,
-        sync_offset_ms=req.subtitle_sync_offset,
-        clip_duration=clip_duration,
-        clip_start=clip_start,
-        is_relative=is_relative
-    )
-    
-    # Extract timeline items
-    timeline_text = []
-    timeline_audio = []
-    if req.timeline_tracks:
-        text_track = next((t for t in req.timeline_tracks if t['id'] == 'text'), None)
-        if text_track:
-            timeline_text = text_track.get('items', [])
-        audio_track = next((t for t in req.timeline_tracks if t['id'] == 'audio'), None)
-        if audio_track:
-            timeline_audio = audio_track.get('items', [])
-    # Get video resolution for proper scaling
-    w, h = asset_repository.get_video_resolution(video_path)
-    source_width = w if w > 0 else 1920
-    source_height = h if h > 0 else 1080
-
-    # Determine crop
-    if req.face_tracking:
-        tracker = FaceTracker()
-        print(f"[main:streaming] Calling analyze_video...")
-        crop_x = tracker.analyze_video(video_path, words_data=words_data)
-        print(f"[main:streaming] analyze_video returned {len(crop_x) if isinstance(crop_x, list) else 1} points")
-    else:
-        crop_x = int((req.crop_percent_x / 100.0) * source_width)
-    
-    # Build thumbnail config
-    thumbnail_config = None
-    if req.thumbnail_enabled:
-        thumbnail_config = {
-            "enabled": True,
-            "duration": req.thumbnail_duration,
-            "textOverlays": req.thumbnail_text_overlays or [],
-            "xOffset": req.thumbnail_x_offset,
-        }
-        clip_dir = os.path.dirname(video_path)
-        thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
-        if os.path.exists(thumb_path):
-            thumbnail_config["imagePath"] = thumb_path
-        else:
-            thumbnail_config["enabled"] = False
-
     import re
     if req.output_name:
         safe_name = re.sub(r'[^\w\s-]', '', req.output_name).strip().replace(' ', '_')
@@ -693,38 +433,7 @@ async def render_clip_stream(req: RenderRequest):
         out_filename = f"{req.job_id}_clip_{req.hook_index}.mp4"
 
     def sse_generator():
-        comp = RenderComposition(
-            original_video=video_path,
-            crop_center_x=crop_x or 960,
-            timeline_tracks=req.timeline_tracks,
-            words_data=words_data,
-            timeline_text_items=timeline_text,
-            timeline_audio_items=timeline_audio,
-            position=req.subtitle_position,
-            clip_duration=clip_duration,
-            subtitle_style={
-                "fontFamily": req.font,
-                "fontSize": req.font_size,
-                "subtitleOffset": req.subtitle_offset,
-                "fontWeight": req.subtitle_font_weight,
-                "color": req.subtitle_text_color,
-                "highlightColor": req.subtitle_highlight_color,
-                "strokeColor": req.subtitle_stroke_color,
-                "strokeWidth": req.subtitle_stroke_width,
-                "textTransform": req.subtitle_text_transform,
-                "animation": req.subtitle_animation,
-                "highlightMode": req.subtitle_highlight_mode,
-                "background": req.subtitle_background,
-                "backgroundOpacity": req.subtitle_background_opacity,
-                "wordSpacing": req.subtitle_word_spacing
-            },
-            volume=req.volume,
-            fps=fps,
-            thumbnail_config=thumbnail_config,
-            source_width=source_width,
-            source_height=source_height
-        )
-        for progress in render_engine.render_streaming(comp, out_filename):
+        for progress in render_engine.compile_and_render_streaming(job, req, asset_repository, out_filename):
             yield f"data: {json.dumps(progress)}\n\n"
     
     return StreamingResponse(sse_generator(), media_type="text/event-stream", headers={
