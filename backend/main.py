@@ -15,7 +15,7 @@ from core.youtube_client import YouTubeClient
 from core.asset_repository import AssetRepository
 from core.hook_generator import HookGenerator
 from core.face_tracker import FaceTracker
-from core.renderer import VideoRenderer
+from core.render_engine import RemotionRenderEngine, RenderComposition
 
 app = FastAPI(title="Yonru API", version="2.0.0")
 
@@ -49,6 +49,7 @@ config_store = DotEnvConfigStore(os.path.join(backend_dir, ".env"))
 cookie_path = os.path.abspath(os.path.join(backend_dir, "cookies.txt"))
 youtube_client = YouTubeClient(cookie_path=cookie_path)
 asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store)
+render_engine = RemotionRenderEngine(output_dir="static/output", config_store=config_store)
 
 from core.subtitle_engine import DefaultSubtitleEngine
 subtitle_engine = DefaultSubtitleEngine()
@@ -715,9 +716,6 @@ async def render_clip(req: RenderRequest):
         transcript_path = os.path.join(os.path.dirname(job["video_info"]["file_path"]), "transcript.json")
         print(f"[render] Using fallback source transcript from {transcript_path}")
     
-    renderer = VideoRenderer()
-    
-    subtitle_ass = None
     if req.transcript:
         segments = req.transcript
         print(f"[render] Using transcript provided in request ({len(segments)} segments)")
@@ -744,9 +742,6 @@ async def render_clip(req: RenderRequest):
     )
         
     print(f"[render] Generated {len(words_data)} subtitle chunks")
-    
-    # REMOVED: .ass file generation, as we now use Remotion
-    subtitle_ass = None
     
     # Extract text items from timeline
     timeline_text = []
@@ -791,12 +786,9 @@ async def render_clip(req: RenderRequest):
             thumbnail_config["enabled"] = False
             print("[render] Thumbnail enabled but no thumbnail.jpg found, disabling")
 
-    renderer = VideoRenderer()
-    output = renderer.process_and_render(
+    comp = RenderComposition(
         original_video=video_path,
-        subtitle_ass=subtitle_ass,
         crop_center_x=crop_x or 960,
-        out_filename=f"{req.job_id}_clip_{req.hook_index}.mp4",
         timeline_tracks=req.timeline_tracks,
         words_data=words_data,
         timeline_text_items=timeline_text,
@@ -825,6 +817,8 @@ async def render_clip(req: RenderRequest):
         source_width=source_width,
         source_height=source_height
     )
+    
+    output = render_engine.render(comp, f"{req.job_id}_clip_{req.hook_index}.mp4")
     
     if output:
         return {"status": "done", "output_url": f"/static/output/{req.job_id}_clip_{req.hook_index}.mp4"}
@@ -963,12 +957,9 @@ async def render_clip_stream(req: RenderRequest):
         out_filename = f"{req.job_id}_clip_{req.hook_index}.mp4"
 
     def sse_generator():
-        renderer = VideoRenderer()
-        for progress in renderer.process_and_render_streaming(
+        comp = RenderComposition(
             original_video=video_path,
-            subtitle_ass=None,
             crop_center_x=crop_x or 960,
-            out_filename=out_filename,
             timeline_tracks=req.timeline_tracks,
             words_data=words_data,
             timeline_text_items=timeline_text,
@@ -996,7 +987,8 @@ async def render_clip_stream(req: RenderRequest):
             thumbnail_config=thumbnail_config,
             source_width=source_width,
             source_height=source_height
-        ):
+        )
+        for progress in render_engine.render_streaming(comp, out_filename):
             yield f"data: {json.dumps(progress)}\n\n"
     
     return StreamingResponse(sse_generator(), media_type="text/event-stream", headers={
