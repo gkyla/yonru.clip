@@ -206,7 +206,6 @@ class RemotionRenderEngine(RenderEngine):
         
         if config_store is None:
             try:
-                import sys
                 main_module = sys.modules.get("main")
                 if main_module and hasattr(main_module, "config_store"):
                     config_store = main_module.config_store
