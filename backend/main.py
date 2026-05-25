@@ -56,6 +56,16 @@ speech_transcriber = FasterWhisperSpeechTranscriber(model_size="base")
 from core.subtitle_engine import DefaultSubtitleEngine
 subtitle_engine = DefaultSubtitleEngine()
 
+from core.workflow_coordinator import ClipWorkflowCoordinator
+workflow_coordinator = ClipWorkflowCoordinator(
+    job_store=jobs,
+    asset_repository=asset_repository,
+    youtube_client=youtube_client,
+    speech_transcriber=speech_transcriber,
+    prompt_repository=prompt_repository,
+    config_store=config_store
+)
+
 
 
 def save_jobs():
@@ -193,279 +203,6 @@ class BatchDeleteClipsRequest(BaseModel):
 
 # --- Helpers ---
 
-def run_full_analysis(job_id: str, url: str, language: str, force_reanalyze: bool = False, prompt_file: str = "prompt.json", num_hooks: int = 10, auto_hooks: bool = False):
-    """Background: check transcript → download full 1080p → Gemini hooks"""
-    try:
-        # Step -1: Check for cached video and hooks FIRST to avoid YouTube network calls
-        if not force_reanalyze:
-            cached_video = asset_repository.get_cached_video(url)
-            if cached_video and cached_video.get("file_path"):
-                hooks_cache_path = os.path.join(os.path.dirname(cached_video["file_path"]), "hooks.json")
-                if os.path.exists(hooks_cache_path):
-                    print(f"[cache] Video and hooks found locally for {url}. Skipping YouTube network calls.")
-                    jobs[job_id]["video_info"] = cached_video
-                    jobs[job_id]["full_video_path"] = cached_video["file_path"]
-                    jobs[job_id]["fps"] = cached_video.get("fps", 30.0)
-                    
-                    with open(hooks_cache_path, "r", encoding="utf-8") as f:
-                        hooks_json = f.read()
-                    
-                    try:
-                        raw_hooks = json.loads(hooks_json)
-                        video_duration = cached_video.get("duration", float("inf"))
-                        MIN_DUR, MAX_DUR = 15, 180
-                        filtered = []
-                        for h in raw_hooks:
-                            try:
-                                h_start = float(h.get("start", 0))
-                                h_end = float(h.get("end", 0))
-                                h_dur = h_end - h_start
-                                if h_start < video_duration and h_end <= (video_duration + 5) and h_start >= 0:
-                                    if h_dur < MIN_DUR:
-                                        h_end = h_start + MIN_DUR
-                                    if (h_end - h_start) > MAX_DUR:
-                                        h_end = h_start + MAX_DUR
-                                    h["start"] = round(h_start, 2)
-                                    h["end"] = round(h_end, 2)
-                                    h["duration"] = round(h_end - h_start, 2)
-                                    filtered.append(h)
-                            except:
-                                pass
-                        
-                        jobs[job_id]["hooks"] = filtered
-                        jobs[job_id]["status"] = "ready"
-                        print(f"[cache] successfully load from cache")
-                        save_jobs()
-                        return
-                    except Exception as e:
-                        print(f"[cache] Failed to load cached hooks: {e}")
-
-        # Step 0: Check Transcript FIRST
-        jobs[job_id]["status"] = "checking_transcript"
-        video_id = youtube_client.extract_video_id(url)
-        if not video_id:
-            info = youtube_client.get_video_info_fast(url)
-            video_id = info.get("id")
-            
-        if not video_id:
-            jobs[job_id]["status"] = "error"
-            jobs[job_id]["error"] = "Could not extract video ID from URL."
-            save_jobs()
-            return
-            
-        transcript_segments = youtube_client.fetch_transcript(video_id)
-        if not transcript_segments or len(transcript_segments) == 0:
-            jobs[job_id]["status"] = "error"
-            jobs[job_id]["error"] = "No transcript found. Yonru requires videos with available closed-captions to guarantee accurate frame synchronization."
-            save_jobs()
-            return
-
-        # Step 1: Download full 1080p video (single network call)
-        jobs[job_id]["status"] = "downloading_video"
-        video_info = asset_repository.get_or_create_source(url)
-        
-        if not video_info:
-            jobs[job_id]["status"] = "error"
-            jobs[job_id]["error"] = "Failed to download video"
-            save_jobs()
-            return
-        
-        jobs[job_id]["video_info"] = video_info
-        jobs[job_id]["full_video_path"] = video_info["file_path"]
-        # Save hooks immediately
-        jobs[job_id]["status"] = "generating_hooks"
-        hooks_cache_path = os.path.join(os.path.dirname(video_info["file_path"]), "hooks.json")
-        
-        jobs[job_id]["status"] = "generating_hooks"
-        hooks_cache_path = os.path.join(os.path.dirname(video_info["file_path"]), "hooks.json")
-        hooks_json = None
-        
-        # Step 3: Check for cached hooks or use Transcript-First approach (fallback to Audio)
-        if not force_reanalyze and os.path.exists(hooks_cache_path):
-            print(f"[cache] Found existing hooks.json at {hooks_cache_path}")
-            with open(hooks_cache_path, "r", encoding="utf-8") as f:
-                hooks_json = f.read()
-        else:
-            if force_reanalyze:
-                print(f"[cache] Force reanalyze requested, bypassing {hooks_cache_path}...")
-            
-            api_key = config_store.get("GEMINI_API_KEY")
-            if api_key:
-                generator = HookGenerator(api_key=api_key, prompt_repository=prompt_repository)
-
-                
-                # Generate from transcript
-                if transcript_segments and len(transcript_segments) > 0:
-                    print(f"[pipeline] Using Transcript-First approach ({len(transcript_segments)} segments)")
-                    hooks_json = generator.find_hooks_from_transcript(
-                        transcript_segments=transcript_segments,
-                        num_hooks=num_hooks,
-                        auto_hooks=auto_hooks,
-                        video_duration=video_info.get("duration"),
-                        prompt_file=prompt_file
-                    )
-                
-                if not hooks_json:
-                    jobs[job_id]["status"] = "error"
-                    jobs[job_id]["error"] = "Gemini failed to generate hooks from the transcript."
-                    save_jobs()
-                    return
-                if hooks_json:
-                    try:
-                        # Validate before saving
-                        json.loads(hooks_json)
-                        with open(hooks_cache_path, "w", encoding="utf-8") as f:
-                            f.write(hooks_json)
-                        print(f"[cache] Saved hooks to {hooks_cache_path}")
-                    except Exception as e:
-                        print(f"[cache] Failed to cache hooks: {e}")
-        
-        if hooks_json:
-            try:
-                raw_hooks = json.loads(hooks_json)
-                
-                # Filter: drop hooks with bad timestamps or out-of-range duration
-                video_duration = video_info.get("duration", float("inf"))
-                MIN_DUR, MAX_DUR = 15, 180
-                filtered = []
-                for h in raw_hooks:
-                    h_start = float(h.get("start", 0))
-                    h_end = float(h.get("end", 0))
-                    h_dur = h_end - h_start
-                    
-                    if h_dur < MIN_DUR:
-                        h_end = h_start + MIN_DUR
-                    if (h_end - h_start) > MAX_DUR:
-                        h_end = h_start + MAX_DUR
-                    
-                    h["start"] = round(h_start, 2)
-                    h["end"] = round(h_end, 2)
-                    h["duration"] = round(h["end"] - h["start"], 2)
-                    
-                    if h["end"] > (video_duration + 5):
-                        print(f"[filter] Drop hook {h['start']}→{h['end']}: beyond video ({video_duration:.1f}s)")
-                        continue
-                    if h["start"] < 0:
-                        print(f"[filter] Drop hook {h['start']}→{h['end']}: negative start")
-                        continue
-                    filtered.append(h)
-                
-                print(f"[filter] {len(filtered)}/{len(raw_hooks)} hooks valid for video ({video_duration:.1f}s)")
-                
-                # Write filtered hooks back to cache so it stays clean
-                if len(filtered) != len(raw_hooks) and os.path.exists(hooks_cache_path):
-                    try:
-                        with open(hooks_cache_path, "w", encoding="utf-8") as f:
-                            json.dump(filtered, f, ensure_ascii=False, indent=2)
-                        print(f"[filter] Overwrote cache with {len(filtered)} clean hooks")
-                    except Exception as e:
-                        print(f"[filter] Failed to overwrite cache: {e}")
-                
-                jobs[job_id]["hooks"] = filtered
-            except Exception as e:
-                print(f"[hooks] Parse error: {e}")
-                jobs[job_id]["hooks"] = []
-        else:
-            jobs[job_id]["hooks"] = []
-                
-        jobs[job_id]["status"] = "hooks_ready"
-        save_jobs()
-        
-    except Exception as e:
-        jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = str(e)
-        save_jobs()
-
-def run_local_cut(job_id: str, start_time: float, end_time: float, theme: Optional[str] = None, whisper_model: str = "base"):
-    """Background: cut segment from cached full video via local ffmpeg"""
-    try:
-        jobs[job_id]["status"] = "cutting"
-        
-        full_path = jobs[job_id].get("full_video_path")
-        if not full_path or not os.path.exists(full_path):
-            jobs[job_id]["status"] = "error"
-            jobs[job_id]["error"] = "Full video not found. Re-analyze first."
-            return
-        
-        clip = asset_repository.create_clip(full_path, start_time, end_time, theme=theme)
-        
-        if not clip:
-            jobs[job_id]["status"] = "error"
-            jobs[job_id]["error"] = "Failed to cut segment"
-            return
-        
-        # Step 3: Use existing transcript if available (prevents overwriting manual edits)
-        transcript_path = os.path.join(os.path.dirname(clip["file_path"]), "transcript.json")
-        if os.path.exists(transcript_path):
-            print(f"[transcribe] Reuse existing transcript at {transcript_path}")
-            
-            # Check for default style settings
-            clip_style_path = os.path.join(os.path.dirname(clip["file_path"]), "style_settings.json")
-            default_style_path = os.path.join("temp_assets", "default_style_settings.json")
-            if not os.path.exists(clip_style_path) and os.path.exists(default_style_path):
-                import shutil
-                shutil.copy(default_style_path, clip_style_path)
-                print(f"[transcribe] Populated default style settings to {clip_style_path}")
-
-            jobs[job_id]["clip"] = clip 
-            jobs[job_id]["clip_path"] = clip["file_path"]
-            jobs[job_id]["clip_duration"] = clip["duration"]
-            jobs[job_id]["clip_start"] = start_time
-            jobs[job_id]["fps"] = jobs[job_id].get("video_info", {}).get("fps", 30.0)
-            jobs[job_id]["status"] = "ready"
-            save_jobs()
-            return
-
-        jobs[job_id]["status"] = "transcribing"
-        save_jobs()
-        
-        try:
-            # Extract audio from clip
-            clip_audio = asset_repository.extract_audio_from_local(clip["file_path"])
-            print(f"[transcribe] Transcribing clip audio...")
-            precise_words = speech_transcriber.transcribe(clip_audio)
-            
-            if precise_words:
-                # Keep timestamps relative to the clip (0-based) for true isolation
-                pass
-                
-                # Save precise transcript
-                with open(transcript_path, "w", encoding="utf-8") as f:
-                    json.dump(precise_words, f, ensure_ascii=False, indent=2)
-                print(f"[transcribe] Saved high-precision clip transcript ({len(precise_words)} words)")
-                
-                # Update in-memory job object so polling picks it up immediately
-                if "clip" in jobs[job_id] and jobs[job_id]["clip"]:
-                    # Use full transcript for the quote field (frontend will truncate for cards)
-                    c_quote = " ".join([s.get("text", "") for s in precise_words]).strip()
-                    if len(c_quote) > 1000: c_quote = c_quote[:997] + "..."
-                    jobs[job_id]["clip"]["transcript_quote"] = c_quote
-                    print(f"[transcribe] Updated in-memory clip quote for job {job_id}")
-        except Exception as e:
-            print(f"[transcribe] Whisper failed for clip, falling back to global: {e}")
-
-        # Check for default style settings
-        clip_style_path = os.path.join(os.path.dirname(clip["file_path"]), "style_settings.json")
-        default_style_path = os.path.join("temp_assets", "default_style_settings.json")
-        if not os.path.exists(clip_style_path) and os.path.exists(default_style_path):
-            import shutil
-            shutil.copy(default_style_path, clip_style_path)
-            print(f"[transcribe] Populated default style settings to {clip_style_path}")
-
-        # Store full clip metadata
-        jobs[job_id]["clip"] = clip 
-        jobs[job_id]["clip_path"] = clip["file_path"]
-        jobs[job_id]["clip_duration"] = clip["duration"]
-        jobs[job_id]["clip_start"] = start_time
-        jobs[job_id]["fps"] = jobs[job_id].get("video_info", {}).get("fps", 30.0)
-        jobs[job_id]["status"] = "ready"
-        save_jobs()
-        
-    except Exception as e:
-        jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = str(e)
-        save_jobs()
-
 
 # --- Endpoints ---
 
@@ -526,7 +263,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, fo
         "error": None
     }
     
-    background_tasks.add_task(run_full_analysis, job_id, req.url, req.language, force, req.prompt_file, req.num_hooks or 10, req.auto_hooks or False)
+    background_tasks.add_task(workflow_coordinator.run_full_analysis, job_id, req.url, req.language, force, req.prompt_file, req.num_hooks or 10, req.auto_hooks or False)
     save_jobs()
     return {"job_id": job_id, "status": "queued"}
 
@@ -585,7 +322,7 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
     jobs[req.job_id]["clip_theme"] = None
     jobs[req.job_id]["status"] = "cutting"
 
-    background_tasks.add_task(run_local_cut, req.job_id, req.start_time, req.end_time, req.theme, req.whisper_model)
+    background_tasks.add_task(workflow_coordinator.run_local_cut, req.job_id, req.start_time, req.end_time, req.theme, req.whisper_model)
     save_jobs()
     return {"job_id": req.job_id, "status": "cutting"}
 
@@ -1097,7 +834,7 @@ async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force
         "error": None
     }
     
-    background_tasks.add_task(run_full_analysis, job_id, f"https://youtube.com/watch?v={video_id}", "id", force, req.prompt_file, req.num_hooks or 10, req.auto_hooks or False)
+    background_tasks.add_task(workflow_coordinator.run_full_analysis, job_id, f"https://youtube.com/watch?v={video_id}", "id", force, req.prompt_file, req.num_hooks or 10, req.auto_hooks or False)
     save_jobs()
     return {"job_id": job_id, "status": "queued", "cached": True}
 
