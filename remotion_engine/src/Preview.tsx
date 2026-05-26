@@ -4,8 +4,6 @@ import { Player, PlayerRef } from '@remotion/player';
 import { YonruClip } from './Composition';
 import { YonruClipProps, DEFAULT_SUBTITLE_STYLE } from './types';
 
-const FPS = 30;
-
 const App = () => {
   const playerRef = useRef<PlayerRef>(null);
   
@@ -20,6 +18,8 @@ const App = () => {
     subtitleStyle: { ...DEFAULT_SUBTITLE_STYLE },
     volume: 0.5,
   });
+
+  const activeFps = props.fps || 30;
 
   // --- Listen for commands from Nuxt parent ---
   useEffect(() => {
@@ -56,14 +56,14 @@ const App = () => {
 
   // --- Send time updates back to Nuxt parent ---
   const onFrameUpdate = useCallback((e: any) => {
-    const currentTime = e.detail.frame / FPS;
+    const currentTime = e.detail.frame / activeFps;
     // Post back to parent so Nuxt timeline stays in sync
     window.parent.postMessage({
       type: 'REMOTION_TIMEUPDATE',
       currentTime,
       frame: e.detail.frame
     }, '*');
-  }, []);
+  }, [activeFps]);
 
   // --- Attach/detach the frame listener ---
   useEffect(() => {
@@ -86,7 +86,7 @@ const App = () => {
         durationInFrames={props.durationInFrames || 300}
         compositionWidth={1080}
         compositionHeight={1920}
-        fps={FPS}
+        fps={activeFps}
         inputProps={props}
         style={{
           width: '100%',
