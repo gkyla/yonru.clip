@@ -173,7 +173,7 @@ export const useTimelineState = () => {
 
   function saveTimelineTextStyleAsDefault(item: any) {
     const font = useState<string>('font')
-    const toast = useState<any>('toast')
+    const toast = useState<any>('clipperToast')
     
     const style = {
       font: item.font || font.value || 'Montserrat',
@@ -202,7 +202,7 @@ export const useTimelineState = () => {
     if (import.meta.client) {
       localStorage.setItem('defaultTimelineTextStyle', JSON.stringify(style))
     }
-    toast.value = { message: 'Saved current style as manual text default!', type: 'success', id: Date.now() }
+    toast.value = { message: 'Saved current style as manual text default!', type: 'success' }
   }
 
   return {

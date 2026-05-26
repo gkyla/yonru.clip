@@ -56,12 +56,18 @@ export const useClipperState = () => {
   const toast = useState<{message: string, type: 'success' | 'error' | 'info'} | null>('clipperToast', () => null)
   let toastTimeout: any = null
 
+  // Centralized reactive timeout mediator for decoupled shared reactivity
+  watch(toast, (newVal) => {
+    if (newVal) {
+      if (toastTimeout) clearTimeout(toastTimeout)
+      toastTimeout = setTimeout(() => {
+        toast.value = null
+      }, 3000)
+    }
+  })
+
   function showToast(message: string, type: 'success' | 'error' | 'info' = 'success') {
     toast.value = { message, type }
-    if (toastTimeout) clearTimeout(toastTimeout)
-    toastTimeout = setTimeout(() => {
-      toast.value = null
-    }, 3000)
   }
   const segmentPadding = 2 // Match backend YouTubeParser safe_start buffer
 
