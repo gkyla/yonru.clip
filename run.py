@@ -451,12 +451,13 @@ def main():
     # 2. Bootstrapping
     venv_python = bootstrap_backend()
     
-    if target in ["all", "frontend"]:
+    if target in ["all", "frontend", "remotion"]:
         bootstrap_fonts(venv_python, force=args.force_fonts)
+
+    if target in ["all", "frontend"]:
         bootstrap_node_project("frontend", "Frontend")
         
     if target in ["all", "remotion"]:
-        bootstrap_fonts(venv_python, force=args.force_fonts)
         bootstrap_node_project("remotion_engine", "Remotion Engine")
         
         # Ensure Chrome Headless Shell is downloaded for Remotion
