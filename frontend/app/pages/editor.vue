@@ -17,7 +17,7 @@
       :processing-status="loadingLabel"
       :last-video="state.lastAccessedVideo.value"
       :last-clip="state.lastAccessedClip.value"
-      :API_BASE="state.API_BASE"
+      :API_BASE="API_BASE"
       :default-collapsed="true"
       :is-floating="true"
       @update:activeView="handleSidebarNav"
@@ -564,7 +564,7 @@ onMounted(async () => {
   state.fetchCached()
   state.fetchSavedHooks()
   
-  if (process.client) {
+  if (import.meta.client) {
     const saved = localStorage.getItem('yonru_last_video')
     if (saved) state.lastAccessedVideoId.value = saved
   }

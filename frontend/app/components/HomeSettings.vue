@@ -308,7 +308,7 @@
               @drop.prevent="handleFileDrop"
               :class="dragOver ? 'border-accent-500 bg-accent-500/5' : 'border-surface-border bg-surface-dark/30 hover:border-slate-700'"
               class="w-full h-44 rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-6 text-center transition-all cursor-pointer relative"
-              @click="$refs.fileInput.click()"
+              @click="fileInput?.click()"
             >
               <input 
                 ref="fileInput" 
@@ -508,6 +508,7 @@ const apiKey = ref('')
 const showKey = ref(false)
 const ffmpegPath = ref('')
 const nodePath = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
 
 // Health & Diagnostics state
 interface HealthItem {
@@ -581,7 +582,7 @@ const warningDetails = computed(() => {
 const dragOver = ref(false)
 const activeStep = ref(1)
 const deletingCookies = ref(false)
-const cookiesStatus = ref({ exists: false, size_bytes: 0, last_modified: null })
+const cookiesStatus = ref<{ exists: boolean; size_bytes: number; last_modified: string | null }>({ exists: false, size_bytes: 0, last_modified: null })
 
 const checkSystemHealth = () => state.checkSystemHealth()
 

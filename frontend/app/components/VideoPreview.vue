@@ -412,7 +412,8 @@ const bridgeState = useRemotionBridge(
 )
 const {
   isInternalTimeUpdate,
-  setNativeVideoStarted
+  setNativeVideoStarted,
+  syncRemotionProps
 } = bridgeState
 
 // --- LAYOUT & SIZING LOGIC ---
@@ -529,6 +530,10 @@ function onNativeTimeUpdate(e: Event) {
   })
 }
 
+function onNativeVideoError(e: Event) {
+  console.error('[VideoPreview] Native video error:', e)
+}
+
 let safetyTimeout: any = null
 watch(() => state.videoUrl.value, (url) => {
   if (url) {
@@ -556,7 +561,7 @@ const videoTime = computed(() => {
   
   const activeItem = videoTrack.items.find((i: any) => t >= i.start && t < i.start + i.duration)
   if (activeItem) {
-    const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : i.start
+    const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : activeItem.start
     return mediaStart + (t - activeItem.start)
   }
   return t
@@ -571,8 +576,8 @@ function handleWindowMouseMove(e: MouseEvent) {
   if (!isThumbBgDragging.value) return
   const dx = e.clientX - thumbBgDragStartX.value
   const scaledDx = dx / previewScale.value
-  const srcW = state.sourceWidth?.value || 1920
-  const srcH = state.sourceHeight?.value || 1080
+  const srcW = previewVideo.value?.videoWidth || 1920
+  const srcH = previewVideo.value?.videoHeight || 1080
   const imgWidth = 1920 * (srcW / srcH)
   const excessWidth = Math.max(1, imgWidth - 1080)
   const percentDelta = (scaledDx / excessWidth) * -100
@@ -600,14 +605,17 @@ function startThumbBgDrag(e: any) {
 
 function handleWindowTouchMove(e: TouchEvent) {
   if (!isThumbBgDragging.value || !e.touches.length) return
-  const dx = e.touches[0].clientX - thumbBgDragStartX.value
-  const scaledDx = dx / previewScale.value
-  const srcW = state.sourceWidth?.value || 1920
-  const srcH = state.sourceHeight?.value || 1080
-  const imgWidth = 1920 * (srcW / srcH)
-  const excessWidth = Math.max(1, imgWidth - 1080)
-  const percentDelta = (scaledDx / excessWidth) * -100
-  state.thumbnailXOffset.value = Math.max(0, Math.min(100, thumbBgDragStartOffset.value + percentDelta))
+  const touch = e.touches[0]
+  if (touch) {
+    const dx = touch.clientX - thumbBgDragStartX.value
+    const scaledDx = dx / previewScale.value
+    const srcW = previewVideo.value?.videoWidth || 1920
+    const srcH = previewVideo.value?.videoHeight || 1080
+    const imgWidth = 1920 * (srcW / srcH)
+    const excessWidth = Math.max(1, imgWidth - 1080)
+    const percentDelta = (scaledDx / excessWidth) * -100
+    state.thumbnailXOffset.value = Math.max(0, Math.min(100, thumbBgDragStartOffset.value + percentDelta))
+  }
 }
 
 function handleWindowTouchEnd() {
@@ -710,7 +718,7 @@ const currentSubtitleText = computed(() => {
       })
     } else {
       const wordDur = seg.duration / words.length
-      words.forEach((w, idx) => {
+      words.forEach((w: string, idx: number) => {
         flatWords.push({
           text: w,
           start: seg.start + (idx * wordDur),
@@ -723,7 +731,7 @@ const currentSubtitleText = computed(() => {
 
   if (flatWords.length === 0) return ''
 
-  const mode = state.subtitleMode.value
+  const mode: string = state.subtitleMode.value
 
   // 2. Group flatWords based on subtitleMode
   let groupedSegments: { text: string, start: number, duration: number, end: number }[] = []
@@ -733,16 +741,22 @@ const currentSubtitleText = computed(() => {
   } else if (mode.endsWith('_words')) {
     let numWords = 1
     const match = mode.match(/^(\d+)_(?:word|words)$/)
-    if (match) {
+    if (match && match[1]) {
       numWords = parseInt(match[1]) || 1
     }
     
     for (let i = 0; i < flatWords.length; i += numWords) {
       const chunk = flatWords.slice(i, i + numWords)
-      const start = chunk[0].start
-      const end = chunk[chunk.length - 1].end
-      const text = chunk.map(w => w.text).join(' ')
-      groupedSegments.push({ text, start, duration: end - start, end })
+      if (chunk.length > 0) {
+        const first = chunk[0]
+        const last = chunk[chunk.length - 1]
+        if (first && last) {
+          const start = first.start
+          const end = last.end
+          const text = chunk.map(w => w.text).join(' ')
+          groupedSegments.push({ text, start, duration: end - start, end })
+        }
+      }
     }
   } else {
     groupedSegments = flatWords
@@ -784,7 +798,7 @@ const activeSubtitleWords = computed(() => {
       })
     } else {
       const wordDur = seg.duration / words.length
-      words.forEach((w, idx) => {
+      words.forEach((w: string, idx: number) => {
         flatWords.push({
           text: w,
           start: seg.start + (idx * wordDur),
@@ -797,7 +811,7 @@ const activeSubtitleWords = computed(() => {
 
   if (flatWords.length === 0) return []
 
-  const mode = state.subtitleMode.value
+  const mode: string = state.subtitleMode.value
 
   // 2. Group flatWords based on subtitleMode
   let groupedSegments: { words: typeof flatWords, start: number, duration: number, end: number }[] = []
@@ -807,15 +821,21 @@ const activeSubtitleWords = computed(() => {
   } else if (mode.endsWith('_words')) {
     let numWords = 1
     const match = mode.match(/^(\d+)_(?:word|words)$/)
-    if (match) {
+    if (match && match[1]) {
       numWords = parseInt(match[1]) || 1
     }
     
     for (let i = 0; i < flatWords.length; i += numWords) {
       const chunk = flatWords.slice(i, i + numWords)
-      const start = chunk[0].start
-      const end = chunk[chunk.length - 1].end
-      groupedSegments.push({ words: chunk, start, duration: end - start, end })
+      if (chunk.length > 0) {
+        const first = chunk[0]
+        const last = chunk[chunk.length - 1]
+        if (first && last) {
+          const start = first.start
+          const end = last.end
+          groupedSegments.push({ words: chunk, start, duration: end - start, end })
+        }
+      }
     }
   } else {
     groupedSegments = flatWords.map(w => ({ words: [w], start: w.start, duration: w.duration, end: w.end }))

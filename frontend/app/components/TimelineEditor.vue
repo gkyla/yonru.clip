@@ -207,7 +207,7 @@
                         lower
                       </button>
                       <button 
-                        @click="state.selectedTimelineItem.value.content = state.selectedTimelineItem.value.content.replace(/\b\w/g, c => c.toUpperCase())"
+                        @click="state.selectedTimelineItem.value.content = state.selectedTimelineItem.value.content.replace(/\b\w/g, (c: string) => c.toUpperCase())"
                         class="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded text-[8px] font-mono font-bold uppercase transition-all"
                         title="Convert to title case"
                       >

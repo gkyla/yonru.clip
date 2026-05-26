@@ -41,17 +41,23 @@ export const useCropDrag = (
   function startDragTouch(e: TouchEvent) {
     if (state.cropMode.value !== 'manual') return
     if (state.selectedTimelineItem.value?.type === 'text' && hasActiveTextItems.value) return
-    isDragging.value = true
-    dragStartX.value = e.touches[0].clientX
-    dragStartPercent.value = state.cropPercentX.value
+    const touch = e.touches[0]
+    if (touch) {
+      isDragging.value = true
+      dragStartX.value = touch.clientX
+      dragStartPercent.value = state.cropPercentX.value
+    }
   }
 
   function onDragTouch(e: TouchEvent) {
     if (!isDragging.value || maxOffset.value === 0) return
-    const dx = e.touches[0].clientX - dragStartX.value
-    const scaledDx = dx / previewScale.value
-    const percentDelta = (scaledDx / maxOffset.value) * -100
-    state.cropPercentX.value = Math.max(0, Math.min(100, dragStartPercent.value + percentDelta))
+    const touch = e.touches[0]
+    if (touch) {
+      const dx = touch.clientX - dragStartX.value
+      const scaledDx = dx / previewScale.value
+      const percentDelta = (scaledDx / maxOffset.value) * -100
+      state.cropPercentX.value = Math.max(0, Math.min(100, dragStartPercent.value + percentDelta))
+    }
   }
 
   return {

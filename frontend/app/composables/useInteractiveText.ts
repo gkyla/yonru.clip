@@ -36,7 +36,7 @@ export const useInteractiveText = (
         
         ;(document as any).fonts.load(`${weight} 10px "${family}"`).then(() => {
           fontsLoaded.value++
-        }).catch(e => console.warn('Font load error:', e))
+        }).catch((e: any) => console.warn('Font load error:', e))
       }
     })
   }, { immediate: true, deep: true })
@@ -156,7 +156,7 @@ export const useInteractiveText = (
   function hexToRgba(hex: string, opacity: number) {
     let c = hex.replace('#', '')
     if (c.length === 3) {
-      c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2]
+      c = c.charAt(0) + c.charAt(0) + c.charAt(1) + c.charAt(1) + c.charAt(2) + c.charAt(2)
     }
     const r = parseInt(c.substring(0, 2), 16)
     const g = parseInt(c.substring(2, 4), 16)
@@ -193,7 +193,7 @@ export const useInteractiveText = (
     const rgbaShadow = hexToRgba(shadowColor, shadowOpacity)
     
     return {
-      position: 'absolute',
+      position: 'absolute' as const,
       left: `${item.x ?? 540}px`,
       top: `${item.y ?? 960}px`,
       
@@ -220,7 +220,7 @@ export const useInteractiveText = (
       maxWidth: '1000px',
       display: 'inline-block',
       whiteSpace: 'pre-wrap',
-      wordBreak: 'break-word',
+      wordBreak: 'break-word' as const,
     }
   }
 

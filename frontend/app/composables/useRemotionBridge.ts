@@ -59,7 +59,7 @@ export const useRemotionBridge = (
     }
     
     if (flatWords.length > 0) {
-      const mode = state.subtitleMode.value || 'word'
+      const mode: string = state.subtitleMode.value || 'word'
       
       if (mode === 'word' || mode === '1_word') {
         flatWords.forEach(w => {
@@ -72,20 +72,26 @@ export const useRemotionBridge = (
       } else if (mode.endsWith('_words')) {
         let numWords = 1
         const match = mode.match(/^(\d+)_(?:word|words)$/)
-        if (match) {
+        if (match && match[1]) {
           numWords = parseInt(match[1]) || 1
         }
         
         for (let i = 0; i < flatWords.length; i += numWords) {
           const chunk = flatWords.slice(i, i + numWords)
-          const start = chunk[0].start
-          const end = chunk[chunk.length - 1].end
-          const text = chunk.map(w => w.text).join(' ')
-          wordsData.push({
-            word: text,
-            start,
-            end
-          })
+          if (chunk.length > 0) {
+            const first = chunk[0]
+            const last = chunk[chunk.length - 1]
+            if (first && last) {
+              const start = first.start
+              const end = last.end
+              const text = chunk.map(w => w.text).join(' ')
+              wordsData.push({
+                word: text,
+                start,
+                end
+              })
+            }
+          }
         }
       } else {
         flatWords.forEach(w => {

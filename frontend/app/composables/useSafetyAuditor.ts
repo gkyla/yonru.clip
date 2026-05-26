@@ -73,7 +73,7 @@ export const useSafetyAuditor = () => {
         })
       } else {
         const wordDur = seg.duration / words.length
-        words.forEach((w, idx) => {
+        words.forEach((w: string, idx: number) => {
           flatWords.push({
             text: w,
             start: seg.start + (idx * wordDur),
@@ -92,16 +92,22 @@ export const useSafetyAuditor = () => {
       } else if (mode.endsWith('_words')) {
         let numWords = 1
         const match = mode.match(/^(\d+)_(?:word|words)$/)
-        if (match) {
+        if (match && match[1]) {
           numWords = parseInt(match[1]) || 1
         }
         
         for (let i = 0; i < flatWords.length; i += numWords) {
           const chunk = flatWords.slice(i, i + numWords)
-          const start = chunk[0].start
-          const end = chunk[chunk.length - 1].end
-          const text = chunk.map(w => w.text).join(' ')
-          chunks.push({ text, start, duration: end - start })
+          if (chunk.length > 0) {
+            const first = chunk[0]
+            const last = chunk[chunk.length - 1]
+            if (first && last) {
+              const start = first.start
+              const end = last.end
+              const text = chunk.map(w => w.text).join(' ')
+              chunks.push({ text, start, duration: end - start })
+            }
+          }
         }
       } else {
         chunks = flatWords.map(w => ({ text: w.text, start: w.start, duration: w.duration }))
@@ -184,6 +190,34 @@ export const useSafetyAuditor = () => {
     }
   }
 
+  const maskFlaggedWords = () => {
+    const transcript = fullTranscript.value || []
+    const combinedBlacklist = [...new Set([...DEFAULT_BLACKLIST, ...customBlacklist.value])]
+    
+    fullTranscript.value = transcript.map(seg => {
+      let text = seg.text || ''
+      combinedBlacklist.forEach(word => {
+        if (!word) return
+        let regex: RegExp
+        if (word.startsWith('/') && word.endsWith('/')) {
+          regex = new RegExp(word.slice(1, -1), 'gi')
+        } else {
+          const escapedWord = word.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          regex = new RegExp(`\\b${escapedWord}\\b`, 'gi')
+        }
+        
+        text = text.replace(regex, (match: string) => {
+          if (match.length <= 1) return match
+          return match.charAt(0) + '*' + match.slice(2)
+        })
+      })
+      return {
+        ...seg,
+        text
+      }
+    })
+  }
+
   return {
     customBlacklist,
     deepAuditResults,
@@ -192,6 +226,7 @@ export const useSafetyAuditor = () => {
     saveBlacklistToStorage,
     loadBlacklistFromStorage,
     contentAudit,
-    runDeepAudit
+    runDeepAudit,
+    maskFlaggedWords
   }
 }

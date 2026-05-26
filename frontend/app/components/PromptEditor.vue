@@ -159,7 +159,7 @@ const editor = useEditor({
 // Sync external changes to editor
 watch(() => props.modelValue, (newValue) => {
   if (editor.value && newValue !== editor.value.getHTML()) {
-    editor.value.commands.setContent(newValue, false)
+    editor.value.commands.setContent(newValue, { emitUpdate: false })
   }
 })
 

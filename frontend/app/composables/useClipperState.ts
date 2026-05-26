@@ -124,9 +124,10 @@ export const useClipperState = () => {
   let pollInterval: ReturnType<typeof setInterval> | null = null
 
   const lastAccessedVideo = computed(() => {
+    const clip = lastAccessedClip.value
     // Prioritize parent video of the last accessed clip
-    if (lastAccessedClip.value?.folder) {
-      const vid = cachedVideos.value.find(v => v.folder_name === lastAccessedClip.value.folder)
+    if (clip && clip.folder) {
+      const vid = cachedVideos.value.find(v => v.folder_name === clip.folder)
       if (vid) return vid
     }
     // Fallback to last accessed video ID
@@ -424,8 +425,8 @@ export const useClipperState = () => {
     let theme = 'Ready Clip'
     const parts = id.split('_')
     if (parts.length >= 2) {
-      start_time = parseFloat(parts[0]) || 0
-      end_time = parseFloat(parts[1]) || 0
+      start_time = parseFloat(parts[0] || '0') || 0
+      end_time = parseFloat(parts[1] || '0') || 0
       if (parts.length >= 3) {
         theme = parts.slice(2).join(' ').replace(/_/g, ' ')
       }
@@ -628,7 +629,10 @@ export const useClipperState = () => {
       const res = await $fetch<{ prompts: {id: string, name: string, suitableFor: string[], prompt?: string}[] }>(`${API_BASE}/api/prompts`)
       promptsList.value = res.prompts || []
       if (promptsList.value.length > 0 && !promptsList.value.find(p => p.id === selectedPrompt.value)) {
-        selectedPrompt.value = promptsList.value[0].id
+        const firstPrompt = promptsList.value[0]
+        if (firstPrompt) {
+          selectedPrompt.value = firstPrompt.id
+        }
       }
     } catch (e) {
       console.error('Failed to fetch prompts', e)
