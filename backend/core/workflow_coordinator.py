@@ -29,9 +29,10 @@ class ClipWorkflowCoordinator:
                     hooks_cache_path = os.path.join(os.path.dirname(cached_video["file_path"]), "hooks.json")
                     if os.path.exists(hooks_cache_path):
                         print(f"[cache] Video and hooks found locally for {url}. Skipping YouTube network calls.")
-                        self.jobs[job_id]["video_info"] = cached_video
-                        self.jobs[job_id]["full_video_path"] = cached_video["file_path"]
-                        self.jobs[job_id]["fps"] = cached_video.get("fps", 30.0)
+                        job = self.jobs[job_id]
+                        job["video_info"] = cached_video
+                        job["full_video_path"] = cached_video["file_path"]
+                        job["fps"] = cached_video.get("fps", 30.0)
                         
                         with open(hooks_cache_path, "r", encoding="utf-8") as f:
                             hooks_json = f.read()
@@ -58,48 +59,56 @@ class ClipWorkflowCoordinator:
                                 except:
                                     pass
                             
-                            self.jobs[job_id]["hooks"] = filtered
-                            self.jobs[job_id]["status"] = "ready"
+                            job["hooks"] = filtered
+                            job["status"] = "ready"
+                            self.jobs[job_id] = job
                             print(f"[cache] successfully load from cache")
-                            self.save_jobs()
                             return
                         except Exception as e:
                             print(f"[cache] Failed to load cached hooks: {e}")
 
             # Step 0: Check Transcript FIRST
-            self.jobs[job_id]["status"] = "checking_transcript"
+            job = self.jobs[job_id]
+            job["status"] = "checking_transcript"
+            self.jobs[job_id] = job
             video_id = self.youtube_client.extract_video_id(url)
             if not video_id:
                 info = self.youtube_client.get_video_info_fast(url)
                 video_id = info.get("id")
                 
             if not video_id:
-                self.jobs[job_id]["status"] = "error"
-                self.jobs[job_id]["error"] = "Could not extract video ID from URL."
-                self.save_jobs()
+                job = self.jobs[job_id]
+                job["status"] = "error"
+                job["error"] = "Could not extract video ID from URL."
+                self.jobs[job_id] = job
                 return
                 
             transcript_segments = self.youtube_client.fetch_transcript(video_id)
             if not transcript_segments or len(transcript_segments) == 0:
-                self.jobs[job_id]["status"] = "error"
-                self.jobs[job_id]["error"] = "No transcript found. Yonru requires videos with available closed-captions to guarantee accurate frame synchronization."
-                self.save_jobs()
+                job = self.jobs[job_id]
+                job["status"] = "error"
+                job["error"] = "No transcript found. Yonru requires videos with available closed-captions to guarantee accurate frame synchronization."
+                self.jobs[job_id] = job
                 return
 
             # Step 1: Download full 1080p video (single network call)
-            self.jobs[job_id]["status"] = "downloading_video"
+            job = self.jobs[job_id]
+            job["status"] = "downloading_video"
+            self.jobs[job_id] = job
             video_info = self.asset_repository.get_or_create_source(url)
             
             if not video_info:
-                self.jobs[job_id]["status"] = "error"
-                self.jobs[job_id]["error"] = "Failed to download video"
-                self.save_jobs()
+                job = self.jobs[job_id]
+                job["status"] = "error"
+                job["error"] = "Failed to download video"
+                self.jobs[job_id] = job
                 return
             
-            self.jobs[job_id]["video_info"] = video_info
-            self.jobs[job_id]["full_video_path"] = video_info["file_path"]
-            # Save hooks immediately
-            self.jobs[job_id]["status"] = "generating_hooks"
+            job = self.jobs[job_id]
+            job["video_info"] = video_info
+            job["full_video_path"] = video_info["file_path"]
+            job["status"] = "generating_hooks"
+            self.jobs[job_id] = job
             hooks_cache_path = os.path.join(os.path.dirname(video_info["file_path"]), "hooks.json")
             hooks_json = None
             
@@ -129,9 +138,10 @@ class ClipWorkflowCoordinator:
                         )
                     
                     if not hooks_json:
-                        self.jobs[job_id]["status"] = "error"
-                        self.jobs[job_id]["error"] = "Gemini failed to generate hooks from the transcript."
-                        self.save_jobs()
+                        job = self.jobs[job_id]
+                        job["status"] = "error"
+                        job["error"] = "Gemini failed to generate hooks from the transcript."
+                        self.jobs[job_id] = job
                         return
                     if hooks_json:
                         try:
@@ -143,6 +153,7 @@ class ClipWorkflowCoordinator:
                         except Exception as e:
                             print(f"[cache] Failed to cache hooks: {e}")
             
+            job = self.jobs[job_id]
             if hooks_json:
                 try:
                     raw_hooks = json.loads(hooks_json)
@@ -184,37 +195,44 @@ class ClipWorkflowCoordinator:
                         except Exception as e:
                             print(f"[filter] Failed to overwrite cache: {e}")
                     
-                    self.jobs[job_id]["hooks"] = filtered
+                    job["hooks"] = filtered
                 except Exception as e:
                     print(f"[hooks] Parse error: {e}")
-                    self.jobs[job_id]["hooks"] = []
+                    job["hooks"] = []
             else:
-                self.jobs[job_id]["hooks"] = []
+                job["hooks"] = []
                     
-            self.jobs[job_id]["status"] = "hooks_ready"
-            self.save_jobs()
+            job["status"] = "hooks_ready"
+            self.jobs[job_id] = job
             
         except Exception as e:
-            self.jobs[job_id]["status"] = "error"
-            self.jobs[job_id]["error"] = str(e)
-            self.save_jobs()
+            job = self.jobs[job_id]
+            job["status"] = "error"
+            job["error"] = str(e)
+            self.jobs[job_id] = job
 
     def run_local_cut(self, job_id: str, start_time: float, end_time: float, theme: Optional[str] = None, whisper_model: str = "base"):
         """Background: cut segment from cached full video via local ffmpeg"""
         try:
-            self.jobs[job_id]["status"] = "cutting"
+            job = self.jobs[job_id]
+            job["status"] = "cutting"
+            self.jobs[job_id] = job
             
-            full_path = self.jobs[job_id].get("full_video_path")
+            full_path = job.get("full_video_path")
             if not full_path or not os.path.exists(full_path):
-                self.jobs[job_id]["status"] = "error"
-                self.jobs[job_id]["error"] = "Full video not found. Re-analyze first."
+                job = self.jobs[job_id]
+                job["status"] = "error"
+                job["error"] = "Full video not found. Re-analyze first."
+                self.jobs[job_id] = job
                 return
             
             clip = self.asset_repository.create_clip(full_path, start_time, end_time, theme=theme)
             
             if not clip:
-                self.jobs[job_id]["status"] = "error"
-                self.jobs[job_id]["error"] = "Failed to cut segment"
+                job = self.jobs[job_id]
+                job["status"] = "error"
+                job["error"] = "Failed to cut segment"
+                self.jobs[job_id] = job
                 return
             
             # Step 3: Use existing transcript if available (prevents overwriting manual edits)
@@ -230,17 +248,19 @@ class ClipWorkflowCoordinator:
                     shutil.copy(default_style_path, clip_style_path)
                     print(f"[transcribe] Populated default style settings to {clip_style_path}")
 
-                self.jobs[job_id]["clip"] = clip 
-                self.jobs[job_id]["clip_path"] = clip["file_path"]
-                self.jobs[job_id]["clip_duration"] = clip["duration"]
-                self.jobs[job_id]["clip_start"] = start_time
-                self.jobs[job_id]["fps"] = self.jobs[job_id].get("video_info", {}).get("fps", 30.0)
-                self.jobs[job_id]["status"] = "ready"
-                self.save_jobs()
+                job = self.jobs[job_id]
+                job["clip"] = clip 
+                job["clip_path"] = clip["file_path"]
+                job["clip_duration"] = clip["duration"]
+                job["clip_start"] = start_time
+                job["fps"] = job.get("video_info", {}).get("fps", 30.0)
+                job["status"] = "ready"
+                self.jobs[job_id] = job
                 return
 
-            self.jobs[job_id]["status"] = "transcribing"
-            self.save_jobs()
+            job = self.jobs[job_id]
+            job["status"] = "transcribing"
+            self.jobs[job_id] = job
             
             try:
                 # Extract audio from clip
@@ -259,8 +279,10 @@ class ClipWorkflowCoordinator:
                     clip["transcript_quote"] = c_quote
                     
                     # Update in-memory job object so polling picks it up immediately
-                    if "clip" in self.jobs[job_id] and self.jobs[job_id]["clip"]:
-                        self.jobs[job_id]["clip"]["transcript_quote"] = c_quote
+                    job = self.jobs[job_id]
+                    if "clip" in job and job["clip"]:
+                        job["clip"]["transcript_quote"] = c_quote
+                        self.jobs[job_id] = job
                         print(f"[transcribe] Updated in-memory clip quote for job {job_id}")
             except Exception as e:
                 print(f"[transcribe] Whisper failed for clip, falling back to global: {e}")
@@ -274,15 +296,17 @@ class ClipWorkflowCoordinator:
                 print(f"[transcribe] Populated default style settings to {clip_style_path}")
 
             # Store full clip metadata
-            self.jobs[job_id]["clip"] = clip 
-            self.jobs[job_id]["clip_path"] = clip["file_path"]
-            self.jobs[job_id]["clip_duration"] = clip["duration"]
-            self.jobs[job_id]["clip_start"] = start_time
-            self.jobs[job_id]["fps"] = self.jobs[job_id].get("video_info", {}).get("fps", 30.0)
-            self.jobs[job_id]["status"] = "ready"
-            self.save_jobs()
+            job = self.jobs[job_id]
+            job["clip"] = clip 
+            job["clip_path"] = clip["file_path"]
+            job["clip_duration"] = clip["duration"]
+            job["clip_start"] = start_time
+            job["fps"] = job.get("video_info", {}).get("fps", 30.0)
+            job["status"] = "ready"
+            self.jobs[job_id] = job
             
         except Exception as e:
-            self.jobs[job_id]["status"] = "error"
-            self.jobs[job_id]["error"] = str(e)
-            self.save_jobs()
+            job = self.jobs[job_id]
+            job["status"] = "error"
+            job["error"] = str(e)
+            self.jobs[job_id] = job
