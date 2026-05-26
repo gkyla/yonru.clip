@@ -395,6 +395,8 @@ export const useClipperState = () => {
       timeline.timelineTracks.value[0].items = []
     }
     videoUrl.value = null
+    outputUrl.value = null
+    renderStatus.value = 'idle'
     isMediaLoading.value = false
     resetThumbnailState()
   }

@@ -693,6 +693,12 @@ watch(activeSegIdx, (idx) => {
   }
 })
 
+watch(() => state.renderStatus.value, (newStatus) => {
+  if (newStatus === 'done') {
+    fetchReadyClips()
+  }
+})
+
 // Moved up
 
 // Pipeline loading overlay

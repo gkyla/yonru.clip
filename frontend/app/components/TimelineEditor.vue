@@ -532,6 +532,7 @@ const snapEnabled = ref(true)
 const trackH = 40
 const isUserScrolling = ref(false)
 let scrollTimeout: any = null
+let isProgrammaticScroll = false
 
 // --- Thumbnail ---
 const thumbW = computed(() => state.thumbnailEnabled.value ? state.thumbnailDuration.value * pxPerSec.value : 0)
@@ -632,6 +633,7 @@ function onWheel(e: WheelEvent) {
 // --- Scroll ↔ Time sync ---
 function onScroll() {
   if (!scrollEl.value) return
+  if (isProgrammaticScroll) return
   isUserScrolling.value = true
   if (scrollTimeout) clearTimeout(scrollTimeout)
   scrollTimeout = setTimeout(() => { isUserScrolling.value = false }, 150)
@@ -682,7 +684,11 @@ watch(() => state.isPlaying.value, (playing) => {
 watch(() => state.currentTime.value, () => {
   if (!state.isPlaying.value && !isUserScrolling.value && scrollEl.value) {
     const targetScroll = playheadPx.value - containerW.value / 2
+    isProgrammaticScroll = true
     scrollEl.value.scrollLeft = Math.max(0, targetScroll)
+    setTimeout(() => {
+      isProgrammaticScroll = false
+    }, 50)
   }
 })
 

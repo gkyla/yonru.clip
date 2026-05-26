@@ -273,6 +273,56 @@ def run_stream_reader(pipe, prefix, color_code, name, target):
         except Exception:
             pass
 
+def clean_ports(target):
+    """Scan and kill any zombie processes listening on core Yonru ports to ensure self-healing boots."""
+    ports = []
+    if target in ["all", "backend"]:
+        ports.append(8000)
+    if target in ["all", "frontend"]:
+        ports.append(3000)
+    if target in ["all", "remotion"]:
+        ports.append(3003)
+
+    log_system("Sweeping ports " + ", ".join(map(str, ports)) + " for any active zombie processes...")
+    
+    for port in ports:
+        if sys.platform == "win32":
+            try:
+                cmd = f"netstat -ano"
+                output = subprocess.check_output(cmd, shell=True).decode(errors="ignore")
+                for line in output.splitlines():
+                    if f":{port}" in line and "LISTENING" in line:
+                        parts = line.strip().split()
+                        if parts:
+                            pid_str = parts[-1]
+                            try:
+                                pid = int(pid_str)
+                                if pid != os.getpid() and pid > 0:
+                                    log_system(f"Terminating zombie process {pid} on port {port}...")
+                                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            except ValueError:
+                                pass
+            except Exception:
+                pass
+        else:
+            # Unix (macOS / Linux)
+            try:
+                pids_str = subprocess.check_output(["lsof", "-t", "-i", f":{port}"]).decode().strip()
+                if pids_str:
+                    pids = pids_str.split()
+                    for pid_str in pids:
+                        try:
+                            pid = int(pid_str)
+                            if pid != os.getpid():
+                                log_system(f"Terminating zombie process {pid} on port {port}...")
+                                os.kill(pid, signal.SIGKILL)
+                        except ValueError:
+                            pass
+            except subprocess.CalledProcessError:
+                pass
+            except Exception:
+                pass
+
 def spawn_service(name, cmd, cwd, prefix, color_code, target):
     """Spawns a subprocess and starts a reader thread for its output."""
     log_system(f"Launching {name}...")
@@ -282,6 +332,10 @@ def spawn_service(name, cmd, cwd, prefix, color_code, target):
     creation_flags = 0
     if sys.platform == "win32":
         creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+
+    preexec = None
+    if sys.platform != "win32":
+        preexec = os.setsid
 
     proc = subprocess.Popen(
         cmd,
@@ -293,7 +347,8 @@ def spawn_service(name, cmd, cwd, prefix, color_code, target):
         errors="replace",
         bufsize=1,
         shell=use_shell,
-        creationflags=creation_flags
+        creationflags=creation_flags,
+        preexec_fn=preexec
     )
     
     active_processes[name] = proc
@@ -332,15 +387,25 @@ def terminate_all_services():
                     log_system(f"Taskkill failed for {name}. Attempting fallback basic termination...")
                     proc.terminate()
             else:
-                # Unix termination
+                # Unix termination of process group to cleanly kill all children
                 try:
-                    proc.terminate()
+                    os.killpg(os.getpgid(pid), signal.SIGTERM)
                     proc.wait(timeout=3)
-                    log_system(f"Successfully stopped {name} (PID {pid}) cleanly.")
+                    log_system(f"Successfully stopped {name} and its child process group tree cleanly.")
                 except subprocess.TimeoutExpired:
-                    log_system(f"Warning: {name} (PID {pid}) did not stop within 3 seconds. Force-killing...")
-                    proc.kill()
-                    log_system(f"Force-killed {name} successfully.")
+                    log_system(f"Warning: {name} (PID {pid}) did not stop within 3 seconds. Force-killing process group...")
+                    try:
+                        os.killpg(os.getpgid(pid), signal.SIGKILL)
+                        proc.wait()
+                    except Exception:
+                        pass
+                    log_system(f"Force-killed process group for {name} successfully.")
+                except Exception:
+                    try:
+                        proc.terminate()
+                        proc.wait(timeout=2)
+                    except Exception:
+                        proc.kill()
         else:
             log_system(f"{name} (PID {pid}) has already stopped.")
             
@@ -428,6 +493,7 @@ def main():
     remotion_cmd = ["npm", "run", "preview"]
 
     # 4. Spawn Active Services
+    clean_ports(target)
     log_system(f"Starting services in target mode: '{target}'")
     
     # Populate waiting list for dashboard trigger

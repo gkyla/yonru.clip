@@ -295,28 +295,33 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
                 shutil.copy(default_style_path, clip_style_path)
                 print(f"[api] Populated default style settings to {clip_style_path}")
 
-            # Ensure job object is updated for polling
-            jobs[req.job_id]["status"] = "ready"
-            jobs[req.job_id]["clip_path"] = os.path.join(target_dir, "video.mp4")
-            jobs[req.job_id]["clip_duration"] = req.end_time - req.start_time
-            jobs[req.job_id]["clip_start"] = req.start_time
-            jobs[req.job_id]["clip"] = {
+            # Ensure job object is updated for polling atomically
+            job = jobs[req.job_id]
+            job["status"] = "ready"
+            job["clip_path"] = os.path.join(target_dir, "video.mp4")
+            job["clip_duration"] = req.end_time - req.start_time
+            job["clip_start"] = req.start_time
+            job["clip"] = {
                 "asset_url": f"/assets/clips/{folder_name}/{clip_id}/video.mp4",
                 "duration": req.end_time - req.start_time,
                 "start": req.start_time,
                 "end": req.end_time,
                 "theme": req.theme
             }
+            jobs[req.job_id] = job
+            save_jobs()
             return {"job_id": req.job_id, "status": "ready"}
 
-    # Clear previous clip state to prevent UI race conditions
-    jobs[req.job_id]["clip"] = None
-    jobs[req.job_id]["clip_path"] = None
-    jobs[req.job_id]["clip_duration"] = None
-    jobs[req.job_id]["clip_start"] = None
-    jobs[req.job_id]["clip_end"] = None
-    jobs[req.job_id]["clip_theme"] = None
-    jobs[req.job_id]["status"] = "cutting"
+    # Clear previous clip state to prevent UI race conditions atomically
+    job = jobs[req.job_id]
+    job["clip"] = None
+    job["clip_path"] = None
+    job["clip_duration"] = None
+    job["clip_start"] = None
+    job["clip_end"] = None
+    job["clip_theme"] = None
+    job["status"] = "cutting"
+    jobs[req.job_id] = job
 
     background_tasks.add_task(workflow_coordinator.run_local_cut, req.job_id, req.start_time, req.end_time, req.theme, req.whisper_model)
     save_jobs()
@@ -498,8 +503,10 @@ async def delete_cached(folder_name: str):
                 current_status = j_info.get("status")
                 if current_status in ["queued", "downloading", "processing", "checking_transcript", "extracting_audio", "generating_hooks"]:
                     print(f"[delete] Cancelling active background job {j_id} for deleted source {folder_name}")
-                    jobs[j_id]["status"] = "cancelled"
-                    jobs[j_id]["error"] = "Source video deleted by user."
+                    job = jobs[j_id]
+                    job["status"] = "cancelled"
+                    job["error"] = "Source video deleted by user."
+                    jobs[j_id] = job
         
         save_jobs()
         

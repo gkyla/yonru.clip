@@ -64,6 +64,7 @@ export const useClipperJob = () => {
   const thumbnailEditMode = useState<boolean>('thumbnailEditMode', () => false)
   const thumbnailXOffset = useState<number>('thumbnailXOffset', () => 50)
   const outputUrl = useState<string | null>('outputUrl', () => null)
+  const renderStatus = useState<string>('renderStatus', () => 'idle')
 
   // Polling state
   let pollInterval: ReturnType<typeof setInterval> | null = null
@@ -354,6 +355,8 @@ export const useClipperJob = () => {
     activeHook.value = hook
     clipId.value = null
     videoUrl.value = null
+    outputUrl.value = null
+    renderStatus.value = 'idle'
     fullTranscript.value = []
     timeline.timelineTracks.value[0].items = []
     resetThumbnailState()
@@ -406,6 +409,8 @@ export const useClipperJob = () => {
     clipId.value = id
     folderName.value = folder
     videoUrl.value = null
+    outputUrl.value = null
+    renderStatus.value = 'idle'
     fullTranscript.value = []
     timeline.timelineTracks.value[0].items = []
     isMediaLoading.value = true
