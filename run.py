@@ -8,9 +8,11 @@ import time
 import signal
 
 # --- Formatting Helpers ---
+IS_WIN = (sys.platform == "win32")
+
 def enable_colors():
     """Enable ANSI escape sequences on Windows 10/11 if applicable."""
-    if sys.platform == "win32":
+    if IS_WIN:
         try:
             import ctypes
             kernel32 = ctypes.windll.kernel32
@@ -34,7 +36,7 @@ def check_dependencies():
     # 1. Check Node.js
     if not shutil.which("node"):
         log_error("Node.js (18+) was not detected on this machine.")
-        if sys.platform == "win32":
+        if IS_WIN:
             log_error("To install Node.js on Windows:")
             log_error("  - Download and run the installer from: https://nodejs.org/")
             log_error("  - Or use winget: 'winget install OpenJS.NodeJS'")
@@ -49,7 +51,7 @@ def check_dependencies():
     # 2. Check FFmpeg
     if not shutil.which("ffmpeg"):
         log_system("\033[31mFriendly Alert: FFmpeg was not detected in your system PATH.\033[0m")
-        if sys.platform.startswith("win"):
+        if sys.platform.startswith("win") or IS_WIN:
             log_system("To install FFmpeg on Windows:")
             log_system("  - Use Chocolatey: 'choco install ffmpeg'")
             log_system("  - Use Scoop: 'scoop install ffmpeg'")
@@ -69,7 +71,7 @@ def bootstrap_backend():
     venv_dir = os.path.join(backend_dir, "venv")
     
     # Platform-specific paths
-    if sys.platform == "win32":
+    if IS_WIN:
         venv_python = os.path.join(venv_dir, "Scripts", "python.exe")
     else:
         venv_python = os.path.join(venv_dir, "bin", "python")
@@ -118,7 +120,7 @@ def bootstrap_backend():
             subprocess.run([sys.executable, "-m", "venv", "venv"], cwd=backend_dir, check=True)
         except subprocess.CalledProcessError:
             log_error("Failed to create Python virtual environment.")
-            if sys.platform != "win32" and sys.platform != "darwin":
+            if not IS_WIN and sys.platform != "darwin":
                 log_error("On Ubuntu/Debian, you may need to install python3-venv first:")
                 log_error("  - Run: 'sudo apt install python3-venv'")
             else:
@@ -181,7 +183,7 @@ def bootstrap_fonts(venv_python, force=False):
 
 def clear_console():
     """Clears the terminal screen cleanly on all platforms."""
-    if sys.platform == "win32":
+    if IS_WIN:
         os.system("cls")
     else:
         os.system("clear")
@@ -225,8 +227,7 @@ def bootstrap_node_project(directory, name):
     if not os.path.exists(node_modules):
         log_system(f"Installing NPM packages for {name}...")
         # Use shell=True on Windows for npm
-        use_shell = (sys.platform == "win32")
-        subprocess.run(["npm", "install"], cwd=directory, shell=use_shell, check=True)
+        subprocess.run(["npm", "install"], cwd=directory, shell=IS_WIN, check=True)
 
 # --- Process Execution & Logging ---
 
