@@ -1,4 +1,8 @@
 // Composable for managing the entire clipper state
+import { useSystemDiagnostics } from './useSystemDiagnostics'
+import { useSafetyAuditor, DEFAULT_BLACKLIST } from './useSafetyAuditor'
+import { useTimelineState } from './useTimelineState'
+
 export const FONT_OPTIONS = [
   'Montserrat', 'Inter', 'Bebas Neue', 'Oswald', 'Poppins', 
   'Outfit', 'Noto Sans', 'Roboto Condensed', 'Playfair Display',
@@ -9,6 +13,11 @@ export const FONT_OPTIONS = [
 export const useClipperState = () => {
   // API Base
   const API_BASE = 'http://localhost:8000'
+
+  // Instantiate Sub-composables for separated concerns
+  const diagnostics = useSystemDiagnostics()
+  const auditor = useSafetyAuditor()
+  const timeline = useTimelineState()
 
   // Job state
   const jobId = useState<string | null>('jobId', () => null)
@@ -90,51 +99,6 @@ export const useClipperState = () => {
   const thumbnailEditMode = useState<boolean>('thumbnailEditMode', () => false)
   const thumbnailXOffset = useState<number>('thumbnailXOffset', () => 50)
 
-  // Content Audit State
-  const safeZoneVisible = useState<boolean>('safeZoneVisible', () => false)
-  const customBlacklist = useState<string[]>('customBlacklist', () => [])
-  
-  const DEFAULT_BLACKLIST = [
-    // Violence & Harm
-    'kill', 'death', 'suicide', 'unalive', 'gun', 'blood', 'weapon', 'murder', 'shot',
-    '/bunuh/', 'mati', 'tewas', '/darah/', '/senjata/', '/tembak/', 'perang', '/teroris/', '/bom/',
-    // Sexual
-    'sex', 'porn', 'seggs', 'hentai', 'nude', 'nudity', 'sexy',
-    '/bokep/', '/telanjang/', '/seks/', '/mesum/', 's*ksi',
-    // Sensitive
-    'war', 'terror', 'bomb', 'crash', 'accident', 'crime',
-    // Algospeak / Profanity
-    'sh!t', 'f*ck', 'b!tch', 'damn', 'hell',
-    '/anjing/', '/bangsat/', '/tolol/', '/goblok/', '/babi/', '/kontol/', '/memek/', '/itil/'
-  ]
-
-  // Persistence for blacklist
-  const saveBlacklistToStorage = () => {
-    if (import.meta.client) {
-      localStorage.setItem('yonru_subtitle_blacklist', JSON.stringify(customBlacklist.value))
-    }
-  }
-
-  const loadBlacklistFromStorage = () => {
-    if (import.meta.client) {
-      const saved = localStorage.getItem('yonru_subtitle_blacklist')
-      if (saved) {
-        try {
-          customBlacklist.value = JSON.parse(saved)
-        } catch (e) {
-          customBlacklist.value = [...DEFAULT_BLACKLIST]
-        }
-      } else {
-        customBlacklist.value = [...DEFAULT_BLACKLIST]
-      }
-    }
-  }
-
-  // Load on init
-  if (import.meta.client) {
-    loadBlacklistFromStorage()
-  }
-
   // Playback state (Shared Clock)
   const isPlaying = useState<boolean>('isPlaying', () => false)
   const currentTime = useState<number>('currentTime', () => 0)
@@ -152,36 +116,12 @@ export const useClipperState = () => {
   const lastAccessedVideoId = useState<string | null>('lastAccessedVideoId', () => null)
   const lastAccessedClip = useState<{folder: string, clip_id: string, title?: string} | null>('lastAccessedClip', () => null)
 
-  // System Health & Diagnostics State
-  const systemHealth = useState<any | null>('systemHealth', () => null)
-  const checkingHealth = useState<boolean>('checkingHealth', () => false)
-  const settingsScrollTarget = useState<string | null>('settingsScrollTarget', () => null)
+  const isDeletingThumbnail = ref(false)
+  const isCapturingThumbnail = useState<boolean>('isCapturingThumbnail', () => false)
+  let isPersistenceInitialized = false
 
-  const isAnyPrerequisiteMissing = computed(() => {
-    if (!systemHealth.value) return false
-    const keys = ['ffmpeg', 'node', 'python_env', 'gemini_api', 'cookies']
-    return keys.some(key => {
-      const item = systemHealth.value[key]
-      if (!item) return false
-      if (['ffmpeg', 'node', 'python_env'].includes(key)) {
-        return item.status !== 'OK'
-      } else {
-        return item.status !== 'Configured'
-      }
-    })
-  })
-
-  async function checkSystemHealth() {
-    checkingHealth.value = true
-    try {
-      const res = await $fetch<any>(`${API_BASE}/api/system-health`)
-      systemHealth.value = res
-    } catch (e) {
-      console.error('Failed to fetch system health', e)
-    } finally {
-      checkingHealth.value = false
-    }
-  }
+  // Polling interval ref
+  let pollInterval: ReturnType<typeof setInterval> | null = null
 
   const lastAccessedVideo = computed(() => {
     // Prioritize parent video of the last accessed clip
@@ -217,193 +157,6 @@ export const useClipperState = () => {
     lastAccessedClip.value = { folder, clip_id: clipId, title: title || 'Current Clip' }
     if (import.meta.client) localStorage.setItem('yonru_last_clip', JSON.stringify({ folder, clip_id: clipId, title: title || 'Current Clip' }))
   }
-
-  // Timeline state
-  const timelineTracks = useState<any[]>('timelineTracks', () => [
-    { id: 'video', name: 'Main Video', type: 'video', items: [] },
-    { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-    { id: 'text', name: 'Text layers', type: 'text', items: [] }
-  ])
-  const defaultTimelineTextStyle = useState<any | null>('defaultTimelineTextStyle', () => null)
-  const timelineDuration = computed(() => {
-    let max = 0
-    let hasItems = false
-    timelineTracks.value.forEach(track => {
-      if (track.items.length > 0) hasItems = true
-      track.items.forEach((item: any) => {
-        max = Math.max(max, item.start + item.duration)
-      })
-    })
-    
-    const offset = (thumbnailEnabled.value ? thumbnailDuration.value : 0)
-    
-    if (hasItems) {
-      return (max > 0 ? max : 1) + offset
-    }
-    return (videoDuration.value > 0 ? videoDuration.value : 60) + offset
-  })
-
-  const videoTime = computed(() => {
-    const thumbSec = thumbnailEnabled.value ? thumbnailDuration.value : 0
-    const t = Math.max(0, currentTime.value - thumbSec)
-    const videoTrack = timelineTracks.value.find(tr => tr.id === 'video')
-    if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) return t
-    
-    const activeItem = videoTrack.items.find((i: any) => t >= i.start && t < i.start + i.duration)
-    if (activeItem) {
-      const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : activeItem.start
-      return mediaStart + (t - activeItem.start)
-    }
-    return t
-  })
-
-
-  const deepAuditResults = useState<any | null>('deepAuditResults', () => null)
-  const isDeepAuditing = ref(false)
-
-  const contentAudit = computed(() => {
-    const transcript = fullTranscript.value || []
-    const combinedBlacklist = [...new Set([...DEFAULT_BLACKLIST, ...customBlacklist.value])]
-    const mode = subtitleMode.value
-    
-    const flaggedWords: string[] = []
-    const flaggedSegments: { start: number, duration: number, word: string, text: string }[] = []
-    
-    // 1. Flatten all segments in fullTranscript into individual words
-    const flatWords: { text: string, start: number, duration: number, end: number }[] = []
-    
-    for (const seg of transcript) {
-      const segText = (seg.text || '').trim()
-      if (!segText) continue
-      
-      const words = segText.split(/\s+/)
-      if (words.length === 1) {
-        flatWords.push({
-          text: words[0],
-          start: seg.start,
-          duration: seg.duration,
-          end: seg.start + seg.duration
-        })
-      } else {
-        const wordDur = seg.duration / words.length
-        words.forEach((w, idx) => {
-          flatWords.push({
-            text: w,
-            start: seg.start + (idx * wordDur),
-            duration: wordDur,
-            end: seg.start + ((idx + 1) * wordDur)
-          })
-        })
-      }
-    }
-
-    if (flatWords.length > 0) {
-      // 2. Group flatWords based on subtitleMode into chunks
-      let chunks: { text: string, start: number, duration: number }[] = []
-
-      if (mode === 'word' || mode === '1_word') {
-        chunks = flatWords.map(w => ({ text: w.text, start: w.start, duration: w.duration }))
-      } else if (mode.endsWith('_words')) {
-        let numWords = 1
-        const match = mode.match(/^(\d+)_(?:word|words)$/)
-        if (match) {
-          numWords = parseInt(match[1]) || 1
-        }
-        
-        for (let i = 0; i < flatWords.length; i += numWords) {
-          const chunk = flatWords.slice(i, i + numWords)
-          const start = chunk[0].start
-          const end = chunk[chunk.length - 1].end
-          const text = chunk.map(w => w.text).join(' ')
-          chunks.push({ text, start, duration: end - start })
-        }
-      } else {
-        // Character limit based (e.g. 10_chars, 15_chars, 20_chars)
-        const limit = parseInt(mode) || 0
-        if (limit <= 0) {
-          chunks = flatWords.map(w => ({ text: w.text, start: w.start, duration: w.duration }))
-        } else {
-          let currentChunk: typeof flatWords = []
-          let currentLen = 0
-          
-          for (const w of flatWords) {
-            if (currentLen + w.text.length > limit && currentChunk.length > 0) {
-              const start = currentChunk[0].start
-              const end = currentChunk[currentChunk.length - 1].end
-              const text = currentChunk.map(c => c.text).join(' ')
-              chunks.push({ text, start, duration: end - start })
-              
-              currentChunk = [w]
-              currentLen = w.text.length
-            } else {
-              currentChunk.push(w)
-              currentLen += w.text.length + (currentChunk.length > 1 ? 1 : 0)
-            }
-          }
-          if (currentChunk.length > 0) {
-            const start = currentChunk[0].start
-            const end = currentChunk[currentChunk.length - 1].end
-            const text = currentChunk.map(c => c.text).join(' ')
-            chunks.push({ text, start, duration: end - start })
-          }
-        }
-      }
-
-      // Audit subtitle chunks
-      chunks.forEach(chunk => {
-        const lowerText = chunk.text.toLowerCase()
-        combinedBlacklist.forEach(word => {
-          if (!word) return
-          let regex: RegExp
-          if (word.startsWith('/') && word.endsWith('/')) {
-            regex = new RegExp(word.slice(1, -1), 'i')
-          } else {
-            // Escape special chars for standard strings
-            const escapedWord = word.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-            regex = new RegExp(`\\b${escapedWord}\\b`, 'i')
-          }
-          if (regex.test(lowerText)) {
-            flaggedSegments.push({ 
-              start: chunk.start, 
-              duration: chunk.duration, 
-              word, 
-              text: chunk.text 
-            })
-            if (!flaggedWords.includes(word)) flaggedWords.push(word)
-          }
-        })
-      })
-    }
-
-    const duration = timelineDuration.value
-    const isDurationOk = duration >= 5 && duration <= 60
-    
-    // Safety Score calculation
-    let score = 100
-    const uniqueTimeFlags = new Set(flaggedSegments.map(f => f.start.toFixed(2))).size
-    score -= (uniqueTimeFlags * 12) 
-    
-    if (duration < 5 || duration > 90) score -= 30
-    else if (duration > 60) score -= 10
-    
-    return {
-      score: Math.max(0, score),
-      flaggedWords,
-      flaggedSegments,
-      isDurationOk,
-      uniqueFlagsCount: flaggedSegments.length,
-      durationReason: duration < 5 ? 'Too short' : duration > 60 ? 'Long' : 'Optimal'
-    }
-  })
-  const selectedTimelineItem = useState<any | null>('selectedTimelineItem', () => null)
-  const isSavingLocked = ref(false)
-  const isDeletingThumbnail = ref(false)
-  const isTimelineShifting = useState<boolean>('isTimelineShifting', () => false)
-  const isCapturingThumbnail = useState<boolean>('isCapturingThumbnail', () => false)
-  let isPersistenceInitialized = false
-
-  // Polling interval ref
-  let pollInterval: ReturnType<typeof setInterval> | null = null
 
   // --- Actions ---
 
@@ -484,17 +237,14 @@ export const useClipperState = () => {
           const targetUrl = `${API_BASE}${res.clip.asset_url}`
           if (videoUrl.value !== targetUrl || fullTranscript.value.length === 0) {
             videoUrl.value = targetUrl
-            // Set video duration to clip duration
             if (res.clip.duration) {
               videoDuration.value = res.clip.duration
             }
             
-            // If transcript is available and local is empty, populate it
             if (res.clip.transcript && fullTranscript.value.length === 0) {
               fullTranscript.value = res.clip.transcript
             }
             
-            // Reconstruct activeHook if missing (triggers UI visibility)
             if (!activeHook.value) {
               activeHook.value = {
                 theme: res.clip.theme || 'Extracted Clip',
@@ -507,9 +257,7 @@ export const useClipperState = () => {
               activeHook.value.transcript_quote = res.clip.transcript_quote
             }
 
-            // Sync hooks list if provided (essential for Ready to Edit hydration)
             if (res.hooks && res.hooks.length > 0) {
-              // Always update if current hooks is empty, or if length changed, or if content seems missing (e.g. no quotes)
               const currentHasQuotes = hooks.value.some(h => h.transcript_quote && h.transcript_quote !== 'No transcript preview available.')
               const newHasQuotes = res.hooks.some((h: any) => h.transcript_quote && h.transcript_quote !== 'No transcript preview available.')
               
@@ -519,7 +267,6 @@ export const useClipperState = () => {
               }
             }
             
-            // Sync active hook metadata (especially transcript_quote)
             if (res.clip && activeHook.value) {
               if (res.clip.transcript_quote && (!activeHook.value.transcript_quote || activeHook.value.transcript_quote === 'No transcript preview available.')) {
                 console.log('[polling] Syncing active hook quote')
@@ -527,121 +274,105 @@ export const useClipperState = () => {
               }
             }
             
-            // Extract Clip ID for tracking
             const parts = res.clip.asset_url.split('/')
             const newClipId = parts.length >= 5 ? parts[4] : null
             
-            // Load its specific assets if not already loaded for this clip
             if (videoUrl.value !== targetUrl || fullTranscript.value.length === 0 || (newClipId && clipId.value !== newClipId)) {
               if (newClipId) clipId.value = newClipId
-              isSavingLocked.value = true
+              timeline.isSavingLocked.value = true
               try {
-              const baseClipUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/'))
-              const transcriptUrl = baseClipUrl + '/transcript.json?t=' + Date.now()
-              const styleUrl = baseClipUrl + '/style_settings.json?t=' + Date.now()
-              const timelineUrl = baseClipUrl + '/timeline.json?t=' + Date.now()
+                const baseClipUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/'))
+                const transcriptUrl = baseClipUrl + '/transcript.json?t=' + Date.now()
+                const styleUrl = baseClipUrl + '/style_settings.json?t=' + Date.now()
 
-              // Load Transcript
-              try {
-                const clipTranscript = await $fetch<any[]>(transcriptUrl)
-                if (clipTranscript && clipTranscript.length > 0) {
-                  fullTranscript.value = clipTranscript
-                  console.log('[clipper] Loaded isolated clip transcript')
+                // Load Transcript
+                try {
+                  const clipTranscript = await $fetch<any[]>(transcriptUrl)
+                  if (clipTranscript && clipTranscript.length > 0) {
+                    fullTranscript.value = clipTranscript
+                    console.log('[clipper] Loaded isolated clip transcript')
+                  }
+                } catch (te) {
+                  console.warn('[clipper] Failed to load clip transcript:', te)
                 }
-              } catch (te) {
-                console.warn('[clipper] Failed to load clip transcript:', te)
-              }
 
-              // Load Style Settings
-              try {
-                const styles = await $fetch<any>(styleUrl)
-                if (styles) {
-                  if (styles.subtitlePosition) subtitlePosition.value = styles.subtitlePosition
-                  if (styles.subtitleOffset !== undefined) subtitleOffset.value = styles.subtitleOffset
-                  if (styles.subtitleSyncOffset !== undefined) subtitleSyncOffset.value = styles.subtitleSyncOffset
-                  if (styles.font) font.value = styles.font
-                  if (styles.fontSize !== undefined) fontSize.value = styles.fontSize
-                  if (styles.cropPercentX !== undefined) cropPercentX.value = styles.cropPercentX
-                  if (styles.subtitleMode) subtitleMode.value = styles.subtitleMode
-                  if (styles.subtitleAnimation) subtitleAnimation.value = styles.subtitleAnimation
-                  if (styles.subtitleHighlightMode) subtitleHighlightMode.value = styles.subtitleHighlightMode
-                  if (styles.subtitleHighlightColor) subtitleHighlightColor.value = styles.subtitleHighlightColor
-                  if (styles.subtitleTextColor) subtitleTextColor.value = styles.subtitleTextColor
-                  if (styles.subtitleStrokeColor) subtitleStrokeColor.value = styles.subtitleStrokeColor
-                  if (styles.subtitleStrokeWidth !== undefined) subtitleStrokeWidth.value = styles.subtitleStrokeWidth
-                  if (styles.subtitleFontWeight !== undefined) subtitleFontWeight.value = styles.subtitleFontWeight
-                  if (styles.subtitleTextTransform) subtitleTextTransform.value = styles.subtitleTextTransform
-                  if (styles.subtitleBackground) subtitleBackground.value = styles.subtitleBackground
-                  if (styles.subtitleBackgroundOpacity !== undefined) subtitleBackgroundOpacity.value = styles.subtitleBackgroundOpacity
-                  if (styles.subtitleWordSpacing !== undefined) subtitleWordSpacing.value = styles.subtitleWordSpacing
-                  if (styles.volume !== undefined) volume.value = styles.volume
-                  console.log('[clipper] Loaded clip style settings')
+                // Load Style Settings
+                try {
+                  const styles = await $fetch<any>(styleUrl)
+                  if (styles) {
+                    if (styles.subtitlePosition) subtitlePosition.value = styles.subtitlePosition
+                    if (styles.subtitleOffset !== undefined) subtitleOffset.value = styles.subtitleOffset
+                    if (styles.subtitleSyncOffset !== undefined) subtitleSyncOffset.value = styles.subtitleSyncOffset
+                    if (styles.font) font.value = styles.font
+                    if (styles.fontSize !== undefined) fontSize.value = styles.fontSize
+                    if (styles.cropPercentX !== undefined) cropPercentX.value = styles.cropPercentX
+                    if (styles.subtitleMode) subtitleMode.value = styles.subtitleMode
+                    if (styles.subtitleAnimation) subtitleAnimation.value = styles.subtitleAnimation
+                    if (styles.subtitleHighlightMode) subtitleHighlightMode.value = styles.subtitleHighlightMode
+                    if (styles.subtitleHighlightColor) subtitleHighlightColor.value = styles.subtitleHighlightColor
+                    if (styles.subtitleTextColor) subtitleTextColor.value = styles.subtitleTextColor
+                    if (styles.subtitleStrokeColor) subtitleStrokeColor.value = styles.subtitleStrokeColor
+                    if (styles.subtitleStrokeWidth !== undefined) subtitleStrokeWidth.value = styles.subtitleStrokeWidth
+                    if (styles.subtitleFontWeight !== undefined) subtitleFontWeight.value = styles.subtitleFontWeight
+                    if (styles.subtitleTextTransform) subtitleTextTransform.value = styles.subtitleTextTransform
+                    if (styles.subtitleBackground) subtitleBackground.value = styles.subtitleBackground
+                    if (styles.subtitleBackgroundOpacity !== undefined) subtitleBackgroundOpacity.value = styles.subtitleBackgroundOpacity
+                    if (styles.subtitleWordSpacing !== undefined) subtitleWordSpacing.value = styles.subtitleWordSpacing
+                    if (styles.volume !== undefined) volume.value = styles.volume
+                    console.log('[clipper] Loaded clip style settings')
+                  }
+                } catch (se) {
+                  console.log('[clipper] No style settings yet for this clip')
                 }
-              } catch (se) {
-                console.log('[clipper] No style settings yet for this clip')
-              }
 
-              // Load Timeline
-              let timelineLoaded = false
-              try {
-                const timelineUrl = baseClipUrl + '/timeline.json?t=' + Date.now()
-                console.log('[clipper] Fetching timeline from:', timelineUrl)
-                const tracks = await $fetch<any[]>(timelineUrl)
-                if (tracks && tracks.length > 0) {
-                  console.log('[clipper] Timeline JSON fetched, tracks count:', tracks.length)
-                  timelineTracks.value = tracks
-                  timelineLoaded = true
-                  console.log('[clipper] Loaded clip timeline into state')
-                } else {
-                  console.log('[clipper] Timeline JSON was empty or invalid')
+                // Load Timeline
+                let timelineLoaded = false
+                try {
+                  const timelineUrl = baseClipUrl + '/timeline.json?t=' + Date.now()
+                  console.log('[clipper] Fetching timeline from:', timelineUrl)
+                  const tracks = await $fetch<any[]>(timelineUrl)
+                  if (tracks && tracks.length > 0) {
+                    timeline.timelineTracks.value = tracks
+                    timelineLoaded = true
+                    console.log('[clipper] Loaded clip timeline into state')
+                  }
+                } catch (te) {}
+
+                if (!timelineLoaded && (timeline.timelineTracks.value[0]?.items?.length === 0)) {
+                  timeline.timelineTracks.value[0].items = [{
+                    id: 'main-video',
+                    name: 'Main Video',
+                    start: 0,
+                    mediaStart: 0,
+                    duration: res.clip.duration || videoDuration.value
+                  }]
                 }
-              } catch (te) {
-                console.log('[clipper] No timeline yet for this clip (or fetch failed)')
-              }
 
-              // If no timeline loaded, populate default video track
-              if (!timelineLoaded && (timelineTracks.value[0]?.items?.length === 0)) {
-                console.log('[clipper] Populating default video track')
-                timelineTracks.value[0].items = [{
-                  id: 'main-video',
-                  name: 'Main Video',
-                  start: 0,
-                  mediaStart: 0,
-                  duration: res.clip.duration || videoDuration.value
-                }]
+                loadThumbnailConfig()
+              } catch (e) {
+                console.warn('[clipper] No clip assets yet')
+              } finally {
+                setTimeout(() => {
+                  timeline.isSavingLocked.value = false
+                }, 500)
               }
-
-              // Load Thumbnail Config
-              loadThumbnailConfig()
-            } catch (e) {
-              console.warn('[clipper] No clip assets yet, will be loaded on polling finish')
-            } finally {
-              // Release lock after small delay to let any pending reactivity settle
-              setTimeout(() => {
-                isSavingLocked.value = false
-                console.log('[clipper] Saving lock released')
-              }, 500)
             }
           }
         }
-      }
 
-      if (res.hooks) {
-        hooks.value = res.hooks
-      }
+        if (res.hooks) {
+          hooks.value = res.hooks
+        }
 
-      if (res.error) {
-        jobError.value = res.error
-      }
+        if (res.error) {
+          jobError.value = res.error
+        }
 
-      // Stop polling when hooks ready, clip ready, or error
-      if (['hooks_ready', 'ready', 'error'].includes(res.status)) {
-        stopPolling()
-      }
-    } catch (e) {
-      // Keep polling on network blip
-    }
-  }, 2000)
+        if (['hooks_ready', 'ready', 'error'].includes(res.status)) {
+          stopPolling()
+        }
+      } catch (e) {}
+    }, 2000)
   }
 
   function stopPolling() {
@@ -654,17 +385,15 @@ export const useClipperState = () => {
   async function extractClip(hook: any) {
     if (!jobId.value) return
     
-    // Reset state for new hook
     isPlaying.value = false
     currentTime.value = 0
     activeHook.value = hook
     clipId.value = null
     videoUrl.value = null
     fullTranscript.value = []
-    timelineTracks.value[0].items = []
+    timeline.timelineTracks.value[0].items = []
     resetThumbnailState()
     
-    // Start with loading state (checks cache first)
     isMediaLoading.value = true
     jobStatus.value = 'idle'
     
@@ -690,7 +419,6 @@ export const useClipperState = () => {
     jobStatus.value = 'queued'
     jobError.value = null
     
-    // Parse synthetic hook from ID (format: start_end_theme)
     let start_time = 0
     let end_time = 0
     let theme = 'Ready Clip'
@@ -703,7 +431,6 @@ export const useClipperState = () => {
       }
     }
 
-    // Reset state for loading
     isPlaying.value = false
     currentTime.value = 0
     activeHook.value = {
@@ -716,7 +443,7 @@ export const useClipperState = () => {
     folderName.value = folder
     videoUrl.value = null
     fullTranscript.value = []
-    timelineTracks.value[0].items = []
+    timeline.timelineTracks.value[0].items = []
     isMediaLoading.value = true
     resetThumbnailState()
 
@@ -740,42 +467,37 @@ export const useClipperState = () => {
           videoDuration.value = res.clip.duration
         }
         
-        // Update activeHook with full metadata from backend (including transcript_quote)
         activeHook.value = {
           ...activeHook.value,
           ...res.clip
         }
       }
         
-        // Ensure timeline has the main video track populated
-        if (timelineTracks.value[0]) {
-          timelineTracks.value[0].items = [{
-            id: 'main-video',
-            name: 'Main Video',
-            start: 0,
-            mediaStart: 0,
-            duration: res.clip.duration || videoDuration.value
-          }]
-          console.log('[clipper] Populated default video track for ready clip')
-        }
-
-        // Initialize activeHook if missing
-        if (!activeHook.value) {
-          activeHook.value = {
-            theme: res.clip.theme || 'Ready Clip',
-            start: res.clip.start || 0,
-            end: res.clip.end || res.clip.duration || 0,
-            duration: res.clip.duration || 0
-          }
-        }
-      
-        // Since it's marked 'ready' in backend, startPolling will trigger the asset load instantly (transcript, styles)
-        startPolling()
-      } catch (e: any) {
-        jobStatus.value = 'error'
-        jobError.value = e.message || 'Failed to load ready clip'
-        isMediaLoading.value = false
+      if (timeline.timelineTracks.value[0]) {
+        timeline.timelineTracks.value[0].items = [{
+          id: 'main-video',
+          name: 'Main Video',
+          start: 0,
+          mediaStart: 0,
+          duration: res.clip.duration || videoDuration.value
+        }]
       }
+
+      if (!activeHook.value) {
+        activeHook.value = {
+          theme: res.clip.theme || 'Ready Clip',
+          start: res.clip.start || 0,
+          end: res.clip.end || res.clip.duration || 0,
+          duration: res.clip.duration || 0
+        }
+      }
+      
+      startPolling()
+    } catch (e: any) {
+      jobStatus.value = 'error'
+      jobError.value = e.message || 'Failed to load ready clip'
+      isMediaLoading.value = false
+    }
   }
 
   async function renderClip(hookIndex = 0, outputName?: string) {
@@ -787,7 +509,6 @@ export const useClipperState = () => {
     outputUrl.value = null
 
     try {
-      // Auto-save before render
       await saveTranscript()
       
       const body = {
@@ -801,7 +522,7 @@ export const useClipperState = () => {
         crop_percent_x: cropPercentX.value,
         subtitle_sync_offset: subtitleSyncOffset.value,
         subtitle_mode: subtitleMode.value,
-        timeline_tracks: timelineTracks.value,
+        timeline_tracks: timeline.timelineTracks.value,
         subtitle_animation: subtitleAnimation.value,
         subtitle_highlight_mode: subtitleHighlightMode.value,
         subtitle_highlight_color: subtitleHighlightColor.value,
@@ -884,7 +605,6 @@ export const useClipperState = () => {
         }
       }
 
-      // If stream ended without explicit done/error, check status
       if (renderStatus.value === 'rendering') {
         renderStatus.value = 'error'
         jobError.value = 'Render stream ended unexpectedly'
@@ -897,7 +617,6 @@ export const useClipperState = () => {
     }
   }
 
-  // Format seconds to mm:ss
   function formatDuration(sec: number) {
     const m = Math.floor(sec / 60)
     const s = Math.floor(sec % 60)
@@ -908,7 +627,6 @@ export const useClipperState = () => {
     try {
       const res = await $fetch<{ prompts: {id: string, name: string, suitableFor: string[], prompt?: string}[] }>(`${API_BASE}/api/prompts`)
       promptsList.value = res.prompts || []
-      // set default if nothing selected or current doesn't exist
       if (promptsList.value.length > 0 && !promptsList.value.find(p => p.id === selectedPrompt.value)) {
         selectedPrompt.value = promptsList.value[0].id
       }
@@ -931,8 +649,6 @@ export const useClipperState = () => {
       return false
     }
   }
-
-
 
   async function fetchSavedHooks() {
     if (!folderName.value) return
@@ -997,136 +713,17 @@ export const useClipperState = () => {
       if (!silent) {
         showToast('Edits saved successfully!', 'success')
       }
-      console.log('[clipper] Transcript saved successfully')
     } catch (e) {
       if (!silent) {
         showToast('Failed to save edits', 'error')
       }
-      console.error('[clipper] Failed to save transcript:', e)
     }
   }
 
   // --- Timeline Actions ---
-  function addTimelineItem(trackId: string, item: any) {
-    const track = timelineTracks.value.find(t => t.id === trackId)
-    if (track) {
-      const startSec = item.start ?? currentTime.value
-      const maxRemaining = Math.max(0.5, timelineDuration.value - startSec)
-      const defaultDuration = item.duration ?? 5
-      const durationSec = Math.min(defaultDuration, maxRemaining)
-
-      let styleOverrides: any = {}
-      if (trackId === 'text') {
-        if (defaultTimelineTextStyle.value) {
-          styleOverrides = { ...defaultTimelineTextStyle.value, linkToGlobal: true }
-        } else {
-          styleOverrides = getGlobalStyleSnapshot()
-          styleOverrides.linkToGlobal = true
-        }
-      }
-
-      const newItem = {
-        id: Math.random().toString(36).substr(2, 9),
-        start: startSec,
-        mediaStart: item.mediaStart ?? 0,
-        duration: durationSec,
-        content: '',
-        ...styleOverrides,
-        ...item
-      }
-      track.items.push(newItem)
-      selectedTimelineItem.value = newItem
-    }
-  }
-
-  function saveTimelineTextStyleAsDefault(item: any) {
-    const style = {
-      font: item.font || font.value,
-      fontSize: item.fontSize || 80,
-      fontWeight: item.fontWeight || '900',
-      textTransform: item.textTransform || 'none',
-      align: item.align || 'center',
-      color: item.color || '#FFFFFF',
-      opacity: item.opacity ?? 1,
-      strokeColor: item.strokeColor || '#000000',
-      strokeWidth: item.strokeWidth ?? 5,
-      showStroke: item.showStroke ?? false,
-      showBackground: item.showBackground ?? false,
-      backgroundColor: item.backgroundColor || '#000000',
-      backgroundOpacity: item.backgroundOpacity ?? 0.7,
-      letterSpacing: item.letterSpacing ?? 0,
-      wordSpacing: item.wordSpacing ?? 0,
-      lineHeight: item.lineHeight ?? 1.1,
-      shadowBlur: item.shadowBlur ?? 10,
-      shadowColor: item.shadowColor || '#000000',
-      shadowOpacity: item.shadowOpacity ?? 0.5,
-      shadowOffsetX: item.shadowOffsetX ?? 5,
-      shadowOffsetY: item.shadowOffsetY ?? 5,
-    }
-    defaultTimelineTextStyle.value = style
-    if (import.meta.client) {
-      localStorage.setItem('defaultTimelineTextStyle', JSON.stringify(style))
-    }
-    showToast('Saved current style as manual text default!', 'success')
-  }
-
-  /** Build a style snapshot from the current global subtitle settings */
-  function getGlobalStyleSnapshot() {
-    return {
-      font: font.value || 'Outfit',
-      fontSize: 80,
-      fontWeight: subtitleFontWeight.value ? String(subtitleFontWeight.value) : '900',
-      textTransform: subtitleTextTransform.value || 'uppercase',
-      align: 'center',
-      color: subtitleTextColor.value || '#FFFFFF',
-      opacity: 1,
-      strokeColor: subtitleStrokeColor.value || '#000000',
-      strokeWidth: subtitleStrokeWidth.value ?? 5,
-      showStroke: (subtitleStrokeWidth.value ?? 0) > 0,
-      showBackground: (subtitleBackground.value || 'none') !== 'none',
-      backgroundColor: '#000000',
-      backgroundOpacity: subtitleBackgroundOpacity.value ?? 0.7,
-      letterSpacing: 0,
-      wordSpacing: subtitleWordSpacing.value ?? 0,
-      lineHeight: 1.1,
-      shadowBlur: 10,
-      shadowColor: '#000000',
-      shadowOpacity: 0.5,
-      shadowOffsetX: 5,
-      shadowOffsetY: 5,
-    }
-  }
-
-  /** Sync current global subtitle styles into a single timeline text item */
-  function syncGlobalStylesToItem(item: any) {
-    const snap = getGlobalStyleSnapshot()
-    Object.assign(item, snap)
-    item.linkToGlobal = true
-  }
-
-  function deleteTimelineItem(trackId: string, itemId: string) {
-    const track = timelineTracks.value.find(t => t.id === trackId)
-    if (track) {
-      track.items = track.items.filter((i: any) => i.id !== itemId)
-      if (selectedTimelineItem.value?.id === itemId) {
-        selectedTimelineItem.value = null
-      }
-    }
-  }
-
-  function updateTimelineItem(trackId: string, itemId: string, updates: any) {
-    const track = timelineTracks.value.find(t => t.id === trackId)
-    if (track) {
-      const item = track.items.find((i: any) => i.id === itemId)
-      if (item) {
-        Object.assign(item, updates)
-      }
-    }
-  }
 
   async function saveStyleSettings() {
     if (!folderName.value || !clipId.value) return
-    
     const settings = {
       subtitlePosition: subtitlePosition.value,
       subtitleOffset: subtitleOffset.value,
@@ -1148,45 +745,12 @@ export const useClipperState = () => {
       subtitleWordSpacing: subtitleWordSpacing.value,
       volume: volume.value
     }
-
     try {
       await $fetch(`${API_BASE}/api/style-settings`, {
         method: 'PUT',
-        body: {
-          folder_name: folderName.value,
-          clip_id: clipId.value,
-          settings
-        }
+        body: { folder_name: folderName.value, clip_id: clipId.value, settings }
       })
-      console.log('[clipper] Saved style settings')
-    } catch (e) {
-      console.error('[clipper] Failed to save style settings:', e)
-    }
-  }
-
-  async function saveTimelineTracks() {
-    if (isSavingLocked.value) {
-      console.log('[clipper] saveTimelineTracks BLOCKED (lock active)')
-      return
-    }
-    if (!folderName.value || !clipId.value) return
-    
-    console.log('[clipper] saveTimelineTracks triggered for:', folderName.value, clipId.value)
-    console.log('[clipper] Tracks state:', JSON.stringify(timelineTracks.value).substring(0, 200) + '...')
-
-    try {
-      await $fetch(`${API_BASE}/api/timeline`, {
-        method: 'PUT',
-        body: {
-          folder_name: folderName.value,
-          clip_id: clipId.value,
-          timeline_tracks: timelineTracks.value
-        }
-      })
-      console.log('[clipper] Saved timeline tracks successfully')
-    } catch (e) {
-      console.error('[clipper] Failed to save timeline tracks:', e)
-    }
+    } catch (e) {}
   }
 
   async function saveDefaultStyleSettings() {
@@ -1211,25 +775,20 @@ export const useClipperState = () => {
       subtitleWordSpacing: subtitleWordSpacing.value,
       volume: volume.value
     }
-
     try {
       await $fetch(`${API_BASE}/api/default-style-settings`, {
         method: 'PUT',
-        body: {
-          settings
-        }
+        body: { settings }
       })
-      console.log('[clipper] Saved default style settings')
-    } catch (e) {
-      console.error('[clipper] Failed to save default style settings:', e)
-    }
+    } catch (e) {}
   }
 
   function initPersistence() {
     if (import.meta.server || isPersistenceInitialized) return
     isPersistenceInitialized = true
     
-    // Load
+    auditor.loadBlacklistFromStorage()
+
     const p = localStorage.getItem('yonru_prompt')
     if (p) selectedPrompt.value = p
     
@@ -1246,19 +805,16 @@ export const useClipperState = () => {
 
     const savedStyle = localStorage.getItem('defaultTimelineTextStyle')
     if (savedStyle) {
-      try { defaultTimelineTextStyle.value = JSON.parse(savedStyle) } catch {}
+      try { timeline.defaultTimelineTextStyle.value = JSON.parse(savedStyle) } catch {}
     }
 
-    // Watch
     watch(selectedPrompt, (val) => localStorage.setItem('yonru_prompt', val))
     watch(whisperModel, (val) => localStorage.setItem('yonru_model', val))
 
-    // Watch timeline to auto-save
-    watch(timelineTracks, () => {
-      saveTimelineTracks()
+    watch(timeline.timelineTracks, () => {
+      timeline.saveTimelineTracks()
     }, { deep: true })
 
-    // Track previous duration to handle changes dynamically
     let prevDuration = thumbnailDuration.value
     watch(thumbnailDuration, (newVal) => {
       if (thumbnailEnabled.value) {
@@ -1269,29 +825,45 @@ export const useClipperState = () => {
     })
 
     watch([thumbnailEnabled, thumbnailDuration, thumbnailTextOverlays], () => {
-      if (!isSavingLocked.value) {
+      if (!timeline.isSavingLocked.value) {
         saveThumbnailConfig()
       }
     }, { deep: true })
 
-    // Watch global subtitle style changes and sync to linked timeline text items
     watch(
       [font, fontSize, subtitleFontWeight, subtitleTextTransform, subtitleTextColor,
        subtitleStrokeColor, subtitleStrokeWidth, subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing],
       () => {
-        const textTrack = timelineTracks.value.find((t: any) => t.id === 'text')
+        const textTrack = timeline.timelineTracks.value.find((t: any) => t.id === 'text')
         if (!textTrack) return
         textTrack.items.forEach((item: any) => {
           if (item.linkToGlobal !== false) {
-            syncGlobalStylesToItem(item)
+            timeline.syncGlobalStylesToItem(item)
           }
         })
       }
     )
   }
 
+  function resetWorkspace() {
+    folderName.value = null
+    clipId.value = null
+    jobId.value = null
+    jobStatus.value = 'idle'
+    hooks.value = []
+    savedHooks.value = []
+    activeHook.value = null
+    fullTranscript.value = []
+    if (timeline.timelineTracks.value && timeline.timelineTracks.value[0]) {
+      timeline.timelineTracks.value[0].items = []
+    }
+    videoUrl.value = null
+    isMediaLoading.value = false
+    resetThumbnailState()
+  }
+
   function resetThumbnailState() {
-    isSavingLocked.value = true
+    timeline.isSavingLocked.value = true
     thumbnailEnabled.value = false
     thumbnailUrl.value = null
     thumbnailDuration.value = 1.0
@@ -1300,24 +872,20 @@ export const useClipperState = () => {
     thumbnailTextOverlays.value = []
     thumbnailEditMode.value = false
     nextTick(() => {
-      isSavingLocked.value = false
+      timeline.isSavingLocked.value = false
     })
   }
-
-  // --- Thumbnail Actions ---
 
   async function captureScreenshot(timestamp?: number, isAutoCapture = false) {
     if (!jobId.value) return
     isCapturingThumbnail.value = true
     try {
       if (isAutoCapture) {
-        // Delay 0.5s before requesting the capture to let the player seek and settle
         await new Promise(resolve => setTimeout(resolve, 500))
       }
 
       let requestTimestamp = timestamp ?? null
       if (timestamp !== undefined && timestamp !== null) {
-        // Option B1: Dynamic Frame-rate Offset (3 frames back)
         const fps = videoFps.value || 30
         const frameOffset = 3 / fps
         requestTimestamp = Math.max(0, timestamp - frameOffset)
@@ -1331,12 +899,9 @@ export const useClipperState = () => {
         }
       })
       thumbnailUrl.value = `${API_BASE}${res.thumbnail_url}?t=${Date.now()}`
-      // Keep the original requested playhead timestamp for the UI badge
       thumbnailScreenshotTime.value = timestamp ?? res.timestamp
       thumbnailEnabled.value = true
       showToast('Thumbnail captured!', 'success')
-      
-      // Delay 0.5s to allow the browser to fully download and paint the cover image
       await new Promise(resolve => setTimeout(resolve, 500))
     } catch (e: any) {
       showToast('Failed to capture thumbnail', 'error')
@@ -1391,10 +956,7 @@ export const useClipperState = () => {
           }
         }
       })
-      console.log('[clipper] Thumbnail config saved')
-    } catch (e) {
-      console.error('[clipper] Failed to save thumbnail config:', e)
-    }
+    } catch (e) {}
   }
 
   async function loadThumbnailConfig() {
@@ -1402,7 +964,7 @@ export const useClipperState = () => {
     try {
       const res = await $fetch<{ config: any }>(`${API_BASE}/api/thumbnail/config/${folderName.value}/${clipId.value}`)
       if (res.config) {
-        isSavingLocked.value = true
+        timeline.isSavingLocked.value = true
         thumbnailEnabled.value = res.config.enabled ?? false
         thumbnailDuration.value = res.config.duration ?? 1.0
         thumbnailScreenshotTime.value = res.config.screenshotTime ?? 0
@@ -1426,7 +988,6 @@ export const useClipperState = () => {
           ...o
         }))
         
-        // Try to load thumbnail image
         const baseClipUrl = `${API_BASE}/assets/clips/${folderName.value}/${clipId.value}`
         try {
           const thumbUrl = `${baseClipUrl}/thumbnail.jpg?t=${Date.now()}`
@@ -1434,42 +995,35 @@ export const useClipperState = () => {
         } catch { }
         
         nextTick(() => {
-          isSavingLocked.value = false
+          timeline.isSavingLocked.value = false
         })
-        console.log('[clipper] Thumbnail config loaded')
       } else {
         resetThumbnailState()
       }
     } catch (e) {
-      console.log('[clipper] No thumbnail config for this clip')
       resetThumbnailState()
     }
   }
 
   async function toggleThumbnail() {
-    isTimelineShifting.value = true
-    isSavingLocked.value = true
+    timeline.isTimelineShifting.value = true
+    timeline.isSavingLocked.value = true
 
     if (!thumbnailEnabled.value) {
-      // Enabling thumbnail
       const originalTime = currentTime.value
       
-      // Raise capture flag immediately if no thumbnail exists to visually cover the seek before it starts
       if (!thumbnailUrl.value) {
         isCapturingThumbnail.value = true
-        // Wait 350ms for the transition overlay to become 100% opaque
         await new Promise(resolve => setTimeout(resolve, 350))
       }
 
       currentTime.value += thumbnailDuration.value
       thumbnailEnabled.value = true
 
-      // Auto-capture on first-time toggle using the original time
       if (!thumbnailUrl.value) {
         await captureScreenshot(originalTime, true)
       }
     } else {
-      // Disabling thumbnail
       currentTime.value = Math.max(0, currentTime.value - thumbnailDuration.value)
       thumbnailEnabled.value = false
     }
@@ -1477,8 +1031,8 @@ export const useClipperState = () => {
     await saveThumbnailConfig()
 
     nextTick(() => {
-      isTimelineShifting.value = false
-      isSavingLocked.value = false
+      timeline.isTimelineShifting.value = false
+      timeline.isSavingLocked.value = false
     })
   }
 
@@ -1489,11 +1043,10 @@ export const useClipperState = () => {
         method: 'DELETE'
       })
       
-      isTimelineShifting.value = true
-      isSavingLocked.value = true
+      timeline.isTimelineShifting.value = true
+      timeline.isSavingLocked.value = true
       isDeletingThumbnail.value = true
       
-      // Shift playhead back if it was in the thumbnail duration window
       if (thumbnailEnabled.value) {
         currentTime.value = Math.max(0, currentTime.value - thumbnailDuration.value)
       }
@@ -1505,103 +1058,29 @@ export const useClipperState = () => {
       thumbnailDuration.value = 1.0
       
       nextTick(() => {
-        isTimelineShifting.value = false
-        isSavingLocked.value = false
+        timeline.isTimelineShifting.value = false
+        timeline.isSavingLocked.value = false
         isDeletingThumbnail.value = false
       })
       
       showToast('Thumbnail deleted!', 'success')
     } catch (e: any) {
-      isTimelineShifting.value = false
-      isSavingLocked.value = false
+      timeline.isTimelineShifting.value = false
+      timeline.isSavingLocked.value = false
       isDeletingThumbnail.value = false
       showToast('Failed to delete thumbnail', 'error')
     }
   }
 
-
-  async function runDeepAudit() {
-    if (!activeHook.value || isDeepAuditing.value) return
-    isDeepAuditing.value = true
-    deepAuditResults.value = null
-    
-    try {
-      const response = await fetch(`${API_BASE}/audit/deep`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript: activeHook.value.transcript_quote,
-          language: language.value
-        })
-      })
-      if (!response.ok) throw new Error('Backend audit failed')
-      const data = await response.json()
-      deepAuditResults.value = data
-    } catch (e) {
-      console.error('[audit] Deep audit failed:', e)
-      // Mock for development if backend missing
-      setTimeout(() => {
-        deepAuditResults.value = {
-          riskLevel: 'medium',
-          violations: ['Potential clickbait pattern detected', 'Sensitive health claim check recommended'],
-          suggestions: 'Rephrase the opening sentence to be less inflammatory.'
-        }
-        isDeepAuditing.value = false
-      }, 1500)
-      return
-    } finally {
-      if (deepAuditResults.value) isDeepAuditing.value = false
-    }
-  }
-
   function maskFlaggedWords() {
-    if (!fullTranscript.value) return
-    const combinedBlacklist = [...new Set([...DEFAULT_BLACKLIST, ...customBlacklist.value])]
-    
-    fullTranscript.value = fullTranscript.value.map(seg => {
-      let newText = seg.text
-      combinedBlacklist.forEach(word => {
-        let regex: RegExp
-        if (word.startsWith('/') && word.endsWith('/')) {
-          regex = new RegExp(word.slice(1, -1), 'gi')
-        } else {
-          const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-          regex = new RegExp(`\\b${escapedWord}\\b`, 'gi')
-        }
-        newText = newText.replace(regex, (match) => {
-          if (match.length <= 2) return match
-          const mid = Math.floor(match.length / 2)
-          return match.substring(0, mid) + '*' + match.substring(mid + 1)
-        })
-      })
-      return { ...seg, text: newText }
-    })
-    saveTranscript()
-    showToast('Subtitle keywords masked successfully', 'success')
-  }
-
-  function resetWorkspace() {
-    folderName.value = null
-    clipId.value = null
-    jobId.value = null
-    jobStatus.value = 'idle'
-    hooks.value = []
-    savedHooks.value = []
-    activeHook.value = null
-    fullTranscript.value = []
-    if (timelineTracks.value && timelineTracks.value[0]) {
-      timelineTracks.value[0].items = []
-    }
-    videoUrl.value = null
-    isMediaLoading.value = false
-    resetThumbnailState()
+    auditor.maskFlaggedWords()
   }
 
   return {
-    contentAudit, 
-    customBlacklist, 
-    safeZoneVisible, 
-    saveBlacklistToStorage, 
+    contentAudit: auditor.contentAudit, 
+    customBlacklist: auditor.customBlacklist, 
+    safeZoneVisible: auditor.safeZoneVisible, 
+    saveBlacklistToStorage: auditor.saveBlacklistToStorage, 
     DEFAULT_BLACKLIST,
     thumbnailEnabled, 
     thumbnailUrl, 
@@ -1622,23 +1101,23 @@ export const useClipperState = () => {
     subtitleAnimation, subtitleHighlightMode, subtitleHighlightColor, subtitleTextColor,
     subtitleStrokeColor, subtitleStrokeWidth, subtitleFontWeight, subtitleTextTransform,
     subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing, subtitlePreset, volume,
-    isPlaying, currentTime, videoTime,
-    isTimelineShifting,
+    isPlaying, currentTime, videoTime: timeline.videoTime,
+    isTimelineShifting: timeline.isTimelineShifting,
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
     cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip,
-    timelineTracks, timelineDuration, selectedTimelineItem,
-    defaultTimelineTextStyle,
-    deepAuditResults, isDeepAuditing,
-    systemHealth, checkingHealth, isAnyPrerequisiteMissing, settingsScrollTarget,
+    timelineTracks: timeline.timelineTracks, timelineDuration: timeline.timelineDuration, selectedTimelineItem: timeline.selectedTimelineItem,
+    defaultTimelineTextStyle: timeline.defaultTimelineTextStyle,
+    deepAuditResults: auditor.deepAuditResults, isDeepAuditing: auditor.isDeepAuditing,
+    systemHealth: diagnostics.systemHealth, checkingHealth: diagnostics.checkingHealth, isAnyPrerequisiteMissing: diagnostics.isAnyPrerequisiteMissing, settingsScrollTarget: diagnostics.settingsScrollTarget,
     // Actions
     analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling, stopPolling,
-    checkSystemHealth,
+    checkSystemHealth: diagnostics.checkSystemHealth,
     formatDuration, fetchPrompts, editPrompt, fetchSavedHooks, saveHook, deleteSavedHook,
     saveTranscript, saveStyleSettings, saveDefaultStyleSettings, updateHooks,
-    runDeepAudit, maskFlaggedWords,
+    runDeepAudit: auditor.runDeepAudit, maskFlaggedWords,
     fetchCached, setLastAccessed, setLastClip,
-    saveTimelineTracks,
-    addTimelineItem, deleteTimelineItem, updateTimelineItem, saveTimelineTextStyleAsDefault, syncGlobalStylesToItem,
+    saveTimelineTracks: timeline.saveTimelineTracks,
+    addTimelineItem: timeline.addTimelineItem, deleteTimelineItem: timeline.deleteTimelineItem, updateTimelineItem: timeline.updateTimelineItem, saveTimelineTextStyleAsDefault: timeline.saveTimelineTextStyleAsDefault, syncGlobalStylesToItem: timeline.syncGlobalStylesToItem,
     captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig, deleteThumbnail,
     toggleThumbnail,
     resetWorkspace,

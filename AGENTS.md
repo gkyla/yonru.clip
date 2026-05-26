@@ -13,6 +13,9 @@ All functional enhancements must follow the principles of **deep modules** and *
 *   **Double Adapters**: Define clear seams via abstract ports (e.g., `AssetStore` abstract class) with at least two adapters:
     1.  A production adapter (`AssetRepository`) communicating with the disk/subprocesses.
     2.  A highly performant mock adapter (`MockAssetStore`) for deterministic unit/integration testing.
+*   **Frontend Composable Modularity**: Refactor monolithic frontend composables (e.g., state composables exceeding 1,000 lines) into highly decoupled, specialized domain sub-composables (e.g., timeline sequencing, system diagnostics, safety auditing).
+*   **Facade Mediator Pattern**: Parent state composables must act strictly as clean mediator facades, delegating domain operations and state refs directly to sub-composables rather than maintaining duplicate local logic or shallow wrapper helpers.
+*   **Decoupled Shared Reactivity**: Leverage matching global state keys (e.g., Nuxt's `useState<T>('key')`) across sub-composables to share reactive state seamlessly, preventing parameter drill-down and keeping domain boundaries high.
 
 ---
 
