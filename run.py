@@ -6,6 +6,7 @@ import subprocess
 import threading
 import time
 import signal
+from abc import ABC, abstractmethod
 
 # --- Formatting Helpers ---
 IS_WIN = (sys.platform == "win32")
@@ -28,158 +29,6 @@ def log_system(msg):
 def log_error(msg):
     sys.stderr.write(f"\033[31m[ERROR]\033[0m {msg}\n")
     sys.stderr.flush()
-
-# --- Bootstrapping Logic ---
-def check_dependencies():
-    log_system("Verifying core dependencies...")
-
-    # 1. Check Node.js
-    if not shutil.which("node"):
-        log_error("Node.js (18+) was not detected on this machine.")
-        if IS_WIN:
-            log_error("To install Node.js on Windows:")
-            log_error("  - Download and run the installer from: https://nodejs.org/")
-            log_error("  - Or use winget: 'winget install OpenJS.NodeJS'")
-        elif sys.platform == "darwin":
-            log_error("To install Node.js on macOS:")
-            log_error("  - Run: 'brew install node'")
-        else:
-            log_error("To install Node.js on Linux (Debian/Ubuntu):")
-            log_error("  - Run: 'curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs'")
-        sys.exit(1)
-
-    # 2. Check FFmpeg
-    if not shutil.which("ffmpeg"):
-        log_system("\033[31mFriendly Alert: FFmpeg was not detected in your system PATH.\033[0m")
-        if sys.platform.startswith("win") or IS_WIN:
-            log_system("To install FFmpeg on Windows:")
-            log_system("  - Use Chocolatey: 'choco install ffmpeg'")
-            log_system("  - Use Scoop: 'scoop install ffmpeg'")
-            log_system("  - Or download manually and add it to system Environment Variables.")
-        elif sys.platform == "darwin":
-            log_system("To install FFmpeg on macOS:")
-            log_system("  - Run: 'brew install ffmpeg'")
-        else:
-            log_system("To install FFmpeg on Linux:")
-            log_system("  - Run: 'sudo apt install ffmpeg' (Debian/Ubuntu) or equivalent.")
-        
-        # We don't crash here immediately because the backend renderer also has custom path overrides
-        # But we print a strong warning.
-
-def bootstrap_backend():
-    backend_dir = os.path.abspath("backend")
-    venv_dir = os.path.join(backend_dir, "venv")
-    
-    # Platform-specific paths
-    if IS_WIN:
-        venv_python = os.path.join(venv_dir, "Scripts", "python.exe")
-    else:
-        venv_python = os.path.join(venv_dir, "bin", "python")
-
-    # Copy .env if missing
-    env_file = os.path.join(backend_dir, ".env")
-    env_example = os.path.join(backend_dir, ".env.example")
-    if not os.path.exists(env_file):
-        if os.path.exists(env_example):
-            log_system("Creating backend/.env from .env.example...")
-            shutil.copy2(env_example, env_file)
-            log_system("\033[33mACTION REQUIRED: Please open backend/.env and set your GEMINI_API_KEY.\033[0m")
-        else:
-            log_error("backend/.env is missing and .env.example was not found.")
-
-    # Self-Healing: Recreate virtualenv if broken, missing, or pointing to a different folder
-    is_valid_venv = False
-    if os.path.exists(venv_dir) and os.path.exists(venv_python):
-        try:
-            # Verify virtualenv hasn't been moved by inspecting pyvenv.cfg
-            cfg_path = os.path.join(venv_dir, "pyvenv.cfg")
-            if os.path.exists(cfg_path):
-                with open(cfg_path, "r", encoding="utf-8") as f:
-                    cfg_content = f.read()
-                
-                # Check if current venv_dir normalized path is contained in the config command
-                norm_venv_dir = os.path.normpath(venv_dir).lower()
-                norm_cfg_content = os.path.normpath(cfg_content).lower()
-                
-                if norm_venv_dir in norm_cfg_content:
-                    # Also double check it actually executes
-                    res = subprocess.run([venv_python, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
-                    if res.returncode == 0:
-                        is_valid_venv = True
-        except Exception:
-            pass
-
-    if not is_valid_venv:
-        log_system("Python virtual environment is missing, moved, or broken. Re-provisioning backend/venv...")
-        if os.path.exists(venv_dir):
-            try:
-                shutil.rmtree(venv_dir)
-            except Exception:
-                pass
-        try:
-            subprocess.run([sys.executable, "-m", "venv", "venv"], cwd=backend_dir, check=True)
-        except subprocess.CalledProcessError:
-            log_error("Failed to create Python virtual environment.")
-            if not IS_WIN and sys.platform != "darwin":
-                log_error("On Ubuntu/Debian, you may need to install python3-venv first:")
-                log_error("  - Run: 'sudo apt install python3-venv'")
-            else:
-                log_error("Please make sure you have the 'venv' standard module installed in your Python interpreter.")
-            sys.exit(1)
-
-    # Check if packages need installation using python -m pip to bypass path / shebang issues
-    log_system("Verifying Python backend dependencies (this may take a moment)...")
-    subprocess.run([venv_python, "-m", "pip", "install", "-r", "requirements.txt"], cwd=backend_dir, check=True)
-    
-    return venv_python
-
-def bootstrap_fonts(venv_python, force=False):
-    # Check if fonts are downloaded in frontend
-    frontend_font_dir = "frontend/app/assets/fonts"
-    remotion_font_dir = "remotion_engine/src/assets/fonts"
-    fonts_missing = True
-    
-    if force:
-        log_system("Force-redownload flag detected. Deleting existing offline fonts...")
-        for path in [frontend_font_dir, remotion_font_dir]:
-            if os.path.exists(path):
-                try:
-                    shutil.rmtree(path)
-                    log_system(f"Cleaned {path} directory.")
-                except Exception as e:
-                    log_error(f"Failed to clean {path} directory: {e}")
-                    
-    if os.path.exists(frontend_font_dir) and not force:
-        # Count woff2 files recursively in frontend
-        woff2_count = sum(len([f for f in files if f.endswith('.woff2')]) for r, d, files in os.walk(frontend_font_dir))
-        if woff2_count >= 10:
-            fonts_missing = False
-            
-    if fonts_missing:
-        log_system("Local offline fonts missing. Downloading automatically...")
-        # Run download_fonts.py using virtual environment's python since it contains requests dependency
-        subprocess.run([venv_python, "download_fonts.py"], check=True)
-        
-    # Ensure fonts are synchronized to remotion_engine
-    remotion_missing = True
-    if os.path.exists(remotion_font_dir):
-        woff2_count = sum(len([f for f in files if f.endswith('.woff2')]) for r, d, files in os.walk(remotion_font_dir))
-        if woff2_count >= 10:
-            remotion_missing = False
-            
-    if remotion_missing:
-        log_system("Synchronizing offline fonts to Remotion Engine...")
-        if os.path.exists(remotion_font_dir):
-            try:
-                shutil.rmtree(remotion_font_dir)
-            except Exception:
-                pass
-        try:
-            shutil.copytree(frontend_font_dir, remotion_font_dir)
-            log_system("Successfully synchronized offline fonts to Remotion Engine.")
-        except Exception as e:
-            log_error(f"Failed to copy fonts to Remotion Engine: {e}")
-
 
 def clear_console():
     """Clears the terminal screen cleanly on all platforms."""
@@ -220,18 +69,7 @@ __   __                      _____ _ _
     print(" \033[90mBackground logs will stream below. Press Ctrl+C to terminate.\033[0m\n")
 
 
-
-
-def bootstrap_node_project(directory, name):
-    node_modules = os.path.join(directory, "node_modules")
-    if not os.path.exists(node_modules):
-        log_system(f"Installing NPM packages for {name}...")
-        # Use shell=True on Windows for npm
-        subprocess.run(["npm", "install"], cwd=directory, shell=IS_WIN, check=True)
-
-# --- Process Execution & Logging ---
-
-IS_WIN = (sys.platform == "win32")
+# --- Process Execution Modeling ---
 
 class ServiceDef:
     def __init__(self, name, cmd, cwd, prefix, color_code, ready_signal):
@@ -242,27 +80,16 @@ class ServiceDef:
         self.color_code = color_code
         self.ready_signal = ready_signal
 
-class ServiceCoordinator:
-    def __init__(self, target):
-        self.target = target
-        self._procs = {}
-        self._shutdown_initiated = False
-        self._pending_ready = set()
-        self._dashboard_printed = False
-        self._lock = threading.Lock()
-        
-    def clean_ports(self):
-        """Scan and kill any zombie processes listening on core Yonru ports to ensure self-healing boots."""
-        ports = []
-        if self.target in ["all", "backend"]:
-            ports.append(8000)
-        if self.target in ["all", "frontend"]:
-            ports.append(3000)
-        if self.target in ["all", "remotion"]:
-            ports.append(3003)
+class PortSweeper(ABC):
+    """Seam for sweeping ports and terminating zombie processes."""
+    @abstractmethod
+    def clean_ports(self, ports: list[int]) -> None:
+        pass
 
-        log_system("Sweeping ports " + ", ".join(map(str, ports)) + " for any active zombie processes...")
-        
+
+class OSPortSweeper(PortSweeper):
+    """Production adapter executing OS shell commands to sweep active ports."""
+    def clean_ports(self, ports: list[int]) -> None:
         for port in ports:
             if IS_WIN:
                 try:
@@ -301,6 +128,39 @@ class ServiceCoordinator:
                 except Exception:
                     pass
 
+
+class MockPortSweeper(PortSweeper):
+    """Mock adapter recording swept ports without executing OS-level side effects."""
+    def __init__(self):
+        self.swept_ports = []
+
+    def clean_ports(self, ports: list[int]) -> None:
+        self.swept_ports.extend(ports)
+
+
+class ServiceCoordinator:
+    def __init__(self, target, sweeper: PortSweeper = None):
+        self.target = target
+        self.sweeper = sweeper or OSPortSweeper()
+        self._procs = {}
+        self._shutdown_initiated = False
+        self._pending_ready = set()
+        self._dashboard_printed = False
+        self._lock = threading.Lock()
+        
+    def clean_ports(self):
+        """Scan and kill any zombie processes listening on core Yonru ports to ensure self-healing boots."""
+        ports = []
+        if self.target in ["all", "backend"]:
+            ports.append(8000)
+        if self.target in ["all", "frontend"]:
+            ports.append(3000)
+        if self.target in ["all", "remotion"]:
+            ports.append(3003)
+
+        log_system("Sweeping ports " + ", ".join(map(str, ports)) + " for any active zombie processes...")
+        self.sweeper.clean_ports(ports)
+
     def _stream_reader(self, pipe, service: ServiceDef):
         """Reads lines from a subprocess pipe and outputs them with a colored prefix. Triggers dashboard when ready."""
         try:
@@ -315,7 +175,6 @@ class ServiceCoordinator:
                 
                 # Check for ready pattern if dashboard has not been printed yet
                 if not self._dashboard_printed:
-                    # Check list of possible ready signals configured on the ServiceDef
                     is_ready = False
                     if service.ready_signal:
                         signals = [service.ready_signal] if isinstance(service.ready_signal, str) else service.ready_signal
@@ -340,7 +199,6 @@ class ServiceCoordinator:
         """Spawns a subprocess and starts a reader thread for its output."""
         log_system(f"Launching {service.name}...")
         
-        # On Windows, we create a new process group to allow clean termination of child processes
         creation_flags = 0
         if IS_WIN:
             creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
@@ -367,7 +225,6 @@ class ServiceCoordinator:
             self._procs[service.name] = proc
             self._pending_ready.add(service.name)
         
-        # Start output streaming thread
         t = threading.Thread(
             target=self._stream_reader, 
             args=(proc.stdout, service), 
@@ -426,7 +283,6 @@ class ServiceCoordinator:
         """Monitor running processes and handle unexpected exit status."""
         log_system("All requested services launched! Waiting for initialization...")
         
-        # Start a daemon fallback timer (5.0 seconds) to ensure dashboard prints regardless
         def fallback_timer():
             time.sleep(5.0)
             with self._lock:
@@ -436,7 +292,6 @@ class ServiceCoordinator:
                     
         threading.Thread(target=fallback_timer, daemon=True).start()
 
-        # Keep main thread alive and monitor processes for unexpected crashes
         while True:
             time.sleep(0.5)
             with self._lock:
@@ -447,11 +302,258 @@ class ServiceCoordinator:
                     log_system(f"\033[31mProcess {name} exited unexpectedly with code {ret}.\033[0m")
                     raise KeyboardInterrupt
 
+
+# --- Deep Orchestration Engine ---
+
+class BootstrappedLauncher:
+    """
+    A deep module that encapsulates Yonru's entire ecosystem lifecycle.
+    Hides dependency checking, self-healing virtualenvs, offline font syncing,
+    NPM packaging, zombie port sweeping, subprocess orchestration, and signal handling.
+    """
+    def __init__(self, target: str = "all", force_fonts: bool = False):
+        self.target = target.lower()
+        self.force_fonts = force_fonts
+        self.coordinator = None
+        self.venv_python = None
+
+    def _check_dependencies(self):
+        log_system("Verifying core dependencies...")
+
+        # 1. Check Node.js
+        if not shutil.which("node"):
+            log_error("Node.js (18+) was not detected on this machine.")
+            if IS_WIN:
+                log_error("To install Node.js on Windows:")
+                log_error("  - Download and run the installer from: https://nodejs.org/")
+                log_error("  - Or use winget: 'winget install OpenJS.NodeJS'")
+            elif sys.platform == "darwin":
+                log_error("To install Node.js on macOS:")
+                log_error("  - Run: 'brew install node'")
+            else:
+                log_error("To install Node.js on Linux (Debian/Ubuntu):")
+                log_error("  - Run: 'curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs'")
+            sys.exit(1)
+
+        # 2. Check FFmpeg
+        if not shutil.which("ffmpeg"):
+            log_system("\033[31mFriendly Alert: FFmpeg was not detected in your system PATH.\033[0m")
+            if sys.platform.startswith("win") or IS_WIN:
+                log_system("To install FFmpeg on Windows:")
+                log_system("  - Use Chocolatey: 'choco install ffmpeg'")
+                log_system("  - Use Scoop: 'scoop install ffmpeg'")
+                log_system("  - Or download manually and add it to system Environment Variables.")
+            elif sys.platform == "darwin":
+                log_system("To install FFmpeg on macOS:")
+                log_system("  - Run: 'brew install ffmpeg'")
+            else:
+                log_system("To install FFmpeg on Linux:")
+                log_system("  - Run: 'sudo apt install ffmpeg' (Debian/Ubuntu) or equivalent.")
+
+    def _bootstrap_backend(self):
+        backend_dir = os.path.abspath("backend")
+        venv_dir = os.path.join(backend_dir, "venv")
+        
+        if IS_WIN:
+            venv_python = os.path.join(venv_dir, "Scripts", "python.exe")
+        else:
+            venv_python = os.path.join(venv_dir, "bin", "python")
+
+        env_file = os.path.join(backend_dir, ".env")
+        env_example = os.path.join(backend_dir, ".env.example")
+        if not os.path.exists(env_file):
+            if os.path.exists(env_example):
+                log_system("Creating backend/.env from .env.example...")
+                shutil.copy2(env_example, env_file)
+                log_system("\033[33mACTION REQUIRED: Please open backend/.env and set your GEMINI_API_KEY.\033[0m")
+            else:
+                log_error("backend/.env is missing and .env.example was not found.")
+
+        is_valid_venv = False
+        if os.path.exists(venv_dir) and os.path.exists(venv_python):
+            try:
+                cfg_path = os.path.join(venv_dir, "pyvenv.cfg")
+                if os.path.exists(cfg_path):
+                    with open(cfg_path, "r", encoding="utf-8") as f:
+                        cfg_content = f.read()
+                    
+                    norm_venv_dir = os.path.normpath(venv_dir).lower()
+                    norm_cfg_content = os.path.normpath(cfg_content).lower()
+                    
+                    if norm_venv_dir in norm_cfg_content:
+                        res = subprocess.run([venv_python, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+                        if res.returncode == 0:
+                            is_valid_venv = True
+            except Exception:
+                pass
+
+        if not is_valid_venv:
+            log_system("Python virtual environment is missing, moved, or broken. Re-provisioning backend/venv...")
+            if os.path.exists(venv_dir):
+                try:
+                    shutil.rmtree(venv_dir)
+                except Exception:
+                    pass
+            try:
+                subprocess.run([sys.executable, "-m", "venv", "venv"], cwd=backend_dir, check=True)
+            except subprocess.CalledProcessError:
+                log_error("Failed to create Python virtual environment.")
+                if not IS_WIN and sys.platform != "darwin":
+                    log_error("On Ubuntu/Debian, you may need to install python3-venv first:")
+                    log_error("  - Run: 'sudo apt install python3-venv'")
+                else:
+                    log_error("Please make sure you have the 'venv' standard module installed in your Python interpreter.")
+                sys.exit(1)
+
+        log_system("Verifying Python backend dependencies (this may take a moment)...")
+        subprocess.run([venv_python, "-m", "pip", "install", "-r", "requirements.txt"], cwd=backend_dir, check=True)
+        return venv_python
+
+    def _bootstrap_fonts(self):
+        frontend_font_dir = "frontend/app/assets/fonts"
+        remotion_font_dir = "remotion_engine/src/assets/fonts"
+        fonts_missing = True
+        
+        if self.force_fonts:
+            log_system("Force-redownload flag detected. Deleting existing offline fonts...")
+            for path in [frontend_font_dir, remotion_font_dir]:
+                if os.path.exists(path):
+                    try:
+                        shutil.rmtree(path)
+                        log_system(f"Cleaned {path} directory.")
+                    except Exception as e:
+                        log_error(f"Failed to clean {path} directory: {e}")
+                        
+        if os.path.exists(frontend_font_dir) and not self.force_fonts:
+            woff2_count = sum(len([f for f in files if f.endswith('.woff2')]) for r, d, files in os.walk(frontend_font_dir))
+            if woff2_count >= 10:
+                fonts_missing = False
+                
+        if fonts_missing:
+            log_system("Local offline fonts missing. Downloading automatically...")
+            subprocess.run([self.venv_python, "download_fonts.py"], check=True)
+            
+        remotion_missing = True
+        if os.path.exists(remotion_font_dir):
+            woff2_count = sum(len([f for f in files if f.endswith('.woff2')]) for r, d, files in os.walk(remotion_font_dir))
+            if woff2_count >= 10:
+                remotion_missing = False
+                
+        if remotion_missing:
+            log_system("Synchronizing offline fonts to Remotion Engine...")
+            if os.path.exists(remotion_font_dir):
+                try:
+                    shutil.rmtree(remotion_font_dir)
+                except Exception:
+                    pass
+            try:
+                shutil.copytree(frontend_font_dir, remotion_font_dir)
+                log_system("Successfully synchronized offline fonts to Remotion Engine.")
+            except Exception as e:
+                log_error(f"Failed to copy fonts to Remotion Engine: {e}")
+
+    def _bootstrap_node_project(self, directory, name):
+        node_modules = os.path.join(directory, "node_modules")
+        if not os.path.exists(node_modules):
+            log_system(f"Installing NPM packages for {name}...")
+            subprocess.run(["npm", "install"], cwd=directory, shell=IS_WIN, check=True)
+
+    def _setup_remotion_browser(self):
+        log_system("Verifying Remotion browser configuration (Chrome Headless Shell)...")
+        try:
+            subprocess.run(
+                ["npx", "remotion", "browser", "ensure"], 
+                cwd="remotion_engine", 
+                shell=IS_WIN, 
+                check=True
+            )
+            log_system("Remotion browser check complete.")
+        except Exception as e:
+            log_system(f"\033[33m[WARNING] Remotion browser verification failed: {e}. Proceeding...\033[0m")
+
+    def run(self):
+        global coordinator
+        
+        # 1. Dependency and Environment Checks
+        self._check_dependencies()
+        
+        # 2. Bootstrapping
+        self.venv_python = self._bootstrap_backend()
+        
+        if self.target in ["all", "frontend", "remotion"]:
+            self._bootstrap_fonts()
+
+        if self.target in ["all", "frontend"]:
+            self._bootstrap_node_project("frontend", "Frontend")
+            
+        if self.target in ["all", "remotion"]:
+            self._bootstrap_node_project("remotion_engine", "Remotion Engine")
+            self._setup_remotion_browser()
+
+        # 3. Execution Commands Configuration
+        backend_cmd = [
+            self.venv_python, "-m", "uvicorn", "main:app", 
+            "--env-file", ".env", 
+            "--host", "0.0.0.0", 
+            "--port", "8000", 
+            "--reload"
+        ]
+        frontend_cmd = ["npm", "run", "dev"]
+        remotion_cmd = ["npm", "run", "preview"]
+
+        # 4. Spawn Active Services
+        self.coordinator = ServiceCoordinator(self.target)
+        coordinator = self.coordinator # Maintain global reference for signals and testing
+        self.coordinator.clean_ports()
+        
+        log_system(f"Starting services in target mode: '{self.target}'")
+        
+        try:
+            if self.target in ["all", "backend"]:
+                backend_def = ServiceDef(
+                    name="Backend",
+                    cmd=backend_cmd,
+                    cwd="backend",
+                    prefix="[BACKEND]",
+                    color_code="36",
+                    ready_signal="Application startup complete"
+                )
+                self.coordinator.spawn(backend_def)
+                
+            if self.target in ["all", "frontend"]:
+                frontend_def = ServiceDef(
+                    name="Frontend",
+                    cmd=frontend_cmd,
+                    cwd="frontend",
+                    prefix="[FRONTEND]",
+                    color_code="32",
+                    ready_signal=["ready in", "local:", "http://localhost"]
+                )
+                self.coordinator.spawn(frontend_def)
+                
+            if self.target in ["all", "remotion"]:
+                remotion_def = ServiceDef(
+                    name="Remotion Studio",
+                    cmd=remotion_cmd,
+                    cwd="remotion_engine",
+                    prefix="[REMOTION]",
+                    color_code="35",
+                    ready_signal=["local:", "ready in", "http://localhost"]
+                )
+                self.coordinator.spawn(remotion_def)
+
+            self.coordinator.run_loop()
+                        
+        except KeyboardInterrupt:
+            log_system("Shutting down...")
+        finally:
+            self.coordinator.shutdown()
+
+
 # --- Global Coordinator Instance for Signal Handlers ---
 coordinator = None
 
 def handle_signal(sig, frame):
-    # Ignore subsequent Ctrl+C signals to protect the shutdown routine from violent interruptions
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
     log_system("Interruption signal received. Cleaning up services safely (do not force quit)...")
@@ -459,9 +561,9 @@ def handle_signal(sig, frame):
         coordinator.shutdown()
     sys.exit(0)
 
+
 # --- Main Entry Point ---
 def main():
-    global coordinator
     enable_colors()
     
     # Setup Signal Handlers
@@ -484,95 +586,9 @@ def main():
     )
     args = parser.parse_args()
     
-    target = args.target.lower()
+    launcher = BootstrappedLauncher(target=args.target, force_fonts=args.force_fonts)
+    launcher.run()
 
-    # 1. Dependency and Environment Checks
-    check_dependencies()
-    
-    # 2. Bootstrapping
-    venv_python = bootstrap_backend()
-    
-    if target in ["all", "frontend", "remotion"]:
-        bootstrap_fonts(venv_python, force=args.force_fonts)
-
-    if target in ["all", "frontend"]:
-        bootstrap_node_project("frontend", "Frontend")
-        
-    if target in ["all", "remotion"]:
-        bootstrap_node_project("remotion_engine", "Remotion Engine")
-        
-        # Ensure Chrome Headless Shell is downloaded for Remotion
-        log_system("Verifying Remotion browser configuration (Chrome Headless Shell)...")
-        try:
-            subprocess.run(
-                ["npx", "remotion", "browser", "ensure"], 
-                cwd="remotion_engine", 
-                shell=IS_WIN, 
-                check=True
-            )
-            log_system("Remotion browser check complete.")
-        except Exception as e:
-            log_system(f"\033[33m[WARNING] Remotion browser verification failed: {e}. Proceeding...\033[0m")
-
-    # 3. Execution Commands Configuration
-    # Run uvicorn via python -m uvicorn to ensure it runs within the virtualenv context
-    backend_cmd = [
-        venv_python, "-m", "uvicorn", "main:app", 
-        "--env-file", ".env", 
-        "--host", "0.0.0.0", 
-        "--port", "8000", 
-        "--reload"
-    ]
-    
-    # NPM dev commands
-    frontend_cmd = ["npm", "run", "dev"]
-    remotion_cmd = ["npm", "run", "preview"]
-
-    # 4. Spawn Active Services
-    coordinator = ServiceCoordinator(target)
-    coordinator.clean_ports()
-    log_system(f"Starting services in target mode: '{target}'")
-    
-    try:
-        if target in ["all", "backend"]:
-            backend_def = ServiceDef(
-                name="Backend",
-                cmd=backend_cmd,
-                cwd="backend",
-                prefix="[BACKEND]",
-                color_code="36",
-                ready_signal="Application startup complete"
-            )
-            coordinator.spawn(backend_def)
-            
-        if target in ["all", "frontend"]:
-            frontend_def = ServiceDef(
-                name="Frontend",
-                cmd=frontend_cmd,
-                cwd="frontend",
-                prefix="[FRONTEND]",
-                color_code="32",
-                ready_signal=["ready in", "local:", "http://localhost"]
-            )
-            coordinator.spawn(frontend_def)
-            
-        if target in ["all", "remotion"]:
-            remotion_def = ServiceDef(
-                name="Remotion Studio",
-                cmd=remotion_cmd,
-                cwd="remotion_engine",
-                prefix="[REMOTION]",
-                color_code="35",
-                ready_signal=["local:", "ready in", "http://localhost"]
-            )
-            coordinator.spawn(remotion_def)
-
-        coordinator.run_loop()
-                    
-    except KeyboardInterrupt:
-        log_system("Shutting down...")
-    finally:
-        coordinator.shutdown()
 
 if __name__ == "__main__":
     main()

@@ -74,3 +74,19 @@ def test_service_coordinator_spawn_and_shutdown(mocker):
     
     coordinator.shutdown()
     assert coordinator._shutdown_initiated is True
+
+
+def test_service_coordinator_with_mock_sweeper(mocker):
+    """
+    TDD Test: Verify that ServiceCoordinator clean_ports delegates cleanly
+    to the injected MockPortSweeper without side-effects.
+    """
+    mocker.patch("run.log_system")
+    
+    mock_sweeper = run.MockPortSweeper()
+    coordinator = run.ServiceCoordinator("all", sweeper=mock_sweeper)
+    
+    coordinator.clean_ports()
+    
+    # Assert that all core Yonru ports are captured by the MockPortSweeper
+    assert mock_sweeper.swept_ports == [8000, 3000, 3003]
