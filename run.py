@@ -314,10 +314,11 @@ class ServiceCoordinator:
                 
                 # Check for ready pattern if dashboard has not been printed yet
                 if not self._dashboard_printed:
-                    is_ready = (service.ready_signal in line) if service.ready_signal else False
-                    if not is_ready and service.prefix in ["[FRONTEND]", "[REMOTION]"]:
-                        # Fallback strings for Vite / NPM preview
-                        is_ready = any(x in line.lower() for x in ["ready in", "local:", "http://localhost"])
+                    # Check list of possible ready signals configured on the ServiceDef
+                    is_ready = False
+                    if service.ready_signal:
+                        signals = [service.ready_signal] if isinstance(service.ready_signal, str) else service.ready_signal
+                        is_ready = any(sig in line or sig.lower() in line.lower() for sig in signals)
                         
                     if is_ready:
                         with self._lock:
@@ -550,7 +551,7 @@ def main():
                 cwd="frontend",
                 prefix="[FRONTEND]",
                 color_code="32",
-                ready_signal="ready in"
+                ready_signal=["ready in", "local:", "http://localhost"]
             )
             coordinator.spawn(frontend_def)
             
@@ -561,7 +562,7 @@ def main():
                 cwd="remotion_engine",
                 prefix="[REMOTION]",
                 color_code="35",
-                ready_signal="local:"
+                ready_signal=["local:", "ready in", "http://localhost"]
             )
             coordinator.spawn(remotion_def)
 
