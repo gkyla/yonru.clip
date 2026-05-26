@@ -4,6 +4,7 @@ import { useSafetyAuditor, DEFAULT_BLACKLIST } from './useSafetyAuditor'
 import { useTimelineState } from './useTimelineState'
 import { useClipperJob } from './useClipperJob'
 import { useClipperThumbnail } from './useClipperThumbnail'
+import { useClipperExport } from './useClipperExport'
 
 export const FONT_OPTIONS = [
   'Montserrat', 'Inter', 'Bebas Neue', 'Oswald', 'Poppins', 
@@ -33,6 +34,11 @@ export const useClipperState = () => {
     resetThumbnailState, captureScreenshot, addThumbnailText, removeThumbnailText,
     saveThumbnailConfig, loadThumbnailConfig, toggleThumbnail, deleteThumbnail
   } = thumbnailState
+
+  // Export state delegated from useClipperExport sub-composable
+  const exportState = useClipperExport({ saveTranscript })
+  const { renderStatus, renderProgress, renderStage, renderEta, outputUrl, renderClip } = exportState
+
 
   // Video info
   const videoTitle = useState<string>('videoTitle', () => '')
@@ -104,12 +110,7 @@ export const useClipperState = () => {
   const isPlaying = useState<boolean>('isPlaying', () => false)
   const currentTime = useState<number>('currentTime', () => 0)
 
-  // Render state
-  const renderStatus = useState<string>('renderStatus', () => 'idle')
-  const renderProgress = useState<number>('renderProgress', () => 0)
-  const renderStage = useState<string>('renderStage', () => '')
-  const renderEta = useState<number>('renderEta', () => 0)
-  const outputUrl = useState<string | null>('outputUrl', () => null)
+
   
   // Cache / Library
   const cachedVideos = useState<any[]>('cachedVideos', () => [])
@@ -161,122 +162,7 @@ export const useClipperState = () => {
   // --- Actions ---
   const { analyzeUrl, startPolling, stopPolling, extractClip, loadReadyClipIntoEditor } = job
 
-  async function renderClip(hookIndex = 0, outputName?: string) {
-    if (!jobId.value) return
-    renderStatus.value = 'rendering'
-    renderProgress.value = 0
-    renderStage.value = 'starting'
-    renderEta.value = 0
-    outputUrl.value = null
 
-    try {
-      await saveTranscript()
-      
-      const body = {
-        job_id: jobId.value,
-        hook_index: hookIndex,
-        subtitle_position: subtitlePosition.value,
-        subtitle_offset: subtitleOffset.value,
-        font: font.value,
-        font_size: fontSize.value,
-        face_tracking: cropMode.value === 'face_tracking',
-        crop_percent_x: cropPercentX.value,
-        subtitle_sync_offset: subtitleSyncOffset.value,
-        subtitle_mode: subtitleMode.value,
-        timeline_tracks: timeline.timelineTracks.value,
-        subtitle_animation: subtitleAnimation.value,
-        subtitle_highlight_mode: subtitleHighlightMode.value,
-        subtitle_highlight_color: subtitleHighlightColor.value,
-        subtitle_text_color: subtitleTextColor.value,
-        subtitle_stroke_color: subtitleStrokeColor.value,
-        subtitle_stroke_width: subtitleStrokeWidth.value,
-        subtitle_font_weight: subtitleFontWeight.value,
-        subtitle_text_transform: subtitleTextTransform.value,
-        subtitle_background: subtitleBackground.value,
-        subtitle_background_opacity: subtitleBackgroundOpacity.value,
-        subtitle_word_spacing: subtitleWordSpacing.value,
-        volume: volume.value,
-        fps: videoFps.value,
-        transcript: fullTranscript.value,
-        thumbnail_enabled: thumbnailEnabled.value,
-        thumbnail_duration: thumbnailDuration.value,
-        thumbnail_text_overlays: thumbnailTextOverlays.value,
-        thumbnail_x_offset: thumbnailXOffset.value,
-        output_name: outputName
-      }
-
-      const response = await fetch(`${API_BASE}/api/render-stream`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      })
-
-      if (!response.ok) {
-        throw new Error(`Render failed: ${response.status}`)
-      }
-
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('No response stream')
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6))
-              
-              if (data.stage === 'bundling') {
-                renderProgress.value = data.percent || 0
-                renderStage.value = 'bundling'
-                renderEta.value = 0
-              } else if (data.stage === 'rendering') {
-                renderProgress.value = data.percent || 0
-                renderStage.value = 'rendering'
-                renderEta.value = data.etaSeconds || 0
-              } else if (data.stage === 'encoding') {
-                renderStage.value = 'encoding'
-                renderProgress.value = data.percent || 96
-              } else if (data.stage === 'starting') {
-                renderStage.value = 'starting'
-                renderProgress.value = 0
-              } else if (data.stage === 'done') {
-                renderStatus.value = 'done'
-                renderProgress.value = 100
-                renderStage.value = ''
-                renderEta.value = 0
-                outputUrl.value = `${API_BASE}${data.outputUrl}`
-                videoUrl.value = outputUrl.value
-              } else if (data.stage === 'error') {
-                renderStatus.value = 'error'
-                jobError.value = data.message || 'Render failed'
-                renderProgress.value = 0
-                renderStage.value = ''
-              }
-            } catch {}
-          }
-        }
-      }
-
-      if (renderStatus.value === 'rendering') {
-        renderStatus.value = 'error'
-        jobError.value = 'Render stream ended unexpectedly'
-      }
-    } catch (e: any) {
-      renderStatus.value = 'error'
-      jobError.value = e.message || 'Render failed'
-      renderProgress.value = 0
-      renderStage.value = ''
-    }
-  }
 
   function formatDuration(sec: number) {
     const m = Math.floor(sec / 60)
