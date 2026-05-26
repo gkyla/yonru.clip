@@ -62,6 +62,7 @@ weights/
 
 # Debugging & Temporary Assets
 temp_assets/
+scratch/
 
 # Remotion Engine Generated Assets
 remotion_engine/public/source_render_*
