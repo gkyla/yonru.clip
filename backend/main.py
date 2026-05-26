@@ -259,7 +259,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, fo
         "error": None
     }
     
-    background_tasks.add_task(workflow_coordinator.run_full_analysis, job_id, req.url, req.language, force, req.prompt_file, req.num_hooks or 10, req.auto_hooks or False)
+    background_tasks.add_task(workflow_coordinator.run_full_analysis, job_id, req.url, req.language, force, req.prompt_file or "prompt.json", req.num_hooks or 10, req.auto_hooks or False)
     save_jobs()
     return {"job_id": job_id, "status": "queued"}
 
@@ -323,7 +323,7 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
     job["status"] = "cutting"
     jobs[req.job_id] = job
 
-    background_tasks.add_task(workflow_coordinator.run_local_cut, req.job_id, req.start_time, req.end_time, req.theme, req.whisper_model)
+    background_tasks.add_task(workflow_coordinator.run_local_cut, req.job_id, req.start_time, req.end_time, req.theme, req.whisper_model or "base")
     save_jobs()
     return {"job_id": req.job_id, "status": "cutting"}
 
@@ -342,7 +342,6 @@ async def get_job(job_id: str):
     
     if job.get("video_info"):
         _heatmap = job["video_info"].get("heatmap") or []
-        import os
         folder_name = os.path.basename(os.path.dirname(job["video_info"].get("file_path", ""))) if job["video_info"].get("file_path") else None
         print(f"[debug] get_job {job_id} -> folder_name: {folder_name}")
         response["video"] = {
@@ -355,7 +354,6 @@ async def get_job(job_id: str):
         }
         response["folder_name"] = folder_name
     elif job.get("clip_path"):
-        import os
         # clip_path is clips/<folder>/<clip>/video.mp4
         folder_name = os.path.basename(os.path.dirname(os.path.dirname(job["clip_path"])))
         response["folder_name"] = folder_name
@@ -374,7 +372,6 @@ async def get_job(job_id: str):
         # Load clip-specific transcript if it exists
         clip_path = job.get("clip_path")
         if clip_path:
-            import json
             transcript_path = os.path.join(os.path.dirname(clip_path), "transcript.json")
             if os.path.exists(transcript_path):
                 try:
@@ -550,7 +547,7 @@ async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force
         "error": None
     }
     
-    background_tasks.add_task(workflow_coordinator.run_full_analysis, job_id, f"https://youtube.com/watch?v={video_id}", "id", force, req.prompt_file, req.num_hooks or 10, req.auto_hooks or False)
+    background_tasks.add_task(workflow_coordinator.run_full_analysis, job_id, f"https://youtube.com/watch?v={video_id}", "id", force, req.prompt_file or "prompt.json", req.num_hooks or 10, req.auto_hooks or False)
     save_jobs()
     return {"job_id": job_id, "status": "queued", "cached": True}
 
@@ -814,7 +811,7 @@ async def system_health():
         venv_ok = False
         
     # 4. Check GEMINI_API_KEY
-    gemini_key = config_store.get("GEMINI_API_KEY", "")
+    gemini_key = config_store.get("GEMINI_API_KEY") or ""
     has_key = len(gemini_key.strip()) > 0
     
     # 5. Check cookies.txt
