@@ -229,198 +229,237 @@ def bootstrap_node_project(directory, name):
         subprocess.run(["npm", "install"], cwd=directory, shell=use_shell, check=True)
 
 # --- Process Execution & Logging ---
-active_processes = {}
-shutdown_initiated = False
-pending_ready_services = set()
-dashboard_printed = False
-ready_lock = threading.Lock()
 
-def run_stream_reader(pipe, prefix, color_code, name, target):
-    """Reads lines from a subprocess pipe and outputs them with a colored prefix. Triggers dashboard when ready."""
-    global dashboard_printed
-    try:
-        # bufsize=1 and text=True ensures we get line-buffered string inputs
-        for line in iter(pipe.readline, ''):
-            if shutdown_initiated:
-                break
-            if not line:
-                continue
-            stripped = line.rstrip('\r\n')
-            # 36=Cyan (Backend), 32=Green (Frontend), 35=Magenta (Remotion)
-            sys.stdout.write(f"\033[{color_code}m{prefix}\033[0m {stripped}\n")
-            sys.stdout.flush()
-            
-            # Check for ready pattern if dashboard has not been printed yet
-            if not dashboard_printed:
-                is_ready = False
-                if prefix == "[BACKEND]" and "Application startup complete" in line:
-                    is_ready = True
-                elif prefix in ["[FRONTEND]", "[REMOTION]"] and ("ready in" in line.lower() or "local:" in line.lower() or "http://localhost" in line):
-                    is_ready = True
-                    
-                if is_ready:
-                    with ready_lock:
-                        if name in pending_ready_services:
-                            pending_ready_services.remove(name)
-                            if not pending_ready_services:
-                                dashboard_printed = True
-                                print_dashboard(target)
-    except Exception:
-        pass
-    finally:
-        try:
-            pipe.close()
-        except Exception:
-            pass
+IS_WIN = (sys.platform == "win32")
 
-def clean_ports(target):
-    """Scan and kill any zombie processes listening on core Yonru ports to ensure self-healing boots."""
-    ports = []
-    if target in ["all", "backend"]:
-        ports.append(8000)
-    if target in ["all", "frontend"]:
-        ports.append(3000)
-    if target in ["all", "remotion"]:
-        ports.append(3003)
+class ServiceDef:
+    def __init__(self, name, cmd, cwd, prefix, color_code, ready_signal):
+        self.name = name
+        self.cmd = cmd
+        self.cwd = cwd
+        self.prefix = prefix
+        self.color_code = color_code
+        self.ready_signal = ready_signal
 
-    log_system("Sweeping ports " + ", ".join(map(str, ports)) + " for any active zombie processes...")
-    
-    for port in ports:
-        if sys.platform == "win32":
-            try:
-                cmd = f"netstat -ano"
-                output = subprocess.check_output(cmd, shell=True).decode(errors="ignore")
-                for line in output.splitlines():
-                    if f":{port}" in line and "LISTENING" in line:
-                        parts = line.strip().split()
-                        if parts:
-                            pid_str = parts[-1]
+class ServiceCoordinator:
+    def __init__(self, target):
+        self.target = target
+        self._procs = {}
+        self._shutdown_initiated = False
+        self._pending_ready = set()
+        self._dashboard_printed = False
+        self._lock = threading.Lock()
+        
+    def clean_ports(self):
+        """Scan and kill any zombie processes listening on core Yonru ports to ensure self-healing boots."""
+        ports = []
+        if self.target in ["all", "backend"]:
+            ports.append(8000)
+        if self.target in ["all", "frontend"]:
+            ports.append(3000)
+        if self.target in ["all", "remotion"]:
+            ports.append(3003)
+
+        log_system("Sweeping ports " + ", ".join(map(str, ports)) + " for any active zombie processes...")
+        
+        for port in ports:
+            if IS_WIN:
+                try:
+                    cmd = "netstat -ano"
+                    output = subprocess.check_output(cmd, shell=True).decode(errors="ignore")
+                    for line in output.splitlines():
+                        if f":{port}" in line and "LISTENING" in line:
+                            parts = line.strip().split()
+                            if parts:
+                                pid_str = parts[-1]
+                                try:
+                                    pid = int(pid_str)
+                                    if pid != os.getpid() and pid > 0:
+                                        log_system(f"Terminating zombie process {pid} on port {port}...")
+                                        subprocess.run(["taskkill", "/F", "/PID", str(pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                except ValueError:
+                                    pass
+                except Exception:
+                    pass
+            else:
+                # Unix (macOS / Linux)
+                try:
+                    pids_str = subprocess.check_output(["lsof", "-t", "-i", f":{port}"]).decode().strip()
+                    if pids_str:
+                        pids = pids_str.split()
+                        for pid_str in pids:
                             try:
                                 pid = int(pid_str)
-                                if pid != os.getpid() and pid > 0:
+                                if pid != os.getpid():
                                     log_system(f"Terminating zombie process {pid} on port {port}...")
-                                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                    os.kill(pid, signal.SIGKILL)
                             except ValueError:
                                 pass
-            except Exception:
-                pass
-        else:
-            # Unix (macOS / Linux)
-            try:
-                pids_str = subprocess.check_output(["lsof", "-t", "-i", f":{port}"]).decode().strip()
-                if pids_str:
-                    pids = pids_str.split()
-                    for pid_str in pids:
-                        try:
-                            pid = int(pid_str)
-                            if pid != os.getpid():
-                                log_system(f"Terminating zombie process {pid} on port {port}...")
-                                os.kill(pid, signal.SIGKILL)
-                        except ValueError:
-                            pass
-            except subprocess.CalledProcessError:
-                pass
-            except Exception:
-                pass
-
-def spawn_service(name, cmd, cwd, prefix, color_code, target):
-    """Spawns a subprocess and starts a reader thread for its output."""
-    log_system(f"Launching {name}...")
-    use_shell = (sys.platform == "win32")
-    
-    # On Windows, we create a new process group to allow clean termination of child processes
-    creation_flags = 0
-    if sys.platform == "win32":
-        creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
-
-    preexec = None
-    if sys.platform != "win32":
-        preexec = os.setsid
-
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        bufsize=1,
-        shell=use_shell,
-        creationflags=creation_flags,
-        preexec_fn=preexec
-    )
-    
-    active_processes[name] = proc
-    
-    # Start output streaming thread
-    t = threading.Thread(
-        target=run_stream_reader, 
-        args=(proc.stdout, prefix, color_code, name, target), 
-        daemon=True
-    )
-    t.start()
-
-def terminate_all_services():
-    """Cleanly shuts down all running child processes, dealing with Windows-specific process tree complexities."""
-    global shutdown_initiated
-    if shutdown_initiated:
-        return
-    shutdown_initiated = True
-    
-    log_system("Initiating graceful shutdown of all active services...")
-    
-    for name, proc in list(active_processes.items()):
-        pid = proc.pid
-        if proc.poll() is None: # Still running
-            log_system(f"Sending termination signal to {name} (PID {pid})...")
-            if sys.platform == "win32":
-                # On Windows, taskkill /F /T kills the entire process group tree cleanly
-                try:
-                    subprocess.run(
-                        ["taskkill", "/F", "/T", "/PID", str(pid)], 
-                        stdout=subprocess.DEVNULL, 
-                        stderr=subprocess.DEVNULL
-                    )
-                    log_system(f"Successfully stopped {name} and its child process tree via taskkill.")
-                except Exception as e:
-                    log_system(f"Taskkill failed for {name}. Attempting fallback basic termination...")
-                    proc.terminate()
-            else:
-                # Unix termination of process group to cleanly kill all children
-                try:
-                    os.killpg(os.getpgid(pid), signal.SIGTERM)
-                    proc.wait(timeout=3)
-                    log_system(f"Successfully stopped {name} and its child process group tree cleanly.")
-                except subprocess.TimeoutExpired:
-                    log_system(f"Warning: {name} (PID {pid}) did not stop within 3 seconds. Force-killing process group...")
-                    try:
-                        os.killpg(os.getpgid(pid), signal.SIGKILL)
-                        proc.wait()
-                    except Exception:
-                        pass
-                    log_system(f"Force-killed process group for {name} successfully.")
+                except subprocess.CalledProcessError:
+                    pass
                 except Exception:
+                    pass
+
+    def _stream_reader(self, pipe, service: ServiceDef):
+        """Reads lines from a subprocess pipe and outputs them with a colored prefix. Triggers dashboard when ready."""
+        try:
+            for line in iter(pipe.readline, ''):
+                if self._shutdown_initiated:
+                    break
+                if not line:
+                    continue
+                stripped = line.rstrip('\r\n')
+                sys.stdout.write(f"\033[{service.color_code}m{service.prefix}\033[0m {stripped}\n")
+                sys.stdout.flush()
+                
+                # Check for ready pattern if dashboard has not been printed yet
+                if not self._dashboard_printed:
+                    is_ready = (service.ready_signal in line) if service.ready_signal else False
+                    if not is_ready and service.prefix in ["[FRONTEND]", "[REMOTION]"]:
+                        # Fallback strings for Vite / NPM preview
+                        is_ready = any(x in line.lower() for x in ["ready in", "local:", "http://localhost"])
+                        
+                    if is_ready:
+                        with self._lock:
+                            if service.name in self._pending_ready:
+                                self._pending_ready.remove(service.name)
+                                if not self._pending_ready:
+                                    self._dashboard_printed = True
+                                    print_dashboard(self.target)
+        except Exception:
+            pass
+        finally:
+            try:
+                pipe.close()
+            except Exception:
+                pass
+
+    def spawn(self, service: ServiceDef):
+        """Spawns a subprocess and starts a reader thread for its output."""
+        log_system(f"Launching {service.name}...")
+        
+        # On Windows, we create a new process group to allow clean termination of child processes
+        creation_flags = 0
+        if IS_WIN:
+            creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+
+        preexec = None
+        if not IS_WIN:
+            preexec = os.setsid
+
+        proc = subprocess.Popen(
+            service.cmd,
+            cwd=service.cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+            shell=IS_WIN,
+            creationflags=creation_flags,
+            preexec_fn=preexec
+        )
+        
+        with self._lock:
+            self._procs[service.name] = proc
+            self._pending_ready.add(service.name)
+        
+        # Start output streaming thread
+        t = threading.Thread(
+            target=self._stream_reader, 
+            args=(proc.stdout, service), 
+            daemon=True
+        )
+        t.start()
+
+    def shutdown(self):
+        """Cleanly shuts down all running child processes, dealing with Windows-specific process tree complexities."""
+        with self._lock:
+            if self._shutdown_initiated:
+                return
+            self._shutdown_initiated = True
+        
+        log_system("Initiating graceful shutdown of all active services...")
+        
+        for name, proc in list(self._procs.items()):
+            pid = proc.pid
+            if proc.poll() is None: # Still running
+                log_system(f"Sending termination signal to {name} (PID {pid})...")
+                if IS_WIN:
                     try:
-                        proc.terminate()
-                        proc.wait(timeout=2)
+                        subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", str(pid)], 
+                            stdout=subprocess.DEVNULL, 
+                            stderr=subprocess.DEVNULL
+                        )
+                        log_system(f"Successfully stopped {name} and its child process tree via taskkill.")
                     except Exception:
-                        proc.kill()
-        else:
-            log_system(f"{name} (PID {pid}) has already stopped.")
-            
-    log_system("\033[32mAll services successfully stopped. Clean exit.\033[0m")
+                        proc.terminate()
+                else:
+                    try:
+                        os.killpg(os.getpgid(pid), signal.SIGTERM)
+                        proc.wait(timeout=3)
+                        log_system(f"Successfully stopped {name} and its child process group tree cleanly.")
+                    except subprocess.TimeoutExpired:
+                        log_system(f"Warning: {name} (PID {pid}) did not stop within 3 seconds. Force-killing process group...")
+                        try:
+                            os.killpg(os.getpgid(pid), signal.SIGKILL)
+                            proc.wait()
+                        except Exception:
+                            pass
+                        log_system(f"Force-killed process group for {name} successfully.")
+                    except Exception:
+                        try:
+                            proc.terminate()
+                            proc.wait(timeout=2)
+                        except Exception:
+                            proc.kill()
+            else:
+                log_system(f"{name} (PID {pid}) has already stopped.")
+                
+        log_system("\033[32mAll services successfully stopped. Clean exit.\033[0m")
+
+    def run_loop(self):
+        """Monitor running processes and handle unexpected exit status."""
+        log_system("All requested services launched! Waiting for initialization...")
+        
+        # Start a daemon fallback timer (5.0 seconds) to ensure dashboard prints regardless
+        def fallback_timer():
+            time.sleep(5.0)
+            with self._lock:
+                if not self._dashboard_printed:
+                    self._dashboard_printed = True
+                    print_dashboard(self.target)
+                    
+        threading.Thread(target=fallback_timer, daemon=True).start()
+
+        # Keep main thread alive and monitor processes for unexpected crashes
+        while True:
+            time.sleep(0.5)
+            with self._lock:
+                procs = list(self._procs.items())
+            for name, proc in procs:
+                ret = proc.poll()
+                if ret is not None:
+                    log_system(f"\033[31mProcess {name} exited unexpectedly with code {ret}.\033[0m")
+                    raise KeyboardInterrupt
+
+# --- Global Coordinator Instance for Signal Handlers ---
+coordinator = None
 
 def handle_signal(sig, frame):
     # Ignore subsequent Ctrl+C signals to protect the shutdown routine from violent interruptions
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
     log_system("Interruption signal received. Cleaning up services safely (do not force quit)...")
-    terminate_all_services()
+    if coordinator:
+        coordinator.shutdown()
     sys.exit(0)
 
 # --- Main Entry Point ---
 def main():
+    global coordinator
     enable_colors()
     
     # Setup Signal Handlers
@@ -462,25 +501,19 @@ def main():
         
         # Ensure Chrome Headless Shell is downloaded for Remotion
         log_system("Verifying Remotion browser configuration (Chrome Headless Shell)...")
-        use_shell = (sys.platform == "win32")
         try:
             subprocess.run(
                 ["npx", "remotion", "browser", "ensure"], 
                 cwd="remotion_engine", 
-                shell=use_shell, 
+                shell=IS_WIN, 
                 check=True
             )
             log_system("Remotion browser check complete.")
         except Exception as e:
             log_system(f"\033[33m[WARNING] Remotion browser verification failed: {e}. Proceeding...\033[0m")
 
-
-
     # 3. Execution Commands Configuration
-    use_shell = (sys.platform == "win32")
-    
     # Run uvicorn via python -m uvicorn to ensure it runs within the virtualenv context
-    # and to bypass shebang path limits/relocation issues on all operating systems.
     backend_cmd = [
         venv_python, "-m", "uvicorn", "main:app", 
         "--env-file", ".env", 
@@ -494,60 +527,50 @@ def main():
     remotion_cmd = ["npm", "run", "preview"]
 
     # 4. Spawn Active Services
-    clean_ports(target)
+    coordinator = ServiceCoordinator(target)
+    coordinator.clean_ports()
     log_system(f"Starting services in target mode: '{target}'")
-    
-    # Populate waiting list for dashboard trigger
-    active_services = []
-    if target in ["all", "backend"]:
-        active_services.append("Backend")
-    if target in ["all", "frontend"]:
-        active_services.append("Frontend")
-    if target in ["all", "remotion"]:
-        active_services.append("Remotion Studio")
-        
-    global pending_ready_services
-    pending_ready_services = set(active_services)
     
     try:
         if target in ["all", "backend"]:
-            spawn_service("Backend", backend_cmd, "backend", "[BACKEND]", "36", target) # Cyan
+            backend_def = ServiceDef(
+                name="Backend",
+                cmd=backend_cmd,
+                cwd="backend",
+                prefix="[BACKEND]",
+                color_code="36",
+                ready_signal="Application startup complete"
+            )
+            coordinator.spawn(backend_def)
             
         if target in ["all", "frontend"]:
-            spawn_service("Frontend", frontend_cmd, "frontend", "[FRONTEND]", "32", target) # Green
+            frontend_def = ServiceDef(
+                name="Frontend",
+                cmd=frontend_cmd,
+                cwd="frontend",
+                prefix="[FRONTEND]",
+                color_code="32",
+                ready_signal="ready in"
+            )
+            coordinator.spawn(frontend_def)
             
         if target in ["all", "remotion"]:
-            spawn_service("Remotion Studio", remotion_cmd, "remotion_engine", "[REMOTION]", "35", target) # Magenta
+            remotion_def = ServiceDef(
+                name="Remotion Studio",
+                cmd=remotion_cmd,
+                cwd="remotion_engine",
+                prefix="[REMOTION]",
+                color_code="35",
+                ready_signal="local:"
+            )
+            coordinator.spawn(remotion_def)
 
-        log_system("All requested services launched! Waiting for initialization...")
-        
-        # Start a daemon fallback timer (5.0 seconds) to ensure dashboard prints regardless
-        def fallback_timer():
-            import time
-            time.sleep(5.0)
-            global dashboard_printed
-            with ready_lock:
-                if not dashboard_printed:
-                    dashboard_printed = True
-                    print_dashboard(target)
-                    
-        threading.Thread(target=fallback_timer, daemon=True).start()
-
-
-
-        # Keep main thread alive and monitor processes for unexpected crashes
-        while True:
-            time.sleep(0.5)
-            for name, proc in list(active_processes.items()):
-                ret = proc.poll()
-                if ret is not None:
-                    log_system(f"\033[31mProcess {name} exited unexpectedly with code {ret}.\033[0m")
-                    raise KeyboardInterrupt
+        coordinator.run_loop()
                     
     except KeyboardInterrupt:
         log_system("Shutting down...")
     finally:
-        terminate_all_services()
+        coordinator.shutdown()
 
 if __name__ == "__main__":
     main()
