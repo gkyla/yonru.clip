@@ -70,7 +70,7 @@ export const useClipperState = () => {
   const faceTracking = useState<boolean>('faceTracking', () => false)
   const cropMode = useState<string>('cropMode', () => 'manual') // 'manual' | 'face_tracking'
   const cropPercentX = useState<number>('cropPercentX', () => 50) // 0=left, 50=center, 100=right
-  const subtitleMode = useState<'word' | '3_words' | '4_words' | '10_chars' | '15_chars' | '20_chars'>('subtitleMode', () => 'word')
+  const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
   const whisperModel = useState<string>('whisperModel', () => 'base')
   const useNativePlayer = useState<boolean>('useNativePlayer', () => false)
   const showIframeDebug = useState<boolean>('showIframeDebug', () => false)

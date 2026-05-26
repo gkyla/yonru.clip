@@ -350,93 +350,132 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useClipperState } from '../composables/useClipperState'
+import { useCropDrag } from '../composables/useCropDrag'
+import { useRemotionBridge } from '../composables/useRemotionBridge'
+import { useInteractiveText } from '../composables/useInteractiveText'
+
 const state = useClipperState()
 
 const previewVideo = ref<HTMLVideoElement | null>(null)
 const remotionIframe = ref<HTMLIFrameElement | null>(null)
-const lastSeekFrame = ref<number | null>(null)
+const transformerRef = ref<any>(null)
+const stableVideoBuster = ref<string>(Date.now().toString())
 
-// --- FONT LOADING SYNC ---
-const fontsLoaded = ref(0)
-const loadedFonts = new Set<string>()
+// --- SUB-COMPOSABLES INSTANTIATION ---
+const textState = useInteractiveText(transformerRef)
+const {
+  fontsLoaded,
+  activeTextItems,
+  isTimelineTextActiveAndSelected,
+  editingItemId,
+  editingInputRef,
+  setEditingInputRef,
+  onLabelRender,
+  getEditingStyle,
+  stopEditing,
+  handleEditingKeydown,
+  onEditingInput,
+  handleMouseEnterLabel,
+  handleMouseLeaveLabel,
+  handleStageClick,
+  onTextDragEnd,
+  handleTransform,
+  selectItem,
+  startEditing
+} = textState
 
-onMounted(() => {
-  if (typeof document !== 'undefined' && document.fonts) {
-    document.fonts.ready.then(() => {
-      fontsLoaded.value++
-    })
+const isProcessing = computed(() => {
+  return ['queued', 'checking_transcript', 'downloading_video', 'downloading_ai_models', 'transcribing', 'generating_hooks', 'cutting', 'extracting_video'].includes(state.jobStatus.value)
+})
+
+const cropState = useCropDrag(
+  computed(() => previewScale.value),
+  computed(() => maxOffset.value),
+  computed(() => activeTextItems.value.length > 0)
+)
+const {
+  isDragging,
+  startDrag,
+  onDrag,
+  stopDrag,
+  startDragTouch,
+  onDragTouch
+} = cropState
+
+const bridgeState = useRemotionBridge(
+  remotionIframe,
+  previewVideo,
+  computed(() => videoTime.value),
+  computed(() => isInThumbnailWindow.value),
+  stableVideoBuster
+)
+const {
+  isInternalTimeUpdate,
+  setNativeVideoStarted
+} = bridgeState
+
+// --- LAYOUT & SIZING LOGIC ---
+const videoAspect = ref(16 / 9)
+const container = ref<HTMLElement | null>(null)
+const containerHeight = ref(640)
+const previewScale = computed(() => containerHeight.value / 1920)
+const displayWidth = computed(() => 1080 * previewScale.value)
+
+// 1080x1920 literal canvas parameters
+const CONTAINER_W = 1080
+const CONTAINER_H = 1920
+const videoDisplayW = computed(() => CONTAINER_H * videoAspect.value)
+const maxOffset = computed(() => Math.max(0, videoDisplayW.value - CONTAINER_W))
+
+const containerStyle = computed(() => ({
+  height: '100%',
+  maxHeight: '90vh',
+  width: `${displayWidth.value}px`,
+  outline: '1px solid rgba(255,255,255,0.1)',
+  outlineOffset: '12px',
+  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+  borderRadius: '1.5rem'
+}))
+
+const contentStyle = computed(() => ({
+  transform: `translate(-50%, -50%) scale(${previewScale.value})`,
+}))
+
+const videoTransformStyle = computed(() => {
+  const pct = state.cropPercentX.value / 100
+  const offset = -(pct * maxOffset.value)
+  return {
+    width: `${videoDisplayW.value}px`,
+    transform: `translateX(${offset}px)`,
   }
 })
 
-const allUsedFonts = computed(() => {
-  const fonts = new Set<string>()
-  
-  // Thumbnail overlays
-  state.thumbnailTextOverlays.value.forEach(o => {
-    fonts.add(`${o.fontWeight || 900}-${o.fontFamily || 'Montserrat'}`)
-  })
-  
-  // Timeline text items
-  const track = state.timelineTracks.value.find(t => t.id === 'text')
-  if (track && track.items) {
-    track.items.forEach((item: any) => {
-      fonts.add(`${item.fontWeight || 900}-${item.font || 'Outfit'}`)
-    })
-  }
-  
-  return Array.from(fonts)
-})
-
-watch(allUsedFonts, (fontKeys) => {
-  if (typeof document === 'undefined' || !document.fonts) return
-  fontKeys.forEach(fontKey => {
-    if (!loadedFonts.has(fontKey)) {
-      loadedFonts.add(fontKey)
-      const parts = fontKey.split('-')
-      const weight = parts[0]
-      const family = parts.slice(1).join('-')
-      
-      document.fonts.load(`${weight} 10px "${family}"`).then(() => {
-        fontsLoaded.value++
-      }).catch(e => console.warn('Font load error:', e))
+// Observe height changes
+if (import.meta.client) {
+  const updateSize = () => {
+    if (container.value) {
+      containerHeight.value = container.value.offsetHeight
     }
-  })
-}, { immediate: true, deep: true })
-
-// Thumbnail time offset: how many seconds the thumbnail occupies at start
-const thumbOffset = computed(() => {
-  if (!state.thumbnailEnabled.value) return 0
-  return state.thumbnailDuration.value
-})
-
-// True when playhead is in the thumbnail window
-const isInThumbnailWindow = computed(() => {
-  return state.thumbnailEnabled.value && state.currentTime.value < thumbOffset.value && !state.isCapturingThumbnail.value
-})
-
-const videoTime = computed(() => {
-  const t = Math.max(0, state.currentTime.value - thumbOffset.value)
-  const videoTrack = state.timelineTracks.value.find(tr => tr.id === 'video')
-  if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) return t
-  
-  const activeItem = videoTrack.items.find((i: any) => t >= i.start && t < i.start + i.duration)
-  if (activeItem) {
-    const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : activeItem.start
-    return mediaStart + (t - activeItem.start)
   }
-  return t
-})
+  const observer = new ResizeObserver(updateSize)
+  onMounted(() => {
+    if (container.value) observer.observe(container.value)
+    updateSize()
+  })
+  onUnmounted(() => observer.disconnect())
+  window.addEventListener('resize', updateSize)
+}
 
+// --- VIDEO LOADER EVENTS ---
 let readyTimeout: any = null
 
 function onVideoReady() {
   if (!state.videoUrl.value) return
 
-  // Seek immediately to prevent blank canvas on load
   if (previewVideo.value) {
     const targetTime = videoTime.value
     if (Math.abs(previewVideo.value.currentTime - targetTime) > 0.01) {
-      console.log('[VideoPreview] Forcing instant native video seek to start time:', targetTime)
       previewVideo.value.currentTime = targetTime
     }
   }
@@ -444,377 +483,20 @@ function onVideoReady() {
   if (readyTimeout) clearTimeout(readyTimeout)
   readyTimeout = setTimeout(() => {
     state.isMediaLoading.value = false
-    console.log('[clipper] Video ready and loaded')
     if (previewVideo.value) {
-      const targetTime = videoTime.value
-      previewVideo.value.currentTime = targetTime
+      previewVideo.value.currentTime = videoTime.value
     }
   }, 400)
 }
 
-function onNativeVideoError(e: Event) {
-  const video = e.target as HTMLVideoElement
-  const error = video.error
-  console.error('[clipper] Native Video Error:', {
-    code: error?.code,
-    message: error?.message,
-    url: state.videoUrl.value
-  })
-  
-  // If we have a URL, treat it as ready to clear the loader, but log the failure
-  if (state?.videoUrl.value) {
-    onVideoReady()
+function onVideoLoaded(e: Event) {
+  onVideoReady()
+  const target = e.target as HTMLVideoElement
+  if (target.duration && isFinite(target.duration)) {
+    state.videoDuration.value = target.duration
   }
-}
-
-const stableVideoBuster = ref<string>(Date.now().toString())
-let safetyTimeout: any = null
-
-watch(() => state.videoUrl.value, (url) => {
-  if (url) {
-    stableVideoBuster.value = Date.now().toString()
-    lastSeekFrame.value = null
-  }
-  if (readyTimeout) clearTimeout(readyTimeout)
-  if (safetyTimeout) clearTimeout(safetyTimeout)
-  if (url) {
-    state.isMediaLoading.value = true
-    // Safety timeout: 4s to hide loading even if events fail
-    safetyTimeout = setTimeout(() => {
-      if (state.isMediaLoading.value) state.isMediaLoading.value = false
-    }, 4000)
-  }
-}, { immediate: true })
-
-  // --- REMOTION SYNC ---
-  function syncRemotionProps() {
-    if (!remotionIframe.value || !remotionIframe.value.contentWindow) return
-    
-    const hook = state?.activeHook?.value
-    let wordsData: any[] = []
-    let allWordTimings: any[] = []
-    
-    const hookDuration = hook ? (hook.duration || (hook.end - hook.start)) : 15
-    const syncOffsetSec = state.subtitleSyncOffset.value / 1000
-    
-    const flatWords: { text: string, start: number, duration: number, end: number }[] = []
-    if (state.fullTranscript.value) {
-      state.fullTranscript.value.forEach(s => {
-        const segText = (s.text || '').trim()
-        if (!segText) return
-        
-        const relativeStart = s.start + syncOffsetSec
-        const segmentDuration = s.duration
-        if (segmentDuration <= 0) return
-        
-        const rawWords = segText.split(/\s+/)
-        const wordDur = segmentDuration / Math.max(1, rawWords.length)
-        
-        rawWords.forEach((w: string, idx: number) => {
-          const wStart = relativeStart + (idx * wordDur)
-          const wEnd = relativeStart + ((idx + 1) * wordDur)
-          
-          flatWords.push({
-            text: w,
-            start: wStart,
-            duration: wordDur,
-            end: wEnd
-          })
-          
-          allWordTimings.push({
-            word: w,
-            start: wStart,
-            end: wEnd
-          })
-        })
-      })
-    }
-    
-    if (flatWords.length > 0) {
-      const mode = state.subtitleMode.value || 'word'
-      
-      if (mode === 'word' || mode === '1_word') {
-        flatWords.forEach(w => {
-          wordsData.push({
-            word: w.text,
-            start: w.start,
-            end: w.end
-          })
-        })
-      } else if (mode.endsWith('_words')) {
-        let numWords = 1
-        const match = mode.match(/^(\d+)_(?:word|words)$/)
-        if (match) {
-          numWords = parseInt(match[1]) || 1
-        }
-        
-        for (let i = 0; i < flatWords.length; i += numWords) {
-          const chunk = flatWords.slice(i, i + numWords)
-          const start = chunk[0].start
-          const end = chunk[chunk.length - 1].end
-          const text = chunk.map(w => w.text).join(' ')
-          wordsData.push({
-            word: text,
-            start,
-            end
-          })
-        }
-      } else {
-        // Character limit based (e.g. 10_chars, 15_chars, 20_chars)
-        const limit = parseInt(mode) || 0
-        if (limit <= 0) {
-          flatWords.forEach(w => {
-            wordsData.push({
-              word: w.text,
-              start: w.start,
-              end: w.end
-            })
-          })
-        } else {
-          let currentChunk: typeof flatWords = []
-          let currentLen = 0
-          
-          for (const w of flatWords) {
-            if (currentLen + w.text.length > limit && currentChunk.length > 0) {
-              const start = currentChunk[0].start
-              const end = currentChunk[currentChunk.length - 1].end
-              const text = currentChunk.map(c => c.text).join(' ')
-              wordsData.push({
-                word: text,
-                start,
-                end
-              })
-              
-              currentChunk = [w]
-              currentLen = w.text.length
-            } else {
-              currentChunk.push(w)
-              currentLen += w.text.length + (currentChunk.length > 1 ? 1 : 0)
-            }
-          }
-          if (currentChunk.length > 0) {
-            const start = currentChunk[0].start
-            const end = currentChunk[currentChunk.length - 1].end
-            const text = currentChunk.map(c => c.text).join(' ')
-            wordsData.push({
-              word: text,
-              start,
-              end
-            })
-          }
-        }
-      }
-    }
-  
-    // Probe actual width vs percent. The backend sends cropX pixel. We send cropX pixel.
-    const cropXPixel = ((state.cropPercentX.value ?? 50) / 100) * 1920
-    
-    // Add cache-buster for local assets to prevent "Format error" from stale cache
-    let videoSrc = state.videoUrl.value || ''
-    if (videoSrc.includes('localhost:8000') && !videoSrc.includes('?t=')) {
-      videoSrc += (videoSrc.includes('?') ? '&' : '?') + 't=' + stableVideoBuster.value
-    }
-
-    const remotionProps = {
-      videoPath: videoSrc,
-      words: wordsData,
-      wordTimings: allWordTimings,
-      cropX: isNaN(cropXPixel) ? 960 : cropXPixel,
-      sourceWidth: previewVideo.value?.videoWidth || 1920,
-      sourceHeight: previewVideo.value?.videoHeight || 1080,
-      position: state.subtitlePosition.value,
-      subtitleOffset: state.subtitleOffset.value,
-      durationInFrames: Math.floor(state.timelineDuration.value * (state.videoFps.value || 30)),
-      fps: state.videoFps.value || 30,
-      hideSubtitles: !!state.outputUrl.value && state.videoUrl.value === state.outputUrl.value,
-      showDebug: state.showIframeDebug.value,
-      volume: state.volume.value, // Let Remotion handle audio for perfect sync
-      timelineTextItems: [], // Pass empty array to prevent double rendering in preview (interactive Konva renders them instead)
-      timelineAudioItems: JSON.parse(JSON.stringify(state.timelineTracks.value.find(t => t.id === 'audio')?.items || [])),
-      timelineVideoItems: JSON.parse(JSON.stringify(state.timelineTracks.value.find(t => t.id === 'video')?.items || [])),
-      // Thumbnail props (preview only — actual thumbnail image is handled by renderer)
-      thumbnailEnabled: state.thumbnailEnabled.value, // Must be true so Remotion delays <Video> audio past thumbnail window
-      thumbnailDuration: state.thumbnailDuration.value,
-      thumbnailTextOverlays: JSON.parse(JSON.stringify(state.thumbnailTextOverlays.value || [])),
-      subtitleStyle: {
-        fontFamily: state.font.value,
-        fontSize: state.fontSize.value,
-        fontWeight: state.subtitleFontWeight.value,
-        color: state.subtitleTextColor.value,
-        highlightColor: state.subtitleHighlightColor.value,
-        strokeColor: state.subtitleStrokeColor.value,
-        strokeWidth: state.subtitleStrokeWidth.value,
-        textTransform: state.subtitleTextTransform.value,
-        animation: state.subtitleAnimation.value,
-        highlightMode: state.subtitleHighlightMode.value,
-        background: state.subtitleBackground.value,
-        backgroundOpacity: state.subtitleBackgroundOpacity.value,
-        wordSpacing: state.subtitleWordSpacing.value,
-      }
-    }
-  
-    if (state.showIframeDebug.value) {
-      console.log('[Remotion] Sending Props:', remotionProps)
-    }
-
-    // Deep-clone to strip Vue reactive proxies (postMessage requires structured-cloneable data)
-    remotionIframe.value.contentWindow.postMessage({
-      type: 'UPDATE_PROPS',
-      payload: JSON.parse(JSON.stringify(remotionProps))
-    }, '*')
-
-    // Seek iframe to current time immediately if paused to force paint of the first frame
-    if (!state.isPlaying.value) {
-      const targetFrame = Math.floor(state.currentTime.value * (state.videoFps.value || 30))
-      console.log('[VideoPreview] Forcing instant Remotion seek on props sync:', targetFrame)
-      remotionIframe.value.contentWindow.postMessage({
-        type: 'SEEK',
-        frame: targetFrame
-      }, '*')
-      lastSeekFrame.value = targetFrame
-    }
-  }
-
-watch([
-  () => state.videoUrl.value,
-  () => state.cropPercentX.value,
-  () => state.subtitlePosition.value,
-  () => state.subtitleOffset.value,
-  () => state.subtitleSyncOffset.value,
-  () => state?.activeHook?.value,
-  () => state.fullTranscript.value,
-  () => state.subtitleMode.value,
-  () => state.showIframeDebug.value,
-  () => state.font.value,
-  () => state.fontSize.value,
-  () => state.subtitleAnimation.value,
-  () => state.subtitleHighlightMode.value,
-  () => state.subtitleHighlightColor.value,
-  () => state.subtitleTextColor.value,
-  () => state.subtitleStrokeColor.value,
-  () => state.subtitleStrokeWidth.value,
-  () => state.subtitleFontWeight.value,
-  () => state.subtitleTextTransform.value,
-  () => state.subtitleBackground.value,
-  () => state.subtitleBackgroundOpacity.value,
-  () => state.subtitleWordSpacing.value,
-  () => state.timelineTracks.value,
-  () => state.thumbnailEnabled.value,
-  () => state.thumbnailDuration.value,
-  () => state.thumbnailTextOverlays.value,
-], () => {
-  syncRemotionProps()
-}, { deep: true, immediate: true })
-
-watch(() => state.thumbnailEnabled.value, (enabled) => {
-  if (state.isTimelineShifting.value) return
-  if (previewVideo.value) {
-    if (enabled) {
-      if (isInThumbnailWindow.value) {
-        if (!previewVideo.value.paused) {
-          previewVideo.value.pause()
-        }
-        previewVideo.value.currentTime = 0
-        previewVideo.value.muted = true
-        nativeVideoStarted = false
-      } else {
-        previewVideo.value.currentTime = videoTime.value
-        previewVideo.value.muted = !state.useNativePlayer.value
-        nativeVideoStarted = true
-      }
-    } else {
-      nativeVideoStarted = false
-      previewVideo.value.currentTime = videoTime.value
-      previewVideo.value.muted = !state.useNativePlayer.value
-      if (state.isPlaying.value && previewVideo.value.paused) {
-        previewVideo.value.play().catch(e => console.warn('[VideoPreview] Failed to play native video on disabling thumbnail:', e))
-      }
-    }
-  }
-})
-
-// --- PLAY/PAUSE ---
-watch(() => state.isPlaying.value, (playing) => {
-  console.log('[VideoPreview] isPlaying →', playing)
-  
-  if (previewVideo.value) {
-    if (playing) {
-      if (isInThumbnailWindow.value) {
-        // During thumbnail: keep native video PAUSED at time 0.
-        previewVideo.value.currentTime = 0
-        previewVideo.value.muted = true
-        // Don't call play()
-      } else {
-        // Normal play
-        previewVideo.value.muted = !state.useNativePlayer.value
-        if (state.useNativePlayer.value) {
-          previewVideo.value.volume = state.volume.value
-        }
-        previewVideo.value.currentTime = videoTime.value
-        previewVideo.value.play().catch(e => console.warn('Native play blocked:', e))
-      }
-    } else {
-      previewVideo.value.pause()
-    }
-  }
-
-  if (remotionIframe.value && remotionIframe.value.contentWindow) {
-    remotionIframe.value.contentWindow.postMessage({
-      type: playing ? 'PLAY' : 'PAUSE'
-    }, '*')
-  }
-})
-
-// --- VOLUME ---
-watch(() => state.volume.value, (newVol) => {
-  if (previewVideo.value && !isInThumbnailWindow.value) {
-    previewVideo.value.volume = newVol
-  }
-  if (remotionIframe.value && remotionIframe.value.contentWindow) {
-    remotionIframe.value.contentWindow.postMessage({
-      type: 'UPDATE_PROPS',
-      payload: { volume: newVol } // Let Remotion handle audio for perfect sync
-    }, '*')
-  }
-})
-
-// --- Listen for REMOTION_TIMEUPDATE from iframe ---
-let isInternalTimeUpdate = false
-
-function onRemotionMessage(event: MessageEvent) {
-  const data = event.data
-  if (!data) return
-  if (data.type === 'REMOTION_TIMEUPDATE') {
-    isInternalTimeUpdate = true
-    state.currentTime.value = data.currentTime
-    
-    // Self-healing sync: force native video to strictly follow Remotion's clock.
-    // This fixes the "video telat 1s" issue where Remotion drops frames on <Video> mount,
-    // causing the JS clock to fall behind the native hardware audio clock.
-    if (state.isPlaying.value && previewVideo.value && !isInThumbnailWindow.value) {
-      const expectedTime = videoTime.value
-      const diff = previewVideo.value.currentTime - expectedTime
-      
-      // If native video drifts more than 250ms ahead/behind Remotion, force a seek
-      if (Math.abs(diff) > 0.25) {
-        console.warn(`[VideoPreview] Sync drift detected! Native: ${previewVideo.value.currentTime.toFixed(2)}s, Expected: ${expectedTime.toFixed(2)}s. Force syncing...`)
-        previewVideo.value.currentTime = expectedTime
-      }
-    }
-
-    nextTick(() => { isInternalTimeUpdate = false })
-  } else if (data.type === 'IFRAME_READY') {
-    console.log('[VideoPreview] Remotion Iframe Ready. Syncing...')
-    syncRemotionProps()
-    if (remotionIframe.value && remotionIframe.value.contentWindow) {
-      const targetFrame = Math.floor(state.currentTime.value * (state.videoFps.value || 30))
-      console.log('[VideoPreview] Forcing instant Remotion seek on IFRAME_READY:', targetFrame)
-      remotionIframe.value.contentWindow.postMessage({
-        type: 'SEEK',
-        frame: targetFrame
-      }, '*')
-      lastSeekFrame.value = targetFrame
-    }
+  if (target.videoWidth && target.videoHeight) {
+    videoAspect.value = target.videoWidth / target.videoHeight
   }
 }
 
@@ -823,7 +505,7 @@ function onNativeTimeUpdate(e: Event) {
   const video = e.target as HTMLVideoElement
   if (!video || video.paused) return
 
-  isInternalTimeUpdate = true
+  isInternalTimeUpdate.value = true
   const thumbSec = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
   const videoTrack = state.timelineTracks.value.find(tr => tr.id === 'video')
   
@@ -843,253 +525,122 @@ function onNativeTimeUpdate(e: Event) {
     }
   }
   nextTick(() => {
-    isInternalTimeUpdate = false
+    isInternalTimeUpdate.value = false
   })
 }
 
-// Track whether native video has started for this playback session
-let nativeVideoStarted = false
-
-watch(() => state.isPlaying.value, (playing) => {
-  if (!playing) nativeVideoStarted = false
-})
-
-// --- SEEKING / BOUNDARY CROSSING ---
-watch(() => state.currentTime.value, (newTime) => {
-  if (state.isTimelineShifting.value) return
-
-  // During playback: handle thumbnail→video boundary
-  if (state.isPlaying.value && previewVideo.value && state.thumbnailEnabled.value) {
-    if (isInThumbnailWindow.value) {
-      // Still in thumbnail — native video should be paused at 0 and muted
-      if (!previewVideo.value.paused) {
-        previewVideo.value.pause()
-      }
-      previewVideo.value.currentTime = 0
-      previewVideo.value.muted = true
-      nativeVideoStarted = false
-    } else if (!nativeVideoStarted) {
-      // Just crossed the boundary! Start native video from appropriate relative time.
-      nativeVideoStarted = true
-      previewVideo.value.currentTime = videoTime.value
-      previewVideo.value.muted = !state.useNativePlayer.value
-      if (state.useNativePlayer.value) {
-        previewVideo.value.volume = state.volume.value
-      }
-      previewVideo.value.play().catch(e => console.warn('Native play at boundary:', e))
-      console.log(`[VideoPreview] Crossed thumb boundary — started native video from ${videoTime.value}s`)
-    }
+let safetyTimeout: any = null
+watch(() => state.videoUrl.value, (url) => {
+  if (url) {
+    stableVideoBuster.value = Date.now().toString()
+    setNativeVideoStarted(false)
   }
+  if (readyTimeout) clearTimeout(readyTimeout)
+  if (safetyTimeout) clearTimeout(safetyTimeout)
+  if (url) {
+    state.isMediaLoading.value = true
+    safetyTimeout = setTimeout(() => {
+      if (state.isMediaLoading.value) state.isMediaLoading.value = false
+    }, 4000)
+  }
+}, { immediate: true })
 
-  if (isInternalTimeUpdate) return
+// --- TIMING & THUMBNAIL TIMINGS ---
+const thumbOffset = computed(() => state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0)
+const isInThumbnailWindow = computed(() => state.thumbnailEnabled.value && state.currentTime.value < thumbOffset.value && !state.isCapturingThumbnail.value)
+
+const videoTime = computed(() => {
+  const t = Math.max(0, state.currentTime.value - thumbOffset.value)
+  const videoTrack = state.timelineTracks.value.find(tr => tr.id === 'video')
+  if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) return t
   
-  if (previewVideo.value && !state.isPlaying.value) {
-    if (isInThumbnailWindow.value) {
-      if (previewVideo.value.currentTime !== 0) {
-        previewVideo.value.currentTime = 0
-      }
-    } else {
-      const targetTime = videoTime.value
-      if (Math.abs(previewVideo.value.currentTime - targetTime) > 0.001) {
-        previewVideo.value.currentTime = targetTime
-      }
-    }
+  const activeItem = videoTrack.items.find((i: any) => t >= i.start && t < i.start + i.duration)
+  if (activeItem) {
+    const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : i.start
+    return mediaStart + (t - activeItem.start)
   }
-  
-  if (remotionIframe.value && remotionIframe.value.contentWindow && !state.isPlaying.value) {
-    const targetFrame = Math.floor(newTime * (state.videoFps.value || 30))
-    if (lastSeekFrame.value !== targetFrame) {
-      remotionIframe.value.contentWindow.postMessage({
-        type: 'SEEK',
-        frame: targetFrame
-      }, '*')
-      lastSeekFrame.value = targetFrame
-    }
-  }
+  return t
 })
 
-watch(() => state.isTimelineShifting.value, (shifting) => {
-  if (!shifting) {
-    // Perform settled seek
-    if (previewVideo.value) {
-      if (isInThumbnailWindow.value) {
-        if (previewVideo.value.currentTime !== 0) {
-          previewVideo.value.currentTime = 0
-        }
-      } else {
-        const targetTime = videoTime.value
-        if (Math.abs(previewVideo.value.currentTime - targetTime) > 0.001) {
-          previewVideo.value.currentTime = targetTime
-        }
-      }
-    }
-    if (remotionIframe.value && remotionIframe.value.contentWindow && !state.isPlaying.value) {
-      const targetFrame = Math.floor(state.currentTime.value * (state.videoFps.value || 30))
-      if (lastSeekFrame.value !== targetFrame) {
-        remotionIframe.value.contentWindow.postMessage({
-          type: 'SEEK',
-          frame: targetFrame
-        }, '*')
-        lastSeekFrame.value = targetFrame
-      }
-    }
-  }
-})
+// --- THUMBNAIL BACKGROUND INTERACTION ---
+const isThumbBgDragging = ref(false)
+const thumbBgDragStartX = ref(0)
+const thumbBgDragStartOffset = ref(50)
 
-watch(() => state.useNativePlayer.value, (useNative) => {
-  if (previewVideo.value) {
-    if (useNative) {
-      previewVideo.value.muted = false
-      previewVideo.value.volume = state.volume.value
-    } else {
-      previewVideo.value.muted = true
-    }
-  }
-})
+function handleWindowMouseMove(e: MouseEvent) {
+  if (!isThumbBgDragging.value) return
+  const dx = e.clientX - thumbBgDragStartX.value
+  const scaledDx = dx / previewScale.value
+  const srcW = state.sourceWidth?.value || 1920
+  const srcH = state.sourceHeight?.value || 1080
+  const imgWidth = 1920 * (srcW / srcH)
+  const excessWidth = Math.max(1, imgWidth - 1080)
+  const percentDelta = (scaledDx / excessWidth) * -100
+  state.thumbnailXOffset.value = Math.max(0, Math.min(100, thumbBgDragStartOffset.value + percentDelta))
+}
 
-onMounted(() => {
-  window.addEventListener('message', onRemotionMessage)
-})
+function handleWindowMouseUp() {
+  if (isThumbBgDragging.value) {
+    isThumbBgDragging.value = false
+    window.removeEventListener('mousemove', handleWindowMouseMove)
+    window.removeEventListener('mouseup', handleWindowMouseUp)
+    state.saveThumbnailConfig()
+  }
+}
+
+function startThumbBgDrag(e: any) {
+  if (!state.thumbnailEditMode.value) return
+  const evt = e.evt || e
+  isThumbBgDragging.value = true
+  thumbBgDragStartX.value = evt.clientX
+  thumbBgDragStartOffset.value = state.thumbnailXOffset.value
+  window.addEventListener('mousemove', handleWindowMouseMove)
+  window.addEventListener('mouseup', handleWindowMouseUp)
+}
+
+function handleWindowTouchMove(e: TouchEvent) {
+  if (!isThumbBgDragging.value || !e.touches.length) return
+  const dx = e.touches[0].clientX - thumbBgDragStartX.value
+  const scaledDx = dx / previewScale.value
+  const srcW = state.sourceWidth?.value || 1920
+  const srcH = state.sourceHeight?.value || 1080
+  const imgWidth = 1920 * (srcW / srcH)
+  const excessWidth = Math.max(1, imgWidth - 1080)
+  const percentDelta = (scaledDx / excessWidth) * -100
+  state.thumbnailXOffset.value = Math.max(0, Math.min(100, thumbBgDragStartOffset.value + percentDelta))
+}
+
+function handleWindowTouchEnd() {
+  if (isThumbBgDragging.value) {
+    isThumbBgDragging.value = false
+    window.removeEventListener('touchmove', handleWindowTouchMove)
+    window.removeEventListener('touchend', handleWindowTouchEnd)
+    state.saveThumbnailConfig()
+  }
+}
+
+function startThumbBgDragTouch(e: any) {
+  if (!state.thumbnailEditMode.value) return
+  const evt = e.evt || e
+  if (!evt.touches || !evt.touches.length) return
+  isThumbBgDragging.value = true
+  thumbBgDragStartX.value = evt.touches[0].clientX
+  thumbBgDragStartOffset.value = state.thumbnailXOffset.value
+  window.addEventListener('touchmove', handleWindowTouchMove)
+  window.addEventListener('touchend', handleWindowTouchEnd)
+}
+
+function onThumbnailLabelDragEnd(e: any, overlay: any) {
+  overlay.x = e.target.x()
+  overlay.y = e.target.y()
+}
 
 onUnmounted(() => {
-  window.removeEventListener('message', onRemotionMessage)
   handleWindowMouseUp()
   handleWindowTouchEnd()
+  if (readyTimeout) clearTimeout(readyTimeout)
+  if (safetyTimeout) clearTimeout(safetyTimeout)
 })
-
-// Native dimensions from metadata
-const videoAspect = ref(16 / 9)
-
-function onVideoLoaded(e: Event) {
-  onVideoReady()
-  const target = e.target as HTMLVideoElement
-  console.log('[VideoPreview] Metadata loaded. Duration:', target.duration)
-  if (target.duration && isFinite(target.duration)) {
-    state.videoDuration.value = target.duration
-  }
-  if (target.videoWidth && target.videoHeight) {
-    videoAspect.value = target.videoWidth / target.videoHeight
-  }
-}
-
-const container = ref<HTMLElement | null>(null)
-const containerHeight = ref(640)
-const previewScale = computed(() => containerHeight.value / 1920)
-const displayWidth = computed(() => 1080 * previewScale.value)
-
-const containerStyle = computed(() => ({
-  height: '100%',
-  maxHeight: '90vh',
-  width: `${displayWidth.value}px`,
-  outline: '1px solid rgba(255,255,255,0.1)',
-  outlineOffset: '12px',
-  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-  borderRadius: '1.5rem'
-}))
-
-const contentStyle = computed(() => ({
-  transform: `translate(-50%, -50%) scale(${previewScale.value})`,
-}))
-
-// Observe height changes
-if (import.meta.client) {
-  const updateSize = () => {
-    if (container.value) {
-      containerHeight.value = container.value.offsetHeight
-    }
-  }
-  const observer = new ResizeObserver(updateSize)
-  onMounted(() => {
-    if (container.value) observer.observe(container.value)
-    updateSize()
-  })
-  onUnmounted(() => observer.disconnect())
-  window.addEventListener('resize', updateSize)
-}
-
-// 1080x1920 literal canvas parameters
-const CONTAINER_W = 1080
-const CONTAINER_H = 1920
-
-const videoDisplayW = computed(() => CONTAINER_H * videoAspect.value) 
-const maxOffset = computed(() => Math.max(0, videoDisplayW.value - CONTAINER_W)) 
-
-const videoTransformStyle = computed(() => {
-  const pct = state.cropPercentX.value / 100
-  const offset = -(pct * maxOffset.value)
-  return {
-    width: `${videoDisplayW.value}px`,
-    transform: `translateX(${offset}px)`,
-  }
-})
-
-// -- Drag State --
-const isDragging = ref(false)
-const dragStartX = ref(0)
-const dragStartPercent = ref(50)
-
-function startDrag(e: MouseEvent) {
-  if (state.cropMode.value !== 'manual') return
-  // Don't start pan drag if a timeline text overlay is selected (let Konva handle it)
-  if (state.selectedTimelineItem.value?.type === 'text' && activeTextItems.value.length > 0) return
-  isDragging.value = true
-  dragStartX.value = e.clientX
-  dragStartPercent.value = state.cropPercentX.value
-}
-
-function onDrag(e: MouseEvent) {
-  if (!isDragging.value || maxOffset.value === 0) return
-  const dx = e.clientX - dragStartX.value
-  
-  // dx is in screen pixels. Map to 1080 scale using current previewScale.
-  const scaledDx = dx / previewScale.value
-  
-  // Moving mouse right (positive dx) means panning left to show left content, i.e. decreasing percent?
-  // Wait, in cropPercentX, typical convention: 0 is completely left. 100 is completely right.
-  // Transform is `-(pct * maxOffset)`. 
-  // If moving mouse left (negative dx), we want to view more of the RIGHT side. Percent should increase.
-  const percentDelta = (scaledDx / maxOffset.value) * -100
-  state.cropPercentX.value = Math.max(0, Math.min(100, dragStartPercent.value + percentDelta))
-}
-
-function stopDrag() {
-  isDragging.value = false
-}
-
-function startDragTouch(e: TouchEvent) {
-  if (state.cropMode.value !== 'manual') return
-  if (state.selectedTimelineItem.value?.type === 'text' && activeTextItems.value.length > 0) return
-  isDragging.value = true
-  dragStartX.value = e.touches[0].clientX
-  dragStartPercent.value = state.cropPercentX.value
-}
-
-function onDragTouch(e: TouchEvent) {
-  if (!isDragging.value || maxOffset.value === 0) return
-  const dx = e.touches[0].clientX - dragStartX.value
-  const scaledDx = dx / previewScale.value
-  const percentDelta = (scaledDx / maxOffset.value) * -100
-  state.cropPercentX.value = Math.max(0, Math.min(100, dragStartPercent.value + percentDelta))
-}
-
-// Ensure playback starts if component mounts while state is playing
-watch(previewVideo, (el) => {
-  if (el && state.isPlaying.value) {
-    el.play().catch(() => {})
-  }
-})
-
-// -- Processing/Status --
-const isProcessing = computed(() => [
-  'queued', 
-  'downloading_video', 
-  'extracting_audio',
-  'downloading_ai_models',
-  'transcribing',
-  'generating_hooks', 
-  'cutting', 
-  'rendering'
-].includes(state.jobStatus.value) || state.renderStatus.value === 'rendering')
 
 const statusLabel = computed(() => {
   if (state.renderStatus.value === 'rendering') return 'RENDERING VIDEO...'
@@ -1194,35 +745,7 @@ const currentSubtitleText = computed(() => {
       groupedSegments.push({ text, start, duration: end - start, end })
     }
   } else {
-    // Character limit based (e.g. 10_chars, 15_chars, 20_chars)
-    const limit = parseInt(mode) || 0
-    if (limit <= 0) {
-      groupedSegments = flatWords
-    } else {
-      let currentChunk: typeof flatWords = []
-      let currentLen = 0
-      
-      for (const w of flatWords) {
-        if (currentLen + w.text.length > limit && currentChunk.length > 0) {
-          const start = currentChunk[0].start
-          const end = currentChunk[currentChunk.length - 1].end
-          const text = currentChunk.map(c => c.text).join(' ')
-          groupedSegments.push({ text, start, duration: end - start, end })
-          
-          currentChunk = [w]
-          currentLen = w.text.length
-        } else {
-          currentChunk.push(w)
-          currentLen += w.text.length + (currentChunk.length > 1 ? 1 : 0)
-        }
-      }
-      if (currentChunk.length > 0) {
-        const start = currentChunk[0].start
-        const end = currentChunk[currentChunk.length - 1].end
-        const text = currentChunk.map(c => c.text).join(' ')
-        groupedSegments.push({ text, start, duration: end - start, end })
-      }
-    }
+    groupedSegments = flatWords
   }
 
   // 3. Find the active grouped segment matching searchTime
@@ -1295,33 +818,7 @@ const activeSubtitleWords = computed(() => {
       groupedSegments.push({ words: chunk, start, duration: end - start, end })
     }
   } else {
-    // Character limit based (e.g. 10_chars, 15_chars, 20_chars)
-    const limit = parseInt(mode) || 0
-    if (limit <= 0) {
-      groupedSegments = flatWords.map(w => ({ words: [w], start: w.start, duration: w.duration, end: w.end }))
-    } else {
-      let currentChunk: typeof flatWords = []
-      let currentLen = 0
-      
-      for (const w of flatWords) {
-        if (currentLen + w.text.length > limit && currentChunk.length > 0) {
-          const start = currentChunk[0].start
-          const end = currentChunk[currentChunk.length - 1].end
-          groupedSegments.push({ words: currentChunk, start, duration: end - start, end })
-          
-          currentChunk = [w]
-          currentLen = w.text.length
-        } else {
-          currentChunk.push(w)
-          currentLen += w.text.length + (currentChunk.length > 1 ? 1 : 0)
-        }
-      }
-      if (currentChunk.length > 0) {
-        const start = currentChunk[0].start
-        const end = currentChunk[currentChunk.length - 1].end
-        groupedSegments.push({ words: currentChunk, start, duration: end - start, end })
-      }
-    }
+    groupedSegments = flatWords.map(w => ({ words: [w], start: w.start, duration: w.duration, end: w.end }))
   }
 
   // 3. Find the active grouped segment matching searchTime
@@ -1387,328 +884,6 @@ const formatWordText = (text: string) => {
     return text.toUpperCase()
   }
   return text
-}
-
-// --- Timeline Text Overlays ---
-const activeTextItems = computed(() => {
-  const textTrack = state.timelineTracks.value.find(t => t.id === 'text')
-  if (!textTrack) return []
-  return textTrack.items.filter((item: any) => 
-    state.currentTime.value >= item.start && 
-    state.currentTime.value <= (item.start + item.duration)
-  )
-})
-
-function onTextDragEnd(e: any, item: any) {
-  item.x = Math.round(e.target.x())
-  item.y = Math.round(e.target.y())
-}
-
-const transformerRef = ref<any>(null)
-
-function isCurrentItemActive(item: any) {
-  if (!item) return false
-  return state.currentTime.value >= item.start && state.currentTime.value <= (item.start + item.duration)
-}
-
-const isTimelineTextActiveAndSelected = computed(() => {
-  const item = state.selectedTimelineItem.value
-  if (!item || item.type !== 'text' || editingItemId.value === item.id) return false
-  return isCurrentItemActive(item)
-})
-
-function updateTransformer() {
-  if (!transformerRef.value) return
-  const transformerNode = transformerRef.value.getNode()
-  const stage = transformerNode.getStage()
-  if (!stage) return
-
-  const item = state.selectedTimelineItem.value
-  if (item && item.type === 'text' && isTimelineTextActiveAndSelected.value) {
-    const selectedNode = stage.findOne('.' + item.id)
-    if (selectedNode) {
-      transformerNode.nodes([selectedNode])
-      transformerNode.getLayer().batchDraw()
-      return
-    }
-  }
-  transformerNode.nodes([])
-  transformerNode.getLayer().batchDraw()
-}
-
-watch([() => state.selectedTimelineItem.value, () => state.currentTime.value, isTimelineTextActiveAndSelected], () => {
-  nextTick(() => {
-    updateTransformer()
-  })
-})
-
-function handleTransform(e: any, item: any) {
-  const node = e.target
-  const scaleX = node.scaleX()
-  
-  // Calculate new font size based on scale
-  const currentFontSize = item.fontSize || 80
-  const newSize = Math.max(12, Math.round(currentFontSize * scaleX))
-  
-  // Update state properties
-  item.fontSize = newSize
-  
-  // Reset scales to prevent visual stretching
-  node.scaleX(1)
-  node.scaleY(1)
-  
-  // Recalculate centering offset because size changed
-  const width = node.width()
-  const height = node.height()
-  node.offsetX(width / 2)
-  node.offsetY(height / 2)
-  
-  // Request redraw
-  node.getLayer().batchDraw()
-}
-
-function onLabelRender(e: any) {
-  const node = e.target
-  const width = node.width()
-  const height = node.height()
-  node.offsetX(width / 2)
-  node.offsetY(height / 2)
-}
-
-function handleStageClick(e: any) {
-  const clickedOnStage = e.target === e.target.getStage()
-  if (clickedOnStage) {
-    state.selectedTimelineItem.value = null
-  }
-}
-
-function handleMouseEnterLabel(e: any) {
-  const stage = e.target.getStage()
-  if (stage) stage.container().style.cursor = 'move'
-}
-
-function handleMouseLeaveLabel(e: any) {
-  const stage = e.target.getStage()
-  if (stage) stage.container().style.cursor = 'default'
-}
-
-function selectItem(item: any) {
-  state.selectedTimelineItem.value = item
-}
-
-function onThumbnailLabelDragEnd(e: any, overlay: any) {
-  overlay.x = e.target.x()
-  overlay.y = e.target.y()
-}
-
-const isThumbBgDragging = ref(false)
-const thumbBgDragStartX = ref(0)
-const thumbBgDragStartOffset = ref(50)
-
-function handleWindowMouseMove(e: MouseEvent) {
-  if (!isThumbBgDragging.value) return
-  const dx = e.clientX - thumbBgDragStartX.value
-  const scaledDx = dx / previewScale.value
-  
-  // Calculate source aspect ratio
-  const srcW = state.sourceWidth?.value || 1920
-  const srcH = state.sourceHeight?.value || 1080
-  
-  // Width of panned landscape background under 'object-cover' (locked to 1920 height)
-  const imgWidth = 1920 * (srcW / srcH)
-  const excessWidth = Math.max(1, imgWidth - 1080)
-  
-  // Percent delta mapping client coordinates to offset percent
-  const percentDelta = (scaledDx / excessWidth) * -100
-  
-  state.thumbnailXOffset.value = Math.max(0, Math.min(100, thumbBgDragStartOffset.value + percentDelta))
-}
-
-function handleWindowMouseUp() {
-  if (isThumbBgDragging.value) {
-    isThumbBgDragging.value = false
-    window.removeEventListener('mousemove', handleWindowMouseMove)
-    window.removeEventListener('mouseup', handleWindowMouseUp)
-    // Save configuration auto-pushed to DB on drag release
-    state.saveThumbnailConfig()
-  }
-}
-
-function startThumbBgDrag(e: any) {
-  if (!state.thumbnailEditMode.value) return
-  const evt = e.evt || e
-  isThumbBgDragging.value = true
-  thumbBgDragStartX.value = evt.clientX
-  thumbBgDragStartOffset.value = state.thumbnailXOffset.value
-  
-  window.addEventListener('mousemove', handleWindowMouseMove)
-  window.addEventListener('mouseup', handleWindowMouseUp)
-}
-
-function handleWindowTouchMove(e: TouchEvent) {
-  if (!isThumbBgDragging.value || !e.touches.length) return
-  const dx = e.touches[0].clientX - thumbBgDragStartX.value
-  const scaledDx = dx / previewScale.value
-  
-  const srcW = state.sourceWidth?.value || 1920
-  const srcH = state.sourceHeight?.value || 1080
-  
-  const imgWidth = 1920 * (srcW / srcH)
-  const excessWidth = Math.max(1, imgWidth - 1080)
-  
-  const percentDelta = (scaledDx / excessWidth) * -100
-  
-  state.thumbnailXOffset.value = Math.max(0, Math.min(100, thumbBgDragStartOffset.value + percentDelta))
-}
-
-function handleWindowTouchEnd() {
-  if (isThumbBgDragging.value) {
-    isThumbBgDragging.value = false
-    window.removeEventListener('touchmove', handleWindowTouchMove)
-    window.removeEventListener('touchend', handleWindowTouchEnd)
-    state.saveThumbnailConfig()
-  }
-}
-
-function startThumbBgDragTouch(e: any) {
-  if (!state.thumbnailEditMode.value) return
-  const evt = e.evt || e
-  if (!evt.touches || !evt.touches.length) return
-  isThumbBgDragging.value = true
-  thumbBgDragStartX.value = evt.touches[0].clientX
-  thumbBgDragStartOffset.value = state.thumbnailXOffset.value
-  
-  window.addEventListener('touchmove', handleWindowTouchMove)
-  window.addEventListener('touchend', handleWindowTouchEnd)
-}
-
-// --- Inline Text Editing State & Logic ---
-const editingItemId = ref<string | null>(null)
-const originalContent = ref<string>('')
-const editingInputRef = ref<HTMLElement | null>(null)
-
-const setEditingInputRef = (el: any) => {
-  editingInputRef.value = el
-}
-
-function hexToRgba(hex: string, opacity: number) {
-  let c = hex.replace('#', '')
-  if (c.length === 3) {
-    c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2]
-  }
-  const r = parseInt(c.substring(0, 2), 16)
-  const g = parseInt(c.substring(2, 4), 16)
-  const b = parseInt(c.substring(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`
-}
-
-function getEditingStyle(item: any) {
-  const showBackground = item.showBackground
-  const bgColor = item.backgroundColor || '#000000'
-  const bgOpacity = item.showBackground ? (item.backgroundOpacity ?? 0.7) : 0
-  const color = item.color || '#FFFFFF'
-  const fontSize = item.fontSize || 80
-  const fontFamily = item.font || 'Outfit'
-  const fontWeight = item.fontWeight ? String(item.fontWeight) : '900'
-  const textTransform = item.textTransform || 'none'
-  const align = item.align || 'center'
-  const lineHeight = item.lineHeight ?? 1.1
-  const letterSpacing = item.letterSpacing ?? 0
-  const opacity = item.opacity ?? 1
-  
-  const padding = '15px'
-  
-  const showStroke = item.showStroke
-  const strokeWidth = showStroke ? (item.strokeWidth ?? 5) : 0
-  const strokeColor = item.strokeColor || '#000000'
-  
-  const shadowColor = item.shadowColor || '#000000'
-  const shadowBlur = item.shadowBlur ?? 10
-  const shadowOffsetX = item.shadowOffsetX ?? 5
-  const shadowOffsetY = item.shadowOffsetY ?? 5
-  const shadowOpacity = item.shadowOpacity ?? 0.5
-  
-  const rgbaBg = showBackground ? hexToRgba(bgColor, bgOpacity) : 'transparent'
-  const rgbaShadow = hexToRgba(shadowColor, shadowOpacity)
-  
-  return {
-    position: 'absolute',
-    left: `${item.x ?? 540}px`,
-    top: `${item.y ?? 960}px`,
-    
-    fontFamily: `"${fontFamily}", sans-serif`,
-    fontSize: `${fontSize}px`,
-    fontWeight: fontWeight,
-    textTransform: textTransform,
-    textAlign: align,
-    lineHeight: lineHeight,
-    letterSpacing: `${letterSpacing}px`,
-    color: color,
-    opacity: opacity,
-    
-    backgroundColor: rgbaBg,
-    borderRadius: '10px',
-    padding: padding,
-    
-    '-webkit-text-stroke': showStroke ? `${strokeWidth}px ${strokeColor}` : 'none',
-    textShadow: `${shadowOffsetX}px ${shadowOffsetY}px ${shadowBlur}px ${rgbaShadow}`,
-    
-    caretColor: color,
-    minWidth: '100px',
-    minHeight: '1em',
-    maxWidth: '1000px',
-    display: 'inline-block',
-    whiteSpace: 'pre-wrap',
-    wordBreak: 'break-word',
-  }
-}
-
-function startEditing(item: any) {
-  editingItemId.value = item.id
-  originalContent.value = item.content || ''
-  nextTick(() => {
-    const el = editingInputRef.value
-    if (el) {
-      el.innerText = item.content || ''
-      el.focus()
-      
-      // Select all text
-      const range = document.createRange()
-      range.selectNodeContents(el)
-      const sel = window.getSelection()
-      sel?.removeAllRanges()
-      sel?.addRange(range)
-    }
-  })
-}
-
-function stopEditing(item: any, shouldSave = true) {
-  if (editingItemId.value === item.id) {
-    if (shouldSave) {
-      const el = editingInputRef.value
-      if (el) {
-        item.content = el.innerText.trim() || 'NEW TEXT'
-      }
-    } else {
-      item.content = originalContent.value
-    }
-    editingItemId.value = null
-    state.saveTimelineTracks()
-  }
-}
-
-function handleEditingKeydown(e: KeyboardEvent, item: any) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    stopEditing(item, true)
-  } else if (e.key === 'Escape') {
-    e.preventDefault()
-    stopEditing(item, false)
-  }
-}
-
-function onEditingInput(e: any, item: any) {
-  item.content = e.target.innerText
 }
 
 </script>

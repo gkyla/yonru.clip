@@ -104,34 +104,7 @@ export const useSafetyAuditor = () => {
           chunks.push({ text, start, duration: end - start })
         }
       } else {
-        const limit = parseInt(mode) || 0
-        if (limit <= 0) {
-          chunks = flatWords.map(w => ({ text: w.text, start: w.start, duration: w.duration }))
-        } else {
-          let currentChunk: typeof flatWords = []
-          let currentLen = 0
-          
-          for (const w of flatWords) {
-            if (currentLen + w.text.length > limit && currentChunk.length > 0) {
-              const start = currentChunk[0].start
-              const end = currentChunk[currentChunk.length - 1].end
-              const text = currentChunk.map(c => c.text).join(' ')
-              chunks.push({ text, start, duration: end - start })
-              
-              currentChunk = [w]
-              currentLen = w.text.length
-            } else {
-              currentChunk.push(w)
-              currentLen += w.text.length + (currentChunk.length > 1 ? 1 : 0)
-            }
-          }
-          if (currentChunk.length > 0) {
-            const start = currentChunk[0].start
-            const end = currentChunk[currentChunk.length - 1].end
-            const text = currentChunk.map(c => c.text).join(' ')
-            chunks.push({ text, start, duration: end - start })
-          }
-        }
+        chunks = flatWords.map(w => ({ text: w.text, start: w.start, duration: w.duration }))
       }
 
       chunks.forEach(chunk => {
