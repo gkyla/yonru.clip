@@ -1,9 +1,16 @@
 import cv2
+from abc import ABC, abstractmethod
 import numpy as np
 from core.frame_source import OpenCVFrameSource
 from core.face_detector_seam import MediaPipeFaceDetector
 
-class FaceTracker:
+class AbstractFaceTracker(ABC):
+    @abstractmethod
+    def analyze_video(self, video_path: str, words_data: list = None):
+        """Analyzes a video and returns a crop_map of (time, x) keyframes."""
+        pass
+
+class FaceTracker(AbstractFaceTracker):
     def __init__(self, frame_source=None, face_detector=None):
         self.frame_source = frame_source
         self.face_detector = face_detector
@@ -119,3 +126,13 @@ class FaceTracker:
 
         print(f"[face-track] Finished: {len(crop_map)} points generated.")
         return crop_map
+
+
+class MockFaceTracker(AbstractFaceTracker):
+    def __init__(self, mock_result=960):
+        self.mock_result = mock_result
+        self.analyzed_paths = []
+
+    def analyze_video(self, video_path: str, words_data: list = None):
+        self.analyzed_paths.append(video_path)
+        return self.mock_result

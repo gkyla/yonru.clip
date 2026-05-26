@@ -122,8 +122,10 @@ class RenderEngine(ABC):
         source_height = h if h > 0 else 1080
         
         if req.face_tracking:
-            from core.face_tracker import FaceTracker
-            tracker = FaceTracker()
+            tracker = getattr(self, "face_tracker", None)
+            if not tracker:
+                from core.face_tracker import FaceTracker
+                tracker = FaceTracker()
             crop_x = tracker.analyze_video(video_path, words_data=words_data)
         else:
             crop_x = int((req.crop_percent_x / 100.0) * source_width)
@@ -200,9 +202,10 @@ class SafeEncoder(json.JSONEncoder):
 
 
 class RemotionRenderEngine(RenderEngine):
-    def __init__(self, output_dir="static/output", config_store=None):
+    def __init__(self, output_dir="static/output", config_store=None, face_tracker=None):
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
+        self.face_tracker = face_tracker
         
         if config_store is None:
             try:
