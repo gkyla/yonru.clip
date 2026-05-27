@@ -555,10 +555,8 @@ onMounted(async () => {
   // Clear navigation overlay
   state.isNavigatingToEditor.value = false
 
-  // Background fetch for ready clips if missing
-  if (!readyClips.value || readyClips.value.length === 0) {
-    fetchReadyClips()
-  }
+  // Background fetch for ready clips to ensure it's fresh
+  fetchReadyClips()
 
   // Ensure library data is loaded for the sidebar dashboard
   state.fetchCached()
@@ -698,6 +696,12 @@ watch(() => state.renderStatus.value, (newStatus) => {
     fetchReadyClips()
   }
 })
+
+watch(() => state.jobStatus.value, (newStatus) => {
+  if (newStatus === 'ready') {
+    fetchReadyClips()
+  }
+}, { immediate: true })
 
 // Moved up
 
