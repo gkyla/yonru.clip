@@ -288,30 +288,67 @@
                           </div>
                         </div>
 
-                        <!-- ALL WORDS: Single textarea with all text -->
+                        <!-- ALL WORDS: Flowing Document View -->
                         <div v-else class="flex-1 overflow-hidden flex flex-col gap-3">
-                          <p class="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Continuous text view. Edits are automatically distributed across segments based on their timing. Ideal for bulk spelling fixes.</p>
-                           <div class="flex-1 relative overflow-hidden group/bulk">
-                             <!-- Mirror Backdrop for Highlighting -->
-                              <div 
-                               ref="bulkBackdrop"
-                               class="absolute inset-0 p-4 text-sm font-medium leading-[2] italic whitespace-pre-wrap break-words pointer-events-none text-transparent border border-transparent select-none"
-                               aria-hidden="true"
-                               v-html="bulkHighlightHTML"
-                             ></div>
+                          <p class="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Flowing document view. Active word glows dynamically. Click any sentence/block to edit inline seamlessly.</p>
+                          
+                          <!-- Scroll Container -->
+                          <div 
+                            ref="bulkContainer"
+                            @mouseenter="handleBulkMouseEnter"
+                            @mouseleave="handleBulkMouseLeave"
+                            class="flex-1 overflow-y-auto bg-black/30 border border-surface-border/50 rounded-xl p-6 custom-scrollbar flex flex-wrap items-start content-start gap-x-2 gap-y-3"
+                          >
+                            <div 
+                              v-for="(seg, idx) in visibleSegments" 
+                              :key="idx"
+                              :id="'bulk-seg-' + idx"
+                              :class="[
+                                'relative transition-all duration-300 rounded-lg px-2.5 py-1.5 flex items-center select-none',
+                                idx === activeSegIdx 
+                                  ? 'bg-sky-500/10 ring-1 ring-sky-500/20 shadow-[0_0_12px_rgba(56,189,248,0.15)] scale-[1.01]' 
+                                  : 'hover:bg-white/5 border border-transparent'
+                              ]"
+                            >
+                              <!-- Editing Mode -->
+                              <div v-if="editingSegIdx === idx" class="flex items-center">
+                                <input
+                                  v-model="editSegText"
+                                  @blur="commitEdit(seg, idx)"
+                                  @keydown.enter.prevent="commitEdit(seg, idx)"
+                                  @keydown.esc.prevent="cancelEdit"
+                                  autofocus
+                                  class="bg-black/60 border border-sky-500/50 rounded px-2 py-0.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-sky-500/50 min-w-[120px] font-medium leading-relaxed italic"
+                                />
+                              </div>
 
-                             <textarea 
-                               v-model="localBulkText"
-                               ref="bulkTextarea"
-                               @input="onAllWordsInput"
-                               @scroll="syncBulkScroll"
-                               class="absolute inset-0 w-full h-full bg-black/30 border border-surface-border/50 rounded-xl p-4 text-white text-sm focus:outline-none focus:border-sky-500/50 resize-none font-medium leading-[2] italic custom-scrollbar transition-all"
-                               spellcheck="false"
-                             ></textarea>
-                           </div>
+                              <!-- Viewing Mode with Karaoke-Style Highlighting -->
+                              <p 
+                                v-else
+                                @click="startEdit(seg, idx)" 
+                                class="text-sm font-medium leading-relaxed italic cursor-pointer transition-colors"
+                                :class="idx === activeSegIdx ? 'text-white' : 'text-slate-300 hover:text-white'"
+                              >
+                                <span 
+                                  v-for="(word, wIdx) in (seg.text || '').trim().split(/\s+/)" 
+                                  :key="wIdx"
+                                  class="inline-block mr-1 transition-all duration-200"
+                                  :class="[
+                                    idx === activeSegIdx && wIdx === activeWordIdxInSeg
+                                      ? 'bg-sky-500/40 text-white rounded-sm px-1 shadow-[0_0_8px_rgba(56,189,248,0.4)] ring-1 ring-sky-400/60 scale-105'
+                                      : ''
+                                  ]"
+                                >
+                                  {{ word }}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+
                           <div class="flex items-center justify-between">
-                            <span class="text-[9px] text-accent-500 uppercase tracking-widest font-bold">
-                              ✓ Live Syncing to Segments
+                            <span class="text-[9px] text-accent-500 uppercase tracking-widest font-bold flex items-center gap-1.5">
+                              <span class="w-1.5 h-1.5 bg-accent-500 rounded-full animate-ping"></span>
+                              Flowing Document Active
                             </span>
                           </div>
                         </div>
@@ -685,8 +722,7 @@ async function selectSidebarHook(hook: any) {
 const editorTab = ref<'edit' | 'quote' | 'thumbnail'>('edit')
 const subtitleSubTab = ref<'one' | 'all'>('one')
 const subtitleContainer = ref<HTMLElement | null>(null)
-const bulkTextarea = ref<HTMLTextAreaElement | null>(null)
-const bulkBackdrop = ref<HTMLElement | null>(null)
+const bulkContainer = ref<HTMLElement | null>(null)
 const isHoveringSubtitles = ref(false)
 
 const absoluteTime = computed(() => state?.currentTime?.value || 0)
@@ -715,12 +751,6 @@ const activeSegIdx = computed(() => {
   )
 })
 
-function syncBulkScroll() {
-  if (bulkTextarea.value && bulkBackdrop.value) {
-    bulkBackdrop.value.scrollTop = bulkTextarea.value.scrollTop
-  }
-}
-
 watch(activeSegIdx, (idx) => {
   // Auto-scroll the 'One Word' view
   if (subtitleSubTab.value === 'one' && idx !== -1 && subtitleContainer.value && !isHoveringSubtitles.value) {
@@ -733,9 +763,16 @@ watch(activeSegIdx, (idx) => {
     }
   }
   
-  // Sync backdrop scroll
-  if (subtitleSubTab.value === 'all') {
-    syncBulkScroll()
+  // Auto-scroll the 'All Words' flowing document view with smooth vertical centering
+  if (subtitleSubTab.value === 'all' && idx !== -1 && bulkContainer.value && !isHoveringBulk.value && editingSegIdx.value === -1) {
+    const el = document.getElementById(`bulk-seg-${idx}`)
+    if (el) {
+      const container = bulkContainer.value
+      container.scrollTo({
+        top: el.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2),
+        behavior: 'smooth'
+      })
+    }
   }
 })
 
@@ -767,75 +804,69 @@ const isPipelineActive = computed(() => ['cutting', 'transcribing'].includes(sta
 
 // Moved up
 
-// All Words computed: join all segment texts into a single paragraph
-const allWordsText = computed(() => {
-  return visibleSegments.value.map((s: any) => s.text).join(' ')
-})
+// All Words (Flowing Document View) State & Interactivity
+const editingSegIdx = ref(-1)
+const editSegText = ref('')
+const isHoveringBulk = ref(false)
+let autoScrollResumeTimeout: any = null
 
-const localBulkText = ref('')
-
-function onAllWordsInput() {
-  const masterTranscript = state?.fullTranscript?.value || []
-  if (!masterTranscript.length) return
-  redistributeTranscript(masterTranscript, localBulkText.value)
+function handleBulkMouseEnter() {
+  isHoveringBulk.value = true
+  if (autoScrollResumeTimeout) clearTimeout(autoScrollResumeTimeout)
 }
 
-watch(allWordsText, (newText) => {
-  if (subtitleSubTab.value === 'all') {
-    if (bulkTextarea.value && document.activeElement === bulkTextarea.value) {
-      return
-    }
-    localBulkText.value = newText
-  }
-}, { immediate: true })
+function handleBulkMouseLeave() {
+  if (autoScrollResumeTimeout) clearTimeout(autoScrollResumeTimeout)
+  autoScrollResumeTimeout = setTimeout(() => {
+    isHoveringBulk.value = false
+  }, 2000)
+}
 
-watch(subtitleSubTab, (newTab) => {
-  if (newTab === 'all') {
-    localBulkText.value = allWordsText.value
-  }
-})
+function startEdit(seg: any, idx: number) {
+  editingSegIdx.value = idx
+  editSegText.value = seg.text || ''
+}
 
-// All Words highlighting logic
-const bulkHighlightHTML = computed(() => {
-  if (!localBulkText.value) return ''
+function commitEdit(seg: any, idx: number) {
+  if (editingSegIdx.value !== idx) return
+  const trimmed = editSegText.value.trim()
+  seg.text = trimmed
+  updateSegmentText(seg, trimmed)
   
-  // Tokenize preserving spaces/newlines
-  const tokens = localBulkText.value.split(/(\s+)/)
-  const wordsOnly = tokens.filter(t => /\S/.test(t))
-  
-  if (!wordsOnly.length || !visibleSegments.value.length) {
-    return localBulkText.value.replace(/\n/g, '<br/>')
+  if (state?.fullTranscript?.value) {
+    state.fullTranscript.value = [...state.fullTranscript.value]
   }
+  editingSegIdx.value = -1
+}
 
-  // Calculate exact word index ranges using segment word counts
-  let currentWordIdx = 0
-  let activeWordStart = -1
-  let activeWordEnd = -1
+function cancelEdit() {
+  editingSegIdx.value = -1
+}
 
-  visibleSegments.value.forEach((seg, i) => {
-    const segText = (seg.text || '').trim()
-    const quota = segText ? segText.split(/\s+/).length : 0
-    
-    if (i === activeSegIdx.value) {
-      activeWordStart = currentWordIdx
-      activeWordEnd = currentWordIdx + quota
-    }
-    currentWordIdx += quota
-  })
+// Compute the active word index inside the active segment
+const activeWordIdxInSeg = computed(() => {
+  if (activeSegIdx.value === -1) return -1
+  const seg = visibleSegments.value[activeSegIdx.value]
+  if (!seg || !seg.text) return -1
 
-  // Reconstruct HTML
-  let wordCounter = 0
-  return tokens.map(token => {
-    if (/\S/.test(token)) {
-      const isHighlighted = wordCounter >= activeWordStart && wordCounter < activeWordEnd
-      wordCounter++
-      if (isHighlighted) {
-        return `<span class="bg-sky-500/40 rounded-sm shadow-[0_0_8px_rgba(56,189,248,0.3)] ring-1 ring-sky-400/50">${token}</span>`
-      }
-      return token
-    }
-    return token.replace(/\n/g, '<br/>')
-  }).join('')
+  const offsetSec = (state?.subtitleSyncOffset?.value || 0) / 1000
+  const firstStart = state?.fullTranscript?.value[0]?.start || 0
+  const isTranscriptZeroBased = firstStart < (state?.activeHook?.value?.start || 0) - 2
+  const thumbSec = state?.thumbnailEnabled?.value ? state?.thumbnailDuration?.value : 0
+  const relativeTime = Math.max(0, absoluteTime.value - thumbSec)
+  const searchTime = isTranscriptZeroBased 
+    ? relativeTime + offsetSec
+    : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec
+
+  const words = seg.text.trim().split(/\s+/)
+  if (!words.length || words.length === 1) return 0
+
+  const duration = seg.end - seg.start
+  const wordDur = duration / words.length
+
+  const elapsed = searchTime - seg.start
+  const wordIdx = Math.floor(elapsed / wordDur)
+  return Math.max(0, Math.min(wordIdx, words.length - 1))
 })
 
 // Watchers
