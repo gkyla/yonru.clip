@@ -34,7 +34,7 @@
         <div class="w-24 h-24 rounded-full border-[4px] border-surface-border border-t-accent-500 animate-spin flex items-center justify-center mb-10 shadow-[0_0_30px_#CFFF50_inset,0_0_50px_rgba(207,255,80,0.4)] relative z-10"></div>
         
         <h2 class="text-3xl font-black text-white tracking-[0.2em] uppercase mb-4 relative z-10">Initializing Editor</h2>
-        <p class="text-slate-400 font-mono text-sm uppercase tracking-widest animate-pulse relative z-10">Loading AI Timeline & Assets...</p>
+        <p class="text-slate-400 font-mono text-sm uppercase tracking-widest animate-pulse relative z-10">Loading Timeline & Assets...</p>
       </div>
     </Transition>
 
