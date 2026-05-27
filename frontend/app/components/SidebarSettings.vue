@@ -2,7 +2,7 @@
   <div 
     ref="sidebarRef"
     v-if="state" 
-    class="h-full flex flex-row relative bg-[#060608] border-r border-surface-border shrink-0 select-none"
+    class="h-full flex flex-row relative bg-surface-panel/50 border-r border-surface-border shrink-0 select-none"
     :style="{ width: sidebarWidth + 'px' }"
   >
     <div class="flex-1 h-full flex flex-col p-5 gap-6 overflow-y-auto custom-scrollbar">
@@ -21,9 +21,9 @@
           v-for="preset in presets" :key="preset.id"
           @click="applyPreset(preset)"
           :disabled="state.renderStatus.value === 'rendering'"
-          class="bg-surface-dark border rounded-xl p-3 text-left transition-all flex flex-col gap-2 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
+          class="bg-surface-dark/50 border rounded-xl p-3 text-left transition-all flex flex-col gap-2 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group hover:bg-surface-card"
           :class="state.subtitlePreset.value === preset.id 
-            ? 'border-accent-500 text-accent-500 shadow-[0_0_15px_rgba(207,255,80,0.1)]' 
+            ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[0_0_15px_rgba(207,255,80,0.1)]' 
             : 'border-surface-border text-slate-400 hover:border-accent-500/30 hover:text-white'"
         >
           <div class="flex items-center gap-2">
@@ -76,7 +76,7 @@
       <div class="space-y-4">
         <div>
           <label class="text-xs text-slate-400 block mb-1">Language</label>
-          <select v-model="state.language.value" class="w-full bg-surface-dark border border-surface-border rounded p-2 text-sm focus:outline-none focus:border-accent-500 transition-colors">
+          <select v-model="state.language.value" class="w-full bg-surface-dark/50 border border-surface-border rounded p-2 text-sm focus:outline-none focus:border-accent-500 transition-colors">
             <option value="id">Indonesian (ID)</option>
             <option value="en">English (EN)</option>
             <option value="ms">Malay (MS)</option>
@@ -95,10 +95,10 @@
               ]" :key="mode.id"
               @click="state.subtitleMode.value = mode.id"
               :disabled="state.renderStatus.value === 'rendering'"
-              class="bg-surface-dark border rounded p-1.5 text-center text-[10px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              class="bg-surface-dark/50 border border-surface-border rounded p-1.5 text-center text-[10px] transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-card"
               :class="state.subtitleMode.value === mode.id 
-                ? 'border-accent-500 text-accent-500 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
-                : 'border-surface-border text-slate-400 hover:border-accent-500 hover:text-white'"
+                ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
+                : 'text-slate-400 hover:border-accent-500/30 hover:text-white'"
             >{{ mode.label }}</button>
           </div>
         </div>
@@ -110,10 +110,10 @@
             <button 
               v-for="anim in animations" :key="anim.id"
               @click="state.subtitleAnimation.value = anim.id"
-              class="bg-surface-dark border rounded-lg p-1.5 text-center text-[9px] transition-all flex flex-col items-center gap-0.5"
+              class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] transition-all flex flex-col items-center gap-0.5 hover:bg-surface-card"
               :class="state.subtitleAnimation.value === anim.id 
-                ? 'border-accent-500 text-accent-500 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
-                : 'border-surface-border text-slate-400 hover:border-accent-500/50 hover:text-white'"
+                ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
+                : 'text-slate-400 hover:border-accent-500/50 hover:text-white'"
             >
               <Icon :name="anim.icon" class="text-sm" />
               <span class="font-bold tracking-wider uppercase">{{ anim.label }}</span>
@@ -128,10 +128,10 @@
             <button 
               v-for="hl in highlights" :key="hl.id"
               @click="state.subtitleHighlightMode.value = hl.id"
-              class="bg-surface-dark border rounded p-1.5 text-center text-[9px] transition-all"
+              class="bg-surface-dark/50 border border-surface-border rounded p-1.5 text-center text-[9px] transition-all hover:bg-surface-card"
               :class="state.subtitleHighlightMode.value === hl.id 
-                ? 'border-accent-500 text-accent-500 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
-                : 'border-surface-border text-slate-400 hover:border-accent-500/50 hover:text-white'"
+                ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
+                : 'text-slate-400 hover:border-accent-500/50 hover:text-white'"
             >{{ hl.label }}</button>
           </div>
         </div>
@@ -143,10 +143,10 @@
               v-for="pos in ['top', 'center', 'bottom']" :key="pos"
               @click="state.subtitlePosition.value = pos"
               :disabled="state.renderStatus.value === 'rendering'"
-              class="flex-1 bg-surface-dark border rounded p-1.5 text-center text-xs transition-all capitalize disabled:opacity-50 disabled:cursor-not-allowed"
+              class="flex-1 bg-surface-dark/50 border border-surface-border rounded p-1.5 text-center text-xs transition-all capitalize disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-card"
               :class="state.subtitlePosition.value === pos 
-                ? 'border-accent-500 text-accent-500 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
-                : 'border-surface-border text-slate-400 hover:border-accent-500 hover:text-white'"
+                ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
+                : 'text-slate-400 hover:border-accent-500 hover:text-white'"
             >{{ pos }}</button>
           </div>
         </div>
@@ -158,10 +158,10 @@
             <button 
               v-for="bg in backgrounds" :key="bg.id"
               @click="state.subtitleBackground.value = bg.id"
-              class="bg-surface-dark border rounded p-1.5 text-center text-[9px] transition-all"
+              class="bg-surface-dark/50 border border-surface-border rounded p-1.5 text-center text-[9px] transition-all hover:bg-surface-card"
               :class="state.subtitleBackground.value === bg.id 
-                ? 'border-accent-500 text-accent-500 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
-                : 'border-surface-border text-slate-400 hover:border-accent-500/50 hover:text-white'"
+                ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
+                : 'text-slate-400 hover:border-accent-500/50 hover:text-white'"
             >{{ bg.label }}</button>
           </div>
         </div>
@@ -179,7 +179,7 @@
       <div class="space-y-4">
         <div>
           <label class="text-xs text-slate-400 block mb-1">Font Family</label>
-          <select v-model="state.font.value" class="w-full bg-surface-dark border border-surface-border rounded p-2 text-sm focus:outline-none focus:border-accent-500 transition-colors">
+          <select v-model="state.font.value" class="w-full bg-surface-dark/50 border border-surface-border rounded p-2 text-sm focus:outline-none focus:border-accent-500 transition-colors">
             <option v-for="f in FONT_OPTIONS" :key="f" :value="f">{{ f }}</option>
             <option value="Arial">Arial (System)</option>
           </select>
@@ -221,10 +221,10 @@
             <button 
               v-for="tt in ['uppercase', 'capitalize', 'none']" :key="tt"
               @click="state.subtitleTextTransform.value = tt"
-              class="flex-1 bg-surface-dark border rounded p-1.5 text-center text-[9px] font-bold transition-all uppercase tracking-wider"
+              class="flex-1 bg-surface-dark/50 border border-surface-border rounded p-1.5 text-center text-[9px] font-bold transition-all uppercase tracking-wider hover:bg-surface-card"
               :class="state.subtitleTextTransform.value === tt 
-                ? 'border-accent-500 text-accent-500' 
-                : 'border-surface-border text-slate-400 hover:border-accent-500/50'"
+                ? 'border-accent-500 text-accent-500 bg-accent-500/5' 
+                : 'text-slate-400 hover:border-accent-500/50'"
             >{{ tt === 'none' ? 'Normal' : tt }}</button>
           </div>
         </div>
@@ -237,7 +237,7 @@
                 v-model.number="state.subtitleWordSpacing.value" 
                 type="number" 
                 :disabled="state.renderStatus.value === 'rendering'"
-                class="w-16 bg-surface-dark border border-surface-border rounded px-1.5 py-0.5 text-[10px] mono text-accent-500 focus:border-accent-500 outline-none transition-colors"
+                class="w-16 bg-surface-dark/50 border border-surface-border rounded px-1.5 py-0.5 text-[10px] mono text-accent-500 focus:border-accent-500 outline-none transition-colors"
               />
               <span class="text-[10px] text-slate-500">px</span>
             </div>
@@ -329,7 +329,7 @@
                 v-model.number="state.subtitleOffset.value" 
                 type="number" 
                 :disabled="state.renderStatus.value === 'rendering'"
-                class="w-16 bg-surface-dark border border-surface-border rounded px-1.5 py-0.5 text-[10px] mono text-accent-500 focus:border-accent-500 outline-none transition-colors"
+                class="w-16 bg-surface-dark/50 border border-surface-border rounded px-1.5 py-0.5 text-[10px] mono text-accent-500 focus:border-accent-500 outline-none transition-colors"
               />
               <span class="text-[10px] text-slate-500">px</span>
             </div>
@@ -345,7 +345,7 @@
                 v-model.number="state.subtitleSyncOffset.value" 
                 type="number" 
                 :disabled="state.renderStatus.value === 'rendering'"
-                class="w-16 bg-surface-dark border border-surface-border rounded px-1.5 py-0.5 text-[10px] mono text-accent-500 focus:border-accent-500 outline-none transition-colors"
+                class="w-16 bg-surface-dark/50 border border-surface-border rounded px-1.5 py-0.5 text-[10px] mono text-accent-500 focus:border-accent-500 outline-none transition-colors"
               />
               <span class="text-[10px] text-slate-500">ms</span>
             </div>
@@ -379,9 +379,9 @@
       <div class="flex gap-2 mb-3">
         <button 
           @click="state.cropMode.value = 'manual'"
-          class="flex-1 bg-surface-dark border rounded p-2 text-center text-xs transition-all flex flex-col items-center gap-1"
+          class="flex-1 bg-surface-dark/50 border rounded p-2 text-center text-xs transition-all flex flex-col items-center gap-1 hover:bg-surface-card"
           :class="state.cropMode.value === 'manual' 
-            ? 'border-accent-500 text-accent-500 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
+            ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
             : 'border-surface-border text-slate-400 hover:border-accent-500 hover:text-white'"
         >
           <Icon name="ri:drag-move-2-line" class="text-lg" />
@@ -389,9 +389,9 @@
         </button>
         <button 
           @click="state.cropMode.value = 'face_tracking'"
-          class="flex-1 bg-surface-dark border rounded p-2 text-center text-xs transition-all flex flex-col items-center gap-1"
+          class="flex-1 bg-surface-dark/50 border rounded p-2 text-center text-xs transition-all flex flex-col items-center gap-1 hover:bg-surface-card"
           :class="state.cropMode.value === 'face_tracking' 
-            ? 'border-accent-500 text-accent-500 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
+            ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
             : 'border-surface-border text-slate-400 hover:border-accent-500 hover:text-white'"
         >
           <Icon name="ri:body-scan-line" class="text-lg" />
@@ -400,7 +400,7 @@
       </div>
 
       <!-- Manual crop percent indicator -->
-      <div v-if="state.cropMode.value === 'manual'" class="bg-surface-dark border border-surface-border rounded p-3">
+      <div v-if="state.cropMode.value === 'manual'" class="bg-surface-dark/50 border border-surface-border rounded p-3">
         <label class="text-[10px] text-slate-500 flex justify-between uppercase tracking-widest mb-2">
           <span>Horizontal Position</span>
           <span class="mono text-accent-500 font-bold">{{ Math.round(state.cropPercentX.value) }}%</span>
@@ -424,7 +424,7 @@
         <Icon name="ri:settings-2-line" />
         Advanced
       </h2>
-      <div class="flex items-center justify-between bg-surface-dark border border-surface-border rounded-lg p-3">
+      <div class="flex items-center justify-between bg-surface-dark/50 border border-surface-border rounded-lg p-3">
          <div>
             <p class="text-xs font-bold text-slate-300">Disable Remotion</p>
             <p class="text-[9px] text-slate-500 mt-0.5">Use raw native video</p>
@@ -440,7 +440,7 @@
          </button>
       </div>
 
-      <div class="flex items-center justify-between bg-surface-dark border border-surface-border rounded-lg p-3 mt-3">
+      <div class="flex items-center justify-between bg-surface-dark/50 border border-surface-border rounded-lg p-3 mt-3">
          <div>
             <p class="text-xs font-bold text-slate-300">Debug Info</p>
             <p class="text-[9px] text-slate-500 mt-0.5">Show Remotion debug stats</p>
@@ -461,7 +461,7 @@
     <div>
       <button 
         @click="state.saveDefaultStyleSettings(); if (state.showToast) state.showToast('Default style saved!', 'success')"
-        class="w-full bg-surface-dark border border-surface-border/50 hover:border-accent-500/50 text-slate-300 hover:text-accent-400 px-3 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
+        class="w-full bg-surface-dark/50 border border-surface-border/50 hover:border-accent-500/50 text-slate-300 hover:text-accent-400 px-3 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm hover:bg-surface-card"
       >
         <Icon name="ri:save-3-line" class="text-base text-accent-500" />
         Save this style for future videos
