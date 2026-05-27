@@ -304,10 +304,10 @@
                               :key="idx"
                               :id="'bulk-seg-' + idx"
                               :class="[
-                                'inline-block transition-all duration-300 rounded px-1 py-0.5 mr-1 select-none cursor-pointer',
+                                'inline-block transition-all duration-300 rounded select-none cursor-pointer',
                                 idx === activeSegIdx 
-                                  ? 'bg-sky-500/10 ring-1 ring-sky-500/25 shadow-[0_0_8px_rgba(56,189,248,0.15)]' 
-                                  : 'hover:bg-white/5'
+                                  ? 'bg-sky-500/10 ring-1 ring-sky-500/20 shadow-[0_0_6px_rgba(56,189,248,0.1)] px-1 py-0.5 mx-0.5' 
+                                  : 'hover:bg-white/5 px-0.5 mx-0'
                               ]"
                             >
                               <!-- Editing Mode -->
