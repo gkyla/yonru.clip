@@ -140,6 +140,7 @@ export const useClipperJob = () => {
     hooks.value = []
     videoUrl.value = null
     outputUrl.value = null
+    activeHook.value = null
 
     try {
       const currentPrompt = promptsList.value.find(p => p.id === selectedPrompt.value)

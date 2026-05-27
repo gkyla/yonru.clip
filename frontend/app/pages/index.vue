@@ -983,6 +983,9 @@ async function initDashboard() {
     state.jobId.value = null
   }
 
+  // Always reset active hook when returning to home, so background analysis polling can update videoUrl
+  state.activeHook.value = null
+
   await state.fetchPrompts()
   await state.fetchSavedHooks()
   await state.fetchCached()
@@ -1181,6 +1184,7 @@ async function analyzeCached(videoId: string, force = false) {
   state.jobError.value = null
   state.hooks.value = []
   state.outputUrl.value = null
+  state.activeHook.value = null // Reset active hook
 
   try {
     const currentPrompt = state.promptsList.value.find(p => p.id === state.selectedPrompt.value)
