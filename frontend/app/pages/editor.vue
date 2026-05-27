@@ -391,7 +391,7 @@
               :key="idx"
               @click="selectSidebarHook(hook)"
               :disabled="isPipelineActive"
-              class="w-full text-left p-3 rounded-lg border transition-all text-xs group relative overflow-hidden"
+              class="w-full text-left p-3 rounded-lg border transition-all text-xs group relative"
               :class="[
                 isActiveHook(hook)
                   ? 'bg-amber-500/10 border-amber-500/50 text-amber-200 shadow-[inset_0_0_10px_rgba(245,158,11,0.05)] hook-item-active' 
@@ -405,8 +405,16 @@
                   <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
                     HOOK {{ String(idx + 1).padStart(2, '0') }}
                   </span>
-                  <div v-if="isHookRendered(hook)" class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
-                    <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                  <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
+                    <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
+                      <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                    </div>
+                    <!-- Custom Tooltip -->
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-30 font-medium normal-case tracking-normal text-center">
+                      This clip has already been cut and transcribed, and is ready for editing!
+                      <!-- Tooltip Arrow -->
+                      <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
+                    </div>
                   </div>
                 </div>
                 <span class="mono text-[10px]" :class="isActiveHook(hook) ? 'text-sky-400 font-bold' : 'text-slate-300'">
@@ -428,7 +436,7 @@
               :key="hook._id || idx"
               @click="selectSidebarHook(hook)"
               :disabled="isPipelineActive"
-              class="w-full text-left p-3 rounded-lg border transition-all text-xs group relative overflow-hidden"
+              class="w-full text-left p-3 rounded-lg border transition-all text-xs group relative"
               :class="[
                 isActiveHook(hook)
                   ? 'bg-amber-500/10 border-amber-500/50 text-amber-200 shadow-[inset_0_0_10px_rgba(245,158,11,0.05)]' 
@@ -442,8 +450,16 @@
                   <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
                     SAVED {{ String(idx + 1).padStart(2, '0') }}
                   </span>
-                  <div v-if="isHookRendered(hook)" class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
-                    <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                  <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
+                    <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
+                      <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                    </div>
+                    <!-- Custom Tooltip -->
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-30 font-medium normal-case tracking-normal text-center">
+                      This clip has already been cut and transcribed, and is ready for editing!
+                      <!-- Tooltip Arrow -->
+                      <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
+                    </div>
                   </div>
                 </div>
                 <span class="mono text-[10px]" :class="isActiveHook(hook) ? 'text-sky-400 font-bold' : 'text-slate-300'">

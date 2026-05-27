@@ -431,12 +431,12 @@
               @click="selectedModalHook = hook"
               @mouseenter="hoveredHookIndex = idx"
               @mouseleave="hoveredHookIndex = null"
-              class="bg-surface-panel border border-surface-border hover:border-accent-500/50 rounded-xl cursor-pointer group transition-all hover:bg-surface-card relative overflow-hidden shadow-xl flex flex-col"
+              class="bg-surface-panel border border-surface-border hover:border-accent-500/50 rounded-xl cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col"
             >
               <div class="absolute inset-0 bg-gradient-to-br from-accent-500/0 to-accent-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-0"></div>
               
               <!-- Video Preview Area -->
-              <div class="w-full aspect-video bg-black relative overflow-hidden shrink-0 border-b border-surface-border z-10">
+              <div class="w-full aspect-video bg-black relative overflow-hidden rounded-t-xl shrink-0 border-b border-surface-border z-10">
                  <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
                  <video 
                    v-if="state.videoUrl.value"
@@ -457,8 +457,16 @@
                 <div class="flex justify-between items-start mb-4">
                   <div class="flex items-center gap-2">
                     <span class="bg-surface-dark border border-surface-border px-2 py-0.5 rounded text-[10px] b-mono text-accent-500 font-black tracking-widest">HOOK {{ String(idx + 1).padStart(2, '0') }}</span>
-                    <div v-if="isHookRendered(hook)" class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
-                      <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                    <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
+                      <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
+                        <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                      </div>
+                      <!-- Custom Tooltip -->
+                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-30 font-medium normal-case tracking-normal text-center">
+                        This clip has already been cut and transcribed, and is ready for editing!
+                        <!-- Tooltip Arrow -->
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
+                      </div>
                     </div>
                   </div>
                   <div class="flex items-center gap-3">
@@ -492,12 +500,12 @@
               @click="selectedModalHook = hook"
               @mouseenter="hoveredHookIndex = idx + 1000"
               @mouseleave="hoveredHookIndex = null"
-              class="bg-surface-panel border border-surface-border hover:border-amber-400/50 rounded-xl cursor-pointer group transition-all hover:bg-surface-card relative overflow-hidden shadow-xl flex flex-col"
+              class="bg-surface-panel border border-surface-border hover:border-amber-400/50 rounded-xl cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col"
             >
               <div class="absolute inset-0 bg-gradient-to-br from-amber-400/0 to-amber-400/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-0"></div>
               
               <!-- Video Preview Area -->
-              <div class="w-full aspect-video bg-black relative overflow-hidden shrink-0 border-b border-surface-border z-10">
+              <div class="w-full aspect-video bg-black relative overflow-hidden rounded-t-xl shrink-0 border-b border-surface-border z-10">
                  <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
                  <video 
                    v-if="state.videoUrl.value"
@@ -518,8 +526,16 @@
                 <div class="flex justify-between items-start mb-4">
                   <div class="flex items-center gap-2">
                     <span class="bg-surface-dark border border-amber-500/30 px-2 py-0.5 rounded text-[10px] b-mono text-amber-500 font-black tracking-widest">SAVED</span>
-                    <div v-if="isHookRendered(hook)" class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
-                      <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                    <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
+                      <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
+                        <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                      </div>
+                      <!-- Custom Tooltip -->
+                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-30 font-medium normal-case tracking-normal text-center">
+                        This clip has already been cut and transcribed, and is ready for editing!
+                        <!-- Tooltip Arrow -->
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
+                      </div>
                     </div>
                   </div>
                   <div class="flex items-center gap-3">
