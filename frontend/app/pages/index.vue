@@ -455,7 +455,12 @@
               
               <div class="p-5 flex-1 flex flex-col relative z-10">
                 <div class="flex justify-between items-start mb-4">
-                  <span class="bg-surface-dark border border-surface-border px-2 py-0.5 rounded text-[10px] b-mono text-accent-500 font-black tracking-widest">HOOK {{ String(idx + 1).padStart(2, '0') }}</span>
+                  <div class="flex items-center gap-2">
+                    <span class="bg-surface-dark border border-surface-border px-2 py-0.5 rounded text-[10px] b-mono text-accent-500 font-black tracking-widest">HOOK {{ String(idx + 1).padStart(2, '0') }}</span>
+                    <div v-if="isHookRendered(hook)" class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
+                      <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                    </div>
+                  </div>
                   <div class="flex items-center gap-3">
                      <span class="text-slate-500 text-[10px] font-mono font-bold">{{ state.formatDuration(hook.start) }} - {{ state.formatDuration(hook.end) }}</span>
                      <button @click.stop="toggleSaveHook(hook)" class="text-slate-400 hover:text-amber-400 transition-colors z-20">
@@ -511,7 +516,12 @@
               
               <div class="p-5 flex-1 flex flex-col relative z-10">
                 <div class="flex justify-between items-start mb-4">
-                  <span class="bg-surface-dark border border-amber-500/30 px-2 py-0.5 rounded text-[10px] b-mono text-amber-500 font-black tracking-widest">SAVED</span>
+                  <div class="flex items-center gap-2">
+                    <span class="bg-surface-dark border border-amber-500/30 px-2 py-0.5 rounded text-[10px] b-mono text-amber-500 font-black tracking-widest">SAVED</span>
+                    <div v-if="isHookRendered(hook)" class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
+                      <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                    </div>
+                  </div>
                   <div class="flex items-center gap-3">
                      <span class="text-slate-500 text-[10px] font-mono font-bold">{{ state.formatDuration(hook.start) }} - {{ state.formatDuration(hook.end) }}</span>
                      <button @click.stop="toggleSaveHook(hook)" class="text-amber-400 hover:text-red-400 transition-colors z-20">
@@ -1122,6 +1132,18 @@ function resetToStart() {
 
 function isHookSaved(hook: any) {
   return state.savedHooks.value.some(h => Math.abs(h.start - hook.start) < 0.1 && Math.abs(h.end - hook.end) < 0.1)
+}
+
+function isHookRendered(hook: any) {
+  if (!readyClips.value?.length || !state.folderName.value || !hook) return false
+  return readyClips.value.some(c => {
+    if (c.folder_name !== state.folderName.value) return false
+    const parts = c.clip_id.split('_')
+    if (parts.length < 2) return false
+    const cStart = parseFloat(parts[0])
+    const cEnd = parseFloat(parts[1])
+    return Math.abs(cStart - hook.start) < 1.1 && Math.abs(cEnd - hook.end) < 1.1
+  })
 }
 
 async function toggleSaveHook(hook: any) {
