@@ -30,7 +30,7 @@
          <SidebarSettings />
        
        <!-- Content / Preview Area -->
-    <div class="flex-1 flex flex-col items-center bg-surface-dark relative">
+    <div class="flex-1 flex flex-col items-stretch bg-surface-dark relative">
       <!-- Rendering Overlay -->
       <Transition
         enter-active-class="transition duration-500 ease-out"
@@ -72,7 +72,7 @@
         </div>
       </Transition>
 
-      <div id="previewArea" class="flex-1 flex overflow-hidden min-h-0 relative p-8 flex-row">
+      <div id="previewArea" class="flex-1 flex overflow-hidden min-h-0 relative flex-row w-full">
            <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] pointer-events-none mix-blend-overlay"></div>
           
            <!-- Pipeline Loading Overlay -->
@@ -164,12 +164,12 @@
              </div>
            </Transition>
            
-           <div class="flex gap-12 items-center justify-center z-10 w-full max-w-5xl">
+           <div class="flex gap-8 items-center z-10 w-full max-w-full h-full p-8">
                <!-- The 9:16 Canvas -->             
                <VideoPreview />
 
                 <!-- Subtitle Editor Panel -->
-                <div v-if="state?.activeHook?.value" class="w-80 md:w-[450px] bg-surface-panel/50 backdrop-blur-xl border border-surface-border rounded-2xl p-6 flex flex-col h-[540px] shadow-2xl overflow-hidden">
+                <div v-if="state?.activeHook?.value" class="flex-1 min-w-[320px] max-w-[600px] self-stretch bg-surface-panel/50 backdrop-blur-xl border-y border-l border-surface-border rounded-l-2xl rounded-r-none p-6 flex flex-col shadow-2xl overflow-hidden -m-8">
                     
                     <!-- Tabs -->
                     <div class="flex border-b border-surface-border/50 mb-4">
