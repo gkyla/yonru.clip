@@ -297,28 +297,28 @@
                             ref="bulkContainer"
                             @mouseenter="handleBulkMouseEnter"
                             @mouseleave="handleBulkMouseLeave"
-                            class="flex-1 overflow-y-auto bg-black/30 border border-surface-border/50 rounded-xl p-6 custom-scrollbar flex flex-wrap items-start content-start gap-x-2 gap-y-3"
+                            class="flex-1 overflow-y-auto bg-black/30 border border-surface-border/50 rounded-xl p-6 custom-scrollbar leading-[2.2]"
                           >
                             <div 
                               v-for="(seg, idx) in visibleSegments" 
                               :key="idx"
                               :id="'bulk-seg-' + idx"
                               :class="[
-                                'relative transition-all duration-300 rounded-lg px-2.5 py-1.5 flex items-center select-none',
+                                'inline-block transition-all duration-300 rounded px-1 py-0.5 mr-1 select-none cursor-pointer',
                                 idx === activeSegIdx 
-                                  ? 'bg-sky-500/10 ring-1 ring-sky-500/20 shadow-[0_0_12px_rgba(56,189,248,0.15)] scale-[1.01]' 
-                                  : 'hover:bg-white/5 border border-transparent'
+                                  ? 'bg-sky-500/10 ring-1 ring-sky-500/25 shadow-[0_0_8px_rgba(56,189,248,0.15)]' 
+                                  : 'hover:bg-white/5'
                               ]"
                             >
                               <!-- Editing Mode -->
-                              <div v-if="editingSegIdx === idx" class="flex items-center">
+                              <div v-if="editingSegIdx === idx" class="inline-block">
                                 <input
                                   v-model="editSegText"
                                   @blur="commitEdit(seg, idx)"
                                   @keydown.enter.prevent="commitEdit(seg, idx)"
                                   @keydown.esc.prevent="cancelEdit"
                                   autofocus
-                                  class="bg-black/60 border border-sky-500/50 rounded px-2 py-0.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-sky-500/50 min-w-[120px] font-medium leading-relaxed italic"
+                                  class="bg-black/60 border border-sky-500/50 rounded px-1.5 py-0.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-sky-500/50 min-w-[80px] font-medium leading-relaxed italic"
                                 />
                               </div>
 
@@ -326,7 +326,7 @@
                               <p 
                                 v-else
                                 @click="startEdit(seg, idx)" 
-                                class="text-sm font-medium leading-relaxed italic cursor-pointer transition-colors"
+                                class="inline text-sm font-medium italic transition-colors"
                                 :class="idx === activeSegIdx ? 'text-white' : 'text-slate-300 hover:text-white'"
                               >
                                 <span 
@@ -767,10 +767,9 @@ watch(activeSegIdx, (idx) => {
   if (subtitleSubTab.value === 'all' && idx !== -1 && bulkContainer.value && !isHoveringBulk.value && editingSegIdx.value === -1) {
     const el = document.getElementById(`bulk-seg-${idx}`)
     if (el) {
-      const container = bulkContainer.value
-      container.scrollTo({
-        top: el.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2),
-        behavior: 'smooth'
+      el.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
       })
     }
   }
