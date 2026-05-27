@@ -1273,15 +1273,52 @@ async function loadReadyClip(clip: any) {
     // Save this as the last accessed clip
     state.setLastClip(clip.folder_name, clip.clip_id, clip.theme || clip.title)
     
+    // Find matching hook index in the loaded hooks list to highlight correctly
+    let hookIndex = 0
+    let tab = 'generated'
+    
+    const parts = clip.clip_id.split('_')
+    if (parts.length >= 2) {
+      const clipStart = parseFloat(parts[0]) || 0
+      const clipEnd = parseFloat(parts[1]) || 0
+      
+      // Ensure saved hooks are loaded
+      await state.fetchSavedHooks()
+      
+      // Look in saved hooks first
+      const savedIdx = state.savedHooks.value.findIndex((h: any) => {
+        const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
+        const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
+        return Math.abs(hStart - clipStart) < 1.1 && Math.abs(hEnd - clipEnd) < 1.1
+      })
+      
+      if (savedIdx >= 0) {
+        hookIndex = savedIdx
+        tab = 'saved'
+      } else {
+        // Look in generated hooks
+        const genIdx = state.hooks.value.findIndex((h: any) => {
+          const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
+          const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
+          return Math.abs(hStart - clipStart) < 1.1 && Math.abs(hEnd - clipEnd) < 1.1
+        })
+        if (genIdx >= 0) {
+          hookIndex = genIdx
+          tab = 'generated'
+        }
+      }
+    }
+    
     await minWait
     // Then navigate with the job_id for persistence/refresh
-    console.log('[yonru] Navigating to editor...')
+    console.log('[yonru] Navigating to editor with hook index:', hookIndex, 'tab:', tab)
     await navigateTo({
       path: '/editor',
       query: { 
         job_id: state.jobId.value || '',
         folder: clip.folder_name,
-        hook_index: 0
+        hook_index: hookIndex,
+        tab: tab
       }
     })
   } catch (e) {

@@ -568,37 +568,7 @@ onMounted(async () => {
   }
 
   // Restore state from URL if refreshing
-  const jobId = route.query.job_id as string
-  const folder = route.query.folder as string
-  const hookIndex = parseInt(route.query.hook_index as string)
-  const tab = (route.query.tab as string) || 'generated'
-  
-  if (jobId) {
-    state.jobId.value = jobId
-    state.folderName.value = folder
-    
-    // We need to wait for hooks to load before we can select the active one
-    let stopWatcher: any = null
-    stopWatcher = watch([() => state?.jobStatus?.value, () => state?.hooks?.value, () => state?.savedHooks?.value], () => {
-      const status = state?.jobStatus?.value || 'idle'
-      const hooksAvailable = (state?.hooks?.value?.length || 0) > 0 || (state?.savedHooks?.value?.length || 0) > 0
-      
-      if (status === 'ready' || (status === 'hooks_ready' && hooksAvailable)) {
-        const hooksList = tab === 'saved' ? state?.savedHooks?.value : state?.hooks?.value
-        if (hooksList && hooksList[hookIndex]) {
-          console.log('[editor] Restoring hook from index:', hookIndex)
-          if (state?.activeHook) state.activeHook.value = hooksList[hookIndex]
-          // Only trigger extraction if we don't already have a ready clip
-          if (status !== 'ready') {
-            state?.extractClip?.(hooksList[hookIndex])
-          }
-        }
-        if (stopWatcher) stopWatcher()
-      }
-    }, { immediate: true })
-
-    state?.startPolling?.()
-  }
+  restoreStateFromQuery()
   state.initPersistence()
   // Defer flag so onActivated (fires same tick) still sees false on first load
   nextTick(() => {
@@ -615,11 +585,55 @@ onActivated(() => {
     
     // Background fetch for ready clips to ensure it's fresh
     fetchReadyClips()
+
+    // Ensure library data is loaded for the sidebar dashboard
+    state.fetchCached()
+    state.fetchSavedHooks()
+
+    // Restore state from route queries
+    restoreStateFromQuery()
   }
 })
 
 const showBlacklistSettings = ref(false)
 const panelTab = ref<'generated' | 'saved'>((route.query.tab as any) || 'generated')
+
+function restoreStateFromQuery() {
+  const jobId = route.query.job_id as string
+  const folder = route.query.folder as string
+  const hookIndex = parseInt(route.query.hook_index as string)
+  const tab = (route.query.tab as string) || 'generated'
+  
+  if (jobId) {
+    console.log('[editor] Restoring state from query. JobID:', jobId, 'Folder:', folder, 'HookIndex:', hookIndex, 'Tab:', tab)
+    state.jobId.value = jobId
+    state.folderName.value = folder
+    panelTab.value = tab as any
+    
+    // We need to wait for hooks to load before we can select the active one
+    let stopWatcher: any = null
+    stopWatcher = watch([() => state?.jobStatus?.value, () => state?.hooks?.value, () => state?.savedHooks?.value], () => {
+      const status = state?.jobStatus?.value || 'idle'
+      const hooksAvailable = (state?.hooks?.value?.length || 0) > 0 || (state?.savedHooks?.value?.length || 0) > 0
+      
+      if (status === 'ready' || (status === 'hooks_ready' && hooksAvailable)) {
+        const hooksList = tab === 'saved' ? state?.savedHooks?.value : state?.hooks?.value
+        const targetIndex = isNaN(hookIndex) ? 0 : hookIndex
+        if (hooksList && hooksList[targetIndex]) {
+          console.log('[editor] Restoring hook from index:', targetIndex)
+          if (state?.activeHook) state.activeHook.value = hooksList[targetIndex]
+          // Only trigger extraction if we don't already have a ready clip
+          if (status !== 'ready') {
+            state?.extractClip?.(hooksList[targetIndex])
+          }
+        }
+        if (stopWatcher) stopWatcher()
+      }
+    }, { immediate: true })
+
+    state?.startPolling?.()
+  }
+}
 
 async function selectSidebarHook(hook: any) {
   if (state.jobStatus.value === 'cutting') return
