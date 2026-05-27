@@ -112,7 +112,11 @@ export const useClipperExport = (deps: ExportDeps) => {
       subtitle_word_spacing: subtitleWordSpacing.value,
       volume: volume.value,
       fps: videoFps.value,
-      transcript: fullTranscript.value,
+      transcript: fullTranscript.value.map((seg: any) => ({
+        start: typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start,
+        duration: typeof seg.duration === 'string' ? parseFloat(seg.duration) : seg.duration,
+        text: seg.text
+      })),
       thumbnail_enabled: thumbnailEnabled.value,
       thumbnail_duration: thumbnailDuration.value,
       thumbnail_text_overlays: thumbnailTextOverlays.value,

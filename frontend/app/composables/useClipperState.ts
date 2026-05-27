@@ -257,13 +257,21 @@ export const useClipperState = () => {
   async function saveTranscript(isSilent = false) {
     if (!folderName.value || !fullTranscript.value) return
     const silent = isSilent === true
+
+    // Sanitize transcript data to strip out non-serializable circular references (such as flatWords)
+    const cleanTranscript = fullTranscript.value.map((seg: any) => ({
+      start: typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start,
+      duration: typeof seg.duration === 'string' ? parseFloat(seg.duration) : seg.duration,
+      text: seg.text
+    }))
+
     try {
       await $fetch(`${API_BASE}/api/transcript`, {
         method: 'PUT',
         body: {
           folder_name: folderName.value,
           clip_id: clipId.value,
-          transcript: fullTranscript.value
+          transcript: cleanTranscript
         }
       })
       if (!silent) {

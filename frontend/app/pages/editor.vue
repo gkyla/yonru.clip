@@ -169,7 +169,7 @@
                <VideoPreview />
 
                 <!-- Subtitle Editor Panel -->
-                <div v-if="state?.activeHook?.value" class="flex-1 min-w-[320px] max-w-[600px] self-stretch bg-surface-panel/50 backdrop-blur-xl border-y border-l border-surface-border rounded-l-2xl rounded-r-none p-6 flex flex-col shadow-2xl overflow-hidden -m-8">
+                <div v-if="state?.activeHook?.value" class="flex-1 min-w-[320px] max-w-[550px] self-stretch bg-surface-panel/50 backdrop-blur-xl border-l border-surface-border rounded-l-2xl rounded-r-none p-6 flex flex-col shadow-2xl overflow-hidden ml-auto -m-8">
                     
                     <!-- Tabs -->
                     <div class="flex border-b border-surface-border/50 mb-4">
@@ -224,14 +224,14 @@
                         <div class="flex mb-3 bg-black/20 rounded-lg p-0.5 border border-white/5">
                           <button 
                             @click="subtitleSubTab = 'one'"
-                            class="flex-1 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                            class="flex-1 py-2.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
                             :class="subtitleSubTab === 'one' ? 'bg-accent-500/20 text-accent-500 shadow-sm' : 'text-slate-500 hover:text-slate-300'"
                           >
-                            <Icon name="ri:list-check-2" class="text-xs" /> One Word
+                            <Icon name="ri:list-check-2" class="text-xs" /> {{ state.subtitleMode.value === 'word' ? '1 Word' : state.subtitleMode.value === '3_words' ? '3 Words' : '4 Words' }}
                           </button>
                           <button 
-                            @click="subtitleSubTab = 'all'; localBulkText = allWordsText"
-                            class="flex-1 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                            @click="subtitleSubTab = 'all'"
+                            class="flex-1 py-2.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
                             :class="subtitleSubTab === 'all' ? 'bg-sky-500/20 text-sky-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'"
                           >
                             <Icon name="ri:file-text-line" class="text-xs" /> All Words
@@ -260,13 +260,15 @@
                                 <div class="flex items-center justify-between">
                                    <div class="flex items-center gap-2">
                                      <input 
-                                       v-model.number="seg.start" 
+                                       :value="seg.start" 
+                                       @input="e => { updateSegmentStart(seg, parseFloat((e.target as HTMLInputElement).value)); }"
                                        type="number" step="0.01" 
                                        class="bg-black/40 border border-surface-border text-[10px] text-slate-400 px-2 py-0.5 rounded w-16 focus:outline-none focus:border-accent-500/50"
                                      />
                                      <span class="text-[10px] text-slate-600">to</span>
                                      <input 
-                                       v-model.number="seg.duration" 
+                                       :value="seg.duration" 
+                                       @input="e => { updateSegmentDuration(seg, parseFloat((e.target as HTMLInputElement).value)); }"
                                        type="number" step="0.01" 
                                        class="bg-black/40 border border-surface-border text-[10px] text-slate-400 px-2 py-0.5 rounded w-16 focus:outline-none focus:border-accent-500/50"
                                      />
@@ -277,10 +279,10 @@
                                    </button>
                                 </div>
                                 <textarea 
-                                  v-model="seg.text" 
+                                  :value="seg.text" 
+                                  @input="e => { updateSegmentText(seg, (e.target as HTMLTextAreaElement).value); autoGrow(e); }"
                                   rows="1"
                                   class="w-full bg-transparent border-none text-white text-sm focus:outline-none resize-none font-medium leading-relaxed italic"
-                                  @input="autoGrow"
                                 ></textarea>
                               </div>
                           </div>
@@ -492,6 +494,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick, onActivated } from 'vue'
+import { groupTranscript, updateSegmentText, updateSegmentStart, updateSegmentDuration, redistributeTranscript } from '../utils/subtitleChunker.js'
 const state = useClipperState()
 const route = useRoute()
 
@@ -687,13 +690,28 @@ const bulkBackdrop = ref<HTMLElement | null>(null)
 const isHoveringSubtitles = ref(false)
 
 const absoluteTime = computed(() => state?.currentTime?.value || 0)
-const visibleSegments = computed(() => state?.fullTranscript?.value || [])
+const visibleSegments = computed(() => {
+  const flatWords = state?.fullTranscript?.value || []
+  return groupTranscript(flatWords, state.subtitleMode.value)
+})
 
 const activeSegIdx = computed(() => {
-  const offset = (state?.subtitleSyncOffset?.value || 0) / 1000
+  if (!state?.fullTranscript?.value || !state?.activeHook?.value) return -1
+  
+  const offsetSec = (state?.subtitleSyncOffset?.value || 0) / 1000
+  const firstStart = state?.fullTranscript?.value[0]?.start || 0
+  const isTranscriptZeroBased = firstStart < (state?.activeHook?.value?.start || 0) - 2
+  
+  const thumbSec = state?.thumbnailEnabled?.value ? state?.thumbnailDuration?.value : 0
+  const relativeTime = Math.max(0, absoluteTime.value - thumbSec)
+  
+  const searchTime = isTranscriptZeroBased 
+    ? relativeTime + offsetSec
+    : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec
+    
   return visibleSegments.value.findIndex((s: any) => 
-    absoluteTime.value >= (s.start + offset) && 
-    absoluteTime.value < (s.start + s.duration + offset)
+    searchTime >= s.start && 
+    searchTime < s.end
   )
 })
 
@@ -720,6 +738,8 @@ watch(activeSegIdx, (idx) => {
     syncBulkScroll()
   }
 })
+
+
 
 watch(() => state.renderStatus.value, (newStatus) => {
   if (newStatus === 'done') {
@@ -755,25 +775,25 @@ const allWordsText = computed(() => {
 const localBulkText = ref('')
 
 function onAllWordsInput() {
-  const words = localBulkText.value.split(/\s+/).filter(w => w.length > 0)
-  if (!words.length || !visibleSegments.value.length) return
+  const masterTranscript = state?.fullTranscript?.value || []
+  if (!masterTranscript.length) return
+  redistributeTranscript(masterTranscript, localBulkText.value)
+}
 
-  // Proportional redistribution
-  const totalDuration = visibleSegments.value.reduce((acc, s) => acc + s.duration, 0)
-  if (totalDuration <= 0) return
-  
-  let wordIdx = 0
-  visibleSegments.value.forEach((seg, i) => {
-    if (i === visibleSegments.value.length - 1) {
-      seg.text = words.slice(wordIdx).join(' ')
+watch(allWordsText, (newText) => {
+  if (subtitleSubTab.value === 'all') {
+    if (bulkTextarea.value && document.activeElement === bulkTextarea.value) {
       return
     }
+    localBulkText.value = newText
+  }
+}, { immediate: true })
 
-    const quota = Math.max(1, Math.round((seg.duration / totalDuration) * words.length))
-    seg.text = words.slice(wordIdx, wordIdx + quota).join(' ')
-    wordIdx += quota
-  })
-}
+watch(subtitleSubTab, (newTab) => {
+  if (newTab === 'all') {
+    localBulkText.value = allWordsText.value
+  }
+})
 
 // All Words highlighting logic
 const bulkHighlightHTML = computed(() => {
@@ -787,21 +807,14 @@ const bulkHighlightHTML = computed(() => {
     return localBulkText.value.replace(/\n/g, '<br/>')
   }
 
-  const totalDuration = visibleSegments.value.reduce((acc, s) => acc + s.duration, 0)
-  if (totalDuration <= 0) return localBulkText.value.replace(/\n/g, '<br/>')
-
-  // Calculate quota for active segment
+  // Calculate exact word index ranges using segment word counts
   let currentWordIdx = 0
   let activeWordStart = -1
   let activeWordEnd = -1
 
   visibleSegments.value.forEach((seg, i) => {
-    let quota = 0
-    if (i === visibleSegments.value.length - 1) {
-      quota = wordsOnly.length - currentWordIdx
-    } else {
-      quota = Math.max(1, Math.round((seg.duration / totalDuration) * wordsOnly.length))
-    }
+    const segText = (seg.text || '').trim()
+    const quota = segText ? segText.split(/\s+/).length : 0
     
     if (i === activeSegIdx.value) {
       activeWordStart = currentWordIdx
