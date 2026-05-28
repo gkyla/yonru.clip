@@ -6,12 +6,9 @@ import { useClipperJob } from './useClipperJob'
 import { useClipperThumbnail } from './useClipperThumbnail'
 import { useClipperExport } from './useClipperExport'
 
-export const FONT_OPTIONS = [
-  'Montserrat', 'Inter', 'Bebas Neue', 'Oswald', 'Poppins', 
-  'Outfit', 'Noto Sans', 'Roboto Condensed', 'Playfair Display',
-  'Anton', 'Bangers', 'Permanent Marker', 'Russo One', 'Teko',
-  'Luckiest Guy', 'Titan One', 'Lilita One', 'Passion One'
-]
+import fontsManifest from '../../../shared/fonts_manifest.json'
+
+export const FONT_OPTIONS = fontsManifest.fonts.map((f: any) => f.name)
 
 export const useClipperState = () => {
   // API Base

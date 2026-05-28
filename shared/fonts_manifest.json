@@ -1,0 +1,22 @@
+{
+  "fonts": [
+    {"name": "Montserrat", "id": "montserrat"},
+    {"name": "Inter", "id": "inter"},
+    {"name": "Bebas Neue", "id": "bebas-neue"},
+    {"name": "Oswald", "id": "oswald"},
+    {"name": "Poppins", "id": "poppins"},
+    {"name": "Outfit", "id": "outfit"},
+    {"name": "Noto Sans", "id": "noto-sans"},
+    {"name": "Roboto Condensed", "id": "roboto-condensed"},
+    {"name": "Playfair Display", "id": "playfair-display"},
+    {"name": "Anton", "id": "anton"},
+    {"name": "Bangers", "id": "bangers"},
+    {"name": "Permanent Marker", "id": "permanent-marker"},
+    {"name": "Russo One", "id": "russo-one"},
+    {"name": "Teko", "id": "teko"},
+    {"name": "Luckiest Guy", "id": "luckiest-guy"},
+    {"name": "Titan One", "id": "titan-one"},
+    {"name": "Lilita One", "id": "lilita-one"},
+    {"name": "Passion One", "id": "passion-one"}
+  ]
+}

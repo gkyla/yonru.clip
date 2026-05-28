@@ -23,3 +23,14 @@ A resizable sidebar panel in the editor whose width can be adjusted dynamically 
 
 ### Sidebar Status Indicator
 A unified, real-time job status tracking element placed in the footer of the global sidebar panel, rendering as a clean, bordered micro-badge row in expanded mode and as a dynamic, glowing status dot overlaid on the database icon in collapsed mode.
+
+---
+
+## Asset Synchronization & Bootstrapping
+
+### Font Synchronizer
+A backend deep module responsible for validating, fetching, and offline-synchronizing Google Web Fonts. It dynamically resolves missing local woff2 files and automatically compiles stylesheets tailored to both the main Transcription Editor and the Remotion Engine.
+
+### Shared Font Manifest
+A single source of truth configuration file (`shared/fonts_manifest.json`) that catalogs active fonts, their subsets, and IDs, ingested directly by both the python backend Font Synchronizer and the Nuxt frontend state composables to ensure absolute configuration alignment across boundaries.
+
