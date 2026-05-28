@@ -212,6 +212,15 @@
               <p class="text-[9px] text-slate-400 uppercase tracking-widest">{{ processingStatus }}</p>
             </div>
 
+            <!-- System Status Micro-Badge -->
+            <div class="flex items-center justify-between bg-[#111318]/50 border border-surface-border/50 rounded-xl px-3 py-2">
+              <span class="text-[9px] uppercase font-bold text-slate-500 tracking-wider">System Status</span>
+              <div class="flex items-center gap-1.5 mono text-[10px] text-slate-300 font-bold">
+                 <span class="w-1.5 h-1.5 rounded-full" :class="statusColor"></span>
+                 {{ statusLabel }}
+              </div>
+            </div>
+
             <!-- Storage Summary -->
             <div class="flex items-center justify-between px-1">
               <div class="flex items-center gap-2 text-slate-500">
@@ -230,7 +239,8 @@
               @click="isCollapsed = false"
             >
               <Icon :name="isProcessing ? 'ri:loader-4-line' : 'ri:database-2-line'" :class="{ 'animate-spin': isProcessing }" class="text-xl" />
-              <div v-if="isProcessing" class="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-surface-dark animate-pulse"></div>
+              <!-- Dynamic Status Dot Overlay -->
+              <div class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface-dark shadow-[0_0_6px_rgba(0,0,0,0.5)] animate-pulse-subtle" :class="statusColor"></div>
               
               <!-- Tooltip -->
               <div class="absolute left-full ml-3 px-3 py-1.5 bg-surface-card border border-surface-border rounded-md text-[10px] text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
@@ -248,6 +258,27 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 
 const state = useClipperState()
+
+const statusColor = computed(() => {
+  const status = state?.jobStatus?.value || 'idle'
+  const map: Record<string, string> = {
+    idle: 'bg-slate-600',
+    queued: 'bg-amber-500',
+    downloading_audio: 'bg-sky-500 animate-pulse',
+    transcribing: 'bg-violet-500 animate-pulse',
+    generating_hooks: 'bg-fuchsia-500 animate-pulse',
+    hooks_ready: 'bg-accent-500 shadow-[0_0_8px_#CFFF50]',
+    extracting_video: 'bg-sky-500 animate-pulse',
+    cutting: 'bg-sky-400 animate-pulse',
+    ready: 'bg-accent-500 shadow-[0_0_8px_#CFFF50]',
+    error: 'bg-red-500 shadow-[0_0_8px_#ef4444]'
+  }
+  return map[status] || 'bg-slate-600'
+})
+
+const statusLabel = computed(() => {
+  return state?.jobStatus?.value?.toUpperCase()?.replace('_', ' ') || 'IDLE'
+})
 
 const isHealthWarning = computed(() => {
   const health = state.systemHealth.value

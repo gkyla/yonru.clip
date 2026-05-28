@@ -20,3 +20,6 @@ A visual state where individual word spans are highlighted dynamically based on 
 
 ### Draggable Subtitle Panel
 A resizable sidebar panel in the editor whose width can be adjusted dynamically by dragging the left border handle, with boundaries restricted between 320px and 650px and the selected width persisted in browser `localStorage`.
+
+### Sidebar Status Indicator
+A unified, real-time job status tracking element placed in the footer of the global sidebar panel, rendering as a clean, bordered micro-badge row in expanded mode and as a dynamic, glowing status dot overlaid on the database icon in collapsed mode.

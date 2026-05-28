@@ -24,7 +24,6 @@
     />
 
     <div class="flex-1 flex flex-col overflow-hidden relative">
-      <TheTopbar />
       <div class="flex-1 flex overflow-hidden">
          <!-- Settings Sidebar -->
          <SidebarSettings />
@@ -172,7 +171,7 @@
                 <div 
                    v-if="state?.activeHook?.value" 
                    :style="{ width: panelWidth + 'px', flex: 'none' }"
-                   class="relative self-stretch bg-surface-panel/50 backdrop-blur-xl border-l border-surface-border rounded-l-2xl rounded-r-none p-6 flex flex-col shadow-2xl overflow-hidden ml-auto -m-8"
+                   class="relative self-stretch bg-surface-panel/50 backdrop-blur-xl border-l border-surface-border rounded-l-2xl rounded-r-none p-6 flex flex-col shadow-2xl overflow-hidden ml-auto border"
                  >
                      <!-- Resize Drag Handle Overlay -->
                      <div 
