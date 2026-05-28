@@ -33,6 +33,9 @@ The aspect-[9/16] still-image preview container displayed inside the sidebar Thu
 ### Horizontal Shift Offset
 A percentage value (0 to 100) representing the horizontal pan displacement of the background image within the 9:16 portrait viewport.
 
+### Thumbnail Text Overlay
+A customizable text block overlaid on the thumbnail frame, supporting configurable typography, backgrounds, strokes, transformations, and positioning.
+
 ---
 
 ## Asset Synchronization & Bootstrapping

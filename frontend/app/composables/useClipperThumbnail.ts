@@ -104,26 +104,54 @@ export const useClipperThumbnail = () => {
   }
 
   function addThumbnailText() {
+    const first = thumbnailTextOverlays.value[0]
+    const style = first ? {
+      fontSize: first.fontSize,
+      fontFamily: first.fontFamily,
+      fontWeight: first.fontWeight,
+      color: first.color,
+      strokeColor: first.strokeColor,
+      strokeWidth: first.strokeWidth,
+      showStroke: first.showStroke,
+      textTransform: first.textTransform,
+      rotation: first.rotation,
+      showBackground: first.showBackground,
+      backgroundColor: first.backgroundColor,
+      backgroundOpacity: first.backgroundOpacity,
+      backgroundPadding: first.backgroundPadding
+    } : {
+      fontSize: 100,
+      fontFamily: 'Montserrat',
+      fontWeight: 900,
+      color: '#FFFFFF',
+      strokeColor: '#000000',
+      strokeWidth: 5,
+      showStroke: true,
+      textTransform: 'uppercase',
+      rotation: 0,
+      showBackground: false,
+      backgroundColor: '#000000',
+      backgroundOpacity: 0.7,
+      backgroundPadding: 20
+    }
+
+    let newX = 540
+    let newY = 960
+
+    // Ensure new text overlays do not stack or overlap exactly on top of any existing overlay
+    while (thumbnailTextOverlays.value.some(o => o.x === newX && o.y === newY)) {
+      newX += 40
+      newY += 80
+    }
+
     thumbnailTextOverlays.value = [
       ...thumbnailTextOverlays.value,
       {
         id: Math.random().toString(36).substr(2, 9),
         text: 'YOUR TEXT',
-        x: 540,
-        y: 960,
-        fontSize: 100,
-        fontFamily: 'Montserrat',
-        fontWeight: 900,
-        color: '#FFFFFF',
-        strokeColor: '#000000',
-        strokeWidth: 5,
-        showStroke: true,
-        textTransform: 'uppercase',
-        rotation: 0,
-        showBackground: false,
-        backgroundColor: '#000000',
-        backgroundOpacity: 0.7,
-        backgroundPadding: 20
+        x: newX,
+        y: newY,
+        ...style
       }
     ]
   }
