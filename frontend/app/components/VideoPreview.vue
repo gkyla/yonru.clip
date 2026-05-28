@@ -257,9 +257,14 @@
                     y: overlay.y ?? 960,
                     rotation: overlay.rotation ?? 0,
                     draggable: true,
-                    offset: { x: 0, y: 0 }
+                    offset: { x: 0, y: 0 },
+                    visible: editingThumbOverlayId !== overlay.id
                   }"
                   @dragend="onThumbnailLabelDragEnd($event, overlay)"
+                  @dblclick="startEditingThumbOverlay(overlay)"
+                  @dbltap="startEditingThumbOverlay(overlay)"
+                  @mouseenter="handleMouseEnterLabel"
+                  @mouseleave="handleMouseLeaveLabel"
                 >
                    <v-tag 
                     :config="{
@@ -298,6 +303,20 @@
             </v-stage>
           </div>
           </ClientOnly>
+
+          <!-- HTML Text Editor Overlay for 1:1 Thumbnail editing -->
+          <template v-for="overlay in state.thumbnailTextOverlays.value" :key="'edit-thumb-' + overlay.id">
+            <div
+              v-if="editingThumbOverlayId === overlay.id"
+              :ref="setEditingThumbInputRef"
+              contenteditable="true"
+              class="absolute z-[56] outline-none border-none resize-none overflow-hidden select-text whitespace-pre text-center"
+              :style="getThumbOverlayEditingStyle(overlay)"
+              @blur="stopEditingThumbOverlay(overlay, true)"
+              @keydown="handleEditingThumbKeydown($event, overlay)"
+              @input="onEditingThumbInput($event, overlay)"
+            ></div>
+          </template>
 
           <!-- Editing indicator -->
           <div class="absolute top-12 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
@@ -641,7 +660,126 @@ function startThumbBgDragTouch(e: any) {
 function onThumbnailLabelDragEnd(e: any, overlay: any) {
   overlay.x = e.target.x()
   overlay.y = e.target.y()
+  state.saveThumbnailConfig()
 }
+
+// --- THUMBNAIL TEXT DIRECT EDITING ---
+const editingThumbOverlayId = ref<string | null>(null)
+const originalThumbContent = ref<string>('')
+const editingThumbInputRef = ref<HTMLElement | null>(null)
+
+function setEditingThumbInputRef(el: any) {
+  editingThumbInputRef.value = el
+}
+
+function startEditingThumbOverlay(overlay: any) {
+  editingThumbOverlayId.value = overlay.id
+  originalThumbContent.value = overlay.text || ''
+  nextTick(() => {
+    const el = editingThumbInputRef.value
+    if (el) {
+      el.innerText = overlay.text || ''
+      el.focus()
+      
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      const sel = window.getSelection()
+      sel?.removeAllRanges()
+      sel?.addRange(range)
+    }
+  })
+}
+
+function stopEditingThumbOverlay(overlay: any, shouldSave = true) {
+  if (editingThumbOverlayId.value === overlay.id) {
+    if (shouldSave) {
+      const el = editingThumbInputRef.value
+      if (el) {
+        overlay.text = el.innerText.trim() || 'YOUR TEXT'
+      }
+    } else {
+      overlay.text = originalThumbContent.value
+    }
+    editingThumbOverlayId.value = null
+    state.saveThumbnailConfig()
+  }
+}
+
+function handleEditingThumbKeydown(e: KeyboardEvent, overlay: any) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    stopEditingThumbOverlay(overlay, true)
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    stopEditingThumbOverlay(overlay, false)
+  }
+}
+
+function onEditingThumbInput(e: any, overlay: any) {
+  overlay.text = e.target.innerText
+}
+
+function hexToRgba(hex: string, opacity: number) {
+  let c = hex.replace('#', '')
+  if (c.length === 3) {
+    c = c.charAt(0) + c.charAt(0) + c.charAt(1) + c.charAt(1) + c.charAt(2) + c.charAt(2)
+  }
+  const r = parseInt(c.substring(0, 2), 16)
+  const g = parseInt(c.substring(2, 4), 16)
+  const b = parseInt(c.substring(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`
+}
+
+function getThumbOverlayEditingStyle(overlay: any) {
+  const showBackground = overlay.showBackground
+  const bgColor = overlay.backgroundColor || '#000000'
+  const bgOpacity = overlay.showBackground ? (overlay.backgroundOpacity ?? 0.7) : 0
+  const color = overlay.color || '#FFFFFF'
+  const fontSize = overlay.fontSize ?? 100
+  const fontFamily = overlay.fontFamily || 'Montserrat'
+  const fontWeight = overlay.fontWeight ? String(overlay.fontWeight) : '900'
+  const textTransform = overlay.textTransform || 'uppercase'
+  const padding = `${overlay.backgroundPadding ?? 20}px`
+  
+  const showStroke = overlay.showStroke !== false
+  const strokeWidth = showStroke ? (overlay.strokeWidth ?? 5) : 0
+  const strokeColor = overlay.strokeColor || '#000000'
+  
+  const rgbaBg = showBackground ? hexToRgba(bgColor, bgOpacity) : 'transparent'
+  const rgbaShadow = `rgba(0, 0, 0, 0.6)`
+  
+  return {
+    position: 'absolute' as const,
+    left: `${overlay.x ?? 540}px`,
+    top: `${overlay.y ?? 960}px`,
+    transform: overlay.rotation ? `rotate(${overlay.rotation ?? 0}deg)` : undefined,
+    transformOrigin: 'top left',
+    
+    fontFamily: `"${fontFamily}", sans-serif`,
+    fontSize: `${fontSize}px`,
+    fontWeight: fontWeight,
+    textTransform: textTransform,
+    textAlign: 'center' as const,
+    lineHeight: '1.1',
+    color: color,
+    
+    backgroundColor: rgbaBg,
+    borderRadius: '10px',
+    padding: padding,
+    
+    '-webkit-text-stroke': showStroke ? `${strokeWidth}px ${strokeColor}` : 'none',
+    textShadow: `3px 5px 15px ${rgbaShadow}`,
+    
+    caretColor: color,
+    minWidth: '100px',
+    minHeight: '1em',
+    maxWidth: '1000px',
+    display: 'inline-block',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word' as const,
+  }
+}
+
 
 onUnmounted(() => {
   handleWindowMouseUp()
