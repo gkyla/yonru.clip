@@ -137,7 +137,7 @@ export const useInteractiveText = (
 
   function handleMouseLeaveLabel(e: any) {
     const stage = e.target.getStage()
-    if (stage) stage.container().style.cursor = 'default'
+    if (stage) stage.container().style.cursor = ''
   }
 
   function selectItem(item: any) {

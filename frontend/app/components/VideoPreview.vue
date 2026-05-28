@@ -226,7 +226,10 @@
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
       >
-        <div v-if="(state.thumbnailEditMode.value || isInThumbnailWindow) && state.thumbnailUrl.value" class="absolute inset-0 z-[50] bg-black">
+        <div v-if="(state.thumbnailEditMode.value || isInThumbnailWindow) && state.thumbnailUrl.value" 
+             class="absolute inset-0 z-[50] bg-black select-none"
+             :class="isInThumbnailWindow ? (isThumbBgDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'"
+        >
           <!-- Thumbnail Background Image -->
           <img 
             :src="state.thumbnailUrl.value" 
@@ -244,7 +247,8 @@
                   :config="{
                     width: 1080,
                     height: 1920,
-                    fill: 'transparent'
+                    fill: 'transparent',
+                    name: 'thumb-bg-rect'
                   }"
                   @mousedown="startThumbBgDrag"
                   @touchstart="startThumbBgDragTouch"
@@ -613,7 +617,8 @@ function handleWindowMouseUp() {
 }
 
 function startThumbBgDrag(e: any) {
-  if (!state.thumbnailEditMode.value) return
+  if (!isInThumbnailWindow.value) return
+  if (e.target.name() !== 'thumb-bg-rect') return
   const evt = e.evt || e
   isThumbBgDragging.value = true
   thumbBgDragStartX.value = evt.clientX
@@ -647,7 +652,8 @@ function handleWindowTouchEnd() {
 }
 
 function startThumbBgDragTouch(e: any) {
-  if (!state.thumbnailEditMode.value) return
+  if (!isInThumbnailWindow.value) return
+  if (e.target.name() !== 'thumb-bg-rect') return
   const evt = e.evt || e
   if (!evt.touches || !evt.touches.length) return
   isThumbBgDragging.value = true
