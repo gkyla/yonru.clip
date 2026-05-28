@@ -24,6 +24,9 @@ A resizable sidebar panel in the editor whose width can be adjusted dynamically 
 ### Sidebar Status Indicator
 A unified, real-time job status tracking element placed in the footer of the global sidebar panel, rendering as a clean, bordered micro-badge row in expanded mode and as a dynamic, glowing status dot overlaid on the database icon in collapsed mode.
 
+### Section Divider
+A low-contrast, border-only horizontal seam (`border-t border-surface-border/30 pt-3`) used inside editor panels to separate functional control groups cleanly without nesting bulky card backgrounds or rounded containers, keeping visual density balanced.
+
 ---
 
 ## Asset Synchronization & Bootstrapping
