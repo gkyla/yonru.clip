@@ -17,3 +17,6 @@ An interaction model where clicking a segment in the Flowing Document View smoot
 
 ### Karaoke-Style Word Highlight
 A visual state where individual word spans are highlighted dynamically based on the current playback timing, creating a smooth, active reading flow.
+
+### Draggable Subtitle Panel
+A resizable sidebar panel in the editor whose width can be adjusted dynamically by dragging the left border handle, with boundaries restricted between 320px and 650px and the selected width persisted in browser `localStorage`.

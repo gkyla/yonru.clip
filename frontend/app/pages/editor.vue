@@ -164,12 +164,22 @@
              </div>
            </Transition>
            
-           <div class="flex gap-8 items-center z-10 w-full max-w-full h-full p-8">
+           <div :class="{ 'select-none': isDragging }" class="flex gap-8 items-center z-10 w-full max-w-full h-full p-8">
                <!-- The 9:16 Canvas -->             
                <VideoPreview />
 
                 <!-- Subtitle Editor Panel -->
-                <div v-if="state?.activeHook?.value" class="flex-1 min-w-[320px] max-w-[550px] self-stretch bg-surface-panel/50 backdrop-blur-xl border-l border-surface-border rounded-l-2xl rounded-r-none p-6 flex flex-col shadow-2xl overflow-hidden ml-auto -m-8">
+                <div 
+                   v-if="state?.activeHook?.value" 
+                   :style="{ width: panelWidth + 'px', flex: 'none' }"
+                   class="relative self-stretch bg-surface-panel/50 backdrop-blur-xl border-l border-surface-border rounded-l-2xl rounded-r-none p-6 flex flex-col shadow-2xl overflow-hidden ml-auto -m-8"
+                 >
+                     <!-- Resize Drag Handle Overlay -->
+                     <div 
+                       @pointerdown="initResize"
+                       class="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-sky-500/30 active:bg-sky-500 transition-colors z-50"
+                       :class="isDragging ? 'bg-sky-500/50' : ''"
+                     ></div>
                     
                     <!-- Tabs -->
                     <div class="flex border-b border-surface-border/50 mb-4">
@@ -916,5 +926,42 @@ async function handleSave(isSilent = false) {
     state.saveTimelineTracks(),
     state.saveThumbnailConfig()
   ])
+}
+
+// Draggable Subtitle Panel Sidebar Resizing State & Event Handlers
+const panelWidth = ref(450)
+const isDragging = ref(false)
+
+onMounted(() => {
+  const saved = localStorage.getItem('yonru-editor-width')
+  if (saved) {
+    const parsed = parseInt(saved)
+    if (!isNaN(parsed)) {
+      panelWidth.value = Math.max(320, Math.min(650, parsed))
+    }
+  }
+})
+
+function initResize(e: PointerEvent) {
+  e.preventDefault()
+  isDragging.value = true
+  const startWidth = panelWidth.value
+  const startX = e.clientX
+
+  const handlePointerMove = (moveEvent: PointerEvent) => {
+    const deltaX = moveEvent.clientX - startX
+    const newWidth = startWidth - deltaX
+    panelWidth.value = Math.max(320, Math.min(650, newWidth))
+  }
+
+  const handlePointerUp = () => {
+    isDragging.value = false
+    localStorage.setItem('yonru-editor-width', panelWidth.value.toString())
+    document.removeEventListener('pointermove', handlePointerMove)
+    document.removeEventListener('pointerup', handlePointerUp)
+  }
+
+  document.addEventListener('pointermove', handlePointerMove)
+  document.addEventListener('pointerup', handlePointerUp)
 }
 </script>
