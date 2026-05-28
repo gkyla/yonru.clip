@@ -27,6 +27,12 @@ A unified, real-time job status tracking element placed in the footer of the glo
 ### Section Divider
 A low-contrast, border-only horizontal seam (`border-t border-surface-border/30 pt-3`) used inside editor panels to separate functional control groups cleanly without nesting bulky card backgrounds or rounded containers, keeping visual density balanced.
 
+### Thumbnail Screenshot Preview
+The aspect-[9/16] still-image preview container displayed inside the sidebar Thumbnail Editor, representing the captured video frame that will be prepended as a thumbnail.
+
+### Horizontal Shift Offset
+A percentage value (0 to 100) representing the horizontal pan displacement of the background image within the 9:16 portrait viewport.
+
 ---
 
 ## Asset Synchronization & Bootstrapping

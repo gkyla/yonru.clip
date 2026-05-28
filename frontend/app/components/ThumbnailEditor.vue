@@ -68,6 +68,7 @@
             v-if="state.thumbnailUrl.value" 
             :src="state.thumbnailUrl.value" 
             class="w-full h-full object-cover"
+            :style="{ objectPosition: `${state.thumbnailXOffset.value}% center` }"
             @error="state.thumbnailUrl.value = null"
           />
           <div v-else class="w-full h-full flex flex-col items-center justify-center text-slate-400">
