@@ -163,7 +163,7 @@
              </div>
            </Transition>
            
-           <div :class="{ 'select-none': isDragging }" class="flex gap-8 items-center z-10 w-full max-w-full h-full p-8">
+           <div :class="{ 'select-none': isDragging }" class="flex gap-8 items-center z-10 w-full max-w-full h-full p-6">
                <!-- The 9:16 Canvas -->             
                <VideoPreview />
 
