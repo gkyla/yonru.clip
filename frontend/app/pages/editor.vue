@@ -733,8 +733,23 @@ async function selectSidebarHook(hook: any) {
     }
   })
   
-  // Start extraction
-  state.extractClip(hook)
+  // Check if hook is already rendered/ready
+  const matchingClip = readyClips.value?.find(c => {
+    if (c.folder_name !== state.folderName.value) return false
+    const parts = c.clip_id.split('_')
+    if (parts.length < 2) return false
+    const cStart = parseFloat(parts[0])
+    const cEnd = parseFloat(parts[1])
+    return Math.abs(cStart - hook.start) < 1.1 && Math.abs(cEnd - hook.end) < 1.1
+  })
+
+  if (matchingClip) {
+    console.log('[editor] Hook is already rendered, loading ready clip:', matchingClip.clip_id)
+    state.loadReadyClipIntoEditor(state.folderName.value, matchingClip.clip_id)
+  } else {
+    console.log('[editor] Hook is not rendered, starting extraction...')
+    state.extractClip(hook)
+  }
 }
 
 
@@ -811,7 +826,14 @@ watch(() => state.jobStatus.value, (newStatus) => {
 // Moved up
 
 // Pipeline loading overlay
-const pipelineStep = computed(() => state?.jobStatus?.value || 'idle')
+const pipelineStep = computed(() => {
+  const status = state?.jobStatus?.value || 'idle'
+  // Only force 'cutting' if the hook is not already rendered/ready on the server!
+  if (state?.activeHook?.value && !isHookRendered(state.activeHook.value) && status !== 'ready') {
+    return status === 'transcribing' ? 'transcribing' : 'cutting'
+  }
+  return status
+})
 
 const pipelineStepIdx = computed(() => {
   const map: Record<string, number> = { cutting: 0, transcribing: 1, ready: 2 }
