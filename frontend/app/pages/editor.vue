@@ -811,13 +811,7 @@ watch(() => state.jobStatus.value, (newStatus) => {
 // Moved up
 
 // Pipeline loading overlay
-const pipelineStep = computed(() => {
-  const status = state?.jobStatus?.value || 'idle'
-  if (state?.activeHook?.value && status !== 'ready') {
-    return status === 'transcribing' ? 'transcribing' : 'cutting'
-  }
-  return status
-})
+const pipelineStep = computed(() => state?.jobStatus?.value || 'idle')
 
 const pipelineStepIdx = computed(() => {
   const map: Record<string, number> = { cutting: 0, transcribing: 1, ready: 2 }
