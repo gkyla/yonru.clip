@@ -270,14 +270,14 @@
                     class="bg-surface-card hover:bg-surface-panel border border-surface-border text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100"
                   >
                     <Icon name="ri:folder-open-line" class="text-base" />
-                    Load Cache
+                    Load Cache Hooks
                   </button>
                   <button 
                     @click.stop="analyzeCached(vid.video_id, true)"
                     class="bg-accent-500 hover:bg-accent-400 text-black px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100"
                   >
                     <Icon name="ri:magic-line" class="text-base" />
-                    Reanalyze
+                    Reanalyze Hooks
                   </button>
                 </div>
 
@@ -288,20 +288,20 @@
                     target="_blank" 
                     @click.stop 
                     title="Watch on YouTube"
-                    class="p-2.5 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
+                    class="py-2.5 px-3 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
                   >
                     <Icon name="ri:youtube-fill" class="text-sm" />
                   </a>
                   <button 
                     @click.stop="confirmRedownload(vid)"
-                    class="p-2.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-white rounded-xl border border-sky-500/20 transition-colors shadow-xl"
+                    class="py-2.5 px-3 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-white rounded-xl border border-sky-500/20 transition-colors shadow-xl"
                     title="Refresh"
                   >
                     <Icon name="ri:download-cloud-2-line" class="text-sm" />
                   </button>
                   <button 
                     @click.stop="confirmDelete(vid)"
-                    class="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl"
+                    class="py-2.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl"
                     title="Delete"
                   >
                     <Icon name="ri:delete-bin-line" class="text-sm" />

@@ -39,25 +39,27 @@
     </Transition>
 
     <!-- Toast Notifications -->
-    <Transition
-      enter-active-class="transform ease-out duration-300 transition"
-      enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
-      enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
-      leave-active-class="transition ease-in duration-100"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
-    >
-      <div v-if="state.toast.value" class="fixed bottom-32 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-6 py-3 rounded-2xl border backdrop-blur-xl shadow-2xl min-w-[300px]"
-        :class="[
-          state.toast.value.type === 'success' ? 'bg-accent-500/10 border-accent-500/20 text-accent-500' :
-          state.toast.value.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' :
-          'bg-white/10 border-white/20 text-white'
-        ]"
+    <div class="fixed bottom-32 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
+      <Transition
+        enter-active-class="transition duration-500 ease-out transform"
+        enter-from-class="translate-y-4 opacity-0 scale-95"
+        enter-to-class="translate-y-0 opacity-100 scale-100"
+        leave-active-class="transition duration-300 ease-in transform"
+        leave-from-class="translate-y-0 opacity-100 scale-100"
+        leave-to-class="translate-y-4 opacity-0 scale-95"
       >
-        <Icon :name="state.toast.value.type === 'success' ? 'ri:checkbox-circle-fill' : 'ri:error-warning-fill'" class="text-xl shrink-0" />
-        <span class="text-sm font-bold tracking-wide uppercase">{{ state.toast.value.message }}</span>
-      </div>
-    </Transition>
+        <div v-if="state.toast.value" class="pointer-events-auto flex items-center gap-3 px-6 py-3 rounded-2xl border backdrop-blur-xl shadow-2xl min-w-[300px]"
+          :class="[
+            state.toast.value.type === 'success' ? 'bg-accent-500/10 border-accent-500/20 text-accent-500' :
+            state.toast.value.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' :
+            'bg-white/10 border-white/20 text-white'
+          ]"
+        >
+          <Icon :name="state.toast.value.type === 'success' ? 'ri:checkbox-circle-fill' : 'ri:error-warning-fill'" class="text-xl shrink-0" />
+          <span class="text-sm font-bold tracking-wide uppercase">{{ state.toast.value.message }}</span>
+        </div>
+      </Transition>
+    </div>
 
     <!-- Hidden Font Preloader -->
     <div class="font-preloader" aria-hidden="true">
