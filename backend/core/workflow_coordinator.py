@@ -266,7 +266,7 @@ class ClipWorkflowCoordinator:
                 # Extract audio from clip
                 clip_audio = self.asset_repository.extract_audio_from_local(clip["file_path"])
                 print(f"[transcribe] Transcribing clip audio...")
-                precise_words = self.speech_transcriber.transcribe(clip_audio)
+                precise_words = self.speech_transcriber.transcribe(clip_audio, model_size=whisper_model)
                 
                 if precise_words:
                     # Save precise transcript

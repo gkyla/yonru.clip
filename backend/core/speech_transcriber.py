@@ -7,7 +7,7 @@ class SpeechTranscriber(ABC):
         pass
 
     @abstractmethod
-    def _transcribe(self, audio_path: str, language: Optional[str] = None) -> List[Any]:
+    def _transcribe(self, audio_path: str, model_size: Optional[str] = None, language: Optional[str] = None) -> List[Any]:
         """Protected method that concrete transcribers implement to get raw segments."""
         pass
 
@@ -15,9 +15,9 @@ class SpeechTranscriber(ABC):
         """Remove commas and trim whitespace."""
         return text.replace(',', '').strip()
 
-    def transcribe(self, audio_path: str, language: Optional[str] = None) -> List[Dict[str, Any]]:
+    def transcribe(self, audio_path: str, model_size: Optional[str] = None, language: Optional[str] = None) -> List[Dict[str, Any]]:
         """Transcribe audio and return standard word-level timestamps."""
-        segments = self._transcribe(audio_path, language=language)
+        segments = self._transcribe(audio_path, model_size=model_size, language=language)
         
         word_level = []
         for segment in segments:
@@ -57,11 +57,24 @@ class SpeechTranscriber(ABC):
 class FasterWhisperSpeechTranscriber(SpeechTranscriber):
     def __init__(self, model_size="base", device="cpu", compute_type="int8"):
         super().__init__()
-        self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
+        self.default_model_size = model_size
+        self.device = device
+        self.compute_type = compute_type
+        # Lazy model cache to avoid reloading
+        self._models: Dict[str, WhisperModel] = {}
 
-    def _transcribe(self, audio_path: str, language: Optional[str] = None) -> List[Any]:
-        print(f"[whisper-client] Transcribing {audio_path}...")
-        segments, info = self.model.transcribe(
+    def get_model(self, model_size: str) -> WhisperModel:
+        if model_size not in self._models:
+            print(f"[whisper-client] Loading Whisper model: {model_size} (device={self.device}, compute_type={self.compute_type})...")
+            self._models[model_size] = WhisperModel(model_size, device=self.device, compute_type=self.compute_type)
+        return self._models[model_size]
+
+    def _transcribe(self, audio_path: str, model_size: Optional[str] = None, language: Optional[str] = None) -> List[Any]:
+        selected_model = model_size or self.default_model_size
+        model = self.get_model(selected_model)
+        
+        print(f"[whisper-client] Transcribing {audio_path} using model {selected_model}...")
+        segments, info = model.transcribe(
             audio_path, 
             beam_size=5, 
             word_timestamps=True,
@@ -96,7 +109,9 @@ class MockSpeechTranscriber(SpeechTranscriber):
         super().__init__()
         self.mock_segments = mock_segments or []
         self.last_audio_path = None
+        self.last_model_size = None
 
-    def _transcribe(self, audio_path: str, language: Optional[str] = None) -> List[Any]:
+    def _transcribe(self, audio_path: str, model_size: Optional[str] = None, language: Optional[str] = None) -> List[Any]:
         self.last_audio_path = audio_path
+        self.last_model_size = model_size
         return self.mock_segments

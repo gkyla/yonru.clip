@@ -46,3 +46,6 @@ A backend deep module responsible for validating, fetching, and offline-synchron
 ### Shared Font Manifest
 A single source of truth configuration file (`shared/fonts_manifest.json`) that catalogs active fonts, their subsets, and IDs, ingested directly by both the python backend Font Synchronizer and the Nuxt frontend state composables to ensure absolute configuration alignment across boundaries.
 
+### Speech Transcriber
+A deep backend domain adapter wrapping the Whisper AI engine to perform high-fidelity audio transcription. It converts audio files into word-level timestamps and dynamically loads different model sizes (e.g. tiny, base, small, medium) on demand according to active configuration settings.
+
