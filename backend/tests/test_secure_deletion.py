@@ -37,12 +37,15 @@ class TestSecureDeletion(unittest.TestCase):
         
         # Clean alphanumeric and underscore name should succeed
         count = repo.delete_cached_video("Valid_Title_abc123-456")
-        
-        # Must return deleted count (1 source + 1 clip = 2)
         self.assertEqual(count, 2)
-        self.assertEqual(mock_rmtree.call_count, 2)
         
-        print("\n[OK] delete_cached_video securely validated name and cleared folders successfully!")
+        # Folder names containing spaces and non-breaking spaces should also succeed
+        count_with_spaces = repo.delete_cached_video("Valid Title\u00a0abc123-456")
+        self.assertEqual(count_with_spaces, 2)
+        
+        self.assertEqual(mock_rmtree.call_count, 4)
+        
+        print("\n[OK] delete_cached_video securely validated name (including spaces) and cleared folders successfully!")
 
 if __name__ == '__main__':
     unittest.main()

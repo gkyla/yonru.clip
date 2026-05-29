@@ -100,7 +100,8 @@ class AssetRepository(AssetStore):
     def _sanitize_filename(self, title: str) -> str:
         """Sanitize title for folder naming, truncating to 50 chars."""
         s = re.sub(r'[^\w\s-]', '_', title).strip()
-        return s[:50].replace(' ', '_')
+        s = re.sub(r'\s+', '_', s)
+        return s[:50]
 
     def _run_ffmpeg(self, args: list) -> bool:
         cmd = ["ffmpeg"] + args
@@ -423,7 +424,7 @@ class AssetRepository(AssetStore):
 
     def delete_cached_video(self, folder_name: str) -> int:
         """Delete titled folders in sources and clips securely with validation."""
-        if not folder_name or not re.match(r"^[a-zA-Z0-9_.-]+$", folder_name) or ".." in folder_name:
+        if not folder_name or not re.match(r"^[\w\s.-]+$", folder_name) or ".." in folder_name:
             raise ValueError(f"Invalid or unsafe folder name: {folder_name}")
 
         count = 0
@@ -454,9 +455,9 @@ class AssetRepository(AssetStore):
 
     def delete_clip(self, folder_name: str, clip_id: str) -> bool:
         """Delete a specific clip folder securely."""
-        if not folder_name or ".." in folder_name or not re.match(r"^[a-zA-Z0-9_.-]+$", folder_name):
+        if not folder_name or ".." in folder_name or not re.match(r"^[\w\s.-]+$", folder_name):
             raise ValueError(f"Invalid folder name: {folder_name}")
-        if not clip_id or ".." in clip_id or not re.match(r"^[a-zA-Z0-9_.-]+$", clip_id):
+        if not clip_id or ".." in clip_id or not re.match(r"^[\w\s.-]+$", clip_id):
             raise ValueError(f"Invalid clip ID: {clip_id}")
 
         base_clips = os.path.abspath(self.clips_dir)
