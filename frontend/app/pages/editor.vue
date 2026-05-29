@@ -86,22 +86,32 @@
              <div v-if="isPipelineActive" class="absolute inset-0 z-50 bg-[#060608]/95 backdrop-blur-xl flex flex-col items-center justify-center text-center">
                <!-- Ambient glow -->
                <div class="absolute w-[50vw] h-[50vw] rounded-full blur-[160px] -top-1/3 -right-1/3 mix-blend-screen transition-colors duration-1000"
-                 :class="state.isMediaLoading.value ? 'bg-accent-500/8' : pipelineStep === 'cutting' ? 'bg-sky-500/8' : pipelineStep === 'transcribing' ? 'bg-violet-500/8' : 'bg-accent-500/10'"
+                 :class="pipelineStep === 'cutting' ? 'bg-sky-500/8' : pipelineStep === 'transcribing' ? 'bg-violet-500/8' : state.isMediaLoading.value ? 'bg-accent-500/8' : 'bg-accent-500/10'"
                ></div>
                <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
 
                <!-- Main spinner -->
                <div class="relative mb-10 z-10 flex items-center justify-center">
                   <div class="absolute w-40 h-40 bg-accent-500/10 rounded-full blur-[60px] animate-pulse"></div>
-                  <div class="w-28 h-28 rounded-full border-[3px] border-surface-border/30 shadow-[0_0_20px_rgba(207,255,80,0.3)] relative">
-                   <div class="absolute inset-0 rounded-full border-[3px] border-transparent animate-spin"
-                     :class="state.isMediaLoading.value ? 'border-t-accent-500 border-r-accent-500/30' : pipelineStep === 'cutting' ? 'border-t-sky-500 border-r-sky-500/30' : pipelineStep === 'transcribing' ? 'border-t-violet-400 border-r-violet-400/30' : 'border-t-accent-500 border-r-accent-500/30'"
+                  <div class="w-28 h-28 rounded-full border-[4px] border-surface-border relative transition-all duration-700 z-10 flex items-center justify-center"
+                    :class="pipelineStep === 'cutting' 
+                      ? 'shadow-[0_0_30px_#38bdf8_inset,0_0_50px_rgba(56,189,248,0.4)]' 
+                      : pipelineStep === 'transcribing' 
+                        ? 'shadow-[0_0_30px_#a78bfa_inset,0_0_50px_rgba(167,139,250,0.4)]' 
+                        : 'shadow-[0_0_30px_#CFFF50_inset,0_0_50px_rgba(207,255,80,0.4)]'"
+                  >
+                   <div class="absolute inset-[-4px] rounded-full border-[4px] border-transparent animate-spin transition-colors duration-700"
+                     :class="pipelineStep === 'cutting' 
+                       ? 'border-t-sky-500' 
+                       : pipelineStep === 'transcribing' 
+                         ? 'border-t-violet-400' 
+                         : 'border-t-accent-500'"
                    ></div>
                    <div class="absolute inset-0 flex items-center justify-center">
                      <Icon 
-                       :name="state.isMediaLoading.value ? 'ri:loader-4-line' : pipelineStep === 'cutting' ? 'ri:scissors-cut-fill' : pipelineStep === 'transcribing' ? 'ri:mic-ai-fill' : 'ri:check-double-fill'" 
-                       class="text-4xl"
-                       :class="state.isMediaLoading.value ? 'text-accent-500 animate-spin' : (pipelineStep === 'cutting' ? 'text-sky-400 animate-pulse' : pipelineStep === 'transcribing' ? 'text-violet-400 animate-pulse' : 'text-accent-500 animate-pulse')"
+                       :name="state.jobStatus.value === 'ready' ? 'ri:check-double-fill' : pipelineStep === 'cutting' ? 'ri:scissors-cut-fill' : pipelineStep === 'transcribing' ? 'ri:mic-ai-fill' : 'ri:film-line'" 
+                       class="text-4xl transition-colors duration-700"
+                       :class="pipelineStep === 'cutting' ? 'text-sky-400 animate-pulse' : pipelineStep === 'transcribing' ? 'text-violet-400 animate-pulse' : 'text-accent-500 animate-pulse'"
                      />
                    </div>
                  </div>
@@ -801,7 +811,13 @@ watch(() => state.jobStatus.value, (newStatus) => {
 // Moved up
 
 // Pipeline loading overlay
-const pipelineStep = computed(() => state?.jobStatus?.value || 'idle')
+const pipelineStep = computed(() => {
+  const status = state?.jobStatus?.value || 'idle'
+  if (state?.activeHook?.value && status !== 'ready') {
+    return status === 'transcribing' ? 'transcribing' : 'cutting'
+  }
+  return status
+})
 
 const pipelineStepIdx = computed(() => {
   const map: Record<string, number> = { cutting: 0, transcribing: 1, ready: 2 }
