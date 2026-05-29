@@ -912,7 +912,7 @@
                </button>
                
                <button 
-                 @click="selectedClips.clear()"
+                 @click="clearSelection"
                  class="text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors"
                >
                  Cancel
@@ -1071,24 +1071,30 @@ watch(showAllReadyClips, (val) => {
   if (val) {
     clipsCurrentPage.value = 1
     isManageMode.value = false
-    selectedClips.value.clear()
+    selectedClips.value = new Set()
   }
 })
 
 function toggleManageMode() {
   isManageMode.value = !isManageMode.value
   if (!isManageMode.value) {
-    selectedClips.value.clear()
+    selectedClips.value = new Set()
   }
+}
+
+function clearSelection() {
+  selectedClips.value = new Set()
 }
 
 function handleClipClick(clip: any) {
   if (isManageMode.value) {
-    if (selectedClips.value.has(clip.clip_id)) {
-      selectedClips.value.delete(clip.clip_id)
+    const next = new Set(selectedClips.value)
+    if (next.has(clip.clip_id)) {
+      next.delete(clip.clip_id)
     } else {
-      selectedClips.value.add(clip.clip_id)
+      next.add(clip.clip_id)
     }
+    selectedClips.value = next
   } else {
     const parentVid = cachedVideos.value.find(v => v.folder_name === clip.folder_name)
     if (parentVid) setLastAccessed(parentVid.video_id)
@@ -1098,9 +1104,9 @@ function handleClipClick(clip: any) {
 
 function selectAllClips() {
   if (selectedClips.value.size === readyClips.value.length) {
-    selectedClips.value.clear()
+    selectedClips.value = new Set()
   } else {
-    readyClips.value.forEach(c => selectedClips.value.add(c.clip_id))
+    selectedClips.value = new Set(readyClips.value.map(c => c.clip_id))
   }
 }
 
@@ -1127,7 +1133,7 @@ async function deleteSelectedClips() {
       showSuccessState.value = false
     }, 5000)
 
-    selectedClips.value.clear()
+    selectedClips.value = new Set()
     isManageMode.value = false
     await fetchReadyClips()
   } catch (e: any) {
@@ -1408,7 +1414,7 @@ async function executeDeleteClip() {
         showSuccessState.value = false
       }, 5000)
 
-      selectedClips.value.clear()
+      selectedClips.value = new Set()
       isManageMode.value = false
       state.showToast(`${count} clips successfully deleted.`, 'success')
       await fetchReadyClips()

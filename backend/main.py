@@ -474,8 +474,12 @@ async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
         folder_name = item.get("folder_name")
         clip_id = item.get("clip_id")
         if folder_name and clip_id:
-            success = asset_repository.delete_clip(folder_name, clip_id)
-            results.append({"clip_id": clip_id, "success": success})
+            try:
+                success = asset_repository.delete_clip(folder_name, clip_id)
+                results.append({"clip_id": clip_id, "success": success})
+            except ValueError as e:
+                print(f"[delete-batch] Validation failed for {folder_name}/{clip_id}: {e}")
+                results.append({"clip_id": clip_id, "success": False, "error": str(e)})
     return {"status": "ok", "results": results}
 
 @app.delete("/api/cached/{folder_name}")

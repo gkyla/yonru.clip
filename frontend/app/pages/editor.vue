@@ -109,7 +109,7 @@
                    ></div>
                    <div class="absolute inset-0 flex items-center justify-center">
                      <Icon 
-                       :name="state.jobStatus.value === 'ready' ? 'ri:check-double-fill' : pipelineStep === 'cutting' ? 'ri:scissors-cut-fill' : pipelineStep === 'transcribing' ? 'ri:mic-ai-fill' : 'ri:film-line'" 
+                       :name="state.jobStatus.value === 'ready' ? 'ri:check-double-fill' : pipelineStep === 'cutting' ? 'ri:scissors-cut-fill' : pipelineStep === 'transcribing' ? 'ri:mic-ai-fill' : 'ri:check-double-fill'" 
                        class="text-4xl transition-colors duration-700"
                        :class="pipelineStep === 'cutting' ? 'text-sky-400 animate-pulse' : pipelineStep === 'transcribing' ? 'text-violet-400 animate-pulse' : 'text-accent-500 animate-pulse'"
                      />
