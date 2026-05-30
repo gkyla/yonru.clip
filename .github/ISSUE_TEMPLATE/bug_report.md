@@ -1,7 +1,7 @@
 ---
 name: 🐛 Bug Report
 about: Report an issue or error to help improve Yonru
-title: '[BUG] '
+title: 'fix: '
 labels: bug
 assignees: ''
 ---
