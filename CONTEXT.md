@@ -39,6 +39,9 @@ A customizable text block overlaid on the thumbnail frame, supporting configurab
 ### Default Thumbnail Style
 A reusable styling template that encapsulates typography and still frame duration, persisted inside `default_thumbnail_style.json` via backend APIs, automatically initialized on new clips, and applied to overlays when explicitly loaded.
 
+### Library Duplicate Intercept
+A client-side warning dialog that triggers when a user submits a YouTube URL that already exists in the Cached Library, offering choices to load existing hooks instantly or reanalyze hooks using Gemini without re-downloading the video.
+
 ---
 
 ## Asset Synchronization & Bootstrapping
