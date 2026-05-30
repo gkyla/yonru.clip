@@ -62,4 +62,5 @@ graph TD
 *   **Conventional Commits**: Every commit must use an active, plain-language Conventional Commit prefix (e.g., `fix:`, `feat:`, `refactor:`, `test:`).
 *   **Simple Verbose Logs**: Do not use jargon (e.g., 'decommission', 'ameliorate'). Prefer clear, active verbs (e.g., 'remove', 'fix', 'use').
 *   **Explicit Approval**: Always prompt the user and obtain explicit permission before staging, committing, or pushing code.
-*   **GitHub Issue Templates**: When programmatically creating or updating GitHub Issues, all agents MUST ALWAYS read the corresponding template file in `.github/ISSUE_TEMPLATE/` (e.g. `feature_request.md` or `bug_report.md`) first, and structure the issue title, label, headings, and descriptions to strictly match that template's required syntax and fields.
+*   **GitHub Issue Templates**: When programmatically creating or updating GitHub Issues, all agents MUST ALWAYS read the corresponding template file in `.github/ISSUE_TEMPLATE/` (e.g. `feature_request.md` or `bug_report.md`) first, and structure the issue title, label, headings, and descriptions to strictly match that template's required syntax and fields. In particular, the issue title MUST use standard lowercase conventional prefixes followed by a colon (e.g., `feat: `, `fix: `) instead of bracketed uppercase styles (e.g., `[FEAT]`, `[BUG]`).
+
