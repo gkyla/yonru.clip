@@ -57,7 +57,7 @@
                <Icon name="ri:ai-generate" class="mr-1" /> Force AI
              </button>
              <button 
-               @click="state.analyzeUrl(false)" 
+               @click="handleAnalyzeClick" 
                :disabled="!state.youtubeUrl.value || isProcessing"
                class="absolute right-2 px-5 py-2.5 bg-accent-500 text-black font-bold uppercase tracking-wider text-sm rounded-lg hover:bg-accent-400 hover:shadow-[0_0_15px_#CFFF50] focus:outline-none disabled:opacity-50 disabled:hover:shadow-none transition-all"
              >
@@ -639,6 +639,51 @@
         </div>
      </div>
 
+      <!-- Premium Glass Library Duplicate Intercept Warning Modal -->
+      <div v-if="duplicateModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+         <!-- Backdrop filter blurring background -->
+         <div class="absolute inset-0 bg-black/85 backdrop-blur-md" @click="duplicateModalOpen = false"></div>
+         
+         <!-- Content Card -->
+         <div class="relative w-full max-w-lg bg-surface-dark border border-surface-border rounded-3xl p-8 shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
+            <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
+            
+            <!-- Large info/warning icon -->
+            <div class="w-16 h-16 rounded-2xl bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(207,255,80,0.1)]">
+               <Icon name="ri:information-fill" class="text-3xl" />
+            </div>
+
+            <h3 class="text-2xl font-black text-white tracking-wide mb-3">Video Already In Library</h3>
+            <p class="text-slate-400 text-xs mb-6 font-semibold leading-relaxed">
+               This video has already been downloaded and processed in your Cached Library. You can load it instantly or choose to reanalyze the hooks without downloading it again.
+            </p>
+
+            <!-- Buttons -->
+            <div class="flex flex-col gap-3 w-full">
+               <button 
+                 @click="() => { duplicateModalOpen = false; analyzeCached(duplicateVideoId, false); }"
+                 class="w-full py-3 bg-accent-500 text-black hover:bg-accent-400 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_30px_rgba(207,255,80,0.2)] active:scale-[0.98] flex items-center justify-center gap-2"
+               >
+                  <Icon name="ri:folder-open-line" class="text-sm" />
+                  Load Existing Hooks
+               </button>
+               <button 
+                 @click="() => { duplicateModalOpen = false; analyzeCached(duplicateVideoId, true); }"
+                 class="w-full py-3 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+               >
+                  <Icon name="ri:magic-line" class="text-sm text-accent-500" />
+                  Reanalyze Hooks Only
+               </button>
+               <button 
+                 @click="duplicateModalOpen = false"
+                 class="w-full py-3 bg-transparent hover:bg-white/5 text-slate-400 hover:text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center"
+               >
+                  Cancel
+               </button>
+            </div>
+         </div>
+      </div>
+
      <!-- Beautiful Glass Deletion Warning Modal -->
      <div v-if="deleteConfirmModalOpen && videoToDelete" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <!-- Backdrop filter blurring background -->
@@ -971,6 +1016,29 @@ const clipDeleteConfirmModalOpen = ref(false)
 const clipToDelete = ref<any | null>(null)
 const showAllReadyClips = ref(false)
 const loadedClips = ref(new Set<string>())
+
+// Library Duplicate Intercept state & helpers
+const duplicateModalOpen = ref(false)
+const duplicateVideoId = ref('')
+
+function extractYoutubeId(url: string): string | null {
+  const reg = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i
+  const match = url.match(reg)
+  return match ? match[1] : null
+}
+
+function handleAnalyzeClick() {
+  const url = state.youtubeUrl.value
+  if (!url) return
+  
+  const videoId = extractYoutubeId(url)
+  if (videoId && cachedVideos.value.some(v => v.video_id === videoId)) {
+    duplicateVideoId.value = videoId
+    duplicateModalOpen.value = true
+  } else {
+    state.analyzeUrl(false)
+  }
+}
 
 async function handleViewUpdate(view: string) {
   if (view === 'editor') {
