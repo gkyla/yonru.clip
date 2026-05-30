@@ -44,18 +44,9 @@
                v-model="state.youtubeUrl.value"
                type="url" 
                placeholder="https://youtube.com/watch?v=..." 
-               class="w-full bg-[#111318] border border-surface-border text-white px-6 py-4 rounded-xl pr-36 focus:outline-none focus:border-accent-500/50 transition-all font-medium"
+               class="w-full bg-[#111318] border border-surface-border text-white px-6 py-4 rounded-xl pr-32 focus:outline-none focus:border-accent-500/50 transition-all font-medium"
                :disabled="isProcessing"
              />
-             <button 
-               @click="state.analyzeUrl(true)" 
-               v-if="state.youtubeUrl.value"
-               :disabled="isProcessing"
-               title="Force re-analyze (bypass cache)"
-               class="absolute right-36 px-4 py-1.5 border border-surface-border bg-surface-dark text-slate-400 font-bold uppercase text-[10px] rounded hover:text-amber-400 hover:border-amber-500/50 focus:outline-none disabled:opacity-50 transition-all"
-             >
-               <Icon name="ri:ai-generate" class="mr-1" /> Force AI
-             </button>
              <button 
                @click="handleAnalyzeClick" 
                :disabled="!state.youtubeUrl.value || isProcessing"
