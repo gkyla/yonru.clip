@@ -248,6 +248,27 @@ class ClipWorkflowCoordinator:
                     shutil.copy(default_style_path, clip_style_path)
                     print(f"[transcribe] Populated default style settings to {clip_style_path}")
 
+                # Check for default thumbnail config
+                clip_thumb_config_path = os.path.join(os.path.dirname(clip["file_path"]), "thumbnail_config.json")
+                default_thumb_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
+                if not os.path.exists(clip_thumb_config_path) and os.path.exists(default_thumb_style_path):
+                    try:
+                        with open(default_thumb_style_path, "r", encoding="utf-8") as f:
+                            default_style = json.load(f)
+                        duration = default_style.get("thumbnailDuration", 1.0)
+                        initial_config = {
+                            "enabled": False,
+                            "duration": duration,
+                            "screenshotTime": 0,
+                            "textOverlays": [],
+                            "xOffset": 50
+                        }
+                        with open(clip_thumb_config_path, "w", encoding="utf-8") as f:
+                            json.dump(initial_config, f, ensure_ascii=False, indent=2)
+                        print(f"[transcribe] Populated default thumbnail config to {clip_thumb_config_path}")
+                    except Exception as e:
+                        print(f"[transcribe] Failed to populate default thumbnail config: {e}")
+
                 job = self.jobs[job_id]
                 job["clip"] = clip 
                 job["clip_path"] = clip["file_path"]
@@ -294,6 +315,27 @@ class ClipWorkflowCoordinator:
                 import shutil
                 shutil.copy(default_style_path, clip_style_path)
                 print(f"[transcribe] Populated default style settings to {clip_style_path}")
+
+            # Check for default thumbnail config
+            clip_thumb_config_path = os.path.join(os.path.dirname(clip["file_path"]), "thumbnail_config.json")
+            default_thumb_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
+            if not os.path.exists(clip_thumb_config_path) and os.path.exists(default_thumb_style_path):
+                try:
+                    with open(default_thumb_style_path, "r", encoding="utf-8") as f:
+                        default_style = json.load(f)
+                    duration = default_style.get("thumbnailDuration", 1.0)
+                    initial_config = {
+                        "enabled": False,
+                        "duration": duration,
+                        "screenshotTime": 0,
+                        "textOverlays": [],
+                        "xOffset": 50
+                    }
+                    with open(clip_thumb_config_path, "w", encoding="utf-8") as f:
+                        json.dump(initial_config, f, ensure_ascii=False, indent=2)
+                    print(f"[transcribe] Populated default thumbnail config to {clip_thumb_config_path}")
+                except Exception as e:
+                    print(f"[transcribe] Failed to populate default thumbnail config: {e}")
 
             # Store full clip metadata
             job = self.jobs[job_id]

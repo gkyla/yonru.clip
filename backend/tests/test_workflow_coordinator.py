@@ -191,10 +191,12 @@ def test_run_local_cut_success_flow(mock_dependencies, tmp_path):
         {"start": 0.5, "duration": 1.0, "text": "Hello"}
     ]
     
-    # Mock default style settings file
+    # Mock default style settings file and default thumbnail style
     os.makedirs("temp_assets", exist_ok=True)
     with open("temp_assets/default_style_settings.json", "w") as f:
         json.dump({"font": "Arial"}, f)
+    with open("temp_assets/default_thumbnail_style.json", "w") as f:
+        json.dump({"thumbnailDuration": 2.5, "fontSize": 80}, f)
         
     try:
         coordinator.run_local_cut(job_id, 10.0, 30.0)
@@ -216,10 +218,20 @@ def test_run_local_cut_success_flow(mock_dependencies, tmp_path):
         # Verify style settings file copied
         style_settings_path = clip_dir / "style_settings.json"
         assert style_settings_path.exists()
+
+        # Verify default thumbnail config populated
+        thumbnail_config_path = clip_dir / "thumbnail_config.json"
+        assert thumbnail_config_path.exists()
+        with open(thumbnail_config_path, "r") as f:
+            thumb_config = json.load(f)
+        assert thumb_config["duration"] == 2.5
+        assert thumb_config["enabled"] is False
     finally:
         # Cleanup
         if os.path.exists("temp_assets/default_style_settings.json"):
             os.remove("temp_assets/default_style_settings.json")
+        if os.path.exists("temp_assets/default_thumbnail_style.json"):
+            os.remove("temp_assets/default_thumbnail_style.json")
 
 def test_run_local_cut_reuse_transcript(mock_dependencies, tmp_path):
     """Verify run_local_cut reuses the existing transcript and style if present."""

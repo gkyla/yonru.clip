@@ -28,8 +28,10 @@ export const useClipperState = () => {
   const {
     thumbnailEnabled, thumbnailUrl, thumbnailDuration, thumbnailScreenshotTime,
     thumbnailTextOverlays, thumbnailEditMode, thumbnailXOffset, isDeletingThumbnail, isCapturingThumbnail,
+    defaultThumbnailStyle,
     resetThumbnailState, captureScreenshot, addThumbnailText, removeThumbnailText,
-    saveThumbnailConfig, loadThumbnailConfig, toggleThumbnail, deleteThumbnail
+    saveThumbnailConfig, loadThumbnailConfig, toggleThumbnail, deleteThumbnail,
+    loadDefaultThumbnailStyle, saveDefaultThumbnailStyle, applyDefaultThumbnailStyle
   } = thumbnailState
 
   // Export state delegated from useClipperExport sub-composable
@@ -369,6 +371,8 @@ export const useClipperState = () => {
       try { timeline.defaultTimelineTextStyle.value = JSON.parse(savedStyle) } catch {}
     }
 
+    loadDefaultThumbnailStyle()
+
     watch(selectedPrompt, (val) => localStorage.setItem('yonru_prompt', val))
     watch(whisperModel, (val) => localStorage.setItem('yonru_model', val))
 
@@ -432,6 +436,7 @@ export const useClipperState = () => {
     thumbnailEditMode,
     thumbnailXOffset,
     isCapturingThumbnail,
+    defaultThumbnailStyle,
     // Other State
     jobId, isMediaLoading, jobStatus, jobError,
     isNavigatingToEditor,
@@ -463,6 +468,7 @@ export const useClipperState = () => {
     captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig, deleteThumbnail,
     toggleThumbnail,
     resetWorkspace,
-    toast, showToast, initPersistence
+    toast, showToast, initPersistence,
+    loadDefaultThumbnailStyle, saveDefaultThumbnailStyle, applyDefaultThumbnailStyle
   }
 }
