@@ -20,6 +20,7 @@ export const useClipperThumbnail = () => {
   const thumbnailTextOverlays = useState<any[]>('thumbnailTextOverlays', () => [])
   const thumbnailEditMode = useState<boolean>('thumbnailEditMode', () => false)
   const thumbnailXOffset = useState<number>('thumbnailXOffset', () => 50)
+  const defaultThumbnailStyle = useState<any>('defaultThumbnailStyle', () => null)
 
   // Loading/saving transient states
   const isDeletingThumbnail = ref(false)
@@ -119,6 +120,20 @@ export const useClipperThumbnail = () => {
       backgroundColor: first.backgroundColor,
       backgroundOpacity: first.backgroundOpacity,
       backgroundPadding: first.backgroundPadding
+    } : (defaultThumbnailStyle.value ? {
+      fontSize: defaultThumbnailStyle.value.fontSize ?? 100,
+      fontFamily: defaultThumbnailStyle.value.fontFamily ?? 'Montserrat',
+      fontWeight: defaultThumbnailStyle.value.fontWeight ?? 900,
+      color: defaultThumbnailStyle.value.color ?? '#FFFFFF',
+      strokeColor: defaultThumbnailStyle.value.strokeColor ?? '#000000',
+      strokeWidth: defaultThumbnailStyle.value.strokeWidth ?? 5,
+      showStroke: defaultThumbnailStyle.value.showStroke ?? true,
+      textTransform: defaultThumbnailStyle.value.textTransform ?? 'uppercase',
+      rotation: defaultThumbnailStyle.value.rotation ?? 0,
+      showBackground: defaultThumbnailStyle.value.showBackground ?? false,
+      backgroundColor: defaultThumbnailStyle.value.backgroundColor ?? '#000000',
+      backgroundOpacity: defaultThumbnailStyle.value.backgroundOpacity ?? 0.7,
+      backgroundPadding: defaultThumbnailStyle.value.backgroundPadding ?? 20
     } : {
       fontSize: 100,
       fontFamily: 'Montserrat',
@@ -133,7 +148,7 @@ export const useClipperThumbnail = () => {
       backgroundColor: '#000000',
       backgroundOpacity: 0.7,
       backgroundPadding: 20
-    }
+    })
 
     let newX = 540
     let newY = 960
@@ -183,6 +198,9 @@ export const useClipperThumbnail = () => {
   async function loadThumbnailConfig() {
     if (!folderName.value || !clipId.value) return
     try {
+      if (!defaultThumbnailStyle.value) {
+        await loadDefaultThumbnailStyle()
+      }
       const res = await $fetch<{ config: any }>(`${API_BASE}/api/thumbnail/config/${folderName.value}/${clipId.value}`)
       if (res.config) {
         timeline.isSavingLocked.value = true
@@ -293,6 +311,92 @@ export const useClipperThumbnail = () => {
     }
   }
 
+  async function loadDefaultThumbnailStyle() {
+    try {
+      const res = await $fetch<{ style: any }>(`${API_BASE}/api/default-thumbnail-style`)
+      if (res.style) {
+        defaultThumbnailStyle.value = res.style
+      } else {
+        defaultThumbnailStyle.value = null
+      }
+    } catch (e) {
+      defaultThumbnailStyle.value = null
+    }
+  }
+
+  async function saveDefaultThumbnailStyle() {
+    const first = thumbnailTextOverlays.value[0]
+    if (!first) {
+      showToast('Add at least one text overlay to save its style as default!', 'error')
+      return
+    }
+
+    const style = {
+      thumbnailDuration: thumbnailDuration.value,
+      fontSize: first.fontSize,
+      fontFamily: first.fontFamily,
+      fontWeight: first.fontWeight,
+      color: first.color,
+      strokeColor: first.strokeColor,
+      strokeWidth: first.strokeWidth,
+      showStroke: first.showStroke,
+      textTransform: first.textTransform,
+      rotation: first.rotation,
+      showBackground: first.showBackground,
+      backgroundColor: first.backgroundColor,
+      backgroundOpacity: first.backgroundOpacity,
+      backgroundPadding: first.backgroundPadding
+    }
+
+    try {
+      await $fetch(`${API_BASE}/api/default-thumbnail-style`, {
+        method: 'PUT',
+        body: { style }
+      })
+      defaultThumbnailStyle.value = style
+      showToast('Thumbnail style saved as default!', 'success')
+    } catch (e) {
+      showToast('Failed to save default thumbnail style', 'error')
+    }
+  }
+
+  function applyDefaultThumbnailStyle() {
+    if (!defaultThumbnailStyle.value) {
+      showToast('No saved default thumbnail style found!', 'error')
+      return
+    }
+
+    timeline.isSavingLocked.value = true
+    
+    if (defaultThumbnailStyle.value.thumbnailDuration !== undefined) {
+      thumbnailDuration.value = defaultThumbnailStyle.value.thumbnailDuration
+    }
+
+    thumbnailTextOverlays.value = thumbnailTextOverlays.value.map(o => ({
+      ...o,
+      fontSize: defaultThumbnailStyle.value.fontSize ?? o.fontSize,
+      fontFamily: defaultThumbnailStyle.value.fontFamily ?? o.fontFamily,
+      fontWeight: defaultThumbnailStyle.value.fontWeight ?? o.fontWeight,
+      color: defaultThumbnailStyle.value.color ?? o.color,
+      strokeColor: defaultThumbnailStyle.value.strokeColor ?? o.strokeColor,
+      strokeWidth: defaultThumbnailStyle.value.strokeWidth ?? o.strokeWidth,
+      showStroke: defaultThumbnailStyle.value.showStroke ?? o.showStroke,
+      textTransform: defaultThumbnailStyle.value.textTransform ?? o.textTransform,
+      rotation: defaultThumbnailStyle.value.rotation ?? o.rotation,
+      showBackground: defaultThumbnailStyle.value.showBackground ?? o.showBackground,
+      backgroundColor: defaultThumbnailStyle.value.backgroundColor ?? o.backgroundColor,
+      backgroundOpacity: defaultThumbnailStyle.value.backgroundOpacity ?? o.backgroundOpacity,
+      backgroundPadding: defaultThumbnailStyle.value.backgroundPadding ?? o.backgroundPadding
+    }))
+
+    showToast('Applied default thumbnail style to overlays!', 'success')
+
+    nextTick(() => {
+      timeline.isSavingLocked.value = false
+      saveThumbnailConfig()
+    })
+  }
+
   return {
     thumbnailEnabled,
     thumbnailUrl,
@@ -303,6 +407,7 @@ export const useClipperThumbnail = () => {
     thumbnailXOffset,
     isDeletingThumbnail,
     isCapturingThumbnail,
+    defaultThumbnailStyle,
     resetThumbnailState,
     captureScreenshot,
     addThumbnailText,
@@ -310,6 +415,9 @@ export const useClipperThumbnail = () => {
     saveThumbnailConfig,
     loadThumbnailConfig,
     toggleThumbnail,
-    deleteThumbnail
+    deleteThumbnail,
+    loadDefaultThumbnailStyle,
+    saveDefaultThumbnailStyle,
+    applyDefaultThumbnailStyle
   }
 }

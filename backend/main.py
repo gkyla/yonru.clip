@@ -159,6 +159,9 @@ class StyleSettingsRequest(BaseModel):
 class DefaultStyleSettingsRequest(BaseModel):
     settings: dict
 
+class DefaultThumbnailStyleRequest(BaseModel):
+    style: dict
+
 class SystemSettingsRequest(BaseModel):
     GEMINI_API_KEY: Optional[str] = None
     FFMPEG_PATH: Optional[str] = None
@@ -294,6 +297,28 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
                 import shutil
                 shutil.copy(default_style_path, clip_style_path)
                 print(f"[api] Populated default style settings to {clip_style_path}")
+
+            # Check for default thumbnail config
+            clip_thumb_path = os.path.join(target_dir, "thumbnail_config.json")
+            default_thumb_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
+            if not os.path.exists(clip_thumb_path) and os.path.exists(default_thumb_style_path):
+                try:
+                    with open(default_thumb_style_path, "r", encoding="utf-8") as f:
+                        default_style = json.load(f)
+                    duration = default_style.get("thumbnailDuration", 1.0)
+                    initial_config = {
+                        "enabled": False,
+                        "duration": duration,
+                        "screenshotTime": 0,
+                        "textOverlays": [],
+                        "xOffset": 50
+                    }
+                    os.makedirs(target_dir, exist_ok=True)
+                    with open(clip_thumb_path, "w", encoding="utf-8") as f:
+                        json.dump(initial_config, f, ensure_ascii=False, indent=2)
+                    print(f"[api] Populated default thumbnail config to {clip_thumb_path}")
+                except Exception as e:
+                    print(f"[api] Failed to populate default thumbnail config: {e}")
 
             # Ensure job object is updated for polling atomically
             job = jobs[req.job_id]
@@ -650,6 +675,32 @@ async def update_default_style_settings(req: DefaultStyleSettingsRequest):
         print(f"[edit] Default style save failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/default-thumbnail-style")
+async def get_default_thumbnail_style():
+    """Retrieve default thumbnail style settings."""
+    default_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
+    if os.path.exists(default_style_path):
+        try:
+            with open(default_style_path, "r", encoding="utf-8") as f:
+                style = json.load(f)
+            return {"style": style}
+        except Exception as e:
+            print(f"[api] Error reading default thumbnail style: {e}")
+    return {"style": None}
+
+@app.put("/api/default-thumbnail-style")
+async def update_default_thumbnail_style(req: DefaultThumbnailStyleRequest):
+    """Persist default thumbnail style settings for all future clips."""
+    default_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
+    try:
+        with open(default_style_path, "w", encoding="utf-8") as f:
+            json.dump(req.style, f, ensure_ascii=False, indent=2)
+        print(f"[edit] Updated default thumbnail style at {default_style_path}")
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"[edit] Default thumbnail style save failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/system-settings")
 async def get_system_settings():
     """Retrieve system settings from config store."""
@@ -921,6 +972,29 @@ async def get_thumbnail_config(folder_name: str, clip_id: str):
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
         return {"config": config}
+    
+    # Pre-populate with default thumbnail config if default_thumbnail_style exists
+    default_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
+    if os.path.exists(default_style_path):
+        try:
+            with open(default_style_path, "r", encoding="utf-8") as f:
+                default_style = json.load(f)
+            duration = default_style.get("thumbnailDuration", 1.0)
+            initial_config = {
+                "enabled": False,
+                "duration": duration,
+                "screenshotTime": 0,
+                "textOverlays": [],
+                "xOffset": 50
+            }
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(initial_config, f, ensure_ascii=False, indent=2)
+            print(f"[thumbnail] Pre-populated default thumbnail config to {config_path}")
+            return {"config": initial_config}
+        except Exception as e:
+            print(f"[thumbnail] Failed to pre-populate default config: {e}")
+            
     return {"config": None}
 
 @app.delete("/api/thumbnail/{folder_name}/{clip_id}")

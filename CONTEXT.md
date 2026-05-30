@@ -36,6 +36,9 @@ A percentage value (0 to 100) representing the horizontal pan displacement of th
 ### Thumbnail Text Overlay
 A customizable text block overlaid on the thumbnail frame, supporting configurable typography, backgrounds, strokes, transformations, and positioning.
 
+### Default Thumbnail Style
+A reusable styling template that encapsulates typography and still frame duration, persisted inside `default_thumbnail_style.json` via backend APIs, automatically initialized on new clips, and applied to overlays when explicitly loaded.
+
 ---
 
 ## Asset Synchronization & Bootstrapping
