@@ -1,5 +1,6 @@
 // useClipperJob.ts - Extracted video ingestion and polling lifecycle
 import { useTimelineState } from './useTimelineState'
+import { mapThumbnailOverlays } from '../utils/thumbnailHelpers'
 
 export const useClipperJob = () => {
   const API_BASE = 'http://localhost:8000'
@@ -104,24 +105,7 @@ export const useClipperJob = () => {
         thumbnailDuration.value = res.config.duration ?? 1.0
         thumbnailScreenshotTime.value = res.config.screenshotTime ?? 0
         thumbnailXOffset.value = res.config.xOffset ?? 50
-        thumbnailTextOverlays.value = (res.config.textOverlays ?? []).map((o: any) => ({
-          x: 540,
-          y: 960,
-          fontSize: 100,
-          fontFamily: 'Montserrat',
-          fontWeight: 900,
-          color: '#FFFFFF',
-          strokeColor: '#000000',
-          strokeWidth: 5,
-          showStroke: true,
-          textTransform: 'uppercase',
-          rotation: 0,
-          showBackground: false,
-          backgroundColor: '#000000',
-          backgroundOpacity: 0.7,
-          backgroundPadding: 20,
-          ...o
-        }))
+        thumbnailTextOverlays.value = mapThumbnailOverlays(res.config.textOverlays)
         
         const baseClipUrl = `${API_BASE}/assets/clips/${folderName.value}/${clipId.value}`
         try {
