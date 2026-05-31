@@ -39,7 +39,7 @@
               
               <!-- Tooltip Content -->
               <div class="absolute bottom-full right-0 mb-3 w-80 bg-surface-panel border border-surface-border rounded-xl shadow-2xl p-4 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left">
-                <h4 class="text-white text-xs font-bold uppercase tracking-widest mb-3 text-accent-500">Suitable For:</h4>
+                <h4 class="text-accent-500 text-xs font-bold uppercase tracking-widest mb-3">Suitable For:</h4>
                 <div v-if="currentPrompt && currentPrompt.suitableFor && currentPrompt.suitableFor.length" class="flex flex-col gap-2">
                   <div 
                     v-for="(item, i) in currentPrompt.suitableFor" :key="i"
@@ -974,7 +974,7 @@ const duplicateVideoId = ref('')
 function extractYoutubeId(url: string): string | null {
   const reg = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i
   const match = url.match(reg)
-  return match ? match[1] : null
+  return match ? (match[1] ?? null) : null
 }
 
 function handleAnalyzeClick() {

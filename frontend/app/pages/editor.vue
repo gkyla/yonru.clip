@@ -745,7 +745,7 @@ async function selectSidebarHook(hook: any) {
 
   if (matchingClip) {
     console.log('[editor] Hook is already rendered, loading ready clip:', matchingClip.clip_id)
-    state.loadReadyClipIntoEditor(state.folderName.value, matchingClip.clip_id)
+    state.loadReadyClipIntoEditor(state.folderName.value || '', matchingClip.clip_id)
   } else {
     console.log('[editor] Hook is not rendered, starting extraction...')
     state.extractClip(hook)
