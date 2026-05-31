@@ -63,9 +63,9 @@ export function groupTranscript(segments: ChunkerSegment[], subtitleMode: string
     
     for (let i = 0; i < flatWords.length; i += numWords) {
       const chunk = flatWords.slice(i, i + numWords)
-      if (chunk.length > 0) {
-        const first = chunk[0]
-        const last = chunk[chunk.length - 1]
+      const first = chunk[0]
+      const last = chunk[chunk.length - 1]
+      if (first && last) {
         groupedSegments.push({
           text: chunk.map(w => w.text).filter(t => t.length > 0).join(' '),
           start: first.start,
@@ -106,18 +106,18 @@ export function updateSegmentText(seg: ChunkerSegment, newText: string): void {
     const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(-Infinity))
     const parent: (string | null)[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(null))
     
-    dp[0][0] = 0
+    dp[0]![0] = 0
     
     // Initialize first column: matching original slots to empty strings
     for (let i = 1; i <= m; i++) {
-      dp[i][0] = i * -0.1
-      parent[i][0] = 'skip_orig'
+      dp[i]![0] = i * -0.1
+      parent[i]![0] = 'skip_orig'
     }
     
     for (let i = 1; i <= m; i++) {
       for (let j = 1; j <= n; j++) {
-        const origWord = (flatWordsInSeg[i-1].text || '').toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
-        const newWord = words[j-1].toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
+        const origWord = (flatWordsInSeg[i-1]!.text || '').toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
+        const newWord = words[j-1]!.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
         
         // Option 1: Match original slot i-1 with new word j-1
         let matchScore = -1.0 // mismatch penalty
@@ -126,17 +126,17 @@ export function updateSegmentText(seg: ChunkerSegment, newText: string): void {
         } else if (origWord && (origWord.includes(newWord) || newWord.includes(origWord))) {
           matchScore = 0.5
         }
-        const scoreMatch = dp[i-1][j-1] + matchScore
+        const scoreMatch = dp[i-1]![j-1]! + matchScore
         
         // Option 2: Skip original slot i-1
-        const scoreSkipOrig = dp[i-1][j] - 0.1
+        const scoreSkipOrig = dp[i-1]![j]! - 0.1
         
         if (scoreMatch >= scoreSkipOrig) {
-          dp[i][j] = scoreMatch
-          parent[i][j] = 'match'
+          dp[i]![j] = scoreMatch
+          parent[i]![j] = 'match'
         } else {
-          dp[i][j] = scoreSkipOrig
-          parent[i][j] = 'skip_orig'
+          dp[i]![j] = scoreSkipOrig
+          parent[i]![j] = 'skip_orig'
         }
       }
     }
@@ -147,9 +147,9 @@ export function updateSegmentText(seg: ChunkerSegment, newText: string): void {
     let j = n
     
     while (i > 0) {
-      const action = parent[i][j]
+      const action = parent[i]![j]
       if (action === 'match' && j > 0) {
-        assignment[i-1] = words[j-1]
+        assignment[i-1] = words[j-1]!
         i--
         j--
       } else { // 'skip_orig' or j === 0
@@ -161,12 +161,12 @@ export function updateSegmentText(seg: ChunkerSegment, newText: string): void {
     // If there are leftover words at the beginning, group them into the first slot
     if (j > 0) {
       const remaining = words.slice(0, j)
-      assignment[0] = (remaining.join(" ") + " " + assignment[0]).trim()
+      assignment[0] = (remaining.join(" ") + " " + (assignment[0] || "")).trim()
     }
     
     // Apply assignments to underlying flat words
     flatWordsInSeg.forEach((w, idx) => {
-      w.text = assignment[idx]
+      w.text = assignment[idx] ?? ""
     })
   }
 
@@ -214,8 +214,10 @@ export function updateSegmentStart(seg: ChunkerSegment, newStart: number): void 
     if (originalSeg.flatWords && originalSeg.flatWords.length) {
       const first = originalSeg.flatWords[0]
       const last = originalSeg.flatWords[originalSeg.flatWords.length - 1]
-      originalSeg.start = first.start
-      originalSeg.duration = last.end - first.start
+      if (first && last) {
+        originalSeg.start = first.start
+        originalSeg.duration = last.end - first.start
+      }
     }
   })
 }
@@ -248,8 +250,10 @@ export function updateSegmentDuration(seg: ChunkerSegment, newDuration: number):
     if (originalSeg.flatWords && originalSeg.flatWords.length) {
       const first = originalSeg.flatWords[0]
       const last = originalSeg.flatWords[originalSeg.flatWords.length - 1]
-      originalSeg.start = first.start
-      originalSeg.duration = last.end - first.start
+      if (first && last) {
+        originalSeg.start = first.start
+        originalSeg.duration = last.end - first.start
+      }
     }
   })
 }
