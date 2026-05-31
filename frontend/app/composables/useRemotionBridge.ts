@@ -1,6 +1,7 @@
 // useRemotionBridge.ts - Encapsulates Remotion player communication, postMessage protocol, and timing synchronization
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useClipperState } from './useClipperState'
+import { parseSubtitleWords } from '../utils/remotionHelpers'
 
 export const useRemotionBridge = (
   remotionIframe: { value: HTMLIFrameElement | null },
@@ -20,89 +21,14 @@ export const useRemotionBridge = (
     if (!remotionIframe.value || !remotionIframe.value.contentWindow) return
     
     const hook = state?.activeHook?.value
-    let wordsData: any[] = []
-    let allWordTimings: any[] = []
-    
-    const syncOffsetSec = state.subtitleSyncOffset.value / 1000
-    
-    const flatWords: { text: string, start: number, duration: number, end: number }[] = []
-    if (state.fullTranscript.value) {
-      state.fullTranscript.value.forEach(s => {
-        const segText = (s.text || '').trim()
-        if (!segText) return
-        
-        const relativeStart = s.start + syncOffsetSec
-        const segmentDuration = s.duration
-        if (segmentDuration <= 0) return
-        
-        const rawWords = segText.split(/\s+/)
-        const wordDur = segmentDuration / Math.max(1, rawWords.length)
-        
-        rawWords.forEach((w: string, idx: number) => {
-          const wStart = relativeStart + (idx * wordDur)
-          const wEnd = relativeStart + ((idx + 1) * wordDur)
-          
-          flatWords.push({
-            text: w,
-            start: wStart,
-            duration: wordDur,
-            end: wEnd
-          })
-          
-          allWordTimings.push({
-            word: w,
-            start: wStart,
-            end: wEnd
-          })
-        })
-      })
-    }
-    
-    if (flatWords.length > 0) {
-      const mode: string = state.subtitleMode.value || 'word'
-      
-      if (mode === 'word' || mode === '1_word') {
-        flatWords.forEach(w => {
-          wordsData.push({
-            word: w.text,
-            start: w.start,
-            end: w.end
-          })
-        })
-      } else if (mode.endsWith('_words')) {
-        let numWords = 1
-        const match = mode.match(/^(\d+)_(?:word|words)$/)
-        if (match && match[1]) {
-          numWords = parseInt(match[1]) || 1
-        }
-        
-        for (let i = 0; i < flatWords.length; i += numWords) {
-          const chunk = flatWords.slice(i, i + numWords)
-          if (chunk.length > 0) {
-            const first = chunk[0]
-            const last = chunk[chunk.length - 1]
-            if (first && last) {
-              const start = first.start
-              const end = last.end
-              const text = chunk.map(w => w.text).join(' ')
-              wordsData.push({
-                word: text,
-                start,
-                end
-              })
-            }
-          }
-        }
-      } else {
-        flatWords.forEach(w => {
-          wordsData.push({
-            word: w.text,
-            start: w.start,
-            end: w.end
-          })
-        })
-      }
-    }
+    const syncOffsetMs = state.subtitleSyncOffset.value
+    const mode = state.subtitleMode.value || 'word'
+
+    const { wordsData, allWordTimings } = parseSubtitleWords(
+      state.fullTranscript.value,
+      syncOffsetMs,
+      mode
+    )
   
     const cropXPixel = ((state.cropPercentX.value ?? 50) / 100) * 1920
     
