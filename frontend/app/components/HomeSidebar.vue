@@ -329,6 +329,13 @@ function handleNav(view: string) {
   emit('update:activeView', view)
   if (view === 'settings') {
     isSettingsSubnavExpanded.value = true
+    navigateTo('/settings')
+  } else if (view === 'prompts') {
+    navigateTo('/prompts')
+  } else if (view === 'docs') {
+    navigateTo('/docs')
+  } else if (view === 'home') {
+    navigateTo('/')
   }
   if (props.isFloating) {
     isCollapsed.value = true
