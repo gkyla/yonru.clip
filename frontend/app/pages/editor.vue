@@ -550,7 +550,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick, onActivated } from 'vue'
-import { groupTranscript, updateSegmentText, updateSegmentStart, updateSegmentDuration, redistributeTranscript } from '../utils/subtitleChunker.js'
+import { groupTranscript, updateSegmentText, updateSegmentStart, updateSegmentDuration, redistributeTranscript } from '../utils/subtitleChunker'
 const state = useClipperState()
 const route = useRoute()
 
