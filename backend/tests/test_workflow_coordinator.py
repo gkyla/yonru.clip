@@ -65,9 +65,11 @@ def test_run_full_analysis_cache_hit(mock_dependencies, tmp_path):
     # Assertions
     assert coordinator.jobs[job_id]["status"] == "ready"
     assert coordinator.jobs[job_id]["full_video_path"] == str(video_file)
-    assert len(coordinator.jobs[job_id]["hooks"]) == 1
-    assert coordinator.jobs[job_id]["hooks"][0]["start"] == 10.0
-    assert coordinator.jobs[job_id]["hooks"][0]["end"] == 30.0
+    hooks = coordinator.jobs[job_id]["hooks"]
+    assert hooks is not None
+    assert len(hooks) == 1
+    assert hooks[0]["start"] == 10.0
+    assert hooks[0]["end"] == 30.0
     
     # Ensure no network calls were made
     mock_dependencies["youtube_client"].extract_video_id.assert_not_called()
@@ -123,10 +125,12 @@ def test_run_full_analysis_success_flow(mock_dependencies, tmp_path):
     # Assertions
     assert coordinator.jobs[job_id]["status"] == "hooks_ready"
     assert coordinator.jobs[job_id]["full_video_path"] == str(video_file)
-    assert len(coordinator.jobs[job_id]["hooks"]) == 1
-    assert coordinator.jobs[job_id]["hooks"][0]["start"] == 5.0
-    assert coordinator.jobs[job_id]["hooks"][0]["end"] == 25.0
-    assert coordinator.jobs[job_id]["hooks"][0]["duration"] == 20.0
+    hooks = coordinator.jobs[job_id]["hooks"]
+    assert hooks is not None
+    assert len(hooks) == 1
+    assert hooks[0]["start"] == 5.0
+    assert hooks[0]["end"] == 25.0
+    assert hooks[0]["duration"] == 20.0
 
 def test_run_full_analysis_no_transcript(mock_dependencies):
     """Verify run_full_analysis fails gracefully when no transcript is found."""
@@ -153,7 +157,9 @@ def test_run_full_analysis_no_transcript(mock_dependencies):
     coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=new123", "id")
     
     assert coordinator.jobs[job_id]["status"] == "error"
-    assert "No transcript found" in coordinator.jobs[job_id]["error"]
+    error_msg = coordinator.jobs[job_id]["error"]
+    assert error_msg is not None
+    assert "No transcript found" in error_msg
 
 def test_run_local_cut_success_flow(mock_dependencies, tmp_path):
     """Verify run_local_cut successfully cuts and transcribes the clip, and saves it."""
@@ -205,7 +211,9 @@ def test_run_local_cut_success_flow(mock_dependencies, tmp_path):
         assert coordinator.jobs[job_id]["status"] == "ready"
         assert coordinator.jobs[job_id]["clip_path"] == str(clip_file)
         assert coordinator.jobs[job_id]["clip_duration"] == 20.0
-        assert coordinator.jobs[job_id]["clip"]["transcript_quote"] == "Hello"
+        clip = coordinator.jobs[job_id]["clip"]
+        assert clip is not None
+        assert clip["transcript_quote"] == "Hello"
         
         # Verify transcription file created
         transcript_path = clip_dir / "transcript.json"

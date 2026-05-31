@@ -94,7 +94,7 @@ class MockWord:
 
 
 class MockSegment:
-    def __init__(self, text: str, start: float, end: float, words: List[MockWord] = None):
+    def __init__(self, text: str, start: float, end: float, words: Optional[List[MockWord]] = None):
         self.text = text
         self.start = start
         self.end = end
@@ -105,7 +105,7 @@ class MockSegment:
 
 
 class MockSpeechTranscriber(SpeechTranscriber):
-    def __init__(self, mock_segments: List[Any] = None):
+    def __init__(self, mock_segments: Optional[List[Any]] = None):
         super().__init__()
         self.mock_segments = mock_segments or []
         self.last_audio_path = None
