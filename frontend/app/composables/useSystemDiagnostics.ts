@@ -1,4 +1,6 @@
 // useSystemDiagnostics.ts - Extracted system diagnostics logic
+import { isPrerequisiteMissing } from '../utils/systemDiagnostics'
+
 export const useSystemDiagnostics = () => {
   const API_BASE = 'http://localhost:8000'
 
@@ -7,17 +9,7 @@ export const useSystemDiagnostics = () => {
   const settingsScrollTarget = useState<string | null>('settingsScrollTarget', () => null)
 
   const isAnyPrerequisiteMissing = computed(() => {
-    if (!systemHealth.value) return false
-    const keys = ['ffmpeg', 'node', 'python_env', 'gemini_api', 'cookies']
-    return keys.some(key => {
-      const item = systemHealth.value[key]
-      if (!item) return false
-      if (['ffmpeg', 'node', 'python_env'].includes(key)) {
-        return item.status !== 'OK'
-      } else {
-        return item.status !== 'Configured'
-      }
-    })
+    return isPrerequisiteMissing(systemHealth.value)
   })
 
   async function checkSystemHealth() {
