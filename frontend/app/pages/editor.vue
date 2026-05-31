@@ -901,7 +901,7 @@ const activeWordIdxInSeg = computed(() => {
   const words = seg.text.trim().split(/\s+/)
   if (!words.length || words.length === 1) return 0
 
-  const duration = seg.end - seg.start
+  const duration = seg.duration
   const wordDur = duration / words.length
 
   const elapsed = searchTime - seg.start
