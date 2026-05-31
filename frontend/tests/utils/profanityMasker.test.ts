@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { maskText } from './profanityMasker'
+import { maskText } from '../../app/utils/profanityMasker'
 
 describe('Profanity Masker TDD', () => {
   it('returns original text if text or blacklist is empty', () => {

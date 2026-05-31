@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isPrerequisiteMissing } from './systemDiagnostics'
+import { isPrerequisiteMissing } from '../../app/utils/systemDiagnostics'
 
 describe('System Diagnostics TDD', () => {
   it('returns false when health data is null or undefined', () => {

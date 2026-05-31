@@ -7,7 +7,7 @@ import {
   updateSegmentStart, 
   updateSegmentDuration,
   redistributeTranscript
-} from './subtitleChunker.js';
+} from '../../app/utils/subtitleChunker.js';
 
 describe('Subtitle Chunker TDD tests', () => {
   it('passes all group and update assertions', () => {
