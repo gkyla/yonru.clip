@@ -1,6 +1,7 @@
 // useCropDrag.ts - Encapsulates crop dragging and bounds calculation logic
 import { ref } from 'vue'
 import { useClipperState } from './useClipperState'
+import { calculateCropPercent } from '../utils/cropHelpers'
 
 export const useCropDrag = (
   previewScale: { value: number },
@@ -24,14 +25,12 @@ export const useCropDrag = (
   function onDrag(e: MouseEvent) {
     if (!isDragging.value || maxOffset.value === 0) return
     const dx = e.clientX - dragStartX.value
-    
-    // dx is in screen pixels. Map to 1080 scale using current previewScale.
-    const scaledDx = dx / previewScale.value
-    
-    // Transform is `-(pct * maxOffset)`. 
-    // If moving mouse left (negative dx), we want to view more of the RIGHT side. Percent should increase.
-    const percentDelta = (scaledDx / maxOffset.value) * -100
-    state.cropPercentX.value = Math.max(0, Math.min(100, dragStartPercent.value + percentDelta))
+    state.cropPercentX.value = calculateCropPercent(
+      dx,
+      dragStartPercent.value,
+      previewScale.value,
+      maxOffset.value
+    )
   }
 
   function stopDrag() {
@@ -54,9 +53,12 @@ export const useCropDrag = (
     const touch = e.touches[0]
     if (touch) {
       const dx = touch.clientX - dragStartX.value
-      const scaledDx = dx / previewScale.value
-      const percentDelta = (scaledDx / maxOffset.value) * -100
-      state.cropPercentX.value = Math.max(0, Math.min(100, dragStartPercent.value + percentDelta))
+      state.cropPercentX.value = calculateCropPercent(
+        dx,
+        dragStartPercent.value,
+        previewScale.value,
+        maxOffset.value
+      )
     }
   }
 
