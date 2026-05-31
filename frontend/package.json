@@ -7,7 +7,9 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@nuxt/icon": "^2.2.1",
@@ -21,5 +23,11 @@
     "vue-konva": "^3.4.0",
     "vue-router": "^5.0.4",
     "wavesurfer.js": "^7.12.6"
+  },
+  "devDependencies": {
+    "@nuxt/test-utils": "^3.15.4",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^17.1.8",
+    "vitest": "^3.0.5"
   }
 }

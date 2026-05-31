@@ -37,6 +37,7 @@ graph TD
 *   **vertical slices only**: Never write all test suites upfront (horizontal slicing). Write exactly one test asserting one behavior, implement minimal production code to pass it, and repeat.
 *   **Test Observable Behavior**: Tests must interface only through the public seam or API endpoints. Never assert private methods, database implementations, or raw disk files directly.
 *   **Zero-Flakiness Mocking**: Use concrete mock adapters (`MockAssetStore`) to run entire suites with zero actual file I/O or active network requests.
+*   **Frontend Testing**: For frontend TDD cycles, write colocated `*.spec.ts` files inside the `frontend/app/` folder, leveraging Vitest, Happy DOM, and `@nuxt/test-utils`.
 
 ---
 
@@ -47,7 +48,7 @@ graph TD
 
 ## 4. Self-Healing & Isolated Environments
 *   **Self-Healing Bootstraps**: Always rely on the built-in system coordinator (`run.py`) to manage dependencies, provison virtual environments (`backend/venv`), and synchronize offline fonts. Avoid manually installing pip or npm packages globally.
-*   **Environment Isolation**: Never run system global commands when verifying code. Always use virtualenv binary paths directly (e.g. `backend/venv/bin/pytest` or `backend/venv/bin/python`).
+*   **Environment Isolation**: Never run system global commands when verifying code. Always use virtualenv binary paths directly for the backend (e.g. `backend/venv/bin/pytest` or `backend/venv/bin/python`), and use local package manager scripts for the frontend (e.g., executing `npm run test` inside the `frontend/` folder).
 
 ---
 
