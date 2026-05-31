@@ -1,4 +1,5 @@
 // useTimelineState.ts - Extracted timeline tracks and duration sequencing logic
+import { calculateTimelineDuration, calculateVideoTime } from '../utils/timelineHelpers'
 export const useTimelineState = () => {
   const API_BASE = 'http://localhost:8000'
 
@@ -21,35 +22,21 @@ export const useTimelineState = () => {
   const clipId = useState<string | null>('clipId')
 
   const timelineDuration = computed(() => {
-    let max = 0
-    let hasItems = false
-    timelineTracks.value.forEach(track => {
-      if (track.items.length > 0) hasItems = true
-      track.items.forEach((item: any) => {
-        max = Math.max(max, item.start + item.duration)
-      })
-    })
-    
-    const offset = (thumbnailEnabled.value ? thumbnailDuration.value : 0)
-    
-    if (hasItems) {
-      return (max > 0 ? max : 1) + offset
-    }
-    return (videoDuration.value > 0 ? videoDuration.value : 60) + offset
+    return calculateTimelineDuration(
+      timelineTracks.value,
+      thumbnailEnabled.value,
+      thumbnailDuration.value,
+      videoDuration.value
+    )
   })
 
   const videoTime = computed(() => {
-    const thumbSec = thumbnailEnabled.value ? thumbnailDuration.value : 0
-    const t = Math.max(0, currentTime.value - thumbSec)
-    const videoTrack = timelineTracks.value.find(tr => tr.id === 'video')
-    if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) return t
-    
-    const activeItem = videoTrack.items.find((i: any) => t >= i.start && t < i.start + i.duration)
-    if (activeItem) {
-      const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : activeItem.start
-      return mediaStart + (t - activeItem.start)
-    }
-    return t
+    return calculateVideoTime(
+      currentTime.value,
+      thumbnailEnabled.value,
+      thumbnailDuration.value,
+      timelineTracks.value
+    )
   })
 
   async function saveTimelineTracks() {
