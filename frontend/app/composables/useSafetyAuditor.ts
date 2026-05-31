@@ -1,5 +1,6 @@
 // useSafetyAuditor.ts - Extracted safety and profanity scanning logic
 import { auditTranscript } from '../utils/contentAuditor'
+import { maskText } from '../utils/profanityMasker'
 
 export const DEFAULT_BLACKLIST = [
   // Violence & Harm
@@ -97,28 +98,10 @@ export const useSafetyAuditor = () => {
     const transcript = fullTranscript.value || []
     const combinedBlacklist = [...new Set([...DEFAULT_BLACKLIST, ...customBlacklist.value])]
     
-    fullTranscript.value = transcript.map(seg => {
-      let text = seg.text || ''
-      combinedBlacklist.forEach(word => {
-        if (!word) return
-        let regex: RegExp
-        if (word.startsWith('/') && word.endsWith('/')) {
-          regex = new RegExp(word.slice(1, -1), 'gi')
-        } else {
-          const escapedWord = word.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-          regex = new RegExp(`\\b${escapedWord}\\b`, 'gi')
-        }
-        
-        text = text.replace(regex, (match: string) => {
-          if (match.length <= 1) return match
-          return match.charAt(0) + '*' + match.slice(2)
-        })
-      })
-      return {
-        ...seg,
-        text
-      }
-    })
+    fullTranscript.value = transcript.map(seg => ({
+      ...seg,
+      text: maskText(seg.text || '', combinedBlacklist)
+    }))
   }
 
   return {
