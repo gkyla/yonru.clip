@@ -2,6 +2,7 @@
 // Encapsulates SSE stream parsing, progress tracking, ETA, and render lifecycle
 
 import { useTimelineState } from './useTimelineState'
+import { parseRenderEvent } from '../utils/renderEventParser'
 
 interface ExportDeps {
   saveTranscript: (isSilent?: boolean) => Promise<void>
@@ -56,33 +57,24 @@ export const useClipperExport = (deps: ExportDeps) => {
 
   // --- Private SSE stream parser ---
   function handleSSEData(data: any) {
-    if (data.stage === 'bundling') {
-      renderProgress.value = data.percent || 0
-      renderStage.value = 'bundling'
-      renderEta.value = 0
-    } else if (data.stage === 'rendering') {
-      renderProgress.value = data.percent || 0
-      renderStage.value = 'rendering'
-      renderEta.value = data.etaSeconds || 0
-    } else if (data.stage === 'encoding') {
-      renderStage.value = 'encoding'
-      renderProgress.value = data.percent || 96
-    } else if (data.stage === 'starting') {
-      renderStage.value = 'starting'
-      renderProgress.value = 0
-    } else if (data.stage === 'done') {
-      renderStatus.value = 'done'
-      renderProgress.value = 100
-      renderStage.value = ''
-      renderEta.value = 0
-      outputUrl.value = `${API_BASE}${data.outputUrl}`
-      videoUrl.value = outputUrl.value
-    } else if (data.stage === 'error') {
-      renderStatus.value = 'error'
-      jobError.value = data.message || 'Render failed'
-      renderProgress.value = 0
-      renderStage.value = ''
+    const currentState = {
+      progress: renderProgress.value,
+      stage: renderStage.value,
+      eta: renderEta.value,
+      status: renderStatus.value,
+      outputUrl: outputUrl.value,
+      videoUrl: videoUrl.value,
+      jobError: jobError.value
     }
+    const nextState = parseRenderEvent(data, currentState, API_BASE)
+    
+    renderProgress.value = nextState.progress
+    renderStage.value = nextState.stage
+    renderEta.value = nextState.eta
+    renderStatus.value = nextState.status
+    outputUrl.value = nextState.outputUrl
+    videoUrl.value = nextState.videoUrl
+    jobError.value = nextState.jobError
   }
 
   // --- Private: build render request body ---
