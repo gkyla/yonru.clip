@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
-import VerifySetup from './VerifySetup.vue'
+import VerifySetup from '../../app/components/VerifySetup.vue'
 
 describe('VerifySetup Component', () => {
   it('renders correctly and has active reactivity', async () => {

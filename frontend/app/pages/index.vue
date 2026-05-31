@@ -1,39 +1,6 @@
 <template>
-  <div class="flex h-screen w-full bg-[#060608] overflow-hidden relative">
-
-
-    <!-- Resizable Sidebar -->
-    <HomeSidebar 
-      :active-view="activeView"
-      :cached-videos="cachedVideos"
-      :is-processing="isProcessing"
-      :processing-title="videoTitle"
-      :processing-status="loadingLabel"
-      :last-video="lastAccessedVideo"
-      :last-clip="lastAccessedClip"
-      :API_BASE="API_BASE"
-      :default-collapsed="false"
-      :is-floating="false"
-      @analyze="analyzeCached"
-      @redownload="confirmRedownload"
-      @delete="confirmDelete"
-      @update:activeView="handleViewUpdate"
-    />
-
-    <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col h-full overflow-hidden relative">
-      <TheTopbar />
-      
-      <div class="flex-1 overflow-y-auto custom-scrollbar w-full relative flex flex-col items-center p-8">
-      <!-- Abstract Background Setup -->
-      <div class="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-[#060608]">
-         <div class="absolute w-[60vw] h-[60vw] rounded-full bg-accent-500/5 blur-[120px] -top-1/4 -right-1/4 mix-blend-screen"></div>
-         <div class="absolute w-[40vw] h-[40vw] rounded-full bg-violet-500/5 blur-[100px] bottom-0 -left-1/4 mix-blend-screen"></div>
-         <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5 mix-blend-overlay"></div>
-      </div>
-
-      <!-- Home View -->
-      <div v-if="activeView === 'home'" class="w-full max-w-5xl z-10 flex flex-col">
+  <NuxtLayout>
+    <div class="w-full max-w-5xl z-10 flex flex-col">
         <!-- Header Input Area -->
         <div class="text-center mt-12 mb-10">
           <h2 class="text-4xl font-bold tracking-tight text-white mb-4">Paste URL. Extract Hooks.</h2>
@@ -550,13 +517,7 @@
       </div>
     </div>
 
-    <!-- Other Views -->
-    <HomeSettings v-else-if="activeView === 'settings'" />
-    <HomePrompts v-else-if="activeView === 'prompts'" />
-    <HomeDocs v-else-if="activeView === 'docs'" />
 
-      </div>
-    </div>
 
     <!-- Cinematic Modal Overlay -->
     <div v-if="selectedModalHook" class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -980,15 +941,13 @@
        </div>
     </div>
     </div>
-  </div>
+  </NuxtLayout>
 </template>
 
 <script setup lang="ts">
 const state = useClipperState()
 const API_BASE = 'http://localhost:8000'
 
-// UI States
-const activeView = ref('home')
 const viewMode = ref<'grid' | 'list'>('grid')
 const { 
   cachedVideos, isCachedLoading, lastAccessedVideo, lastAccessedVideoId, 
@@ -1028,31 +987,6 @@ function handleAnalyzeClick() {
     duplicateModalOpen.value = true
   } else {
     state.analyzeUrl(false)
-  }
-}
-
-async function handleViewUpdate(view: string) {
-  if (view === 'editor') {
-    const clip = state.lastAccessedClip.value
-    if (clip) {
-      isNavigatingToEditor.value = true
-      const minWait = new Promise(resolve => setTimeout(resolve, 600))
-      // Load clip into editor state first (gets job_id, video, transcript etc.)
-      await state.loadReadyClipIntoEditor(clip.folder, clip.clip_id)
-      await minWait
-      navigateTo({
-        path: '/editor',
-        query: { 
-          job_id: state.jobId.value || '',
-          folder: clip.folder,
-          hook_index: 0
-        }
-      })
-    } else {
-      state.showToast('Select a clip first!', 'info')
-    }
-  } else {
-    activeView.value = view
   }
 }
 
