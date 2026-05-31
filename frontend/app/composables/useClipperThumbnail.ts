@@ -1,5 +1,6 @@
 // useClipperThumbnail.ts - Extracted thumbnail composition and overlay editing logic
 import { useTimelineState } from './useTimelineState'
+import { resolveThumbnailTextStyle, calculateNextOverlayPosition, mapThumbnailOverlays } from '../utils/thumbnailHelpers'
 
 export const useClipperThumbnail = () => {
   const API_BASE = 'http://localhost:8000'
@@ -105,59 +106,12 @@ export const useClipperThumbnail = () => {
   }
 
   function addThumbnailText() {
-    const first = thumbnailTextOverlays.value[0]
-    const style = first ? {
-      fontSize: first.fontSize,
-      fontFamily: first.fontFamily,
-      fontWeight: first.fontWeight,
-      color: first.color,
-      strokeColor: first.strokeColor,
-      strokeWidth: first.strokeWidth,
-      showStroke: first.showStroke,
-      textTransform: first.textTransform,
-      rotation: first.rotation,
-      showBackground: first.showBackground,
-      backgroundColor: first.backgroundColor,
-      backgroundOpacity: first.backgroundOpacity,
-      backgroundPadding: first.backgroundPadding
-    } : (defaultThumbnailStyle.value ? {
-      fontSize: defaultThumbnailStyle.value.fontSize ?? 100,
-      fontFamily: defaultThumbnailStyle.value.fontFamily ?? 'Montserrat',
-      fontWeight: defaultThumbnailStyle.value.fontWeight ?? 900,
-      color: defaultThumbnailStyle.value.color ?? '#FFFFFF',
-      strokeColor: defaultThumbnailStyle.value.strokeColor ?? '#000000',
-      strokeWidth: defaultThumbnailStyle.value.strokeWidth ?? 5,
-      showStroke: defaultThumbnailStyle.value.showStroke ?? true,
-      textTransform: defaultThumbnailStyle.value.textTransform ?? 'uppercase',
-      rotation: defaultThumbnailStyle.value.rotation ?? 0,
-      showBackground: defaultThumbnailStyle.value.showBackground ?? false,
-      backgroundColor: defaultThumbnailStyle.value.backgroundColor ?? '#000000',
-      backgroundOpacity: defaultThumbnailStyle.value.backgroundOpacity ?? 0.7,
-      backgroundPadding: defaultThumbnailStyle.value.backgroundPadding ?? 20
-    } : {
-      fontSize: 100,
-      fontFamily: 'Montserrat',
-      fontWeight: 900,
-      color: '#FFFFFF',
-      strokeColor: '#000000',
-      strokeWidth: 5,
-      showStroke: true,
-      textTransform: 'uppercase',
-      rotation: 0,
-      showBackground: false,
-      backgroundColor: '#000000',
-      backgroundOpacity: 0.7,
-      backgroundPadding: 20
-    })
+    const style = resolveThumbnailTextStyle(
+      thumbnailTextOverlays.value[0],
+      defaultThumbnailStyle.value
+    )
 
-    let newX = 540
-    let newY = 960
-
-    // Ensure new text overlays do not stack or overlap exactly on top of any existing overlay
-    while (thumbnailTextOverlays.value.some(o => o.x === newX && o.y === newY)) {
-      newX += 40
-      newY += 80
-    }
+    const { x: newX, y: newY } = calculateNextOverlayPosition(thumbnailTextOverlays.value)
 
     thumbnailTextOverlays.value = [
       ...thumbnailTextOverlays.value,
@@ -208,24 +162,7 @@ export const useClipperThumbnail = () => {
         thumbnailDuration.value = res.config.duration ?? 1.0
         thumbnailScreenshotTime.value = res.config.screenshotTime ?? 0
         thumbnailXOffset.value = res.config.xOffset ?? 50
-        thumbnailTextOverlays.value = (res.config.textOverlays ?? []).map((o: any) => ({
-          x: 540,
-          y: 960,
-          fontSize: 100,
-          fontFamily: 'Montserrat',
-          fontWeight: 900,
-          color: '#FFFFFF',
-          strokeColor: '#000000',
-          strokeWidth: 5,
-          showStroke: true,
-          textTransform: 'uppercase',
-          rotation: 0,
-          showBackground: false,
-          backgroundColor: '#000000',
-          backgroundOpacity: 0.7,
-          backgroundPadding: 20,
-          ...o
-        }))
+        thumbnailTextOverlays.value = mapThumbnailOverlays(res.config.textOverlays)
         
         const baseClipUrl = `${API_BASE}/assets/clips/${folderName.value}/${clipId.value}`
         try {
