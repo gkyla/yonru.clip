@@ -135,10 +135,10 @@
                     ]"
                     :key="sub.id"
                     @click="scrollToSettingsSection(sub.id)"
-                    class="flex items-center gap-2 py-1 px-1.5 text-[10px] font-bold text-slate-400 hover:text-slate-200 transition-colors text-left rounded hover:bg-surface-panel/40 w-full"
+                    class="flex items-center gap-2 py-2 px-1.5 text-xs font-bold text-slate-400 hover:text-slate-200 transition-colors text-left rounded hover:bg-surface-panel/40 w-full"
                   >
-                    <Icon :name="sub.icon" class="text-xs shrink-0 text-slate-500" />
-                    <span class="truncate flex-1 tracking-wider uppercase text-[9px]">{{ sub.name }}</span>
+                    <Icon :name="sub.icon" class="text-sm shrink-0 text-slate-500" />
+                    <span class="truncate flex-1 tracking-wider uppercase text-[10.5px]">{{ sub.name }}</span>
                     <div 
                       v-if="sub.hasWarning" 
                       class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0 shadow-[0_0_6px_rgba(245,158,11,0.6)] mr-1"
