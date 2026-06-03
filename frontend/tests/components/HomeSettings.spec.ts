@@ -21,7 +21,7 @@ describe('HomeSettings Component', () => {
   beforeEach(() => {
     mockEnvConfig = 'key_1, key_2'
     // Mock global $fetch to return mock settings
-    global.$fetch = vi.fn().mockImplementation((url, options) => {
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url, options) => {
       const urlStr = String(url)
       if (urlStr.includes('/api/system-settings')) {
         return Promise.resolve({
@@ -36,7 +36,7 @@ describe('HomeSettings Component', () => {
         return Promise.resolve({ exists: false, size_bytes: 0, last_modified: null })
       }
       return Promise.resolve({})
-    })
+    }))
   })
 
   it('populates keysList from plain comma-separated string on mount', async () => {
