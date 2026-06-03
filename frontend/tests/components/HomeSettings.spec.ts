@@ -148,4 +148,97 @@ describe('HomeSettings Component', () => {
     
     vi.useRealTimers()
   })
+
+  it('supports drag-and-drop interactions to reorder keys', async () => {
+    mockEnvConfig = '[{"title":"First","value":"k1"},{"title":"Second","value":"k2"}]'
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+    
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const vm = wrapper.vm as any
+    
+    expect(vm.draggedIndex).toBeNull()
+    expect(vm.keysList[0].value).toBe('k1')
+    expect(vm.keysList[1].value).toBe('k2')
+    
+    // Simulate dragstart
+    const mockDataTransfer = {
+      effectAllowed: '',
+      setData: vi.fn()
+    }
+    const dragStartEvent = {
+      dataTransfer: mockDataTransfer
+    } as unknown as DragEvent
+    
+    vm.dragStart(0, dragStartEvent)
+    expect(vm.draggedIndex).toBe(0)
+    expect(mockDataTransfer.effectAllowed).toBe('move')
+    expect(mockDataTransfer.setData).toHaveBeenCalledWith('text/plain', '0')
+    
+    vi.useFakeTimers()
+
+    // Simulate dragenter on index 1 (swapping index 0 and 1)
+    vm.dragEnter(1)
+    expect(vm.keysList[0].value).toBe('k2')
+    expect(vm.keysList[1].value).toBe('k1')
+    expect(vm.draggedIndex).toBe(1)
+    expect(vm.keysList[0].activeFlash).toBe(true)
+    expect(vm.keysList[1].activeFlash).toBe(true)
+    
+    // Fast-forward cooldown timers
+    vi.advanceTimersByTime(600)
+    expect(vm.keysList[0].activeFlash).toBe(false)
+    expect(vm.keysList[1].activeFlash).toBe(false)
+    
+    // Simulate dragenter on the same index (should do nothing)
+    vm.dragEnter(1)
+    expect(vm.keysList[0].value).toBe('k2')
+    expect(vm.keysList[1].value).toBe('k1')
+    
+    // Simulate dragend
+    vm.dragEnd()
+    expect(vm.draggedIndex).toBeNull()
+
+    vi.useRealTimers()
+  })
+
+  it('tracks hasUnsavedChanges when keys list is modified, added, or saved', async () => {
+    mockEnvConfig = '[{"title":"First","value":"k1"}]'
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+    
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const vm = wrapper.vm as any
+    
+    // Initial state: no unsaved changes
+    expect(vm.hasUnsavedChanges).toBe(false)
+    
+    // Add key: has unsaved changes
+    vm.addKey()
+    expect(vm.hasUnsavedChanges).toBe(true)
+    
+    // Remove the added key: back to no unsaved changes
+    vm.removeKey(1)
+    expect(vm.hasUnsavedChanges).toBe(false)
+    
+    // Modify existing key value: has unsaved changes
+    vm.keysList[0].value = 'k1_modified'
+    expect(vm.hasUnsavedChanges).toBe(true)
+    
+    // Save: back to no unsaved changes
+    await vm.saveApiKeys()
+    expect(vm.hasUnsavedChanges).toBe(false)
+  })
 })
