@@ -55,6 +55,7 @@ export const useClipperJob = () => {
   const subtitleBackgroundOpacity = useState<number>('subtitleBackgroundOpacity', () => 0.7)
   const subtitleWordSpacing = useState<number>('subtitleWordSpacing', () => 0)
   const volume = useState<number>('volume', () => 0.5)
+  const subtitlePreset = useState<string>('subtitlePreset', () => 'bold-podcast')
 
   // Thumbnail state
   const thumbnailEnabled = useState<boolean>('thumbnailEnabled', () => false)
@@ -71,6 +72,79 @@ export const useClipperJob = () => {
   let pollInterval: ReturnType<typeof setInterval> | null = null
 
   // Helpers
+  function resetSubtitleStyles() {
+    subtitlePosition.value = 'center'
+    subtitleOffset.value = 50
+    subtitleSyncOffset.value = -500
+    font.value = 'Montserrat'
+    fontSize.value = 100
+    cropPercentX.value = 50
+    subtitleMode.value = 'word'
+    subtitleAnimation.value = 'pop'
+    subtitleHighlightMode.value = 'color'
+    subtitleHighlightColor.value = '#CFFF50'
+    subtitleTextColor.value = '#FFFFFF'
+    subtitleStrokeColor.value = '#000000'
+    subtitleStrokeWidth.value = 4
+    subtitleFontWeight.value = 900
+    subtitleTextTransform.value = 'uppercase'
+    subtitleBackground.value = 'none'
+    subtitleBackgroundOpacity.value = 0.7
+    subtitleWordSpacing.value = 0
+    volume.value = 0.5
+    subtitlePreset.value = 'bold-podcast'
+  }
+
+  function applySubtitleStyles(styles: any) {
+    if (styles.subtitlePosition) subtitlePosition.value = styles.subtitlePosition
+    if (styles.subtitleOffset !== undefined) subtitleOffset.value = styles.subtitleOffset
+    if (styles.subtitleSyncOffset !== undefined) subtitleSyncOffset.value = styles.subtitleSyncOffset
+    if (styles.font) font.value = styles.font
+    if (styles.fontSize !== undefined) fontSize.value = styles.fontSize
+    if (styles.cropPercentX !== undefined) cropPercentX.value = styles.cropPercentX
+    if (styles.subtitleMode) subtitleMode.value = styles.subtitleMode
+    if (styles.subtitleAnimation) subtitleAnimation.value = styles.subtitleAnimation
+    if (styles.subtitleHighlightMode) subtitleHighlightMode.value = styles.subtitleHighlightMode
+    if (styles.subtitleHighlightColor) subtitleHighlightColor.value = styles.subtitleHighlightColor
+    if (styles.subtitleTextColor) subtitleTextColor.value = styles.subtitleTextColor
+    if (styles.subtitleStrokeColor) subtitleStrokeColor.value = styles.subtitleStrokeColor
+    if (styles.subtitleStrokeWidth !== undefined) subtitleStrokeWidth.value = styles.subtitleStrokeWidth
+    if (styles.subtitleFontWeight !== undefined) subtitleFontWeight.value = styles.subtitleFontWeight
+    if (styles.subtitleTextTransform) subtitleTextTransform.value = styles.subtitleTextTransform
+    if (styles.subtitleBackground) subtitleBackground.value = styles.subtitleBackground
+    if (styles.subtitleBackgroundOpacity !== undefined) subtitleBackgroundOpacity.value = styles.subtitleBackgroundOpacity
+    if (styles.subtitleWordSpacing !== undefined) subtitleWordSpacing.value = styles.subtitleWordSpacing
+    if (styles.volume !== undefined) volume.value = styles.volume
+    if (styles.subtitlePreset) subtitlePreset.value = styles.subtitlePreset
+  }
+
+  async function loadStyleSettings(baseClipUrl: string) {
+    resetSubtitleStyles()
+
+    // 1. Load global defaults first if they exist
+    try {
+      const defaultStyles = await $fetch<any>(`${API_BASE}/assets/default_style_settings.json?t=${Date.now()}`)
+      if (defaultStyles) {
+        const config = defaultStyles.settings || defaultStyles
+        applySubtitleStyles(config)
+        console.log('[clipper] Loaded global default style settings')
+      }
+    } catch (e) {
+      console.log('[clipper] No global default style settings found, using hardcoded defaults')
+    }
+
+    // 2. Load custom clip overrides on top of defaults
+    try {
+      const styles = await $fetch<any>(baseClipUrl + '/style_settings.json?t=' + Date.now())
+      if (styles) {
+        applySubtitleStyles(styles)
+        console.log('[clipper] Loaded custom clip style settings')
+      }
+    } catch (e) {
+      console.log('[clipper] No custom style settings for this clip, keeping global defaults')
+    }
+  }
+
   async function fetchSavedHooks() {
     if (!folderName.value) return
     try {
@@ -248,33 +322,7 @@ export const useClipperJob = () => {
                   console.warn('[clipper] Failed to load clip transcript:', te)
                 }
 
-                try {
-                  const styles = await $fetch<any>(styleUrl)
-                  if (styles) {
-                    if (styles.subtitlePosition) subtitlePosition.value = styles.subtitlePosition
-                    if (styles.subtitleOffset !== undefined) subtitleOffset.value = styles.subtitleOffset
-                    if (styles.subtitleSyncOffset !== undefined) subtitleSyncOffset.value = styles.subtitleSyncOffset
-                    if (styles.font) font.value = styles.font
-                    if (styles.fontSize !== undefined) fontSize.value = styles.fontSize
-                    if (styles.cropPercentX !== undefined) cropPercentX.value = styles.cropPercentX
-                    if (styles.subtitleMode) subtitleMode.value = styles.subtitleMode
-                    if (styles.subtitleAnimation) subtitleAnimation.value = styles.subtitleAnimation
-                    if (styles.subtitleHighlightMode) subtitleHighlightMode.value = styles.subtitleHighlightMode
-                    if (styles.subtitleHighlightColor) subtitleHighlightColor.value = styles.subtitleHighlightColor
-                    if (styles.subtitleTextColor) subtitleTextColor.value = styles.subtitleTextColor
-                    if (styles.subtitleStrokeColor) subtitleStrokeColor.value = styles.subtitleStrokeColor
-                    if (styles.subtitleStrokeWidth !== undefined) subtitleStrokeWidth.value = styles.subtitleStrokeWidth
-                    if (styles.subtitleFontWeight !== undefined) subtitleFontWeight.value = styles.subtitleFontWeight
-                    if (styles.subtitleTextTransform) subtitleTextTransform.value = styles.subtitleTextTransform
-                    if (styles.subtitleBackground) subtitleBackground.value = styles.subtitleBackground
-                    if (styles.subtitleBackgroundOpacity !== undefined) subtitleBackgroundOpacity.value = styles.subtitleBackgroundOpacity
-                    if (styles.subtitleWordSpacing !== undefined) subtitleWordSpacing.value = styles.subtitleWordSpacing
-                    if (styles.volume !== undefined) volume.value = styles.volume
-                    console.log('[clipper] Loaded clip style settings')
-                  }
-                } catch (se) {
-                  console.log('[clipper] No style settings yet for this clip')
-                }
+                await loadStyleSettings(baseClipUrl)
 
                 let timelineLoaded = false
                 try {
@@ -462,30 +510,7 @@ export const useClipperJob = () => {
         } catch (te) {}
 
         // Load Style Settings
-        try {
-          const styles = await $fetch<any>(styleUrl)
-          if (styles) {
-            if (styles.subtitlePosition) subtitlePosition.value = styles.subtitlePosition
-            if (styles.subtitleOffset !== undefined) subtitleOffset.value = styles.subtitleOffset
-            if (styles.subtitleSyncOffset !== undefined) subtitleSyncOffset.value = styles.subtitleSyncOffset
-            if (styles.font) font.value = styles.font
-            if (styles.fontSize !== undefined) fontSize.value = styles.fontSize
-            if (styles.cropPercentX !== undefined) cropPercentX.value = styles.cropPercentX
-            if (styles.subtitleMode) subtitleMode.value = styles.subtitleMode
-            if (styles.subtitleAnimation) subtitleAnimation.value = styles.subtitleAnimation
-            if (styles.subtitleHighlightMode) subtitleHighlightMode.value = styles.subtitleHighlightMode
-            if (styles.subtitleHighlightColor) subtitleHighlightColor.value = styles.subtitleHighlightColor
-            if (styles.subtitleTextColor) subtitleTextColor.value = styles.subtitleTextColor
-            if (styles.subtitleStrokeColor) subtitleStrokeColor.value = styles.subtitleStrokeColor
-            if (styles.subtitleStrokeWidth !== undefined) subtitleStrokeWidth.value = styles.subtitleStrokeWidth
-            if (styles.subtitleFontWeight !== undefined) subtitleFontWeight.value = styles.subtitleFontWeight
-            if (styles.subtitleTextTransform) subtitleTextTransform.value = styles.subtitleTextTransform
-            if (styles.subtitleBackground) subtitleBackground.value = styles.subtitleBackground
-            if (styles.subtitleBackgroundOpacity !== undefined) subtitleBackgroundOpacity.value = styles.subtitleBackgroundOpacity
-            if (styles.subtitleWordSpacing !== undefined) subtitleWordSpacing.value = styles.subtitleWordSpacing
-            if (styles.volume !== undefined) volume.value = styles.volume
-          }
-        } catch (se) {}
+        await loadStyleSettings(baseClipUrl)
 
         // Load Timeline
         let timelineLoaded = false
@@ -519,9 +544,11 @@ export const useClipperJob = () => {
   }
 
   // Cleanup polling on composable unmount/deconstruction if desired
-  onBeforeUnmount(() => {
-    stopPolling()
-  })
+  if (getCurrentInstance()) {
+    onBeforeUnmount(() => {
+      stopPolling()
+    })
+  }
 
   return {
     jobId,

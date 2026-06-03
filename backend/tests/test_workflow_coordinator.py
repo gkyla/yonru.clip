@@ -197,11 +197,28 @@ def test_run_local_cut_success_flow(mock_dependencies, tmp_path):
         {"start": 0.5, "duration": 1.0, "text": "Hello"}
     ]
     
+    # Backup existing default style settings and thumbnail styles
+    style_settings_backup = None
+    if os.path.exists("temp_assets/default_style_settings.json"):
+        try:
+            with open("temp_assets/default_style_settings.json", "r", encoding="utf-8") as f:
+                style_settings_backup = f.read()
+        except Exception:
+            pass
+
+    thumbnail_style_backup = None
+    if os.path.exists("temp_assets/default_thumbnail_style.json"):
+        try:
+            with open("temp_assets/default_thumbnail_style.json", "r", encoding="utf-8") as f:
+                thumbnail_style_backup = f.read()
+        except Exception:
+            pass
+
     # Mock default style settings file and default thumbnail style
     os.makedirs("temp_assets", exist_ok=True)
-    with open("temp_assets/default_style_settings.json", "w") as f:
+    with open("temp_assets/default_style_settings.json", "w", encoding="utf-8") as f:
         json.dump({"font": "Arial"}, f)
-    with open("temp_assets/default_thumbnail_style.json", "w") as f:
+    with open("temp_assets/default_thumbnail_style.json", "w", encoding="utf-8") as f:
         json.dump({"thumbnailDuration": 2.5, "fontSize": 80}, f)
         
     try:
@@ -235,10 +252,17 @@ def test_run_local_cut_success_flow(mock_dependencies, tmp_path):
         assert thumb_config["duration"] == 2.5
         assert thumb_config["enabled"] is False
     finally:
-        # Cleanup
-        if os.path.exists("temp_assets/default_style_settings.json"):
+        # Restore backups or clean up
+        if style_settings_backup is not None:
+            with open("temp_assets/default_style_settings.json", "w", encoding="utf-8") as f:
+                f.write(style_settings_backup)
+        elif os.path.exists("temp_assets/default_style_settings.json"):
             os.remove("temp_assets/default_style_settings.json")
-        if os.path.exists("temp_assets/default_thumbnail_style.json"):
+
+        if thumbnail_style_backup is not None:
+            with open("temp_assets/default_thumbnail_style.json", "w", encoding="utf-8") as f:
+                f.write(thumbnail_style_backup)
+        elif os.path.exists("temp_assets/default_thumbnail_style.json"):
             os.remove("temp_assets/default_thumbnail_style.json")
 
 def test_run_local_cut_reuse_transcript(mock_dependencies, tmp_path):
