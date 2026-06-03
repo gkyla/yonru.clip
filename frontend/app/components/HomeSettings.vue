@@ -198,19 +198,43 @@
         <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
           <Icon name="ri:key-2-fill" class="text-accent-500" /> API Configuration
         </h3>
-        <p class="text-sm text-slate-400 mb-6">Configure fallback Gemini API keys to ensure high availability. If the primary key hits quota limits, the app will automatically roll over to the backup keys.</p>
+        <p class="text-sm text-slate-400 mb-6">Configure fallback Gemini API keys to ensure high availability. The first valid key in the list is treated as the Primary key. Adjust ordering using up/down arrow buttons.</p>
         
-        <div class="flex flex-col gap-4 mb-4">
+        <TransitionGroup name="list-keys" tag="div" class="flex flex-col gap-4 mb-4">
           <div 
             v-for="(keyItem, index) in keysList" 
-            :key="index"
-            class="p-4 rounded-xl border bg-[#111318] border-surface-border flex flex-col gap-3 transition-all"
+            :key="keyItem.id"
+            class="p-4 rounded-xl border bg-[#111318] border-surface-border flex flex-col gap-3 transition-all duration-300"
+            :class="{ 'border-accent-500 shadow-[0_0_15px_rgba(207,255,80,0.15)]': keyItem.activeFlash }"
           >
             <div class="flex items-center justify-between">
               <span class="text-xs font-black uppercase tracking-widest text-slate-400">
                 Key #{{ index + 1 }} {{ index === 0 ? '(Primary)' : `(Fallback #${index})` }}
+                <span v-if="getKeyPreview(keyItem.value)" class="text-[10px] font-mono text-slate-500 normal-case ml-2">
+                  ({{ getKeyPreview(keyItem.value) }})
+                </span>
               </span>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-3">
+                <!-- Reorder Controls -->
+                <div class="flex items-center gap-1 bg-surface-dark border border-surface-border/50 rounded-lg px-1.5 py-0.5">
+                  <button 
+                    @click="moveKey(index, -1)"
+                    :disabled="index === 0"
+                    class="p-1 text-slate-500 hover:text-white transition-colors disabled:opacity-20 disabled:hover:text-slate-500"
+                    title="Move Up"
+                  >
+                    <Icon name="ri:arrow-up-line" class="text-xs" />
+                  </button>
+                  <button 
+                    @click="moveKey(index, 1)"
+                    :disabled="index === keysList.length - 1"
+                    class="p-1 text-slate-500 hover:text-white transition-colors disabled:opacity-20 disabled:hover:text-slate-500"
+                    title="Move Down"
+                  >
+                    <Icon name="ri:arrow-down-line" class="text-xs" />
+                  </button>
+                </div>
+
                 <!-- Status Badge -->
                 <span 
                   class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter" 
@@ -235,16 +259,27 @@
               </div>
             </div>
             
-            <div class="flex gap-3">
+            <div class="flex flex-col md:flex-row gap-3">
+              <!-- Title input -->
+              <div class="w-full md:w-1/3">
+                <input 
+                  v-model="keyItem.title"
+                  type="text"
+                  placeholder="e.g. Work Key" 
+                  class="w-full bg-surface-dark border border-surface-border text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-accent-500/50 transition-all text-xs"
+                />
+              </div>
+              
+              <!-- Key input -->
               <div class="flex-1 relative">
                 <input 
                   v-model="keyItem.value"
                   :type="keyItem.show ? 'text' : 'password'" 
                   placeholder="AIzaSy..." 
-                  class="w-full bg-surface-dark border border-surface-border text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-accent-500/50 transition-all font-mono text-sm pr-10"
+                  class="w-full bg-surface-dark border border-surface-border text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-accent-500/50 transition-all font-mono text-xs pr-10"
                 />
                 <button @click="keyItem.show = !keyItem.show" class="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300">
-                  <Icon :name="keyItem.show ? 'ri:eye-off-fill' : 'ri:eye-fill'" class="text-lg" />
+                  <Icon :name="keyItem.show ? 'ri:eye-off-fill' : 'ri:eye-fill'" class="text-base" />
                 </button>
               </div>
             </div>
@@ -262,6 +297,7 @@
           <!-- Empty state if all keys removed -->
           <div 
             v-if="keysList.length === 0"
+            :key="'empty'"
             class="p-6 rounded-xl border border-dashed border-surface-border bg-surface-dark/10 text-center"
           >
             <p class="text-sm text-slate-500 mb-3">No API keys configured. Gemini features will not be available.</p>
@@ -272,7 +308,7 @@
               Add API Key
             </button>
           </div>
-        </div>
+        </TransitionGroup>
 
         <div class="flex justify-between items-center gap-4 mt-6">
           <button 
@@ -583,21 +619,59 @@ watch(() => state.settingsScrollTarget.value, async (newTarget) => {
 
 const apiKey = ref('')
 interface KeyListItem {
+  id: string
+  title: string
   value: string
   show: boolean
   status: 'idle' | 'valid' | 'invalid' | 'testing'
   error: string
+  activeFlash: boolean
 }
 const keysList = ref<KeyListItem[]>([
-  { value: '', show: false, status: 'idle', error: '' }
+  { id: Math.random().toString(36).substring(2, 9), title: '', value: '', show: false, status: 'idle', error: '', activeFlash: false }
 ])
 
 function addKey() {
-  keysList.value.push({ value: '', show: false, status: 'idle', error: '' })
+  keysList.value.push({
+    id: Math.random().toString(36).substring(2, 9),
+    title: '',
+    value: '',
+    show: false,
+    status: 'idle',
+    error: '',
+    activeFlash: false
+  })
 }
 
 function removeKey(index: number) {
   keysList.value.splice(index, 1)
+}
+
+function moveKey(index: number, direction: number) {
+  const newIndex = index + direction
+  if (newIndex < 0 || newIndex >= keysList.value.length) return
+  
+  // Swap
+  const temp = keysList.value[index]
+  keysList.value[index] = keysList.value[newIndex]
+  keysList.value[newIndex] = temp
+  
+  // Flash
+  keysList.value[index].activeFlash = true
+  keysList.value[newIndex].activeFlash = true
+  
+  setTimeout(() => {
+    if (keysList.value[index]) keysList.value[index].activeFlash = false
+    if (keysList.value[newIndex]) keysList.value[newIndex].activeFlash = false
+  }, 600)
+}
+
+function getKeyPreview(value: string) {
+  const val = value.trim()
+  if (val.length > 10) {
+    return val.substring(0, 6) + '...' + val.slice(-4)
+  }
+  return ''
 }
 const ffmpegPath = ref('')
 const nodePath = ref('')
@@ -698,7 +772,8 @@ async function testApiKeys() {
     }
   })
   
-  const combined = filledKeys.join(',')
+  // Serialize key array (with titles) as JSON config to pass to backend validator
+  const combined = JSON.stringify(keysList.value.map(k => ({ title: k.title.trim(), value: k.value.trim() })).filter(k => k.value))
   try {
     const res = await $fetch<{ status: string; error?: string; results?: Array<{ key: string; status: string; error?: string }> }>(
       `${API_BASE}/api/validate-gemini-key`, 
@@ -743,16 +818,41 @@ async function fetchSettings() {
   try {
     const res = await $fetch<{ settings: any }>(`${API_BASE}/api/system-settings`)
     if (res && res.settings) {
-      const rawKeys = res.settings.GEMINI_API_KEY || ''
+      const rawKeys = (res.settings.GEMINI_API_KEY || '').trim()
       if (rawKeys) {
-        keysList.value = rawKeys.split(',').map((k: string) => ({
-          value: k.trim(),
-          show: false,
-          status: 'idle',
-          error: ''
-        }))
+        if (rawKeys.startsWith('[') && rawKeys.endsWith(']')) {
+          try {
+            const data = JSON.parse(rawKeys)
+            if (Array.isArray(data)) {
+              keysList.value = data.map((item: any) => ({
+                id: Math.random().toString(36).substring(2, 9),
+                title: item.title || '',
+                value: item.value || '',
+                show: false,
+                status: 'idle',
+                error: '',
+                activeFlash: false
+              }))
+            }
+          } catch (e) {
+            console.error('Failed to parse keys JSON', e)
+          }
+        }
+        
+        // Fallback to comma-separated format
+        if (keysList.value.length === 0 || !keysList.value[0].value) {
+          keysList.value = rawKeys.split(',').map((k: string) => ({
+            id: Math.random().toString(36).substring(2, 9),
+            title: '',
+            value: k.trim(),
+            show: false,
+            status: 'idle',
+            error: '',
+            activeFlash: false
+          }))
+        }
       } else {
-        keysList.value = [{ value: '', show: false, status: 'idle', error: '' }]
+        keysList.value = [{ id: Math.random().toString(36).substring(2, 9), title: '', value: '', show: false, status: 'idle', error: '', activeFlash: false }]
       }
       apiKey.value = rawKeys
       ffmpegPath.value = res.settings.FFMPEG_PATH || ''
@@ -765,7 +865,9 @@ async function fetchSettings() {
 
 async function saveApiKeys() {
   try {
-    const combinedKeys = keysList.value.map(k => k.value.trim()).filter(Boolean).join(',')
+    const validKeys = keysList.value.map(k => ({ title: k.title.trim(), value: k.value.trim() })).filter(k => k.value)
+    // Serialize to JSON string
+    const combinedKeys = JSON.stringify(validKeys)
     await $fetch(`${API_BASE}/api/system-settings`, {
       method: 'PUT',
       body: { GEMINI_API_KEY: combinedKeys }
@@ -897,5 +999,10 @@ onMounted(() => {
 }
 .animate-pulse-subtle {
   animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* FLIP list transition for reordering fallback key cards */
+.list-keys-move {
+  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 </style>

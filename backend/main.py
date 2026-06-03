@@ -731,7 +731,10 @@ async def validate_gemini_key(req: ValidateKeyRequest):
     from google import genai
     from core.genai_client import GeminiGenAIClient
     
-    keys = [k.strip() for k in req.api_key.split(",") if k.strip()]
+    # Instantiate client to reuse its auto-detecting parser
+    temp_client = GeminiGenAIClient(api_key=req.api_key)
+    keys = temp_client.api_keys
+    
     if not keys:
         return {"status": "invalid", "error": "No API keys provided.", "results": []}
         

@@ -15,7 +15,31 @@ class GeminiGenAIClient(GenAIClient):
     _degradation_cache = {}
 
     def __init__(self, api_key: str = None):
-        self.api_keys = [k.strip() for k in api_key.split(",") if k.strip()] if api_key else []
+        self.api_keys = []
+        self.key_titles = {}
+        
+        if api_key:
+            api_key_stripped = api_key.strip()
+            if api_key_stripped.startswith("[") and api_key_stripped.endswith("]"):
+                try:
+                    import json
+                    data = json.loads(api_key_stripped)
+                    if isinstance(data, list):
+                        for index, item in enumerate(data):
+                            if isinstance(item, dict) and item.get("value"):
+                                val = item["value"].strip()
+                                title = item.get("title", "").strip() or f"Key #{index + 1}"
+                                self.api_keys.append(val)
+                                self.key_titles[val] = title
+                except Exception as e:
+                    print(f"[gemini] Failed to parse key JSON metadata: {e}")
+            
+            # Fallback to comma-separated format
+            if not self.api_keys:
+                raw_keys = [k.strip() for k in api_key.split(",") if k.strip()]
+                for index, k in enumerate(raw_keys):
+                    self.api_keys.append(k)
+                    self.key_titles[k] = f"Key #{index + 1}"
 
     @classmethod
     def clear_degradation(cls, key: str):
@@ -80,19 +104,19 @@ class GeminiGenAIClient(GenAIClient):
                 is_quota = "quota" in error_msg.lower() or "429" in error_msg
                 is_auth = "API_KEY_INVALID" in error_msg or "400" in error_msg or "403" in error_msg
                 
-                key_masked = f"{key[:6]}..." if len(key) > 6 else "key"
+                key_title = self.key_titles.get(key, f"key {key[:6]}...")
                 if is_auth:
                     # Permanent failure
                     self._degradation_cache[key] = {"degraded_until": 0, "permanent": True}
-                    print(f"[gemini] Key {key_masked} permanently degraded due to authentication failure: {error_msg}")
+                    print(f"[gemini] Key '{key_title}' permanently degraded due to authentication failure: {error_msg}")
                 elif is_quota:
                     # Transient failure, 5 minutes cooldown
                     self._degradation_cache[key] = {"degraded_until": time.time() + 300, "permanent": False}
-                    print(f"[gemini] Key {key_masked} degraded for 5m (quota limits): {error_msg}")
+                    print(f"[gemini] Key '{key_title}' degraded for 5m (quota limits): {error_msg}")
                 else:
                     # Connection or other internal errors, 1 minute cooldown
                     self._degradation_cache[key] = {"degraded_until": time.time() + 60, "permanent": False}
-                    print(f"[gemini] Key {key_masked} degraded for 1m (unexpected error): {error_msg}")
+                    print(f"[gemini] Key '{key_title}' degraded for 1m (unexpected error): {error_msg}")
                     
         # If all keys failed, raise the final exception
         if last_exception:
