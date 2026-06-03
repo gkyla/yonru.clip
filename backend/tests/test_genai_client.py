@@ -100,5 +100,22 @@ class TestGenAIClient(unittest.TestCase):
         GeminiGenAIClient.clear_degradation("key1")
         self.assertNotIn("key1", GeminiGenAIClient._degradation_cache)
 
+    def test_gemini_client_json_parsing(self):
+        # Verify JSON array format parses keys and titles correctly
+        json_config = '[{"title": "Work Key", "value": "key1"}, {"title": "Backup Key", "value": "key2"}]'
+        client = GeminiGenAIClient(api_key=json_config)
+        
+        self.assertEqual(client.api_keys, ["key1", "key2"])
+        self.assertEqual(client.key_titles["key1"], "Work Key")
+        self.assertEqual(client.key_titles["key2"], "Backup Key")
+
+    def test_gemini_client_json_parsing_fallback(self):
+        # Verify that legacy plain text list still parses successfully
+        client = GeminiGenAIClient(api_key="key1, key2")
+        
+        self.assertEqual(client.api_keys, ["key1", "key2"])
+        self.assertEqual(client.key_titles["key1"], "Key #1")
+        self.assertEqual(client.key_titles["key2"], "Key #2")
+
 if __name__ == '__main__':
     unittest.main()
