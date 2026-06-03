@@ -241,4 +241,45 @@ describe('HomeSettings Component', () => {
     await vm.saveApiKeys()
     expect(vm.hasUnsavedChanges).toBe(false)
   })
+
+  it('prevents rapid double-swap glitch loops of the same elements', async () => {
+    mockEnvConfig = '[{"title":"First","value":"k1"},{"title":"Second","value":"k2"}]'
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+    
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const vm = wrapper.vm as any
+    
+    vi.useFakeTimers()
+    
+    // Start drag on index 0
+    vm.dragStart(0, { dataTransfer: { effectAllowed: '', setData: vi.fn() } } as any)
+    
+    // First swap: enter index 1
+    vm.dragEnter(1)
+    expect(vm.keysList[0].value).toBe('k2')
+    expect(vm.keysList[1].value).toBe('k1')
+    
+    // Rapid swap back: immediate dragenter on index 0 (within 50ms)
+    vi.advanceTimersByTime(50)
+    vm.dragEnter(0)
+    // Should NOT swap back yet due to the rapid-swap cooldown
+    expect(vm.keysList[0].value).toBe('k2')
+    expect(vm.keysList[1].value).toBe('k1')
+    
+    // Swap back after cooldown: dragenter on index 0 after 400ms (50ms + 350ms)
+    vi.advanceTimersByTime(350)
+    vm.dragEnter(0)
+    // Should now successfully swap back
+    expect(vm.keysList[0].value).toBe('k1')
+    expect(vm.keysList[1].value).toBe('k2')
+    
+    vi.useRealTimers()
+  })
 })

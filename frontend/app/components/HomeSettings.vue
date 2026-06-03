@@ -707,6 +707,8 @@ function getKeyPreview(value: string) {
 }
 
 const draggedIndex = ref<number | null>(null)
+const lastSwapTime = ref(0)
+const lastSwappedIds = ref<[string, string] | null>(null)
 
 function dragStart(index: number, event: DragEvent) {
   draggedIndex.value = index
@@ -720,12 +722,28 @@ function dragEnter(index: number) {
   if (draggedIndex.value === null || draggedIndex.value === index) return
   const oldIndex = draggedIndex.value
   
+  const oldItem = keysList.value[oldIndex]
+  const newItem = keysList.value[index]
+  if (!oldItem || !newItem) return
+  
+  // Prevent infinite rapid swap back-and-forth glitch loops
+  const now = Date.now()
+  if (lastSwappedIds.value && 
+      ((lastSwappedIds.value[0] === oldItem.id && lastSwappedIds.value[1] === newItem.id) ||
+       (lastSwappedIds.value[0] === newItem.id && lastSwappedIds.value[1] === oldItem.id))) {
+    if (now - lastSwapTime.value < 350) {
+      return
+    }
+  }
+  
   // Swap
   const temp = keysList.value[oldIndex]
   keysList.value[oldIndex] = keysList.value[index]
   keysList.value[index] = temp
   
   draggedIndex.value = index
+  lastSwappedIds.value = [oldItem.id, newItem.id]
+  lastSwapTime.value = now
 
   // Flash highlight on both swapped items
   keysList.value[oldIndex].activeFlash = true
@@ -744,6 +762,8 @@ function dragEnter(index: number) {
 
 function dragEnd() {
   draggedIndex.value = null
+  lastSwappedIds.value = null
+  lastSwapTime.value = 0
 }
 const ffmpegPath = ref('')
 const nodePath = ref('')
