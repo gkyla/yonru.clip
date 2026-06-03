@@ -6,6 +6,9 @@ import { parseRenderEvent } from '../utils/renderEventParser'
 
 interface ExportDeps {
   saveTranscript: (isSilent?: boolean) => Promise<void>
+  saveStyleSettings: () => Promise<void>
+  saveTimelineTracks: () => Promise<void>
+  saveThumbnailConfig: () => Promise<void>
 }
 
 export const useClipperExport = (deps: ExportDeps) => {
@@ -127,7 +130,12 @@ export const useClipperExport = (deps: ExportDeps) => {
     outputUrl.value = null
 
     try {
-      await deps.saveTranscript()
+      await Promise.all([
+        deps.saveTranscript(true),
+        deps.saveStyleSettings(),
+        deps.saveTimelineTracks(),
+        deps.saveThumbnailConfig()
+      ])
 
       const body = buildRenderBody(hookIndex, outputName)
 

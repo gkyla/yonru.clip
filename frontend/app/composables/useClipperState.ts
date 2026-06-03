@@ -35,7 +35,12 @@ export const useClipperState = () => {
   } = thumbnailState
 
   // Export state delegated from useClipperExport sub-composable
-  const exportState = useClipperExport({ saveTranscript })
+  const exportState = useClipperExport({
+    saveTranscript,
+    saveStyleSettings,
+    saveTimelineTracks: () => timeline.saveTimelineTracks(),
+    saveThumbnailConfig
+  })
   const { renderStatus, renderProgress, renderStage, renderEta, outputUrl, renderClip } = exportState
 
 
@@ -288,6 +293,7 @@ export const useClipperState = () => {
   async function saveStyleSettings() {
     if (!folderName.value || !clipId.value) return
     const settings = {
+      subtitlePreset: subtitlePreset.value,
       subtitlePosition: subtitlePosition.value,
       subtitleOffset: subtitleOffset.value,
       subtitleSyncOffset: subtitleSyncOffset.value,
@@ -318,6 +324,7 @@ export const useClipperState = () => {
 
   async function saveDefaultStyleSettings() {
     const settings = {
+      subtitlePreset: subtitlePreset.value,
       subtitlePosition: subtitlePosition.value,
       subtitleOffset: subtitleOffset.value,
       subtitleSyncOffset: subtitleSyncOffset.value,
