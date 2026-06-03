@@ -551,7 +551,7 @@
              </div>
              
              <!-- Sidebar Info (50/50) -->
-             <div class="md:w-1/2 p-6 md:p-8 flex flex-col border-t md:border-t-0 md:border-l border-surface-border bg-surface-panel/50 overflow-y-auto custom-scrollbar">
+             <div class="md:w-1/2 p-6 md:p-8 flex flex-col border-t md:border-t-0 md:border-l border-surface-border bg-surface-panel/50 overflow-y-auto custom-scrollbar select-text">
                 <div class="flex-1">
                    <div class="flex items-center gap-3 mb-4">
                      <span class="bg-accent-500/10 text-accent-500 border border-accent-500/20 px-2 py-1 rounded text-[10px] b-mono font-black tracking-widest">
