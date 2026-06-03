@@ -402,7 +402,7 @@ export const useClipperJob = () => {
         method: 'POST',
         body: { 
             job_id: jobId.value, 
-            start_time: Math.floor(hook.start),
+            start_time: Math.max(0, Math.floor(hook.start) - 2),
             end_time: Math.ceil(hook.end),
             theme: hook.theme,
             whisper_model: whisperModel.value

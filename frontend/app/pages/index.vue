@@ -398,13 +398,13 @@
                  <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
                  <video 
                    v-if="state.videoUrl.value"
-                   :src="state.videoUrl.value + '#t=' + hook.start"
+                   :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - 2)"
                    muted
                    preload="metadata"
                    class="absolute inset-0 w-full h-full object-cover z-10"
                    @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
-                   @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = hook.start; }"
-                   @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = hook.start; }"
+                   @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - 2); }"
+                   @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - 2); }"
                  ></video>
                  <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-lg text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10">
                    {{ formatHookDuration(hook.start, hook.end) }}
@@ -467,13 +467,13 @@
                  <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
                  <video 
                    v-if="state.videoUrl.value"
-                   :src="state.videoUrl.value + '#t=' + hook.start"
+                   :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - 2)"
                    muted
                    preload="metadata"
                    class="absolute inset-0 w-full h-full object-cover z-10"
                    @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
-                   @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = hook.start; }"
-                   @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = hook.start; }"
+                   @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - 2); }"
+                   @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - 2); }"
                  ></video>
                  <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-lg text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10">
                    {{ formatHookDuration(hook.start, hook.end) }}
@@ -541,8 +541,8 @@
                   controls
                   autoplay
                   class="w-full h-full object-contain max-h-[70vh]"
-                  @timeupdate="e => { if (selectedModalHook && (e.target as HTMLVideoElement).currentTime >= selectedModalHook.end) (e.target as HTMLVideoElement).currentTime = selectedModalHook.start; }"
-                  @loadedmetadata="e => { if (selectedModalHook) (e.target as HTMLVideoElement).currentTime = selectedModalHook.start; }"
+                  @timeupdate="e => { if (selectedModalHook && (e.target as HTMLVideoElement).currentTime >= selectedModalHook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, selectedModalHook.start - 2); }"
+                  @loadedmetadata="e => { if (selectedModalHook) (e.target as HTMLVideoElement).currentTime = Math.max(0, selectedModalHook.start - 2); }"
                 ></video>
                 <div v-else class="w-full h-full flex flex-col items-center justify-center text-slate-500">
                    <Icon name="ri:film-line" class="text-4xl mb-2 opacity-50" />
