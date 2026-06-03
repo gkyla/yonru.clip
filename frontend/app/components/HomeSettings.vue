@@ -200,15 +200,24 @@
         </h3>
         <p class="text-sm text-slate-400 mb-6">Configure fallback Gemini API keys to ensure high availability. The first valid key in the list is treated as the Primary key. Adjust ordering using up/down arrow buttons.</p>
         
-        <TransitionGroup name="list-keys" tag="div" class="flex flex-col gap-4 mb-4">
+        <TransitionGroup name="list-keys" tag="div" class="flex flex-col gap-4 mb-4 relative">
           <div 
             v-for="(keyItem, index) in keysList" 
             :key="keyItem.id"
+            draggable="true"
+            @dragstart="dragStart(index, $event)"
+            @dragover.prevent
+            @dragenter="dragEnter(index)"
+            @dragend="dragEnd"
             class="p-4 rounded-xl border bg-[#111318] border-surface-border flex flex-col gap-3 transition-all duration-300"
-            :class="{ 'border-accent-500 shadow-[0_0_15px_rgba(207,255,80,0.15)]': keyItem.activeFlash }"
+            :class="{ 
+              'border-accent-500 shadow-[0_0_15px_rgba(207,255,80,0.15)]': keyItem.activeFlash,
+              'opacity-30 border-dashed border-accent-500/50 bg-accent-500/5 cursor-grabbing': index === draggedIndex
+            }"
           >
             <div class="flex items-center justify-between">
-              <span class="text-xs font-black uppercase tracking-widest text-slate-400">
+              <span class="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5 cursor-grab">
+                <Icon name="ri:drag-move-2-fill" class="text-slate-300 hover:text-accent-500 active:text-accent-400 transition-colors text-base shrink-0 cursor-grab" />
                 Key #{{ index + 1 }} {{ index === 0 ? '(Primary)' : `(Fallback #${index})` }}
                 <span v-if="getKeyPreview(keyItem.value)" class="text-[10px] font-mono text-slate-500 normal-case ml-2">
                   ({{ getKeyPreview(keyItem.value) }})
@@ -320,11 +329,28 @@
             Add Fallback Key
           </button>
           
-          <div class="flex gap-3 ml-auto">
+          <div class="flex items-center gap-3 ml-auto">
+            <Transition
+              enter-active-class="transition duration-200 ease-out"
+              enter-from-class="opacity-0 translate-x-2"
+              enter-to-class="opacity-100 translate-x-0"
+              leave-active-class="transition duration-150 ease-in"
+              leave-from-class="opacity-100 translate-x-0"
+              leave-to-class="opacity-0 translate-x-2"
+            >
+              <span 
+                v-if="hasUnsavedChanges" 
+                class="text-[11px] text-amber-500 flex items-center gap-1.5 bg-amber-500/5 border border-amber-500/20 px-2.5 py-1.5 rounded-lg animate-pulse-subtle shrink-0"
+              >
+                <Icon name="ri:alert-line" class="text-xs shrink-0" />
+                Unsaved changes
+              </span>
+            </Transition>
+
             <button 
               v-if="keysList.length > 0"
               @click="saveApiKeys"
-              class="px-5 py-2.5 bg-surface-card border border-surface-border text-white font-bold uppercase tracking-wider text-[10px] rounded-lg hover:border-accent-500/50 hover:text-accent-500 transition-all"
+              class="px-5 py-2.5 bg-surface-card border border-surface-border text-white font-bold uppercase tracking-wider text-[10px] rounded-lg hover:border-accent-500/50 hover:text-accent-500 transition-all shrink-0"
             >
               Save Keys
             </button>
@@ -631,6 +657,12 @@ const keysList = ref<KeyListItem[]>([
   { id: Math.random().toString(36).substring(2, 9), title: '', value: '', show: false, status: 'idle', error: '', activeFlash: false }
 ])
 
+const originalSerializedKeys = ref(JSON.stringify([{ title: '', value: '' }]))
+const hasUnsavedChanges = computed(() => {
+  const current = JSON.stringify(keysList.value.map(k => ({ title: k.title.trim(), value: k.value.trim() })))
+  return current !== originalSerializedKeys.value
+})
+
 function addKey() {
   keysList.value.push({
     id: Math.random().toString(36).substring(2, 9),
@@ -672,6 +704,66 @@ function getKeyPreview(value: string) {
     return val.substring(0, 6) + '...' + val.slice(-4)
   }
   return ''
+}
+
+const draggedIndex = ref<number | null>(null)
+const lastSwapTime = ref(0)
+const lastSwappedIds = ref<[string, string] | null>(null)
+
+function dragStart(index: number, event: DragEvent) {
+  draggedIndex.value = index
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', index.toString())
+  }
+}
+
+function dragEnter(index: number) {
+  if (draggedIndex.value === null || draggedIndex.value === index) return
+  const oldIndex = draggedIndex.value
+  
+  const oldItem = keysList.value[oldIndex]
+  const newItem = keysList.value[index]
+  if (!oldItem || !newItem) return
+  
+  // Prevent infinite rapid swap back-and-forth glitch loops
+  const now = Date.now()
+  if (lastSwappedIds.value && 
+      ((lastSwappedIds.value[0] === oldItem.id && lastSwappedIds.value[1] === newItem.id) ||
+       (lastSwappedIds.value[0] === newItem.id && lastSwappedIds.value[1] === oldItem.id))) {
+    if (now - lastSwapTime.value < 150) {
+      return
+    }
+  }
+  
+  // Swap
+  const temp = keysList.value[oldIndex]
+  keysList.value[oldIndex] = keysList.value[index]
+  keysList.value[index] = temp
+  
+  draggedIndex.value = index
+  lastSwappedIds.value = [oldItem.id, newItem.id]
+  lastSwapTime.value = now
+
+  // Flash highlight on both swapped items
+  keysList.value[oldIndex].activeFlash = true
+  keysList.value[index].activeFlash = true
+  
+  const targetId1 = keysList.value[oldIndex].id
+  const targetId2 = keysList.value[index].id
+  
+  setTimeout(() => {
+    const item1 = keysList.value.find(k => k.id === targetId1)
+    if (item1) item1.activeFlash = false
+    const item2 = keysList.value.find(k => k.id === targetId2)
+    if (item2) item2.activeFlash = false
+  }, 600)
+}
+
+function dragEnd() {
+  draggedIndex.value = null
+  lastSwappedIds.value = null
+  lastSwapTime.value = 0
 }
 const ffmpegPath = ref('')
 const nodePath = ref('')
@@ -855,6 +947,7 @@ async function fetchSettings() {
         keysList.value = [{ id: Math.random().toString(36).substring(2, 9), title: '', value: '', show: false, status: 'idle', error: '', activeFlash: false }]
       }
       apiKey.value = rawKeys
+      originalSerializedKeys.value = JSON.stringify(keysList.value.map(k => ({ title: k.title.trim(), value: k.value.trim() })))
       ffmpegPath.value = res.settings.FFMPEG_PATH || ''
       nodePath.value = res.settings.NODE_PATH || ''
     }
@@ -874,6 +967,7 @@ async function saveApiKeys() {
     })
     state.showToast('API Keys saved successfully', 'success')
     apiKey.value = combinedKeys
+    originalSerializedKeys.value = JSON.stringify(keysList.value.map(k => ({ title: k.title.trim(), value: k.value.trim() })))
     checkSystemHealth()
   } catch (e) {
     state.showToast('Failed to save API Keys', 'error')
@@ -1002,7 +1096,21 @@ onMounted(() => {
 }
 
 /* FLIP list transition for reordering fallback key cards */
-.list-keys-move {
-  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+.list-keys-move,
+.list-keys-enter-active,
+.list-keys-leave-active {
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.list-keys-enter-from,
+.list-keys-leave-to {
+  opacity: 0;
+  transform: scale(0.95) translateY(-10px);
+}
+
+.list-keys-leave-active {
+  position: absolute;
+  left: 0;
+  right: 0;
 }
 </style>
