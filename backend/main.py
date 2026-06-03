@@ -727,27 +727,45 @@ async def update_system_settings(req: SystemSettingsRequest):
 
 @app.post("/api/validate-gemini-key")
 async def validate_gemini_key(req: ValidateKeyRequest):
-    """Validate if the given Gemini API key is active and functional."""
-    try:
-        from google import genai
-        client = genai.Client(api_key=req.api_key)
-        # Call a tiny content generation request to verify the key
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents="Say 'OK'",
-        )
-        if response.text:
-            return {"status": "valid"}
-        else:
-            return {"status": "invalid", "error": "Empty response from Gemini."}
-    except Exception as e:
-        error_msg = str(e)
-        # Clean up standard error messages to be plain and simple (MANDATORY RULE 5)
-        if "API_KEY_INVALID" in error_msg or "400" in error_msg:
-            error_msg = "The API key is invalid. Please check your spelling and try again."
-        elif "quota" in error_msg.lower() or "429" in error_msg:
-            error_msg = "Gemini API Quota exceeded. Please check your Google AI Studio billing/plan."
-        return {"status": "invalid", "error": error_msg}
+    """Validate if the given Gemini API keys are active and functional."""
+    from google import genai
+    from core.genai_client import GeminiGenAIClient
+    
+    keys = [k.strip() for k in req.api_key.split(",") if k.strip()]
+    if not keys:
+        return {"status": "invalid", "error": "No API keys provided.", "results": []}
+        
+    results = []
+    all_valid = True
+    
+    for key in keys:
+        try:
+            client = genai.Client(api_key=key)
+            # Call a tiny content generation request to verify the key
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents="Say 'OK'",
+            )
+            if response.text:
+                GeminiGenAIClient.clear_degradation(key)
+                results.append({"key": key, "status": "valid", "error": None})
+            else:
+                all_valid = False
+                results.append({"key": key, "status": "invalid", "error": "Empty response from Gemini."})
+        except Exception as e:
+            all_valid = False
+            error_msg = str(e)
+            # Clean up standard error messages to be plain and simple (MANDATORY RULE 5)
+            if "API_KEY_INVALID" in error_msg or "400" in error_msg:
+                error_msg = "The API key is invalid. Please check your spelling and try again."
+            elif "quota" in error_msg.lower() or "429" in error_msg:
+                error_msg = "Gemini API Quota exceeded. Please check your Google AI Studio billing/plan."
+            results.append({"key": key, "status": "invalid", "error": error_msg})
+            
+    return {
+        "status": "valid" if all_valid else "invalid",
+        "results": results
+    }
 
 COOKIES_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "cookies.txt"))
 

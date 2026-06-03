@@ -198,33 +198,110 @@
         <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
           <Icon name="ri:key-2-fill" class="text-accent-500" /> API Configuration
         </h3>
-        <p class="text-sm text-slate-400 mb-4">Set up your Gemini API key to allow the AI to analyze your video transcripts.</p>
-        <div class="flex gap-4">
-          <div class="flex-1 relative">
-             <input 
-               v-model="apiKey"
-               :type="showKey ? 'text' : 'password'" 
-               placeholder="AIzaSy..." 
-               class="w-full bg-[#111318] border border-surface-border text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-accent-500/50 transition-all font-mono text-sm pr-10"
-             />
-             <button @click="showKey = !showKey" class="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300">
-               <Icon :name="showKey ? 'ri:eye-off-fill' : 'ri:eye-fill'" class="text-lg" />
-             </button>
+        <p class="text-sm text-slate-400 mb-6">Configure fallback Gemini API keys to ensure high availability. If the primary key hits quota limits, the app will automatically roll over to the backup keys.</p>
+        
+        <div class="flex flex-col gap-4 mb-4">
+          <div 
+            v-for="(keyItem, index) in keysList" 
+            :key="index"
+            class="p-4 rounded-xl border bg-[#111318] border-surface-border flex flex-col gap-3 transition-all"
+          >
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase tracking-widest text-slate-400">
+                Key #{{ index + 1 }} {{ index === 0 ? '(Primary)' : `(Fallback #${index})` }}
+              </span>
+              <div class="flex items-center gap-2">
+                <!-- Status Badge -->
+                <span 
+                  class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter" 
+                  :class="{
+                    'bg-accent-500/10 text-accent-500': keyItem.status === 'valid',
+                    'bg-red-500/10 text-red-500': keyItem.status === 'invalid',
+                    'bg-surface-dark border border-surface-border text-slate-500': keyItem.status === 'idle',
+                    'bg-amber-500/10 text-amber-500 animate-pulse': keyItem.status === 'testing'
+                  }"
+                >
+                  {{ keyItem.status === 'valid' ? 'Valid' : keyItem.status === 'invalid' ? 'Invalid' : keyItem.status === 'testing' ? 'Testing...' : 'Not Tested' }}
+                </span>
+                
+                <!-- Delete Button -->
+                <button 
+                  @click="removeKey(index)" 
+                  class="p-1 text-slate-500 hover:text-red-400 transition-colors"
+                  title="Remove Key"
+                >
+                  <Icon name="ri:delete-bin-6-line" class="text-sm" />
+                </button>
+              </div>
+            </div>
+            
+            <div class="flex gap-3">
+              <div class="flex-1 relative">
+                <input 
+                  v-model="keyItem.value"
+                  :type="keyItem.show ? 'text' : 'password'" 
+                  placeholder="AIzaSy..." 
+                  class="w-full bg-surface-dark border border-surface-border text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-accent-500/50 transition-all font-mono text-sm pr-10"
+                />
+                <button @click="keyItem.show = !keyItem.show" class="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300">
+                  <Icon :name="keyItem.show ? 'ri:eye-off-fill' : 'ri:eye-fill'" class="text-lg" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Individual error message -->
+            <div 
+              v-if="keyItem.status === 'invalid' && keyItem.error"
+              class="text-[11px] text-red-400 mt-1 flex items-start gap-1"
+            >
+              <Icon name="ri:error-warning-line" class="text-sm shrink-0 mt-0.5" />
+              <span>{{ keyItem.error }}</span>
+            </div>
           </div>
-          <button 
-            @click="saveApiKey"
-            class="px-5 py-2.5 bg-surface-card border border-surface-border text-white font-bold uppercase tracking-wider text-[10px] rounded-lg hover:border-accent-500/50 hover:text-accent-500 transition-all"
+
+          <!-- Empty state if all keys removed -->
+          <div 
+            v-if="keysList.length === 0"
+            class="p-6 rounded-xl border border-dashed border-surface-border bg-surface-dark/10 text-center"
           >
-            Save Key
-          </button>
+            <p class="text-sm text-slate-500 mb-3">No API keys configured. Gemini features will not be available.</p>
+            <button 
+              @click="addKey"
+              class="px-4 py-2 bg-surface-card border border-surface-border hover:border-accent-500/50 text-white rounded-lg text-xs font-bold transition-all"
+            >
+              Add API Key
+            </button>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center gap-4 mt-6">
           <button 
-            @click="testApiKey"
-            :disabled="testingKey"
-            class="px-5 py-2.5 bg-accent-500 text-black font-bold uppercase tracking-wider text-[10px] rounded-lg hover:bg-accent-400 transition-all flex items-center gap-1.5 disabled:opacity-50"
+            v-if="keysList.length > 0"
+            @click="addKey"
+            class="flex items-center gap-1.5 px-4 py-2.5 bg-surface-dark border border-surface-border text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all"
           >
-            <Icon name="ri:flashlight-fill" />
-            {{ testingKey ? 'Testing...' : 'Test Connection' }}
+            <Icon name="ri:add-line" />
+            Add Fallback Key
           </button>
+          
+          <div class="flex gap-3 ml-auto">
+            <button 
+              v-if="keysList.length > 0"
+              @click="saveApiKeys"
+              class="px-5 py-2.5 bg-surface-card border border-surface-border text-white font-bold uppercase tracking-wider text-[10px] rounded-lg hover:border-accent-500/50 hover:text-accent-500 transition-all"
+            >
+              Save Keys
+            </button>
+            <button 
+              v-if="keysList.length > 0"
+              @click="testApiKeys"
+              :disabled="testingKey"
+              class="px-5 py-2.5 bg-accent-500 text-black font-bold uppercase tracking-wider text-[10px] rounded-lg hover:bg-accent-400 transition-all flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <Icon name="ri:flashlight-fill" />
+              {{ testingKey ? 'Testing...' : 'Test All Connections' }}
+            </button>
+          </div>
         </div>
 
         <!-- Live Test Result Banner -->
@@ -243,7 +320,7 @@
           >
             <Icon :name="testResult.status === 'valid' ? 'ri:checkbox-circle-fill' : 'ri:error-warning-fill'" class="text-lg shrink-0 mt-0.5" />
             <div>
-              <span class="font-bold block mb-0.5">{{ testResult.status === 'valid' ? 'Gemini API key is verified!' : 'Connection check failed' }}</span>
+              <span class="font-bold block mb-0.5">{{ testResult.status === 'valid' ? 'Gemini API keys are verified!' : 'Connection checks failed' }}</span>
               <p class="text-slate-300">{{ testResult.message }}</p>
             </div>
           </div>
@@ -505,7 +582,23 @@ watch(() => state.settingsScrollTarget.value, async (newTarget) => {
 }, { immediate: true })
 
 const apiKey = ref('')
-const showKey = ref(false)
+interface KeyListItem {
+  value: string
+  show: boolean
+  status: 'idle' | 'valid' | 'invalid' | 'testing'
+  error: string
+}
+const keysList = ref<KeyListItem[]>([
+  { value: '', show: false, status: 'idle', error: '' }
+])
+
+function addKey() {
+  keysList.value.push({ value: '', show: false, status: 'idle', error: '' })
+}
+
+function removeKey(index: number) {
+  keysList.value.splice(index, 1)
+}
 const ffmpegPath = ref('')
 const nodePath = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -590,34 +683,58 @@ const checkSystemHealth = () => state.checkSystemHealth()
 const testingKey = ref(false)
 const testResult = ref<{ status: 'idle' | 'valid' | 'invalid'; message: string }>({ status: 'idle', message: '' })
 
-async function testApiKey() {
-  if (!apiKey.value.trim()) {
-    testResult.value = { status: 'invalid', message: 'API key is empty.' }
+async function testApiKeys() {
+  const filledKeys = keysList.value.map(k => k.value.trim()).filter(Boolean)
+  if (filledKeys.length === 0) {
+    state.showToast('No API keys to test.', 'error')
     return
   }
   
   testingKey.value = true
-  testResult.value = { status: 'idle', message: 'Checking key with Gemini...' }
+  keysList.value.forEach(k => {
+    if (k.value.trim()) {
+      k.status = 'testing'
+      k.error = ''
+    }
+  })
   
+  const combined = filledKeys.join(',')
   try {
-    const res = await $fetch<{ status: string; error?: string }>(`${API_BASE}/api/validate-gemini-key`, {
-      method: 'POST',
-      body: { api_key: apiKey.value }
-    })
+    const res = await $fetch<{ status: string; error?: string; results?: Array<{ key: string; status: string; error?: string }> }>(
+      `${API_BASE}/api/validate-gemini-key`, 
+      {
+        method: 'POST',
+        body: { api_key: combined }
+      }
+    )
+    
+    if (res.results && Array.isArray(res.results)) {
+      res.results.forEach(r => {
+        const item = keysList.value.find(k => k.value.trim() === r.key)
+        if (item) {
+          item.status = r.status as any
+          item.error = r.error || ''
+        }
+      })
+    }
     
     if (res.status === 'valid') {
-      testResult.value = { status: 'valid', message: 'Connection successful! Your Gemini API key is valid and working.' }
-      state.showToast('Gemini API connection verified!', 'success')
+      testResult.value = { status: 'valid', message: 'Connection successful! All keys are valid.' }
+      state.showToast('All Gemini API keys verified!', 'success')
     } else {
-      testResult.value = { status: 'invalid', message: res.error || 'The API key is invalid.' }
-      state.showToast('Gemini connection check failed', 'error')
+      testResult.value = { status: 'invalid', message: 'One or more connection checks failed.' }
+      state.showToast('Some Gemini connection checks failed', 'error')
     }
   } catch (e: any) {
-    testResult.value = { status: 'invalid', message: e.message || 'Network/Server connection failure.' }
     state.showToast('Failed to contact validator endpoint', 'error')
+    keysList.value.forEach(k => {
+      if (k.status === 'testing') {
+        k.status = 'invalid'
+        k.error = e.message || 'Network error'
+      }
+    })
   } finally {
     testingKey.value = false
-    // Refresh health diagnostics to update the dashboard checkmark
     checkSystemHealth()
   }
 }
@@ -626,7 +743,18 @@ async function fetchSettings() {
   try {
     const res = await $fetch<{ settings: any }>(`${API_BASE}/api/system-settings`)
     if (res && res.settings) {
-      apiKey.value = res.settings.GEMINI_API_KEY || ''
+      const rawKeys = res.settings.GEMINI_API_KEY || ''
+      if (rawKeys) {
+        keysList.value = rawKeys.split(',').map((k: string) => ({
+          value: k.trim(),
+          show: false,
+          status: 'idle',
+          error: ''
+        }))
+      } else {
+        keysList.value = [{ value: '', show: false, status: 'idle', error: '' }]
+      }
+      apiKey.value = rawKeys
       ffmpegPath.value = res.settings.FFMPEG_PATH || ''
       nodePath.value = res.settings.NODE_PATH || ''
     }
@@ -635,16 +763,18 @@ async function fetchSettings() {
   }
 }
 
-async function saveApiKey() {
+async function saveApiKeys() {
   try {
+    const combinedKeys = keysList.value.map(k => k.value.trim()).filter(Boolean).join(',')
     await $fetch(`${API_BASE}/api/system-settings`, {
       method: 'PUT',
-      body: { GEMINI_API_KEY: apiKey.value }
+      body: { GEMINI_API_KEY: combinedKeys }
     })
-    state.showToast('API Key saved successfully', 'success')
+    state.showToast('API Keys saved successfully', 'success')
+    apiKey.value = combinedKeys
     checkSystemHealth()
   } catch (e) {
-    state.showToast('Failed to save API Key', 'error')
+    state.showToast('Failed to save API Keys', 'error')
   }
 }
 

@@ -55,3 +55,12 @@ A single source of truth configuration file (`shared/fonts_manifest.json`) that 
 ### Speech Transcriber
 A deep backend domain adapter wrapping the Whisper AI engine to perform high-fidelity audio transcription. It converts audio files into word-level timestamps and dynamically loads different model sizes (e.g. tiny, base, small, medium) on demand according to active configuration settings.
 
+---
+
+## API Configuration & Fallbacks
+
+### Fallback API Key Manager
+A deep backend domain service that manages multiple Gemini API keys in sequence, automatically rolling over to backup keys if a primary key hits rate limits (429) or connection issues.
+
+### Key Degradation Cache
+An in-memory cache tracking the error status and cool-down times of individual fallback keys to prevent retrying known-failed keys within their recovery window.
