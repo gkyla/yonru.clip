@@ -657,7 +657,7 @@ const keysList = ref<KeyListItem[]>([
   { id: Math.random().toString(36).substring(2, 9), title: '', value: '', show: false, status: 'idle', error: '', activeFlash: false }
 ])
 
-const originalSerializedKeys = ref('')
+const originalSerializedKeys = ref(JSON.stringify([{ title: '', value: '' }]))
 const hasUnsavedChanges = computed(() => {
   const current = JSON.stringify(keysList.value.map(k => ({ title: k.title.trim(), value: k.value.trim() })))
   return current !== originalSerializedKeys.value
@@ -731,7 +731,7 @@ function dragEnter(index: number) {
   if (lastSwappedIds.value && 
       ((lastSwappedIds.value[0] === oldItem.id && lastSwappedIds.value[1] === newItem.id) ||
        (lastSwappedIds.value[0] === newItem.id && lastSwappedIds.value[1] === oldItem.id))) {
-    if (now - lastSwapTime.value < 350) {
+    if (now - lastSwapTime.value < 150) {
       return
     }
   }

@@ -273,8 +273,8 @@ describe('HomeSettings Component', () => {
     expect(vm.keysList[0].value).toBe('k2')
     expect(vm.keysList[1].value).toBe('k1')
     
-    // Swap back after cooldown: dragenter on index 0 after 400ms (50ms + 350ms)
-    vi.advanceTimersByTime(350)
+    // Swap back after cooldown: dragenter on index 0 after 200ms total (50ms + 150ms)
+    vi.advanceTimersByTime(150)
     vm.dragEnter(0)
     // Should now successfully swap back
     expect(vm.keysList[0].value).toBe('k1')
