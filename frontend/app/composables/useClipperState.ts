@@ -22,7 +22,7 @@ export const useClipperState = () => {
   const thumbnailState = useClipperThumbnail()
 
   // Job state delegated from useClipperJob sub-composable
-  const { jobId, isMediaLoading, jobStatus, jobError, isNavigatingToEditor } = job
+  const { jobId, isMediaLoading, jobStatus, jobError, isNavigatingToEditor, startSafetyBuffer } = job
 
   // Thumbnail state delegated from useClipperThumbnail sub-composable
   const {
@@ -447,6 +447,7 @@ export const useClipperState = () => {
     // Other State
     jobId, isMediaLoading, jobStatus, jobError,
     isNavigatingToEditor,
+    startSafetyBuffer,
     videoTitle, videoDuration, hasHeatmap, videoUrl, videoFps,
     hooks, savedHooks, activeHook, segmentPadding, folderName, clipId, fullTranscript,
     promptsList, selectedPrompt,

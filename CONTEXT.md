@@ -45,6 +45,9 @@ A client-side warning dialog that triggers when a user submits a YouTube URL tha
 ### Cinematic Preview Modal
 A fullscreen modal overlay that provides a dual-pane interface (video preview player on the left and hook details sidebar on the right) for reviewing generated or saved hooks before entering the subtitle editor.
 
+### Start Safety Buffer
+A user-configurable time padding (defaulting to 2.0 seconds) subtracted from the AI-generated hook start time to prevent cut-off spoken words during preview playback and clip extraction.
+
 ---
 
 ## Asset Synchronization & Bootstrapping

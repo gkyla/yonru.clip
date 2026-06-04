@@ -398,13 +398,13 @@
                  <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
                  <video 
                    v-if="state.videoUrl.value"
-                   :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - 2)"
+                   :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
                    muted
                    preload="metadata"
                    class="absolute inset-0 w-full h-full object-cover z-10"
                    @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
-                   @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - 2); }"
-                   @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - 2); }"
+                   @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
+                   @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
                  ></video>
                  <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-lg text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10">
                    {{ formatHookDuration(hook.start, hook.end) }}
@@ -467,13 +467,13 @@
                  <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
                  <video 
                    v-if="state.videoUrl.value"
-                   :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - 2)"
+                   :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
                    muted
                    preload="metadata"
                    class="absolute inset-0 w-full h-full object-cover z-10"
                    @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
-                   @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - 2); }"
-                   @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - 2); }"
+                   @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
+                   @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
                  ></video>
                  <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-lg text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10">
                    {{ formatHookDuration(hook.start, hook.end) }}
@@ -536,13 +536,14 @@
              <!-- Video Player (50/50) -->
              <div class="md:w-1/2 bg-black relative aspect-video md:aspect-auto flex-shrink-0 flex items-center justify-center">
                 <video 
+                  ref="modalVideoPlayer"
                   v-if="state.videoUrl.value"
                   :src="state.videoUrl.value"
                   controls
                   autoplay
                   class="w-full h-full object-contain max-h-[70vh]"
-                  @timeupdate="e => { if (selectedModalHook && (e.target as HTMLVideoElement).currentTime >= selectedModalHook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, selectedModalHook.start - 2); }"
-                  @loadedmetadata="e => { if (selectedModalHook) (e.target as HTMLVideoElement).currentTime = Math.max(0, selectedModalHook.start - 2); }"
+                  @timeupdate="e => { if (selectedModalHook && (e.target as HTMLVideoElement).currentTime >= selectedModalHook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value); }"
+                  @loadedmetadata="e => { if (selectedModalHook) (e.target as HTMLVideoElement).currentTime = Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value); }"
                 ></video>
                 <div v-else class="w-full h-full flex flex-col items-center justify-center text-slate-500">
                    <Icon name="ri:film-line" class="text-4xl mb-2 opacity-50" />
@@ -574,6 +575,38 @@
                       <Icon name="ri:quote-text" class="absolute -top-2 -right-2 text-6xl text-surface-border opacity-30 group-hover:text-accent-500/10 transition-colors" />
                       <p class="text-slate-300 text-sm italic leading-relaxed relative z-10">"{{ (selectedModalHook.transcript_quote || '').length > 300 ? (selectedModalHook.transcript_quote || '').substring(0, 297) + '...' : (selectedModalHook.transcript_quote || '') }}"</p>
                    </div>
+
+                    <!-- Start Safety Buffer Adjustment -->
+                    <div class="mt-5 bg-black/20 p-4 rounded-xl border border-surface-border/50">
+                       <div class="flex items-center justify-between mb-3">
+                          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                             <Icon name="ri:settings-5-line" class="text-accent-500" />
+                             Start Safety Buffer
+                          </span>
+                          <div class="flex items-center gap-2">
+                             <input 
+                                type="number" 
+                                min="0" 
+                                max="5" 
+                                step="0.1"
+                                v-model.number="state.startSafetyBuffer.value" 
+                                class="w-14 bg-surface-dark border border-surface-border rounded px-1.5 py-0.5 text-center text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
+                             />
+                             <span class="text-[10px] text-slate-500 font-bold">sec</span>
+                          </div>
+                       </div>
+                       <input 
+                          type="range" 
+                          min="0" 
+                          max="5" 
+                          step="0.5" 
+                          v-model.number="state.startSafetyBuffer.value" 
+                          class="w-full h-1 bg-surface-dark rounded-lg appearance-none cursor-pointer accent-accent-500"
+                       />
+                       <p class="text-[9px] text-slate-500 mt-2 italic font-medium leading-relaxed">
+                          Adds padding before the hook starts to ensure opening words (e.g. "Ada") are not cut off.
+                       </p>
+                    </div>
                 </div>
 
                 <div class="mt-8 pt-6 border-t border-surface-border/50">
@@ -960,6 +993,7 @@ const isReadyClipsLoading = ref(false)
 const activeTab = ref<'generated' | 'saved'>('generated')
 const hoveredHookIndex = ref<number | null>(null)
 const selectedModalHook = ref<any | null>(null)
+const modalVideoPlayer = ref<HTMLVideoElement | null>(null)
 const deleteConfirmModalOpen = ref(false)
 const videoToDelete = ref<any | null>(null)
 const clipDeleteConfirmModalOpen = ref(false)
@@ -1065,6 +1099,12 @@ watch(showAllReadyClips, (val) => {
     clipsCurrentPage.value = 1
     isManageMode.value = false
     selectedClips.value = new Set()
+  }
+})
+
+watch(() => state.startSafetyBuffer.value, (newVal) => {
+  if (selectedModalHook.value && modalVideoPlayer.value) {
+    modalVideoPlayer.value.currentTime = Math.max(0, selectedModalHook.value.start - newVal)
   }
 })
 
