@@ -604,6 +604,8 @@
                                     type="text" 
                                     v-model="startInputStr" 
                                     @change="onTimeInputChange('start')"
+                                    @keydown.up.prevent="onTimeInputStep('start', 1)"
+                                    @keydown.down.prevent="onTimeInputStep('start', -1)"
                                     placeholder="mm:ss"
                                     class="w-full bg-surface-dark border border-surface-border rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
                                  />
@@ -618,6 +620,8 @@
                                     type="text" 
                                     v-model="endInputStr" 
                                     @change="onTimeInputChange('end')"
+                                    @keydown.up.prevent="onTimeInputStep('end', 1)"
+                                    @keydown.down.prevent="onTimeInputStep('end', -1)"
                                     placeholder="mm:ss"
                                     class="w-full bg-surface-dark border border-surface-border rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
                                  />
@@ -1174,8 +1178,41 @@ function onTimeInputChange(mode: 'start' | 'end') {
     }
   } else {
     let newEnd = Math.min(total, parsed)
-    if (newEnd < selectedModalHook.value.start + 1.0) {
-      newEnd = selectedModalHook.value.start + 1.0
+    if (newEnd < selectedModalHook.value.start - state.startSafetyBuffer.value + 1.0) {
+      newEnd = selectedModalHook.value.start - state.startSafetyBuffer.value + 1.0
+    }
+    selectedModalHook.value.end = parseFloat(newEnd.toFixed(1))
+    endInputStr.value = formatMMSS(selectedModalHook.value.end)
+    if (modalVideoPlayer.value) {
+      modalVideoPlayer.value.currentTime = Math.max(0, selectedModalHook.value.end - 1)
+    }
+  }
+}
+
+function onTimeInputStep(mode: 'start' | 'end', delta: number) {
+  if (!selectedModalHook.value) return
+  
+  const currentVal = mode === 'start' 
+    ? Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value)
+    : selectedModalHook.value.end
+    
+  const newVal = currentVal + delta
+  
+  const total = state.videoDuration.value || 3600
+  if (mode === 'start') {
+    let newStart = Math.max(0, newVal)
+    if (newStart > selectedModalHook.value.end - 1.0) {
+      newStart = selectedModalHook.value.end - 1.0
+    }
+    selectedModalHook.value.start = parseFloat((newStart + state.startSafetyBuffer.value).toFixed(1))
+    startInputStr.value = formatMMSS(Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value))
+    if (modalVideoPlayer.value) {
+      modalVideoPlayer.value.currentTime = Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value)
+    }
+  } else {
+    let newEnd = Math.min(total, newVal)
+    if (newEnd < selectedModalHook.value.start - state.startSafetyBuffer.value + 1.0) {
+      newEnd = selectedModalHook.value.start - state.startSafetyBuffer.value + 1.0
     }
     selectedModalHook.value.end = parseFloat(newEnd.toFixed(1))
     endInputStr.value = formatMMSS(selectedModalHook.value.end)
@@ -1210,7 +1247,7 @@ function onSliderClick(e: MouseEvent | TouchEvent) {
     }
   } else {
     const maxVal = state.videoDuration.value || 3600
-    if (clickVal >= selectedModalHook.value.start + 1.0) {
+    if (clickVal >= selectedModalHook.value.start - state.startSafetyBuffer.value + 1.0) {
       selectedModalHook.value.end = Math.min(maxVal, parseFloat(clickVal.toFixed(1)))
       if (modalVideoPlayer.value) {
         modalVideoPlayer.value.currentTime = Math.max(0, selectedModalHook.value.end - 1)
