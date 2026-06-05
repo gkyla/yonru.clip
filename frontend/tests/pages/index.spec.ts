@@ -142,4 +142,56 @@ describe('Index Page', () => {
     expect(vm.selectedModalHook.end).toBe(20.0)
     expect(vm.endInputStr).toBe('00:20')
   })
+
+  it('persists and restores volume and muted state', async () => {
+    localStorage.clear()
+    
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: {
+            template: '<div><slot /></div>'
+          },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+    
+    const vm = wrapper.vm as any
+    vm.state.videoUrl.value = 'dummy.mp4'
+    
+    vm.selectedModalHook = {
+      start: 12.0,
+      end: 20.0,
+      originalStart: 12.0,
+      originalEnd: 20.0,
+      theme: 'Test Hook',
+      transcript_quote: 'Hello world'
+    }
+    
+    await wrapper.vm.$nextTick()
+    
+    const video = wrapper.find('video')
+    expect(video.exists()).toBe(true)
+    
+    const videoEl = video.element as HTMLVideoElement
+    
+    // Trigger volume change
+    videoEl.volume = 0.45
+    videoEl.muted = true
+    await video.trigger('volumechange')
+    
+    expect(localStorage.getItem('yonru_preview_volume')).toBe('0.45')
+    expect(localStorage.getItem('yonru_preview_muted')).toBe('true')
+    
+    // Clear and restore
+    videoEl.volume = 1.0
+    videoEl.muted = false
+    
+    vm.restoreModalVolume(videoEl)
+    
+    expect(videoEl.volume).toBe(0.45)
+    expect(videoEl.muted).toBe(true)
+  })
 })
