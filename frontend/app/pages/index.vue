@@ -588,7 +588,7 @@
                                 type="number" 
                                 min="0" 
                                 max="5" 
-                                step="0.1"
+                                step="1"
                                 v-model.number="state.startSafetyBuffer.value" 
                                 class="w-14 bg-surface-dark border border-surface-border rounded px-1.5 py-0.5 text-center text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
                              />
@@ -599,7 +599,7 @@
                           type="range" 
                           min="0" 
                           max="5" 
-                          step="0.5" 
+                          step="1" 
                           v-model.number="state.startSafetyBuffer.value" 
                           class="w-full h-1 bg-surface-dark rounded-lg appearance-none cursor-pointer accent-accent-500"
                        />
