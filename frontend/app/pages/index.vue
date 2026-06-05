@@ -568,8 +568,8 @@
                    <div class="flex flex-wrap items-center gap-2 mb-6">
                       <div class="flex items-center gap-2 bg-surface-dark border border-surface-border/50 px-3 py-2 rounded-lg w-max">
                          <Icon name="ri:time-line" class="text-slate-400" />
-                         <span class="text-slate-300 font-mono text-xs">{{ state.formatDuration(selectedModalHook.start) }} - {{ state.formatDuration(selectedModalHook.end) }}</span>
-                         <span class="text-accent-500 font-bold ml-1 text-xs">{{ formatHookDuration(selectedModalHook.start, selectedModalHook.end) }}</span>
+                         <span class="text-slate-300 font-mono text-xs">{{ state.formatDuration(Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value)) }} - {{ state.formatDuration(selectedModalHook.end) }}</span>
+                         <span class="text-accent-500 font-bold ml-1 text-xs">{{ formatHookDuration(Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value), selectedModalHook.end) }}</span>
                       </div>
                       <button 
                          @click="showAdjustDuration = !showAdjustDuration"
@@ -609,7 +609,7 @@
                                  />
                                  <span class="absolute right-3 text-[10px] text-slate-500 font-bold">mm:ss</span>
                               </div>
-                              <span class="text-[10px] text-slate-500 block mt-1 font-mono">{{ selectedModalHook.start.toFixed(1) }}s</span>
+                              <span class="text-[10px] text-slate-500 block mt-1 font-mono">{{ Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value).toFixed(1) }}s</span>
                            </div>
                            <div>
                               <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">End Time</label>
@@ -643,15 +643,15 @@
                              <div 
                                 class="absolute h-2 bg-accent-500 rounded-full"
                                 :style="{
-                                   left: ((selectedModalHook.start / (state.videoDuration.value || 100)) * 100) + '%',
-                                   width: (((selectedModalHook.end - selectedModalHook.start) / (state.videoDuration.value || 100)) * 100) + '%'
+                                   left: ((Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value) / (state.videoDuration.value || 100)) * 100) + '%',
+                                   width: (((selectedModalHook.end - Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value)) / (state.videoDuration.value || 100)) * 100) + '%'
                                 }"
                              ></div>
 
                              <!-- Start Handle -->
                              <div 
                                 class="absolute w-4 h-4 rounded-full bg-accent-500 border border-white cursor-ew-resize -translate-x-1/2 flex items-center justify-center shadow-lg hover:scale-125 active:scale-125 transition-transform"
-                                :style="{ left: ((selectedModalHook.start / (state.videoDuration.value || 100)) * 100) + '%' }"
+                                :style="{ left: ((Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value) / (state.videoDuration.value || 100)) * 100) + '%' }"
                                 @mousedown.stop="startDrag('start')"
                                 @touchstart.stop="startDrag('start')"
                              >
@@ -1090,7 +1090,7 @@ const endInputStr = ref('00:00')
 
 watch(() => selectedModalHook.value?.start, (newVal) => {
   if (newVal !== undefined) {
-    startInputStr.value = formatMMSS(newVal)
+    startInputStr.value = formatMMSS(Math.max(0, newVal - state.startSafetyBuffer.value))
   }
 })
 
@@ -1122,7 +1122,7 @@ function onDragging(e: MouseEvent | TouchEvent) {
   
   if (dragMode.value === 'start') {
     if (newVal <= selectedModalHook.value.end - 1.0) {
-      selectedModalHook.value.start = Math.max(0, newVal)
+      selectedModalHook.value.start = Math.max(0, newVal) + state.startSafetyBuffer.value
       if (modalVideoPlayer.value) {
         modalVideoPlayer.value.currentTime = Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value)
       }
@@ -1154,7 +1154,7 @@ function onTimeInputChange(mode: 'start' | 'end') {
   
   if (parsed === null) {
     if (mode === 'start') {
-      startInputStr.value = formatMMSS(selectedModalHook.value.start)
+      startInputStr.value = formatMMSS(Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value))
     } else {
       endInputStr.value = formatMMSS(selectedModalHook.value.end)
     }
@@ -1167,8 +1167,8 @@ function onTimeInputChange(mode: 'start' | 'end') {
     if (newStart > selectedModalHook.value.end - 1.0) {
       newStart = selectedModalHook.value.end - 1.0
     }
-    selectedModalHook.value.start = parseFloat(newStart.toFixed(1))
-    startInputStr.value = formatMMSS(selectedModalHook.value.start)
+    selectedModalHook.value.start = parseFloat((newStart + state.startSafetyBuffer.value).toFixed(1))
+    startInputStr.value = formatMMSS(Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value))
     if (modalVideoPlayer.value) {
       modalVideoPlayer.value.currentTime = Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value)
     }
@@ -1196,14 +1196,14 @@ function onSliderClick(e: MouseEvent | TouchEvent) {
   const totalDuration = state.videoDuration.value || 100
   const clickVal = percentage * totalDuration
   
-  const distStart = Math.abs(clickVal - selectedModalHook.value.start)
+  const distStart = Math.abs(clickVal - Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value))
   const distEnd = Math.abs(clickVal - selectedModalHook.value.end)
   
   const mode = distStart < distEnd ? 'start' : 'end'
   
   if (mode === 'start') {
     if (clickVal <= selectedModalHook.value.end - 1.0) {
-      selectedModalHook.value.start = Math.max(0, parseFloat(clickVal.toFixed(1)))
+      selectedModalHook.value.start = Math.max(0, parseFloat(clickVal.toFixed(1))) + state.startSafetyBuffer.value
       if (modalVideoPlayer.value) {
         modalVideoPlayer.value.currentTime = Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value)
       }
@@ -1229,7 +1229,7 @@ watch(selectedModalHook, (newHook) => {
     if (newHook.originalEnd === undefined) {
       newHook.originalEnd = newHook.end
     }
-    startInputStr.value = formatMMSS(newHook.start)
+    startInputStr.value = formatMMSS(Math.max(0, newHook.start - state.startSafetyBuffer.value))
     endInputStr.value = formatMMSS(newHook.end)
   } else {
     showAdjustDuration.value = false
@@ -1240,7 +1240,7 @@ function resetToDefaultDuration() {
   if (selectedModalHook.value && selectedModalHook.value.originalStart !== undefined && selectedModalHook.value.originalEnd !== undefined) {
     selectedModalHook.value.start = selectedModalHook.value.originalStart
     selectedModalHook.value.end = selectedModalHook.value.originalEnd
-    startInputStr.value = formatMMSS(selectedModalHook.value.start)
+    startInputStr.value = formatMMSS(Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value))
     endInputStr.value = formatMMSS(selectedModalHook.value.end)
     if (modalVideoPlayer.value) {
       modalVideoPlayer.value.currentTime = Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value)
