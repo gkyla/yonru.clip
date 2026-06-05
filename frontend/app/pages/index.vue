@@ -597,38 +597,34 @@
                        </div>
 
                        <div class="grid grid-cols-2 gap-4">
-                          <div>
-                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Start Time</label>
-                             <div class="relative flex items-center">
-                                <input 
-                                   type="number" 
-                                   v-model.number="selectedModalHook.start" 
-                                   min="0" 
-                                   :max="selectedModalHook.end - 1.0" 
-                                   step="1"
-                                   @input="onTimeInput('start')"
-                                   class="w-full bg-surface-dark border border-surface-border rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
-                                />
-                                <span class="absolute right-3 text-[10px] text-slate-500 font-bold">sec</span>
-                             </div>
-                             <span class="text-[10px] text-slate-500 block mt-1 font-mono">{{ state.formatDuration(selectedModalHook.start) }}</span>
-                          </div>
-                          <div>
-                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">End Time</label>
-                             <div class="relative flex items-center">
-                                <input 
-                                   type="number" 
-                                   v-model.number="selectedModalHook.end" 
-                                   :min="selectedModalHook.start + 1.0" 
-                                   :max="state.videoDuration.value || 3600" 
-                                   step="1"
-                                   @input="onTimeInput('end')"
-                                   class="w-full bg-surface-dark border border-surface-border rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
-                                />
-                                <span class="absolute right-3 text-[10px] text-slate-500 font-bold">sec</span>
-                             </div>
-                             <span class="text-[10px] text-slate-500 block mt-1 font-mono">{{ state.formatDuration(selectedModalHook.end) }}</span>
-                          </div>
+                           <div>
+                              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Start Time</label>
+                              <div class="relative flex items-center">
+                                 <input 
+                                    type="text" 
+                                    v-model="startInputStr" 
+                                    @change="onTimeInputChange('start')"
+                                    placeholder="mm:ss"
+                                    class="w-full bg-surface-dark border border-surface-border rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
+                                 />
+                                 <span class="absolute right-3 text-[10px] text-slate-500 font-bold">mm:ss</span>
+                              </div>
+                              <span class="text-[10px] text-slate-500 block mt-1 font-mono">{{ selectedModalHook.start.toFixed(1) }}s</span>
+                           </div>
+                           <div>
+                              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">End Time</label>
+                              <div class="relative flex items-center">
+                                 <input 
+                                    type="text" 
+                                    v-model="endInputStr" 
+                                    @change="onTimeInputChange('end')"
+                                    placeholder="mm:ss"
+                                    class="w-full bg-surface-dark border border-surface-border rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
+                                 />
+                                 <span class="absolute right-3 text-[10px] text-slate-500 font-bold">mm:ss</span>
+                              </div>
+                              <span class="text-[10px] text-slate-500 block mt-1 font-mono">{{ selectedModalHook.end.toFixed(1) }}s</span>
+                           </div>
                        </div>
 
                        <!-- Timeline Range Drag Control -->
@@ -1067,8 +1063,42 @@ const hoveredHookIndex = ref<number | null>(null)
 const selectedModalHook = ref<any | null>(null)
 const modalVideoPlayer = ref<HTMLVideoElement | null>(null)
 
+function formatMMSS(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = Math.floor(sec % 60)
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
+function parseMMSS(str: string): number | null {
+  const parts = str.split(':')
+  if (parts.length === 2) {
+    const m = parseInt(parts[0], 10)
+    const s = parseInt(parts[1], 10)
+    if (!isNaN(m) && !isNaN(s)) {
+      return m * 60 + s
+    }
+  }
+  const val = parseFloat(str)
+  if (!isNaN(val)) return val
+  return null
+}
+
 const showAdjustDuration = ref(false)
 const dragMode = ref<'start' | 'end' | null>(null)
+const startInputStr = ref('00:00')
+const endInputStr = ref('00:00')
+
+watch(() => selectedModalHook.value?.start, (newVal) => {
+  if (newVal !== undefined) {
+    startInputStr.value = formatMMSS(newVal)
+  }
+})
+
+watch(() => selectedModalHook.value?.end, (newVal) => {
+  if (newVal !== undefined) {
+    endInputStr.value = formatMMSS(newVal)
+  }
+})
 
 function startDrag(mode: 'start' | 'end') {
   dragMode.value = mode
@@ -1116,21 +1146,39 @@ function stopDragging() {
   window.removeEventListener('touchend', stopDragging)
 }
 
-function onTimeInput(mode: 'start' | 'end') {
+function onTimeInputChange(mode: 'start' | 'end') {
   if (!selectedModalHook.value) return
-  const start = selectedModalHook.value.start || 0
-  const end = selectedModalHook.value.end || 0
+  
+  const str = mode === 'start' ? startInputStr.value : endInputStr.value
+  const parsed = parseMMSS(str)
+  
+  if (parsed === null) {
+    if (mode === 'start') {
+      startInputStr.value = formatMMSS(selectedModalHook.value.start)
+    } else {
+      endInputStr.value = formatMMSS(selectedModalHook.value.end)
+    }
+    return
+  }
+  
   const total = state.videoDuration.value || 3600
-
   if (mode === 'start') {
-    if (start < 0) selectedModalHook.value.start = 0
-    if (start > end - 1.0) selectedModalHook.value.start = end - 1.0
+    let newStart = Math.max(0, parsed)
+    if (newStart > selectedModalHook.value.end - 1.0) {
+      newStart = selectedModalHook.value.end - 1.0
+    }
+    selectedModalHook.value.start = parseFloat(newStart.toFixed(1))
+    startInputStr.value = formatMMSS(selectedModalHook.value.start)
     if (modalVideoPlayer.value) {
       modalVideoPlayer.value.currentTime = Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value)
     }
   } else {
-    if (end > total) selectedModalHook.value.end = total
-    if (end < start + 1.0) selectedModalHook.value.end = start + 1.0
+    let newEnd = Math.min(total, parsed)
+    if (newEnd < selectedModalHook.value.start + 1.0) {
+      newEnd = selectedModalHook.value.start + 1.0
+    }
+    selectedModalHook.value.end = parseFloat(newEnd.toFixed(1))
+    endInputStr.value = formatMMSS(selectedModalHook.value.end)
     if (modalVideoPlayer.value) {
       modalVideoPlayer.value.currentTime = Math.max(0, selectedModalHook.value.end - 1)
     }
@@ -1181,6 +1229,8 @@ watch(selectedModalHook, (newHook) => {
     if (newHook.originalEnd === undefined) {
       newHook.originalEnd = newHook.end
     }
+    startInputStr.value = formatMMSS(newHook.start)
+    endInputStr.value = formatMMSS(newHook.end)
   } else {
     showAdjustDuration.value = false
   }
@@ -1190,6 +1240,8 @@ function resetToDefaultDuration() {
   if (selectedModalHook.value && selectedModalHook.value.originalStart !== undefined && selectedModalHook.value.originalEnd !== undefined) {
     selectedModalHook.value.start = selectedModalHook.value.originalStart
     selectedModalHook.value.end = selectedModalHook.value.originalEnd
+    startInputStr.value = formatMMSS(selectedModalHook.value.start)
+    endInputStr.value = formatMMSS(selectedModalHook.value.end)
     if (modalVideoPlayer.value) {
       modalVideoPlayer.value.currentTime = Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value)
     }

@@ -49,7 +49,7 @@ A fullscreen modal overlay that provides a dual-pane interface (video preview pl
 A fixed time padding (strictly 2.0 seconds) subtracted from the AI-generated hook start time to prevent cut-off spoken words during preview playback and clip extraction.
 
 ### Hook Timing Adjustment
-A control panel within the Cinematic Preview Modal sidebar that allows the user to fine-tune the start and end times of a specific hook by entering seconds manually or by dragging a dual-ended timeline slider.
+A control panel within the Cinematic Preview Modal sidebar that allows the user to fine-tune the start and end times of a specific hook by entering timing in MM:SS format or by dragging a dual-ended timeline slider.
 
 ---
 
