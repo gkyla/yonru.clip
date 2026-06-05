@@ -34,6 +34,7 @@ export const useClipperJob = () => {
   const youtubeUrl = useState<string>('youtubeUrl', () => '')
   const language = useState<string>('language', () => 'id')
   const whisperModel = useState<string>('whisperModel', () => 'base')
+  const startSafetyBuffer = useState<number>('startSafetyBuffer', () => 2.0)
 
   // Subtitle positions / styling
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
@@ -402,7 +403,7 @@ export const useClipperJob = () => {
         method: 'POST',
         body: { 
             job_id: jobId.value, 
-            start_time: Math.floor(hook.start),
+            start_time: Math.max(0, Math.floor(hook.start - startSafetyBuffer.value)),
             end_time: Math.ceil(hook.end),
             theme: hook.theme,
             whisper_model: whisperModel.value
@@ -560,6 +561,7 @@ export const useClipperJob = () => {
     startPolling,
     stopPolling,
     extractClip,
-    loadReadyClipIntoEditor
+    loadReadyClipIntoEditor,
+    startSafetyBuffer
   }
 }

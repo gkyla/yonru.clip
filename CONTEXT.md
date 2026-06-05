@@ -42,6 +42,15 @@ A reusable styling template that encapsulates typography and still frame duratio
 ### Library Duplicate Intercept
 A client-side warning dialog that triggers when a user submits a YouTube URL that already exists in the Cached Library, offering choices to load existing hooks instantly or reanalyze hooks using Gemini without re-downloading the video.
 
+### Cinematic Preview Modal
+A fullscreen modal overlay that provides a dual-pane interface (video preview player on the left and hook details sidebar on the right) for reviewing generated or saved hooks before entering the subtitle editor.
+
+### Start Safety Buffer
+A fixed time padding (strictly 2.0 seconds) subtracted from the AI-generated hook start time to prevent cut-off spoken words during preview playback and clip extraction.
+
+### Hook Timing Adjustment
+A control panel within the Cinematic Preview Modal sidebar that allows the user to fine-tune the start and end times of a specific hook by entering timing in MM:SS format or by dragging a dual-ended timeline slider.
+
 ---
 
 ## Asset Synchronization & Bootstrapping
