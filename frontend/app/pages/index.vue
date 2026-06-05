@@ -543,7 +543,12 @@
                   autoplay
                   class="w-full h-full object-contain max-h-[70vh]"
                   @timeupdate="e => { if (selectedModalHook && (e.target as HTMLVideoElement).currentTime >= selectedModalHook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value); }"
-                  @loadedmetadata="e => { if (selectedModalHook) (e.target as HTMLVideoElement).currentTime = Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value); }"
+                  @loadedmetadata="e => {
+                    const videoEl = e.target as HTMLVideoElement;
+                    if (selectedModalHook) videoEl.currentTime = Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value);
+                    restoreModalVolume(videoEl);
+                  }"
+                  @volumechange="onVolumeChange"
                 ></video>
                 <div v-else class="w-full h-full flex flex-col items-center justify-center text-slate-500">
                    <Icon name="ri:film-line" class="text-4xl mb-2 opacity-50" />
@@ -1066,6 +1071,34 @@ const activeTab = ref<'generated' | 'saved'>('generated')
 const hoveredHookIndex = ref<number | null>(null)
 const selectedModalHook = ref<any | null>(null)
 const modalVideoPlayer = ref<HTMLVideoElement | null>(null)
+
+function restoreModalVolume(el: HTMLVideoElement | null) {
+  if (!el) return
+  if (typeof localStorage !== 'undefined') {
+    const savedVolume = localStorage.getItem('yonru_preview_volume')
+    const savedMuted = localStorage.getItem('yonru_preview_muted')
+    if (savedVolume !== null) {
+      el.volume = parseFloat(savedVolume)
+    }
+    if (savedMuted !== null) {
+      el.muted = savedMuted === 'true'
+    }
+  }
+}
+
+function onVolumeChange() {
+  const el = modalVideoPlayer.value
+  if (el && typeof localStorage !== 'undefined') {
+    localStorage.setItem('yonru_preview_volume', el.volume.toString())
+    localStorage.setItem('yonru_preview_muted', el.muted.toString())
+  }
+}
+
+watch(modalVideoPlayer, (el) => {
+  if (el) {
+    restoreModalVolume(el)
+  }
+})
 
 function formatMMSS(sec: number): string {
   const m = Math.floor(sec / 60)
