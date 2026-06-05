@@ -36,19 +36,6 @@ export const useClipperJob = () => {
   const whisperModel = useState<string>('whisperModel', () => 'base')
   const startSafetyBuffer = useState<number>('startSafetyBuffer', () => 2.0)
 
-  if (import.meta.client || typeof window !== 'undefined') {
-    const saved = localStorage.getItem('yonru_start_safety_buffer')
-    if (saved !== null) {
-      const parsed = parseFloat(saved)
-      if (!isNaN(parsed)) {
-        startSafetyBuffer.value = parsed
-      }
-    }
-    watch(startSafetyBuffer, (newVal) => {
-      localStorage.setItem('yonru_start_safety_buffer', newVal.toString())
-    })
-  }
-
   // Subtitle positions / styling
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
