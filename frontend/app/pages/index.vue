@@ -96,7 +96,7 @@
                          <!-- Hover Tooltip showing Suitable For (placed outside overflow container) -->
                          <div 
                            v-if="hoveredPrompt && hoveredPrompt.suitableFor && hoveredPrompt.suitableFor.length"
-                           class="absolute left-full top-0 ml-2.5 w-64 bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-xl shadow-2xl p-3 z-[60] text-left animate-in fade-in duration-150 pointer-events-none"
+                           class="absolute left-full top-0 ml-2.5 w-64 bg-[#171a21]/95 backdrop-blur-md border border-accent-500/50 rounded-xl shadow-[0_0_20px_rgba(207,255,80,0.1)] p-3 z-[60] text-left animate-in fade-in duration-150 pointer-events-none"
                          >
                            <h5 class="text-accent-500 text-sm font-bold uppercase tracking-wider mb-2">Suitable For:</h5>
                            <div class="flex flex-col gap-1.5">
