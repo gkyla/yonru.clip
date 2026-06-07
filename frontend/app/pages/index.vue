@@ -35,17 +35,66 @@
                 <!-- AI Prompt dropdown selector -->
                 <div class="flex items-center gap-2 flex-1 min-w-0">
                    <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider shrink-0">AI PROMPT:</label>
-                   <div class="relative flex-1 max-w-sm flex items-center gap-2">
-                     <select 
-                       v-model="state.selectedPrompt.value"
-                       class="w-full bg-surface-dark border border-surface-border text-white pl-3 pr-8 py-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:border-accent-500/50 appearance-none cursor-pointer"
+                   <div ref="promptDropdownRef" class="relative flex-1 max-w-sm">
+                     <!-- Dropdown Toggle Button -->
+                     <button 
+                       @click="isPromptDropdownOpen = !isPromptDropdownOpen"
                        :disabled="isProcessing"
+                       class="w-full bg-surface-dark border border-surface-border text-white pl-3 pr-8 py-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:border-accent-500/50 flex items-center justify-between cursor-pointer disabled:opacity-50 select-none"
                      >
-                       <option v-for="p in state.promptsList.value" :key="p.id" :value="p.id">{{ p.name }}</option>
-                     </select>
-                     <div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-                       <Icon name="ri:arrow-down-s-line" class="text-sm" />
-                     </div>
+                       <span class="truncate">{{ currentPrompt?.name || 'Select a Prompt' }}</span>
+                       <Icon 
+                         name="ri:arrow-down-s-line" 
+                         class="text-slate-500 text-sm transition-transform duration-200" 
+                         :class="{ 'rotate-180': isPromptDropdownOpen }"
+                       />
+                     </button>
+                     
+                     <!-- Dropdown Menu Options Panel -->
+                     <Transition
+                       enter-active-class="transition duration-100 ease-out"
+                       enter-from-class="transform scale-95 opacity-0"
+                       enter-to-class="transform scale-100 opacity-100"
+                       leave-active-class="transition duration-75 ease-in"
+                       leave-from-class="transform scale-100 opacity-100"
+                       leave-to-class="transform scale-95 opacity-0"
+                     >
+                       <div 
+                         v-if="isPromptDropdownOpen"
+                         class="absolute bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-2 left-0 w-full bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-xl shadow-2xl overflow-hidden py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                       >
+                         <!-- Prompt Options List -->
+                         <div class="max-h-60 overflow-y-auto custom-scrollbar">
+                           <button 
+                             v-for="p in state.promptsList.value" 
+                             :key="p.id"
+                             @click="state.selectedPrompt.value = p.id; isPromptDropdownOpen = false"
+                             class="w-full px-3 py-2 flex items-center justify-between text-left text-xs text-slate-300 hover:bg-accent-500/10 hover:text-accent-500 transition-colors font-medium group/item"
+                           >
+                             <span class="truncate" :class="{ 'text-accent-500 font-bold': state.selectedPrompt.value === p.id }">
+                               {{ p.name }}
+                             </span>
+                             <Icon 
+                               v-if="state.selectedPrompt.value === p.id" 
+                               name="ri:checkbox-circle-fill" 
+                               class="text-accent-500 text-sm shrink-0 ml-2" 
+                             />
+                           </button>
+                         </div>
+                         
+                         <!-- Divider -->
+                         <div class="border-t border-surface-border/40 my-1"></div>
+                         
+                         <!-- Manage Prompts shortcut -->
+                         <button 
+                           @click="navigateTo('/prompts'); isPromptDropdownOpen = false"
+                           class="w-full px-3 py-2 flex items-center gap-2 text-left text-xs font-bold text-slate-400 hover:text-accent-500 hover:bg-accent-500/5 transition-colors tracking-wide uppercase"
+                         >
+                           <Icon name="ri:settings-5-line" class="text-sm shrink-0" />
+                           + Manage Prompts
+                         </button>
+                       </div>
+                     </Transition>
                    </div>
 
                    <!-- Tooltip for suitableFor -->
@@ -1094,6 +1143,23 @@
 <script setup lang="ts">
 const state = useClipperState()
 const API_BASE = 'http://localhost:8000'
+
+const isPromptDropdownOpen = ref(false)
+const promptDropdownRef = ref<HTMLElement | null>(null)
+
+function handleDocumentClick(e: MouseEvent) {
+  if (promptDropdownRef.value && !promptDropdownRef.value.contains(e.target as Node)) {
+    isPromptDropdownOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocumentClick)
+})
 
 const viewMode = ref<'grid' | 'list'>('grid')
 const { 
