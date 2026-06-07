@@ -10,6 +10,14 @@ import fontsManifest from '../../../shared/fonts_manifest.json'
 
 export const FONT_OPTIONS = fontsManifest.fonts.map((f: any) => f.name)
 
+export const WHISPER_MODELS = [
+  { id: 'tiny', name: 'Tiny', speed: 'Ultra Fast', acc: 'Basic', desc: 'Minimal accuracy, best for quick testing on weak hardware.' },
+  { id: 'base', name: 'Base', speed: 'Very Fast', acc: 'Good', desc: 'Great balance for clear audio. Default choice.' },
+  { id: 'small', name: 'Small', speed: 'Fast', acc: 'Better', desc: 'Significantly better for non-English or noisy audio.' },
+  { id: 'medium', name: 'Medium', speed: 'Moderate', acc: 'Excellent', desc: 'High precision. Requires decent hardware (~5GB VRAM).' },
+  { id: 'large-v3', name: 'Large-v3', speed: 'Slow', acc: 'State-of-the-Art', desc: 'Highest accuracy possible. Best for complex dialogue.' }
+] as const
+
 export const useClipperState = () => {
   // API Base
   const API_BASE = 'http://localhost:8000'
@@ -477,6 +485,7 @@ export const useClipperState = () => {
     promptsList, selectedPrompt,
     youtubeUrl, language, subtitlePosition, subtitleOffset, subtitleSyncOffset,
     font, fontSize, faceTracking, cropMode, cropPercentX, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
+    whisperModels: WHISPER_MODELS,
     subtitleAnimation, subtitleHighlightMode, subtitleHighlightColor, subtitleTextColor,
     subtitleStrokeColor, subtitleStrokeWidth, subtitleFontWeight, subtitleTextTransform,
     subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing, subtitlePreset, volume,

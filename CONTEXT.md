@@ -59,6 +59,10 @@ A snapshot of the timeline tracks and transcription state committed to the histo
 ### Unified Analyzer Panel
 A unified control card on the index page that groups the YouTube URL search input, prompt template dropdown, current transcription settings metadata, and settings page shortcut into a single, border-divided interface.
 
+### Transcription Model Tooltip Card
+A hover-activated glassmorphic card overlay displaying the name, speed, accuracy, and detailed description of the currently selected Whisper transcriber model size.
+
+
 ---
 
 ## Asset Synchronization & Bootstrapping

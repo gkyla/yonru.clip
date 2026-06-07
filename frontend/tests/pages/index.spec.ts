@@ -11,6 +11,13 @@ vi.mock('../../app/composables/useClipperState', () => ({
     selectedPrompt: ref('prompt.json'),
     promptsList: ref([]),
     whisperModel: ref('base'),
+    whisperModels: [
+      { id: 'tiny', name: 'Tiny', speed: 'Ultra Fast', acc: 'Basic', desc: 'Minimal accuracy, best for quick testing on weak hardware.' },
+      { id: 'base', name: 'Base', speed: 'Very Fast', acc: 'Good', desc: 'Great balance for clear audio. Default choice.' },
+      { id: 'small', name: 'Small', speed: 'Fast', acc: 'Better', desc: 'Significantly better for non-English or noisy audio.' },
+      { id: 'medium', name: 'Medium', speed: 'Moderate', acc: 'Excellent', desc: 'High precision. Requires decent hardware (~5GB VRAM).' },
+      { id: 'large-v3', name: 'Large-v3', speed: 'Slow', acc: 'State-of-the-Art', desc: 'Highest accuracy possible. Best for complex dialogue.' }
+    ],
     jobError: ref(null),
     hooks: ref([]),
     jobId: ref('job-123'),

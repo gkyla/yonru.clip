@@ -140,9 +140,25 @@
                 <!-- Transcriber settings display & Shortcut -->
                 <div class="flex items-center gap-2 justify-end shrink-0 select-none">
                   <!-- Active Transcriber Metadata Badge -->
-                  <div class="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 font-mono text-[10px] font-bold tracking-wider uppercase">
+                  <div class="group relative cursor-help flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 font-mono text-[10px] font-bold tracking-wider uppercase">
                     <span class="w-1.5 h-1.5 rounded-full bg-accent-500"></span>
                     WHISPER: {{ state.whisperModel.value }}
+
+                    <!-- Transcription Model Tooltip Card -->
+                    <div class="absolute bottom-full right-0 mb-3 w-72 bg-[#171a21]/95 backdrop-blur-md border border-accent-500/50 rounded-xl p-4 shadow-[0_0_20px_rgba(207,255,80,0.1)] opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left pointer-events-none">
+                      <div class="flex justify-between items-start mb-2">
+                        <span class="font-black uppercase tracking-widest text-xs text-accent-500">{{ activeWhisperMetadata.name }}</span>
+                        <Icon name="ri:checkbox-circle-fill" class="text-accent-500 text-base shrink-0" />
+                      </div>
+                      <div class="flex gap-2 mb-3">
+                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-surface-dark border border-surface-border text-slate-400 font-bold uppercase tracking-tighter">{{ activeWhisperMetadata.speed }}</span>
+                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-surface-dark border border-surface-border text-slate-400 font-bold uppercase tracking-tighter">{{ activeWhisperMetadata.acc }}</span>
+                      </div>
+                      <p class="text-[11px] leading-relaxed text-slate-400 font-sans normal-case tracking-normal">{{ activeWhisperMetadata.desc }}</p>
+
+                      <!-- Triangle pointer -->
+                      <div class="absolute -bottom-2 right-8 w-4 h-4 bg-[#171a21] border-b border-r border-accent-500/50 transform rotate-45 z-40"></div>
+                    </div>
                   </div>
                   
                   <!-- Settings Shortcut Button -->
@@ -1163,6 +1179,11 @@ const API_BASE = 'http://localhost:8000'
 const isPromptDropdownOpen = ref(false)
 const promptDropdownRef = ref<HTMLElement | null>(null)
 const hoveredPrompt = ref<any | null>(null)
+
+const activeWhisperMetadata = computed(() => {
+  const modelId = state.whisperModel.value || 'base'
+  return state.whisperModels.find(m => m.id === modelId) || state.whisperModels[1]
+})
 
 function handleDocumentClick(e: MouseEvent) {
   if (promptDropdownRef.value && !promptDropdownRef.value.contains(e.target as Node)) {
