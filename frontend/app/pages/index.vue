@@ -163,7 +163,7 @@
                   
                   <!-- Settings Shortcut Button -->
                   <button 
-                    @click="navigateTo('/settings')"
+                    @click="state.settingsScrollTarget.value = 'settings-whisper'; navigateTo('/settings')"
                     class="p-2.5 bg-surface-dark hover:bg-surface-panel border border-surface-border text-slate-400 hover:text-white rounded-lg hover:border-accent-500/50 hover:shadow-[0_0_10px_rgba(207,255,80,0.1)] transition-all duration-300 flex items-center justify-center cursor-pointer"
                     title="Transcriber Settings"
                     :disabled="isProcessing"
