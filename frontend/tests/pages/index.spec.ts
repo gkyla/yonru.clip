@@ -10,6 +10,7 @@ vi.mock('../../app/composables/useClipperState', () => ({
     youtubeUrl: ref(''),
     selectedPrompt: ref('prompt.json'),
     promptsList: ref([]),
+    whisperModel: ref('base'),
     jobError: ref(null),
     hooks: ref([]),
     jobId: ref('job-123'),

@@ -56,6 +56,9 @@ An in-memory, transient double-stack (undo/redo) that stores deep-cloned snapsho
 ### Manual State Snapshot
 A snapshot of the timeline tracks and transcription state committed to the history stack at discrete interaction boundaries (such as drag end, split, delete, or style commit) rather than on every reactive mutation.
 
+### Unified Analyzer Panel
+A unified control card on the index page that groups the YouTube URL search input, prompt template dropdown, current transcription settings metadata, and settings page shortcut into a single, border-divided interface.
+
 ---
 
 ## Asset Synchronization & Bootstrapping
