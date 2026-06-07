@@ -16,6 +16,13 @@ export default defineNuxtConfig({
     }
   },
   compatibilityDate: '2024-04-03',
+  typescript: {
+    tsConfig: {
+      include: [
+        '../tests/**/*'
+      ]
+    }
+  },
   telemetry: false,
   ssr: false,
   vite: {

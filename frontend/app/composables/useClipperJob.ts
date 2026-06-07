@@ -347,6 +347,11 @@ export const useClipperJob = () => {
                   }]
                 }
 
+                // Hydrate persisted history stacks from job status response
+                if (res.history) {
+                  timeline.loadHistoryFromResponse(res.history)
+                }
+
                 loadThumbnailConfig()
               } catch (e) {
                 console.warn('[clipper] No clip assets yet')
@@ -535,6 +540,11 @@ export const useClipperJob = () => {
         }
 
         loadThumbnailConfig()
+      }
+
+      // Hydrate persisted history stacks from API response
+      if (res.history) {
+        timeline.loadHistoryFromResponse(res.history)
       }
 
       startPolling()

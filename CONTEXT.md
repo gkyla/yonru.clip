@@ -50,6 +50,12 @@ A fixed time padding (strictly 2.0 seconds) subtracted from the AI-generated hoo
 ### Hook Timing Adjustment
 A control panel within the Cinematic Preview Modal sidebar that allows the user to fine-tune the start and end times of a specific hook by entering timing in MM:SS format or by dragging a dual-ended timeline slider.
 
+### Timeline History Stack
+An in-memory, transient double-stack (undo/redo) that stores deep-cloned snapshots of the timeline tracks, full transcripts, and selected item IDs to support state reversal.
+
+### Manual State Snapshot
+A snapshot of the timeline tracks and transcription state committed to the history stack at discrete interaction boundaries (such as drag end, split, delete, or style commit) rather than on every reactive mutation.
+
 ---
 
 ## Asset Synchronization & Bootstrapping

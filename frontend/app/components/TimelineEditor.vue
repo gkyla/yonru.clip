@@ -23,6 +23,35 @@
         <button @click="snapEnabled = !snapEnabled" class="p-1 rounded text-[9px] font-bold flex items-center gap-1" :class="snapEnabled ? 'bg-sky-500/20 text-sky-400' : 'text-slate-600 hover:bg-white/5'">
           <Icon name="ri:drag-move-2-line" class="text-sm" /> SNAP
         </button>
+        <div class="h-4 w-px bg-white/10"></div>
+        <button @click="state.undo()" :disabled="!state.canUndo.value" class="relative group p-1 rounded hover:bg-white/10 text-slate-500 disabled:opacity-20 transition-all text-[10px] font-bold flex items-center gap-1">
+          <Icon name="ri:arrow-go-back-line" class="text-sm" /> Undo
+          <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-slate-900 text-slate-200 text-[9px] px-2 py-0.5 rounded shadow-xl whitespace-nowrap pointer-events-none z-50 border border-white/10 font-medium">
+            Cmd + Z / Ctrl + Z
+          </span>
+        </button>
+        <button @click="state.redo()" :disabled="!state.canRedo.value" class="relative group p-1 rounded hover:bg-white/10 text-slate-500 disabled:opacity-20 transition-all text-[10px] font-bold flex items-center gap-1">
+          <Icon name="ri:arrow-go-forward-line" class="text-sm" /> Redo
+          <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-slate-900 text-slate-200 text-[9px] px-2 py-0.5 rounded shadow-xl whitespace-nowrap pointer-events-none z-50 border border-white/10 font-medium">
+            Cmd + Shift + Z / Ctrl + Shift + Z
+          </span>
+        </button>
+        <!-- Saving indicator -->
+        <Transition
+          enter-active-class="transition duration-300 ease-out"
+          enter-from-class="opacity-0 translate-x-[-4px]"
+          enter-to-class="opacity-100 translate-x-0"
+          leave-active-class="transition duration-200 ease-in"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <div v-if="state.isSavingHistory.value" class="flex items-center gap-2">
+            <div class="h-4 w-px bg-white/10"></div>
+            <span class="flex items-center gap-1 text-[9px] text-amber-400/80 font-bold uppercase tracking-wider">
+              <Icon name="ri:loader-4-line" class="text-xs animate-spin" /> Saving...
+            </span>
+          </div>
+        </Transition>
       </div>
       <div class="flex items-center gap-4">
         <div class="flex items-center gap-2 bg-black/30 px-3 py-1 rounded-full border border-white/5">
@@ -180,7 +209,9 @@
         
         <!-- SECTION 1: TIMING & SPACING -->
         <div class="border rounded-xl bg-black/20 overflow-hidden transition-all duration-300"
-             :class="activeSections.timing ? 'border-sky-500/20 shadow-[0_0_12px_rgba(56,189,248,0.03)]' : 'border-white/5'">
+             :class="activeSections.timing ? 'border-sky-500/20 shadow-[0_0_12px_rgba(56,189,248,0.03)]' : 'border-white/5'"
+             @mousedown="state.commitToHistory()"
+             @focusin="state.commitToHistory()">
           <button @click="toggleSection('timing')" class="w-full px-3 py-2 flex items-center justify-between bg-white/[0.02] hover:bg-white/[0.05] transition-colors text-[9px] font-bold uppercase tracking-wider text-slate-400">
             <span class="flex items-center gap-2"><Icon name="ri:time-line" class="text-sky-400 text-xs" /> Timing & Spacing</span>
             <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-300" :class="{ 'rotate-180': activeSections.timing }" />
@@ -249,6 +280,7 @@
              class="space-y-3 transition-all duration-300 relative"
              :class="isLinkedToGlobal ? 'opacity-50' : 'opacity-100'"
              @mousedown="handleStyleInteraction"
+             @focusin="handleStyleInteraction"
              @input="handleStyleInteraction"
              @change="handleStyleInteraction">
 
@@ -505,6 +537,9 @@ function handleStyleInteraction(e: Event) {
   // Only decouple on actual user interactions with form controls
   const tag = (e.target as HTMLElement)?.tagName?.toLowerCase()
   if (['input', 'select', 'textarea'].includes(tag)) {
+    if (e.type === 'mousedown' || e.type === 'focusin') {
+      state.commitToHistory()
+    }
     decoupleItem()
   }
 }
@@ -716,6 +751,7 @@ function onTrackBgClick(e: MouseEvent) {
 
 // --- Add items ---
 function addText() {
+  state.commitToHistory()
   state.addTimelineItem('text', { content: 'NEW TEXT', color: '#CFFF50', fontSize: 80, x: 540, y: 960 })
 }
 function triggerAudioUpload() { audioInput.value?.click() }
@@ -724,6 +760,7 @@ function handleAudioFile(e: Event) {
   if (!file) return
   const reader = new FileReader()
   reader.onload = (ev) => {
+    state.commitToHistory()
     state.addTimelineItem('audio', { name: file.name, src: ev.target?.result, duration: 5 })
   }
   reader.readAsDataURL(file)
@@ -775,6 +812,7 @@ let dragStartX = 0
 let dragStartVal = 0
 let resizeMode: 'start' | 'end' | null = null
 let dragTrackId = ''
+let dragStartSnapshot: any = null
 
 function startMove(e: MouseEvent, trackId: string, item: any) {
   state.selectedTimelineItem.value = item
@@ -783,6 +821,17 @@ function startMove(e: MouseEvent, trackId: string, item: any) {
   dragStartX = e.clientX
   dragStartVal = item.start
   resizeMode = null
+  dragStartSnapshot = {
+    tracks: JSON.parse(JSON.stringify(state.timelineTracks.value)),
+    transcript: state.fullTranscript.value ? state.fullTranscript.value.map((seg: any) => ({
+      id: seg.id,
+      start: seg.start,
+      duration: seg.duration,
+      text: seg.text,
+      words: seg.words ? JSON.parse(JSON.stringify(seg.words)) : undefined
+    })) : [],
+    selectedId: state.selectedTimelineItem.value?.id || null
+  }
   window.addEventListener('mousemove', onDrag)
   window.addEventListener('mouseup', stopDrag)
 }
@@ -794,6 +843,17 @@ function startResize(e: MouseEvent, trackId: string, item: any, mode: 'start' | 
   dragStartX = e.clientX
   dragStartVal = mode === 'start' ? item.start : item.duration
   resizeMode = mode
+  dragStartSnapshot = {
+    tracks: JSON.parse(JSON.stringify(state.timelineTracks.value)),
+    transcript: state.fullTranscript.value ? state.fullTranscript.value.map((seg: any) => ({
+      id: seg.id,
+      start: seg.start,
+      duration: seg.duration,
+      text: seg.text,
+      words: seg.words ? JSON.parse(JSON.stringify(seg.words)) : undefined
+    })) : [],
+    selectedId: state.selectedTimelineItem.value?.id || null
+  }
   window.addEventListener('mousemove', onDrag)
   window.addEventListener('mouseup', stopDrag)
 }
@@ -827,11 +887,27 @@ function stopDrag() {
   draggingItem = null
   window.removeEventListener('mousemove', onDrag)
   window.removeEventListener('mouseup', stopDrag)
+
+  if (dragStartSnapshot) {
+    const currentTracks = JSON.stringify(state.timelineTracks.value)
+    const originalTracks = JSON.stringify(dragStartSnapshot.tracks)
+    if (currentTracks !== originalTracks) {
+      const timelineUndoStack = useState<any[]>('timelineUndoStack')
+      const timelineRedoStack = useState<any[]>('timelineRedoStack')
+      timelineUndoStack.value.push(dragStartSnapshot)
+      if (timelineUndoStack.value.length > 50) {
+        timelineUndoStack.value.shift()
+      }
+      timelineRedoStack.value = [] // Clear redo stack
+    }
+    dragStartSnapshot = null
+  }
 }
 
 // --- Delete / Split ---
 function deleteSelected() {
   if (!state.selectedTimelineItem.value) return
+  state.commitToHistory()
   const itemToDelete = { ...state.selectedTimelineItem.value }
   const id = itemToDelete.id
   
@@ -945,6 +1021,7 @@ function deleteSelected() {
 function splitSelected() {
   const item = state.selectedTimelineItem.value
   if (!item) return
+  state.commitToHistory()
   const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
   const cut = state.currentTime.value - offset
 
@@ -975,6 +1052,22 @@ function splitSelected() {
 function onKeyDown(e: KeyboardEvent) {
   if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return
   if (e.target instanceof HTMLElement && e.target.isContentEditable) return
+
+  const isMeta = e.metaKey || e.ctrlKey
+  if (isMeta && e.key?.toLowerCase() === 'z') {
+    e.preventDefault()
+    if (e.shiftKey) {
+      state.redo()
+    } else {
+      state.undo()
+    }
+    return
+  } else if (isMeta && e.key?.toLowerCase() === 'y') {
+    e.preventDefault()
+    state.redo()
+    return
+  }
+
   if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePlay() }
   else if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected()
   else if (e.key === 'k' || e.key === 'K') splitSelected()

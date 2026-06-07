@@ -156,6 +156,12 @@ class StyleSettingsRequest(BaseModel):
     clip_id: str
     settings: dict
 
+class TimelineHistoryRequest(BaseModel):
+    folder_name: str
+    clip_id: str
+    undo_stack: list
+    redo_stack: list
+
 class DefaultStyleSettingsRequest(BaseModel):
     settings: dict
 
@@ -404,6 +410,16 @@ async def get_job(job_id: str):
                         clip_data["transcript"] = json.load(f)
                 except:
                     pass
+            
+            # Load clip-specific history if it exists
+            history_path = os.path.join(os.path.dirname(clip_path), "history.json")
+            if os.path.exists(history_path):
+                try:
+                    with open(history_path, "r", encoding="utf-8") as f:
+                        response["history"] = json.load(f)
+                    print(f"[api] Loaded persisted history for job {job_id} from {history_path}")
+                except Exception as e:
+                    print(f"[api] Failed to read history for job {job_id}: {e}")
         
         response["clip"] = clip_data
     
@@ -660,6 +676,23 @@ async def update_timeline(req: TimelineSaveRequest):
         return {"status": "ok"}
     except Exception as e:
         print(f"[edit] Timeline save failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/timeline-history")
+async def update_timeline_history(req: TimelineHistoryRequest):
+    """Persist undo/redo history stacks for a specific clip."""
+    base = os.path.realpath(os.path.join("temp_assets", "clips"))
+    history_path = os.path.realpath(os.path.join("temp_assets", "clips", req.folder_name, req.clip_id, "history.json"))
+    if os.path.commonpath([base, history_path]) != base:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    try:
+        os.makedirs(os.path.dirname(history_path), exist_ok=True)
+        with open(history_path, "w", encoding="utf-8") as f:
+            json.dump({"undo_stack": req.undo_stack, "redo_stack": req.redo_stack}, f, ensure_ascii=False)
+        print(f"[edit] Saved timeline history at {history_path}")
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"[edit] Timeline history save failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/default-style-settings")
@@ -1134,10 +1167,22 @@ async def load_ready_clip(req: LoadReadyClipRequest):
     
     save_jobs()
     print(f"[api] Loaded ready clip {req.clip_id} into job {job_id}")
+    # Load persisted history if it exists
+    history_data = None
+    history_path = os.path.join(clip_dir, "history.json")
+    if os.path.exists(history_path):
+        try:
+            with open(history_path, "r", encoding="utf-8") as f:
+                history_data = json.load(f)
+            print(f"[api] Loaded persisted history from {history_path}")
+        except Exception as e:
+            print(f"[api] Failed to read history: {e}")
+
     return {
         "job_id": job_id, 
         "status": "ready",
         "clip": jobs[job_id]["clip"],
         "hooks": jobs[job_id]["hooks"],
-        "fps": jobs[job_id]["fps"]
+        "fps": jobs[job_id]["fps"],
+        "history": history_data
     }

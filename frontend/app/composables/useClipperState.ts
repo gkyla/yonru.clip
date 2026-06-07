@@ -387,6 +387,30 @@ export const useClipperState = () => {
       timeline.saveTimelineTracks()
     }, { deep: true })
 
+    // Debounced persistence for history stacks
+    let historyDebounceTimer: ReturnType<typeof setTimeout> | null = null
+    watch(
+      [() => timeline.timelineUndoStack.value.length, () => timeline.timelineRedoStack.value.length],
+      () => {
+        if (timeline.isHydratingHistory.value) return
+        if (timeline.timelineUndoStack.value.length === 0 && timeline.timelineRedoStack.value.length === 0) return
+
+        timeline.hasUnsavedHistory.value = true
+        if (historyDebounceTimer) clearTimeout(historyDebounceTimer)
+        historyDebounceTimer = setTimeout(() => {
+          timeline.saveHistoryToBackend()
+        }, 1500)
+      }
+    )
+
+    // Beforeunload guard — warn on refresh while saving or with unsaved history
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (timeline.hasUnsavedHistory.value || timeline.isSavingHistory.value) {
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
 
 
     watch(
@@ -473,6 +497,19 @@ export const useClipperState = () => {
     fetchCached, setLastAccessed, setLastClip,
     saveTimelineTracks: timeline.saveTimelineTracks,
     addTimelineItem: timeline.addTimelineItem, deleteTimelineItem: timeline.deleteTimelineItem, updateTimelineItem: timeline.updateTimelineItem, saveTimelineTextStyleAsDefault: timeline.saveTimelineTextStyleAsDefault, syncGlobalStylesToItem: timeline.syncGlobalStylesToItem,
+    canUndo: timeline.canUndo,
+    canRedo: timeline.canRedo,
+    commitToHistory: timeline.commitToHistory,
+    isSavingHistory: timeline.isSavingHistory,
+    hasUnsavedHistory: timeline.hasUnsavedHistory,
+    undo: () => {
+      timeline.undo()
+      saveTranscript(true)
+    },
+    redo: () => {
+      timeline.redo()
+      saveTranscript(true)
+    },
     captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig, deleteThumbnail,
     toggleThumbnail,
     resetWorkspace,
