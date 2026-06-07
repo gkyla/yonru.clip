@@ -7,87 +7,89 @@
           <p class="text-slate-400 max-w-xl mx-auto mb-8">Download strict 1080p video, extract audio locally, and let Gemini find the most viral segments.</p>
           
           <!-- Unified Analyzer Panel -->
-          <div class="max-w-2xl mx-auto bg-[#111318] border border-surface-border rounded-2xl p-4 flex flex-col gap-4 shadow-2xl relative group">
-            <!-- Row 1: YouTube URL Input + Analyze Button -->
-            <div class="flex items-center gap-3 relative">
-               <input 
-                 v-model="state.youtubeUrl.value"
-                 type="url" 
-                 placeholder="Paste YouTube video URL (e.g. https://youtube.com/watch?v=...)" 
-                 class="flex-1 bg-surface-dark border border-surface-border text-white px-5 py-3.5 rounded-xl focus:outline-none focus:border-accent-500/50 transition-all font-medium text-sm placeholder-slate-500 pr-10"
-                 :disabled="isProcessing"
-               />
-               <button 
-                 @click="handleAnalyzeClick" 
-                 :disabled="!state.youtubeUrl.value || isProcessing"
-                 class="px-6 py-3.5 bg-accent-500 text-black font-black uppercase tracking-widest text-xs rounded-xl hover:bg-accent-400 hover:shadow-[0_0_15px_rgba(207,255,80,0.5)] focus:outline-none disabled:opacity-50 disabled:hover:shadow-none transition-all duration-300 shrink-0"
-               >
-                 {{ isProcessing ? 'WORKING...' : 'ANALYZE' }}
-               </button>
-            </div>
-            
-            <!-- Separator Line -->
-            <div class="border-t border-surface-border/30"></div>
-
-            <!-- Row 2: Prompt Selection & Transcription Settings Shortcut -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
-              <!-- AI Prompt dropdown selector -->
-              <div class="flex items-center gap-2 flex-1 min-w-0">
-                 <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider shrink-0">AI PROMPT:</label>
-                 <div class="relative flex-1 max-w-xs flex items-center gap-2">
-                   <select 
-                     v-model="state.selectedPrompt.value"
-                     class="w-full bg-surface-dark border border-surface-border text-white pl-3 pr-8 py-2 rounded-lg text-xs font-semibold focus:outline-none focus:border-accent-500/50 appearance-none cursor-pointer"
-                     :disabled="isProcessing"
-                   >
-                     <option v-for="p in state.promptsList.value" :key="p.id" :value="p.id">{{ p.name }}</option>
-                   </select>
-                   <div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-                     <Icon name="ri:arrow-down-s-line" class="text-sm" />
-                   </div>
-                 </div>
-
-                 <!-- Tooltip for suitableFor -->
-                 <div class="relative group cursor-help shrink-0">
-                   <Icon name="ri:information-line" class="text-slate-500 text-base group-hover:text-accent-500 transition-colors" />
-                   
-                   <!-- Tooltip Content -->
-                   <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-80 bg-surface-panel border border-surface-border rounded-xl shadow-2xl p-4 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left">
-                     <h4 class="text-accent-500 text-xs font-bold uppercase tracking-widest mb-3">Suitable For:</h4>
-                     <div v-if="currentPrompt && currentPrompt.suitableFor && currentPrompt.suitableFor.length" class="flex flex-col gap-2">
-                       <div 
-                         v-for="(item, i) in currentPrompt.suitableFor" :key="i"
-                         class="text-[11px] text-slate-300 leading-tight flex items-start gap-2"
-                       >
-                         <span class="text-accent-500 mt-0.5">•</span>
-                         <span>{{ item }}</span>
-                       </div>
-                     </div>
-                     <div v-else class="text-[11px] text-slate-500 italic">No specific categories defined.</div>
-                     
-                     <!-- Triangle pointer -->
-                     <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-surface-panel border-b border-r border-surface-border transform rotate-45"></div>
-                   </div>
-                 </div>
+          <div class="px-8 w-full">
+            <div class="bg-[#111318] border border-surface-border rounded-2xl p-4 flex flex-col gap-4 shadow-2xl relative">
+              <!-- Row 1: YouTube URL Input + Analyze Button -->
+              <div class="flex items-center gap-3 relative">
+                 <input 
+                   v-model="state.youtubeUrl.value"
+                   type="url" 
+                   placeholder="Paste YouTube video URL (e.g. https://youtube.com/watch?v=...)" 
+                   class="flex-1 bg-surface-dark border border-surface-border text-white px-5 py-3.5 rounded-xl focus:outline-none focus:border-accent-500/50 transition-all font-medium text-sm placeholder-slate-500 pr-10"
+                   :disabled="isProcessing"
+                 />
+                 <button 
+                   @click="handleAnalyzeClick" 
+                   :disabled="!state.youtubeUrl.value || isProcessing"
+                   class="px-6 py-3.5 bg-accent-500 text-black font-black uppercase tracking-widest text-xs rounded-xl hover:bg-accent-400 hover:shadow-[0_0_15px_rgba(207,255,80,0.5)] focus:outline-none disabled:opacity-50 disabled:hover:shadow-none transition-all duration-300 shrink-0"
+                 >
+                   {{ isProcessing ? 'WORKING...' : 'ANALYZE' }}
+                 </button>
               </div>
+              
+              <!-- Separator Line -->
+              <div class="border-t border-surface-border/30"></div>
 
-              <!-- Transcriber settings display & Shortcut -->
-              <div class="flex items-center gap-2 justify-end shrink-0 select-none">
-                <!-- Active Transcriber Metadata Badge -->
-                <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 font-mono text-[9px] font-bold tracking-wider uppercase">
-                  <span class="w-1.5 h-1.5 rounded-full bg-accent-500"></span>
-                  WHISPER: {{ state.whisperModel.value }}
+              <!-- Row 2: Prompt Selection & Transcription Settings Shortcut -->
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                <!-- AI Prompt dropdown selector -->
+                <div class="flex items-center gap-2 flex-1 min-w-0">
+                   <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider shrink-0">AI PROMPT:</label>
+                   <div class="relative flex-1 max-w-sm flex items-center gap-2">
+                     <select 
+                       v-model="state.selectedPrompt.value"
+                       class="w-full bg-surface-dark border border-surface-border text-white pl-3 pr-8 py-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:border-accent-500/50 appearance-none cursor-pointer"
+                       :disabled="isProcessing"
+                     >
+                       <option v-for="p in state.promptsList.value" :key="p.id" :value="p.id">{{ p.name }}</option>
+                     </select>
+                     <div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                       <Icon name="ri:arrow-down-s-line" class="text-sm" />
+                     </div>
+                   </div>
+
+                   <!-- Tooltip for suitableFor -->
+                   <div class="relative group cursor-help shrink-0">
+                     <Icon name="ri:information-line" class="text-slate-500 text-lg group-hover:text-accent-500 transition-colors" />
+                     
+                     <!-- Tooltip Content -->
+                     <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-80 bg-surface-panel border border-surface-border rounded-xl shadow-2xl p-4 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left">
+                       <h4 class="text-accent-500 text-xs font-bold uppercase tracking-widest mb-3">Suitable For:</h4>
+                       <div v-if="currentPrompt && currentPrompt.suitableFor && currentPrompt.suitableFor.length" class="flex flex-col gap-2">
+                         <div 
+                           v-for="(item, i) in currentPrompt.suitableFor" :key="i"
+                           class="text-[11px] text-slate-300 leading-tight flex items-start gap-2"
+                         >
+                           <span class="text-accent-500 mt-0.5">•</span>
+                           <span>{{ item }}</span>
+                         </div>
+                       </div>
+                       <div v-else class="text-[11px] text-slate-500 italic">No specific categories defined.</div>
+                       
+                       <!-- Triangle pointer -->
+                       <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-surface-panel border-b border-r border-surface-border transform rotate-45"></div>
+                     </div>
+                   </div>
                 </div>
-                
-                <!-- Settings Shortcut Button -->
-                <button 
-                  @click="navigateTo('/settings')"
-                  class="p-2 bg-surface-dark hover:bg-surface-panel border border-surface-border text-slate-400 hover:text-white rounded-lg hover:border-accent-500/50 hover:shadow-[0_0_10px_rgba(207,255,80,0.1)] transition-all duration-300 flex items-center justify-center cursor-pointer"
-                  title="Transcriber Settings"
-                  :disabled="isProcessing"
-                >
-                  <Icon name="ri:settings-4-fill" class="text-sm" />
-                </button>
+
+                <!-- Transcriber settings display & Shortcut -->
+                <div class="flex items-center gap-2 justify-end shrink-0 select-none">
+                  <!-- Active Transcriber Metadata Badge -->
+                  <div class="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 font-mono text-[10px] font-bold tracking-wider uppercase">
+                    <span class="w-1.5 h-1.5 rounded-full bg-accent-500"></span>
+                    WHISPER: {{ state.whisperModel.value }}
+                  </div>
+                  
+                  <!-- Settings Shortcut Button -->
+                  <button 
+                    @click="navigateTo('/settings')"
+                    class="p-2.5 bg-surface-dark hover:bg-surface-panel border border-surface-border text-slate-400 hover:text-white rounded-lg hover:border-accent-500/50 hover:shadow-[0_0_10px_rgba(207,255,80,0.1)] transition-all duration-300 flex items-center justify-center cursor-pointer"
+                    title="Transcriber Settings"
+                    :disabled="isProcessing"
+                  >
+                    <Icon name="ri:settings-4-fill" class="text-base" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
