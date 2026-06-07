@@ -28,7 +28,7 @@
               </div>
               
               <!-- Separator Line -->
-              <div class="border-t border-surface-border/30"></div>
+              <div class="border-t border-surface-border/70"></div>
 
               <!-- Row 2: Prompt Selection & Transcription Settings Shortcut -->
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
