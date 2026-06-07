@@ -6,53 +6,171 @@
           <h2 class="text-4xl font-bold tracking-tight text-white mb-4">Paste URL. Extract Hooks.</h2>
           <p class="text-slate-400 max-w-xl mx-auto mb-8">Download strict 1080p video, extract audio locally, and let Gemini find the most viral segments.</p>
           
-          <div class="relative max-w-2xl mx-auto flex items-center group shadow-2xl">
-             <input 
-               v-model="state.youtubeUrl.value"
-               type="url" 
-               placeholder="https://youtube.com/watch?v=..." 
-               class="w-full bg-[#111318] border border-surface-border text-white px-6 py-4 rounded-xl pr-32 focus:outline-none focus:border-accent-500/50 transition-all font-medium"
-               :disabled="isProcessing"
-             />
-             <button 
-               @click="handleAnalyzeClick" 
-               :disabled="!state.youtubeUrl.value || isProcessing"
-               class="absolute right-2 px-5 py-2.5 bg-accent-500 text-black font-bold uppercase tracking-wider text-sm rounded-lg hover:bg-accent-400 hover:shadow-[0_0_15px_#CFFF50] focus:outline-none disabled:opacity-50 disabled:hover:shadow-none transition-all"
-             >
-               {{ isProcessing ? 'WORKING...' : 'ANALYZE' }}
-             </button>
-          </div>
-          
-          <div class="max-w-2xl mx-auto mt-4 flex items-center gap-3 bg-[#111318]/50 p-2 rounded-xl border border-surface-border/50">
-            <label class="text-slate-400 text-xs font-bold uppercase tracking-widest shrink-0 pl-3">AI PROMPT:</label>
-            <select 
-              v-model="state.selectedPrompt.value"
-              class="flex-1 bg-surface-dark border border-surface-border text-white px-4 py-2 rounded-lg text-sm focus:outline-none focus:border-accent-500/50 appearance-none cursor-pointer"
-              :disabled="isProcessing"
-            >
-              <option v-for="p in state.promptsList.value" :key="p.id" :value="p.id">{{ p.name }}</option>
-            </select>
-            
-            <!-- Tooltip for suitableFor -->
-            <div class="relative group cursor-help pr-2">
-              <Icon name="ri:information-line" class="text-slate-500 text-xl group-hover:text-accent-500 transition-colors" />
+          <!-- Unified Analyzer Panel -->
+          <div class="px-8 w-full">
+            <div class="bg-[#111318] border border-surface-border rounded-2xl p-4 flex flex-col gap-4 shadow-2xl relative">
+              <!-- Row 1: YouTube URL Input + Analyze Button -->
+              <div class="flex items-center gap-3 relative">
+                 <input 
+                   v-model="state.youtubeUrl.value"
+                   type="url" 
+                   placeholder="Paste YouTube video URL (e.g. https://youtube.com/watch?v=...)" 
+                   class="flex-1 bg-surface-dark border border-surface-border text-white px-5 py-3.5 rounded-xl focus:outline-none focus:border-accent-500/50 transition-all font-medium text-sm placeholder-slate-500 pr-10"
+                   :disabled="isProcessing"
+                 />
+                 <button 
+                   @click="handleAnalyzeClick" 
+                   :disabled="!state.youtubeUrl.value || isProcessing"
+                   class="px-6 py-3.5 bg-accent-500 text-black font-black uppercase tracking-widest text-xs rounded-xl hover:bg-accent-400 hover:shadow-[0_0_15px_rgba(207,255,80,0.5)] focus:outline-none disabled:opacity-50 disabled:hover:shadow-none transition-all duration-300 shrink-0"
+                 >
+                   {{ isProcessing ? 'WORKING...' : 'ANALYZE' }}
+                 </button>
+              </div>
               
-              <!-- Tooltip Content -->
-              <div class="absolute bottom-full right-0 mb-3 w-80 bg-surface-panel border border-surface-border rounded-xl shadow-2xl p-4 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left">
-                <h4 class="text-accent-500 text-xs font-bold uppercase tracking-widest mb-3">Suitable For:</h4>
-                <div v-if="currentPrompt && currentPrompt.suitableFor && currentPrompt.suitableFor.length" class="flex flex-col gap-2">
-                  <div 
-                    v-for="(item, i) in currentPrompt.suitableFor" :key="i"
-                    class="text-[11px] text-slate-300 leading-tight flex items-start gap-2"
-                  >
-                    <span class="text-accent-500 mt-0.5">•</span>
-                    <span>{{ item }}</span>
-                  </div>
+              <!-- Separator Line -->
+              <div class="border-t border-surface-border/30"></div>
+
+              <!-- Row 2: Prompt Selection & Transcription Settings Shortcut -->
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                <!-- AI Prompt dropdown selector -->
+                <div class="flex items-center gap-2 flex-1 min-w-0">
+                   <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider shrink-0">AI PROMPT:</label>
+                   <div ref="promptDropdownRef" class="relative flex-1 max-w-[350px]">
+                     <!-- Dropdown Toggle Button -->
+                     <button 
+                       @click="isPromptDropdownOpen = !isPromptDropdownOpen"
+                       :disabled="isProcessing"
+                       class="w-full bg-surface-dark border border-surface-border text-white pl-3 pr-4 py-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:border-accent-500/50 flex items-center justify-between cursor-pointer disabled:opacity-50 select-none"
+                     >
+                       <span class="truncate">{{ currentPrompt?.name || 'Select a Prompt' }}</span>
+                       <Icon 
+                         name="ri:arrow-down-s-line" 
+                         class="text-slate-500 text-base font-bold transition-transform duration-200" 
+                         :class="{ 'rotate-180': isPromptDropdownOpen }"
+                       />
+                     </button>
+                     
+                     <!-- Dropdown Menu Options Panel -->
+                     <Transition
+                       enter-active-class="transition duration-100 ease-out"
+                       enter-from-class="transform scale-95 opacity-0"
+                       enter-to-class="transform scale-100 opacity-100"
+                       leave-active-class="transition duration-75 ease-in"
+                       leave-from-class="transform scale-100 opacity-100"
+                       leave-to-class="transform scale-95 opacity-0"
+                     >
+                       <div 
+                         v-if="isPromptDropdownOpen"
+                         class="absolute bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-2 left-0 w-full bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-xl shadow-2xl py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                       >
+                         <!-- Prompt Options List -->
+                         <div class="max-h-60 overflow-y-auto custom-scrollbar">
+                           <button 
+                             v-for="p in state.promptsList.value" 
+                             :key="p.id"
+                             @click="state.selectedPrompt.value = p.id; isPromptDropdownOpen = false"
+                             @mouseenter="hoveredPrompt = p"
+                             @mouseleave="hoveredPrompt = null"
+                             class="w-full px-3 py-2 flex items-center justify-between text-left text-xs text-slate-300 hover:bg-accent-500/10 hover:text-accent-500 transition-colors font-medium select-none"
+                           >
+                             <span class="truncate" :class="{ 'text-accent-500 font-bold': state.selectedPrompt.value === p.id }">
+                               {{ p.name }}
+                             </span>
+                             <Icon 
+                               v-if="state.selectedPrompt.value === p.id" 
+                               name="ri:checkbox-circle-fill" 
+                               class="text-accent-500 text-sm shrink-0 ml-2" 
+                             />
+                           </button>
+                         </div>
+                         
+                         <!-- Manage Prompts shortcut -->
+                         <button 
+                           @click="navigateTo('/prompts'); isPromptDropdownOpen = false"
+                           class="w-full px-3 py-2.5 flex items-center gap-2 text-left text-xs font-black text-slate-400 hover:text-accent-500 bg-[#111318] hover:bg-[#1e222b] transition-all duration-200 tracking-wider uppercase border-t border-surface-border/30"
+                         >
+                           <Icon name="ri:settings-5-line" class="text-sm shrink-0" />
+                           + Manage Prompts
+                         </button>
+
+                         <!-- Hover Tooltip showing Suitable For (placed outside overflow container) -->
+                         <div 
+                           v-if="hoveredPrompt && hoveredPrompt.suitableFor && hoveredPrompt.suitableFor.length"
+                           class="absolute left-full top-0 ml-2.5 w-64 bg-[#171a21]/95 backdrop-blur-md border border-accent-500/50 rounded-xl shadow-[0_0_20px_rgba(207,255,80,0.1)] p-3 z-[60] text-left animate-in fade-in duration-150 pointer-events-none"
+                         >
+                           <h5 class="text-accent-500 text-sm font-bold uppercase tracking-wider mb-2">Suitable For:</h5>
+                           <div class="flex flex-col gap-1.5">
+                             <div 
+                               v-for="(item, i) in hoveredPrompt.suitableFor" :key="i"
+                               class="text-xs text-slate-300 leading-tight flex items-start gap-1.5"
+                             >
+                               <span class="text-accent-500 mt-0.5">•</span>
+                               <span>{{ item }}</span>
+                             </div>
+                           </div>
+                         </div>
+                       </div>
+                     </Transition>
+                   </div>
+
+                   <!-- Tooltip for suitableFor -->
+                   <div class="relative group cursor-help shrink-0">
+                     <Icon name="ri:information-line" class="text-slate-500 text-lg group-hover:text-accent-500 transition-colors" />
+                     
+                     <!-- Tooltip Content -->
+                     <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-80 bg-surface-panel border border-surface-border rounded-xl shadow-2xl p-4 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left">
+                       <h4 class="text-accent-500 text-xs font-bold uppercase tracking-widest mb-3">Suitable For:</h4>
+                       <div v-if="currentPrompt && currentPrompt.suitableFor && currentPrompt.suitableFor.length" class="flex flex-col gap-2">
+                         <div 
+                           v-for="(item, i) in currentPrompt.suitableFor" :key="i"
+                           class="text-[11px] text-slate-300 leading-tight flex items-start gap-2"
+                         >
+                           <span class="text-accent-500 mt-0.5">•</span>
+                           <span>{{ item }}</span>
+                         </div>
+                       </div>
+                       <div v-else class="text-[11px] text-slate-500 italic">No specific categories defined.</div>
+                       
+                       <!-- Triangle pointer -->
+                       <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-surface-panel border-b border-r border-surface-border transform rotate-45"></div>
+                     </div>
+                   </div>
                 </div>
-                <div v-else class="text-[11px] text-slate-500 italic">No specific categories defined.</div>
-                
-                <!-- Triangle pointer -->
-                <div class="absolute -bottom-2 right-2 w-4 h-4 bg-surface-panel border-b border-r border-surface-border transform rotate-45"></div>
+
+                <!-- Transcriber settings display & Shortcut -->
+                <div class="flex items-center gap-2 justify-end shrink-0 select-none">
+                  <!-- Active Transcriber Metadata Badge -->
+                  <div class="group relative cursor-help flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 font-mono text-[10px] font-bold tracking-wider uppercase">
+                    <span class="w-1.5 h-1.5 rounded-full bg-accent-500"></span>
+                    WHISPER: {{ state.whisperModel.value }}
+
+                    <!-- Transcription Model Tooltip Card -->
+                    <div class="absolute bottom-full right-0 mb-3 w-72 bg-[#171a21]/95 backdrop-blur-md border border-accent-500/50 rounded-xl p-4 shadow-[0_0_20px_rgba(207,255,80,0.1)] opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left pointer-events-none">
+                      <div class="flex justify-between items-start mb-2">
+                        <span class="font-black uppercase tracking-widest text-xs text-accent-500">{{ activeWhisperMetadata.name }}</span>
+                        <Icon name="ri:checkbox-circle-fill" class="text-accent-500 text-base shrink-0" />
+                      </div>
+                      <div class="flex gap-2 mb-3">
+                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-surface-dark border border-surface-border text-slate-400 font-bold uppercase tracking-tighter">{{ activeWhisperMetadata.speed }}</span>
+                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-surface-dark border border-surface-border text-slate-400 font-bold uppercase tracking-tighter">{{ activeWhisperMetadata.acc }}</span>
+                      </div>
+                      <p class="text-[11px] leading-relaxed text-slate-400 font-sans normal-case tracking-normal">{{ activeWhisperMetadata.desc }}</p>
+
+                      <!-- Triangle pointer -->
+                      <div class="absolute -bottom-2 right-8 w-4 h-4 bg-[#171a21] border-b border-r border-accent-500/50 transform rotate-45 z-40"></div>
+                    </div>
+                  </div>
+                  
+                  <!-- Settings Shortcut Button -->
+                  <button 
+                    @click="state.settingsScrollTarget.value = 'settings-whisper'; navigateTo('/settings')"
+                    class="p-2.5 bg-surface-dark hover:bg-surface-panel border border-surface-border text-slate-400 hover:text-white rounded-lg hover:border-accent-500/50 hover:shadow-[0_0_10px_rgba(207,255,80,0.1)] transition-all duration-300 flex items-center justify-center cursor-pointer"
+                    title="Transcriber Settings"
+                    :disabled="isProcessing"
+                  >
+                    <Icon name="ri:settings-4-fill" class="text-base" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1057,6 +1175,29 @@
 <script setup lang="ts">
 const state = useClipperState()
 const API_BASE = 'http://localhost:8000'
+
+const isPromptDropdownOpen = ref(false)
+const promptDropdownRef = ref<HTMLElement | null>(null)
+const hoveredPrompt = ref<any | null>(null)
+
+const activeWhisperMetadata = computed(() => {
+  const modelId = state.whisperModel.value || 'base'
+  return state.whisperModels.find(m => m.id === modelId) || state.whisperModels[1]
+})
+
+function handleDocumentClick(e: MouseEvent) {
+  if (promptDropdownRef.value && !promptDropdownRef.value.contains(e.target as Node)) {
+    isPromptDropdownOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocumentClick)
+})
 
 const viewMode = ref<'grid' | 'list'>('grid')
 const { 
