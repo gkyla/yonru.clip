@@ -35,17 +35,17 @@
                 <!-- AI Prompt dropdown selector -->
                 <div class="flex items-center gap-2 flex-1 min-w-0">
                    <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider shrink-0">AI PROMPT:</label>
-                   <div ref="promptDropdownRef" class="relative flex-1 max-w-sm">
+                   <div ref="promptDropdownRef" class="relative flex-1 max-w-[350px]">
                      <!-- Dropdown Toggle Button -->
                      <button 
                        @click="isPromptDropdownOpen = !isPromptDropdownOpen"
                        :disabled="isProcessing"
-                       class="w-full bg-surface-dark border border-surface-border text-white pl-3 pr-8 py-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:border-accent-500/50 flex items-center justify-between cursor-pointer disabled:opacity-50 select-none"
+                       class="w-full bg-surface-dark border border-surface-border text-white pl-3 pr-4 py-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:border-accent-500/50 flex items-center justify-between cursor-pointer disabled:opacity-50 select-none"
                      >
                        <span class="truncate">{{ currentPrompt?.name || 'Select a Prompt' }}</span>
                        <Icon 
                          name="ri:arrow-down-s-line" 
-                         class="text-slate-500 text-sm transition-transform duration-200" 
+                         class="text-slate-500 text-base font-bold transition-transform duration-200" 
                          :class="{ 'rotate-180': isPromptDropdownOpen }"
                        />
                      </button>
@@ -61,7 +61,7 @@
                      >
                        <div 
                          v-if="isPromptDropdownOpen"
-                         class="absolute bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-2 left-0 w-full bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-xl shadow-2xl overflow-hidden py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                         class="absolute bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-2 left-0 w-full bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-xl shadow-2xl py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
                        >
                          <!-- Prompt Options List -->
                          <div class="max-h-60 overflow-y-auto custom-scrollbar">
@@ -69,7 +69,9 @@
                              v-for="p in state.promptsList.value" 
                              :key="p.id"
                              @click="state.selectedPrompt.value = p.id; isPromptDropdownOpen = false"
-                             class="w-full px-3 py-2 flex items-center justify-between text-left text-xs text-slate-300 hover:bg-accent-500/10 hover:text-accent-500 transition-colors font-medium group/item"
+                             @mouseenter="hoveredPrompt = p"
+                             @mouseleave="hoveredPrompt = null"
+                             class="w-full px-3 py-2 flex items-center justify-between text-left text-xs text-slate-300 hover:bg-accent-500/10 hover:text-accent-500 transition-colors font-medium select-none"
                            >
                              <span class="truncate" :class="{ 'text-accent-500 font-bold': state.selectedPrompt.value === p.id }">
                                {{ p.name }}
@@ -82,17 +84,31 @@
                            </button>
                          </div>
                          
-                         <!-- Divider -->
-                         <div class="border-t border-surface-border/40 my-1"></div>
-                         
                          <!-- Manage Prompts shortcut -->
                          <button 
                            @click="navigateTo('/prompts'); isPromptDropdownOpen = false"
-                           class="w-full px-3 py-2 flex items-center gap-2 text-left text-xs font-bold text-slate-400 hover:text-accent-500 hover:bg-accent-500/5 transition-colors tracking-wide uppercase"
+                           class="w-full px-3 py-2.5 flex items-center gap-2 text-left text-xs font-black text-slate-400 hover:text-accent-500 bg-[#111318] hover:bg-[#1e222b] transition-all duration-200 tracking-wider uppercase border-t border-surface-border/30"
                          >
                            <Icon name="ri:settings-5-line" class="text-sm shrink-0" />
                            + Manage Prompts
                          </button>
+
+                         <!-- Hover Tooltip showing Suitable For (placed outside overflow container) -->
+                         <div 
+                           v-if="hoveredPrompt && hoveredPrompt.suitableFor && hoveredPrompt.suitableFor.length"
+                           class="absolute left-full top-0 ml-2.5 w-64 bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-xl shadow-2xl p-3 z-[60] text-left animate-in fade-in duration-150 pointer-events-none"
+                         >
+                           <h5 class="text-accent-500 text-sm font-bold uppercase tracking-wider mb-2">Suitable For:</h5>
+                           <div class="flex flex-col gap-1.5">
+                             <div 
+                               v-for="(item, i) in hoveredPrompt.suitableFor" :key="i"
+                               class="text-xs text-slate-300 leading-tight flex items-start gap-1.5"
+                             >
+                               <span class="text-accent-500 mt-0.5">•</span>
+                               <span>{{ item }}</span>
+                             </div>
+                           </div>
+                         </div>
                        </div>
                      </Transition>
                    </div>
@@ -1146,6 +1162,7 @@ const API_BASE = 'http://localhost:8000'
 
 const isPromptDropdownOpen = ref(false)
 const promptDropdownRef = ref<HTMLElement | null>(null)
+const hoveredPrompt = ref<any | null>(null)
 
 function handleDocumentClick(e: MouseEvent) {
   if (promptDropdownRef.value && !promptDropdownRef.value.contains(e.target as Node)) {
