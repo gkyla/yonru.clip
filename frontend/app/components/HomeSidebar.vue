@@ -123,7 +123,7 @@
               @click="isProjectOpen = !isProjectOpen"
               class="flex items-center justify-between px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500 cursor-pointer hover:text-slate-300 transition-colors select-none"
             >
-              <span>Workspace & Cache</span>
+              <span>Workspace</span>
               <div class="flex items-center gap-2">
                 <span v-if="isProcessing" class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                 <Icon :name="isProjectOpen ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-xs" />
@@ -144,7 +144,7 @@
               <!-- Continue Editing Card -->
               <button 
                 v-if="lastClip && lastVideo && !isProcessing"
-                @click="handleNav('editor')"
+                @click="handleContinueEditingClick()"
                 class="flex items-center gap-3 p-2 rounded-xl transition-all group bg-surface-panel/30 border border-white/5 hover:border-accent-500/20 text-left w-full cursor-pointer"
               >
                 <div class="w-10 h-10 rounded bg-surface-dark overflow-hidden shrink-0 border border-white/5 group-hover:border-accent-500/30 relative">
@@ -163,31 +163,8 @@
                 </div>
               </button>
 
-              <!-- Recently Cached Videos -->
-              <div v-if="cachedVideos && cachedVideos.length" class="flex flex-col gap-1.5">
-                <span class="text-[9px] uppercase font-bold text-slate-600 tracking-wider px-2">Recent Cache</span>
-                <div class="flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar">
-                  <div 
-                    v-for="vid in cachedVideos.slice(0, 4)" 
-                    :key="vid.video_id"
-                    class="flex items-center justify-between p-1.5 rounded hover:bg-surface-panel/40 group/item text-xs text-slate-300 border border-transparent hover:border-white/5"
-                  >
-                    <span class="truncate flex-1 font-medium select-none cursor-pointer hover:text-white" @click="$emit('analyze', vid.video_id, false)">
-                      {{ vid.title }}
-                    </span>
-                    <div class="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                      <button @click="$emit('analyze', vid.video_id, true)" title="Reanalyze" class="p-1 hover:text-accent-500 text-slate-500 cursor-pointer">
-                        <Icon name="ri:magic-line" class="text-sm" />
-                      </button>
-                      <button @click="$emit('delete', vid)" title="Delete" class="p-1 hover:text-red-500 text-slate-500 cursor-pointer">
-                        <Icon name="ri:delete-bin-line" class="text-sm" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div v-else-if="!isProcessing && !(lastClip && lastVideo)" class="text-center text-slate-600 text-[10px] py-4">
-                No active projects or cached library sources.
+              <div v-else-if="!isProcessing" class="text-center text-slate-600 text-[10px] py-4">
+                No active projects.
               </div>
             </div>
           </div>
@@ -214,24 +191,29 @@
               <div class="bg-black/20 rounded-xl p-3 border border-white/5 flex flex-col gap-2">
                 <!-- Status Row Template -->
                 <button 
-                  v-for="item in [
-                    { id: 'settings-health', name: 'FFmpeg & Diagnostics', ok: isSystemOK, label: isSystemOK ? 'OK' : 'Error', icon: 'ri:shield-cross-line' },
-                    { id: 'settings-api', name: 'Gemini API Key', ok: isApiConfigured, label: isApiConfigured ? 'OK' : 'Missing', icon: 'ri:key-2-line' },
-                    { id: 'settings-whisper', name: 'Whisper Transcriber', ok: true, label: (state?.whisperModel?.value || 'BASE').toUpperCase(), icon: 'ri:cpu-line' },
-                    { id: 'settings-cookies', name: 'YouTube Cookies', ok: isCookiesConfigured, label: isCookiesConfigured ? 'OK' : 'Unconfigured', icon: 'ri:shield-keyhole-line' },
-                    { id: 'settings-env', name: 'Environment Paths', ok: true, label: 'Verified', icon: 'ri:terminal-window-line' }
-                  ]"
+                  v-for="item in systemHealthItems"
                   :key="item.id"
                   @click="scrollToSettingsSection(item.id)"
                   class="flex items-center justify-between py-1.5 px-2 hover:bg-white/5 rounded text-[10px] text-slate-400 text-left font-bold transition-all border border-transparent hover:border-white/5 cursor-pointer"
                 >
                   <div class="flex items-center gap-2">
-                    <Icon :name="item.icon" class="text-sm shrink-0" :class="item.ok ? 'text-slate-500' : 'text-amber-500'" />
-                    <span class="tracking-wider uppercase">{{ item.name }}</span>
+                    <Icon 
+                      :name="item.icon" 
+                      class="text-sm shrink-0" 
+                      :class="item.loading ? 'opacity-40 animate-pulse text-slate-500' : (item.ok ? 'text-slate-500' : 'text-amber-500')" 
+                    />
+                    <span class="tracking-wider uppercase" :class="{ 'opacity-60': item.loading }">{{ item.name }}</span>
                   </div>
                   <div class="flex items-center gap-1.5 font-mono">
-                    <span class="w-1.5 h-1.5 rounded-full" :class="item.ok ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'"></span>
-                    <span :class="item.ok ? 'text-slate-300' : 'text-amber-400 font-bold'">{{ item.label }}</span>
+                    <Icon 
+                      v-if="item.loading" 
+                      name="ri:loader-4-line" 
+                      class="animate-spin text-accent-500 text-xs" 
+                    />
+                    <template v-else>
+                      <span class="w-1.5 h-1.5 rounded-full" :class="item.ok ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'"></span>
+                      <span :class="item.ok ? 'text-slate-300' : 'text-amber-400 font-bold'">{{ item.label }}</span>
+                    </template>
                   </div>
                 </button>
               </div>
@@ -290,7 +272,7 @@
               <!-- Last Clip Card -->
               <button 
                 v-else-if="lastClip && lastVideo"
-                @click="handleNav('editor')"
+                @click="handleContinueEditingClick()"
                 class="flex items-center gap-3 p-1.5 rounded-lg hover:bg-white/5 text-left border border-transparent hover:border-white/5 w-full cursor-pointer"
               >
                 <div class="w-8 h-8 rounded bg-surface-dark overflow-hidden shrink-0 border border-white/5 relative">
@@ -316,7 +298,7 @@
             >
               <Icon name="ri:database-2-line" class="text-xl" />
               <!-- Status Dot Overlay -->
-              <div class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface-dark shadow-[0_0_6px_rgba(0,0,0,0.5)] animate-pulse-subtle" :class="statusColor"></div>
+              <div class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface-dark shadow-[0_0_6px_rgba(0,0,0,0.5)] animate-pulse-subtle" :class="healthDotColor"></div>
             </button>
             <!-- Health hover card drawer -->
             <div class="absolute left-full top-0 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-xl rounded-2xl shadow-2xl p-4 w-64 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-x-2 group-hover:translate-x-0 z-50 flex flex-col gap-2">
@@ -326,20 +308,23 @@
               </div>
               <div class="flex flex-col gap-1.5">
                 <div class="flex justify-between items-center text-[10px] text-slate-400">
-                  <span>FFmpeg</span>
-                  <span class="font-mono" :class="isSystemOK ? 'text-emerald-500' : 'text-amber-500'">{{ isSystemOK ? 'OK' : 'Error' }}</span>
+                  <span :class="{ 'opacity-60': isHealthLoading }">FFmpeg</span>
+                  <Icon v-if="isHealthLoading" name="ri:loader-4-line" class="animate-spin text-accent-500 text-xs" />
+                  <span v-else class="font-mono" :class="isSystemOK ? 'text-emerald-500' : 'text-amber-500'">{{ isSystemOK ? 'OK' : 'Error' }}</span>
                 </div>
                 <div class="flex justify-between items-center text-[10px] text-slate-400">
-                  <span>Gemini API</span>
-                  <span class="font-mono" :class="isApiConfigured ? 'text-emerald-500' : 'text-amber-500'">{{ isApiConfigured ? 'Configured' : 'Missing' }}</span>
+                  <span :class="{ 'opacity-60': isHealthLoading }">Gemini API</span>
+                  <Icon v-if="isHealthLoading" name="ri:loader-4-line" class="animate-spin text-accent-500 text-xs" />
+                  <span v-else class="font-mono" :class="isApiConfigured ? 'text-emerald-500' : 'text-amber-500'">{{ isApiConfigured ? 'Configured' : 'Missing' }}</span>
                 </div>
                 <div class="flex justify-between items-center text-[10px] text-slate-400">
                   <span>Whisper Mode</span>
                   <span class="font-mono text-slate-300">{{ state?.whisperModel?.value?.toUpperCase() || 'BASE' }}</span>
                 </div>
                 <div class="flex justify-between items-center text-[10px] text-slate-400">
-                  <span>Cookies</span>
-                  <span class="font-mono" :class="isCookiesConfigured ? 'text-emerald-500' : 'text-amber-500'">{{ isCookiesConfigured ? 'Configured' : 'Missing' }}</span>
+                  <span :class="{ 'opacity-60': isHealthLoading }">Cookies</span>
+                  <Icon v-if="isHealthLoading" name="ri:loader-4-line" class="animate-spin text-accent-500 text-xs" />
+                  <span v-else class="font-mono" :class="isCookiesConfigured ? 'text-emerald-500' : 'text-amber-500'">{{ isCookiesConfigured ? 'Configured' : 'Missing' }}</span>
                 </div>
               </div>
               <div class="pt-2 border-t border-white/5 mt-1 flex justify-between items-center text-[9px] text-slate-500 font-bold uppercase">
@@ -391,6 +376,59 @@ const isCookiesConfigured = computed(() => {
   return health.cookies?.status === 'Configured'
 })
 
+const isHealthLoading = computed(() => {
+  return state?.checkingHealth?.value || !state?.systemHealth?.value
+})
+
+const healthDotColor = computed(() => {
+  if (isHealthLoading.value) return 'bg-indigo-500 animate-pulse'
+  if (state?.isAnyPrerequisiteMissing?.value) return 'bg-amber-500 animate-pulse-amber'
+  return 'bg-emerald-500'
+})
+
+const systemHealthItems = computed(() => [
+  { 
+    id: 'settings-health', 
+    name: 'FFmpeg & Diagnostics', 
+    ok: isSystemOK.value, 
+    label: isSystemOK.value ? 'OK' : 'Error', 
+    icon: 'ri:shield-cross-line', 
+    loading: isHealthLoading.value 
+  },
+  { 
+    id: 'settings-api', 
+    name: 'Gemini API Key', 
+    ok: isApiConfigured.value, 
+    label: isApiConfigured.value ? 'OK' : 'Missing', 
+    icon: 'ri:key-2-line', 
+    loading: isHealthLoading.value 
+  },
+  { 
+    id: 'settings-whisper', 
+    name: 'Whisper Transcriber', 
+    ok: true, 
+    label: (state?.whisperModel?.value || 'BASE').toUpperCase(), 
+    icon: 'ri:cpu-line', 
+    loading: false 
+  },
+  { 
+    id: 'settings-cookies', 
+    name: 'YouTube Cookies', 
+    ok: isCookiesConfigured.value, 
+    label: isCookiesConfigured.value ? 'OK' : 'Unconfigured', 
+    icon: 'ri:shield-keyhole-line', 
+    loading: isHealthLoading.value 
+  },
+  { 
+    id: 'settings-env', 
+    name: 'Environment Paths', 
+    ok: true, 
+    label: 'Verified', 
+    icon: 'ri:terminal-window-line', 
+    loading: false 
+  }
+])
+
 const statusColor = computed(() => {
   const status = state?.jobStatus?.value || 'idle'
   const map: Record<string, string> = {
@@ -441,7 +479,7 @@ let isDragging = false
 // Accordion open states
 const isNavOpen = ref(true)
 const isProjectOpen = ref(true)
-const isHealthOpen = ref(false)
+const isHealthOpen = ref(true)
 
 function handleNav(view: string) {
   emit('update:activeView', view)
@@ -456,6 +494,68 @@ function handleNav(view: string) {
   }
   if (props.isFloating) {
     isCollapsed.value = true
+  }
+}
+
+async function handleContinueEditingClick() {
+  const router = useRouter()
+  if (!props.lastClip || !props.lastVideo) return
+  
+  try {
+    const folder = props.lastClip.folder || props.lastClip.folder_name
+    // Load the clip into state first to get a job_id
+    await state.loadReadyClipIntoEditor(folder, props.lastClip.clip_id)
+    
+    // Find matching hook index in the loaded hooks list to highlight correctly
+    let hookIndex = 0
+    let tab = 'generated'
+    
+    const clipId = props.lastClip.clip_id || ''
+    const parts = clipId.split('_')
+    if (parts.length >= 2) {
+      const clipStart = parseFloat(parts[0]) || 0
+      const clipEnd = parseFloat(parts[1]) || 0
+      
+      // Ensure saved hooks are loaded
+      await state.fetchSavedHooks()
+      
+      // Look in saved hooks first
+      const savedIdx = state.savedHooks.value.findIndex((h: any) => {
+        const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
+        const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
+        return Math.abs(hStart - clipStart) < 1.1 && Math.abs(hEnd - clipEnd) < 1.1
+      })
+      
+      if (savedIdx >= 0) {
+        hookIndex = savedIdx
+        tab = 'saved'
+      } else {
+        // Look in generated hooks
+        const genIdx = state.hooks.value.findIndex((h: any) => {
+          const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
+          const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
+          return Math.abs(hStart - clipStart) < 1.1 && Math.abs(hEnd - clipEnd) < 1.1
+        })
+        if (genIdx >= 0) {
+          hookIndex = genIdx
+          tab = 'generated'
+        }
+      }
+    }
+    
+    emit('update:activeView', 'editor')
+    await router.push({
+      path: '/editor',
+      query: { 
+        job_id: state.jobId.value || '',
+        folder: folder,
+        hook_index: hookIndex,
+        tab: tab
+      }
+    })
+  } catch (e) {
+    console.error('[yonru] Failed to continue editing clip:', e)
+    state.showToast?.('Failed to load clip data', 'error')
   }
 }
 

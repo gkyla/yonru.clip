@@ -1,6 +1,6 @@
 // @vitest-environment nuxt
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import HomeSidebar from '../../app/components/HomeSidebar.vue'
 import { useRouter } from '#imports'
@@ -13,16 +13,28 @@ const mockSystemHealth = ref<any>({
   gemini_api: { status: 'Configured' },
   cookies: { status: 'Configured' }
 })
+const mockCheckingHealth = ref(false)
 const mockJobStatus = ref('idle')
 const mockSettingsScrollTarget = ref('')
 const mockIsAnyPrerequisiteMissing = ref(false)
+const mockLoadReadyClipIntoEditor = vi.fn().mockResolvedValue({})
+const mockFetchSavedHooks = vi.fn().mockResolvedValue({})
+const mockSavedHooks = ref([])
+const mockHooks = ref([])
+const mockJobId = ref('job-123')
 
 vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => ({
     systemHealth: mockSystemHealth,
+    checkingHealth: mockCheckingHealth,
     jobStatus: mockJobStatus,
     settingsScrollTarget: mockSettingsScrollTarget,
-    isAnyPrerequisiteMissing: mockIsAnyPrerequisiteMissing
+    isAnyPrerequisiteMissing: mockIsAnyPrerequisiteMissing,
+    loadReadyClipIntoEditor: mockLoadReadyClipIntoEditor,
+    fetchSavedHooks: mockFetchSavedHooks,
+    savedHooks: mockSavedHooks,
+    hooks: mockHooks,
+    jobId: mockJobId
   })
 }))
 
@@ -35,12 +47,10 @@ describe('HomeSidebar Component', () => {
       gemini_api: { status: 'Configured' },
       cookies: { status: 'Configured' }
     }
+    mockCheckingHealth.value = false
     mockJobStatus.value = 'idle'
     mockSettingsScrollTarget.value = ''
     mockIsAnyPrerequisiteMissing.value = false
-    
-    // Stub navigateTo global
-    vi.stubGlobal('navigateTo', vi.fn())
     
     // Clear localStorage mock
     localStorage.clear()
@@ -199,5 +209,81 @@ describe('HomeSidebar Component', () => {
     vm.stopDrag()
     expect(vm.isDragging).toBe(false)
     expect(localStorage.getItem('yonru_sidebar_width')).toBe('280')
+  })
+
+  it('loads the active clip and routes to editor when Continue Editing is clicked', async () => {
+    const router = useRouter()
+    const pushSpy = vi.spyOn(router, 'push')
+
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false,
+        lastClip: { folder_name: 'test_folder', clip_id: '10_20_test', theme: 'Test Theme' },
+        lastVideo: { title: 'Test Video', thumbnail: 'thumb.jpg' }
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: true
+        }
+      }
+    })
+
+    const continueBtn = wrapper.findAll('button').find(b => b.text().includes('CONTINUE EDITING'))
+    expect(continueBtn).toBeDefined()
+    await continueBtn!.trigger('click')
+    await flushPromises()
+
+    // Expect clip load and routing to be called
+    expect(mockLoadReadyClipIntoEditor).toHaveBeenCalledWith('test_folder', '10_20_test')
+    expect(pushSpy).toHaveBeenCalledWith({
+      path: '/editor',
+      query: {
+        job_id: 'job-123',
+        folder: 'test_folder',
+        hook_index: 0,
+        tab: 'generated'
+      }
+    })
+  })
+
+  it('renders loading indicators for health check items when diagnostics are loading', async () => {
+    mockCheckingHealth.value = true
+    
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: true
+        }
+      }
+    })
+
+    const items = (wrapper.vm as any).systemHealthItems
+    const healthItem = items.find((i: any) => i.id === 'settings-health')
+    const apiItem = items.find((i: any) => i.id === 'settings-api')
+    const cookiesItem = items.find((i: any) => i.id === 'settings-cookies')
+    const whisperItem = items.find((i: any) => i.id === 'settings-whisper')
+
+    expect(healthItem.loading).toBe(true)
+    expect(apiItem.loading).toBe(true)
+    expect(cookiesItem.loading).toBe(true)
+    expect(whisperItem.loading).toBe(false)
+
+    const html = wrapper.html()
+    expect(html).toContain('ri:loader-4-line')
   })
 })
