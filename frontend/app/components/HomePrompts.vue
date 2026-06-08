@@ -218,20 +218,22 @@
                       @click="insertVariable('{num_hooks}')"
                       class="font-mono px-1.5 py-0.5 rounded cursor-pointer transition-all bg-surface-panel hover:text-accent-500 hover:bg-accent-500/10 hover:ring-1 hover:ring-accent-500/20 active:scale-95"
                       :class="promptText?.includes('{num_hooks}') ? 'text-accent-500 bg-accent-500/10 ring-1 ring-accent-500/30' : 'text-slate-400'"
-                      title="Click to insert at cursor position"
+                      title="Click to toggle variable"
                     >{num_hooks}</button>
                     <button 
                       @click="insertVariable('{duration_constraint}')"
                       class="font-mono px-1.5 py-0.5 rounded cursor-pointer transition-all bg-surface-panel hover:text-accent-500 hover:bg-accent-500/10 hover:ring-1 hover:ring-accent-500/20 active:scale-95"
                       :class="promptText?.includes('{duration_constraint}') ? 'text-accent-500 bg-accent-500/10 ring-1 ring-accent-500/30' : 'text-slate-400'"
-                      title="Click to insert at cursor position"
+                      title="Click to toggle variable"
                     >{duration_constraint}</button>
                   </div>
                 </div>
                 
                 <PromptEditor 
                   ref="promptEditorRef"
+                  v-slot="editor"
                   v-model="promptText"
+                  :variables="editorVariables"
                   class="font-mono"
                 />
              </div>
@@ -269,6 +271,16 @@ const filteredPrompts = computed(() => {
   return state.promptsList.value.filter(p => {
     return p.name.toLowerCase().includes(searchQuery.value.toLowerCase())
   })
+})
+
+// Computed variables for editor WYSIWYG replacement
+const editorVariables = computed(() => {
+  return {
+    num_hooks: autoHooks.value
+      ? 'Find ALL naturally compelling hooks in the transcript. Do not force a specific number — return as many or as few as genuinely qualify. Quality over quantity.'
+      : `Find exactly ${numHooks.value} hooks.`,
+    duration_constraint: '\n            VIDEO DURATION: The total length is X.X seconds. ALL timestamps MUST be within 0 and X.X.'
+  }
 })
 
 onMounted(() => {
@@ -330,24 +342,67 @@ function cancelEdit() {
   isCreatingNew.value = false
 }
 
-// Click-to-insert variable logic
+// Click-to-insert or toggle variable logic
 function insertVariable(variable: string) {
-  if (promptEditorRef.value?.editor) {
-    promptEditorRef.value.editor.chain().focus().insertContent(variable).run()
-  } else {
-    // Fallback for stubs or raw textareas in tests
-    const el = document.querySelector('textarea')
-    if (el) {
-      const start = el.selectionStart
-      const end = el.selectionEnd
-      const text = promptText.value || ''
-      promptText.value = text.substring(0, start) + variable + text.substring(end)
-      nextTick(() => {
-        el.selectionStart = el.selectionEnd = start + variable.length
-        el.focus()
+  const hasVar = promptText.value?.includes(variable)
+  
+  if (hasVar) {
+    // Remove the variable
+    if (promptEditorRef.value?.editor) {
+      const editor = promptEditorRef.value.editor
+      let tr = editor.state.tr
+      const matches: { start: number; end: number }[] = []
+      
+      editor.state.doc.descendants((node: any, pos: number) => {
+        if (node.isText && node.text) {
+          let index = node.text.indexOf(variable)
+          while (index !== -1) {
+            matches.push({
+              start: pos + index,
+              end: pos + index + variable.length
+            })
+            index = node.text.indexOf(variable, index + 1)
+          }
+        }
       })
+      
+      // Sort in descending order of start position to prevent offset shifting
+      matches.sort((a, b) => b.start - a.start)
+      
+      if (matches.length > 0) {
+        matches.forEach(m => {
+          tr = tr.delete(m.start, m.end)
+        })
+        editor.view.dispatch(tr)
+      }
     } else {
-      promptText.value = (promptText.value || '') + variable
+      // Fallback for stubs or raw textareas in tests
+      const el = document.querySelector('textarea')
+      if (el) {
+        promptText.value = promptText.value.replaceAll(variable, '')
+      } else {
+        promptText.value = (promptText.value || '').replaceAll(variable, '')
+      }
+    }
+  } else {
+    // Insert the variable at cursor position
+    if (promptEditorRef.value?.editor) {
+      promptEditorRef.value.editor.chain().focus().insertContent(variable).run()
+    } else {
+      // Fallback for stubs or raw textareas in tests
+      const el = document.querySelector('textarea')
+      if (el) {
+        const start = el.selectionStart
+        const end = el.selectionEnd
+        const text = promptText.value || ''
+        promptText.value = text.substring(0, start) + variable + text.substring(end)
+        nextTick(() => {
+          el.selectionStart = el.selectionEnd = start + variable.length
+          el.focus()
+        })
+      } else {
+        promptText.value = (promptText.value || '') + variable
+      }
     }
   }
 }

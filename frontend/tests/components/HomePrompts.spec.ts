@@ -144,5 +144,25 @@ describe('HomePrompts Component', () => {
 
     // Should insert variable
     expect((wrapper.vm as any).promptText).toBe('Custom prompt {duration_constraint}')
+
+    // Click it again to toggle/remove it
+    await varBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+    expect((wrapper.vm as any).promptText).toBe('Custom prompt ')
+
+    // Verify computed editorVariables updates based on numHooks and autoHooks settings
+    const vm = wrapper.vm as any
+    expect(vm.editorVariables.num_hooks).toBe('Find exactly 5 hooks.')
+    
+    // Toggle autoHooks
+    vm.autoHooks = true
+    await wrapper.vm.$nextTick()
+    expect(vm.editorVariables.num_hooks).toContain('Find ALL naturally compelling hooks')
+
+    // Untoggle and change numHooks
+    vm.autoHooks = false
+    vm.numHooks = 15
+    await wrapper.vm.$nextTick()
+    expect(vm.editorVariables.num_hooks).toBe('Find exactly 15 hooks.')
   })
 })
