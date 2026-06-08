@@ -85,3 +85,11 @@ A deep backend domain service that manages multiple Gemini API keys in sequence,
 
 ### Key Degradation Cache
 An in-memory cache tracking the error status and cool-down times of individual fallback keys to prevent retrying known-failed keys within their recovery window.
+
+---
+
+## Prompt Management
+
+### Prompt Template
+A customizable set of AI guidelines and instructions used by Gemini to analyze transcript data and extract segments. Each template specifies active parameters (like target hook counts and natural/fixed modes) and is classified using descriptive suitability tags.
+

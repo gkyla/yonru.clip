@@ -163,6 +163,10 @@ watch(() => props.modelValue, (newValue) => {
   }
 })
 
+defineExpose({
+  editor
+})
+
 onBeforeUnmount(() => {
   editor.value?.destroy()
 })
