@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full max-w-6xl z-10 flex flex-col mt-6 mb-10 gap-6">
+  <div class="w-full max-w-7xl z-10 flex flex-col mt-6 mb-10 gap-6">
     <!-- Header Section -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-border/50 pb-6">
       <div>
@@ -63,15 +63,15 @@
                 :class="editingId === p.id ? 'opacity-100' : 'opacity-0'" 
               />
             </div>
-            <div class="flex flex-wrap gap-1" v-if="p.suitableFor && p.suitableFor.length">
+            <div class="flex flex-wrap gap-1.5" v-if="p.suitableFor && p.suitableFor.length">
               <span 
                 v-for="tag in p.suitableFor.slice(0, 3)" 
                 :key="tag" 
-                class="text-[8px] bg-black/30 border border-white/5 text-slate-400 px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold"
+                class="text-[10px] bg-black/30 border border-white/5 text-slate-400 px-2 py-0.5 rounded uppercase tracking-wider font-semibold"
               >
                 {{ tag }}
               </span>
-              <span v-if="p.suitableFor.length > 3" class="text-[8px] text-slate-500 self-center font-bold pl-0.5">+{{ p.suitableFor.length - 3 }}</span>
+              <span v-if="p.suitableFor.length > 3" class="text-[10px] text-slate-500 self-center font-bold pl-0.5">+{{ p.suitableFor.length - 3 }}</span>
             </div>
           </button>
         </div>
@@ -143,7 +143,7 @@
                        <span 
                          v-for="(tag, index) in suitableFor" 
                          :key="index"
-                         class="bg-surface-panel border border-surface-border text-slate-300 text-[9px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1.5 group"
+                         class="bg-surface-panel border border-surface-border text-slate-300 text-[10px] font-bold px-2.5 py-1 rounded-md flex items-center gap-1.5 group"
                        >
                          {{ tag }}
                          <button @click="removeTag(index)" class="text-slate-500 group-hover:text-red-400 focus:outline-none hover:scale-110 transition-transform cursor-pointer">
