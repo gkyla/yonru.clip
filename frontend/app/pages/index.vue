@@ -7,7 +7,7 @@
           <p class="text-slate-400 max-w-xl mx-auto mb-8">Download strict 1080p video, extract audio locally, and let Gemini find the most viral segments.</p>
           
           <!-- Unified Analyzer Panel -->
-          <div class="px-8 w-full">
+          <div class="px-8 w-full mb-10">
             <div class="bg-[#111318] border border-surface-border rounded-2xl p-4 flex flex-col gap-4 shadow-2xl relative">
               <!-- Row 1: YouTube URL Input + Analyze Button -->
               <div class="flex items-center gap-3 relative">
