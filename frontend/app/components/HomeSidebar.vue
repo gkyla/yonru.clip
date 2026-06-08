@@ -436,7 +436,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 
 const state = useClipperState()
 
@@ -553,6 +553,17 @@ const emit = defineEmits<{
 }>()
 
 const isCollapsed = ref(props.defaultCollapsed ?? false)
+
+if (import.meta.client) {
+  const saved = localStorage.getItem('yonru_sidebar_collapsed')
+  if (saved !== null) {
+    isCollapsed.value = saved === 'true'
+  }
+}
+
+watch(isCollapsed, (newVal) => {
+  localStorage.setItem('yonru_sidebar_collapsed', newVal.toString())
+})
 const sidebarWidth = ref(320)
 const minWidth = 280
 const maxWidth = 600

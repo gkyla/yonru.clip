@@ -329,5 +329,33 @@ describe('HomeSidebar Component', () => {
 
     expect(mockLoadReadyClipIntoEditor).toHaveBeenCalledWith('test_folder', '10_20_test')
     expect(wrapper.vm.isCollapsed).toBe(true) // Should remain collapsed!
+
+    // Find the System Health / database button in collapsed view and click it
+    const healthBtn = wrapper.findAll('button').find(b => b.html().includes('ri:database-2-line'))
+    expect(healthBtn).toBeDefined()
+    await healthBtn!.trigger('click')
+    expect(wrapper.vm.isCollapsed).toBe(true) // Should remain collapsed!
+  })
+
+  it('restores collapsed state from localStorage on mount', () => {
+    localStorage.setItem('yonru_sidebar_collapsed', 'true')
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: true
+        }
+      }
+    })
+
+    expect(wrapper.vm.isCollapsed).toBe(true)
   })
 })
