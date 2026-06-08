@@ -159,6 +159,45 @@ const VariableHighlight = Extension.create({
           decorations(state) {
             return this.getState(state)
           },
+          handleKeyDown(view, event) {
+            if (event.key === 'Backspace' || event.key === 'Delete') {
+              const { state, dispatch } = view
+              const { selection } = state
+              if (!selection.empty) return false
+              
+              const pos = selection.anchor
+              const $pos = state.doc.resolve(pos)
+              const text = $pos.parent.textContent
+              const offset = $pos.parentOffset
+              const blockStart = pos - offset
+              
+              const regex = /\{([a-zA-Z0-9_]+)\}/g
+              let match
+              while ((match = regex.exec(text)) !== null) {
+                const start = match.index
+                const end = start + match[0].length
+                
+                // If Backspace, check if cursor is inside or immediately after the variable
+                if (event.key === 'Backspace') {
+                  if (offset > start && offset <= end) {
+                    const tr = state.tr.delete(blockStart + start, blockStart + end)
+                    dispatch(tr)
+                    return true
+                  }
+                }
+                
+                // If Delete, check if cursor is inside or immediately before the variable
+                if (event.key === 'Delete') {
+                  if (offset >= start && offset < end) {
+                    const tr = state.tr.delete(blockStart + start, blockStart + end)
+                    dispatch(tr)
+                    return true
+                  }
+                }
+              }
+            }
+            return false
+          }
         },
       }),
     ]
