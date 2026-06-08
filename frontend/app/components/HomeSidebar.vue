@@ -234,8 +234,8 @@
         </div>
 
         <!-- Collapsed Mode Column of Icons -->
-        <div v-else class="flex-1 flex flex-col items-center py-6 justify-between bg-black/10 select-none">
-          <!-- Top Stack: Navigation Icons -->
+        <div v-else class="flex-1 flex flex-col items-center py-6 justify-start bg-black/10 select-none">
+          <!-- Top Stack: Navigation Icons & Diagnostics -->
           <div class="flex flex-col items-center gap-4 w-full">
             <!-- Nav Item: Home -->
             <div class="relative group">
@@ -296,10 +296,10 @@
                 Settings
               </div>
             </div>
-          </div>
 
-          <!-- Bottom Stack: Status & Diagnostics -->
-          <div class="flex flex-col items-center gap-4 w-full mt-auto">
+            <!-- Separator Divider -->
+            <div class="w-8 border-t border-white/10 my-1"></div>
+
             <!-- Workspace / Active Project Indicator -->
             <div class="relative group">
               <button 
@@ -311,7 +311,7 @@
                 <div v-if="lastClip && lastVideo && !isProcessing" class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-accent-500 rounded-full border-2 border-surface-dark shadow-[0_0_8px_rgba(207,255,80,0.6)]"></div>
               </button>
               <!-- Project hover card drawer -->
-              <div class="absolute left-full bottom-0 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-xl rounded-2xl shadow-2xl p-4 w-72 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-x-2 group-hover:translate-x-0 z-50 flex flex-col gap-3">
+              <div class="absolute left-full top-0 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-xl rounded-2xl shadow-2xl p-4 w-72 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-x-2 group-hover:translate-x-0 z-50 flex flex-col gap-3">
                 <span class="text-[9px] font-black uppercase tracking-wider text-slate-500 pb-1 border-b border-white/5">Workspace</span>
                 <!-- Processing job details -->
                 <div v-if="isProcessing" class="bg-amber-500/5 rounded-xl p-3 border border-amber-500/10 animate-pulse-subtle">
@@ -358,7 +358,7 @@
                 <div class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface-dark shadow-[0_0_6px_rgba(0,0,0,0.5)] animate-pulse-subtle" :class="healthDotColor"></div>
               </button>
               <!-- Health hover card drawer -->
-              <div class="absolute left-full bottom-0 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-xl rounded-2xl shadow-2xl p-4 w-72 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-x-2 group-hover:translate-x-0 z-50 flex flex-col gap-3">
+              <div class="absolute left-full top-0 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-xl rounded-2xl shadow-2xl p-4 w-72 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-x-2 group-hover:translate-x-0 z-50 flex flex-col gap-3">
                 <div class="flex justify-between items-center pb-1 border-b border-white/5">
                   <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">System Health</span>
                   <div class="flex items-center gap-2">
