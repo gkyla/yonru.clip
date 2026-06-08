@@ -35,7 +35,7 @@ describe('HomePrompts Component', () => {
     mockShowToast.mockClear()
   })
 
-  it('renders search input and dynamic category filter tags', () => {
+  it('renders search input and available prompts list', () => {
     const wrapper = mount(HomePrompts, {
       global: {
         stubs: {
@@ -49,16 +49,13 @@ describe('HomePrompts Component', () => {
     const searchInput = wrapper.find('input[placeholder*="Search prompts"]')
     expect(searchInput.exists()).toBe(true)
 
-    // Tag filter chips should contain 'All', 'podcast', 'comedy', 'education', 'science'
+    // Should contain prompt names in the list
     const text = wrapper.text()
-    expect(text).toContain('All')
-    expect(text).toContain('podcast')
-    expect(text).toContain('comedy')
-    expect(text).toContain('education')
-    expect(text).toContain('science')
+    expect(text).toContain('Podcast Hooks')
+    expect(text).toContain('Education Explainer')
   })
 
-  it('filters prompts list by text search and category tag selection', async () => {
+  it('filters prompts list by text search', async () => {
     const wrapper = mount(HomePrompts, {
       global: {
         stubs: {
@@ -79,19 +76,6 @@ describe('HomePrompts Component', () => {
 
     expect(wrapper.text()).toContain('Podcast Hooks')
     expect(wrapper.text()).not.toContain('Education Explainer')
-
-    // Reset search, then click 'education' tag filter pill
-    await searchInput.setValue('')
-    await wrapper.vm.$nextTick()
-
-    // Find dynamic tag filter buttons/pills
-    const tagPills = wrapper.findAll('button').filter(b => b.text().trim() === 'education')
-    expect(tagPills.length).toBe(1)
-    await tagPills[0].trigger('click')
-    await wrapper.vm.$nextTick()
-
-    expect(wrapper.text()).not.toContain('Podcast Hooks')
-    expect(wrapper.text()).toContain('Education Explainer')
   })
 
   it('switches editor detail pane on prompt card click and displays empty state when deselected', async () => {

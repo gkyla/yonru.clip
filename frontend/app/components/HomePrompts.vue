@@ -40,32 +40,7 @@
           </button>
         </div>
 
-        <!-- Dynamic Tags horizontal filter list -->
-        <div class="flex flex-col gap-1.5">
-          <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Filter by tag</span>
-          <div class="flex gap-1.5 overflow-x-auto pb-1.5 custom-horizontal-scrollbar select-none whitespace-nowrap">
-            <button 
-              @click="selectedTag = 'All'"
-              class="px-3 py-1 rounded-full text-[10px] font-bold border transition-all cursor-pointer"
-              :class="selectedTag === 'All' 
-                ? 'bg-accent-500/10 border-accent-500/30 text-accent-500' 
-                : 'bg-[#111318] border-surface-border text-slate-400 hover:text-slate-200 hover:border-white/10'"
-            >
-              All
-            </button>
-            <button 
-              v-for="tag in uniqueTags" 
-              :key="tag"
-              @click="selectedTag = tag"
-              class="px-3 py-1 rounded-full text-[10px] font-bold border transition-all cursor-pointer"
-              :class="selectedTag === tag 
-                ? 'bg-accent-500/10 border-accent-500/30 text-accent-500' 
-                : 'bg-[#111318] border-surface-border text-slate-400 hover:text-slate-200 hover:border-white/10'"
-            >
-              {{ tag }}
-            </button>
-          </div>
-        </div>
+
 
         <!-- Scrollable List -->
         <div class="flex flex-col gap-2 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar w-full">
@@ -283,30 +258,16 @@ const promptText = ref('')
 const numHooks = ref(10)
 const autoHooks = ref(false)
 
-// Search & Filtering State
+// Search State
 const searchQuery = ref('')
-const selectedTag = ref('All')
 
 // Refs
 const promptEditorRef = ref<any>(null)
 
-// Unique Category tags
-const uniqueTags = computed(() => {
-  const tagsSet = new Set<string>()
-  state.promptsList.value.forEach(p => {
-    if (p.suitableFor) {
-      p.suitableFor.forEach(t => tagsSet.add(t))
-    }
-  })
-  return Array.from(tagsSet)
-})
-
 // Filtered prompts list
 const filteredPrompts = computed(() => {
   return state.promptsList.value.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    const matchesTag = selectedTag.value === 'All' || (p.suitableFor && p.suitableFor.includes(selectedTag.value))
-    return matchesSearch && matchesTag
+    return p.name.toLowerCase().includes(searchQuery.value.toLowerCase())
   })
 })
 
