@@ -20,7 +20,7 @@
     <!-- Main Workspace: Split Pane -->
     <div class="flex flex-col lg:flex-row gap-6 items-start w-full">
       <!-- Left Column: Search, Category Filters, and Templates List -->
-      <div class="w-full lg:w-[360px] flex flex-col gap-4 shrink-0 bg-surface-panel/20 border border-surface-border/50 rounded-2xl p-4">
+      <div class="w-full lg:w-[360px] lg:sticky lg:top-0 flex flex-col gap-4 shrink-0 bg-surface-panel/20 border border-surface-border/50 rounded-2xl p-4">
         
         <!-- Search bar -->
         <div class="relative w-full">
@@ -43,7 +43,7 @@
 
 
         <!-- Scrollable List -->
-        <div class="flex flex-col gap-2 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar w-full">
+        <div class="flex flex-col gap-2 max-h-[500px] overflow-y-auto p-1 custom-scrollbar w-full">
           <div v-if="filteredPrompts.length === 0" class="text-center py-8 text-xs text-slate-500 italic">
             No templates match the criteria.
           </div>
