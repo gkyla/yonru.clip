@@ -51,7 +51,10 @@
       </div>
 
       <!-- Sidebar Content -->
-      <div class="flex flex-col h-full overflow-hidden w-full">
+      <div 
+        class="flex flex-col h-full w-full"
+        :class="isCollapsed ? 'overflow-visible' : 'overflow-hidden'"
+      >
         <!-- Header -->
         <div class="h-14 border-b border-surface-border/50 flex items-center px-4 gap-3 shrink-0 bg-black/20">
           <NuxtLink to="/" class="w-7 h-7 bg-accent-500 flex items-center justify-center text-black font-black text-lg shadow-[0_0_15px_rgba(207,255,80,0.3)] hover:scale-105 transition-transform cursor-pointer shrink-0">Y</NuxtLink>
@@ -231,105 +234,179 @@
         </div>
 
         <!-- Collapsed Mode Column of Icons -->
-        <div v-else class="flex-1 flex flex-col items-center py-6 gap-6 bg-black/10 select-none">
-          <!-- Icon 1: Nav Drawer Icon -->
-          <div class="relative group">
-            <button 
-              @click="isCollapsed = false"
-              class="w-10 h-10 rounded-xl bg-surface-panel/40 border border-white/5 hover:border-accent-500/20 text-slate-400 hover:text-white flex items-center justify-center transition-all relative cursor-pointer"
-            >
-              <Icon name="ri:home-smile-fill" class="text-xl" />
-            </button>
-            <!-- Nav hover card drawer -->
-            <div class="absolute left-full top-0 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-xl rounded-2xl shadow-2xl p-3 w-48 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-x-2 group-hover:translate-x-0 z-50 flex flex-col gap-1">
-              <span class="text-[9px] font-black uppercase tracking-wider text-slate-500 px-2 pb-1 border-b border-white/5 mb-1">Navigation</span>
-              <button @click="handleNav('home')" class="w-full text-left py-2 px-2 hover:bg-white/5 rounded text-xs text-slate-300 hover:text-white transition-colors cursor-pointer">Home</button>
-              <button @click="handleNav('prompts')" class="w-full text-left py-2 px-2 hover:bg-white/5 rounded text-xs text-slate-300 hover:text-white transition-colors cursor-pointer">Prompts</button>
-              <button @click="handleNav('docs')" class="w-full text-left py-2 px-2 hover:bg-white/5 rounded text-xs text-slate-300 hover:text-white transition-colors cursor-pointer">Documentation</button>
-              <button @click="handleNav('settings')" class="w-full text-left py-2 px-2 hover:bg-white/5 rounded text-xs text-slate-300 hover:text-white transition-colors cursor-pointer">Settings</button>
-            </div>
-          </div>
-
-          <!-- Icon 2: Workspace Drawer Icon -->
-          <div class="relative group">
-            <button 
-              @click="isCollapsed = false"
-              class="w-10 h-10 rounded-xl bg-surface-panel/40 border border-white/5 hover:border-accent-500/20 text-slate-400 hover:text-white flex items-center justify-center transition-all relative cursor-pointer"
-              :class="isProcessing ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : ''"
-            >
-              <Icon :name="isProcessing ? 'ri:loader-4-line' : 'ri:movie-2-fill'" :class="{ 'animate-spin': isProcessing }" class="text-xl" />
-              <div v-if="lastClip && lastVideo && !isProcessing" class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent-500 rounded-full shadow-[0_0_8px_rgba(207,255,80,0.6)]"></div>
-            </button>
-            <!-- Project hover card drawer -->
-            <div class="absolute left-full top-0 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-xl rounded-2xl shadow-2xl p-4 w-72 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-x-2 group-hover:translate-x-0 z-50 flex flex-col gap-3">
-              <span class="text-[9px] font-black uppercase tracking-wider text-slate-500 pb-1 border-b border-white/5">Active Project</span>
-              <!-- Processing job details -->
-              <div v-if="isProcessing" class="bg-amber-500/5 rounded-lg p-2.5 border border-amber-500/20">
-                <p class="text-[10px] text-amber-500 font-bold mb-1">Active Job...</p>
-                <p class="text-[11px] text-white font-medium truncate">{{ processingTitle }}</p>
-                <p class="text-[9px] text-slate-400 uppercase font-mono mt-0.5">{{ processingStatus }}</p>
-              </div>
-              <!-- Last Clip Card -->
+        <div v-else class="flex-1 flex flex-col items-center py-6 justify-between bg-black/10 select-none">
+          <!-- Top Stack: Navigation Icons -->
+          <div class="flex flex-col items-center gap-4 w-full">
+            <!-- Nav Item: Home -->
+            <div class="relative group">
               <button 
-                v-else-if="lastClip && lastVideo"
-                @click="handleContinueEditingClick()"
-                class="flex items-center gap-3 p-1.5 rounded-lg hover:bg-white/5 text-left border border-transparent hover:border-white/5 w-full cursor-pointer"
+                @click="handleNav('home')"
+                class="w-10 h-10 rounded-xl flex items-center justify-center transition-all relative cursor-pointer"
+                :class="activeView === 'home' ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20 shadow-[0_0_15px_rgba(207,255,80,0.15)]' : 'text-slate-400 hover:text-white hover:bg-surface-panel/30 border border-transparent hover:border-white/5'"
               >
-                <div class="w-8 h-8 rounded bg-surface-dark overflow-hidden shrink-0 border border-white/5 relative">
-                   <img v-if="lastVideo.thumbnail" :src="`${API_BASE}/api/proxy-image?url=${encodeURIComponent(lastVideo.thumbnail)}`" class="w-full h-full object-cover" />
-                   <div v-else class="w-full h-full flex items-center justify-center bg-accent-500/10 text-accent-500 text-xs">
-                     <Icon name="ri:movie-2-line" />
-                   </div>
-                </div>
-                <div class="overflow-hidden flex-1">
-                  <p class="text-[8px] text-accent-500 font-bold uppercase tracking-widest leading-none mb-0.5">CONTINUE</p>
-                  <p class="text-[10px] text-white font-bold truncate">{{ lastClip.theme || lastClip.title || 'Untitled Clip' }}</p>
-                </div>
+                <Icon name="ri:home-smile-fill" class="text-xl" />
               </button>
-              <div v-else class="text-[10px] text-slate-500 italic text-center py-2">No active project.</div>
+              <!-- Tooltip -->
+              <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-50 whitespace-nowrap">
+                Home
+              </div>
+            </div>
+
+            <!-- Nav Item: Prompts -->
+            <div class="relative group">
+              <button 
+                @click="handleNav('prompts')"
+                class="w-10 h-10 rounded-xl flex items-center justify-center transition-all relative cursor-pointer"
+                :class="activeView === 'prompts' ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20 shadow-[0_0_15px_rgba(207,255,80,0.15)]' : 'text-slate-400 hover:text-white hover:bg-surface-panel/30 border border-transparent hover:border-white/5'"
+              >
+                <Icon name="ri:chat-quote-fill" class="text-xl" />
+              </button>
+              <!-- Tooltip -->
+              <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-50 whitespace-nowrap">
+                Prompts
+              </div>
+            </div>
+
+            <!-- Nav Item: Documentation -->
+            <div class="relative group">
+              <button 
+                @click="handleNav('docs')"
+                class="w-10 h-10 rounded-xl flex items-center justify-center transition-all relative cursor-pointer"
+                :class="activeView === 'docs' ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20 shadow-[0_0_15px_rgba(207,255,80,0.15)]' : 'text-slate-400 hover:text-white hover:bg-surface-panel/30 border border-transparent hover:border-white/5'"
+              >
+                <Icon name="ri:book-read-fill" class="text-xl" />
+              </button>
+              <!-- Tooltip -->
+              <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-50 whitespace-nowrap">
+                Documentation
+              </div>
+            </div>
+
+            <!-- Nav Item: Settings -->
+            <div class="relative group">
+              <button 
+                @click="handleNav('settings')"
+                class="w-10 h-10 rounded-xl flex items-center justify-center transition-all relative cursor-pointer"
+                :class="activeView === 'settings' ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20 shadow-[0_0_15px_rgba(207,255,80,0.15)]' : 'text-slate-400 hover:text-white hover:bg-surface-panel/30 border border-transparent hover:border-white/5'"
+              >
+                <Icon name="ri:settings-4-fill" class="text-xl" />
+              </button>
+              <!-- Tooltip -->
+              <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-50 whitespace-nowrap">
+                Settings
+              </div>
             </div>
           </div>
 
-          <!-- Icon 3: System Health Drawer Icon -->
-          <div class="relative group">
-            <button 
-              @click="isCollapsed = false"
-              class="w-10 h-10 rounded-xl bg-surface-panel/40 border border-white/5 hover:border-accent-500/20 text-slate-400 hover:text-white flex items-center justify-center transition-all relative cursor-pointer"
-            >
-              <Icon name="ri:database-2-line" class="text-xl" />
-              <!-- Status Dot Overlay -->
-              <div class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface-dark shadow-[0_0_6px_rgba(0,0,0,0.5)] animate-pulse-subtle" :class="healthDotColor"></div>
-            </button>
-            <!-- Health hover card drawer -->
-            <div class="absolute left-full top-0 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-xl rounded-2xl shadow-2xl p-4 w-64 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-x-2 group-hover:translate-x-0 z-50 flex flex-col gap-2">
-              <div class="flex justify-between items-center pb-1 border-b border-white/5 mb-1">
-                <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">System Diagnostics</span>
-                <span class="text-[9px] text-slate-600 font-mono">V.0.4.2</span>
+          <!-- Bottom Stack: Status & Diagnostics -->
+          <div class="flex flex-col items-center gap-4 w-full mt-auto">
+            <!-- Workspace / Active Project Indicator -->
+            <div class="relative group">
+              <button 
+                @click="handleContinueEditingClick()"
+                class="w-10 h-10 rounded-xl bg-surface-panel/40 border border-white/5 hover:border-accent-500/20 text-slate-400 hover:text-white flex items-center justify-center transition-all relative cursor-pointer"
+                :class="isProcessing ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 animate-pulse-subtle' : ''"
+              >
+                <Icon :name="isProcessing ? 'ri:loader-4-line' : 'ri:movie-2-fill'" :class="{ 'animate-spin': isProcessing }" class="text-xl" />
+                <div v-if="lastClip && lastVideo && !isProcessing" class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-accent-500 rounded-full border-2 border-surface-dark shadow-[0_0_8px_rgba(207,255,80,0.6)]"></div>
+              </button>
+              <!-- Project hover card drawer -->
+              <div class="absolute left-full bottom-0 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-xl rounded-2xl shadow-2xl p-4 w-72 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-x-2 group-hover:translate-x-0 z-50 flex flex-col gap-3">
+                <span class="text-[9px] font-black uppercase tracking-wider text-slate-500 pb-1 border-b border-white/5">Workspace</span>
+                <!-- Processing job details -->
+                <div v-if="isProcessing" class="bg-amber-500/5 rounded-xl p-3 border border-amber-500/10 animate-pulse-subtle">
+                  <div class="flex items-center gap-2 mb-2">
+                    <div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                    <span class="text-[9px] font-bold text-amber-500 tracking-wider uppercase">Active Job</span>
+                  </div>
+                  <p class="text-[11px] text-white font-medium line-clamp-1 mb-1">{{ processingTitle }}</p>
+                  <p class="text-[9px] text-slate-400 uppercase tracking-wider font-mono">{{ processingStatus }}</p>
+                </div>
+                <!-- Last Clip Card -->
+                <button 
+                  v-else-if="lastClip && lastVideo && !isProcessing"
+                  @click="handleContinueEditingClick()"
+                  class="flex items-center gap-3 p-2 rounded-xl transition-all group bg-surface-panel/30 border border-white/5 hover:border-accent-500/20 text-left w-full cursor-pointer"
+                >
+                  <div class="w-10 h-10 rounded bg-surface-dark overflow-hidden shrink-0 border border-white/5 group-hover:border-accent-500/30 relative">
+                     <img v-if="lastVideo.thumbnail" :src="`${API_BASE}/api/proxy-image?url=${encodeURIComponent(lastVideo.thumbnail)}`" class="w-full h-full object-cover" />
+                     <div v-else class="w-full h-full flex items-center justify-center bg-accent-500/10 text-accent-500 text-xs">
+                       <Icon name="ri:movie-2-line" />
+                     </div>
+                     <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                       <Icon name="ri:edit-2-fill" class="text-white text-xs" />
+                     </div>
+                  </div>
+                  <div class="overflow-hidden flex-1">
+                     <p class="text-[9px] text-accent-500 font-bold uppercase tracking-tighter leading-none mb-1">CONTINUE EDITING</p>
+                     <p class="text-[11px] text-white font-bold truncate leading-tight">{{ lastClip.theme || lastClip.title || 'Untitled Clip' }}</p>
+                     <p class="text-[9px] text-slate-500 truncate mt-0.5">{{ lastVideo.title || 'Untitled Video' }}</p>
+                  </div>
+                </button>
+                <div v-else class="text-[10px] text-slate-500 italic text-center py-2">No active project.</div>
               </div>
-              <div class="flex flex-col gap-1.5">
-                <div class="flex justify-between items-center text-[10px] text-slate-400">
-                  <span :class="{ 'opacity-60': isHealthLoading }">FFmpeg</span>
-                  <Icon v-if="isHealthLoading" name="ri:loader-4-line" class="animate-spin text-accent-500 text-xs" />
-                  <span v-else class="font-mono" :class="isSystemOK ? 'text-emerald-500' : 'text-amber-500'">{{ isSystemOK ? 'OK' : 'Error' }}</span>
+            </div>
+
+            <!-- System Health / Diagnostics Indicator -->
+            <div class="relative group">
+              <button 
+                @click="scrollToSettingsSection('settings-health')"
+                class="w-10 h-10 rounded-xl bg-surface-panel/40 border border-white/5 hover:border-accent-500/20 text-slate-400 hover:text-white flex items-center justify-center transition-all relative cursor-pointer"
+              >
+                <Icon name="ri:database-2-line" class="text-xl" />
+                <!-- Status Dot Overlay -->
+                <div class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface-dark shadow-[0_0_6px_rgba(0,0,0,0.5)] animate-pulse-subtle" :class="healthDotColor"></div>
+              </button>
+              <!-- Health hover card drawer -->
+              <div class="absolute left-full bottom-0 ml-3 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-xl rounded-2xl shadow-2xl p-4 w-72 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-x-2 group-hover:translate-x-0 z-50 flex flex-col gap-3">
+                <div class="flex justify-between items-center pb-1 border-b border-white/5">
+                  <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">System Health</span>
+                  <div class="flex items-center gap-2">
+                    <div 
+                      v-if="state?.isAnyPrerequisiteMissing?.value"
+                      class="w-1.5 h-1.5 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse-amber"
+                    ></div>
+                    <span class="text-[9px] text-slate-600 font-mono">V.0.4.2</span>
+                  </div>
                 </div>
-                <div class="flex justify-between items-center text-[10px] text-slate-400">
-                  <span :class="{ 'opacity-60': isHealthLoading }">Gemini API</span>
-                  <Icon v-if="isHealthLoading" name="ri:loader-4-line" class="animate-spin text-accent-500 text-xs" />
-                  <span v-else class="font-mono" :class="isApiConfigured ? 'text-emerald-500' : 'text-amber-500'">{{ isApiConfigured ? 'Configured' : 'Missing' }}</span>
+
+                <!-- System Status Dashboard Checklist -->
+                <div class="bg-black/20 rounded-xl p-2 border border-white/5 flex flex-col gap-1.5">
+                  <button 
+                    v-for="item in systemHealthItems"
+                    :key="item.id"
+                    @click="scrollToSettingsSection(item.id)"
+                    class="flex items-center justify-between py-1.5 px-2 hover:bg-white/5 rounded text-[10px] text-slate-400 text-left font-bold transition-all border border-transparent hover:border-white/5 cursor-pointer"
+                  >
+                    <div class="flex items-center gap-2">
+                      <Icon 
+                        :name="item.icon" 
+                        class="text-sm shrink-0" 
+                        :class="item.loading ? 'opacity-40 animate-pulse text-slate-500' : (item.ok ? 'text-slate-500' : 'text-amber-500')" 
+                      />
+                      <span class="tracking-wider uppercase" :class="{ 'opacity-60': item.loading }">{{ item.name }}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 font-mono">
+                      <Icon 
+                        v-if="item.loading" 
+                        name="ri:loader-4-line" 
+                        class="animate-spin text-accent-500 text-xs" 
+                      />
+                      <template v-else>
+                        <span class="w-1.5 h-1.5 rounded-full" :class="item.ok ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'"></span>
+                        <span :class="item.ok ? 'text-slate-300' : 'text-amber-400 font-bold'">{{ item.label }}</span>
+                      </template>
+                    </div>
+                  </button>
                 </div>
-                <div class="flex justify-between items-center text-[10px] text-slate-400">
-                  <span>Whisper Mode</span>
-                  <span class="font-mono text-slate-300">{{ state?.whisperModel?.value?.toUpperCase() || 'BASE' }}</span>
+
+                <!-- Storage Summary -->
+                <div class="flex items-center justify-between px-2 text-[10px] text-slate-500 font-bold">
+                  <div class="flex items-center gap-2">
+                    <Icon name="ri:database-2-line" class="text-sm text-slate-600" />
+                    <span>{{ cachedVideos.length }} SOURCE(S) CACHED</span>
+                  </div>
                 </div>
-                <div class="flex justify-between items-center text-[10px] text-slate-400">
-                  <span :class="{ 'opacity-60': isHealthLoading }">Cookies</span>
-                  <Icon v-if="isHealthLoading" name="ri:loader-4-line" class="animate-spin text-accent-500 text-xs" />
-                  <span v-else class="font-mono" :class="isCookiesConfigured ? 'text-emerald-500' : 'text-amber-500'">{{ isCookiesConfigured ? 'Configured' : 'Missing' }}</span>
-                </div>
-              </div>
-              <div class="pt-2 border-t border-white/5 mt-1 flex justify-between items-center text-[9px] text-slate-500 font-bold uppercase">
-                <span>Cached sources</span>
-                <span>{{ cachedVideos.length }}</span>
               </div>
             </div>
           </div>
@@ -344,8 +421,13 @@
                {{ statusLabel }}
             </div>
           </div>
-          <div v-else class="flex justify-center">
-            <div class="w-2.5 h-2.5 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.1)]" :class="statusColor"></div>
+          <div v-else class="flex justify-center relative group">
+            <div class="w-2.5 h-2.5 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.1)] cursor-help" :class="statusColor"></div>
+            <!-- Tooltip -->
+            <div class="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-surface-dark/95 border border-surface-border/50 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0 z-50 whitespace-nowrap flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full" :class="statusColor"></span>
+              <span>System: {{ statusLabel }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -482,15 +564,16 @@ const isProjectOpen = ref(true)
 const isHealthOpen = ref(true)
 
 function handleNav(view: string) {
+  const router = useRouter()
   emit('update:activeView', view)
   if (view === 'settings') {
-    navigateTo('/settings')
+    router.push('/settings')
   } else if (view === 'prompts') {
-    navigateTo('/prompts')
+    router.push('/prompts')
   } else if (view === 'docs') {
-    navigateTo('/docs')
+    router.push('/docs')
   } else if (view === 'home') {
-    navigateTo('/')
+    router.push('/')
   }
   if (props.isFloating) {
     isCollapsed.value = true

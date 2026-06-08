@@ -286,4 +286,48 @@ describe('HomeSidebar Component', () => {
     const html = wrapper.html()
     expect(html).toContain('ri:loader-4-line')
   })
+
+  it('renders correct navigation and status buttons in collapsed mode and handles clicks directly', async () => {
+    const router = useRouter()
+    const pushSpy = vi.spyOn(router, 'push')
+
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: true, // Start collapsed!
+        lastClip: { folder_name: 'test_folder', clip_id: '10_20_test', theme: 'Test Theme' },
+        lastVideo: { title: 'Test Video', thumbnail: 'thumb.jpg' }
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: true
+        }
+      }
+    })
+
+    expect(wrapper.vm.isCollapsed).toBe(true)
+
+    // Find the prompts navigation icon button in collapsed view and click it
+    const promptsBtn = wrapper.findAll('button').find(b => b.html().includes('ri:chat-quote-fill'))
+    expect(promptsBtn).toBeDefined()
+    await promptsBtn!.trigger('click')
+
+    expect(wrapper.emitted('update:activeView')?.[0]).toEqual(['prompts'])
+    expect(pushSpy).toHaveBeenCalledWith('/prompts')
+    expect(wrapper.vm.isCollapsed).toBe(true) // Should remain collapsed!
+
+    // Find the Continue Editing / movie button in collapsed view and click it
+    const movieBtn = wrapper.findAll('button').find(b => b.html().includes('ri:movie-2-fill'))
+    expect(movieBtn).toBeDefined()
+    await movieBtn!.trigger('click')
+    await flushPromises()
+
+    expect(mockLoadReadyClipIntoEditor).toHaveBeenCalledWith('test_folder', '10_20_test')
+    expect(wrapper.vm.isCollapsed).toBe(true) // Should remain collapsed!
+  })
 })
