@@ -119,7 +119,6 @@ const VariableHighlight = Extension.create({
                       class: 'tiptap-variable-badge',
                       'data-variable': varName,
                       'data-value': varValue,
-                      title: `Variable: {${varName}}`,
                     })
                   )
                 }
@@ -145,7 +144,6 @@ const VariableHighlight = Extension.create({
                       class: 'tiptap-variable-badge',
                       'data-variable': varName,
                       'data-value': varValue,
-                      title: `Variable: {${varName}}`,
                     })
                   )
                 }
@@ -296,8 +294,9 @@ onBeforeUnmount(() => {
 
 .tiptap-variable-badge {
   font-size: 0 !important;
-  display: inline-flex !important;
-  align-items: center;
+  position: relative;
+  display: inline-block;
+  cursor: help;
   vertical-align: middle;
 }
 
@@ -307,29 +306,49 @@ onBeforeUnmount(() => {
   font-family: monospace;
   font-weight: 500;
   color: #CFFF50; /* accent-500 */
-  background: rgba(207, 255, 80, 0.12); /* accent-500/12 */
-  border: 1px dashed rgba(207, 255, 80, 0.4);
-  padding: 1px 5px;
+  background: rgba(207, 255, 80, 0.08); /* accent-500/8 */
+  border: 1px dashed rgba(207, 255, 80, 0.35);
+  padding: 1px 4px;
   border-radius: 4px;
-  margin: 0 2px;
+  margin: 0;
   white-space: pre-wrap;
   display: inline-block;
   vertical-align: middle;
+  transition: all 0.15s ease-in-out;
 }
 
+.tiptap-variable-badge:hover::before {
+  background: rgba(207, 255, 80, 0.16);
+  border-color: rgba(207, 255, 80, 0.65);
+}
+
+/* Premium Cinematic Tooltip */
 .tiptap-variable-badge::after {
-  content: "{" attr(data-variable) "}";
-  font-size: 9px !important;
-  font-family: monospace;
-  color: #64748b; /* slate-500 */
-  background: rgba(255, 255, 255, 0.03);
+  content: "Variable: {" attr(data-variable) "}";
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: rgba(15, 23, 42, 0.96); /* slate-900 with high opacity */
   border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0 3px;
-  border-radius: 3px;
-  margin-left: 4px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 0 15px rgba(207, 255, 80, 0.15);
+  color: #f8fafc; /* slate-50 */
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11px !important;
+  font-family: monospace;
   font-weight: bold;
-  vertical-align: middle;
-  display: inline-block;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 50;
+  line-height: 1.2;
+}
+
+.tiptap-variable-badge:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .custom-scrollbar::-webkit-scrollbar {
