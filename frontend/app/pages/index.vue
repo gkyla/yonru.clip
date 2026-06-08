@@ -1805,6 +1805,7 @@ async function fetchReadyClips() {
 }
 
 async function loadReadyClip(clip: any) {
+  const router = useRouter()
   console.log('[yonru] Loading ready clip:', clip.clip_id, 'from folder:', clip.folder_name)
   showAllReadyClips.value = false
   
@@ -1858,7 +1859,7 @@ async function loadReadyClip(clip: any) {
     await minWait
     // Then navigate with the job_id for persistence/refresh
     console.log('[yonru] Navigating to editor with hook index:', hookIndex, 'tab:', tab)
-    await navigateTo({
+    await router.push({
       path: '/editor',
       query: { 
         job_id: state.jobId.value || '',
