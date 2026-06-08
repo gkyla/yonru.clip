@@ -164,16 +164,16 @@
                </div>
 
                <!-- Right Column: Settings Grid (AI Mode & Hook Count) -->
-               <div class="bg-black/10 border border-surface-border/50 rounded-xl p-3.5 flex flex-col gap-3 justify-center">
+               <div class="bg-black/10 border border-surface-border/50 rounded-xl p-5 flex flex-col gap-3 justify-center">
                  <!-- AI Mode toggle -->
                  <div class="flex items-center justify-between gap-3">
                    <div class="flex flex-col">
-                     <span class="text-[10px] font-bold text-white uppercase tracking-wide">AI Mode Selection</span>
-                     <span class="text-[9px] text-slate-500 leading-tight mt-0.5">{{ autoHooks ? 'Natural length detection' : 'Force count' }}</span>
+                     <span class="text-xs font-black text-white uppercase tracking-wider">AI Mode Selection</span>
+                     <span class="text-[10px] text-slate-500 leading-tight mt-0.5">{{ autoHooks ? 'Natural length detection' : 'Force count' }}</span>
                    </div>
                    <button 
                      @click="autoHooks = !autoHooks"
-                     class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg border transition-all text-xs font-bold cursor-pointer"
+                     class="flex items-center gap-2.5 px-3.5 py-2 rounded-lg border transition-all text-xs font-bold cursor-pointer"
                      :class="autoHooks 
                        ? 'bg-accent-500/10 border-accent-500/30 text-accent-500 shadow-[0_0_10px_rgba(207,255,80,0.05)]' 
                        : 'bg-[#111318] border-surface-border text-slate-400 hover:border-accent-500/30 hover:text-slate-300'"
@@ -184,15 +184,15 @@
                      <span>{{ autoHooks ? 'Natural' : 'Fixed' }}</span>
                    </button>
                  </div>
-
+ 
                  <!-- Divider -->
                  <div class="border-t border-surface-border/30"></div>
-
+ 
                  <!-- Number of Hooks slider -->
                  <div class="flex flex-col gap-1">
                    <div class="flex justify-between items-center">
-                     <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Number of Hooks</span>
-                     <span class="text-white font-mono font-bold text-[10px] bg-[#111318] border border-surface-border px-2 py-0.5 rounded-md min-w-[32px] text-center" :class="{ 'opacity-30': autoHooks }">{{ autoHooks ? '—' : numHooks }}</span>
+                     <span class="text-xs font-black text-slate-400 uppercase tracking-wider">Number of Hooks</span>
+                     <span class="text-white font-mono font-bold text-xs bg-[#111318] border border-surface-border px-2 py-0.5 rounded-md min-w-[32px] text-center" :class="{ 'opacity-30': autoHooks }">{{ autoHooks ? '—' : numHooks }}</span>
                    </div>
                    <div class="flex items-center gap-3 mt-1">
                      <input 
