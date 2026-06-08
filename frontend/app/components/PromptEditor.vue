@@ -87,6 +87,13 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { watch, onBeforeUnmount } from 'vue'
 
+const props = defineProps<{
+  modelValue: string
+  variables?: Record<string, string>
+}>()
+
+const emit = defineEmits(['update:modelValue'])
+
 const VariableHighlight = Extension.create({
   name: 'variableHighlight',
 
@@ -95,20 +102,50 @@ const VariableHighlight = Extension.create({
       new Plugin({
         key: new PluginKey('variableHighlight'),
         state: {
-          init() {
-            return DecorationSet.empty
+          init(config, state) {
+            const decorations: Decoration[] = []
+            
+            state.doc.descendants((node, pos) => {
+              if (node.isText && node.text) {
+                const regex = /\{([a-zA-Z0-9_]+)\}/g
+                let match
+                while ((match = regex.exec(node.text)) !== null) {
+                  const fullMatch = match[0]
+                  const varName = match[1]
+                  const varValue = props.variables?.[varName] || fullMatch
+                  
+                  decorations.push(
+                    Decoration.inline(pos + match.index, pos + match.index + fullMatch.length, {
+                      class: 'tiptap-variable-badge',
+                      'data-variable': varName,
+                      'data-value': varValue,
+                      title: `Variable: {${varName}}`,
+                    })
+                  )
+                }
+              }
+            })
+            
+            return DecorationSet.create(state.doc, decorations)
           },
           apply(tr, old) {
             const decorations: Decoration[] = []
             
             tr.doc.descendants((node, pos) => {
               if (node.isText && node.text) {
-                const regex = /\{[a-zA-Z0-9_]+\}/g
+                const regex = /\{([a-zA-Z0-9_]+)\}/g
                 let match
                 while ((match = regex.exec(node.text)) !== null) {
+                  const fullMatch = match[0]
+                  const varName = match[1]
+                  const varValue = props.variables?.[varName] || fullMatch
+                  
                   decorations.push(
-                    Decoration.inline(pos + match.index, pos + match.index + match[0].length, {
-                      class: 'text-accent-500 font-mono bg-accent-500/10 px-1 rounded mx-0.5',
+                    Decoration.inline(pos + match.index, pos + match.index + fullMatch.length, {
+                      class: 'tiptap-variable-badge',
+                      'data-variable': varName,
+                      'data-value': varValue,
+                      title: `Variable: {${varName}}`,
                     })
                   )
                 }
@@ -122,17 +159,50 @@ const VariableHighlight = Extension.create({
           decorations(state) {
             return this.getState(state)
           },
+          handleKeyDown(view, event) {
+            if (event.key === 'Backspace' || event.key === 'Delete') {
+              const { state, dispatch } = view
+              const { selection } = state
+              if (!selection.empty) return false
+              
+              const pos = selection.anchor
+              const $pos = state.doc.resolve(pos)
+              const text = $pos.parent.textContent
+              const offset = $pos.parentOffset
+              const blockStart = pos - offset
+              
+              const regex = /\{([a-zA-Z0-9_]+)\}/g
+              let match
+              while ((match = regex.exec(text)) !== null) {
+                const start = match.index
+                const end = start + match[0].length
+                
+                // If Backspace, check if cursor is inside or immediately after the variable
+                if (event.key === 'Backspace') {
+                  if (offset > start && offset <= end) {
+                    const tr = state.tr.delete(blockStart + start, blockStart + end)
+                    dispatch(tr)
+                    return true
+                  }
+                }
+                
+                // If Delete, check if cursor is inside or immediately before the variable
+                if (event.key === 'Delete') {
+                  if (offset >= start && offset < end) {
+                    const tr = state.tr.delete(blockStart + start, blockStart + end)
+                    dispatch(tr)
+                    return true
+                  }
+                }
+              }
+            }
+            return false
+          }
         },
       }),
     ]
   },
 })
-
-const props = defineProps<{
-  modelValue: string
-}>()
-
-const emit = defineEmits(['update:modelValue'])
 
 const editor = useEditor({
   content: props.modelValue,
@@ -161,6 +231,18 @@ watch(() => props.modelValue, (newValue) => {
   if (editor.value && newValue !== editor.value.getHTML()) {
     editor.value.commands.setContent(newValue, { emitUpdate: false })
   }
+})
+
+// Force update Prosemirror decorations when external variables change
+watch(() => props.variables, () => {
+  if (editor.value && editor.value.view) {
+    const view = editor.value.view
+    view.dispatch(view.state.tr.setMeta('forceUpdate', true))
+  }
+}, { deep: true })
+
+defineExpose({
+  editor
 })
 
 onBeforeUnmount(() => {
@@ -210,6 +292,44 @@ onBeforeUnmount(() => {
   & em {
     @apply italic text-slate-300;
   }
+}
+
+.tiptap-variable-badge {
+  font-size: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.tiptap-variable-badge::before {
+  content: attr(data-value);
+  font-size: 13px !important;
+  font-family: monospace;
+  font-weight: 500;
+  color: #CFFF50; /* accent-500 */
+  background: rgba(207, 255, 80, 0.12); /* accent-500/12 */
+  border: 1px dashed rgba(207, 255, 80, 0.4);
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin: 0 2px;
+  white-space: pre-wrap;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.tiptap-variable-badge::after {
+  content: "{" attr(data-variable) "}";
+  font-size: 9px !important;
+  font-family: monospace;
+  color: #64748b; /* slate-500 */
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0 3px;
+  border-radius: 3px;
+  margin-left: 4px;
+  font-weight: bold;
+  vertical-align: middle;
+  display: inline-block;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
