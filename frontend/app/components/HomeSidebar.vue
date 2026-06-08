@@ -436,7 +436,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 
 const state = useClipperState()
 
@@ -552,7 +552,15 @@ const emit = defineEmits<{
   (e: 'delete', vid: any): void
 }>()
 
-const isCollapsed = ref(props.defaultCollapsed ?? false)
+const isCollapsed = props.isFloating 
+  ? ref(props.defaultCollapsed ?? true)
+  : useState<boolean>('yonru_sidebar_collapsed', () => props.defaultCollapsed ?? false)
+
+watch(isCollapsed, (newVal) => {
+  if (!props.isFloating) {
+    localStorage.setItem('yonru_sidebar_collapsed', newVal.toString())
+  }
+})
 const sidebarWidth = ref(320)
 const minWidth = 280
 const maxWidth = 600
@@ -682,6 +690,12 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  if (import.meta.client && !props.isFloating) {
+    const saved = localStorage.getItem('yonru_sidebar_collapsed')
+    if (saved !== null) {
+      isCollapsed.value = saved === 'true'
+    }
+  }
   const savedWidth = localStorage.getItem('yonru_sidebar_width')
   if (savedWidth) {
     sidebarWidth.value = parseInt(savedWidth)
