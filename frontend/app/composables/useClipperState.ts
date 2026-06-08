@@ -216,7 +216,20 @@ export const useClipperState = () => {
       showToast('Failed to update prompt', 'error')
       return false
     }
+  }  async function deletePrompt(id: string) {
+    try {
+      await $fetch(`${API_BASE}/api/prompts/${id}`, {
+        method: 'DELETE'
+      })
+      await fetchPrompts()
+      showToast('Prompt template removed', 'success')
+      return true
+    } catch (e) {
+      showToast('Failed to remove prompt template', 'error')
+      return false
+    }
   }
+
 
   async function fetchSavedHooks() {
     if (!folderName.value) return
@@ -500,7 +513,7 @@ export const useClipperState = () => {
     // Actions
     analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling, stopPolling,
     checkSystemHealth: diagnostics.checkSystemHealth,
-    formatDuration, fetchPrompts, editPrompt, fetchSavedHooks, saveHook, deleteSavedHook,
+    formatDuration, fetchPrompts, editPrompt, deletePrompt, fetchSavedHooks, saveHook, deleteSavedHook,
     saveTranscript, saveStyleSettings, saveDefaultStyleSettings, updateHooks,
     runDeepAudit: auditor.runDeepAudit, maskFlaggedWords,
     fetchCached, setLastAccessed, setLastClip,

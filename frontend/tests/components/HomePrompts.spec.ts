@@ -11,6 +11,7 @@ const mockPromptsList = ref<any[]>([
 const mockSelectedPrompt = ref('prompt.json::0')
 const mockFetchPrompts = vi.fn().mockResolvedValue({})
 const mockEditPrompt = vi.fn().mockResolvedValue(true)
+const mockDeletePrompt = vi.fn().mockResolvedValue(true)
 const mockShowToast = vi.fn()
 
 vi.mock('../../app/composables/useClipperState', () => ({
@@ -19,6 +20,7 @@ vi.mock('../../app/composables/useClipperState', () => ({
     selectedPrompt: mockSelectedPrompt,
     fetchPrompts: mockFetchPrompts,
     editPrompt: mockEditPrompt,
+    deletePrompt: mockDeletePrompt,
     showToast: mockShowToast
   })
 }))
@@ -32,6 +34,7 @@ describe('HomePrompts Component', () => {
     mockSelectedPrompt.value = 'prompt.json::0'
     mockFetchPrompts.mockClear()
     mockEditPrompt.mockClear()
+    mockDeletePrompt.mockClear()
     mockShowToast.mockClear()
   })
 
@@ -164,5 +167,64 @@ describe('HomePrompts Component', () => {
     vm.numHooks = 15
     await wrapper.vm.$nextTick()
     expect(vm.editorVariables.num_hooks).toBe('Find exactly 15 hooks.')
+  })
+
+  it('displays delete confirmation modal and executes deletion on confirm', async () => {
+    const wrapper = mount(HomePrompts, {
+      global: {
+        stubs: {
+          Icon: true,
+          PromptEditor: true
+        }
+      }
+    })
+
+    // Click on 'Podcast Hooks' card to edit
+    const firstCard = wrapper.findAll('button').find(d => d.text().includes('Podcast Hooks'))
+    await firstCard!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Delete button should be visible in editing mode
+    const deleteBtn = wrapper.findAll('button').find(b => b.text().includes('Delete'))
+    expect(deleteBtn).toBeDefined()
+    expect(deleteBtn!.exists()).toBe(true)
+
+    // Initially, showDeleteModal should be false
+    expect((wrapper.vm as any).showDeleteModal).toBe(false)
+    expect(wrapper.text()).not.toContain('Delete Prompt Template?')
+
+    // Click Delete button
+    await deleteBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Modal should be open
+    expect((wrapper.vm as any).showDeleteModal).toBe(true)
+    expect(wrapper.text()).toContain('Delete Prompt Template?')
+
+    // Find and click 'Cancel' inside modal
+    const cancelModalBtn = wrapper.findAll('button').find(b => b.text() === 'Cancel' && b.attributes('class')?.includes('flex-1'))
+    expect(cancelModalBtn).toBeDefined()
+    await cancelModalBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Modal should be closed, no deletion executed
+    expect((wrapper.vm as any).showDeleteModal).toBe(false)
+    expect(mockDeletePrompt).not.toHaveBeenCalled()
+
+    // Click Delete button again
+    await deleteBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+    expect((wrapper.vm as any).showDeleteModal).toBe(true)
+
+    // Find and click 'Confirm Delete' inside modal
+    const confirmBtn = wrapper.findAll('button').find(b => b.text().includes('Confirm Delete'))
+    expect(confirmBtn).toBeDefined()
+    await confirmBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Deletion should be executed, editor reset, and modal closed
+    expect(mockDeletePrompt).toHaveBeenCalledWith('prompt.json::0')
+    expect((wrapper.vm as any).showDeleteModal).toBe(false)
+    expect((wrapper.vm as any).editingId).toBeNull()
   })
 })
