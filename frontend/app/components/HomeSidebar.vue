@@ -552,17 +552,14 @@ const emit = defineEmits<{
   (e: 'delete', vid: any): void
 }>()
 
-const isCollapsed = ref(props.defaultCollapsed ?? false)
-
-if (import.meta.client) {
-  const saved = localStorage.getItem('yonru_sidebar_collapsed')
-  if (saved !== null) {
-    isCollapsed.value = saved === 'true'
-  }
-}
+const isCollapsed = props.isFloating 
+  ? ref(props.defaultCollapsed ?? true)
+  : useState<boolean>('yonru_sidebar_collapsed', () => props.defaultCollapsed ?? false)
 
 watch(isCollapsed, (newVal) => {
-  localStorage.setItem('yonru_sidebar_collapsed', newVal.toString())
+  if (!props.isFloating) {
+    localStorage.setItem('yonru_sidebar_collapsed', newVal.toString())
+  }
 })
 const sidebarWidth = ref(320)
 const minWidth = 280
@@ -693,6 +690,12 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  if (import.meta.client && !props.isFloating) {
+    const saved = localStorage.getItem('yonru_sidebar_collapsed')
+    if (saved !== null) {
+      isCollapsed.value = saved === 'true'
+    }
+  }
   const savedWidth = localStorage.getItem('yonru_sidebar_width')
   if (savedWidth) {
     sidebarWidth.value = parseInt(savedWidth)

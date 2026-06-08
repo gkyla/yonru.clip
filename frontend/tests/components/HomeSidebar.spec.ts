@@ -358,4 +358,34 @@ describe('HomeSidebar Component', () => {
 
     expect(wrapper.vm.isCollapsed).toBe(true)
   })
+
+  it('does not persist or load collapsed state from localStorage when isFloating is true', async () => {
+    localStorage.setItem('yonru_sidebar_collapsed', 'false')
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: true,
+        isFloating: true
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: true
+        }
+      }
+    })
+
+    // Should ignore localStorage (which is 'false') and use defaultCollapsed (true)
+    expect(wrapper.vm.isCollapsed).toBe(true)
+
+    // Modifying collapsed state should not write to localStorage
+    localStorage.removeItem('yonru_sidebar_collapsed')
+    wrapper.vm.isCollapsed = false
+    await wrapper.vm.$nextTick()
+    expect(localStorage.getItem('yonru_sidebar_collapsed')).toBeNull()
+  })
 })
