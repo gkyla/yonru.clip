@@ -25,8 +25,8 @@
         <!-- Abstract Background Setup -->
         <div class="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-[#060608]">
            <div class="absolute w-[60vw] h-[60vw] rounded-full bg-accent-500/5 blur-[120px] -top-1/4 -right-1/4 mix-blend-screen"></div>
-           <div class="absolute w-[40vw] h-[40vw] rounded-full bg-violet-500/5 blur-[100px] bottom-0 -left-1/4 mix-blend-screen"></div>
-           <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5 mix-blend-overlay"></div>
+           <div class="absolute w-[50vw] h-[40vw] rounded-full bg-violet-500/5 blur-[100px] bottom-0 -left-1/4 mix-blend-screen"></div>
+           <div class="absolute inset-0 bg-noise opacity-5 mix-blend-overlay"></div>
         </div>
 
         <slot />

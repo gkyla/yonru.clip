@@ -28,7 +28,7 @@
       leave-to-class="opacity-0 scale-95"
     >
       <div v-if="state.isNavigatingToEditor.value" class="fixed inset-0 z-[99999] bg-[#060608]/95 backdrop-blur-2xl flex flex-col items-center justify-center overflow-hidden">
-        <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay"></div>
+        <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay"></div>
         <div class="absolute w-[60vw] h-[60vw] rounded-full bg-accent-500/10 blur-[150px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mix-blend-screen animate-pulse"></div>
         
         <div class="w-24 h-24 rounded-full border-[4px] border-surface-border border-t-accent-500 animate-spin flex items-center justify-center mb-10 shadow-[0_0_30px_#CFFF50_inset,0_0_50px_rgba(207,255,80,0.4)] relative z-10"></div>
