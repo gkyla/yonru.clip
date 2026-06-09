@@ -1,5 +1,6 @@
 import os
 import json
+import uuid
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Any
 
@@ -47,6 +48,11 @@ class PromptRepository(ABC):
         """Edit an existing prompt template by its unique ID."""
         pass
 
+    @abstractmethod
+    def delete_prompt(self, id: str) -> None:
+        """Delete an existing prompt template by its unique ID."""
+        pass
+
 
 class FilePromptRepository(PromptRepository):
     def __init__(self, base_dir: str):
@@ -68,34 +74,75 @@ class FilePromptRepository(PromptRepository):
                 try:
                     with open(path_str, "r", encoding="utf-8") as file:
                         data = json.load(file)
-                        if isinstance(data, list):
-                            for idx, item in enumerate(data):
-                                name = item.get("promptName", f"{f} - {idx + 1}")
-                                suitable = item.get("suitableFor", [])
-                                prompt_list.append(PromptDTO(
-                                    id=f"{f}::{idx}",
-                                    name=name,
-                                    suitable_for=suitable,
-                                    prompt=item.get("prompt", ""),
-                                    num_hooks=item.get("numHooks", 10),
-                                    auto_hooks=item.get("autoHooks", False)
-                                ))
-                        elif isinstance(data, dict):
-                            name = data.get("promptName", f)
-                            suitable = data.get("suitableFor", [])
+                    
+                    modified = False
+                    
+                    if isinstance(data, list):
+                        for idx, item in enumerate(data):
+                            if not isinstance(item, dict):
+                                continue
+                            p_id = item.get("id")
+                            if not p_id:
+                                p_id = str(uuid.uuid4())
+                                item["id"] = p_id
+                                modified = True
+                            
+                            name = item.get("promptName", f"{f} - {idx + 1}")
+                            suitable = item.get("suitableFor", [])
                             prompt_list.append(PromptDTO(
-                                id=f"{f}::-1",
+                                id=p_id,
                                 name=name,
                                 suitable_for=suitable,
-                                prompt=data.get("prompt", ""),
-                                num_hooks=data.get("numHooks", 10),
-                                auto_hooks=data.get("autoHooks", False)
+                                prompt=item.get("prompt", ""),
+                                num_hooks=item.get("numHooks", 10),
+                                auto_hooks=item.get("autoHooks", False)
                             ))
+                    elif isinstance(data, dict):
+                        p_id = data.get("id")
+                        if not p_id:
+                            p_id = str(uuid.uuid4())
+                            data["id"] = p_id
+                            modified = True
+                        
+                        name = data.get("promptName", f)
+                        suitable = data.get("suitableFor", [])
+                        prompt_list.append(PromptDTO(
+                            id=p_id,
+                            name=name,
+                            suitable_for=suitable,
+                            prompt=data.get("prompt", ""),
+                            num_hooks=data.get("numHooks", 10),
+                            auto_hooks=data.get("autoHooks", False)
+                        ))
+                    
+                    if modified:
+                        with open(path_str, "w", encoding="utf-8") as file:
+                            json.dump(data, file, indent=4, ensure_ascii=False)
+                            
                 except Exception as e:
                     print(f"[FilePromptRepository] Failed to load {f}: {e}")
         return prompt_list
 
     def get_prompt_text(self, prompt_file: str) -> Optional[str]:
+        # Try finding by UUID first
+        if os.path.exists(self.base_dir):
+            for f in os.listdir(self.base_dir):
+                if f.endswith(".json"):
+                    path_str = os.path.join(self.base_dir, f)
+                    try:
+                        with open(path_str, "r", encoding="utf-8") as file:
+                            data = json.load(file)
+                            if isinstance(data, list):
+                                for item in data:
+                                    if isinstance(item, dict) and item.get("id") == prompt_file:
+                                        return item.get("prompt", "")
+                            elif isinstance(data, dict):
+                                if data.get("id") == prompt_file:
+                                    return data.get("prompt", "")
+                    except Exception:
+                        pass
+
+        # Fallback to old filename / index-based ID resolution
         if "::" in prompt_file:
             filename, idx_str = prompt_file.split("::", 1)
             try:
@@ -137,7 +184,9 @@ class FilePromptRepository(PromptRepository):
             except Exception:
                 data = []
 
+        new_uuid = str(uuid.uuid4())
         data.append({
+            "id": new_uuid,
             "promptName": name,
             "suitableFor": suitable_for,
             "prompt": prompt,
@@ -149,39 +198,158 @@ class FilePromptRepository(PromptRepository):
             json.dump(data, f, indent=4, ensure_ascii=False)
 
     def edit_prompt(self, id: str, name: str, suitable_for: List[str], prompt: str, num_hooks: int = 10, auto_hooks: bool = False) -> None:
-        if "::" not in id:
-            raise ValueError("Invalid prompt id")
+        found = False
+        if os.path.exists(self.base_dir):
+            for f in os.listdir(self.base_dir):
+                if f.endswith(".json"):
+                    path_str = os.path.join(self.base_dir, f)
+                    try:
+                        with open(path_str, "r", encoding="utf-8") as file:
+                            data = json.load(file)
+                        
+                        modified = False
+                        if isinstance(data, list):
+                            for item in data:
+                                if isinstance(item, dict) and item.get("id") == id:
+                                    item["promptName"] = name
+                                    item["suitableFor"] = suitable_for
+                                    item["prompt"] = prompt
+                                    item["numHooks"] = num_hooks
+                                    item["autoHooks"] = auto_hooks
+                                    modified = True
+                                    found = True
+                                    break
+                        elif isinstance(data, dict):
+                            if data.get("id") == id:
+                                data["promptName"] = name
+                                data["suitableFor"] = suitable_for
+                                data["prompt"] = prompt
+                                data["numHooks"] = num_hooks
+                                data["autoHooks"] = auto_hooks
+                                modified = True
+                                found = True
+                        
+                        if modified:
+                            with open(path_str, "w", encoding="utf-8") as file:
+                                json.dump(data, file, indent=4, ensure_ascii=False)
+                            break
+                    except Exception as e:
+                        print(f"[FilePromptRepository] Failed to read/write {f} in edit_prompt: {e}")
+        
+        # If not found by UUID, fallback to old index-based ID editing
+        if not found:
+            if "::" not in id:
+                raise ValueError("Prompt not found or invalid ID")
 
-        filename, idx_str = id.split("::")
-        try:
-            idx = int(idx_str)
-        except ValueError:
-            raise ValueError("Invalid prompt index in ID")
+            filename, idx_str = id.split("::")
+            try:
+                idx = int(idx_str)
+            except ValueError:
+                raise ValueError("Invalid prompt index in ID")
 
-        prompt_file = self._get_file_path(filename)
-        if not os.path.exists(prompt_file):
-            raise FileNotFoundError("Prompt file not found")
+            prompt_file = self._get_file_path(filename)
+            if not os.path.exists(prompt_file):
+                raise FileNotFoundError("Prompt file not found")
 
-        with open(prompt_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            with open(prompt_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
 
-        if isinstance(data, list) and 0 <= idx < len(data):
-            data[idx]["promptName"] = name
-            data[idx]["suitableFor"] = suitable_for
-            data[idx]["prompt"] = prompt
-            data[idx]["numHooks"] = num_hooks
-            data[idx]["autoHooks"] = auto_hooks
-        elif isinstance(data, dict) and idx == -1:
-            data["promptName"] = name
-            data["suitableFor"] = suitable_for
-            data["prompt"] = prompt
-            data["numHooks"] = num_hooks
-            data["autoHooks"] = auto_hooks
-        else:
-            raise IndexError("Prompt index not found in file")
+            if isinstance(data, list) and 0 <= idx < len(data):
+                data[idx]["promptName"] = name
+                data[idx]["suitableFor"] = suitable_for
+                data[idx]["prompt"] = prompt
+                data[idx]["numHooks"] = num_hooks
+                data[idx]["autoHooks"] = auto_hooks
+            elif isinstance(data, dict) and idx == -1:
+                data["promptName"] = name
+                data["suitableFor"] = suitable_for
+                data["prompt"] = prompt
+                data["numHooks"] = num_hooks
+                data["autoHooks"] = auto_hooks
+            else:
+                raise IndexError("Prompt index not found in file")
 
-        with open(prompt_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
+            with open(prompt_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+
+    def delete_prompt(self, id: str) -> None:
+        found = False
+        if os.path.exists(self.base_dir):
+            for f in os.listdir(self.base_dir):
+                if f.endswith(".json"):
+                    path_str = os.path.join(self.base_dir, f)
+                    try:
+                        with open(path_str, "r", encoding="utf-8") as file:
+                            data = json.load(file)
+                        
+                        modified = False
+                        if isinstance(data, list):
+                            new_data = []
+                            for item in data:
+                                if isinstance(item, dict) and item.get("id") == id:
+                                    modified = True
+                                    found = True
+                                else:
+                                    new_data.append(item)
+                            data = new_data
+                        elif isinstance(data, dict):
+                            if data.get("id") == id:
+                                modified = True
+                                found = True
+                                data = None
+                        
+                        if modified:
+                            if data is None or (isinstance(data, list) and len(data) == 0):
+                                abs_path = os.path.abspath(path_str)
+                                if os.path.commonpath([self.base_dir, abs_path]) == self.base_dir:
+                                    os.remove(abs_path)
+                                else:
+                                    raise PermissionError("Attempted deletion outside base directory")
+                            else:
+                                with open(path_str, "w", encoding="utf-8") as file:
+                                    json.dump(data, file, indent=4, ensure_ascii=False)
+                            break
+                    except Exception as e:
+                        print(f"[FilePromptRepository] Failed to read/write/delete {f} in delete_prompt: {e}")
+                        raise e
+        
+        # If not found by UUID, fallback to old index-based ID deletion
+        if not found:
+            if "::" not in id:
+                raise ValueError("Prompt not found or invalid ID")
+
+            filename, idx_str = id.split("::")
+            try:
+                idx = int(idx_str)
+            except ValueError:
+                raise ValueError("Invalid prompt index in ID")
+
+            prompt_file = self._get_file_path(filename)
+            if not os.path.exists(prompt_file):
+                raise FileNotFoundError("Prompt file not found")
+
+            with open(prompt_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            if isinstance(data, list) and 0 <= idx < len(data):
+                data.pop(idx)
+                modified = True
+            elif isinstance(data, dict) and idx == -1:
+                data = None
+                modified = True
+            else:
+                raise IndexError("Prompt index not found in file")
+
+            if modified:
+                if data is None or (isinstance(data, list) and len(data) == 0):
+                    abs_path = os.path.abspath(prompt_file)
+                    if os.path.commonpath([self.base_dir, abs_path]) == self.base_dir:
+                        os.remove(abs_path)
+                    else:
+                        raise PermissionError("Attempted deletion outside base directory")
+                else:
+                    with open(prompt_file, "w", encoding="utf-8") as f:
+                        json.dump(data, f, indent=4, ensure_ascii=False)
 
 
 class InMemoryPromptRepository(PromptRepository):
@@ -192,23 +360,18 @@ class InMemoryPromptRepository(PromptRepository):
         return list(self.prompts.values())
 
     def get_prompt_text(self, prompt_file: str) -> Optional[str]:
-        # Emulate file or id lookup
         if prompt_file in self.prompts:
             return self.prompts[prompt_file].prompt
         
-        # If it's prompt.json::idx, let's see if we can find it by matching DTO ID
         for p_id, p_dto in self.prompts.items():
             if p_id == prompt_file:
                 return p_dto.prompt
         return None
 
     def add_prompt(self, name: str, suitable_for: List[str], prompt: str, num_hooks: int = 10, auto_hooks: bool = False) -> None:
-        # Generates a sequential index under mock "prompt.json"
-        existing_in_file = [p for p in self.prompts.values() if p.id.startswith("prompt.json::")]
-        next_idx = len(existing_in_file)
-        new_id = f"prompt.json::{next_idx}"
-        self.prompts[new_id] = PromptDTO(
-            id=new_id,
+        new_uuid = str(uuid.uuid4())
+        self.prompts[new_uuid] = PromptDTO(
+            id=new_uuid,
             name=name,
             suitable_for=suitable_for,
             prompt=prompt,
@@ -224,3 +387,8 @@ class InMemoryPromptRepository(PromptRepository):
         self.prompts[id].prompt = prompt
         self.prompts[id].num_hooks = num_hooks
         self.prompts[id].auto_hooks = auto_hooks
+
+    def delete_prompt(self, id: str) -> None:
+        if id not in self.prompts:
+            raise KeyError("Prompt not found")
+        del self.prompts[id]

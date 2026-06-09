@@ -93,3 +93,6 @@ An in-memory cache tracking the error status and cool-down times of individual f
 ### Prompt Template
 A customizable set of AI guidelines and instructions used by Gemini to analyze transcript data and extract segments. Each template specifies active parameters (like target hook counts and natural/fixed modes) and is classified using descriptive suitability tags.
 
+### Inline Variable Highlight
+A visual presentation style inside the prompt template editor where template variables (such as `{num_hooks}`) are dynamically expanded and rendered as border-highlighted text spans that blend seamlessly into the parent paragraph without disrupting reading flow, extra spacing, or layout shifts. A hover-activated premium tooltip displays the underlying variable name.
+

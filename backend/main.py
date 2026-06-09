@@ -250,6 +250,18 @@ async def edit_prompt(req: EditPromptRequest):
         raise HTTPException(status_code=400 if isinstance(e, ValueError) else 404, detail=str(e))
 
 
+@app.delete("/api/prompts/{id}")
+async def delete_prompt(id: str):
+    """Delete an existing prompt template by its unique ID"""
+    try:
+        prompt_repository.delete_prompt(id)
+        return {"status": "ok"}
+    except (ValueError, FileNotFoundError, IndexError, KeyError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/analyze-url")
 async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, force: bool = False):
     """Phase 1: Download full 1080p → extract audio → generate hooks"""

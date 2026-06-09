@@ -10,7 +10,7 @@ from core.render_engine import RemotionRenderEngine, RenderComposition
 
 class TestRendererDuration(unittest.TestCase):
     @patch('shutil.copy2')
-    @patch('os.path.exists')
+    @patch('core.render_engine.os.path.exists')
     def test_remotion_render_engine_duration_override(self, mock_exists, mock_copy):
         mock_exists.return_value = True
         
@@ -41,10 +41,14 @@ class TestRendererDuration(unittest.TestCase):
             fps=30.0
         )
         
-        engine = RemotionRenderEngine(output_dir="static/test_output")
-        
-        with patch('json.dump') as mock_json_dump, patch('builtins.open', create=True):
-            _, _, _, frames = engine._prepare_props_and_paths(comp, "test_clip.mp4")
+        import tempfile
+        import shutil
+        temp_out = tempfile.mkdtemp()
+        try:
+            engine = RemotionRenderEngine(output_dir=temp_out)
+            
+            with patch('json.dump') as mock_json_dump, patch('builtins.open', create=True):
+                _, _, _, frames = engine._prepare_props_and_paths(comp, "test_clip.mp4")
             
             # Retrieve the props passed to json.dump
             self.assertTrue(mock_json_dump.called)
@@ -61,6 +65,8 @@ class TestRendererDuration(unittest.TestCase):
             
             print("\n[OK] RemotionRenderEngine correctly calculated and overrode duration to 21.0s (630 frames)!")
             print("[OK] RemotionRenderEngine robustly extracted the 'video' timeline track!")
+        finally:
+            shutil.rmtree(temp_out)
 
 if __name__ == '__main__':
     unittest.main()
