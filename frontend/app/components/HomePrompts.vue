@@ -221,18 +221,44 @@
                   <!-- Clickable badge variables legend -->
                   <div class="flex items-center gap-1.5 text-[9px] text-slate-500 bg-surface-dark border border-surface-border px-2 py-1 rounded-lg">
                     <span class="uppercase font-bold tracking-widest text-[8px]">Insert Variables:</span>
-                    <button 
-                      @click="insertVariable('{num_hooks}')"
-                      class="font-mono px-1.5 py-0.5 rounded cursor-pointer transition-all bg-surface-panel hover:text-accent-500 hover:bg-accent-500/10 hover:ring-1 hover:ring-accent-500/20 active:scale-95"
-                      :class="promptText?.includes('{num_hooks}') ? 'text-accent-500 bg-accent-500/10 ring-1 ring-accent-500/30' : 'text-slate-400'"
-                      title="Click to toggle variable"
-                    >{num_hooks}</button>
-                    <button 
-                      @click="insertVariable('{duration_constraint}')"
-                      class="font-mono px-1.5 py-0.5 rounded cursor-pointer transition-all bg-surface-panel hover:text-accent-500 hover:bg-accent-500/10 hover:ring-1 hover:ring-accent-500/20 active:scale-95"
-                      :class="promptText?.includes('{duration_constraint}') ? 'text-accent-500 bg-accent-500/10 ring-1 ring-accent-500/30' : 'text-slate-400'"
-                      title="Click to toggle variable"
-                    >{duration_constraint}</button>
+                    
+                    <!-- num_hooks variable -->
+                    <div class="relative group/tooltip">
+                      <button 
+                        @click="insertVariable('{num_hooks}')"
+                        class="font-mono px-1.5 py-0.5 rounded cursor-pointer transition-all bg-surface-panel hover:text-accent-500 hover:bg-accent-500/10 hover:ring-1 hover:ring-accent-500/20 active:scale-95 text-slate-400"
+                        :class="{ 'text-accent-500 bg-accent-500/10 ring-1 ring-accent-500/30': promptText?.includes('{num_hooks}') }"
+                      >
+                        {num_hooks}
+                      </button>
+                      <!-- Tooltip Content -->
+                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 bg-slate-950/95 border border-surface-border text-slate-200 p-3 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-[60] font-sans text-[11px] leading-relaxed text-left">
+                        <div class="font-bold text-accent-500 mb-1 font-mono text-[10px] uppercase tracking-wider">{num_hooks} value:</div>
+                        <div class="font-mono bg-black/40 p-2 border border-surface-border/50 rounded-lg text-slate-300 select-all whitespace-pre-wrap break-words">{{ editorVariables.num_hooks }}</div>
+                        <!-- Tooltip Arrow -->
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-slate-950/95"></div>
+                      </div>
+                    </div>                     <!-- duration_constraint variable -->
+                    <div class="relative group/tooltip">
+                      <button 
+                        @click="insertVariable('{duration_constraint}')"
+                        class="font-mono px-1.5 py-0.5 rounded cursor-pointer transition-all bg-surface-panel hover:text-accent-500 hover:bg-accent-500/10 hover:ring-1 hover:ring-accent-500/20 active:scale-95 text-slate-400"
+                        :class="{ 'text-accent-500 bg-accent-500/10 ring-1 ring-accent-500/30': promptText?.includes('{duration_constraint}') }"
+                      >
+                        {duration_constraint}
+                      </button>
+                      <!-- Tooltip Content -->
+                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 bg-slate-950/95 border border-surface-border text-slate-200 p-3 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-[60] font-sans text-[11px] leading-relaxed text-left">
+                        <div class="font-bold text-accent-500 mb-1 font-mono text-[10px] uppercase tracking-wider">{duration_constraint} value:</div>
+                        <div class="font-mono bg-black/40 p-2 border border-surface-border/50 rounded-lg text-slate-300 select-all whitespace-pre-wrap break-words mb-2">{{ editorVariables.duration_constraint.trim() }}</div>
+                        <div class="text-[10px] text-slate-400 leading-normal border-t border-surface-border/50 pt-2">
+                          <span class="text-accent-500 font-semibold">Note:</span> <code class="font-mono text-white">X.X</code> will be dynamically replaced with the actual video length by the backend during analysis.
+                        </div>
+                        <!-- Tooltip Arrow -->
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-slate-950/95"></div>
+                      </div>
+                    </div>
+
                   </div>
                 </div>
                 
