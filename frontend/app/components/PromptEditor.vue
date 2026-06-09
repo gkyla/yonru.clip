@@ -112,7 +112,10 @@ const VariableHighlight = Extension.create({
                 while ((match = regex.exec(node.text)) !== null) {
                   const fullMatch = match[0]
                   const varName = match[1]
-                  const varValue = props.variables?.[varName] || fullMatch
+                  let varValue = props.variables?.[varName] || fullMatch
+                  if (typeof varValue === 'string') {
+                    varValue = varValue.trim()
+                  }
                   
                   decorations.push(
                     Decoration.inline(pos + match.index, pos + match.index + fullMatch.length, {
@@ -137,7 +140,10 @@ const VariableHighlight = Extension.create({
                 while ((match = regex.exec(node.text)) !== null) {
                   const fullMatch = match[0]
                   const varName = match[1]
-                  const varValue = props.variables?.[varName] || fullMatch
+                  let varValue = props.variables?.[varName] || fullMatch
+                  if (typeof varValue === 'string') {
+                    varValue = varValue.trim()
+                  }
                   
                   decorations.push(
                     Decoration.inline(pos + match.index, pos + match.index + fullMatch.length, {
@@ -295,9 +301,8 @@ onBeforeUnmount(() => {
 .tiptap-variable-badge {
   font-size: 0 !important;
   position: relative;
-  display: inline-block;
+  display: inline;
   cursor: help;
-  vertical-align: middle;
 }
 
 .tiptap-variable-badge::before {
@@ -311,9 +316,8 @@ onBeforeUnmount(() => {
   padding: 1px 4px;
   border-radius: 4px;
   margin: 0;
-  white-space: pre-wrap;
-  display: inline-block;
-  vertical-align: middle;
+  white-space: normal;
+  display: inline;
   transition: all 0.15s ease-in-out;
 }
 
