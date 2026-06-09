@@ -457,7 +457,7 @@
 
         <!-- Processing State -->
         <div v-if="isProcessing && !state.hooks.value.length" class="bg-[#111318] border border-surface-border p-12 rounded-2xl shadow-2xl flex flex-col items-center justify-center min-h-[350px] relative overflow-hidden">
-           <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay"></div>
+           <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay"></div>
             <!-- Atmospheric lighting behind spinner -->
             <div class="absolute w-40 h-40 bg-accent-500/10 rounded-full blur-[60px] animate-pulse"></div>
             
@@ -826,7 +826,7 @@
          
          <!-- Content Card -->
          <div class="relative w-full max-w-lg bg-surface-dark border border-surface-border rounded-3xl p-8 shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
-            <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
+            <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
             
             <!-- Large info/warning icon -->
             <div class="w-16 h-16 rounded-2xl bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(207,255,80,0.1)]">
@@ -871,7 +871,7 @@
         
         <!-- Content Card -->
         <div class="relative w-full max-w-lg bg-surface-dark border border-surface-border rounded-3xl p-8 shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
-           <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
+           <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
            
            <!-- Large warning shield icon -->
            <div class="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
@@ -939,7 +939,7 @@
         
         <!-- Content Card -->
         <div class="relative w-full max-w-lg bg-surface-dark border border-surface-border rounded-3xl p-8 shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[130]">
-           <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
+           <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
            
            <!-- Large warning shield icon -->
            <div class="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(239,68,68,0.1)]">

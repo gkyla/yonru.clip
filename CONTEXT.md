@@ -62,6 +62,9 @@ A unified control card on the index page that groups the YouTube URL search inpu
 ### Transcription Model Tooltip Card
 A hover-activated glassmorphic card overlay displaying the name, speed, accuracy, and detailed description of the currently selected Whisper transcriber model size.
 
+### Ambient Aura Glows
+Soft, high-blur radial gradient light backdrops (such as overlapping accent-500 and violet/indigo spans) positioned behind workspace layouts to provide visual depth, frame structural card borders, and establish a premium dark-mode aesthetic without introducing visual noise.
+
 
 ---
 

@@ -72,7 +72,7 @@
       </Transition>
 
       <div id="previewArea" class="flex-1 flex overflow-hidden min-h-0 relative flex-row w-full">
-           <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] pointer-events-none mix-blend-overlay"></div>
+           <div class="absolute inset-0 bg-noise opacity-[0.03] pointer-events-none mix-blend-overlay"></div>
           
            <!-- Pipeline Loading Overlay -->
            <Transition
@@ -88,7 +88,7 @@
                <div class="absolute w-[50vw] h-[50vw] rounded-full blur-[160px] -top-1/3 -right-1/3 mix-blend-screen transition-colors duration-1000"
                  :class="pipelineStep === 'cutting' ? 'bg-sky-500/8' : pipelineStep === 'transcribing' ? 'bg-violet-500/8' : state.isMediaLoading.value ? 'bg-accent-500/8' : 'bg-accent-500/10'"
                ></div>
-               <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
+               <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
 
                <!-- Main spinner -->
                <div class="relative mb-10 z-10 flex items-center justify-center">
