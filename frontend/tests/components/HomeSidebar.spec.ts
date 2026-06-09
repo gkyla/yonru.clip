@@ -17,6 +17,7 @@ const mockCheckingHealth = ref(false)
 const mockJobStatus = ref('idle')
 const mockSettingsScrollTarget = ref('')
 const mockIsAnyPrerequisiteMissing = ref(false)
+const mockIsNavigatingToEditor = ref(false)
 const mockLoadReadyClipIntoEditor = vi.fn().mockResolvedValue({})
 const mockFetchSavedHooks = vi.fn().mockResolvedValue({})
 const mockSavedHooks = ref([])
@@ -30,6 +31,7 @@ vi.mock('../../app/composables/useClipperState', () => ({
     jobStatus: mockJobStatus,
     settingsScrollTarget: mockSettingsScrollTarget,
     isAnyPrerequisiteMissing: mockIsAnyPrerequisiteMissing,
+    isNavigatingToEditor: mockIsNavigatingToEditor,
     loadReadyClipIntoEditor: mockLoadReadyClipIntoEditor,
     fetchSavedHooks: mockFetchSavedHooks,
     savedHooks: mockSavedHooks,
@@ -212,6 +214,7 @@ describe('HomeSidebar Component', () => {
   })
 
   it('loads the active clip and routes to editor when Continue Editing is clicked', async () => {
+    vi.useFakeTimers()
     const router = useRouter()
     const pushSpy = vi.spyOn(router, 'push')
 
@@ -237,6 +240,9 @@ describe('HomeSidebar Component', () => {
     const continueBtn = wrapper.findAll('button').find(b => b.text().includes('CONTINUE EDITING'))
     expect(continueBtn).toBeDefined()
     await continueBtn!.trigger('click')
+    
+    // Advance fake timers by 600ms to resolve minWait promise
+    await vi.advanceTimersByTimeAsync(600)
     await flushPromises()
 
     // Expect clip load and routing to be called
@@ -250,6 +256,7 @@ describe('HomeSidebar Component', () => {
         tab: 'generated'
       }
     })
+    vi.useRealTimers()
   })
 
   it('renders loading indicators for health check items when diagnostics are loading', async () => {

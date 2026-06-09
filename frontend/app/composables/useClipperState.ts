@@ -401,6 +401,15 @@ export const useClipperState = () => {
 
     loadDefaultThumbnailStyle()
 
+    watch(
+      [folderName, clipId],
+      ([newFolder, newClipId]) => {
+        if (newFolder && newClipId) {
+          setLastClip(newFolder, newClipId, activeHook.value?.theme || activeHook.value?.title || 'Current Clip')
+        }
+      }
+    )
+
     watch(selectedPrompt, (val) => localStorage.setItem('yonru_prompt', val))
     watch(whisperModel, (val) => localStorage.setItem('yonru_model', val))
 
