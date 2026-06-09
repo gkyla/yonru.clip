@@ -593,6 +593,11 @@ async function handleContinueEditingClick() {
   if (!props.lastClip || !props.lastVideo) return
   
   try {
+    if (state?.isNavigatingToEditor) {
+      state.isNavigatingToEditor.value = true
+    }
+    const minWait = new Promise(resolve => setTimeout(resolve, 600))
+    
     const folder = props.lastClip.folder || props.lastClip.folder_name
     // Load the clip into state first to get a job_id
     await state.loadReadyClipIntoEditor(folder, props.lastClip.clip_id)
@@ -634,6 +639,7 @@ async function handleContinueEditingClick() {
       }
     }
     
+    await minWait
     emit('update:activeView', 'editor')
     await router.push({
       path: '/editor',
@@ -646,6 +652,9 @@ async function handleContinueEditingClick() {
     })
   } catch (e) {
     console.error('[yonru] Failed to continue editing clip:', e)
+    if (state?.isNavigatingToEditor) {
+      state.isNavigatingToEditor.value = false
+    }
     state.showToast?.('Failed to load clip data', 'error')
   }
 }
