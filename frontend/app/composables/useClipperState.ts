@@ -18,7 +18,20 @@ export const WHISPER_MODELS = [
   { id: 'large-v3', name: 'Large-v3', speed: 'Slow', acc: 'State-of-the-Art', desc: 'Highest accuracy possible. Best for complex dialogue.' }
 ] as const
 
+let cachedState: any = null
+
 export const useClipperState = () => {
+  if (import.meta.server) {
+    return createClipperState()
+  }
+
+  if (!cachedState) {
+    cachedState = createClipperState()
+  }
+  return cachedState
+}
+
+function createClipperState() {
   // API Base
   const API_BASE = 'http://localhost:8000'
 

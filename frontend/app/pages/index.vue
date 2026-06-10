@@ -1499,6 +1499,9 @@ async function initDashboard() {
     state.hooks.value = []
     state.jobStatus.value = 'idle'
     state.jobId.value = null
+  } else {
+    console.log('[yonru] Dashboard initialized with active background job, starting polling...')
+    state.startPolling()
   }
 
   // Always reset active hook when returning to home, so background analysis polling can update videoUrl
@@ -1540,6 +1543,11 @@ onActivated(() => {
     console.log('[yonru] Dashboard activated (returned from cache)')
     initDashboard()
   }
+})
+
+onDeactivated(() => {
+  console.log('[yonru] Dashboard deactivated — stopping background polling')
+  state.stopPolling()
 })
 
 // Manage Mode
