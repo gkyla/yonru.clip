@@ -547,9 +547,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:activeView', view: string): void
-  (e: 'analyze', videoId: string, force: boolean): void
-  (e: 'redownload', vid: any): void
-  (e: 'delete', vid: any): void
 }>()
 
 const isCollapsed = props.isFloating 
