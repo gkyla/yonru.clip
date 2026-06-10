@@ -1,10 +1,11 @@
-// useRemotionBridge.ts - Encapsulates Remotion player communication, postMessage protocol, and timing synchronization
+// useRemotionBridge.ts - Encapsulates Remotion player communication via PlayerBridge seam
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useClipperState } from './useClipperState'
 import { parseSubtitleWords } from '../utils/remotionHelpers'
+import { PlayerBridge } from '../utils/playerBridge'
 
 export const useRemotionBridge = (
-  remotionIframe: { value: HTMLIFrameElement | null },
+  bridge: PlayerBridge,
   previewVideo: { value: HTMLVideoElement | null },
   videoTime: { value: number },
   isInThumbnailWindow: { value: boolean },
@@ -16,11 +17,9 @@ export const useRemotionBridge = (
   // Internal flag to prevent recursive updates when synced from inside iframe timeupdates
   const isInternalTimeUpdate = ref(false)
   let nativeVideoStarted = false
+  let unsubscribe: (() => void) | null = null
 
   function syncRemotionProps() {
-    if (!remotionIframe.value || !remotionIframe.value.contentWindow) return
-    
-    const hook = state?.activeHook?.value
     const syncOffsetMs = state.subtitleSyncOffset.value
     const mode = state.subtitleMode.value || 'word'
 
@@ -78,24 +77,17 @@ export const useRemotionBridge = (
       console.log('[Remotion] Sending Props:', remotionProps)
     }
 
-    remotionIframe.value.contentWindow.postMessage({
-      type: 'UPDATE_PROPS',
-      payload: JSON.parse(JSON.stringify(remotionProps))
-    }, '*')
+    bridge.updateProps(JSON.parse(JSON.stringify(remotionProps)))
 
     if (!state.isPlaying.value) {
       const targetFrame = Math.floor(state.currentTime.value * (state.videoFps.value || 30))
       console.log('[VideoPreview] Forcing instant Remotion seek on props sync:', targetFrame)
-      remotionIframe.value.contentWindow.postMessage({
-        type: 'SEEK',
-        frame: targetFrame
-      }, '*')
+      bridge.seek(targetFrame)
       lastSeekFrame.value = targetFrame
     }
   }
 
-  function onRemotionMessage(event: MessageEvent) {
-    const data = event.data
+  function onRemotionMessage(data: any) {
     if (!data) return
     if (data.type === 'REMOTION_TIMEUPDATE') {
       isInternalTimeUpdate.value = true
@@ -115,15 +107,10 @@ export const useRemotionBridge = (
     } else if (data.type === 'IFRAME_READY') {
       console.log('[VideoPreview] Remotion Iframe Ready. Syncing...')
       syncRemotionProps()
-      if (remotionIframe.value && remotionIframe.value.contentWindow) {
-        const targetFrame = Math.floor(state.currentTime.value * (state.videoFps.value || 30))
-        console.log('[VideoPreview] Forcing instant Remotion seek on IFRAME_READY:', targetFrame)
-        remotionIframe.value.contentWindow.postMessage({
-          type: 'SEEK',
-          frame: targetFrame
-        }, '*')
-        lastSeekFrame.value = targetFrame
-      }
+      const targetFrame = Math.floor(state.currentTime.value * (state.videoFps.value || 30))
+      console.log('[VideoPreview] Forcing instant Remotion seek on IFRAME_READY:', targetFrame)
+      bridge.seek(targetFrame)
+      lastSeekFrame.value = targetFrame
     }
   }
 
@@ -179,10 +166,10 @@ export const useRemotionBridge = (
       }
     }
 
-    if (remotionIframe.value && remotionIframe.value.contentWindow) {
-      remotionIframe.value.contentWindow.postMessage({
-        type: playing ? 'PLAY' : 'PAUSE'
-      }, '*')
+    if (playing) {
+      bridge.play()
+    } else {
+      bridge.pause()
     }
   })
 
@@ -190,12 +177,7 @@ export const useRemotionBridge = (
     if (previewVideo.value && !isInThumbnailWindow.value) {
       previewVideo.value.volume = newVol
     }
-    if (remotionIframe.value && remotionIframe.value.contentWindow) {
-      remotionIframe.value.contentWindow.postMessage({
-        type: 'UPDATE_PROPS',
-        payload: { volume: newVol }
-      }, '*')
-    }
+    bridge.updateProps({ volume: newVol })
   })
 
   watch(() => state.currentTime.value, (newTime) => {
@@ -232,13 +214,10 @@ export const useRemotionBridge = (
       }
     }
     
-    if (remotionIframe.value && remotionIframe.value.contentWindow && !state.isPlaying.value) {
+    if (!state.isPlaying.value) {
       const targetFrame = Math.floor(newTime * (state.videoFps.value || 30))
       if (lastSeekFrame.value !== targetFrame) {
-        remotionIframe.value.contentWindow.postMessage({
-          type: 'SEEK',
-          frame: targetFrame
-        }, '*')
+        bridge.seek(targetFrame)
         lastSeekFrame.value = targetFrame
       }
     }
@@ -256,13 +235,10 @@ export const useRemotionBridge = (
           }
         }
       }
-      if (remotionIframe.value && remotionIframe.value.contentWindow && !state.isPlaying.value) {
+      if (!state.isPlaying.value) {
         const targetFrame = Math.floor(state.currentTime.value * (state.videoFps.value || 30))
         if (lastSeekFrame.value !== targetFrame) {
-          remotionIframe.value.contentWindow.postMessage({
-            type: 'SEEK',
-            frame: targetFrame
-          }, '*')
+          bridge.seek(targetFrame)
           lastSeekFrame.value = targetFrame
         }
       }
@@ -270,11 +246,13 @@ export const useRemotionBridge = (
   })
 
   onMounted(() => {
-    window.addEventListener('message', onRemotionMessage)
+    unsubscribe = bridge.onMessage(onRemotionMessage)
   })
 
   onUnmounted(() => {
-    window.removeEventListener('message', onRemotionMessage)
+    if (unsubscribe) {
+      unsubscribe()
+    }
   })
 
   return {

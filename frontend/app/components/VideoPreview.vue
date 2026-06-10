@@ -377,6 +377,8 @@ import { useClipperState } from '../composables/useClipperState'
 import { useCropDrag } from '../composables/useCropDrag'
 import { useRemotionBridge } from '../composables/useRemotionBridge'
 import { useInteractiveText } from '../composables/useInteractiveText'
+import { IframePostMessageBridge } from '../utils/playerBridge'
+
 
 const state = useClipperState()
 
@@ -426,14 +428,16 @@ const {
   onDragTouch
 } = cropState
 
+const bridge = new IframePostMessageBridge(remotionIframe)
 const bridgeState = useRemotionBridge(
-  remotionIframe,
+  bridge,
   previewVideo,
   computed(() => videoTime.value),
   computed(() => isInThumbnailWindow.value),
   stableVideoBuster
 )
 const {
+
   isInternalTimeUpdate,
   setNativeVideoStarted,
   syncRemotionProps
@@ -792,6 +796,7 @@ onUnmounted(() => {
   handleWindowTouchEnd()
   if (readyTimeout) clearTimeout(readyTimeout)
   if (safetyTimeout) clearTimeout(safetyTimeout)
+  bridge.destroy()
 })
 
 const statusLabel = computed(() => {

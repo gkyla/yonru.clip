@@ -65,6 +65,15 @@ A hover-activated glassmorphic card overlay displaying the name, speed, accuracy
 ### Ambient Aura Glows
 Soft, high-blur radial gradient light backdrops (such as overlapping accent-500 and violet/indigo spans) positioned behind workspace layouts to provide visual depth, frame structural card borders, and establish a premium dark-mode aesthetic without introducing visual noise.
 
+### Player Bridge
+An abstract interface that decouples player controller logic from physical message-passing protocols (such as iframe postMessage). It handles properties updates, play/pause commands, seek frame requests, and listener cleanups.
+
+### Iframe PostMessage Bridge
+A concrete adapter implementation of the Player Bridge that targets the Remotion preview iframe via window messages.
+
+### Mock Player Bridge
+A concrete mock adapter implementation of the Player Bridge that stores calls and simulates events in memory for testing.
+
 
 ---
 
