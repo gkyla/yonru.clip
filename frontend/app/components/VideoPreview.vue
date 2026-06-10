@@ -836,99 +836,9 @@ const subtitleIndicatorStyle = computed(() => {
   return { top: '50%', transform: 'translate(-50%, -50%)' }
 })
 
-const currentSubtitleText = computed(() => {
-  if (!state?.fullTranscript?.value || !state?.activeHook?.value) return ''
-  
-  const offsetSec = state.subtitleSyncOffset.value / 1000
-  const firstStart = state.fullTranscript.value[0]?.start || 0
-  const isTranscriptZeroBased = firstStart < (state?.activeHook?.value?.start || 0) - 2
-  
-  const thumbSec = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
-  const relativeTime = Math.max(0, state.currentTime.value - thumbSec)
-  
-  const searchTime = isTranscriptZeroBased 
-    ? relativeTime + offsetSec
-    : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec
-
-  // 1. Flatten all segments in fullTranscript into individual words
-  const flatWords: { text: string, start: number, duration: number, end: number }[] = []
-  
-  for (const seg of state.fullTranscript.value) {
-    const segText = (seg.text || '').trim()
-    if (!segText) continue
-    
-    const words = segText.split(/\s+/)
-    if (words.length === 1) {
-      flatWords.push({
-        text: words[0],
-        start: seg.start,
-        duration: seg.duration,
-        end: seg.start + seg.duration
-      })
-    } else {
-      const wordDur = seg.duration / words.length
-      words.forEach((w: string, idx: number) => {
-        flatWords.push({
-          text: w,
-          start: seg.start + (idx * wordDur),
-          duration: wordDur,
-          end: seg.start + ((idx + 1) * wordDur)
-        })
-      })
-    }
-  }
-
-  if (flatWords.length === 0) return ''
-
-  const mode: string = state.subtitleMode.value
-
-  // 2. Group flatWords based on subtitleMode
-  let groupedSegments: { text: string, start: number, duration: number, end: number }[] = []
-
-  if (mode === 'word' || mode === '1_word') {
-    groupedSegments = flatWords
-  } else if (mode.endsWith('_words')) {
-    let numWords = 1
-    const match = mode.match(/^(\d+)_(?:word|words)$/)
-    if (match && match[1]) {
-      numWords = parseInt(match[1]) || 1
-    }
-    
-    for (let i = 0; i < flatWords.length; i += numWords) {
-      const chunk = flatWords.slice(i, i + numWords)
-      if (chunk.length > 0) {
-        const first = chunk[0]
-        const last = chunk[chunk.length - 1]
-        if (first && last) {
-          const start = first.start
-          const end = last.end
-          const text = chunk.map(w => w.text).join(' ')
-          groupedSegments.push({ text, start, duration: end - start, end })
-        }
-      }
-    }
-  } else {
-    groupedSegments = flatWords
-  }
-
-  // 3. Find the active grouped segment matching searchTime
-  const activeGroup = groupedSegments.find(s => searchTime >= s.start && searchTime <= s.end)
-  return activeGroup ? activeGroup.text : ''
-})
-
-const activeSubtitleWords = computed(() => {
+// Memoized subtitle segments grouped by mode to prevent heavy re-calculation on every tick
+const groupedSegments = computed(() => {
   if (!state?.fullTranscript?.value || !state?.activeHook?.value) return []
-  
-  const offsetSec = state.subtitleSyncOffset.value / 1000
-  const firstStart = state.fullTranscript.value[0]?.start || 0
-  const isTranscriptZeroBased = firstStart < (state?.activeHook?.value?.start || 0) - 2
-  
-  const thumbSec = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
-  const relativeTime = Math.max(0, state.currentTime.value - thumbSec)
-  
-  const searchTime = isTranscriptZeroBased 
-    ? relativeTime + offsetSec
-    : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec
 
   // 1. Flatten all segments in fullTranscript into individual words
   const flatWords: { text: string, start: number, duration: number, end: number }[] = []
@@ -963,10 +873,10 @@ const activeSubtitleWords = computed(() => {
   const mode: string = state.subtitleMode.value
 
   // 2. Group flatWords based on subtitleMode
-  let groupedSegments: { words: typeof flatWords, start: number, duration: number, end: number }[] = []
+  let groups: { words: typeof flatWords, start: number, duration: number, end: number }[] = []
 
   if (mode === 'word' || mode === '1_word') {
-    groupedSegments = flatWords.map(w => ({ words: [w], start: w.start, duration: w.duration, end: w.end }))
+    groups = flatWords.map(w => ({ words: [w], start: w.start, duration: w.duration, end: w.end }))
   } else if (mode.endsWith('_words')) {
     let numWords = 1
     const match = mode.match(/^(\d+)_(?:word|words)$/)
@@ -982,16 +892,33 @@ const activeSubtitleWords = computed(() => {
         if (first && last) {
           const start = first.start
           const end = last.end
-          groupedSegments.push({ words: chunk, start, duration: end - start, end })
+          groups.push({ words: chunk, start, duration: end - start, end })
         }
       }
     }
   } else {
-    groupedSegments = flatWords.map(w => ({ words: [w], start: w.start, duration: w.duration, end: w.end }))
+    groups = flatWords.map(w => ({ words: [w], start: w.start, duration: w.duration, end: w.end }))
   }
 
-  // 3. Find the active grouped segment matching searchTime
-  const activeGroup = groupedSegments.find(s => searchTime >= s.start && searchTime <= s.end)
+  return groups
+})
+
+const activeSubtitleWords = computed(() => {
+  if (!state?.fullTranscript?.value || !state?.activeHook?.value) return []
+  
+  const offsetSec = state.subtitleSyncOffset.value / 1000
+  const firstStart = state.fullTranscript.value[0]?.start || 0
+  const isTranscriptZeroBased = firstStart < (state?.activeHook?.value?.start || 0) - 2
+  
+  const thumbSec = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
+  const relativeTime = Math.max(0, state.currentTime.value - thumbSec)
+  
+  const searchTime = isTranscriptZeroBased 
+    ? relativeTime + offsetSec
+    : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec
+
+  // 3. Find the active grouped segment matching searchTime from pre-memoized groups
+  const activeGroup = groupedSegments.value.find(s => searchTime >= s.start && searchTime <= s.end)
   if (!activeGroup) return []
 
   // 4. Return the words in the active group, with their individual timing and state relative to searchTime
