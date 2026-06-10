@@ -549,7 +549,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick, onActivated } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, onActivated, onDeactivated } from 'vue'
 import { groupTranscript, updateSegmentText, updateSegmentStart, updateSegmentDuration, redistributeTranscript } from '../utils/subtitleChunker'
 const state = useClipperState()
 const route = useRoute()
@@ -669,6 +669,11 @@ onActivated(() => {
     // Restore state from route queries
     restoreStateFromQuery()
   }
+})
+
+onDeactivated(() => {
+  console.log('[yonru] Editor deactivated — stopping background polling')
+  state.stopPolling()
 })
 
 const showBlacklistSettings = ref(false)
