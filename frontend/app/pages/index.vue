@@ -505,7 +505,7 @@
               v-for="(hook, idx) in state.hooks.value" 
               :key="idx"
               @click="selectedModalHook = hook"
-              @mouseenter="hoveredHookIndex = idx"
+              @mouseenter="hoveredHookIndex = Number(idx)"
               @mouseleave="hoveredHookIndex = null"
               class="bg-surface-panel border border-surface-border hover:border-accent-500/50 rounded-xl cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col"
             >
@@ -532,7 +532,7 @@
               <div class="p-5 flex-1 flex flex-col relative z-10">
                 <div class="flex justify-between items-start mb-4">
                   <div class="flex items-center gap-2">
-                    <span class="bg-surface-dark border border-surface-border px-2 py-0.5 rounded text-[10px] b-mono text-accent-500 font-black tracking-widest">HOOK {{ String(idx + 1).padStart(2, '0') }}</span>
+                    <span class="bg-surface-dark border border-surface-border px-2 py-0.5 rounded text-[10px] b-mono text-accent-500 font-black tracking-widest">HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}</span>
                     <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
                       <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
                         <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
@@ -574,7 +574,7 @@
               v-for="(hook, idx) in state.savedHooks.value" 
               :key="hook._id || idx"
               @click="selectedModalHook = hook"
-              @mouseenter="hoveredHookIndex = idx + 1000"
+              @mouseenter="hoveredHookIndex = Number(idx) + 1000"
               @mouseleave="hoveredHookIndex = null"
               class="bg-surface-panel border border-surface-border hover:border-amber-400/50 rounded-xl cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col"
             >
@@ -1182,7 +1182,7 @@ const hoveredPrompt = ref<any | null>(null)
 
 const activeWhisperMetadata = computed(() => {
   const modelId = state.whisperModel.value || 'base'
-  return state.whisperModels.find(m => m.id === modelId) || state.whisperModels[1]
+  return state.whisperModels.find((m: any) => m.id === modelId) || state.whisperModels[1]
 })
 
 function handleDocumentClick(e: MouseEvent) {
@@ -1250,8 +1250,8 @@ function formatMMSS(sec: number): string {
 function parseMMSS(str: string): number | null {
   const parts = str.split(':')
   if (parts.length === 2) {
-    const m = parseInt(parts[0], 10)
-    const s = parseInt(parts[1], 10)
+    const m = parseInt(parts[0] || '0', 10)
+    const s = parseInt(parts[1] || '0', 10)
     if (!isNaN(m) && !isNaN(s)) {
       return m * 60 + s
     }
@@ -1293,7 +1293,7 @@ function onDragging(e: MouseEvent | TouchEvent) {
   if (!slider) return
   
   const rect = slider.getBoundingClientRect()
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+  const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? 0) : e.clientX
   const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
   const totalDuration = state.videoDuration.value || 100
   const newVal = parseFloat((percentage * totalDuration).toFixed(1))
@@ -1402,7 +1402,7 @@ function onSliderClick(e: MouseEvent | TouchEvent) {
   if (!slider) return
   
   const rect = slider.getBoundingClientRect()
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+  const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? 0) : e.clientX
   const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
   const totalDuration = state.videoDuration.value || 100
   const clickVal = percentage * totalDuration
@@ -1481,7 +1481,7 @@ function handleAnalyzeClick() {
   if (!url) return
   
   const videoId = extractYoutubeId(url)
-  if (videoId && cachedVideos.value.some(v => v.video_id === videoId)) {
+  if (videoId && cachedVideos.value.some((v: any) => v.video_id === videoId)) {
     duplicateVideoId.value = videoId
     duplicateModalOpen.value = true
   } else {
@@ -1602,7 +1602,7 @@ function handleClipClick(clip: any) {
     }
     selectedClips.value = next
   } else {
-    const parentVid = cachedVideos.value.find(v => v.folder_name === clip.folder_name)
+    const parentVid = cachedVideos.value.find((v: any) => v.folder_name === clip.folder_name)
     if (parentVid) setLastAccessed(parentVid.video_id)
     loadReadyClip(clip)
   }
@@ -1659,7 +1659,7 @@ function resetToStart() {
 }
 
 function isHookSaved(hook: any) {
-  return state.savedHooks.value.some(h => Math.abs(h.start - hook.start) < 0.1 && Math.abs(h.end - hook.end) < 0.1)
+  return state.savedHooks.value.some((h: any) => Math.abs(h.start - hook.start) < 0.1 && Math.abs(h.end - hook.end) < 0.1)
 }
 
 function isHookRendered(hook: any) {
@@ -1675,7 +1675,7 @@ function isHookRendered(hook: any) {
 }
 
 async function toggleSaveHook(hook: any) {
-  const existing = state.savedHooks.value.find(h => Math.abs(h.start - hook.start) < 0.1 && Math.abs(h.end - hook.end) < 0.1)
+  const existing = state.savedHooks.value.find((h: any) => Math.abs(h.start - hook.start) < 0.1 && Math.abs(h.end - hook.end) < 0.1)
   if (existing) {
     if (existing._id) {
       await state.deleteSavedHook(existing._id)
@@ -1686,7 +1686,7 @@ async function toggleSaveHook(hook: any) {
 }
 
 const currentPrompt = computed(() => {
-  return state.promptsList.value.find(p => p.id === state.selectedPrompt.value)
+  return state.promptsList.value.find((p: any) => p.id === state.selectedPrompt.value)
 })
 
 const isProcessing = computed(() => {
@@ -1737,7 +1737,7 @@ async function analyzeCached(videoId: string, force = false) {
   state.activeHook.value = null // Reset active hook
 
   try {
-    const currentPrompt = state.promptsList.value.find(p => p.id === state.selectedPrompt.value)
+    const currentPrompt = state.promptsList.value.find((p: any) => p.id === state.selectedPrompt.value)
     const res = await $fetch<{ job_id: string; status: string }>(`${API_BASE}/api/analyze-cached/${videoId}?force=${force}`, { 
       method: 'POST',
       body: { 

@@ -61,8 +61,8 @@ describe('useRemotionBridge Composable', () => {
     const [_, app] = withSetup(() => useRemotionBridge(
       bridge,
       previewVideo,
-      0,
-      false,
+      ref(0),
+      ref(false),
       ref('test-buster')
     ))
 
@@ -83,8 +83,8 @@ describe('useRemotionBridge Composable', () => {
     const [_, app] = withSetup(() => useRemotionBridge(
       bridge,
       previewVideo,
-      0,
-      false,
+      ref(0),
+      ref(false),
       ref('test-buster')
     ))
 
@@ -107,8 +107,8 @@ describe('useRemotionBridge Composable', () => {
     const [_, app] = withSetup(() => useRemotionBridge(
       bridge,
       previewVideo,
-      0,
-      false,
+      ref(0),
+      ref(false),
       ref('test-buster')
     ))
 
@@ -130,8 +130,8 @@ describe('useRemotionBridge Composable', () => {
     const [_, app] = withSetup(() => useRemotionBridge(
       bridge,
       previewVideo,
-      0,
-      false,
+      ref(0),
+      ref(false),
       ref('test-buster')
     ))
 
@@ -153,8 +153,8 @@ describe('useRemotionBridge Composable', () => {
     const [_, app] = withSetup(() => useRemotionBridge(
       bridge,
       previewVideo,
-      0,
-      false,
+      ref(0),
+      ref(false),
       ref('test-buster')
     ))
 
@@ -177,8 +177,8 @@ describe('useRemotionBridge Composable', () => {
     const [_, app] = withSetup(() => useRemotionBridge(
       bridge,
       previewVideo,
-      0,
-      false,
+      ref(0),
+      ref(false),
       ref('test-buster')
     ))
 
@@ -200,8 +200,8 @@ describe('useRemotionBridge Composable', () => {
     const [_, app] = withSetup(() => useRemotionBridge(
       bridge,
       previewVideo,
-      0,
-      false,
+      ref(0),
+      ref(false),
       ref('test-buster')
     ))
 
