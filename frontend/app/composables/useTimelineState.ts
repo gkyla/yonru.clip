@@ -1,7 +1,10 @@
 // useTimelineState.ts - Extracted timeline tracks and duration sequencing logic
 import { nextTick } from 'vue'
 import { calculateTimelineDuration, calculateVideoTime } from '../utils/timelineHelpers'
+import { TimelineHistoryManager } from '../utils/timelineHistory'
+
 export const useTimelineState = () => {
+  const historyManager = new TimelineHistoryManager(50)
   const API_BASE = 'http://localhost:8000'
 
   const timelineTracks = useState<any[]>('timelineTracks', () => [
@@ -61,47 +64,24 @@ export const useTimelineState = () => {
   const canUndo = computed(() => timelineUndoStack.value.length > 0)
   const canRedo = computed(() => timelineRedoStack.value.length > 0)
 
-  function safeCloneTranscript(transcript: any[]) {
-    if (!transcript) return []
-    return transcript.map((seg: any) => {
-      const copy = { ...seg }
-      delete copy.flatWords
-      if (seg.words) {
-        copy.words = JSON.parse(JSON.stringify(seg.words))
-      }
-      return copy
-    })
-  }
-
   function commitToHistory() {
-    const snapshot = {
-      tracks: JSON.parse(JSON.stringify(timelineTracks.value)),
-      transcript: safeCloneTranscript(fullTranscript.value),
-      selectedId: selectedTimelineItem.value?.id || null
-    }
-
-    const lastState = timelineUndoStack.value[timelineUndoStack.value.length - 1]
-    // Only push if there is a real change to avoid duplicate commits
-    if (!lastState || JSON.stringify(lastState.tracks) !== JSON.stringify(snapshot.tracks) || JSON.stringify(lastState.transcript) !== JSON.stringify(snapshot.transcript)) {
-      timelineUndoStack.value.push(snapshot)
-      if (timelineUndoStack.value.length > 50) {
-        timelineUndoStack.value.shift()
-      }
-      timelineRedoStack.value = [] // Clear redo stack on new action
-    }
+    historyManager.commit(
+      timelineUndoStack.value,
+      timelineRedoStack.value,
+      timelineTracks.value,
+      fullTranscript.value,
+      selectedTimelineItem.value?.id || null
+    )
   }
 
   function undo() {
-    if (timelineUndoStack.value.length === 0) return
-
-    const currentState = {
-      tracks: JSON.parse(JSON.stringify(timelineTracks.value)),
-      transcript: safeCloneTranscript(fullTranscript.value),
-      selectedId: selectedTimelineItem.value?.id || null
-    }
-    timelineRedoStack.value.push(currentState)
-
-    const previousState = timelineUndoStack.value.pop()
+    const previousState = historyManager.undo(
+      timelineUndoStack.value,
+      timelineRedoStack.value,
+      timelineTracks.value,
+      fullTranscript.value,
+      selectedTimelineItem.value?.id || null
+    )
     if (previousState) {
       timelineTracks.value = previousState.tracks
       fullTranscript.value = previousState.transcript
@@ -117,16 +97,13 @@ export const useTimelineState = () => {
   }
 
   function redo() {
-    if (timelineRedoStack.value.length === 0) return
-
-    const currentState = {
-      tracks: JSON.parse(JSON.stringify(timelineTracks.value)),
-      transcript: safeCloneTranscript(fullTranscript.value),
-      selectedId: selectedTimelineItem.value?.id || null
-    }
-    timelineUndoStack.value.push(currentState)
-
-    const nextState = timelineRedoStack.value.pop()
+    const nextState = historyManager.redo(
+      timelineUndoStack.value,
+      timelineRedoStack.value,
+      timelineTracks.value,
+      fullTranscript.value,
+      selectedTimelineItem.value?.id || null
+    )
     if (nextState) {
       timelineTracks.value = nextState.tracks
       fullTranscript.value = nextState.transcript

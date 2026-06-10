@@ -238,4 +238,121 @@ describe('useTimelineState History Tracking - Undo/Redo', () => {
     // Changing the stack length should set hasUnsavedHistory to true
     expect(hasUnsavedHistory.value).toBe(true)
   })
+
+  it('worst-case: handles 55 sequential edits, respects 50 stack limit, and drops oldest states', () => {
+    const { commitToHistory, undo, redo } = useTimelineState()
+    const undoStack = useState<any[]>('timelineUndoStack')
+    const redoStack = useState<any[]>('timelineRedoStack')
+    const transcript = useState<any[]>('fullTranscript')
+
+    // 1. Perform 55 sequential edits
+    for (let i = 1; i <= 55; i++) {
+      commitToHistory()
+      transcript.value = [
+        { id: '1', start: 0, duration: 2, text: `Edit ${i}` }
+      ]
+    }
+    // Commit the final state
+    commitToHistory()
+
+    // Since stack capacity is 50, the undoStack length should be capped at 50
+    expect(undoStack.value.length).toBe(50)
+
+    // 2. Undo repeatedly to check boundaries
+    let undoCount = 0
+    while (undoStack.value.length > 0) {
+      undo()
+      undoCount++
+    }
+
+    // We should be able to undo exactly 50 times
+    expect(undoCount).toBe(50)
+
+    // The text should have reverted to "Edit 6" (since the first 5 edits were discarded)
+    expect(transcript.value[0].text).toBe('Edit 6')
+
+    // 3. Redo repeatedly to check boundaries
+    let redoCount = 0
+    while (redoStack.value.length > 0) {
+      redo()
+      redoCount++
+    }
+
+    expect(redoCount).toBe(50)
+    expect(transcript.value[0].text).toBe('Edit 55')
+  })
+
+  it('worst-case: fork history clears the redo stack on new commit after undo', () => {
+    const { commitToHistory, undo } = useTimelineState()
+    const redoStack = useState<any[]>('timelineRedoStack')
+    const transcript = useState<any[]>('fullTranscript')
+
+    // Commit 1
+    commitToHistory()
+    transcript.value = [{ id: '1', start: 0, duration: 2, text: 'Initial' }]
+    
+    // Commit 2
+    commitToHistory()
+    transcript.value = [{ id: '1', start: 0, duration: 2, text: 'Modified A' }]
+    
+    // Commit 3
+    commitToHistory()
+    transcript.value = [{ id: '1', start: 0, duration: 2, text: 'Modified B' }]
+
+    commitToHistory()
+
+    // Undo twice
+    undo()
+    undo()
+    expect(redoStack.value.length).toBe(2)
+
+    // Make a new modification (fork history)
+    commitToHistory()
+    transcript.value = [{ id: '1', start: 0, duration: 2, text: 'Forked Edit' }]
+    commitToHistory()
+
+    // Redo stack must be cleared
+    expect(redoStack.value.length).toBe(0)
+  })
+
+  it('worst-case: verifies structural sharing reference equality for unchanged items', () => {
+    const { commitToHistory } = useTimelineState()
+    const transcript = useState<any[]>('fullTranscript')
+    const undoStack = useState<any[]>('timelineUndoStack')
+
+    // Initialize large transcript
+    const items = Array.from({ length: 10 }, (_, i) => ({
+      id: `seg-${i}`,
+      start: i,
+      duration: 1,
+      text: `Original ${i}`
+    }))
+    transcript.value = items
+
+    // Commit initial state
+    commitToHistory()
+
+    // Mutate only the 5th item
+    const modifiedItems = [...transcript.value]
+    modifiedItems[5] = { ...modifiedItems[5], text: 'Changed 5' }
+    transcript.value = modifiedItems
+
+    // Commit again
+    commitToHistory()
+
+    const snapshot1 = undoStack.value[0]
+    const snapshot2 = undoStack.value[1]
+
+    // Verify structural sharing:
+    // Unchanged elements should share identical references
+    expect(snapshot2.transcript[0]).toBe(snapshot1.transcript[0])
+    expect(snapshot2.transcript[1]).toBe(snapshot1.transcript[1])
+    expect(snapshot2.transcript[4]).toBe(snapshot1.transcript[4])
+
+    // The changed element must have a different reference
+    expect(snapshot2.transcript[5]).not.toBe(snapshot1.transcript[5])
+    expect(snapshot2.transcript[5].text).toBe('Changed 5')
+    expect(snapshot1.transcript[5].text).toBe('Original 5')
+  })
 })
+
