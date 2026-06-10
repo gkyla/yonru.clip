@@ -535,7 +535,7 @@ function onNativeTimeUpdate(e: Event) {
 
   isInternalTimeUpdate.value = true
   const thumbSec = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
-  const videoTrack = state.timelineTracks.value.find(tr => tr.id === 'video')
+  const videoTrack = state.timelineTracks.value.find((tr: any) => tr.id === 'video')
   
   if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) {
     state.currentTime.value = video.currentTime + thumbSec
@@ -583,7 +583,7 @@ const isInThumbnailWindow = computed(() => state.thumbnailEnabled.value && state
 
 const videoTime = computed(() => {
   const t = Math.max(0, state.currentTime.value - thumbOffset.value)
-  const videoTrack = state.timelineTracks.value.find(tr => tr.id === 'video')
+  const videoTrack = state.timelineTracks.value.find((tr: any) => tr.id === 'video')
   if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) return t
   
   const activeItem = videoTrack.items.find((i: any) => t >= i.start && t < i.start + i.duration)
