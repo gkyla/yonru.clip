@@ -59,6 +59,34 @@ class TestJobManager(unittest.TestCase):
                 import shutil
                 shutil.rmtree(temp_dir)
 
+    def test_file_based_job_store_manual_delete_sync(self):
+        temp_dir = "temp_test_jobs_delete"
+        if os.path.exists(temp_dir):
+            import shutil
+            shutil.rmtree(temp_dir)
+
+        try:
+            store = JSONFileJobStore(temp_dir)
+            store.create_job("job_1", {"status": "started"})
+            store.create_job("job_2", {"status": "started"})
+            
+            # Manually delete job_1 file on disk
+            os.remove(os.path.join(temp_dir, "job_1.json"))
+            
+            # Save the store (simulating global save)
+            store.save()
+            
+            # job_1 should NOT be recreated on disk
+            self.assertFalse(os.path.exists(os.path.join(temp_dir, "job_1.json")))
+            # job_2 should still exist
+            self.assertTrue(os.path.exists(os.path.join(temp_dir, "job_2.json")))
+            # cache should no longer contain job_1
+            self.assertNotIn("job_1", store)
+        finally:
+            if os.path.exists(temp_dir):
+                import shutil
+                shutil.rmtree(temp_dir)
+
     def test_thread_safety_updates(self):
         store = InMemoryJobStore()
         store.create_job("concurrent_job", {"counter": 0})
@@ -80,3 +108,38 @@ class TestJobManager(unittest.TestCase):
         job = store.get_job("concurrent_job")
         # Confirms concurrent lock protection works
         self.assertEqual(job["counter"], 250)
+
+    def test_job_store_deletion(self):
+        temp_dir = "temp_test_jobs_delete_explicit"
+        if os.path.exists(temp_dir):
+            import shutil
+            shutil.rmtree(temp_dir)
+
+        try:
+            # Test InMemoryJobStore deletion
+            mem_store = InMemoryJobStore()
+            mem_store.create_job("job_mem", {"status": "running"})
+            self.assertIn("job_mem", mem_store)
+            mem_store.delete_job("job_mem")
+            self.assertNotIn("job_mem", mem_store)
+
+            # Test JSONFileJobStore deletion
+            file_store = JSONFileJobStore(temp_dir)
+            file_store.create_job("job_file", {"status": "running"})
+            job_file_path = os.path.join(temp_dir, "job_file.json")
+            self.assertTrue(os.path.exists(job_file_path))
+            self.assertIn("job_file", file_store)
+
+            # Delete the job
+            file_store.delete_job("job_file")
+            self.assertNotIn("job_file", file_store)
+            self.assertFalse(os.path.exists(job_file_path))
+
+            # Test path traversal block
+            file_store.create_job("job_safe", {"status": "ok"})
+            # Try to delete with directory traversal
+            file_store.delete_job("../outside")
+        finally:
+            if os.path.exists(temp_dir):
+                import shutil
+                shutil.rmtree(temp_dir)

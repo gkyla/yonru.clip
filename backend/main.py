@@ -518,6 +518,11 @@ async def delete_ready_clip(folder_name: str, clip_id: str):
     success = asset_repository.delete_clip(folder_name, clip_id)
     if not success:
         raise HTTPException(status_code=404, detail="Clip not found")
+    # Clean up corresponding job session
+    import hashlib
+    hash_input = f"{folder_name}_{clip_id}"
+    job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
+    jobs.delete_job(job_id)
     return {"status": "deleted", "clip_id": clip_id}
 
 @app.post("/api/ready-clips/delete-batch")
@@ -530,6 +535,11 @@ async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
         if folder_name and clip_id:
             try:
                 success = asset_repository.delete_clip(folder_name, clip_id)
+                if success:
+                    import hashlib
+                    hash_input = f"{folder_name}_{clip_id}"
+                    job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
+                    jobs.delete_job(job_id)
                 results.append({"clip_id": clip_id, "success": success})
             except ValueError as e:
                 print(f"[delete-batch] Validation failed for {folder_name}/{clip_id}: {e}")
@@ -1116,8 +1126,10 @@ async def load_ready_clip(req: LoadReadyClipRequest):
         except:
             pass
 
-    # 4. Create a job marked as ready
-    job_id = str(uuid.uuid4())[:8]
+    # 4. Create a job marked as ready (deterministically derived from folder name and clip ID)
+    import hashlib
+    hash_input = f"{req.folder_name}_{req.clip_id}"
+    job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
     duration = asset_repository.get_video_duration(clip_path)
     
     # 5. Load generated hooks from sources folder

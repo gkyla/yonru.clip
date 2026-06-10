@@ -23,6 +23,11 @@ class JobStore(ABC):
         """List all jobs."""
         pass
 
+    @abstractmethod
+    def delete(self, job_id: str) -> None:
+        """Delete a job by ID."""
+        pass
+
     # Thread-safe unified aliases and operations from JobManager
     def create_job(self, job_id: str, initial_data: dict) -> dict:
         """Create a new job thread-safely."""
@@ -66,6 +71,11 @@ class JobStore(ABC):
         with self.lock:
             return self.list_all()
 
+    def delete_job(self, job_id: str) -> None:
+        """Delete a job thread-safely."""
+        with self.lock:
+            self.delete(job_id)
+
     # Dictionary-like mapping interface for backward compatibility
     def __getitem__(self, key: str) -> dict:
         res = self.get_job(key)
@@ -107,6 +117,9 @@ class InMemoryJobStore(JobStore):
 
     def list_all(self) -> Dict[str, dict]:
         return self._jobs.copy()
+
+    def delete(self, job_id: str) -> None:
+        self._jobs.pop(job_id, None)
 
 
 class JSONFileJobStore(JobStore):
@@ -189,5 +202,21 @@ class JSONFileJobStore(JobStore):
     def save(self) -> None:
         """Manually trigger disk serialization for all cached jobs."""
         with self.lock:
-            for job_id in self._cache:
+            for job_id in list(self._cache.keys()):
+                if not os.path.exists(self._job_path(job_id)):
+                    self._cache.pop(job_id, None)
+                    continue
                 self._save_job(job_id)
+
+    def delete(self, job_id: str) -> None:
+        self._cache.pop(job_id, None)
+        path = os.path.abspath(self._job_path(job_id))
+        base_dir = os.path.abspath(self.dir_path)
+        if os.path.commonpath([base_dir, path]) == base_dir:
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception as e:
+                    print(f"[JSONFileJobStore] Failed to delete file {path}: {e}")
+        else:
+            print(f"[JSONFileJobStore] Directory traversal blocked for path: {path}")

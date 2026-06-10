@@ -553,6 +553,7 @@ import { ref, computed, watch, onMounted, nextTick, onActivated } from 'vue'
 import { groupTranscript, updateSegmentText, updateSegmentStart, updateSegmentDuration, redistributeTranscript } from '../utils/subtitleChunker'
 const state = useClipperState()
 const route = useRoute()
+const router = useRouter()
 
 const isAuditExpanded = ref(false)
 
@@ -738,7 +739,6 @@ async function selectSidebarHook(hook: any) {
   })
 
   // Update route query silently so refresh works
-  const router = useRouter()
   const query: any = {
     ...route.query,
     hook_index: hookIndex >= 0 ? hookIndex : 0,
@@ -830,6 +830,13 @@ watch(() => state.jobStatus.value, (newStatus) => {
     fetchReadyClips()
   }
 }, { immediate: true })
+
+watch(() => state.jobId.value, (newJobId) => {
+  if (newJobId && route.query.job_id !== newJobId) {
+    const query = { ...route.query, job_id: newJobId }
+    router.replace({ query })
+  }
+})
 
 // Moved up
 

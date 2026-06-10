@@ -271,7 +271,8 @@ export const useClipperJob = () => {
         if (res.clip && res.clip.asset_url) {
           if (res.fps) videoFps.value = res.fps
           const targetUrl = `${API_BASE}${res.clip.asset_url}`
-          if (videoUrl.value !== targetUrl || fullTranscript.value.length === 0) {
+          const isNewClip = videoUrl.value !== targetUrl
+          if (isNewClip || fullTranscript.value.length === 0) {
             videoUrl.value = targetUrl
             if (res.clip.duration) {
               videoDuration.value = res.clip.duration
@@ -313,7 +314,13 @@ export const useClipperJob = () => {
             const parts = res.clip.asset_url.split('/')
             const newClipId = parts.length >= 5 ? parts[4] : null
             
-            if (videoUrl.value !== targetUrl || fullTranscript.value.length === 0 || (newClipId && clipId.value !== newClipId)) {
+            const isTimelineEmpty = !timeline.timelineTracks.value || 
+                                    timeline.timelineTracks.value.length === 0 || 
+                                    !timeline.timelineTracks.value[0] ||
+                                    !timeline.timelineTracks.value[0].items ||
+                                    timeline.timelineTracks.value[0].items.length === 0
+
+            if (isNewClip || fullTranscript.value.length === 0 || (newClipId && clipId.value !== newClipId) || isTimelineEmpty) {
               if (newClipId) clipId.value = newClipId
               timeline.isSavingLocked.value = true
               try {
