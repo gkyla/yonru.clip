@@ -110,48 +110,84 @@ class InMemoryJobStore(JobStore):
 
 
 class JSONFileJobStore(JobStore):
-    def __init__(self, file_path: str):
+    """Directory-based job store: each job is stored as a separate JSON file
+    inside a directory, eliminating monolithic read/write bottlenecks."""
+
+    def __init__(self, dir_path: str):
         super().__init__()
-        self.file_path = file_path
+        self.dir_path = dir_path
         self._cache: Dict[str, dict] = {}
-        self._load()
+        os.makedirs(self.dir_path, exist_ok=True)
+        self._migrate_old_file()
+        self._load_all()
 
-    def _load(self) -> None:
-        if os.path.exists(self.file_path):
+    def _migrate_old_file(self) -> None:
+        """Auto-migrate from monolithic jobs.json to per-job files."""
+        old_file = self.dir_path + ".json"
+        if os.path.isfile(old_file):
             try:
-                with open(self.file_path, "r", encoding="utf-8") as f:
-                    self._cache = json.load(f)
+                with open(old_file, "r", encoding="utf-8") as f:
+                    old_data = json.load(f)
+                if isinstance(old_data, dict):
+                    migrated = 0
+                    for job_id, job_data in old_data.items():
+                        job_path = os.path.join(self.dir_path, f"{job_id}.json")
+                        if not os.path.exists(job_path):
+                            with open(job_path, "w", encoding="utf-8") as f:
+                                json.dump(job_data, f)
+                            migrated += 1
+                    print(f"[JSONFileJobStore] Migrated {migrated} jobs from {old_file}")
+                # Rename old file as backup
+                backup_path = old_file + ".bak"
+                os.rename(old_file, backup_path)
+                print(f"[JSONFileJobStore] Old file backed up to {backup_path}")
             except Exception as e:
-                print(f"[JSONFileJobStore] Failed to load jobs file: {e}")
-                self._cache = {}
-        else:
-            self._cache = {}
+                print(f"[JSONFileJobStore] Migration failed: {e}")
 
-    def _save(self) -> None:
-        # Ensure parent folder exists if possible
-        parent = os.path.dirname(self.file_path)
-        if parent:
-            os.makedirs(parent, exist_ok=True)
+    def _load_all(self) -> None:
+        """Load all job files into memory cache at startup."""
+        self._cache = {}
+        if not os.path.isdir(self.dir_path):
+            return
+        for entry in os.scandir(self.dir_path):
+            if entry.is_file() and entry.name.endswith(".json"):
+                job_id = entry.name[:-5]  # strip .json
+                try:
+                    with open(entry.path, "r", encoding="utf-8") as f:
+                        self._cache[job_id] = json.load(f)
+                except Exception as e:
+                    print(f"[JSONFileJobStore] Failed to load {entry.name}: {e}")
+
+    def _job_path(self, job_id: str) -> str:
+        return os.path.join(self.dir_path, f"{job_id}.json")
+
+    def _save_job(self, job_id: str) -> None:
+        """Write a single job to disk."""
         try:
-            with open(self.file_path, "w", encoding="utf-8") as f:
-                json.dump(self._cache, f, indent=4)
+            os.makedirs(self.dir_path, exist_ok=True)
+            with open(self._job_path(job_id), "w", encoding="utf-8") as f:
+                json.dump(self._cache[job_id], f)
         except Exception as e:
-            print(f"[JSONFileJobStore] Failed to save jobs file: {e}")
+            print(f"[JSONFileJobStore] Failed to save job {job_id}: {e}")
 
     def get(self, job_id: str) -> Optional[dict]:
-        self._load()
+        if not os.path.exists(self._job_path(job_id)):
+            self._cache.pop(job_id, None)
+            return None
         return self._cache.get(job_id)
 
     def set(self, job_id: str, data: dict) -> None:
-        self._load()
         self._cache[job_id] = data
-        self._save()
+        self._save_job(job_id)
 
     def list_all(self) -> Dict[str, dict]:
-        self._load()
+        for job_id in list(self._cache.keys()):
+            if not os.path.exists(self._job_path(job_id)):
+                self._cache.pop(job_id, None)
         return self._cache.copy()
 
     def save(self) -> None:
-        """Manually trigger disk serialization for nested dictionary updates."""
+        """Manually trigger disk serialization for all cached jobs."""
         with self.lock:
-            self._save()
+            for job_id in self._cache:
+                self._save_job(job_id)

@@ -36,7 +36,7 @@ app.mount("/assets", StaticFiles(directory="temp_assets"), name="assets")
 
 # Thread-safe Job Management Seam
 from core.job_store import JSONFileJobStore
-jobs = JSONFileJobStore("temp_assets/jobs.json")
+jobs = JSONFileJobStore("temp_assets/jobs")
 
 from core.prompt_repository import FilePromptRepository
 backend_dir = os.path.dirname(os.path.abspath(__file__))
@@ -374,6 +374,7 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
 async def get_job(job_id: str):
     """Poll job status"""
     if job_id not in jobs:
+        print(f"[api] Job {job_id} not found — frontend will self-heal if clip context exists")
         raise HTTPException(status_code=404, detail="Job not found")
     
     job = jobs[job_id]

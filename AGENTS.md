@@ -42,7 +42,7 @@ graph TD
 ---
 
 ## 3. Persistent State Guidelines
-*   **Atomic Updates**: Because state stores (like `JSONFileJobStore`) read eagerly from disk to maintain freshness, always retrieve, mutate locally, and explicitly re-assign the job dictionary (`self.jobs[job_id] = job`) to trigger thread-safe, atomic serialization. Mutating in-place nested dictionaries directly on store objects is forbidden.
+*   **Atomic Updates**: Because state stores (like `JSONFileJobStore`) use directory-based per-job file storage, always retrieve, mutate locally, and explicitly re-assign the job dictionary (`self.jobs[job_id] = job`) to trigger thread-safe, atomic per-file serialization. Mutating in-place nested dictionaries directly on store objects is forbidden.
 
 ---
 

@@ -39,23 +39,25 @@ class TestJobManager(unittest.TestCase):
         self.assertEqual(len(store), 1)
 
     def test_file_based_job_store(self):
-        temp_file = "temp_test_jobs.json"
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+        temp_dir = "temp_test_jobs"
+        if os.path.exists(temp_dir):
+            import shutil
+            shutil.rmtree(temp_dir)
 
         try:
-            store = JSONFileJobStore(temp_file)
+            store = JSONFileJobStore(temp_dir)
 
             store.create_job("job_file", {"status": "started"})
-            self.assertTrue(os.path.exists(temp_file))
+            self.assertTrue(os.path.exists(os.path.join(temp_dir, "job_file.json")))
 
             # Retrieve from fresh store (caching sync verify)
-            new_store = JSONFileJobStore(temp_file)
+            new_store = JSONFileJobStore(temp_dir)
             job = new_store.get("job_file")
             self.assertEqual(job["status"], "started")
         finally:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
+            if os.path.exists(temp_dir):
+                import shutil
+                shutil.rmtree(temp_dir)
 
     def test_thread_safety_updates(self):
         store = InMemoryJobStore()

@@ -230,9 +230,17 @@ export const useClipperJob = () => {
       try {
         const res = await $fetch<any>(`${API_BASE}/api/job/${jobId.value}`).catch(e => {
           if (e.status === 404) {
-            jobStatus.value = 'error'
-            jobError.value = 'Job session expired. Please re-analyze the video.'
-            stopPolling()
+            // Self-heal: if we have clip context, silently restore the session
+            if (folderName.value && clipId.value) {
+              console.log('[polling] Job 404 - self-healing session via loadReadyClipIntoEditor')
+              stopPolling()
+              loadReadyClipIntoEditor(folderName.value, clipId.value)
+            } else {
+              console.warn(`[polling] Job 404 - cannot self-heal because clip context is missing. Folder: ${folderName.value}, ClipId: ${clipId.value}`)
+              jobStatus.value = 'error'
+              jobError.value = 'Job session expired. Please re-analyze the video.'
+              stopPolling()
+            }
           }
           return null
         })

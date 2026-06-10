@@ -676,13 +676,17 @@ const panelTab = ref<'generated' | 'saved'>((route.query.tab as any) || 'generat
 function restoreStateFromQuery() {
   const jobId = route.query.job_id as string
   const folder = route.query.folder as string
+  const clipId = route.query.clip_id as string
   const hookIndex = parseInt(route.query.hook_index as string)
   const tab = (route.query.tab as string) || 'generated'
   
   if (jobId) {
-    console.log('[editor] Restoring state from query. JobID:', jobId, 'Folder:', folder, 'HookIndex:', hookIndex, 'Tab:', tab)
+    console.log('[editor] Restoring state from query. JobID:', jobId, 'Folder:', folder, 'ClipID:', clipId, 'HookIndex:', hookIndex, 'Tab:', tab)
     state.jobId.value = jobId
     state.folderName.value = folder
+    if (clipId) {
+      state.clipId.value = clipId
+    }
     panelTab.value = tab as any
     
     // We need to wait for hooks to load before we can select the active one
@@ -723,16 +727,6 @@ async function selectSidebarHook(hook: any) {
   const hooksList = panelTab.value === 'saved' ? state.savedHooks.value : state.hooks.value
   const hookIndex = hooksList.indexOf(hook)
   
-  // Update route query silently so refresh works
-  const router = useRouter()
-  router.replace({
-    query: {
-      ...route.query,
-      hook_index: hookIndex >= 0 ? hookIndex : 0,
-      tab: panelTab.value
-    }
-  })
-  
   // Check if hook is already rendered/ready
   const matchingClip = readyClips.value?.find(c => {
     if (c.folder_name !== state.folderName.value) return false
@@ -743,6 +737,20 @@ async function selectSidebarHook(hook: any) {
     return Math.abs(cStart - hook.start) < 1.1 && Math.abs(cEnd - hook.end) < 1.1
   })
 
+  // Update route query silently so refresh works
+  const router = useRouter()
+  const query: any = {
+    ...route.query,
+    hook_index: hookIndex >= 0 ? hookIndex : 0,
+    tab: panelTab.value
+  }
+  if (matchingClip) {
+    query.clip_id = matchingClip.clip_id
+  } else {
+    delete query.clip_id
+  }
+  router.replace({ query })
+  
   if (matchingClip) {
     console.log('[editor] Hook is already rendered, loading ready clip:', matchingClip.clip_id)
     state.loadReadyClipIntoEditor(state.folderName.value || '', matchingClip.clip_id)
