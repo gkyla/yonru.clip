@@ -20,25 +20,25 @@ describe('Subtitle Chunker TDD tests', () => {
 
     const grouped1 = groupTranscript(segments, 'word')
     expect(grouped1).toHaveLength(3)
-    expect(grouped1[0].text).toBe('hello')
-    expect(grouped1[0].words).toHaveLength(1)
+    expect(grouped1[0]!.text).toBe('hello')
+    expect(grouped1[0]!.words).toHaveLength(1)
 
     // Test 2: groupTranscript - 3 words mode (using segment inputs)
     const grouped3 = groupTranscript(segments, '3_words')
     expect(grouped3).toHaveLength(1)
-    expect(grouped3[0].text).toBe('hello world test')
-    expect(grouped3[0].start).toBe(0.0)
-    expect(grouped3[0].end).toBe(3.5)
-    expect(grouped3[0].duration).toBe(3.5)
-    expect(grouped3[0].words).toHaveLength(3)
+    expect(grouped3[0]!.text).toBe('hello world test')
+    expect(grouped3[0]!.start).toBe(0.0)
+    expect(grouped3[0]!.end).toBe(3.5)
+    expect(grouped3[0]!.duration).toBe(3.5)
+    expect(grouped3[0]!.words).toHaveLength(3)
 
     // Test 3: updateSegmentText - proportional redistribution & original segment sync
-    const testSeg = grouped3[0]
+    const testSeg = grouped3[0]!
     updateSegmentText(testSeg, 'hi world check')
     expect(testSeg.text).toBe('hi world check')
-    expect(segments[0].text).toBe('hi')
-    expect(segments[1].text).toBe('world')
-    expect(segments[2].text).toBe('check')
+    expect(segments[0]!.text).toBe('hi')
+    expect(segments[1]!.text).toBe('world')
+    expect(segments[2]!.text).toBe('check')
 
     // Test 4: updateSegmentStart - delta shift & original segment sync
     const originalSeg1: ChunkerSegment = { text: 'first second', start: 10.0, duration: 2.0 }
@@ -93,8 +93,8 @@ describe('Subtitle Chunker TDD tests', () => {
       { text: 'text', start: 1.0, duration: 1.0 }
     ]
     redistributeTranscript(masterList, 'brand new content')
-    expect(masterList[0].text).toBe('brand new')
-    expect(masterList[1].text).toBe('content')
+    expect(masterList[0]!.text).toBe('brand new')
+    expect(masterList[1]!.text).toBe('content')
 
     // Test 7: updateSegmentText - Option A Locked Slots Alignment when deleting words
     const originalList: ChunkerSegment[] = [
@@ -106,11 +106,11 @@ describe('Subtitle Chunker TDD tests', () => {
     expect(groupedList).toHaveLength(1)
     
     // Deleting the middle word 'brave' -> 'hello world'
-    updateSegmentText(groupedList[0], 'hello world')
+    updateSegmentText(groupedList[0]!, 'hello world')
     
-    expect(originalList[0].text).toBe('hello')
-    expect(originalList[1].text).toBe('')
-    expect(originalList[2].text).toBe('world')
+    expect(originalList[0]!.text).toBe('hello')
+    expect(originalList[1]!.text).toBe('')
+    expect(originalList[2]!.text).toBe('world')
 
     // Test 8: groupTranscript - Do not skip empty segments to prevent timeline collapse
     const listWithEmpty: ChunkerSegment[] = [
@@ -122,14 +122,14 @@ describe('Subtitle Chunker TDD tests', () => {
     // 1-word mode: Should render 3 cards (no skip)
     const groupedEmpty1 = groupTranscript(listWithEmpty, 'word')
     expect(groupedEmpty1).toHaveLength(3)
-    expect(groupedEmpty1[1].text).toBe('')
-    expect(groupedEmpty1[1].start).toBe(1.0)
+    expect(groupedEmpty1[1]!.text).toBe('')
+    expect(groupedEmpty1[1]!.start).toBe(1.0)
     
     // 3-word mode: Should render 1 card spanning 3.0s total (no collapse)
     const groupedEmpty3 = groupTranscript(listWithEmpty, '3_words')
     expect(groupedEmpty3).toHaveLength(1)
-    expect(groupedEmpty3[0].text).toBe('hello world')
-    expect(groupedEmpty3[0].duration).toBe(3.0)
-    expect(groupedEmpty3[0].end).toBe(3.0)
+    expect(groupedEmpty3[0]!.text).toBe('hello world')
+    expect(groupedEmpty3[0]!.duration).toBe(3.0)
+    expect(groupedEmpty3[0]!.end).toBe(3.0)
   })
 })

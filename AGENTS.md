@@ -49,7 +49,7 @@ graph TD
 ## 4. Self-Healing & Isolated Environments
 *   **Self-Healing Bootstraps**: Always rely on the built-in system coordinator (`run.py`) to manage dependencies, provison virtual environments (`backend/venv`), and synchronize offline fonts. Avoid manually installing pip or npm packages globally.
 *   **Environment Isolation**: Never run system global commands when verifying code. Always use virtualenv binary paths directly for the backend (e.g. `backend/venv/bin/pytest` or `backend/venv/bin/python`), and use local package manager scripts for the frontend (e.g., executing `npm run test` or `npm run typecheck` inside the `frontend/` folder).
-*   **TypeScript Enforcement**: When modifying frontend code, developer agents MUST run `rtk npm run typecheck` inside the `frontend/` directory to ensure changes do not break type safety.
+*   **TypeScript Enforcement**: When modifying frontend code, developer agents MUST run `rtk npm run typecheck` inside the `frontend/` directory to ensure changes do not break type safety. This check is automated via a Git pre-commit hook (Husky) which runs typecheck and unit tests before any commit is processed. Developer agents MUST NOT bypass this check (e.g. via `--no-verify`) unless explicitly instructed.
 
 ---
 

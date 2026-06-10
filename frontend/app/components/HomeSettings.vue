@@ -678,17 +678,22 @@ function moveKey(index: number, direction: number) {
   if (newIndex < 0 || newIndex >= keysList.value.length) return
   
   // Swap
-  const temp = keysList.value[index]
-  keysList.value[index] = keysList.value[newIndex]
-  keysList.value[newIndex] = temp
-  
-  // Flash
-  keysList.value[index].activeFlash = true
-  keysList.value[newIndex].activeFlash = true
+  const itemCurrent = keysList.value[index]
+  const itemNew = keysList.value[newIndex]
+  if (itemCurrent && itemNew) {
+    keysList.value[index] = itemNew
+    keysList.value[newIndex] = itemCurrent
+    
+    // Flash
+    itemCurrent.activeFlash = true
+    itemNew.activeFlash = true
+  }
   
   setTimeout(() => {
-    if (keysList.value[index]) keysList.value[index].activeFlash = false
-    if (keysList.value[newIndex]) keysList.value[newIndex].activeFlash = false
+    const iCurrent = keysList.value[index]
+    const iNew = keysList.value[newIndex]
+    if (iCurrent) iCurrent.activeFlash = false
+    if (iNew) iNew.activeFlash = false
   }, 600)
 }
 
@@ -731,20 +736,23 @@ function dragEnter(index: number) {
   }
   
   // Swap
-  const temp = keysList.value[oldIndex]
-  keysList.value[oldIndex] = keysList.value[index]
-  keysList.value[index] = temp
+  const itemOld = keysList.value[oldIndex]
+  const itemIndex = keysList.value[index]
+  if (itemOld && itemIndex) {
+    keysList.value[oldIndex] = itemIndex
+    keysList.value[index] = itemOld
+    
+    // Flash highlight on both swapped items
+    itemOld.activeFlash = true
+    itemIndex.activeFlash = true
+  }
   
   draggedIndex.value = index
   lastSwappedIds.value = [oldItem.id, newItem.id]
   lastSwapTime.value = now
-
-  // Flash highlight on both swapped items
-  keysList.value[oldIndex].activeFlash = true
-  keysList.value[index].activeFlash = true
   
-  const targetId1 = keysList.value[oldIndex].id
-  const targetId2 = keysList.value[index].id
+  const targetId1 = oldItem.id
+  const targetId2 = newItem.id
   
   setTimeout(() => {
     const item1 = keysList.value.find(k => k.id === targetId1)
@@ -926,7 +934,7 @@ async function fetchSettings() {
         }
         
         // Fallback to comma-separated format
-        if (keysList.value.length === 0 || !keysList.value[0].value) {
+        if (keysList.value.length === 0 || !keysList.value[0]?.value) {
           keysList.value = rawKeys.split(',').map((k: string) => ({
             id: Math.random().toString(36).substring(2, 9),
             title: '',

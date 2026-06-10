@@ -238,7 +238,7 @@
             <div class="px-4 py-3 border-b border-surface-border/50 flex justify-between items-center bg-white/[0.02]">
               <div class="flex items-center gap-2">
                 <Icon name="ri:text" class="text-violet-400 text-sm" />
-                <span class="text-[10px] font-bold uppercase tracking-widest text-violet-400">Text {{ idx + 1 }}</span>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-violet-400">Text {{ Number(idx) + 1 }}</span>
               </div>
               <button 
                 @click="state.removeThumbnailText(overlay.id)"

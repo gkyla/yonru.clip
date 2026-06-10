@@ -10,7 +10,8 @@
     "postinstall": "nuxt prepare",
     "typecheck": "nuxi typecheck",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepare": "cd .. && husky frontend/.husky"
   },
   "dependencies": {
     "@nuxt/icon": "^2.2.1",
@@ -29,6 +30,7 @@
     "@nuxt/test-utils": "^3.15.4",
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^17.1.8",
+    "husky": "^9.1.7",
     "vitest": "^3.0.5"
   }
 }

@@ -121,9 +121,9 @@ describe('Index Page', () => {
     await wrapper.vm.$nextTick()
     
     // Find inputs
-    const inputs = wrapper.findAll('input[type="text"]')
-    const startInput = inputs.find(i => i.element.value === '00:10')
-    const endInput = inputs.find(i => i.element.value === '00:20')
+    const inputs = wrapper.findAll('input[type=\"text\"]')
+    const startInput = inputs.find(i => (i.element as HTMLInputElement).value === '00:10')
+    const endInput = inputs.find(i => (i.element as HTMLInputElement).value === '00:20')
     
     expect(startInput).toBeDefined()
     expect(endInput).toBeDefined()
