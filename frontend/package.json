@@ -8,6 +8,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "typecheck": "nuxi typecheck",
     "test": "vitest run",
     "test:watch": "vitest"
   },
