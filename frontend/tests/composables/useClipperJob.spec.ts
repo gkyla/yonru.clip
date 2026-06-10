@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useClipperJob } from '../../app/composables/useClipperJob'
 
 // Mock useTimelineState
-const mockTimelineTracks = { value: [{ items: [] }] }
+const mockTimelineTracks = { value: [{ items: [] as any[] }] }
 vi.mock('../../app/composables/useTimelineState', () => ({
   useTimelineState: () => ({
     isSavingLocked: { value: false },
@@ -182,8 +182,8 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     
     await vi.advanceTimersByTimeAsync(2000)
     
-    expect(mockTimelineTracks.value[0].items.length).toBe(1)
-    expect(mockTimelineTracks.value[0].items[0].id).toBe('mock-item-from-file')
+    expect(mockTimelineTracks.value[0]?.items.length).toBe(1)
+    expect(mockTimelineTracks.value[0]?.items[0]?.id).toBe('mock-item-from-file')
     
     stopPolling()
     vi.useRealTimers()

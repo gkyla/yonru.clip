@@ -461,7 +461,7 @@
               <div class="flex justify-between items-center mb-1">
                 <div class="flex items-center gap-2">
                   <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
-                    HOOK {{ String(idx + 1).padStart(2, '0') }}
+                    HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}
                   </span>
                   <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
                     <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
@@ -506,7 +506,7 @@
               <div class="flex justify-between items-center mb-1">
                 <div class="flex items-center gap-2">
                   <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
-                    SAVED {{ String(idx + 1).padStart(2, '0') }}
+                    SAVED {{ String(Number(idx) + 1).padStart(2, '0') }}
                   </span>
                   <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
                     <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
