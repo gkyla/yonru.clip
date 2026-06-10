@@ -1864,6 +1864,7 @@ async function loadReadyClip(clip: any) {
       query: { 
         job_id: state.jobId.value || '',
         folder: clip.folder_name,
+        clip_id: clip.clip_id,
         hook_index: hookIndex,
         tab: tab
       }

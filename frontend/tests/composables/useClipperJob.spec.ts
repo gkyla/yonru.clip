@@ -3,10 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useClipperJob } from '../../app/composables/useClipperJob'
 
 // Mock useTimelineState
+const mockTimelineTracks = { value: [{ items: [] }] }
 vi.mock('../../app/composables/useTimelineState', () => ({
   useTimelineState: () => ({
     isSavingLocked: { value: false },
-    timelineTracks: { value: [{ items: [] }] }
+    timelineTracks: mockTimelineTracks
   })
 }))
 
@@ -148,5 +149,43 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     expect(font.value).toBe('Open Sans')
     expect(fontSize.value).toBe(110)
     expect(subtitlePreset.value).toBe('minimal')
+  })
+
+  it('loads timeline when polling returns ready job and timeline is empty', async () => {
+    vi.useFakeTimers()
+    const { startPolling, stopPolling, jobId } = useClipperJob()
+    
+    jobId.value = 'job-123'
+    mockTimelineTracks.value = [{ items: [] }] // Empty timeline
+    
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/api/job/job-123')) {
+        return Promise.resolve({
+          status: 'ready',
+          clip: {
+            asset_url: '/assets/clips/folder/clip-1/video.mp4',
+            duration: 10,
+            transcript: []
+          }
+        })
+      }
+      if (urlStr.includes('/timeline.json')) {
+        return Promise.resolve([
+          { items: [{ id: 'mock-item-from-file' }] }
+        ])
+      }
+      return Promise.resolve({})
+    }))
+
+    startPolling()
+    
+    await vi.advanceTimersByTimeAsync(2000)
+    
+    expect(mockTimelineTracks.value[0].items.length).toBe(1)
+    expect(mockTimelineTracks.value[0].items[0].id).toBe('mock-item-from-file')
+    
+    stopPolling()
+    vi.useRealTimers()
   })
 })

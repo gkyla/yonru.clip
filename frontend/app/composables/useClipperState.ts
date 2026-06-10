@@ -402,9 +402,9 @@ export const useClipperState = () => {
     loadDefaultThumbnailStyle()
 
     watch(
-      [folderName, clipId],
-      ([newFolder, newClipId]) => {
-        if (newFolder && newClipId) {
+      [folderName, clipId, jobStatus],
+      ([newFolder, newClipId, newStatus]) => {
+        if (newFolder && newClipId && newStatus === 'ready') {
           setLastClip(newFolder, newClipId, activeHook.value?.theme || activeHook.value?.title || 'Current Clip')
         }
       }
