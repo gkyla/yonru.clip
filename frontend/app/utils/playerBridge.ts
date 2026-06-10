@@ -1,10 +1,10 @@
-export interface PlayerBridge {
-  updateProps(props: any): void
-  seek(frame: number): void
-  play(): void
-  pause(): void
-  onMessage(listener: (data: any) => void): () => void
-  destroy(): void
+export abstract class PlayerBridge {
+  abstract updateProps(props: any): void
+  abstract seek(frame: number): void
+  abstract play(): void
+  abstract pause(): void
+  abstract onMessage(listener: (data: any) => void): () => void
+  abstract destroy(): void
 }
 
 export class IframePostMessageBridge implements PlayerBridge {
