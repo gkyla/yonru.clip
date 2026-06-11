@@ -25,6 +25,7 @@ const mockHooks = ref([])
 const mockJobId = ref('job-123')
 const mockFolderName = ref('')
 const mockClipId = ref('')
+const mockCheckSystemHealth = vi.fn().mockResolvedValue({})
 
 vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => ({
@@ -40,7 +41,8 @@ vi.mock('../../app/composables/useClipperState', () => ({
     hooks: mockHooks,
     jobId: mockJobId,
     folderName: mockFolderName,
-    clipId: mockClipId
+    clipId: mockClipId,
+    checkSystemHealth: mockCheckSystemHealth
   })
 }))
 
@@ -59,6 +61,7 @@ describe('HomeSidebar Component', () => {
     mockIsAnyPrerequisiteMissing.value = false
     mockFolderName.value = ''
     mockClipId.value = ''
+    mockCheckSystemHealth.mockClear()
     
     // Clear localStorage mock
     localStorage.clear()
@@ -451,5 +454,59 @@ describe('HomeSidebar Component', () => {
     (wrapper.vm as any).isCollapsed = false
     await wrapper.vm.$nextTick()
     expect(localStorage.getItem('yonru_sidebar_collapsed')).toBeNull()
+  })
+
+  it('dispatches checkSystemHealth on mount if systemHealth is null and not checking', () => {
+    mockSystemHealth.value = null
+    mockCheckingHealth.value = false
+
+    mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: true
+        }
+      }
+    })
+
+    expect(mockCheckSystemHealth).toHaveBeenCalledOnce()
+  })
+
+  it('does not dispatch checkSystemHealth on mount if systemHealth is already populated', () => {
+    mockSystemHealth.value = {
+      ffmpeg: { status: 'OK' },
+      node: { status: 'OK' },
+      python_env: { status: 'OK' },
+      gemini_api: { status: 'Configured' },
+      cookies: { status: 'Configured' }
+    }
+    mockCheckingHealth.value = false
+
+    mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: true
+        }
+      }
+    })
+
+    expect(mockCheckSystemHealth).not.toHaveBeenCalled()
   })
 })

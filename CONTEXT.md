@@ -91,6 +91,9 @@ A single source of truth configuration file (`shared/fonts_manifest.json`) that 
 ### Speech Transcriber
 A deep backend domain adapter wrapping the Whisper AI engine to perform high-fidelity audio transcription. It converts audio files into word-level timestamps and dynamically loads different model sizes (e.g. tiny, base, small, medium) on demand according to active configuration settings.
 
+### System Health Diagnostics
+A backend verification API (`/api/system-health`) and associated global frontend state representing the readiness and availability of system prerequisites (FFmpeg, Node.js, and the Python virtual environment). The global sidebar component displays these diagnostics and automatically dispatches a check request on client-side mount if the state is not yet loaded.
+
 ---
 
 ## API Configuration & Fallbacks

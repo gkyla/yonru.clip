@@ -746,6 +746,11 @@ onMounted(() => {
   window.addEventListener('mouseup', stopDrag)
   window.addEventListener('keydown', handleKeydown)
   
+  // Load system health if not yet fetched
+  if (import.meta.client && !state?.systemHealth?.value && !state?.checkingHealth?.value) {
+    state.checkSystemHealth()
+  }
+  
   // Open workspace and health accordions if prerequisites are missing
   if (state?.isAnyPrerequisiteMissing?.value) {
     isHealthOpen.value = true
