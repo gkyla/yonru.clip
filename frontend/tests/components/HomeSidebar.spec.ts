@@ -23,6 +23,8 @@ const mockFetchSavedHooks = vi.fn().mockResolvedValue({})
 const mockSavedHooks = ref([])
 const mockHooks = ref([])
 const mockJobId = ref('job-123')
+const mockFolderName = ref('')
+const mockClipId = ref('')
 
 vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => ({
@@ -36,7 +38,9 @@ vi.mock('../../app/composables/useClipperState', () => ({
     fetchSavedHooks: mockFetchSavedHooks,
     savedHooks: mockSavedHooks,
     hooks: mockHooks,
-    jobId: mockJobId
+    jobId: mockJobId,
+    folderName: mockFolderName,
+    clipId: mockClipId
   })
 }))
 
@@ -53,6 +57,8 @@ describe('HomeSidebar Component', () => {
     mockJobStatus.value = 'idle'
     mockSettingsScrollTarget.value = ''
     mockIsAnyPrerequisiteMissing.value = false
+    mockFolderName.value = ''
+    mockClipId.value = ''
     
     // Clear localStorage mock
     localStorage.clear()
@@ -256,6 +262,57 @@ describe('HomeSidebar Component', () => {
         tab: 'generated'
       }
     })
+    vi.useRealTimers()
+  })
+
+  it('disables the card, displays ON EDITING, and prevents click handlers when the clip is currently active in the editor', async () => {
+    vi.useFakeTimers()
+    const router = useRouter()
+    const pushSpy = vi.spyOn(router, 'push')
+    mockLoadReadyClipIntoEditor.mockClear()
+    pushSpy.mockClear()
+
+    // Mock active workspace state to match lastClip props
+    mockFolderName.value = 'test_folder'
+    mockClipId.value = '10_20_test'
+
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'editor',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false,
+        lastClip: { folder_name: 'test_folder', clip_id: '10_20_test', theme: 'Test Theme' },
+        lastVideo: { title: 'Test Video', thumbnail: 'thumb.jpg' }
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: true
+        }
+      }
+    })
+
+    const continueBtn = wrapper.findAll('button').find(b => b.text().includes('ON EDITING'))
+    expect(continueBtn).toBeDefined()
+    expect(continueBtn!.element.disabled).toBe(true)
+
+    // Also verify the collapsed workspace indicator button is disabled
+    const collapsedBtn = wrapper.findAll('button').find(b => b.html().includes('ri:movie-2-fill'))
+    expect(collapsedBtn).toBeDefined()
+    expect(collapsedBtn!.element.disabled).toBe(true)
+    
+    // Clicking should be a no-op / disabled
+    await continueBtn!.trigger('click')
+    await collapsedBtn!.trigger('click')
+    
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+
+    expect(mockLoadReadyClipIntoEditor).not.toHaveBeenCalled()
+    expect(pushSpy).not.toHaveBeenCalled()
     vi.useRealTimers()
   })
 
