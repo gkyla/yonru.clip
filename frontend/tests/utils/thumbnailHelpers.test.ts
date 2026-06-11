@@ -116,6 +116,7 @@ describe('thumbnailHelpers', () => {
       const result = mapThumbnailOverlays(input)
       expect(result).toHaveLength(1)
       expect(result[0]).toEqual({
+        id: '',
         text: 'hello',
         x: 200,
         y: 960,

@@ -7,6 +7,8 @@ export interface Hook {
   end: number
   duration?: number
   transcript_quote?: string
+  originalStart?: number
+  originalEnd?: number
 }
 
 export interface CachedVideo {
@@ -50,9 +52,9 @@ export interface TimelineTrackItem {
   content?: string
   font?: string
   fontSize?: number
-  fontWeight?: string
+  fontWeight?: string | number
   textTransform?: string
-  align?: string
+  align?: 'left' | 'center' | 'right'
   color?: string
   opacity?: number
   strokeColor?: string
@@ -160,6 +162,7 @@ export interface ReadyClip {
   theme?: string
   start_time?: number
   end_time?: number
+  asset_url?: string
 }
 
 export interface ThumbnailConfig {

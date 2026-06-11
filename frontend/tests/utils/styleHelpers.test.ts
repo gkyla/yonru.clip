@@ -22,7 +22,7 @@ describe('Style Helpers TDD', () => {
       fontSize: 50,
       fontWeight: 700,
       textTransform: 'uppercase',
-      align: 'left',
+      align: 'left' as const,
       lineHeight: 1.2,
       letterSpacing: 2,
       color: '#FF0000',
