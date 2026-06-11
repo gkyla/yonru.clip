@@ -1,5 +1,6 @@
 <template>
-  <div v-if="state" class="flex h-screen w-full bg-[#060608] overflow-hidden">
+  <div class="h-screen w-full overflow-hidden bg-[#060608] relative">
+    <div v-if="state" class="flex h-screen w-full bg-[#060608] overflow-hidden">
     <!-- Navigation Sidebar -->
     <!-- Blacklist Settings Modal -->
     <div v-if="showBlacklistSettings" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -39,7 +40,7 @@
         leave-from-class="opacity-100 scale-100"
         leave-to-class="opacity-0 scale-95"
       >
-        <div v-if="state?.renderStatus?.value === 'rendering'" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center text-white">
+        <div v-show="state?.renderStatus?.value === 'rendering'" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center text-white">
           <div class="relative mb-8">
             <div class="w-24 h-24 rounded-full border-4 border-accent-500/20 border-t-accent-500 animate-spin shadow-[0_0_30px_rgba(207,255,80,0.2),0_0_15px_rgba(207,255,80,0.1)_inset]"></div>
             <Icon name="ri:movie-2-fill" class="absolute inset-0 m-auto text-3xl text-accent-500 animate-pulse" />
@@ -83,10 +84,10 @@
              leave-from-class="opacity-100"
              leave-to-class="opacity-0"
            >
-             <div v-if="isPipelineActive" class="absolute inset-0 z-50 bg-[#060608]/95 backdrop-blur-xl flex flex-col items-center justify-center text-center">
+             <div v-show="isPipelineActive" class="absolute inset-0 z-50 bg-[#060608]/95 backdrop-blur-xl flex flex-col items-center justify-center text-center">
                <!-- Ambient glow -->
                <div class="absolute w-[50vw] h-[50vw] rounded-full blur-[160px] -top-1/3 -right-1/3 mix-blend-screen transition-colors duration-1000"
-                 :class="pipelineStep === 'cutting' ? 'bg-sky-500/8' : pipelineStep === 'transcribing' ? 'bg-violet-500/8' : state.isMediaLoading.value ? 'bg-accent-500/8' : 'bg-accent-500/10'"
+                 :class="pipelineStep === 'cutting' ? 'bg-sky-500/8' : pipelineStep === 'transcribing' ? 'bg-violet-500/8' : state.isMediaLoading?.value ? 'bg-accent-500/8' : 'bg-accent-500/10'"
                ></div>
                <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
 
@@ -119,10 +120,10 @@
 
                <!-- Title -->
                 <h2 class="text-2xl font-black tracking-tight text-white mb-2 z-10">
-                  {{ pipelineStep === 'cutting' ? 'Cutting Segment' : pipelineStep === 'transcribing' ? `Transcribing (${state.whisperModel.value.toUpperCase()})` : state.isMediaLoading.value ? 'Loading Media...' : 'Almost Ready' }}
+                  {{ pipelineStep === 'cutting' ? 'Cutting Segment' : pipelineStep === 'transcribing' ? `Transcribing (${(state.whisperModel?.value || '').toUpperCase()})` : state.isMediaLoading?.value ? 'Loading Media...' : 'Almost Ready' }}
                 </h2>
                <p class="text-slate-500 text-sm max-w-sm mb-10 z-10">
-                 {{ state.isMediaLoading.value ? 'Synchronizing assets and buffering video stream...' : pipelineStep === 'cutting' ? 'Extracting clip from cached 1080p video via local FFmpeg...' : pipelineStep === 'transcribing' ? `Running Whisper AI ${state.whisperModel.value.toUpperCase()} for high-precision word-level timestamps...` : 'Finalizing assets and preparing editor...' }}
+                 {{ state.isMediaLoading?.value ? 'Synchronizing assets and buffering video stream...' : pipelineStep === 'cutting' ? 'Extracting clip from cached 1080p video via local FFmpeg...' : pipelineStep === 'transcribing' ? `Running Whisper AI ${(state.whisperModel?.value || '').toUpperCase()} for high-precision word-level timestamps...` : 'Finalizing assets and preparing editor...' }}
                </p>
 
                <!-- Step indicators -->
@@ -546,6 +547,7 @@
         <BlacklistSettings @close="showBlacklistSettings = false" />
      </div>
   </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -659,6 +661,7 @@ onMounted(async () => {
 onActivated(() => {
   if (hasBeenMounted.value) {
     console.log('[yonru] Editor activated (returned from cache)')
+    sidebarView.value = 'editor'
     // With keepalive, onMounted only fires once.
     // Clear navigation overlay on subsequent visits.
     state.isNavigatingToEditor.value = false

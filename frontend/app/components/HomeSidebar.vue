@@ -471,9 +471,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 const state = useClipperState()
 
 const isCurrentClipActive = computed(() => {
-  if (props.activeView !== 'editor' || !props.lastClip) return false
-  const folder = props.lastClip.folder || props.lastClip.folder_name
-  return state.folderName.value === folder && state.clipId.value === props.lastClip.clip_id
+  return props.activeView === 'editor'
 })
 
 const isSystemOK = computed(() => {
