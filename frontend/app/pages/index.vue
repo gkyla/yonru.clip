@@ -248,7 +248,7 @@
                 ></video>
                 
                 <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-lg text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md border border-white/10 group-hover:opacity-0 transition-opacity duration-300">
-                  {{ formatSec(clip.duration) }}
+                  {{ formatSec(clip.duration ?? 0) }}
                 </div>
                 
                 <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -806,7 +806,7 @@
 
                 <div class="mt-8 pt-6 border-t border-surface-border/50">
                    <button 
-                     @click="() => { selectHook(selectedModalHook); selectedModalHook = null; }" 
+                     @click="() => { if (selectedModalHook) { selectHook(selectedModalHook); selectedModalHook = null; } }" 
                      class="w-full py-4 bg-accent-500 hover:bg-accent-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(207,255,80,0.2)] hover:shadow-[0_0_30px_rgba(207,255,80,0.4)] active:scale-95 flex items-center justify-center gap-2"
                    >
                      <Icon name="ri:scissors-cut-fill" class="text-xl" />
@@ -1078,7 +1078,7 @@
                           @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = 0; }"
                         ></video>
                         <div class="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[9px] text-white font-mono font-bold tracking-widest backdrop-blur-md border border-white/10">
-                          {{ formatSec(clip.duration) }}
+                          {{ formatSec(clip.duration ?? 0) }}
                         </div>
 
                         <button 
@@ -1173,16 +1173,18 @@
 </template>
 
 <script setup lang="ts">
+import type { CachedVideo, Hook, ReadyClip, PromptTemplate, WhisperModelOption } from '../types/clipper'
+
 const state = useClipperState()
 const API_BASE = 'http://localhost:8000'
 
 const isPromptDropdownOpen = ref(false)
 const promptDropdownRef = ref<HTMLElement | null>(null)
-const hoveredPrompt = ref<any | null>(null)
+const hoveredPrompt = ref<PromptTemplate | null>(null)
 
 const activeWhisperMetadata = computed(() => {
   const modelId = state.whisperModel.value || 'base'
-  return state.whisperModels.find((m: any) => m.id === modelId) || state.whisperModels[1]
+  return state.whisperModels.find((m: WhisperModelOption) => m.id === modelId) || state.whisperModels[1]
 })
 
 function handleDocumentClick(e: MouseEvent) {
@@ -1206,11 +1208,11 @@ const {
   thumbnailEnabled, contentAudit, customBlacklist,
   videoTitle, lastAccessedClip
 } = state
-const readyClips = useState<any[]>('readyClips', () => [])
+const readyClips = useState<ReadyClip[]>('readyClips', () => [])
 const isReadyClipsLoading = ref(false)
 const activeTab = ref<'generated' | 'saved'>('generated')
 const hoveredHookIndex = ref<number | null>(null)
-const selectedModalHook = ref<any | null>(null)
+const selectedModalHook = ref<Hook | null>(null)
 const modalVideoPlayer = ref<HTMLVideoElement | null>(null)
 
 function restoreModalVolume(el: HTMLVideoElement | null) {
@@ -1460,9 +1462,9 @@ function resetToDefaultDuration() {
 }
 
 const deleteConfirmModalOpen = ref(false)
-const videoToDelete = ref<any | null>(null)
+const videoToDelete = ref<CachedVideo | null>(null)
 const clipDeleteConfirmModalOpen = ref(false)
-const clipToDelete = ref<any | null>(null)
+const clipToDelete = ref<ReadyClip | null>(null)
 const showAllReadyClips = ref(false)
 const loadedClips = ref(new Set<string>())
 
@@ -1481,7 +1483,7 @@ function handleAnalyzeClick() {
   if (!url) return
   
   const videoId = extractYoutubeId(url)
-  if (videoId && cachedVideos.value.some((v: any) => v.video_id === videoId)) {
+  if (videoId && cachedVideos.value.some((v: CachedVideo) => v.video_id === videoId)) {
     duplicateVideoId.value = videoId
     duplicateModalOpen.value = true
   } else {
@@ -1556,7 +1558,7 @@ const selectedClips = ref(new Set<string>())
 const isBatchDeleting = ref(false)
 const showSuccessState = ref(false)
 const lastDeletedCount = ref(0)
-let successTimeout: any = null
+let successTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Pagination for Ready Clips Modal
 const clipsCurrentPage = ref(1)
@@ -1592,7 +1594,7 @@ function clearSelection() {
   selectedClips.value = new Set()
 }
 
-function handleClipClick(clip: any) {
+function handleClipClick(clip: ReadyClip) {
   if (isManageMode.value) {
     const next = new Set(selectedClips.value)
     if (next.has(clip.clip_id)) {
@@ -1602,7 +1604,7 @@ function handleClipClick(clip: any) {
     }
     selectedClips.value = next
   } else {
-    const parentVid = cachedVideos.value.find((v: any) => v.folder_name === clip.folder_name)
+    const parentVid = cachedVideos.value.find((v: CachedVideo) => v.folder_name === clip.folder_name)
     if (parentVid) setLastAccessed(parentVid.video_id)
     loadReadyClip(clip)
   }
@@ -1642,7 +1644,7 @@ async function deleteSelectedClips() {
     selectedClips.value = new Set()
     isManageMode.value = false
     await fetchReadyClips()
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Failed to delete clips batch', e)
     alert('Failed to delete some clips. Please try again.')
   } finally {
@@ -1658,24 +1660,26 @@ function resetToStart() {
   state.youtubeUrl.value = ''
 }
 
-function isHookSaved(hook: any) {
-  return state.savedHooks.value.some((h: any) => Math.abs(h.start - hook.start) < 0.1 && Math.abs(h.end - hook.end) < 0.1)
+function isHookSaved(hook: Hook) {
+  return state.savedHooks.value.some((h: Hook) => Math.abs(h.start - hook.start) < 0.1 && Math.abs(h.end - hook.end) < 0.1)
 }
 
-function isHookRendered(hook: any) {
+function isHookRendered(hook: Hook) {
   if (!readyClips.value?.length || !state.folderName.value || !hook) return false
   return readyClips.value.some(c => {
     if (c.folder_name !== state.folderName.value) return false
     const parts = c.clip_id.split('_')
-    if (parts.length < 2) return false
-    const cStart = parseFloat(parts[0])
-    const cEnd = parseFloat(parts[1])
+    const part0 = parts[0]
+    const part1 = parts[1]
+    if (part0 === undefined || part1 === undefined) return false
+    const cStart = parseFloat(part0)
+    const cEnd = parseFloat(part1)
     return Math.abs(cStart - hook.start) < 1.1 && Math.abs(cEnd - hook.end) < 1.1
   })
 }
 
-async function toggleSaveHook(hook: any) {
-  const existing = state.savedHooks.value.find((h: any) => Math.abs(h.start - hook.start) < 0.1 && Math.abs(h.end - hook.end) < 0.1)
+async function toggleSaveHook(hook: Hook) {
+  const existing = state.savedHooks.value.find((h: Hook) => Math.abs(h.start - hook.start) < 0.1 && Math.abs(h.end - hook.end) < 0.1)
   if (existing) {
     if (existing._id) {
       await state.deleteSavedHook(existing._id)
@@ -1686,7 +1690,7 @@ async function toggleSaveHook(hook: any) {
 }
 
 const currentPrompt = computed(() => {
-  return state.promptsList.value.find((p: any) => p.id === state.selectedPrompt.value)
+  return state.promptsList.value.find((p: PromptTemplate) => p.id === state.selectedPrompt.value)
 })
 
 const isProcessing = computed(() => {
@@ -1737,7 +1741,7 @@ async function analyzeCached(videoId: string, force = false) {
   state.activeHook.value = null // Reset active hook
 
   try {
-    const currentPrompt = state.promptsList.value.find((p: any) => p.id === state.selectedPrompt.value)
+    const currentPrompt = state.promptsList.value.find((p: PromptTemplate) => p.id === state.selectedPrompt.value)
     const res = await $fetch<{ job_id: string; status: string }>(`${API_BASE}/api/analyze-cached/${videoId}?force=${force}`, { 
       method: 'POST',
       body: { 
@@ -1749,13 +1753,13 @@ async function analyzeCached(videoId: string, force = false) {
     state.jobId.value = res.job_id
     state.jobStatus.value = res.status
     state.startPolling()
-  } catch (e: any) {
+  } catch (e: unknown) {
     state.jobStatus.value = 'error'
-    state.jobError.value = e.message || 'Failed to analyze cached video'
+    state.jobError.value = e instanceof Error ? e.message : String(e)
   }
 }
 
-function confirmRedownload(vid: any) {
+function confirmRedownload(vid: CachedVideo) {
   if (window.confirm(`Are you sure you want to re-download "${vid.title}"? This will replace the existing file.`)) {
     deleteThenRedownload(vid.folder_name, vid.video_id)
   }
@@ -1767,12 +1771,12 @@ async function deleteThenRedownload(folderName: string, videoId: string) {
     state.youtubeUrl.value = `https://youtube.com/watch?v=${videoId}`
     state.analyzeUrl()
     await state.fetchCached()
-  } catch (e: any) {
-    state.jobError.value = e.message || 'Failed to re-download'
+  } catch (e: unknown) {
+    state.jobError.value = e instanceof Error ? e.message : String(e)
   }
 }
 
-function confirmDelete(vid: any) {
+function confirmDelete(vid: CachedVideo) {
   videoToDelete.value = vid
   deleteConfirmModalOpen.value = true
 }
@@ -1789,9 +1793,10 @@ async function deleteVideo(folderName: string) {
     
     await state.fetchCached()
     state.showToast('Video source successfully deleted.', 'success')
-  } catch (e: any) {
-    state.jobError.value = e.message || 'Failed to delete'
-    state.showToast(e.message || 'Failed to delete', 'error')
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    state.jobError.value = msg
+    state.showToast(msg, 'error')
   } finally {
     deleteConfirmModalOpen.value = false
     videoToDelete.value = null
@@ -1803,7 +1808,7 @@ async function fetchReadyClips() {
     isReadyClipsLoading.value = true
   }
   try {
-    const res = await $fetch<{ clips: any[] }>(`${API_BASE}/api/ready-clips`)
+    const res = await $fetch<{ clips: ReadyClip[] }>(`${API_BASE}/api/ready-clips`)
     readyClips.value = res.clips || []
   } catch { 
     if (readyClips.value.length === 0) readyClips.value = [] 
@@ -1812,7 +1817,7 @@ async function fetchReadyClips() {
   }
 }
 
-async function loadReadyClip(clip: any) {
+async function loadReadyClip(clip: ReadyClip) {
   const router = useRouter()
   console.log('[yonru] Loading ready clip:', clip.clip_id, 'from folder:', clip.folder_name)
   showAllReadyClips.value = false
@@ -1833,15 +1838,17 @@ async function loadReadyClip(clip: any) {
     let tab = 'generated'
     
     const parts = clip.clip_id.split('_')
-    if (parts.length >= 2) {
-      const clipStart = parseFloat(parts[0]) || 0
-      const clipEnd = parseFloat(parts[1]) || 0
+    const part0 = parts[0]
+    const part1 = parts[1]
+    if (part0 !== undefined && part1 !== undefined) {
+      const clipStart = parseFloat(part0) || 0
+      const clipEnd = parseFloat(part1) || 0
       
       // Ensure saved hooks are loaded
       await state.fetchSavedHooks()
       
       // Look in saved hooks first
-      const savedIdx = state.savedHooks.value.findIndex((h: any) => {
+      const savedIdx = state.savedHooks.value.findIndex((h: Hook) => {
         const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
         const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
         return Math.abs(hStart - clipStart) < 1.1 && Math.abs(hEnd - clipEnd) < 1.1
@@ -1852,7 +1859,7 @@ async function loadReadyClip(clip: any) {
         tab = 'saved'
       } else {
         // Look in generated hooks
-        const genIdx = state.hooks.value.findIndex((h: any) => {
+        const genIdx = state.hooks.value.findIndex((h: Hook) => {
           const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
           const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
           return Math.abs(hStart - clipStart) < 1.1 && Math.abs(hEnd - clipEnd) < 1.1
@@ -1883,7 +1890,7 @@ async function loadReadyClip(clip: any) {
   }
 }
 
-function confirmDeleteClip(clip: any) {
+function confirmDeleteClip(clip: ReadyClip) {
   clipToDelete.value = clip
   clipDeleteConfirmModalOpen.value = true
 }
@@ -1927,9 +1934,10 @@ async function executeDeleteClip() {
       state.showToast(`${count} clips successfully deleted.`, 'success')
       await fetchReadyClips()
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Failed to delete clip(s)', e)
-    state.showToast(e.message || 'Failed to delete clip(s)', 'error')
+    const msg = e instanceof Error ? e.message : String(e)
+    state.showToast(msg, 'error')
   } finally {
     clipDeleteConfirmModalOpen.value = false
     clipToDelete.value = null
@@ -1937,7 +1945,7 @@ async function executeDeleteClip() {
   }
 }
 
-async function selectHook(hook: any) {
+async function selectHook(hook: Hook) {
   if (isProcessing.value) return
   isNavigatingToEditor.value = true
   const minWait = new Promise(resolve => setTimeout(resolve, 600))

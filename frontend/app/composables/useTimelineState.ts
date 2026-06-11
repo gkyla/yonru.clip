@@ -213,7 +213,7 @@ export const useTimelineState = () => {
       fontSize: 80,
       fontWeight: subtitleFontWeight.value ? String(subtitleFontWeight.value) : '900',
       textTransform: subtitleTextTransform.value || 'uppercase',
-      align: 'center',
+      align: 'center' as const,
       color: subtitleTextColor.value || '#FFFFFF',
       opacity: 1,
       strokeColor: subtitleStrokeColor.value || '#000000',

@@ -552,6 +552,7 @@
 import { ref, computed, watch, onMounted, nextTick, onActivated, onDeactivated } from 'vue'
 import { groupTranscript, updateSegmentText, updateSegmentStart, updateSegmentDuration, redistributeTranscript } from '../utils/subtitleChunker'
 import type { ChunkerSegment } from '../utils/subtitleChunker'
+import type { Hook, ReadyClip } from '../types/clipper'
 const state = useClipperState()
 const route = useRoute()
 const router = useRouter()
@@ -564,7 +565,7 @@ const isCurrentHookSaved = computed(() => {
   const aStart = typeof active.start === 'string' ? parseFloat(active.start) : active.start
   const aEnd = typeof active.end === 'string' ? parseFloat(active.end) : active.end
 
-  return state.savedHooks.value.some((h: any) => {
+  return state.savedHooks.value.some((h: Hook) => {
     const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
     const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
     return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
@@ -572,26 +573,28 @@ const isCurrentHookSaved = computed(() => {
 })
 
 // Read shared readyClips from dashboard (populated via useState in index.vue)
-const readyClips = useState<any[]>('readyClips', () => [])
+const readyClips = useState<ReadyClip[]>('readyClips', () => [])
 const API_BASE = 'http://localhost:8000'
 
 async function fetchReadyClips() {
   try {
-    const res = await $fetch<{ clips: any[] }>(`${API_BASE}/api/ready-clips`)
+    const res = await $fetch<{ clips: ReadyClip[] }>(`${API_BASE}/api/ready-clips`)
     readyClips.value = res.clips || []
   } catch (e) {
     console.error('[yonru] Failed to fetch ready clips in background:', e)
   }
 }
 
-function isHookRendered(hook: any) {
+function isHookRendered(hook: Hook | null) {
   if (!readyClips.value?.length || !state.folderName.value || !hook) return false
   return readyClips.value.some(c => {
     if (c.folder_name !== state.folderName.value) return false
     const parts = c.clip_id.split('_')
-    if (parts.length < 2) return false
-    const cStart = parseFloat(parts[0])
-    const cEnd = parseFloat(parts[1])
+    const part0 = parts[0]
+    const part1 = parts[1]
+    if (part0 === undefined || part1 === undefined) return false
+    const cStart = parseFloat(part0)
+    const cEnd = parseFloat(part1)
     // Use 1.1s tolerance because the backend uses int() which truncates decimals (e.g. 15.9 -> 15)
     return Math.abs(cStart - hook.start) < 1.1 && Math.abs(cEnd - hook.end) < 1.1
   })
@@ -697,7 +700,7 @@ function restoreStateFromQuery() {
     panelTab.value = tab as any
     
     // We need to wait for hooks to load before we can select the active one
-    let stopWatcher: any = null
+    let stopWatcher: (() => void) | null = null
     stopWatcher = watch([() => state?.jobStatus?.value, () => state?.hooks?.value, () => state?.savedHooks?.value], () => {
       const status = state?.jobStatus?.value || 'idle'
       const hooksAvailable = (state?.hooks?.value?.length || 0) > 0 || (state?.savedHooks?.value?.length || 0) > 0
@@ -721,7 +724,7 @@ function restoreStateFromQuery() {
   }
 }
 
-async function selectSidebarHook(hook: any) {
+async function selectSidebarHook(hook: Hook) {
   if (state.jobStatus.value === 'cutting') return
   
   // Explicitly save the current active hook settings before switching!
@@ -738,15 +741,17 @@ async function selectSidebarHook(hook: any) {
   const matchingClip = readyClips.value?.find(c => {
     if (c.folder_name !== state.folderName.value) return false
     const parts = c.clip_id.split('_')
-    if (parts.length < 2) return false
-    const cStart = parseFloat(parts[0])
-    const cEnd = parseFloat(parts[1])
+    const part0 = parts[0]
+    const part1 = parts[1]
+    if (part0 === undefined || part1 === undefined) return false
+    const cStart = parseFloat(part0)
+    const cEnd = parseFloat(part1)
     return Math.abs(cStart - hook.start) < 1.1 && Math.abs(cEnd - hook.end) < 1.1
   })
 
   // Update route query silently so refresh works
-  const query: any = {
-    ...route.query,
+  const query: Record<string, string | number | (string | null)[] | null> = {
+    ...route.query as Record<string, string | number | (string | null)[]>,
     hook_index: hookIndex >= 0 ? hookIndex : 0,
     tab: panelTab.value
   }
@@ -793,9 +798,9 @@ const activeSegIdx = computed(() => {
     ? relativeTime + offsetSec
     : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec
     
-  return visibleSegments.value.findIndex((s: any) => 
+  return visibleSegments.value.findIndex((s: ChunkerSegment) => 
     searchTime >= s.start && 
-    searchTime < s.end
+    searchTime < (s.end ?? 0)
   )
 })
 
@@ -869,7 +874,7 @@ const isPipelineActive = computed(() => ['cutting', 'transcribing'].includes(sta
 const editingSegIdx = ref(-1)
 const editSegText = ref('')
 const isHoveringBulk = ref(false)
-let autoScrollResumeTimeout: any = null
+let autoScrollResumeTimeout: ReturnType<typeof setTimeout> | null = null
 
 function handleBulkMouseEnter() {
   isHoveringBulk.value = true
@@ -883,12 +888,12 @@ function handleBulkMouseLeave() {
   }, 2000)
 }
 
-function startEdit(seg: any, idx: number) {
+function startEdit(seg: ChunkerSegment, idx: number) {
   editingSegIdx.value = idx
   editSegText.value = seg.text || ''
 }
 
-function commitEdit(seg: any, idx: number) {
+function commitEdit(seg: ChunkerSegment, idx: number) {
   if (editingSegIdx.value !== idx) return
   const trimmed = editSegText.value.trim()
   seg.text = trimmed
@@ -934,7 +939,7 @@ const activeWordIdxInSeg = computed(() => {
 
 // Moved up to fix initialization order
 
-function isActiveHook(hook: any) {
+function isActiveHook(hook: Hook) {
   if (!state?.activeHook?.value) return false
   const active = state.activeHook.value
   const hStart = typeof hook.start === 'string' ? parseFloat(hook.start) : hook.start
@@ -966,9 +971,12 @@ function jumpTo(time: number) {
   }
 }
 
-function autoGrow(e: any) {
-  e.target.style.height = 'auto'
-  e.target.style.height = e.target.scrollHeight + 'px'
+function autoGrow(e: Event) {
+  const target = e.target as HTMLTextAreaElement
+  if (target) {
+    target.style.height = 'auto'
+    target.style.height = target.scrollHeight + 'px'
+  }
 }
 async function handleSave(isSilent = false) {
   const silent = isSilent === true

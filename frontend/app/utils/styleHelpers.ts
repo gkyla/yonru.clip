@@ -1,3 +1,5 @@
+import type { TimelineTrackItem } from '../types/clipper'
+
 /**
  * Style Helpers — pure-function extraction from useInteractiveText composable.
  */
@@ -13,7 +15,7 @@ export function hexToRgba(hex: string, opacity: number): string {
   return `rgba(${r}, ${g}, ${b}, ${opacity})`
 }
 
-export function getEditingStyle(item: any) {
+export function getEditingStyle(item: Partial<TimelineTrackItem>) {
   const showBackground = item.showBackground
   const bgColor = item.backgroundColor || '#000000'
   const bgOpacity = item.showBackground ? (item.backgroundOpacity ?? 0.7) : 0

@@ -1,7 +1,9 @@
+import type { ThumbnailTextOverlay, DefaultThumbnailStyle } from '../types/clipper'
+
 export interface ThumbnailTextStyle {
   fontSize: number
   fontFamily: string
-  fontWeight: number
+  fontWeight: number | string
   color: string
   strokeColor: string
   strokeWidth: number
@@ -15,24 +17,24 @@ export interface ThumbnailTextStyle {
 }
 
 export function resolveThumbnailTextStyle(
-  firstOverlay: any,
-  defaultStyle: any
+  firstOverlay: Partial<ThumbnailTextOverlay> | null | undefined,
+  defaultStyle: DefaultThumbnailStyle | null | undefined
 ): ThumbnailTextStyle {
   if (firstOverlay) {
     return {
-      fontSize: firstOverlay.fontSize,
-      fontFamily: firstOverlay.fontFamily,
-      fontWeight: firstOverlay.fontWeight,
-      color: firstOverlay.color,
-      strokeColor: firstOverlay.strokeColor,
-      strokeWidth: firstOverlay.strokeWidth,
-      showStroke: firstOverlay.showStroke,
-      textTransform: firstOverlay.textTransform,
-      rotation: firstOverlay.rotation,
-      showBackground: firstOverlay.showBackground,
-      backgroundColor: firstOverlay.backgroundColor,
-      backgroundOpacity: firstOverlay.backgroundOpacity,
-      backgroundPadding: firstOverlay.backgroundPadding
+      fontSize: firstOverlay.fontSize ?? 100,
+      fontFamily: firstOverlay.fontFamily ?? 'Montserrat',
+      fontWeight: firstOverlay.fontWeight ?? 900,
+      color: firstOverlay.color ?? '#FFFFFF',
+      strokeColor: firstOverlay.strokeColor || '#000000',
+      strokeWidth: firstOverlay.strokeWidth || 0,
+      showStroke: firstOverlay.showStroke || false,
+      textTransform: firstOverlay.textTransform || 'none',
+      rotation: firstOverlay.rotation || 0,
+      showBackground: firstOverlay.showBackground || false,
+      backgroundColor: firstOverlay.backgroundColor || '#000000',
+      backgroundOpacity: firstOverlay.backgroundOpacity || 0,
+      backgroundPadding: firstOverlay.backgroundPadding || 0
     }
   }
 
@@ -89,24 +91,26 @@ export function calculateNextOverlayPosition(
   return { x: newX, y: newY }
 }
 
-export function mapThumbnailOverlays(overlays?: any[]): any[] {
+export function mapThumbnailOverlays(overlays?: Partial<ThumbnailTextOverlay>[]): ThumbnailTextOverlay[] {
   if (!overlays) return []
-  return overlays.map((o: any) => ({
-    x: 540,
-    y: 960,
-    fontSize: 100,
-    fontFamily: 'Montserrat',
-    fontWeight: 900,
-    color: '#FFFFFF',
-    strokeColor: '#000000',
-    strokeWidth: 5,
-    showStroke: true,
-    textTransform: 'uppercase',
-    rotation: 0,
-    showBackground: false,
-    backgroundColor: '#000000',
-    backgroundOpacity: 0.7,
-    backgroundPadding: 20,
+  return overlays.map((o: Partial<ThumbnailTextOverlay>): ThumbnailTextOverlay => ({
+    id: o.id || '',
+    text: o.text || '',
+    x: o.x ?? 540,
+    y: o.y ?? 960,
+    fontSize: o.fontSize ?? 100,
+    fontFamily: o.fontFamily ?? 'Montserrat',
+    fontWeight: o.fontWeight ?? 900,
+    color: o.color ?? '#FFFFFF',
+    strokeColor: o.strokeColor ?? '#000000',
+    strokeWidth: o.strokeWidth ?? 5,
+    showStroke: o.showStroke ?? true,
+    textTransform: o.textTransform ?? 'uppercase',
+    rotation: o.rotation ?? 0,
+    showBackground: o.showBackground ?? false,
+    backgroundColor: o.backgroundColor ?? '#000000',
+    backgroundOpacity: o.backgroundOpacity ?? 0.7,
+    backgroundPadding: o.backgroundPadding ?? 20,
     ...o
   }))
 }
