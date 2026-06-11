@@ -509,4 +509,86 @@ describe('HomeSidebar Component', () => {
 
     expect(mockCheckSystemHealth).not.toHaveBeenCalled()
   })
+
+  it('instantly disables workspace card and icon when activeView is editor even if state folder/clip are not set yet', async () => {
+    vi.useFakeTimers()
+    const router = useRouter()
+    const pushSpy = vi.spyOn(router, 'push')
+    mockLoadReadyClipIntoEditor.mockClear()
+    pushSpy.mockClear()
+
+    // Empty state (simulating reload tick before params are restored)
+    mockFolderName.value = ''
+    mockClipId.value = ''
+
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'editor',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false,
+        lastClip: { folder_name: 'test_folder', clip_id: '10_20_test', theme: 'Test Theme' },
+        lastVideo: { title: 'Test Video', thumbnail: 'thumb.jpg' }
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: true
+        }
+      }
+    })
+
+    const continueBtn = wrapper.findAll('button').find(b => b.text().includes('ON EDITING'))
+    expect(continueBtn).toBeDefined()
+    expect(continueBtn!.element.disabled).toBe(true)
+
+    const collapsedBtn = wrapper.findAll('button').find(b => b.html().includes('ri:movie-2-fill'))
+    expect(collapsedBtn).toBeDefined()
+    expect(collapsedBtn!.element.disabled).toBe(true)
+
+    // Clicking should do nothing
+    await continueBtn!.trigger('click')
+    await collapsedBtn!.trigger('click')
+
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+
+    expect(mockLoadReadyClipIntoEditor).not.toHaveBeenCalled()
+    expect(pushSpy).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('enables the workspace card and icon when navigating back to home even if state matches the last clip', () => {
+    mockFolderName.value = 'test_folder'
+    mockClipId.value = '10_20_test'
+
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false,
+        lastClip: { folder_name: 'test_folder', clip_id: '10_20_test', theme: 'Test Theme' },
+        lastVideo: { title: 'Test Video', thumbnail: 'thumb.jpg' }
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: true
+        }
+      }
+    })
+
+    const continueBtn = wrapper.findAll('button').find(b => b.text().includes('CONTINUE EDITING'))
+    expect(continueBtn).toBeDefined()
+    expect(continueBtn!.element.disabled).toBe(false)
+
+    const collapsedBtn = wrapper.findAll('button').find(b => b.html().includes('ri:movie-2-fill'))
+    expect(collapsedBtn).toBeDefined()
+    expect(collapsedBtn!.element.disabled).toBe(false)
+  })
 })

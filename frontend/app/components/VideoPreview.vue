@@ -226,13 +226,13 @@
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
       >
-        <div v-if="(state.thumbnailEditMode.value || isInThumbnailWindow) && state.thumbnailUrl.value" 
+        <div v-show="(state.thumbnailEditMode.value || isInThumbnailWindow) && state.thumbnailUrl.value" 
              class="absolute inset-0 z-[50] bg-black select-none"
              :class="isInThumbnailWindow ? (isThumbBgDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'"
         >
           <!-- Thumbnail Background Image -->
           <img 
-            :src="state.thumbnailUrl.value" 
+            :src="state.thumbnailUrl.value ?? undefined" 
             class="absolute inset-0 w-full h-full object-cover select-none"
             :style="{ objectPosition: `${state.thumbnailXOffset.value}% center` }"
           />
@@ -341,7 +341,7 @@
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
       >
-        <div v-if="state.isCapturingThumbnail.value" class="absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-3xl">
+        <div v-show="state.isCapturingThumbnail.value" class="absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-3xl">
           <div class="flex flex-col items-center justify-center bg-black/60 border border-white/10 p-12 rounded-[48px] max-w-[650px] shadow-[0_24px_50px_-12px_rgba(0,0,0,0.8)]">
             <!-- Spinner Container -->
             <div class="relative w-32 h-32 flex items-center justify-center mb-8">
