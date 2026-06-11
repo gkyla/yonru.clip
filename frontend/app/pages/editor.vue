@@ -551,6 +551,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick, onActivated, onDeactivated } from 'vue'
 import { groupTranscript, updateSegmentText, updateSegmentStart, updateSegmentDuration, redistributeTranscript } from '../utils/subtitleChunker'
+import type { ChunkerSegment } from '../utils/subtitleChunker'
 const state = useClipperState()
 const route = useRoute()
 const router = useRouter()
@@ -775,7 +776,7 @@ const isHoveringSubtitles = ref(false)
 const absoluteTime = computed(() => state?.currentTime?.value || 0)
 const visibleSegments = computed(() => {
   const flatWords = state?.fullTranscript?.value || []
-  return groupTranscript(flatWords, state.subtitleMode.value)
+  return groupTranscript(flatWords as unknown as ChunkerSegment[], state.subtitleMode.value)
 })
 
 const activeSegIdx = computed(() => {

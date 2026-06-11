@@ -83,12 +83,25 @@ export interface TimelineTrack {
   items: TimelineTrackItem[]
 }
 
+export interface TranscriptWord {
+  text: string
+  start: number
+  duration: number
+  end?: number
+}
+
 export interface TranscriptSegment {
   id?: string
   text: string
   start: number
   duration: number
-  words?: any[]
+  words?: TranscriptWord[]
+}
+
+export interface DeepAuditResult {
+  riskLevel: string
+  violations: string[]
+  suggestions: string
 }
 
 export interface PromptTemplate {

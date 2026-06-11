@@ -9,6 +9,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "typecheck": "nuxi typecheck",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "cd .. && husky frontend/.husky"
@@ -27,6 +28,7 @@
     "wavesurfer.js": "^7.12.6"
   },
   "devDependencies": {
+    "@nuxt/eslint": "^1.16.0",
     "@nuxt/test-utils": "^3.15.4",
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^17.1.8",
