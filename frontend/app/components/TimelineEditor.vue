@@ -140,7 +140,7 @@
             </div>
 
             <!-- Flagged markers layer (only for subtitle track) -->
-            <template v-if="track.id === 'subtitles' && state.contentAudit.value?.flaggedSegments">
+            <template v-if="track.id === 'text' && state.contentAudit.value?.flaggedSegments">
                <div v-for="(v, i) in state.contentAudit.value.flaggedSegments" :key="'v-'+i"
                     class="absolute top-0 bottom-0 bg-rose-500/20 border-x border-rose-500/40 pointer-events-none z-10"
                     :style="{ left: getMarkerLeft(v.start) + 'px', width: (v.duration * pxPerSec) + 'px' }">

@@ -850,7 +850,7 @@ const groupedSegments = computed(() => {
     const words = segText.split(/\s+/)
     if (words.length === 1) {
       flatWords.push({
-        text: words[0],
+        text: words[0] || '',
         start: seg.start,
         duration: seg.duration,
         end: seg.start + seg.duration

@@ -167,19 +167,19 @@ describe('useTimelineState History Tracking - Undo/Redo', () => {
 
     // 2. Perform a Split at time 10:
     commitToHistory() // Start of splitSelected
-    const originalItem = timelineTracks.value[0].items[0]
+    const originalItem = timelineTracks.value[0]!.items[0]!
     originalItem.duration = 10
     addTimelineItem('video', { id: 'segment-2', start: 10, duration: 10 })
 
-    expect(timelineTracks.value[0].items.length).toBe(2)
+    expect(timelineTracks.value[0]!.items.length).toBe(2)
 
     // 3. User undoes the split
     undo()
 
     // It should immediately restore the original segment-1 (duration 20)
-    expect(timelineTracks.value[0].items.length).toBe(1)
-    expect(timelineTracks.value[0].items[0].id).toBe('segment-1')
-    expect(timelineTracks.value[0].items[0].duration).toBe(20)
+    expect(timelineTracks.value[0]!.items.length).toBe(1)
+    expect(timelineTracks.value[0]!.items[0]!.id).toBe('segment-1')
+    expect(timelineTracks.value[0]!.items[0]!.duration).toBe(20)
   })
 
   it('clears undo/redo stacks when folderName or clipId changes (hook isolation)', async () => {
@@ -192,7 +192,7 @@ describe('useTimelineState History Tracking - Undo/Redo', () => {
 
     // Populate history
     commitToHistory()
-    timelineTracks.value[0].items = [{ id: 'some-item' }]
+    timelineTracks.value[0]!.items = [{ id: 'some-item', start: 0, duration: 1 }]
     commitToHistory()
 
     expect(undoStack.value.length).toBeGreaterThan(0)

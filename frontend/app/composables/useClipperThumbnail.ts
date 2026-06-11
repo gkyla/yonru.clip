@@ -1,6 +1,7 @@
 // useClipperThumbnail.ts - Extracted thumbnail composition and overlay editing logic
 import { useTimelineState } from './useTimelineState'
 import { resolveThumbnailTextStyle, calculateNextOverlayPosition, mapThumbnailOverlays } from '../utils/thumbnailHelpers'
+import type { ThumbnailTextOverlay, ThumbnailConfig, DefaultThumbnailStyle } from '../types/clipper'
 
 export const useClipperThumbnail = () => {
   const API_BASE = 'http://localhost:8000'
@@ -18,18 +19,18 @@ export const useClipperThumbnail = () => {
   const thumbnailUrl = useState<string | null>('thumbnailUrl', () => null)
   const thumbnailDuration = useState<number>('thumbnailDuration', () => 1.0)
   const thumbnailScreenshotTime = useState<number>('thumbnailScreenshotTime', () => 0)
-  const thumbnailTextOverlays = useState<any[]>('thumbnailTextOverlays', () => [])
+  const thumbnailTextOverlays = useState<ThumbnailTextOverlay[]>('thumbnailTextOverlays', () => [])
   const thumbnailEditMode = useState<boolean>('thumbnailEditMode', () => false)
   const thumbnailXOffset = useState<number>('thumbnailXOffset', () => 50)
-  const defaultThumbnailStyle = useState<any>('defaultThumbnailStyle', () => null)
+  const defaultThumbnailStyle = useState<DefaultThumbnailStyle | null>('defaultThumbnailStyle', () => null)
 
   // Loading/saving transient states
   const isDeletingThumbnail = ref(false)
   const isCapturingThumbnail = useState<boolean>('isCapturingThumbnail', () => false)
 
   // Toast notification state
-  const toast = useState<any>('clipperToast')
-  let toastTimeout: any = null
+  const toast = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>('clipperToast')
+  let toastTimeout: ReturnType<typeof setTimeout> | null = null
 
   function showToast(message: string, type: 'success' | 'error' | 'info' = 'success') {
     toast.value = { message, type }
@@ -155,7 +156,7 @@ export const useClipperThumbnail = () => {
       if (!defaultThumbnailStyle.value) {
         await loadDefaultThumbnailStyle()
       }
-      const res = await $fetch<{ config: any }>(`${API_BASE}/api/thumbnail/config/${folderName.value}/${clipId.value}`)
+      const res = await $fetch<{ config: ThumbnailConfig }>(`${API_BASE}/api/thumbnail/config/${folderName.value}/${clipId.value}`)
       if (res.config) {
         timeline.isSavingLocked.value = true
         thumbnailEnabled.value = res.config.enabled ?? false
@@ -250,7 +251,7 @@ export const useClipperThumbnail = () => {
 
   async function loadDefaultThumbnailStyle() {
     try {
-      const res = await $fetch<{ style: any }>(`${API_BASE}/api/default-thumbnail-style`)
+      const res = await $fetch<{ style: DefaultThumbnailStyle }>(`${API_BASE}/api/default-thumbnail-style`)
       if (res.style) {
         defaultThumbnailStyle.value = res.style
       } else {
@@ -298,32 +299,33 @@ export const useClipperThumbnail = () => {
   }
 
   function applyDefaultThumbnailStyle() {
-    if (!defaultThumbnailStyle.value) {
+    const style = defaultThumbnailStyle.value
+    if (!style) {
       showToast('No saved default thumbnail style found!', 'error')
       return
     }
 
     timeline.isSavingLocked.value = true
     
-    if (defaultThumbnailStyle.value.thumbnailDuration !== undefined) {
-      thumbnailDuration.value = defaultThumbnailStyle.value.thumbnailDuration
+    if (style.thumbnailDuration !== undefined) {
+      thumbnailDuration.value = style.thumbnailDuration
     }
 
     thumbnailTextOverlays.value = thumbnailTextOverlays.value.map(o => ({
       ...o,
-      fontSize: defaultThumbnailStyle.value.fontSize ?? o.fontSize,
-      fontFamily: defaultThumbnailStyle.value.fontFamily ?? o.fontFamily,
-      fontWeight: defaultThumbnailStyle.value.fontWeight ?? o.fontWeight,
-      color: defaultThumbnailStyle.value.color ?? o.color,
-      strokeColor: defaultThumbnailStyle.value.strokeColor ?? o.strokeColor,
-      strokeWidth: defaultThumbnailStyle.value.strokeWidth ?? o.strokeWidth,
-      showStroke: defaultThumbnailStyle.value.showStroke ?? o.showStroke,
-      textTransform: defaultThumbnailStyle.value.textTransform ?? o.textTransform,
-      rotation: defaultThumbnailStyle.value.rotation ?? o.rotation,
-      showBackground: defaultThumbnailStyle.value.showBackground ?? o.showBackground,
-      backgroundColor: defaultThumbnailStyle.value.backgroundColor ?? o.backgroundColor,
-      backgroundOpacity: defaultThumbnailStyle.value.backgroundOpacity ?? o.backgroundOpacity,
-      backgroundPadding: defaultThumbnailStyle.value.backgroundPadding ?? o.backgroundPadding
+      fontSize: style.fontSize ?? o.fontSize,
+      fontFamily: style.fontFamily ?? o.fontFamily,
+      fontWeight: style.fontWeight ?? o.fontWeight,
+      color: style.color ?? o.color,
+      strokeColor: style.strokeColor ?? o.strokeColor,
+      strokeWidth: style.strokeWidth ?? o.strokeWidth,
+      showStroke: style.showStroke ?? o.showStroke,
+      textTransform: style.textTransform ?? o.textTransform,
+      rotation: style.rotation ?? o.rotation,
+      showBackground: style.showBackground ?? o.showBackground,
+      backgroundColor: style.backgroundColor ?? o.backgroundColor,
+      backgroundOpacity: style.backgroundOpacity ?? o.backgroundOpacity,
+      backgroundPadding: style.backgroundPadding ?? o.backgroundPadding
     }))
 
     showToast('Applied default thumbnail style to overlays!', 'success')

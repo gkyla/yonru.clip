@@ -427,7 +427,7 @@
                             </div>
                           </div>
                           <div>
-                            <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Opacity ({{ (overlay.backgroundOpacity * 100).toFixed(0) }}%)</label>
+                            <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Opacity ({{ ((overlay.backgroundOpacity ?? 0.7) * 100).toFixed(0) }}%)</label>
                             <input 
                               type="range" v-model.number="overlay.backgroundOpacity"
                               min="0" max="1" step="0.1"
