@@ -140,7 +140,7 @@
             </div>
 
             <!-- Flagged markers layer (only for subtitle track) -->
-            <template v-if="track.id === 'subtitles' && state.contentAudit.value?.flaggedSegments">
+            <template v-if="track.id === 'text' && state.contentAudit.value?.flaggedSegments">
                <div v-for="(v, i) in state.contentAudit.value.flaggedSegments" :key="'v-'+i"
                     class="absolute top-0 bottom-0 bg-rose-500/20 border-x border-rose-500/40 pointer-events-none z-10"
                     :style="{ left: getMarkerLeft(v.start) + 'px', width: (v.duration * pxPerSec) + 'px' }">
@@ -788,7 +788,7 @@ function snapValue(val: number, trackId?: string): number {
   targets.push(state.currentTime.value - offset)
 
   // Clip edge snap
-  state.timelineTracks.value.forEach(track => {
+  state.timelineTracks.value.forEach((track: any) => {
     track.items.forEach((item: any) => {
       if (draggingItem && item.id === draggingItem.id) return
       targets.push(item.start)
@@ -912,16 +912,16 @@ function deleteSelected() {
   const id = itemToDelete.id
   
   // Find which track this item belongs to before we delete it
-  const track = state.timelineTracks.value.find(t => t.items.some((i: any) => i.id === id))
+  const track = state.timelineTracks.value.find((t: any) => t.items.some((i: any) => i.id === id))
   const trackId = track?.id
   
   // Actually delete the item
-  state.timelineTracks.value.forEach(track => state.deleteTimelineItem(track.id, id))
+  state.timelineTracks.value.forEach((track: any) => state.deleteTimelineItem(track.id, id))
 
   // ONLY perform ripple edit if we deleted a video segment!
   if (trackId === 'video') {
     // Perform Ripple Edit: Shift all items that start AT OR AFTER the deleted item to the left
-    state.timelineTracks.value.forEach(track => {
+    state.timelineTracks.value.forEach((track: any) => {
       track.items.forEach((item: any) => {
         // Use a tiny epsilon because floating point math
         if (item.start >= itemToDelete.start - 0.001) {
@@ -950,7 +950,7 @@ function deleteSelected() {
       // Subtitle start is 0-based relative to video start (which is at thumbnailDuration on timeline)
       const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
       
-      state.fullTranscript.value.forEach(s => {
+      state.fullTranscript.value.forEach((s: any) => {
         // Subtitle time in timeline-absolute coordinates
         const segStart = s.start + offset
         const segEnd = (s.start + s.duration) + offset
@@ -1033,7 +1033,7 @@ function splitSelected() {
     const dur2 = (item.start + item.duration) - cut
     item.duration = cut - item.start
     
-    const track = state.timelineTracks.value.find(t => t.items.some((i: any) => i.id === item.id))
+    const track = state.timelineTracks.value.find((t: any) => t.items.some((i: any) => i.id === item.id))
     if (track) {
       state.addTimelineItem(track.id, { 
         ...item, 

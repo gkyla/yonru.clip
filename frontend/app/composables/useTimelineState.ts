@@ -2,18 +2,19 @@
 import { nextTick } from 'vue'
 import { calculateTimelineDuration, calculateVideoTime } from '../utils/timelineHelpers'
 import { TimelineHistoryManager } from '../utils/timelineHistory'
+import type { TimelineTrack, TimelineTrackItem, TranscriptSegment, HistorySnapshot } from '../types/clipper'
 
 export const useTimelineState = () => {
   const historyManager = new TimelineHistoryManager(50)
   const API_BASE = 'http://localhost:8000'
 
-  const timelineTracks = useState<any[]>('timelineTracks', () => [
+  const timelineTracks = useState<TimelineTrack[]>('timelineTracks', () => [
     { id: 'video', name: 'Main Video', type: 'video', items: [] },
     { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
     { id: 'text', name: 'Text layers', type: 'text', items: [] }
   ])
-  const defaultTimelineTextStyle = useState<any | null>('defaultTimelineTextStyle', () => null)
-  const selectedTimelineItem = useState<any | null>('selectedTimelineItem', () => null)
+  const defaultTimelineTextStyle = useState<Partial<TimelineTrackItem> | null>('defaultTimelineTextStyle', () => null)
+  const selectedTimelineItem = useState<TimelineTrackItem | null>('selectedTimelineItem', () => null)
   const isSavingLocked = useState<boolean>('isSavingLocked', () => false)
   const isTimelineShifting = useState<boolean>('isTimelineShifting', () => false)
 
@@ -24,11 +25,11 @@ export const useTimelineState = () => {
   const currentTime = useState<number>('currentTime')
   const folderName = useState<string | null>('folderName')
   const clipId = useState<string | null>('clipId')
-  const fullTranscript = useState<any[]>('fullTranscript', () => [])
+  const fullTranscript = useState<TranscriptSegment[]>('fullTranscript', () => [])
 
   // History state for undo/redo
-  const timelineUndoStack = useState<any[]>('timelineUndoStack', () => [])
-  const timelineRedoStack = useState<any[]>('timelineRedoStack', () => [])
+  const timelineUndoStack = useState<HistorySnapshot[]>('timelineUndoStack', () => [])
+  const timelineRedoStack = useState<HistorySnapshot[]>('timelineRedoStack', () => [])
   const isSavingHistory = useState<boolean>('isSavingHistory', () => false)
   const hasUnsavedHistory = useState<boolean>('hasUnsavedHistory', () => false)
   const isHydratingHistory = useState<boolean>('isHydratingHistory', () => false)
@@ -87,8 +88,8 @@ export const useTimelineState = () => {
       fullTranscript.value = previousState.transcript
       if (previousState.selectedId) {
         const item = previousState.tracks
-          .flatMap((t: any) => t.items)
-          .find((i: any) => i.id === previousState.selectedId)
+          .flatMap((t: TimelineTrack) => t.items)
+          .find((i: TimelineTrackItem) => i.id === previousState.selectedId)
         selectedTimelineItem.value = item || null
       } else {
         selectedTimelineItem.value = null
@@ -109,8 +110,8 @@ export const useTimelineState = () => {
       fullTranscript.value = nextState.transcript
       if (nextState.selectedId) {
         const item = nextState.tracks
-          .flatMap((t: any) => t.items)
-          .find((i: any) => i.id === nextState.selectedId)
+          .flatMap((t: TimelineTrack) => t.items)
+          .find((i: TimelineTrackItem) => i.id === nextState.selectedId)
         selectedTimelineItem.value = item || null
       } else {
         selectedTimelineItem.value = null
@@ -140,7 +141,7 @@ export const useTimelineState = () => {
     }
   }
 
-  function loadHistoryFromResponse(historyData: any) {
+  function loadHistoryFromResponse(historyData: { undo_stack?: HistorySnapshot[]; redo_stack?: HistorySnapshot[] } | null) {
     if (historyData && typeof historyData === 'object') {
       isHydratingHistory.value = true
       timelineUndoStack.value = historyData.undo_stack || []
@@ -232,7 +233,7 @@ export const useTimelineState = () => {
     }
   }
 
-  function addTimelineItem(trackId: string, item: any) {
+  function addTimelineItem(trackId: string, item: Partial<TimelineTrackItem>) {
     const track = timelineTracks.value.find(t => t.id === trackId)
     if (track) {
       const startSec = item.start ?? currentTime.value
@@ -240,7 +241,7 @@ export const useTimelineState = () => {
       const defaultDuration = item.duration ?? 5
       const durationSec = Math.min(defaultDuration, maxRemaining)
 
-      let styleOverrides: any = {}
+      let styleOverrides: Partial<TimelineTrackItem> = {}
       if (trackId === 'text') {
         if (defaultTimelineTextStyle.value) {
           styleOverrides = { ...defaultTimelineTextStyle.value, linkToGlobal: true }
@@ -267,32 +268,32 @@ export const useTimelineState = () => {
   function deleteTimelineItem(trackId: string, itemId: string) {
     const track = timelineTracks.value.find(t => t.id === trackId)
     if (track) {
-      track.items = track.items.filter((i: any) => i.id !== itemId)
+      track.items = track.items.filter((i: TimelineTrackItem) => i.id !== itemId)
       if (selectedTimelineItem.value?.id === itemId) {
         selectedTimelineItem.value = null
       }
     }
   }
 
-  function updateTimelineItem(trackId: string, itemId: string, updates: any) {
+  function updateTimelineItem(trackId: string, itemId: string, updates: Partial<TimelineTrackItem>) {
     const track = timelineTracks.value.find(t => t.id === trackId)
     if (track) {
-      const item = track.items.find((i: any) => i.id === itemId)
+      const item = track.items.find((i: TimelineTrackItem) => i.id === itemId)
       if (item) {
         Object.assign(item, updates)
       }
     }
   }
 
-  function syncGlobalStylesToItem(item: any) {
+  function syncGlobalStylesToItem(item: TimelineTrackItem) {
     const snap = getGlobalStyleSnapshot()
     Object.assign(item, snap)
     item.linkToGlobal = true
   }
 
-  function saveTimelineTextStyleAsDefault(item: any) {
+  function saveTimelineTextStyleAsDefault(item: TimelineTrackItem) {
     const font = useState<string>('font')
-    const toast = useState<any>('clipperToast')
+    const toast = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>('clipperToast')
     
     const style = {
       font: item.font || font.value || 'Montserrat',

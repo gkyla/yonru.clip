@@ -1,6 +1,7 @@
 // useSafetyAuditor.ts - Extracted safety and profanity scanning logic
 import { auditTranscript } from '../utils/contentAuditor'
 import { maskText } from '../utils/profanityMasker'
+import type { Hook, TranscriptSegment, DeepAuditResult } from '../types/clipper'
 
 export const DEFAULT_BLACKLIST = [
   // Violence & Harm
@@ -20,15 +21,15 @@ export const useSafetyAuditor = () => {
   const API_BASE = 'http://localhost:8000'
 
   const customBlacklist = useState<string[]>('customBlacklist', () => [])
-  const deepAuditResults = useState<any | null>('deepAuditResults', () => null)
+  const deepAuditResults = useState<DeepAuditResult | null>('deepAuditResults', () => null)
   const isDeepAuditing = useState<boolean>('isDeepAuditing', () => false)
   const safeZoneVisible = useState<boolean>('safeZoneVisible', () => false)
 
   // Subtitle style / mode dependencies (will be synchronized globally via useState)
   const subtitleMode = useState<string>('subtitleMode')
-  const fullTranscript = useState<any[]>('fullTranscript')
+  const fullTranscript = useState<TranscriptSegment[]>('fullTranscript')
   const timelineDuration = useState<number>('timelineDuration')
-  const activeHook = useState<any | null>('activeHook')
+  const activeHook = useState<Hook | null>('activeHook')
   const language = useState<string>('language')
 
   const saveBlacklistToStorage = () => {

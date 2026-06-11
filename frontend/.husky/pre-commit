@@ -1,0 +1,4 @@
+#!/bin/sh
+cd frontend
+echo "Running pre-commit TypeScript checks and Unit Tests..."
+npm run typecheck && npm run test

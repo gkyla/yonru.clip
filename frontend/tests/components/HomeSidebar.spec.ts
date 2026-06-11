@@ -317,7 +317,7 @@ describe('HomeSidebar Component', () => {
       }
     })
 
-    expect(wrapper.vm.isCollapsed).toBe(true)
+    expect((wrapper.vm as any).isCollapsed).toBe(true)
 
     // Find the prompts navigation icon button in collapsed view and click it
     const promptsBtn = wrapper.findAll('button').find(b => b.html().includes('ri:chat-quote-fill'))
@@ -326,7 +326,7 @@ describe('HomeSidebar Component', () => {
 
     expect(wrapper.emitted('update:activeView')?.[0]).toEqual(['prompts'])
     expect(pushSpy).toHaveBeenCalledWith('/prompts')
-    expect(wrapper.vm.isCollapsed).toBe(true) // Should remain collapsed!
+    expect((wrapper.vm as any).isCollapsed).toBe(true) // Should remain collapsed!
 
     // Find the Continue Editing / movie button in collapsed view and click it
     const movieBtn = wrapper.findAll('button').find(b => b.html().includes('ri:movie-2-fill'))
@@ -335,13 +335,13 @@ describe('HomeSidebar Component', () => {
     await flushPromises()
 
     expect(mockLoadReadyClipIntoEditor).toHaveBeenCalledWith('test_folder', '10_20_test')
-    expect(wrapper.vm.isCollapsed).toBe(true) // Should remain collapsed!
+    expect((wrapper.vm as any).isCollapsed).toBe(true) // Should remain collapsed!
 
     // Find the System Health / database button in collapsed view and click it
     const healthBtn = wrapper.findAll('button').find(b => b.html().includes('ri:database-2-line'))
     expect(healthBtn).toBeDefined()
     await healthBtn!.trigger('click')
-    expect(wrapper.vm.isCollapsed).toBe(true) // Should remain collapsed!
+    expect((wrapper.vm as any).isCollapsed).toBe(true) // Should remain collapsed!
   })
 
   it('restores collapsed state from localStorage on mount', () => {
@@ -363,7 +363,7 @@ describe('HomeSidebar Component', () => {
       }
     })
 
-    expect(wrapper.vm.isCollapsed).toBe(true)
+    expect((wrapper.vm as any).isCollapsed).toBe(true)
   })
 
   it('does not persist or load collapsed state from localStorage when isFloating is true', async () => {
@@ -387,11 +387,11 @@ describe('HomeSidebar Component', () => {
     })
 
     // Should ignore localStorage (which is 'false') and use defaultCollapsed (true)
-    expect(wrapper.vm.isCollapsed).toBe(true)
+    expect((wrapper.vm as any).isCollapsed).toBe(true)
 
     // Modifying collapsed state should not write to localStorage
-    localStorage.removeItem('yonru_sidebar_collapsed')
-    wrapper.vm.isCollapsed = false
+    localStorage.removeItem('yonru_sidebar_collapsed');
+    (wrapper.vm as any).isCollapsed = false
     await wrapper.vm.$nextTick()
     expect(localStorage.getItem('yonru_sidebar_collapsed')).toBeNull()
   })

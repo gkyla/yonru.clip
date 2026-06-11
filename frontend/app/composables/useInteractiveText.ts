@@ -14,10 +14,10 @@ export const useInteractiveText = (
 
   const allUsedFonts = computed(() => {
     const fonts = new Set<string>()
-    state.thumbnailTextOverlays.value.forEach(o => {
+    state.thumbnailTextOverlays.value.forEach((o: any) => {
       fonts.add(`${o.fontWeight || 900}-${o.fontFamily || 'Montserrat'}`)
     })
-    const track = state.timelineTracks.value.find(t => t.id === 'text')
+    const track = state.timelineTracks.value.find((t: any) => t.id === 'text')
     if (track && track.items) {
       track.items.forEach((item: any) => {
         fonts.add(`${item.fontWeight || 900}-${item.font || 'Outfit'}`)
@@ -52,7 +52,7 @@ export const useInteractiveText = (
 
   // Timeline Text Overlays
   const activeTextItems = computed(() => {
-    const textTrack = state.timelineTracks.value.find(t => t.id === 'text')
+    const textTrack = state.timelineTracks.value.find((t: any) => t.id === 'text')
     if (!textTrack) return []
     return textTrack.items.filter((item: any) => 
       state.currentTime.value >= item.start && 

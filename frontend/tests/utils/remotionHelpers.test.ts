@@ -28,10 +28,10 @@ describe('parseSubtitleWords', () => {
 
     expect(wordsData).toHaveLength(2)
     // 5.0 - 0.5 = 4.5
-    expect(wordsData[0].start).toBeCloseTo(4.5)
-    expect(wordsData[0].end).toBeCloseTo(5.0)
-    expect(wordsData[1].start).toBeCloseTo(5.0)
-    expect(wordsData[1].end).toBeCloseTo(5.5)
+    expect(wordsData[0]!.start).toBeCloseTo(4.5)
+    expect(wordsData[0]!.end).toBeCloseTo(5.0)
+    expect(wordsData[1]!.start).toBeCloseTo(5.0)
+    expect(wordsData[1]!.end).toBeCloseTo(5.5)
   })
 
   it('should support chunking multiple words based on mode (e.g. 3_words)', () => {
@@ -45,7 +45,7 @@ describe('parseSubtitleWords', () => {
 
     // Flat word timings should still be individual
     expect(allWordTimings).toHaveLength(6)
-    expect(allWordTimings[0].word).toBe('one')
+    expect(allWordTimings[0]!.word).toBe('one')
 
     // wordsData should be grouped in 3s
     expect(wordsData).toHaveLength(2)
@@ -68,10 +68,10 @@ describe('parseSubtitleWords', () => {
     const { wordsData } = parseSubtitleWords(transcript, 0, '3_words')
 
     expect(wordsData).toHaveLength(2)
-    expect(wordsData[0].word).toBe('one two three')
-    expect(wordsData[1].word).toBe('four')
-    expect(wordsData[1].start).toBeCloseTo(13.0)
-    expect(wordsData[1].end).toBeCloseTo(14.0)
+    expect(wordsData[0]!.word).toBe('one two three')
+    expect(wordsData[1]!.word).toBe('four')
+    expect(wordsData[1]!.start).toBeCloseTo(13.0)
+    expect(wordsData[1]!.end).toBeCloseTo(14.0)
   })
 
   it('should handle empty, null, or invalid inputs safely', () => {
@@ -88,8 +88,8 @@ describe('parseSubtitleWords', () => {
     ]
     const { wordsData } = parseSubtitleWords(transcript, 0, 'word')
     expect(wordsData).toHaveLength(2)
-    expect(wordsData[0].word).toBe('hello')
-    expect(wordsData[1].word).toBe('world')
+    expect(wordsData[0]!.word).toBe('hello')
+    expect(wordsData[1]!.word).toBe('world')
   })
 })
 

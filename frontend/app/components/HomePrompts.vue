@@ -356,7 +356,7 @@ const promptEditorRef = ref<any>(null)
 
 // Filtered prompts list
 const filteredPrompts = computed(() => {
-  return state.promptsList.value.filter(p => {
+  return state.promptsList.value.filter((p: any) => {
     return p.name.toLowerCase().includes(searchQuery.value.toLowerCase())
   })
 })

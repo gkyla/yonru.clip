@@ -3,7 +3,8 @@ import { defineNuxtConfig } from 'nuxt/config'
 export default defineNuxtConfig({
   modules: [
     '@nuxtjs/tailwindcss',
-    '@nuxt/icon'
+    '@nuxt/icon',
+    '@nuxt/eslint'
   ],
   css: [
     '~/assets/css/fonts.css',
@@ -17,6 +18,8 @@ export default defineNuxtConfig({
   },
   compatibilityDate: '2024-04-03',
   typescript: {
+    typeCheck: true,
+    strict: true,
     tsConfig: {
       include: [
         '../tests/**/*'

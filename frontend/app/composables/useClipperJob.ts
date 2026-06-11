@@ -1,6 +1,7 @@
 // useClipperJob.ts - Extracted video ingestion and polling lifecycle
 import { useTimelineState } from './useTimelineState'
 import { mapThumbnailOverlays } from '../utils/thumbnailHelpers'
+import type { Hook, TranscriptSegment, ThumbnailTextOverlay, SubtitleStyleSettings, ThumbnailConfig, JobApiResponse, TimelineTrack } from '../types/clipper'
 
 export const useClipperJob = () => {
   const API_BASE = 'http://localhost:8000'
@@ -19,12 +20,12 @@ export const useClipperJob = () => {
   const hasHeatmap = useState<boolean>('hasHeatmap', () => false)
   const videoUrl = useState<string | null>('videoUrl', () => null)
   const videoFps = useState<number>('videoFps', () => 30)
-  const hooks = useState<any[]>('hooks', () => [])
-  const savedHooks = useState<any[]>('savedHooks', () => [])
-  const activeHook = useState<any | null>('activeHook', () => null)
+  const hooks = useState<Hook[]>('hooks', () => [])
+  const savedHooks = useState<Hook[]>('savedHooks', () => [])
+  const activeHook = useState<Hook | null>('activeHook', () => null)
   const folderName = useState<string | null>('folderName', () => null)
   const clipId = useState<string | null>('clipId', () => null)
-  const fullTranscript = useState<any[]>('fullTranscript', () => [])
+  const fullTranscript = useState<TranscriptSegment[]>('fullTranscript', () => [])
   const isPlaying = useState<boolean>('isPlaying', () => false)
   const currentTime = useState<number>('currentTime', () => 0)
   
@@ -63,7 +64,7 @@ export const useClipperJob = () => {
   const thumbnailUrl = useState<string | null>('thumbnailUrl', () => null)
   const thumbnailDuration = useState<number>('thumbnailDuration', () => 1.0)
   const thumbnailScreenshotTime = useState<number>('thumbnailScreenshotTime', () => 0)
-  const thumbnailTextOverlays = useState<any[]>('thumbnailTextOverlays', () => [])
+  const thumbnailTextOverlays = useState<ThumbnailTextOverlay[]>('thumbnailTextOverlays', () => [])
   const thumbnailEditMode = useState<boolean>('thumbnailEditMode', () => false)
   const thumbnailXOffset = useState<number>('thumbnailXOffset', () => 50)
   const outputUrl = useState<string | null>('outputUrl', () => null)
@@ -96,7 +97,7 @@ export const useClipperJob = () => {
     subtitlePreset.value = 'bold-podcast'
   }
 
-  function applySubtitleStyles(styles: any) {
+  function applySubtitleStyles(styles: Partial<SubtitleStyleSettings>) {
     if (styles.subtitlePosition) subtitlePosition.value = styles.subtitlePosition
     if (styles.subtitleOffset !== undefined) subtitleOffset.value = styles.subtitleOffset
     if (styles.subtitleSyncOffset !== undefined) subtitleSyncOffset.value = styles.subtitleSyncOffset
@@ -124,9 +125,9 @@ export const useClipperJob = () => {
 
     // 1. Load global defaults first if they exist
     try {
-      const defaultStyles = await $fetch<any>(`${API_BASE}/assets/default_style_settings.json?t=${Date.now()}`)
+      const defaultStyles = await $fetch<Record<string, unknown>>(`${API_BASE}/assets/default_style_settings.json?t=${Date.now()}`)
       if (defaultStyles) {
-        const config = defaultStyles.settings || defaultStyles
+        const config = (defaultStyles.settings || defaultStyles) as Partial<SubtitleStyleSettings>
         applySubtitleStyles(config)
         console.log('[clipper] Loaded global default style settings')
       }
@@ -136,7 +137,7 @@ export const useClipperJob = () => {
 
     // 2. Load custom clip overrides on top of defaults
     try {
-      const styles = await $fetch<any>(baseClipUrl + '/style_settings.json?t=' + Date.now())
+      const styles = await $fetch<SubtitleStyleSettings>(baseClipUrl + '/style_settings.json?t=' + Date.now())
       if (styles) {
         applySubtitleStyles(styles)
         console.log('[clipper] Loaded custom clip style settings')
@@ -149,7 +150,7 @@ export const useClipperJob = () => {
   async function fetchSavedHooks() {
     if (!folderName.value) return
     try {
-      const res = await $fetch<{ saved_hooks: any[] }>(`${API_BASE}/api/cached/${folderName.value}/saved_hooks`)
+      const res = await $fetch<{ saved_hooks: Hook[] }>(`${API_BASE}/api/cached/${folderName.value}/saved_hooks`)
       savedHooks.value = res.saved_hooks || []
     } catch {
       savedHooks.value = []
@@ -173,7 +174,7 @@ export const useClipperJob = () => {
   async function loadThumbnailConfig() {
     if (!folderName.value || !clipId.value) return
     try {
-      const res = await $fetch<{ config: any }>(`${API_BASE}/api/thumbnail/config/${folderName.value}/${clipId.value}`)
+      const res = await $fetch<{ config: ThumbnailConfig }>(`${API_BASE}/api/thumbnail/config/${folderName.value}/${clipId.value}`)
       if (res.config) {
         timeline.isSavingLocked.value = true
         thumbnailEnabled.value = res.config.enabled ?? false
@@ -217,9 +218,9 @@ export const useClipperJob = () => {
       jobId.value = res.job_id
       jobStatus.value = res.status
       startPolling()
-    } catch (e: any) {
+    } catch (e) {
       jobStatus.value = 'error'
-      jobError.value = e.message || 'Failed to start analysis'
+      jobError.value = e instanceof Error ? e.message : 'Failed to start analysis'
     }
   }
 
@@ -228,7 +229,7 @@ export const useClipperJob = () => {
     pollInterval = setInterval(async () => {
       if (!jobId.value) return
       try {
-        const res = await $fetch<any>(`${API_BASE}/api/job/${jobId.value}`).catch(e => {
+        const res = await $fetch<JobApiResponse>(`${API_BASE}/api/job/${jobId.value}`).catch((e: any) => {
           if (e.status === 404) {
             // Self-heal: if we have clip context, silently restore the session
             if (folderName.value && clipId.value) {
@@ -296,7 +297,7 @@ export const useClipperJob = () => {
 
             if (res.hooks && res.hooks.length > 0) {
               const currentHasQuotes = hooks.value.some(h => h.transcript_quote && h.transcript_quote !== 'No transcript preview available.')
-              const newHasQuotes = res.hooks.some((h: any) => h.transcript_quote && h.transcript_quote !== 'No transcript preview available.')
+              const newHasQuotes = res.hooks.some((h: Hook) => h.transcript_quote && h.transcript_quote !== 'No transcript preview available.')
               
               if (hooks.value.length === 0 || hooks.value.length !== res.hooks.length || (!currentHasQuotes && newHasQuotes)) {
                 console.log('[polling] Syncing hooks list, count:', res.hooks.length)
@@ -329,7 +330,7 @@ export const useClipperJob = () => {
                 const styleUrl = baseClipUrl + '/style_settings.json?t=' + Date.now()
 
                 try {
-                  const clipTranscript = await $fetch<any[]>(transcriptUrl)
+                  const clipTranscript = await $fetch<TranscriptSegment[]>(transcriptUrl)
                   if (clipTranscript && clipTranscript.length > 0) {
                     fullTranscript.value = clipTranscript
                     console.log('[clipper] Loaded isolated clip transcript')
@@ -344,7 +345,7 @@ export const useClipperJob = () => {
                 try {
                   const timelineUrl = baseClipUrl + '/timeline.json?t=' + Date.now()
                   console.log('[clipper] Fetching timeline from:', timelineUrl)
-                  const tracks = await $fetch<any[]>(timelineUrl)
+                  const tracks = await $fetch<TimelineTrack[]>(timelineUrl)
                   if (tracks && tracks.length > 0) {
                     timeline.timelineTracks.value = tracks
                     timelineLoaded = true
@@ -401,7 +402,7 @@ export const useClipperJob = () => {
     }
   }
 
-  async function extractClip(hook: any) {
+  async function extractClip(hook: Hook) {
     if (!jobId.value) return
     
     isPlaying.value = false
@@ -412,7 +413,9 @@ export const useClipperJob = () => {
     outputUrl.value = null
     renderStatus.value = 'idle'
     fullTranscript.value = []
-    timeline.timelineTracks.value[0].items = []
+    if (timeline.timelineTracks.value[0]) {
+      timeline.timelineTracks.value[0].items = []
+    }
     resetThumbnailState()
     
     isMediaLoading.value = true
@@ -431,8 +434,8 @@ export const useClipperJob = () => {
       })
       jobStatus.value = res.status
       startPolling()
-    } catch (e: any) {
-      jobError.value = e.message || 'Failed to start extraction'
+    } catch (e) {
+      jobError.value = e instanceof Error ? e.message : 'Failed to start extraction'
     }
   }
 
@@ -466,17 +469,19 @@ export const useClipperJob = () => {
     outputUrl.value = null
     renderStatus.value = 'idle'
     fullTranscript.value = []
-    timeline.timelineTracks.value[0].items = []
+    if (timeline.timelineTracks.value[0]) {
+      timeline.timelineTracks.value[0].items = []
+    }
     isMediaLoading.value = true
     resetThumbnailState()
 
     try {
-      const res = await $fetch<any>(`${API_BASE}/api/load-ready-clip`, {
+      const res = await $fetch<JobApiResponse>(`${API_BASE}/api/load-ready-clip`, {
         method: 'POST',
         body: { folder_name: folder, clip_id: id }
       })
       
-      jobId.value = res.job_id
+      jobId.value = res.job_id ?? null
       jobStatus.value = res.status
       
       if (res.hooks) {
@@ -496,7 +501,7 @@ export const useClipperJob = () => {
         }
       }
         
-      if (timeline.timelineTracks.value[0]) {
+      if (res.clip && timeline.timelineTracks.value[0]) {
         timeline.timelineTracks.value[0].items = [{
           id: 'main-video',
           name: 'Main Video',
@@ -506,7 +511,7 @@ export const useClipperJob = () => {
         }]
       }
 
-      if (!activeHook.value) {
+      if (!activeHook.value && res.clip) {
         activeHook.value = {
           theme: res.clip.theme || 'Ready Clip',
           start: res.clip.start || 0,
@@ -524,7 +529,7 @@ export const useClipperJob = () => {
 
         // Load Transcript
         try {
-          const clipTranscript = await $fetch<any[]>(transcriptUrl)
+          const clipTranscript = await $fetch<TranscriptSegment[]>(transcriptUrl)
           if (clipTranscript && clipTranscript.length > 0) {
             fullTranscript.value = clipTranscript
           }
@@ -537,7 +542,7 @@ export const useClipperJob = () => {
         let timelineLoaded = false
         try {
           const timelineUrl = baseClipUrl + '/timeline.json?t=' + Date.now()
-          const tracks = await $fetch<any[]>(timelineUrl)
+          const tracks = await $fetch<TimelineTrack[]>(timelineUrl)
           if (tracks && tracks.length > 0) {
             timeline.timelineTracks.value = tracks
             timelineLoaded = true
@@ -563,9 +568,9 @@ export const useClipperJob = () => {
       }
 
       startPolling()
-    } catch (e: any) {
+    } catch (e) {
       jobStatus.value = 'error'
-      jobError.value = e.message || 'Failed to load clip'
+      jobError.value = e instanceof Error ? e.message : 'Failed to load clip'
     }
   }
 

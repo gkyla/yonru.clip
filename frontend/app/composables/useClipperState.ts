@@ -7,8 +7,9 @@ import { useClipperThumbnail } from './useClipperThumbnail'
 import { useClipperExport } from './useClipperExport'
 
 import fontsManifest from '../../../shared/fonts_manifest.json'
+import type { Hook, CachedVideo, TranscriptSegment, PromptTemplate, SubtitleStyleSettings, TimelineTrack, TimelineTrackItem } from '../types/clipper'
 
-export const FONT_OPTIONS = fontsManifest.fonts.map((f: any) => f.name)
+export const FONT_OPTIONS = fontsManifest.fonts.map((f: { name: string }) => f.name)
 
 export const WHISPER_MODELS = [
   { id: 'tiny', name: 'Tiny', speed: 'Ultra Fast', acc: 'Basic', desc: 'Minimal accuracy, best for quick testing on weak hardware.' },
@@ -18,7 +19,7 @@ export const WHISPER_MODELS = [
   { id: 'large-v3', name: 'Large-v3', speed: 'Slow', acc: 'State-of-the-Art', desc: 'Highest accuracy possible. Best for complex dialogue.' }
 ] as const
 
-let cachedState: any = null
+let cachedState: ReturnType<typeof createClipperState> | null = null
 
 export const useClipperState = () => {
   if (import.meta.server) {
@@ -73,13 +74,13 @@ function createClipperState() {
   const videoFps = useState<number>('videoFps', () => 30)
 
   // Hooks
-  const hooks = useState<any[]>('hooks', () => [])
-  const savedHooks = useState<any[]>('savedHooks', () => [])
-  const activeHook = useState<any | null>('activeHook', () => null)
+  const hooks = useState<Hook[]>('hooks', () => [])
+  const savedHooks = useState<Hook[]>('savedHooks', () => [])
+  const activeHook = useState<Hook | null>('activeHook', () => null)
   
   // Toast state
   const toast = useState<{message: string, type: 'success' | 'error' | 'info'} | null>('clipperToast', () => null)
-  let toastTimeout: any = null
+  let toastTimeout: ReturnType<typeof setTimeout> | null = null
 
   // Centralized reactive timeout mediator for decoupled shared reactivity
   watch(toast, (newVal) => {
@@ -98,7 +99,7 @@ function createClipperState() {
 
   const folderName = useState<string | null>('folderName', () => null)
   const clipId = useState<string | null>('clipId', () => null)
-  const fullTranscript = useState<any[]>('fullTranscript', () => [])
+  const fullTranscript = useState<TranscriptSegment[]>('fullTranscript', () => [])
 
   // Prompts
   const promptsList = useState<{id: string, name: string, suitableFor: string[], prompt?: string, numHooks?: number, autoHooks?: boolean}[]>('promptsList', () => [])
@@ -144,7 +145,7 @@ function createClipperState() {
 
   
   // Cache / Library
-  const cachedVideos = useState<any[]>('cachedVideos', () => [])
+  const cachedVideos = useState<CachedVideo[]>('cachedVideos', () => [])
   const isCachedLoading = useState<boolean>('isCachedLoading', () => false)
   const lastAccessedVideoId = useState<string | null>('lastAccessedVideoId', () => null)
   const lastAccessedClip = useState<{folder: string, clip_id: string, title?: string} | null>('lastAccessedClip', () => null)
@@ -171,7 +172,7 @@ function createClipperState() {
       isCachedLoading.value = true
     }
     try {
-      const res = await $fetch<{ videos: any[] }>(`${API_BASE}/api/cached`)
+      const res = await $fetch<{ videos: CachedVideo[] }>(`${API_BASE}/api/cached`)
       cachedVideos.value = res.videos || []
     } catch { 
       if (cachedVideos.value.length === 0) cachedVideos.value = [] 
@@ -247,17 +248,17 @@ function createClipperState() {
   async function fetchSavedHooks() {
     if (!folderName.value) return
     try {
-      const res = await $fetch<{ saved_hooks: any[] }>(`${API_BASE}/api/cached/${folderName.value}/saved_hooks`)
+      const res = await $fetch<{ saved_hooks: Hook[] }>(`${API_BASE}/api/cached/${folderName.value}/saved_hooks`)
       savedHooks.value = res.saved_hooks || []
     } catch {
       savedHooks.value = []
     }
   }
 
-  async function saveHook(hook: any) {
+  async function saveHook(hook: Hook) {
     if (!folderName.value) return
     try {
-      const res = await $fetch<{ saved_hooks: any[] }>(`${API_BASE}/api/cached/saved_hooks`, {
+      const res = await $fetch<{ saved_hooks: Hook[] }>(`${API_BASE}/api/cached/saved_hooks`, {
         method: 'POST',
         body: { folder_name: folderName.value, hook }
       })
@@ -269,7 +270,7 @@ function createClipperState() {
   async function deleteSavedHook(hookId: string) {
     if (!folderName.value) return
     try {
-      const res = await $fetch<{ saved_hooks: any[] }>(`${API_BASE}/api/cached/${folderName.value}/saved_hooks/${hookId}`, {
+      const res = await $fetch<{ saved_hooks: Hook[] }>(`${API_BASE}/api/cached/${folderName.value}/saved_hooks/${hookId}`, {
         method: 'DELETE'
       })
       savedHooks.value = res.saved_hooks || []
@@ -297,7 +298,7 @@ function createClipperState() {
     const silent = isSilent === true
 
     // Sanitize transcript data to strip out non-serializable circular references (such as flatWords)
-    const cleanTranscript = fullTranscript.value.map((seg: any) => ({
+    const cleanTranscript = fullTranscript.value.map((seg: TranscriptSegment) => ({
       start: typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start,
       duration: typeof seg.duration === 'string' ? parseFloat(seg.duration) : seg.duration,
       text: seg.text
@@ -460,9 +461,9 @@ function createClipperState() {
       [font, fontSize, subtitleFontWeight, subtitleTextTransform, subtitleTextColor,
        subtitleStrokeColor, subtitleStrokeWidth, subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing],
       () => {
-        const textTrack = timeline.timelineTracks.value.find((t: any) => t.id === 'text')
+        const textTrack = timeline.timelineTracks.value.find((t: TimelineTrack) => t.id === 'text')
         if (!textTrack) return
-        textTrack.items.forEach((item: any) => {
+        textTrack.items.forEach((item: TimelineTrackItem) => {
           if (item.linkToGlobal !== false) {
             timeline.syncGlobalStylesToItem(item)
           }

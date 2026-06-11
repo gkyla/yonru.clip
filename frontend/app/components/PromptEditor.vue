@@ -112,18 +112,20 @@ const VariableHighlight = Extension.create({
                 while ((match = regex.exec(node.text)) !== null) {
                   const fullMatch = match[0]
                   const varName = match[1]
-                  let varValue = props.variables?.[varName] || fullMatch
-                  if (typeof varValue === 'string') {
-                    varValue = varValue.trim()
+                  if (varName) {
+                    let varValue = props.variables?.[varName] || fullMatch
+                    if (typeof varValue === 'string') {
+                      varValue = varValue.trim()
+                    }
+                    
+                    decorations.push(
+                      Decoration.inline(pos + match.index, pos + match.index + fullMatch.length, {
+                        class: 'tiptap-variable-badge',
+                        'data-variable': varName,
+                        'data-value': varValue,
+                      })
+                    )
                   }
-                  
-                  decorations.push(
-                    Decoration.inline(pos + match.index, pos + match.index + fullMatch.length, {
-                      class: 'tiptap-variable-badge',
-                      'data-variable': varName,
-                      'data-value': varValue,
-                    })
-                  )
                 }
               }
             })
@@ -140,18 +142,20 @@ const VariableHighlight = Extension.create({
                 while ((match = regex.exec(node.text)) !== null) {
                   const fullMatch = match[0]
                   const varName = match[1]
-                  let varValue = props.variables?.[varName] || fullMatch
-                  if (typeof varValue === 'string') {
-                    varValue = varValue.trim()
+                  if (varName) {
+                    let varValue = props.variables?.[varName] || fullMatch
+                    if (typeof varValue === 'string') {
+                      varValue = varValue.trim()
+                    }
+                    
+                    decorations.push(
+                      Decoration.inline(pos + match.index, pos + match.index + fullMatch.length, {
+                        class: 'tiptap-variable-badge',
+                        'data-variable': varName,
+                        'data-value': varValue,
+                      })
+                    )
                   }
-                  
-                  decorations.push(
-                    Decoration.inline(pos + match.index, pos + match.index + fullMatch.length, {
-                      class: 'tiptap-variable-badge',
-                      'data-variable': varName,
-                      'data-value': varValue,
-                    })
-                  )
                 }
               }
             })
