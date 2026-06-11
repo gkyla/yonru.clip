@@ -147,20 +147,32 @@
               <!-- Continue Editing Card -->
               <button 
                 v-if="lastClip && lastVideo && !isProcessing"
-                @click="handleContinueEditingClick()"
-                class="flex items-center gap-3 p-2 rounded-xl transition-all group bg-surface-panel/30 border border-white/5 hover:border-accent-500/20 text-left w-full cursor-pointer"
+                :disabled="isCurrentClipActive"
+                @click="isCurrentClipActive ? null : handleContinueEditingClick()"
+                class="flex items-center gap-3 p-2 rounded-xl transition-all group bg-surface-panel/30 border text-left w-full disabled:pointer-events-none"
+                :class="isCurrentClipActive 
+                  ? 'border-indigo-500/20 cursor-default' 
+                  : 'border-white/5 hover:border-accent-500/20 cursor-pointer'"
               >
                 <div class="w-10 h-10 rounded bg-surface-dark overflow-hidden shrink-0 border border-white/5 group-hover:border-accent-500/30 relative">
                    <img v-if="lastVideo.thumbnail" :src="`${API_BASE}/api/proxy-image?url=${encodeURIComponent(lastVideo.thumbnail)}`" class="w-full h-full object-cover" />
                    <div v-else class="w-full h-full flex items-center justify-center bg-accent-500/10 text-accent-500 text-xs">
                      <Icon name="ri:movie-2-line" />
                    </div>
-                   <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                   <div 
+                     v-if="!isCurrentClipActive"
+                     class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                   >
                      <Icon name="ri:edit-2-fill" class="text-white text-xs" />
                    </div>
                 </div>
                 <div class="overflow-hidden flex-1">
-                  <p class="text-[9px] text-accent-500 font-bold uppercase tracking-tighter leading-none mb-1">CONTINUE EDITING</p>
+                  <p 
+                    class="text-[9px] font-bold uppercase tracking-tighter leading-none mb-1"
+                    :class="isCurrentClipActive ? 'text-slate-400' : 'text-accent-500'"
+                  >
+                    {{ isCurrentClipActive ? 'ON EDITING' : 'CONTINUE EDITING' }}
+                  </p>
                   <p class="text-[11px] text-white font-bold truncate leading-tight">{{ lastClip.theme || lastClip.title || 'Untitled Clip' }}</p>
                   <p class="text-[9px] text-slate-500 truncate mt-0.5">{{ lastVideo.title || 'Untitled Video' }}</p>
                 </div>
@@ -303,9 +315,15 @@
             <!-- Workspace / Active Project Indicator -->
             <div class="relative group">
               <button 
-                @click="handleContinueEditingClick()"
-                class="w-10 h-10 rounded-xl bg-surface-panel/40 border border-white/5 hover:border-accent-500/20 text-slate-400 hover:text-white flex items-center justify-center transition-all relative cursor-pointer"
-                :class="isProcessing ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 animate-pulse-subtle' : ''"
+                :disabled="isCurrentClipActive"
+                @click="isCurrentClipActive ? null : handleContinueEditingClick()"
+                class="w-10 h-10 rounded-xl bg-surface-panel/40 border text-slate-400 flex items-center justify-center transition-all relative disabled:pointer-events-none"
+                :class="[
+                  isProcessing ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 animate-pulse-subtle' : '',
+                  isCurrentClipActive 
+                    ? 'border-indigo-500/20 text-indigo-400 cursor-default' 
+                    : 'border-white/5 hover:border-accent-500/20 hover:text-white cursor-pointer'
+                ]"
               >
                 <Icon :name="isProcessing ? 'ri:loader-4-line' : 'ri:movie-2-fill'" :class="{ 'animate-spin': isProcessing }" class="text-xl" />
                 <div v-if="lastClip && lastVideo && !isProcessing" class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-accent-500 rounded-full border-2 border-surface-dark shadow-[0_0_8px_rgba(207,255,80,0.6)]"></div>
@@ -325,20 +343,32 @@
                 <!-- Last Clip Card -->
                 <button 
                   v-else-if="lastClip && lastVideo && !isProcessing"
-                  @click="handleContinueEditingClick()"
-                  class="flex items-center gap-3 p-2 rounded-xl transition-all group bg-surface-panel/30 border border-white/5 hover:border-accent-500/20 text-left w-full cursor-pointer"
+                  :disabled="isCurrentClipActive"
+                  @click="isCurrentClipActive ? null : handleContinueEditingClick()"
+                  class="flex items-center gap-3 p-2 rounded-xl transition-all group bg-surface-panel/30 border text-left w-full disabled:pointer-events-none"
+                  :class="isCurrentClipActive 
+                    ? 'border-indigo-500/20 cursor-default' 
+                    : 'border-white/5 hover:border-accent-500/20 cursor-pointer'"
                 >
                   <div class="w-10 h-10 rounded bg-surface-dark overflow-hidden shrink-0 border border-white/5 group-hover:border-accent-500/30 relative">
                      <img v-if="lastVideo.thumbnail" :src="`${API_BASE}/api/proxy-image?url=${encodeURIComponent(lastVideo.thumbnail)}`" class="w-full h-full object-cover" />
                      <div v-else class="w-full h-full flex items-center justify-center bg-accent-500/10 text-accent-500 text-xs">
                        <Icon name="ri:movie-2-line" />
                      </div>
-                     <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                     <div 
+                       v-if="!isCurrentClipActive"
+                       class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                     >
                        <Icon name="ri:edit-2-fill" class="text-white text-xs" />
                      </div>
                   </div>
                   <div class="overflow-hidden flex-1">
-                     <p class="text-[9px] text-accent-500 font-bold uppercase tracking-tighter leading-none mb-1">CONTINUE EDITING</p>
+                     <p 
+                       class="text-[9px] font-bold uppercase tracking-tighter leading-none mb-1"
+                       :class="isCurrentClipActive ? 'text-slate-400' : 'text-accent-500'"
+                     >
+                       {{ isCurrentClipActive ? 'ON EDITING' : 'CONTINUE EDITING' }}
+                     </p>
                      <p class="text-[11px] text-white font-bold truncate leading-tight">{{ lastClip.theme || lastClip.title || 'Untitled Clip' }}</p>
                      <p class="text-[9px] text-slate-500 truncate mt-0.5">{{ lastVideo.title || 'Untitled Video' }}</p>
                   </div>
@@ -439,6 +469,12 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 
 const state = useClipperState()
+
+const isCurrentClipActive = computed(() => {
+  if (props.activeView !== 'editor' || !props.lastClip) return false
+  const folder = props.lastClip.folder || props.lastClip.folder_name
+  return state.folderName.value === folder && state.clipId.value === props.lastClip.clip_id
+})
 
 const isSystemOK = computed(() => {
   const health = state?.systemHealth?.value

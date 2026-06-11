@@ -24,6 +24,9 @@ A resizable sidebar panel in the editor whose width can be adjusted dynamically 
 ### Sidebar Status Indicator
 A unified, real-time job status tracking element placed in the footer of the global sidebar panel, rendering as a clean, bordered micro-badge row in expanded mode and as a dynamic, glowing status dot overlaid on the database icon in collapsed mode.
 
+### Workspace Continue Editing Card
+A sidebar card in the Workspace accordion that displays the last-accessed clip and video, allowing the user to resume editing from any page. When the displayed clip is currently loaded in the editor, the card transitions to an inactive "On Editing" state to prevent redundant workspace reload loops.
+
 ### Section Divider
 A low-contrast, border-only horizontal seam (`border-t border-surface-border/30 pt-3`) used inside editor panels to separate functional control groups cleanly without nesting bulky card backgrounds or rounded containers, keeping visual density balanced.
 
