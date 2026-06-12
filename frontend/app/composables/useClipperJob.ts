@@ -157,7 +157,7 @@ export const useClipperJob = () => {
     }
   }
 
-  function resetThumbnailState() {
+  function resetThumbnailState(keepLocked = false) {
     timeline.isSavingLocked.value = true
     thumbnailEnabled.value = false
     thumbnailUrl.value = null
@@ -166,9 +166,11 @@ export const useClipperJob = () => {
     thumbnailXOffset.value = 50
     thumbnailTextOverlays.value = []
     thumbnailEditMode.value = false
-    nextTick(() => {
-      timeline.isSavingLocked.value = false
-    })
+    if (!keepLocked) {
+      nextTick(() => {
+        timeline.isSavingLocked.value = false
+      })
+    }
   }
 
   async function loadThumbnailConfig() {
@@ -469,11 +471,15 @@ export const useClipperJob = () => {
     outputUrl.value = null
     renderStatus.value = 'idle'
     fullTranscript.value = []
+    
+    // Lock saving immediately during state initialization and fetch
+    timeline.isSavingLocked.value = true
+
     if (timeline.timelineTracks.value[0]) {
       timeline.timelineTracks.value[0].items = []
     }
     isMediaLoading.value = true
-    resetThumbnailState()
+    resetThumbnailState(true)
 
     try {
       const res = await $fetch<JobApiResponse>(`${API_BASE}/api/load-ready-clip`, {
@@ -499,16 +505,6 @@ export const useClipperJob = () => {
           ...activeHook.value,
           ...res.clip
         }
-      }
-        
-      if (res.clip && timeline.timelineTracks.value[0]) {
-        timeline.timelineTracks.value[0].items = [{
-          id: 'main-video',
-          name: 'Main Video',
-          start: 0,
-          mediaStart: 0,
-          duration: res.clip.duration || videoDuration.value
-        }]
       }
 
       if (!activeHook.value && res.clip) {
@@ -571,6 +567,10 @@ export const useClipperJob = () => {
     } catch (e) {
       jobStatus.value = 'error'
       jobError.value = e instanceof Error ? e.message : 'Failed to load clip'
+    } finally {
+      setTimeout(() => {
+        timeline.isSavingLocked.value = false
+      }, 500)
     }
   }
 
