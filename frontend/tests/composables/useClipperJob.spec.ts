@@ -225,4 +225,28 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     
     vi.useRealTimers()
   })
+
+  it('transitions jobStatus to error and stops polling if an unexpected exception occurs during polling tick', async () => {
+    vi.useFakeTimers()
+    const { startPolling, stopPolling, jobId, jobStatus, jobError } = useClipperJob()
+    
+    jobId.value = 'job-123'
+    jobStatus.value = 'cutting'
+    jobError.value = null
+    
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation(() => {
+      throw new Error('Network failure or JSON parse error')
+    }))
+
+    startPolling()
+    
+    await vi.advanceTimersByTimeAsync(2000)
+    
+    expect(jobStatus.value).toBe('error')
+    expect(jobError.value).toBe('Network failure or JSON parse error')
+    
+    stopPolling()
+    vi.useRealTimers()
+  })
 })
+

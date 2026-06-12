@@ -507,7 +507,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 
 const state = useClipperState()
-const isPipelineActive = computed(() => ['cutting', 'transcribing'].includes(state?.jobStatus?.value || '') || state?.isMediaLoading?.value)
+const isPipelineActive = computed(() => ['cutting', 'transcribing', 'error'].includes(state?.jobStatus?.value || '') || state?.isMediaLoading?.value)
 const activeSections = ref<Record<string, boolean>>({
   timing: true,
   typography: true,
