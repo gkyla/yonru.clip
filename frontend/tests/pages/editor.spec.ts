@@ -176,4 +176,51 @@ describe('Editor Page', () => {
     await retryBtn!.trigger('click')
     expect(mockExtractClip).toHaveBeenCalledWith(mockActiveHook.value)
   })
+
+  it('retains the loading overlay visibility for 800ms after job status transitions to ready', async () => {
+    vi.useFakeTimers()
+    mockJobStatus.value = 'cutting'
+    
+    const wrapper = mount(editor, {
+      global: {
+        stubs: {
+          HomeSidebar: true,
+          SidebarSettings: true,
+          VideoPreview: true,
+          TimelinePanel: true,
+          TimelineEditor: true,
+          BlacklistSettings: true,
+          TranscriptEditor: true,
+          AuditLogsPanel: true,
+          RenderingOverlay: true,
+          Icon: true
+        }
+      }
+    })
+    
+    // With status 'cutting', the overlay must be visible
+    expect(wrapper.find('.bg-\\[\\#060608\\]\\/95').isVisible()).toBe(true)
+
+    // Now transition to ready
+    mockJobStatus.value = 'ready'
+    await wrapper.vm.$nextTick()
+
+    // Even though it transitioned to ready, the overlay should still be visible because of the 800ms delay
+    expect(wrapper.find('.bg-\\[\\#060608\\]\\/95').isVisible()).toBe(true)
+
+    // Advance by 799ms - should still be visible
+    vi.advanceTimersByTime(799)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.bg-\\[\\#060608\\]\\/95').isVisible()).toBe(true)
+
+    // Advance to 800ms - should finally trigger timeout and set state to false
+    vi.advanceTimersByTime(1)
+    await wrapper.vm.$nextTick()
+    
+    // Check state value directly
+    const isOverlayVisibleState = useState<boolean>('isOverlayVisible')
+    expect(isOverlayVisibleState.value).toBe(false)
+
+    vi.useRealTimers()
+  })
 })

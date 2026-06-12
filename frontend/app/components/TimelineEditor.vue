@@ -1,6 +1,6 @@
 <template>
   <div class="flex-1 flex flex-col bg-[#0a0a0c] select-none overflow-hidden h-full transition-all duration-300"
-       :class="{ 'opacity-40 pointer-events-none': isPipelineActive }">
+       :class="{ 'opacity-40 pointer-events-none': isOverlayVisible }">
     <!-- Toolbar -->
     <div class="h-10 flex items-center justify-between px-4 bg-[#111113] border-b border-white/5">
       <div class="flex items-center gap-2">
@@ -507,7 +507,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 
 const state = useClipperState()
-const isPipelineActive = computed(() => ['cutting', 'transcribing', 'error'].includes(state?.jobStatus?.value || '') || state?.isMediaLoading?.value)
+const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false)
 const activeSections = ref<Record<string, boolean>>({
   timing: true,
   typography: true,

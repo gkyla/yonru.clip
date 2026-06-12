@@ -84,7 +84,7 @@
              leave-from-class="opacity-100"
              leave-to-class="opacity-0"
            >
-             <div v-show="isPipelineActive" class="absolute inset-0 z-50 bg-[#060608]/95 backdrop-blur-xl flex flex-col items-center justify-center text-center">
+             <div v-show="isOverlayVisible" class="absolute inset-0 z-50 bg-[#060608]/95 backdrop-blur-xl flex flex-col items-center justify-center text-center">
                <template v-if="state.jobStatus.value === 'error'">
                  <div class="absolute w-[50vw] h-[50vw] rounded-full blur-[160px] -top-1/3 -right-1/3 mix-blend-screen bg-rose-500/10 pointer-events-none"></div>
                  <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
@@ -120,7 +120,7 @@
                <template v-else>
                  <!-- Ambient glow -->
                  <div class="absolute w-[50vw] h-[50vw] rounded-full blur-[160px] -top-1/3 -right-1/3 mix-blend-screen transition-colors duration-1000"
-                   :class="pipelineStep === 'cutting' ? 'bg-sky-500/8' : pipelineStep === 'transcribing' ? 'bg-violet-500/8' : state.isMediaLoading?.value ? 'bg-accent-500/8' : 'bg-accent-500/10'"
+                   :class="pipelineStep === 'cutting' ? 'bg-sky-500/8' : pipelineStep === 'transcribing' ? 'bg-violet-500/8' : state.isMediaLoading?.value ? 'bg-accent-500/8' : ''"
                  ></div>
                  <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
 
@@ -153,7 +153,7 @@
 
                  <!-- Title -->
                   <h2 class="text-2xl font-black tracking-tight text-white mb-2 z-10">
-                    {{ pipelineStep === 'cutting' ? 'Cutting Segment' : pipelineStep === 'transcribing' ? `Transcribing (${(state.whisperModel?.value || '').toUpperCase()})` : state.isMediaLoading?.value ? 'Loading Media...' : 'Almost Ready' }}
+                    {{ pipelineStep === 'cutting' ? 'Cutting Segment' : pipelineStep === 'transcribing' ? `Transcribing (${(state.whisperModel?.value || '').toUpperCase()})` : state.isMediaLoading?.value ? 'Loading Media...' : 'Ready!' }}
                   </h2>
                  <p class="text-slate-500 text-sm max-w-sm mb-10 z-10">
                    {{ state.isMediaLoading?.value ? 'Synchronizing assets and buffering video stream...' : pipelineStep === 'cutting' ? 'Extracting clip from cached 1080p video via local FFmpeg...' : pipelineStep === 'transcribing' ? `Running Whisper AI ${(state.whisperModel?.value || '').toUpperCase()} for high-precision word-level timestamps...` : 'Finalizing assets and preparing editor...' }}
@@ -483,13 +483,13 @@
               v-for="(hook, idx) in state.hooks.value"
               :key="idx"
               @click="selectSidebarHook(hook)"
-              :disabled="isPipelineActive"
+              :disabled="isOverlayVisible"
               class="w-full text-left p-3 rounded-lg border transition-all text-xs group relative"
               :class="[
                 isActiveHook(hook)
                   ? 'bg-amber-500/10 border-amber-500/50 text-amber-200 shadow-[inset_0_0_10px_rgba(245,158,11,0.05)] hook-item-active' 
                   : 'bg-surface-dark/50 border-surface-border hover:border-amber-500/30 hover:bg-surface-card text-slate-400',
-                isPipelineActive ? 'opacity-50 cursor-not-allowed' : ''
+                isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
               ]"
             >
               <div v-if="isActiveHook(hook)" class="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 shadow-[0_0_10px_#f59e0b]"></div>
@@ -528,13 +528,13 @@
               v-for="(hook, idx) in state.savedHooks.value"
               :key="hook._id || idx"
               @click="selectSidebarHook(hook)"
-              :disabled="isPipelineActive"
+              :disabled="isOverlayVisible"
               class="w-full text-left p-3 rounded-lg border transition-all text-xs group relative"
               :class="[
                 isActiveHook(hook)
                   ? 'bg-amber-500/10 border-amber-500/50 text-amber-200 shadow-[inset_0_0_10px_rgba(245,158,11,0.05)]' 
                   : 'bg-surface-dark/50 border-surface-border hover:border-amber-500/30 hover:bg-surface-card text-slate-400',
-                isPipelineActive ? 'opacity-50 cursor-not-allowed' : ''
+                isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
               ]"
             >
               <div v-if="isActiveHook(hook)" class="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 shadow-[0_0_10px_#f59e0b]"></div>
@@ -585,13 +585,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick, onActivated, onDeactivated } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, onActivated, onDeactivated, onUnmounted } from 'vue'
 import { groupTranscript, updateSegmentText, updateSegmentStart, updateSegmentDuration, redistributeTranscript } from '../utils/subtitleChunker'
 import type { ChunkerSegment } from '../utils/subtitleChunker'
 import type { Hook, ReadyClip } from '../types/clipper'
 const state = useClipperState()
 const route = useRoute()
 const router = useRouter()
+
+const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false)
+let overlayTimeout: ReturnType<typeof setTimeout> | null = null
 
 const isAuditExpanded = ref(false)
 
@@ -728,6 +731,10 @@ onActivated(() => {
 onDeactivated(() => {
   console.log('[yonru] Editor deactivated — stopping background polling')
   state.stopPolling()
+  if (overlayTimeout) {
+    clearTimeout(overlayTimeout)
+    overlayTimeout = null
+  }
 })
 
 const showBlacklistSettings = ref(false)
@@ -917,6 +924,42 @@ const pipelineStepIdx = computed(() => {
 })
 
 const isPipelineActive = computed(() => ['cutting', 'transcribing', 'error'].includes(state?.jobStatus?.value || '') || state?.isMediaLoading?.value)
+
+watch(
+  [isPipelineActive, () => state?.jobStatus?.value],
+  ([active, status]) => {
+    if (active) {
+      isOverlayVisible.value = true
+      if (overlayTimeout) {
+        clearTimeout(overlayTimeout)
+        overlayTimeout = null
+      }
+    } else {
+      if (status === 'ready') {
+        if (!overlayTimeout) {
+          overlayTimeout = setTimeout(() => {
+            isOverlayVisible.value = false
+            overlayTimeout = null
+          }, 800)
+        }
+      } else {
+        isOverlayVisible.value = false
+        if (overlayTimeout) {
+          clearTimeout(overlayTimeout)
+          overlayTimeout = null
+        }
+      }
+    }
+  },
+  { immediate: true }
+)
+
+onUnmounted(() => {
+  if (overlayTimeout) {
+    clearTimeout(overlayTimeout)
+    overlayTimeout = null
+  }
+})
 
 // Moved up
 
