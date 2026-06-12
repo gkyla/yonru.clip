@@ -4,10 +4,12 @@ import { useClipperJob } from '../../app/composables/useClipperJob'
 
 // Mock useTimelineState
 const mockTimelineTracks = { value: [{ items: [] as any[] }] }
+const mockIsSavingLocked = { value: false }
 vi.mock('../../app/composables/useTimelineState', () => ({
   useTimelineState: () => ({
-    isSavingLocked: { value: false },
-    timelineTracks: mockTimelineTracks
+    isSavingLocked: mockIsSavingLocked,
+    timelineTracks: mockTimelineTracks,
+    loadHistoryFromResponse: vi.fn()
   })
 }))
 
@@ -25,6 +27,7 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
   beforeEach(() => {
     mockStyleResponse = null
     mockDefaultStyleResponse = null
+    mockIsSavingLocked.value = false
 
     // Reset state values to defaults before each test
     const font = useState<string>('font')
@@ -186,6 +189,40 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     expect(mockTimelineTracks.value[0]?.items[0]?.id).toBe('mock-item-from-file')
     
     stopPolling()
+    vi.useRealTimers()
+  })
+
+  it('locks saving during loadReadyClipIntoEditor to prevent premature auto-saves', async () => {
+    vi.useFakeTimers()
+    let wasLockedDuringFetch = false
+
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/api/load-ready-clip')) {
+        wasLockedDuringFetch = mockIsSavingLocked.value
+        return Promise.resolve({
+          job_id: 'job-123',
+          status: 'ready',
+          clip: {
+            asset_url: '/assets/clips/folder/clip_id/video.mp4',
+            duration: 10
+          }
+        })
+      }
+      return Promise.resolve({})
+    }))
+
+    const { loadReadyClipIntoEditor } = useClipperJob()
+    
+    const loadPromise = loadReadyClipIntoEditor('folder', '10_20_clip')
+    await loadPromise
+    
+    expect(wasLockedDuringFetch).toBe(true)
+    expect(mockIsSavingLocked.value).toBe(true)
+    
+    await vi.advanceTimersByTimeAsync(500)
+    expect(mockIsSavingLocked.value).toBe(false)
+    
     vi.useRealTimers()
   })
 })
