@@ -559,6 +559,7 @@ function onNativeTimeUpdate(e: Event) {
 
 function onNativeVideoError(e: Event) {
   console.error('[VideoPreview] Native video error:', e)
+  state.isMediaLoading.value = false
 }
 
 let safetyTimeout: any = null

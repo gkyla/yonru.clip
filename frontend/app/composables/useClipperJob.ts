@@ -393,7 +393,13 @@ export const useClipperJob = () => {
         if (['hooks_ready', 'ready', 'error'].includes(res.status)) {
           stopPolling()
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('[polling] Exception during status polling:', e)
+        jobStatus.value = 'error'
+        jobError.value = e instanceof Error ? e.message : 'An unexpected polling error occurred'
+        isMediaLoading.value = false
+        stopPolling()
+      }
     }, 2000)
   }
 
