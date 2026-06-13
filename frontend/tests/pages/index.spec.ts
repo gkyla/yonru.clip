@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import index from '../../app/pages/index.vue'
 import { ref } from 'vue'
+import { useState } from '#imports'
 
 // Mock useClipperState
 vi.mock('../../app/composables/useClipperState', () => ({
@@ -22,6 +23,7 @@ vi.mock('../../app/composables/useClipperState', () => ({
     hooks: ref([]),
     jobId: ref('job-123'),
     jobStatus: ref('idle'),
+    clipId: ref(''),
     savedHooks: ref([]),
     activeHook: ref(null),
     lastAccessedVideoId: ref(null),
@@ -201,5 +203,69 @@ describe('Index Page', () => {
     
     expect(videoEl.volume).toBe(0.45)
     expect(videoEl.muted).toBe(true)
+  })
+
+  it('hides the Ready badge for the active hook while a job is cutting/transcribing/queued', async () => {
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/api/ready-clips')) {
+        return Promise.resolve({
+          clips: [
+            { folder_name: 'test-folder', clip_id: '8_20_Test_Active_Hook' }
+          ]
+        })
+      }
+      return Promise.resolve({})
+    }))
+
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: {
+            template: '<div><slot /></div>'
+          },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    // Set active video details to match folderName
+    vm.state.folderName.value = 'test-folder'
+    
+    // Set up readyClips to contain a matching clip
+    // With hook start 10, safetyBuffer 2.0 (default in index.vue is 2.0)
+    // Clip ID will start at 10 - 2 = 8, end at 20: '8_20_Test_Active_Hook'
+    const hook = { start: 10, end: 20, theme: 'Test Active Hook', transcript_quote: '' }
+    vm.state.hooks.value = [hook]
+
+    // Set state value as well just in case
+    const readyClipsState = useState<any[]>('readyClips', () => [])
+    readyClipsState.value = [
+      { folder_name: 'test-folder', clip_id: '8_20_Test_Active_Hook' }
+    ]
+
+    await wrapper.vm.$nextTick()
+
+    // 1. Since status is idle, hook should show "Ready"
+    const getHookCard = () => wrapper.findAll('.bg-surface-panel').find(d => d.text().includes('Test Active Hook'))
+    expect(getHookCard()).toBeDefined()
+    expect(getHookCard()!.text()).toContain('Ready')
+
+    // 2. Set jobStatus to cutting and activeHook to our hook
+    vm.state.jobStatus.value = 'cutting'
+    vm.state.activeHook.value = hook
+    vm.state.clipId.value = ''
+
+    await wrapper.vm.$nextTick()
+
+    // 3. Ready badge should be hidden
+    expect(getHookCard()!.text()).not.toContain('Ready')
+
+    // 4. Set jobStatus to ready, badge should reappear
+    vm.state.jobStatus.value = 'ready'
+    await wrapper.vm.$nextTick()
+    expect(getHookCard()!.text()).toContain('Ready')
   })
 })

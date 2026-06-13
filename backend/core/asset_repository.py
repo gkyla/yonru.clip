@@ -384,7 +384,15 @@ class AssetRepository(AssetStore):
                 video_path = os.path.join(clip_entry.path, "video.mp4")
                 transcript_path = os.path.join(clip_entry.path, "transcript.json")
                 
-                if os.path.exists(video_path) and os.path.exists(transcript_path):
+                if os.path.exists(video_path):
+                    if not os.path.exists(transcript_path):
+                        try:
+                            with open(transcript_path, "w", encoding="utf-8") as f:
+                                json.dump([], f, ensure_ascii=False, indent=2)
+                            print(f"[asset_repository] Auto-healed missing transcript at {transcript_path}")
+                        except Exception as e:
+                            print(f"[asset_repository] Failed to auto-heal missing transcript at {transcript_path}: {e}")
+                    
                     mtime = os.path.getmtime(video_path)
                     clip_id = clip_entry.name
                     duration = self.get_video_duration(video_path)

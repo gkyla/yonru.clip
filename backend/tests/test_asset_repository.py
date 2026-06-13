@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 import os
 import sys
+import json
 
 # Dynamic path resolution to root of backend
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -115,3 +116,29 @@ class TestAssetRepository(unittest.TestCase):
         hook_id = hooks[0]["_id"]
         cleared = self.repo.delete_saved_hook(folder_name, hook_id)
         self.assertEqual(len(cleared), 0)
+
+    @patch('core.asset_repository.AssetRepository.get_video_duration')
+    def test_list_all_clips_auto_healing(self, mock_duration):
+        mock_duration.return_value = 10.0
+        
+        clip_dir = os.path.join(self.output_dir, "clips", "test_video_123", "10_20_test")
+        os.makedirs(clip_dir, exist_ok=True)
+        
+        video_path = os.path.join(clip_dir, "video.mp4")
+        with open(video_path, "w") as f:
+            f.write("dummy video data")
+            
+        transcript_path = os.path.join(clip_dir, "transcript.json")
+        self.assertFalse(os.path.exists(transcript_path))
+        
+        clips = self.repo.list_all_clips()
+        
+        self.assertEqual(len(clips), 1)
+        self.assertEqual(clips[0]["clip_id"], "10_20_test")
+        self.assertEqual(clips[0]["folder_name"], "test_video_123")
+        self.assertTrue(os.path.exists(transcript_path))
+        
+        with open(transcript_path, "r", encoding="utf-8") as f:
+            saved_transcript = json.load(f)
+        self.assertEqual(saved_transcript, [])
+

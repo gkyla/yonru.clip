@@ -490,7 +490,11 @@ export const useClipperJob = () => {
     try {
       const res = await $fetch<JobApiResponse>(`${API_BASE}/api/load-ready-clip`, {
         method: 'POST',
-        body: { folder_name: folder, clip_id: id }
+        body: { 
+          folder_name: folder, 
+          clip_id: id,
+          whisper_model: whisperModel.value
+        }
       })
       
       jobId.value = res.job_id ?? null

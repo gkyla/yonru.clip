@@ -310,3 +310,51 @@ def test_run_local_cut_reuse_transcript(mock_dependencies, tmp_path):
     
     # Ensure speech transcriber was NOT called
     mock_dependencies["speech_transcriber"].transcribe.assert_not_called()
+
+def test_run_local_cut_whisper_fails(mock_dependencies, tmp_path):
+    """Verify run_local_cut writes a fallback empty transcript and finishes normally if Whisper fails."""
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    
+    job_id = "test_job_fail"
+    video_file = tmp_path / "video.mp4"
+    video_file.write_text("dummy")
+    
+    coordinator.jobs[job_id] = {
+        "status": "queued",
+        "full_video_path": str(video_file),
+        "video_info": {"fps": 30.0},
+        "clip": None
+    }
+    
+    clip_dir = tmp_path / "clip_10_30_fail"
+    clip_dir.mkdir()
+    clip_file = clip_dir / "video.mp4"
+    clip_file.write_text("dummy clip")
+    
+    mock_dependencies["asset_repository"].create_clip.return_value = {
+        "file_path": str(clip_file),
+        "duration": 20.0
+    }
+    mock_dependencies["asset_repository"].extract_audio_from_local.return_value = "dummy_audio.wav"
+    mock_dependencies["speech_transcriber"].transcribe.side_effect = Exception("Whisper failed")
+    
+    coordinator.run_local_cut(job_id, 10.0, 30.0)
+    
+    # Assertions
+    assert coordinator.jobs[job_id]["status"] == "ready"
+    assert coordinator.jobs[job_id]["clip_path"] == str(clip_file)
+    
+    # Verify fallback empty transcript was created
+    transcript_path = clip_dir / "transcript.json"
+    assert transcript_path.exists()
+    with open(transcript_path, "r") as f:
+        saved_transcript = json.load(f)
+    assert saved_transcript == []
+
