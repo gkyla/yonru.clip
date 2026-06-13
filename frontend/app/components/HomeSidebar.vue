@@ -620,6 +620,7 @@ function handleNav(view: string) {
 }
 
 async function handleContinueEditingClick() {
+  if (isCurrentClipActive.value) return
   const router = useRouter()
   if (!props.lastClip || !props.lastVideo) return
   

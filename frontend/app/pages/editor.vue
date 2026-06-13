@@ -142,13 +142,27 @@
                            : 'border-t-accent-500'"
                      ></div>
                      <div class="absolute inset-0 flex items-center justify-center">
-                       <Icon 
-                         :name="state.jobStatus.value === 'ready' ? 'ri:check-double-fill' : pipelineStep === 'cutting' ? 'ri:scissors-cut-fill' : pipelineStep === 'transcribing' ? 'ri:mic-ai-fill' : 'ri:check-double-fill'" 
-                         class="text-4xl transition-colors duration-700"
-                         :class="pipelineStep === 'cutting' ? 'text-sky-400 animate-pulse' : pipelineStep === 'transcribing' ? 'text-violet-400 animate-pulse' : 'text-accent-500 animate-pulse'"
-                       />
-                     </div>
-                   </div>
+                        <!-- Scissors (Cutting) -->
+                        <Icon 
+                          name="ri:scissors-cut-fill" 
+                          class="absolute text-4xl text-sky-400 transition-all duration-300 ease-out transform"
+                          :class="pipelineStep === 'cutting' && state.jobStatus.value !== 'ready' ? 'opacity-100 scale-100 animate-pulse' : 'opacity-0 scale-75 pointer-events-none'"
+                        />
+
+                        <!-- Microphone (Transcribing) -->
+                        <Icon 
+                          name="ri:mic-ai-fill" 
+                          class="absolute text-4xl text-violet-400 transition-all duration-300 ease-out transform"
+                          :class="pipelineStep === 'transcribing' && state.jobStatus.value !== 'ready' ? 'opacity-100 scale-100 animate-pulse' : 'opacity-0 scale-75 pointer-events-none'"
+                        />
+
+                        <!-- Double Check (Ready) -->
+                        <Icon 
+                          name="ri:check-double-fill" 
+                          class="absolute text-4xl text-accent-500 transition-all duration-300 ease-out transform"
+                          :class="state.jobStatus.value === 'ready' ? 'opacity-100 scale-100 animate-pulse' : 'opacity-0 scale-75 pointer-events-none'"
+                        />
+                      </div></div>
                  </div>
 
                  <!-- Title -->
