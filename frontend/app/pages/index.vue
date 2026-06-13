@@ -1664,9 +1664,9 @@ function isHookSaved(hook: Hook) {
   return state.savedHooks.value.some((h: Hook) => Math.abs(h.start - hook.start) < 0.1 && Math.abs(h.end - hook.end) < 0.1)
 }
 
-function isHookRendered(hook: Hook) {
-  if (!readyClips.value?.length || !state.folderName.value || !hook) return false
-  return readyClips.value.some(c => {
+function findMatchingClip(hook: Hook | null): ReadyClip | undefined {
+  if (!readyClips.value?.length || !state.folderName.value || !hook) return undefined
+  return readyClips.value.find(c => {
     if (c.folder_name !== state.folderName.value) return false
     const parts = c.clip_id.split('_')
     const part0 = parts[0]
@@ -1674,8 +1674,75 @@ function isHookRendered(hook: Hook) {
     if (part0 === undefined || part1 === undefined) return false
     const cStart = parseFloat(part0)
     const cEnd = parseFloat(part1)
-    return Math.abs(cStart - hook.start) < 1.1 && Math.abs(cEnd - hook.end) < 1.1
+    if (isNaN(cStart) || isNaN(cEnd)) return false
+
+    // Method 1: Proximity check using the active start safety buffer
+    const safetyBuffer = state.startSafetyBuffer?.value ?? 2.0
+    const expectedStart = Math.max(0, Math.floor(hook.start - safetyBuffer))
+    const expectedEnd = Math.ceil(hook.end)
+    if (Math.abs(cStart - expectedStart) < 1.5 && Math.abs(cEnd - expectedEnd) < 1.5) {
+      return true
+    }
+
+    // Method 2: Proximity check with default 2.0s buffer or no buffer (fallbacks)
+    const expectedStartDefault = Math.max(0, Math.floor(hook.start - 2.0))
+    if (Math.abs(cStart - expectedStartDefault) < 1.5 && Math.abs(cEnd - expectedEnd) < 1.5) {
+      return true
+    }
+    const expectedStartNone = Math.max(0, Math.floor(hook.start))
+    if (Math.abs(cStart - expectedStartNone) < 1.5 && Math.abs(cEnd - expectedEnd) < 1.5) {
+      return true
+    }
+
+    // Method 3: Overlap heuristic (handles custom user duration adjustment in editor)
+    const hookDuration = hook.end - hook.start
+    if (hookDuration <= 0) return false
+    const overlapStart = Math.max(cStart, hook.start)
+    const overlapEnd = Math.min(cEnd, hook.end)
+    const overlap = overlapEnd - overlapStart
+    if (overlap > 0 && (overlap / hookDuration) >= 0.8) {
+      return true
+    }
+
+    // Method 4: Theme name matching (fallback if times shifted completely but theme matches)
+    if (hook.theme && parts.length >= 3) {
+      const cleanHookTheme = hook.theme.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, ' ').trim()
+      const clipThemeStr = parts.slice(2).join(' ').replace(/_/g, ' ')
+      const cleanClipTheme = clipThemeStr.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, ' ').trim()
+      if (cleanHookTheme && cleanClipTheme && (cleanClipTheme.includes(cleanHookTheme) || cleanHookTheme.includes(cleanClipTheme))) {
+        return true
+      }
+    }
+
+    return false
   })
+}
+
+function isHookRendered(hook: Hook | null) {
+  if (!hook) return false
+  
+  const status = state.jobStatus.value
+  if (['cutting', 'transcribing', 'queued'].includes(status)) {
+    if (state.activeHook.value) {
+      const hStart = typeof hook.start === 'string' ? parseFloat(hook.start) : hook.start
+      const hEnd = typeof hook.end === 'string' ? parseFloat(hook.end) : hook.end
+      const aStart = typeof state.activeHook.value.start === 'string' ? parseFloat(state.activeHook.value.start) : state.activeHook.value.start
+      const aEnd = typeof state.activeHook.value.end === 'string' ? parseFloat(state.activeHook.value.end) : state.activeHook.value.end
+      if (Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1) {
+        return false
+      }
+    }
+  }
+  
+  const matchingClip = findMatchingClip(hook)
+  if (!matchingClip) return false
+  
+  // If this clip is currently being processed (cut/transcribed) in the active job, it is not ready/rendered yet
+  if (['cutting', 'transcribing', 'queued'].includes(status) && state.clipId.value === matchingClip.clip_id) {
+    return false
+  }
+  
+  return true
 }
 
 async function toggleSaveHook(hook: Hook) {

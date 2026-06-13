@@ -237,7 +237,17 @@ class ClipWorkflowCoordinator:
             
             # Step 3: Use existing transcript if available (prevents overwriting manual edits)
             transcript_path = os.path.join(os.path.dirname(clip["file_path"]), "transcript.json")
+            is_transcript_valid = False
             if os.path.exists(transcript_path):
+                try:
+                    with open(transcript_path, "r", encoding="utf-8") as f:
+                        t_data = json.load(f)
+                        if isinstance(t_data, list) and len(t_data) > 0:
+                            is_transcript_valid = True
+                except Exception:
+                    pass
+
+            if is_transcript_valid:
                 print(f"[transcribe] Reuse existing transcript at {transcript_path}")
                 
                 # Check for default style settings
@@ -283,30 +293,40 @@ class ClipWorkflowCoordinator:
             job["status"] = "transcribing"
             self.jobs[job_id] = job
             
+            precise_words = None
             try:
                 # Extract audio from clip
                 clip_audio = self.asset_repository.extract_audio_from_local(clip["file_path"])
                 print(f"[transcribe] Transcribing clip audio...")
                 precise_words = self.speech_transcriber.transcribe(clip_audio, model_size=whisper_model)
-                
-                if precise_words:
-                    # Save precise transcript
-                    with open(transcript_path, "w", encoding="utf-8") as f:
-                        json.dump(precise_words, f, ensure_ascii=False, indent=2)
-                    print(f"[transcribe] Saved high-precision clip transcript ({len(precise_words)} words)")
-                    
-                    c_quote = " ".join([s.get("text", "") for s in precise_words]).strip()
-                    if len(c_quote) > 1000: c_quote = c_quote[:997] + "..."
-                    clip["transcript_quote"] = c_quote
-                    
-                    # Update in-memory job object so polling picks it up immediately
-                    job = self.jobs[job_id]
-                    if "clip" in job and job["clip"]:
-                        job["clip"]["transcript_quote"] = c_quote
-                        self.jobs[job_id] = job
-                        print(f"[transcribe] Updated in-memory clip quote for job {job_id}")
             except Exception as e:
                 print(f"[transcribe] Whisper failed for clip, falling back to global: {e}")
+                
+            if precise_words:
+                # Save precise transcript
+                with open(transcript_path, "w", encoding="utf-8") as f:
+                    json.dump(precise_words, f, ensure_ascii=False, indent=2)
+                print(f"[transcribe] Saved high-precision clip transcript ({len(precise_words)} words)")
+                
+                c_quote = " ".join([s.get("text", "") for s in precise_words]).strip()
+                if len(c_quote) > 1000: c_quote = c_quote[:997] + "..."
+                clip["transcript_quote"] = c_quote
+                
+                # Update in-memory job object so polling picks it up immediately
+                job = self.jobs[job_id]
+                if "clip" in job and job["clip"]:
+                    job["clip"]["transcript_quote"] = c_quote
+                    self.jobs[job_id] = job
+                    print(f"[transcribe] Updated in-memory clip quote for job {job_id}")
+            else:
+                # Fallback: save empty transcript.json if missing
+                if not os.path.exists(transcript_path):
+                    try:
+                        with open(transcript_path, "w", encoding="utf-8") as f:
+                            json.dump([], f, ensure_ascii=False, indent=2)
+                        print(f"[transcribe] Saved fallback empty clip transcript")
+                    except Exception as fe:
+                        print(f"[transcribe] Failed to write fallback empty transcript: {fe}")
 
             # Check for default style settings
             clip_style_path = os.path.join(os.path.dirname(clip["file_path"]), "style_settings.json")

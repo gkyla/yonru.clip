@@ -47,6 +47,10 @@ A client-side warning dialog that triggers when a user submits a YouTube URL tha
 
 ### Cinematic Preview Modal
 A fullscreen modal overlay that provides a dual-pane interface (video preview player on the left and hook details sidebar on the right) for reviewing generated or saved hooks before entering the subtitle editor.
+
+### Ready Badge
+A visual checkmark indicator displayed next to a hook in the sidebar to signify that its corresponding video clip has been successfully cut and transcribed on the server. The badge is suppressed while the clip is actively being processed (such as during the ffmpeg cut or Whisper transcription phases).
+
 ### Start Safety Buffer
 A fixed time padding (strictly 2.0 seconds) subtracted from the AI-generated hook start time to prevent cut-off spoken words during preview playback and clip extraction.
 

@@ -12,6 +12,10 @@ const mockIsMediaLoading = ref(false)
 const mockActiveHook = ref<any>(null)
 const mockExtractClip = vi.fn()
 const mockSubtitleMode = ref('word')
+const mockFolderName = ref('test_folder')
+const mockClipId = ref('')
+const mockSavedHooks = ref<any[]>([])
+const mockHooks = ref<any[]>([])
 
 // Mock useRoute from #imports but preserve other auto-imports (like useRouter)
 vi.mock('#imports', async (importOriginal) => {
@@ -47,10 +51,10 @@ vi.mock('../../app/composables/useClipperState', () => ({
     startPolling: vi.fn(),
     renderStatus: { value: 'idle' },
     jobId: { value: '' },
-    folderName: { value: '' },
-    clipId: { value: '' },
-    savedHooks: { value: [] },
-    hooks: { value: [] },
+    folderName: mockFolderName,
+    clipId: mockClipId,
+    savedHooks: mockSavedHooks,
+    hooks: mockHooks,
     activeHook: mockActiveHook,
     extractClip: mockExtractClip,
     subtitleMode: mockSubtitleMode,
@@ -65,6 +69,10 @@ describe('Editor Page', () => {
     mockIsMediaLoading.value = false
     mockActiveHook.value = null
     mockExtractClip.mockReset()
+    mockFolderName.value = 'test_folder'
+    mockClipId.value = ''
+    mockSavedHooks.value = []
+    mockHooks.value = []
   })
 
   it('renders successfully', () => {
@@ -222,5 +230,63 @@ describe('Editor Page', () => {
     expect(isOverlayVisibleState.value).toBe(false)
 
     vi.useRealTimers()
+  })
+
+  it('hides the Ready badge for the active hook while a job is cutting/transcribing/queued', async () => {
+    // 1. Set up a hook and a matching ready clip
+    const hook = { start: 10, end: 20, theme: 'Test Active Hook', transcript_quote: '' }
+    mockHooks.value = [hook]
+    mockFolderName.value = 'test_folder'
+    
+    // Set up readyClips to contain a matching clip on disk
+    // A matching clip name uses: Math.floor(hook.start - safetyBuffer) or hook.start, etc.
+    // By default, safetyBuffer is 2.0. So 10 - 2 = 8.
+    const matchingClipId = '8_20_Test_Active_Hook'
+    const readyClipsState = useState<any[]>('readyClips', () => [])
+    readyClipsState.value = [
+      { folder_name: 'test_folder', clip_id: matchingClipId }
+    ]
+
+    // 2. Mount the editor page
+    const wrapper = mount(editor, {
+      global: {
+        stubs: {
+          HomeSidebar: true,
+          SidebarSettings: true,
+          VideoPreview: true,
+          TimelinePanel: true,
+          TimelineEditor: true,
+          BlacklistSettings: true,
+          TranscriptEditor: true,
+          AuditLogsPanel: true,
+          RenderingOverlay: true,
+          Icon: true
+        }
+      }
+    })
+
+    // Wait for nextTick for state to propagate
+    await wrapper.vm.$nextTick()
+
+    // 3. Since jobStatus is 'idle', the hook should be considered rendered/ready (since matching clip is in readyClips)
+    const getHookButton = () => wrapper.findAll('button').find(b => b.text().includes('Test Active Hook'))
+    expect(getHookButton()).toBeDefined()
+    expect(getHookButton()!.text()).toContain('Ready')
+
+    // 4. Now, simulate the user running a cut job for this hook
+    mockJobStatus.value = 'cutting'
+    mockActiveHook.value = hook
+    mockClipId.value = '' // Reset when starting job
+
+    await wrapper.vm.$nextTick()
+
+    // 5. The hook is now currently being processed by the active job.
+    // The "Ready" badge MUST NOT be displayed!
+    expect(getHookButton()!.text()).not.toContain('Ready')
+
+    // 6. Once the job transitions to 'ready', the badge should reappear
+    mockJobStatus.value = 'ready'
+    await wrapper.vm.$nextTick()
+    expect(getHookButton()!.text()).toContain('Ready')
   })
 })

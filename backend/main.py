@@ -125,6 +125,7 @@ class RenderRequest(BaseModel):
 class LoadReadyClipRequest(BaseModel):
     folder_name: str
     clip_id: str
+    whisper_model: Optional[str] = "base"
     volume: float = 0.5
     fps: float = 30.0
     transcript: Optional[list] = None
@@ -305,8 +306,25 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
         target_dir = os.path.join(asset_repository.clips_dir, folder_name, clip_id)
         transcript_path = os.path.join(target_dir, "transcript.json")
         
-        if os.path.exists(os.path.join(target_dir, "video.mp4")) and os.path.exists(transcript_path):
-            print(f"[api] Clip {clip_id} already ready, skipping cut task")
+        is_transcript_valid = False
+        if os.path.exists(transcript_path):
+            try:
+                with open(transcript_path, "r", encoding="utf-8") as f:
+                    t_data = json.load(f)
+                    if isinstance(t_data, list) and len(t_data) > 0:
+                        is_transcript_valid = True
+            except:
+                pass
+
+        if os.path.exists(os.path.join(target_dir, "video.mp4")) and not is_transcript_valid:
+            if os.path.exists(transcript_path):
+                try:
+                    os.remove(transcript_path)
+                except:
+                    pass
+
+        if os.path.exists(os.path.join(target_dir, "video.mp4")) and is_transcript_valid:
+            print(f"[api] Clip {clip_id} already ready and has valid transcript, skipping cut task")
             
             # Check for default style settings
             clip_style_path = os.path.join(target_dir, "style_settings.json")
@@ -363,6 +381,18 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
     job["clip_start"] = None
     job["clip_end"] = None
     job["clip_theme"] = None
+    
+    # Resolve clip_id in case cached_info check passed, or fall back dynamically
+    resolved_clip_id = None
+    if cached_info and cached_info.get("file_path"):
+        folder_name = os.path.basename(os.path.dirname(cached_info["file_path"]))
+        safe_theme = ""
+        if req.theme:
+            import re
+            safe_theme = re.sub(r'[^\w\s-]', '', req.theme).strip().replace(' ', '_')[:50]
+        resolved_clip_id = f"{int(req.start_time)}_{int(req.end_time)}_{safe_theme}" if safe_theme else f"{int(req.start_time)}_{int(req.end_time)}"
+        
+    job["clip_id"] = resolved_clip_id
     job["status"] = "cutting"
     jobs[req.job_id] = job
 
@@ -510,7 +540,20 @@ async def list_cached():
 async def list_ready_clips():
     """List all segments that have been cut and transcribed."""
     clips = asset_repository.list_all_clips()
-    return {"clips": clips}
+    
+    # Filter out clips that are currently being processed in an active job
+    active_clip_ids = set()
+    try:
+        for job_id, job in jobs.items():
+            if job.get("status") in ["cutting", "transcribing", "queued"]:
+                c_id = job.get("clip_id") or (job.get("clip") or {}).get("clip_id")
+                if c_id:
+                    active_clip_ids.add(c_id)
+    except Exception as e:
+        print(f"[api] Error reading active jobs for ready-clips: {e}")
+        
+    filtered_clips = [c for c in clips if c["clip_id"] not in active_clip_ids]
+    return {"clips": filtered_clips}
 
 @app.delete("/api/ready-clips/{folder_name}/{clip_id}")
 async def delete_ready_clip(folder_name: str, clip_id: str):
@@ -1095,7 +1138,7 @@ async def delete_thumbnail(folder_name: str, clip_id: str):
 
 
 @app.post("/api/load-ready-clip")
-async def load_ready_clip(req: LoadReadyClipRequest):
+async def load_ready_clip(req: LoadReadyClipRequest, background_tasks: BackgroundTasks):
     """Initialize a job state from an existing ready clip."""
     import uuid
     
@@ -1104,7 +1147,7 @@ async def load_ready_clip(req: LoadReadyClipRequest):
     clip_path = os.path.join(clip_dir, "video.mp4")
     transcript_path = os.path.join(clip_dir, "transcript.json")
     
-    if not os.path.exists(clip_path) or not os.path.exists(transcript_path):
+    if not os.path.exists(clip_path):
         raise HTTPException(status_code=404, detail="Ready clip assets not found")
         
     # 2. Get source video info
@@ -1126,13 +1169,30 @@ async def load_ready_clip(req: LoadReadyClipRequest):
         except:
             pass
 
-    # 4. Create a job marked as ready (deterministically derived from folder name and clip ID)
+    # 4. Verify transcript validity
+    is_transcript_valid = False
+    if os.path.exists(transcript_path):
+        try:
+            with open(transcript_path, "r", encoding="utf-8") as f:
+                t_data = json.load(f)
+                if isinstance(t_data, list) and len(t_data) > 0:
+                    is_transcript_valid = True
+        except Exception:
+            pass
+
+    if not is_transcript_valid and os.path.exists(transcript_path):
+        try:
+            os.remove(transcript_path)
+        except Exception:
+            pass
+
+    # 5. Create a job marked as ready or queued (deterministically derived from folder name and clip ID)
     import hashlib
     hash_input = f"{req.folder_name}_{req.clip_id}"
     job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
     duration = asset_repository.get_video_duration(clip_path)
     
-    # 5. Load generated hooks from sources folder
+    # 6. Load generated hooks from sources folder
     ready_hooks = []
     source_hooks_path = os.path.join("temp_assets", "sources", req.folder_name, "hooks.json")
     if os.path.exists(source_hooks_path):
@@ -1143,34 +1203,33 @@ async def load_ready_clip(req: LoadReadyClipRequest):
         except Exception as e:
             print(f"[debug] Failed to read source hooks: {e}")
 
-    # 6. Extract transcript quote for the CURRENT active clip so the editor is populated
+    # 7. Extract transcript quote for the CURRENT active clip so the editor is populated
     active_quote = "No transcript preview available."
-    active_transcript_path = os.path.join(os.path.dirname(clip_path), "transcript.json")
-    if os.path.exists(active_transcript_path):
+    if is_transcript_valid:
         try:
-            with open(active_transcript_path, "r", encoding="utf-8") as f:
+            with open(transcript_path, "r", encoding="utf-8") as f:
                 t_data = json.load(f)
-                if isinstance(t_data, list) and len(t_data) > 0:
-                    active_quote = " ".join([s.get("text", "") for s in t_data]).strip()
-                    if len(active_quote) > 1000: active_quote = active_quote[:997] + "..."
+                active_quote = " ".join([s.get("text", "") for s in t_data]).strip()
+                if len(active_quote) > 1000: active_quote = active_quote[:997] + "..."
         except Exception as e:
             print(f"[debug] Failed to read active transcript: {e}")
     
     # Sort hooks so the current one is likely found correctly by index
     ready_hooks.sort(key=lambda x: x["start"])
 
-    # 7. Snap the active clip's start/end to the closest hook in the list 
+    # 8. Snap the active clip's start/end to the closest hook in the list 
     # to ensure the frontend highlight logic (matching by timestamp) works perfectly.
     snapped_start, snapped_end = start_time, end_time
     for h in ready_hooks:
-        if abs(h.get("start", 0) - start_time) < 0.5 and abs(h.get("end", 0) - end_time) < 0.5:
+        if abs(h.get("start", 0) - start_time) < 3.5 and abs(h.get("end", 0) - end_time) < 1.5:
             snapped_start = h.get("start", 0)
             snapped_end = h.get("end", 0)
             print(f"[debug] Snapped active clip to matching hook: {snapped_start} - {snapped_end}")
             break
 
+    status = "ready" if is_transcript_valid else "queued"
     jobs[job_id] = {
-        "status": "ready",
+        "status": status,
         "url": f"https://youtube.com/watch?v={video_info['video_id']}",
         "video_info": video_info,
         "full_video_path": video_info["file_path"],
@@ -1190,8 +1249,19 @@ async def load_ready_clip(req: LoadReadyClipRequest):
         "error": None
     }
     
+    if not is_transcript_valid:
+        background_tasks.add_task(
+            workflow_coordinator.run_local_cut,
+            job_id,
+            start_time,
+            end_time,
+            theme,
+            req.whisper_model or "base"
+        )
+        print(f"[api] Triggered recovery transcription for ready clip {req.clip_id} in job {job_id}")
+
     save_jobs()
-    print(f"[api] Loaded ready clip {req.clip_id} into job {job_id}")
+    
     # Load persisted history if it exists
     history_data = None
     history_path = os.path.join(clip_dir, "history.json")
@@ -1205,7 +1275,7 @@ async def load_ready_clip(req: LoadReadyClipRequest):
 
     return {
         "job_id": job_id, 
-        "status": "ready",
+        "status": status,
         "clip": jobs[job_id]["clip"],
         "hooks": jobs[job_id]["hooks"],
         "fps": jobs[job_id]["fps"],
