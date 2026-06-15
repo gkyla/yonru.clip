@@ -603,7 +603,7 @@
         </div>
 
       <!-- Hit List -->
-      <div v-if="state.jobStatus.value === 'hooks_ready' || state.hooks.value.length > 0 || state.savedHooks.value.length > 0" class="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full p-8 -mt-8">
+      <div v-if="state.jobStatus.value !== 'idle' && (state.jobStatus.value === 'hooks_ready' || state.hooks.value.length > 0 || state.savedHooks.value.length > 0)" class="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full p-8 -mt-8">
          <div class="flex flex-col mb-6">
             <div class="flex items-center justify-between gap-4 border-b border-surface-border/40 pb-4">
                <div class="flex items-center bg-surface-dark border border-surface-border/40 p-1 gap-1 w-full max-w-[460px]">

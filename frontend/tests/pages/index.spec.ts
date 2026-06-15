@@ -242,6 +242,7 @@ describe('Index Page', () => {
     const vm = wrapper.vm as any
     // Set active video details to match folderName
     vm.state.folderName.value = 'test-folder'
+    vm.state.jobStatus.value = 'hooks_ready'
     
     // Set up readyClips to contain a matching clip
     // With hook start 10, safetyBuffer 2.0 (default in index.vue is 2.0)
@@ -354,6 +355,29 @@ describe('Index Page', () => {
     
     // Assert fetchCached is triggered with false (page 2 incremental fetch)
     expect(vm.state.fetchCached).toHaveBeenCalledWith(false)
+  })
+
+  it('does not render the hooks section on the dashboard when jobStatus is idle, even if savedHooks has items', async () => {
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: {
+            template: '<div><slot /></div>'
+          },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.state.jobStatus.value = 'idle'
+    vm.state.savedHooks.value = [{ theme: 'Saved Hook', start: 10, end: 20 }]
+    await wrapper.vm.$nextTick()
+
+    // Find the Hit List container (it starts with .animate-in and contains generated hooks)
+    const hooksContainer = wrapper.find('.animate-in')
+    expect(hooksContainer.exists()).toBe(false)
   })
 })
 
