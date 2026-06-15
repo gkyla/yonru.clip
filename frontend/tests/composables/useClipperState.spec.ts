@@ -235,6 +235,35 @@ describe('useClipperState Composable', () => {
     // Video must still be resolved via fallback cache
     expect(state.lastAccessedVideo.value).toEqual(video)
   })
+
+  it('sets isCachedLoading to true on sort/reset fetch even if cachedVideos has items', async () => {
+    const state = useClipperState()
+    state.resetWorkspace()
+    await nextTick()
+
+    // Setup initial videos
+    state.cachedVideos.value = [
+      { video_id: 'vid1', title: 'Video 1', duration: 10, folder_name: 'Vid_1' }
+    ]
+    expect(state.isCachedLoading.value).toBe(false)
+
+    // Stub mock fetch
+    const mockFetch = vi.fn().mockResolvedValue({
+      videos: [],
+      total: 0,
+      has_more: false
+    })
+    vi.stubGlobal('$fetch', mockFetch)
+
+    // Trigger fetchCached with reset=true
+    const runFetch = state.fetchCached(true)
+    
+    expect(state.isCachedLoading.value).toBe(true)
+
+    await runFetch
+    expect(state.isCachedLoading.value).toBe(false)
+  })
 })
+
 
 

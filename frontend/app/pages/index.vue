@@ -286,10 +286,12 @@
             <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
               <!-- Search Input -->
               <div class="relative flex items-center bg-surface-dark border border-surface-border focus-within:border-accent-500/50 transition-colors h-9 px-3 w-full sm:w-64 rounded-none">
-                <Transition name="scale-fade" mode="out-in">
-                  <Icon v-if="isCachedLoading || isSearchPending" key="loading" name="ri:loader-2-line" class="animate-spin text-accent-500 text-sm shrink-0 mr-2" />
-                  <Icon v-else key="search" name="ri:search-line" class="text-slate-500 text-sm shrink-0 mr-2" />
-                </Transition>
+                <div class="w-4 h-4 relative flex items-center justify-center shrink-0 mr-2 select-none">
+                  <Transition name="scale-fade">
+                    <Icon v-if="isCachedLoading || isSearchPending" key="loading" name="ri:loader-2-line" class="absolute inset-0 animate-spin text-accent-500 text-sm" />
+                    <Icon v-else key="search" name="ri:search-line" class="absolute inset-0 text-slate-500 text-sm" />
+                  </Transition>
+                </div>
                 <input 
                   v-model="state.cachedVideosSearch.value"
                   type="text" 
@@ -306,19 +308,61 @@
               </div>
 
               <!-- Sort Dropdown -->
-              <div class="relative bg-surface-dark border border-surface-border focus-within:border-accent-500/50 transition-colors h-9 px-2 flex items-center rounded-none shrink-0">
-                <select 
-                  :value="state.cachedVideosSortBy.value + ':' + state.cachedVideosSortOrder.value"
-                  @change="handleSortSelect"
-                  class="bg-transparent border-none text-slate-300 text-xs focus:ring-0 focus:outline-none pr-8 cursor-pointer font-bold uppercase tracking-wider appearance-none h-full w-full"
+              <div ref="sortDropdownRef" class="relative shrink-0 select-none">
+                <button 
+                  @click="isSortDropdownOpen = !isSortDropdownOpen"
+                  class="h-9 bg-surface-dark border border-surface-border text-slate-300 px-3 py-2 rounded-none text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-accent-500/50 flex items-center justify-between gap-2.5 cursor-pointer min-w-[150px]"
                 >
-                  <option value="date:desc" class="bg-[#111318] text-white">Newest First</option>
-                  <option value="date:asc" class="bg-[#111318] text-white">Oldest First</option>
-                  <option value="title:asc" class="bg-[#111318] text-white">Title A-Z</option>
-                  <option value="title:desc" class="bg-[#111318] text-white">Title Z-A</option>
-                </select>
-                <!-- Custom Arrow Indicator -->
-                <Icon name="ri:arrow-down-s-line" class="text-slate-500 text-sm absolute right-2.5 pointer-events-none" />
+                  <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 relative flex items-center justify-center shrink-0">
+                      <Transition name="scale-fade">
+                        <Icon v-if="isCachedLoading" key="loading" name="ri:loader-2-line" class="absolute inset-0 animate-spin text-accent-500 text-sm" />
+                        <Icon v-else :key="currentSortOption.value" :name="currentSortOption.icon" class="absolute inset-0 text-accent-500 text-sm" />
+                      </Transition>
+                    </div>
+                    <span class="truncate">{{ currentSortOption.label }}</span>
+                  </div>
+                  <Icon 
+                    name="ri:arrow-down-s-line" 
+                    class="text-slate-500 text-xs font-bold transition-transform duration-200" 
+                    :class="{ 'rotate-180': isSortDropdownOpen }"
+                  />
+                </button>
+                
+                <Transition
+                  enter-active-class="transition duration-100 ease-out"
+                  enter-from-class="transform scale-95 opacity-0"
+                  enter-to-class="transform scale-100 opacity-100"
+                  leave-active-class="transition duration-75 ease-in"
+                  leave-from-class="transform scale-100 opacity-100"
+                  leave-to-class="transform scale-95 opacity-0"
+                >
+                  <div 
+                    v-if="isSortDropdownOpen"
+                    class="absolute top-full mt-1.5 right-0 w-44 bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-none shadow-2xl py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                  >
+                    <div class="overflow-y-auto max-h-60 custom-scrollbar">
+                      <button 
+                        v-for="opt in sortOptions" 
+                        :key="opt.value"
+                        @click="selectSortOption(opt.value)"
+                        class="w-full px-3 py-2 flex items-center justify-between text-left text-xs text-slate-300 hover:bg-accent-500/10 hover:text-accent-500 transition-colors font-semibold uppercase tracking-wider select-none"
+                      >
+                        <div class="flex items-center gap-2">
+                          <Icon :name="opt.icon" class="text-xs shrink-0" :class="currentSortOption.value === opt.value ? 'text-accent-500' : 'text-slate-500'" />
+                          <span class="truncate" :class="{ 'text-accent-500 font-black': currentSortOption.value === opt.value }">
+                            {{ opt.label }}
+                          </span>
+                        </div>
+                        <Icon 
+                          v-if="currentSortOption.value === opt.value" 
+                          name="ri:checkbox-circle-fill" 
+                          class="text-accent-500 text-xs shrink-0 ml-2" 
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </Transition>
               </div>
 
               <!-- View Mode Toggle -->
@@ -1256,6 +1300,37 @@ const isPromptDropdownOpen = ref(false)
 const promptDropdownRef = ref<HTMLElement | null>(null)
 const hoveredPrompt = ref<PromptTemplate | null>(null)
 
+const isSortDropdownOpen = ref(false)
+const sortDropdownRef = ref<HTMLElement | null>(null)
+
+interface SortOption {
+  value: string
+  label: string
+  icon: string
+}
+
+const sortOptions: SortOption[] = [
+  { value: 'date:desc', label: 'Newest First', icon: 'ri:calendar-line' },
+  { value: 'date:asc', label: 'Oldest First', icon: 'ri:calendar-line' },
+  { value: 'title:asc', label: 'Title A-Z', icon: 'ri:sort-alphabet-asc' },
+  { value: 'title:desc', label: 'Title Z-A', icon: 'ri:sort-alphabet-desc' }
+]
+
+const currentSortOption = computed<SortOption>(() => {
+  const activeVal = `${state.cachedVideosSortBy.value}:${state.cachedVideosSortOrder.value}`
+  return sortOptions.find(opt => opt.value === activeVal) || sortOptions[0]!
+})
+
+function selectSortOption(optionValue: string) {
+  const [sortBy, sortOrder] = optionValue.split(':')
+  if (sortBy && sortOrder) {
+    state.cachedVideosSortBy.value = sortBy
+    state.cachedVideosSortOrder.value = sortOrder
+    state.fetchCached(true)
+  }
+  isSortDropdownOpen.value = false
+}
+
 const activeWhisperMetadata = computed(() => {
   const modelId = state.whisperModel.value || 'base'
   return state.whisperModels.find((m: WhisperModelOption) => m.id === modelId) || state.whisperModels[1]
@@ -1264,6 +1339,9 @@ const activeWhisperMetadata = computed(() => {
 function handleDocumentClick(e: MouseEvent) {
   if (promptDropdownRef.value && !promptDropdownRef.value.contains(e.target as Node)) {
     isPromptDropdownOpen.value = false
+  }
+  if (sortDropdownRef.value && !sortDropdownRef.value.contains(e.target as Node)) {
+    isSortDropdownOpen.value = false
   }
 }
 
@@ -1893,16 +1971,6 @@ watch(cachedVideosSearch, (newVal) => {
   }
 })
 
-function handleSortSelect(e: Event) {
-  const val = (e.target as HTMLSelectElement).value
-  const [sortBy, sortOrder] = val.split(':')
-  if (sortBy && sortOrder) {
-    cachedVideosSortBy.value = sortBy
-    cachedVideosSortOrder.value = sortOrder
-    state.fetchCached(true)
-  }
-}
-
 function loadMoreCached() {
   cachedVideosPage.value += 1
   state.fetchCached(false)
@@ -2162,7 +2230,7 @@ async function selectHook(hook: Hook) {
 
 .scale-fade-enter-active,
 .scale-fade-leave-active {
-  transition: opacity 150ms ease, transform 150ms ease;
+  transition: opacity 80ms ease, transform 80ms ease;
 }
 .scale-fade-enter-from {
   opacity: 0;

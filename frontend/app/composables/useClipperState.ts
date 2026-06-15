@@ -206,7 +206,7 @@ function createClipperState() {
     if (reset) {
       cachedVideosPage.value = 1
     }
-    if (cachedVideosPage.value === 1 && cachedVideos.value.length === 0) {
+    if (cachedVideosPage.value === 1) {
       isCachedLoading.value = true
     }
 

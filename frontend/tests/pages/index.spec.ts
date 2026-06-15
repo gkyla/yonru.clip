@@ -275,4 +275,39 @@ describe('Index Page', () => {
     await wrapper.vm.$nextTick()
     expect(getHookCard()!.text()).toContain('Ready')
   })
+
+  it('toggles sort dropdown and triggers fetchCached on selection', async () => {
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: {
+            template: '<div><slot /></div>'
+          },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+
+    // Initially closed
+    expect(vm.isSortDropdownOpen).toBe(false)
+
+    // Open dropdown
+    vm.isSortDropdownOpen = true
+    await wrapper.vm.$nextTick()
+    expect(vm.isSortDropdownOpen).toBe(true)
+
+    // Select 'title:asc' option
+    vm.selectSortOption('title:asc')
+    await wrapper.vm.$nextTick()
+
+    // Assert state update and fetch trigger
+    expect(vm.state.cachedVideosSortBy.value).toBe('title')
+    expect(vm.state.cachedVideosSortOrder.value).toBe('asc')
+    expect(vm.state.fetchCached).toHaveBeenCalledWith(true)
+    expect(vm.isSortDropdownOpen).toBe(false)
+  })
 })
+
