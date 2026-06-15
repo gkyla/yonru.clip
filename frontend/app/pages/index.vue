@@ -491,7 +491,7 @@
               </div>
               <button 
                 @click="resetToStart" 
-                class="flex items-center gap-2 px-3 py-1.5 bg-surface-dark border border-surface-border rounded-lg text-xs font-bold text-slate-400 hover:text-accent-500 hover:border-accent-500/50 transition-all shadow-sm"
+                class="flex items-center gap-2 px-3 py-1.5 bg-surface-dark border border-surface-border rounded-none cursor-pointer text-xs font-bold text-slate-400 hover:text-accent-500 hover:border-accent-500/50 transition-all shadow-sm"
               >
                 <Icon name="ri:arrow-left-line" /> Back to Library
               </button>
@@ -1806,6 +1806,7 @@ async function analyzeCached(videoId: string, force = false) {
   state.hooks.value = []
   state.outputUrl.value = null
   state.activeHook.value = null // Reset active hook
+  state.clipId.value = null
 
   try {
     const currentPrompt = state.promptsList.value.find((p: PromptTemplate) => p.id === state.selectedPrompt.value)
