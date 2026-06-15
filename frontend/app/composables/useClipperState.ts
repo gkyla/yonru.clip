@@ -149,6 +149,14 @@ function createClipperState() {
   const isCachedLoading = useState<boolean>('isCachedLoading', () => false)
   const lastAccessedVideoId = useState<string | null>('lastAccessedVideoId', () => null)
   const lastAccessedClip = useState<{folder: string, clip_id: string, title?: string} | null>('lastAccessedClip', () => null)
+  
+  const cachedVideosTotal = useState<number>('cachedVideosTotal', () => 0)
+  const cachedVideosPage = useState<number>('cachedVideosPage', () => 1)
+  const cachedVideosLimit = useState<number>('cachedVideosLimit', () => 6)
+  const cachedVideosSearch = useState<string>('cachedVideosSearch', () => '')
+  const cachedVideosSortBy = useState<string>('cachedVideosSortBy', () => 'date')
+  const cachedVideosSortOrder = useState<string>('cachedVideosSortOrder', () => 'desc')
+  const cachedVideosHasMore = useState<boolean>('cachedVideosHasMore', () => false)
 
 
   let isPersistenceInitialized = false
@@ -167,15 +175,43 @@ function createClipperState() {
     return cachedVideos.value.find(v => v.video_id === lastAccessedVideoId.value) || null
   })
 
-  async function fetchCached() {
-    if (cachedVideos.value.length === 0) {
+  async function fetchCached(reset = false) {
+    if (reset) {
+      cachedVideosPage.value = 1
+    }
+    if (cachedVideosPage.value === 1 && cachedVideos.value.length === 0) {
       isCachedLoading.value = true
     }
     try {
-      const res = await $fetch<{ videos: CachedVideo[] }>(`${API_BASE}/api/cached`)
-      cachedVideos.value = res.videos || []
-    } catch { 
-      if (cachedVideos.value.length === 0) cachedVideos.value = [] 
+      const queryParams: Record<string, any> = {
+        page: cachedVideosPage.value,
+        limit: cachedVideosLimit.value,
+        sort_by: cachedVideosSortBy.value,
+        order: cachedVideosSortOrder.value
+      }
+      if (cachedVideosSearch.value) {
+        queryParams.search = cachedVideosSearch.value
+      }
+      
+      const res = await $fetch<{ videos: CachedVideo[], total: number, has_more: boolean }>(
+        `${API_BASE}/api/cached`,
+        { params: queryParams }
+      )
+      
+      if (cachedVideosPage.value === 1) {
+        cachedVideos.value = res.videos || []
+      } else {
+        cachedVideos.value = [...cachedVideos.value, ...(res.videos || [])]
+      }
+      cachedVideosTotal.value = res.total || 0
+      cachedVideosHasMore.value = res.has_more || false
+    } catch (e) {
+      console.error('Failed to fetch cached videos', e)
+      if (cachedVideosPage.value === 1) {
+        cachedVideos.value = []
+        cachedVideosTotal.value = 0
+        cachedVideosHasMore.value = false
+      }
     } finally {
       isCachedLoading.value = false
     }
@@ -529,6 +565,7 @@ function createClipperState() {
     isTimelineShifting: timeline.isTimelineShifting,
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
     cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip,
+    cachedVideosTotal, cachedVideosPage, cachedVideosLimit, cachedVideosSearch, cachedVideosSortBy, cachedVideosSortOrder, cachedVideosHasMore,
     timelineTracks: timeline.timelineTracks, timelineDuration: timeline.timelineDuration, selectedTimelineItem: timeline.selectedTimelineItem,
     defaultTimelineTextStyle: timeline.defaultTimelineTextStyle,
     deepAuditResults: auditor.deepAuditResults, isDeepAuditing: auditor.isDeepAuditing,

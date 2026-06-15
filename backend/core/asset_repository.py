@@ -355,12 +355,18 @@ class AssetRepository(AssetStore):
                 w, h = self.get_video_resolution(file_path)
                 thumb_path = self._generate_thumbnail(entry.path, video_id)
                 
+                try:
+                    mtime = os.path.getmtime(file_path)
+                except Exception:
+                    mtime = 0.0
+                
                 results.append({
                     "video_id": video_id,
                     "title": entry.name.replace(f"_{video_id}", "").replace("_", " "),
                     "folder_name": entry.name,
                     "resolution": f"{w}x{h}",
                     "duration": self.get_video_duration(file_path),
+                    "mtime": mtime,
                     "asset_url": f"/assets/sources/{entry.name}/full.mp4",
                     "thumbnail_url": f"/assets/sources/{entry.name}/thumb.jpg" if thumb_path else None,
                     "youtube_url": f"https://youtube.com/watch?v={video_id}"
@@ -545,7 +551,8 @@ class MockAssetStore(AssetStore):
             "folder_name": "Mock_Video_mock_id",
             "asset_url": "/assets/sources/Mock_Video_mock_id/full.mp4",
             "width": 1920,
-            "height": 1080
+            "height": 1080,
+            "mtime": 1600000000.0
         }
         self.cached_videos.append(mock_source)
         return mock_source

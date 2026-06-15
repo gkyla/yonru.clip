@@ -94,5 +94,70 @@ describe('useClipperState Composable', () => {
     expect(secondLastClip?.folder).toBe('folderA')
     expect(secondLastClip?.clip_id).toBe('clipA')
   })
+
+  it('handles pagination, searching, sorting, and item accumulation in fetchCached', async () => {
+    const state = useClipperState()
+    state.resetWorkspace()
+    await nextTick()
+
+    // Mock fetch resolution for page 1
+    const firstPageMock = {
+      videos: [
+        { video_id: 'vid1', title: 'Video 1', duration: 10, folder_name: 'Vid_1' },
+        { video_id: 'vid2', title: 'Video 2', duration: 20, folder_name: 'Vid_2' }
+      ],
+      total: 4,
+      has_more: true
+    }
+    const mockFetch = vi.fn().mockResolvedValue(firstPageMock)
+    vi.stubGlobal('$fetch', mockFetch)
+
+    // Set search and sort state
+    state.cachedVideosSearch.value = 'test'
+    state.cachedVideosSortBy.value = 'title'
+    state.cachedVideosSortOrder.value = 'asc'
+    state.cachedVideosLimit.value = 2
+
+    // 1. Initial page 1 fetch
+    await state.fetchCached(true)
+
+    expect(state.cachedVideosPage.value).toBe(1)
+    expect(state.cachedVideos.value).toHaveLength(2)
+    expect(state.cachedVideos.value[0]!.video_id).toBe('vid1')
+    expect(state.cachedVideosTotal.value).toBe(4)
+    expect(state.cachedVideosHasMore.value).toBe(true)
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/cached',
+      {
+        params: {
+          page: 1,
+          limit: 2,
+          sort_by: 'title',
+          order: 'asc',
+          search: 'test'
+        }
+      }
+    )
+
+    // Mock fetch resolution for page 2
+    const secondPageMock = {
+      videos: [
+        { video_id: 'vid3', title: 'Video 3', duration: 30, folder_name: 'Vid_3' },
+        { video_id: 'vid4', title: 'Video 4', duration: 40, folder_name: 'Vid_4' }
+      ],
+      total: 4,
+      has_more: false
+    }
+    mockFetch.mockResolvedValueOnce(secondPageMock)
+
+    // 2. Fetch page 2 (incremental load)
+    state.cachedVideosPage.value = 2
+    await state.fetchCached(false)
+
+    expect(state.cachedVideosPage.value).toBe(2)
+    expect(state.cachedVideos.value).toHaveLength(4) // Accumulated
+    expect(state.cachedVideos.value[2]!.video_id).toBe('vid3')
+    expect(state.cachedVideosHasMore.value).toBe(false)
+  })
 })
 

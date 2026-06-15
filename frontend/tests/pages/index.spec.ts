@@ -36,6 +36,13 @@ vi.mock('../../app/composables/useClipperState', () => ({
     isNavigatingToEditor: ref(false),
     cachedVideos: ref([]),
     isCachedLoading: ref(false),
+    cachedVideosTotal: ref(0),
+    cachedVideosPage: ref(1),
+    cachedVideosLimit: ref(6),
+    cachedVideosSearch: ref(''),
+    cachedVideosSortBy: ref('date'),
+    cachedVideosSortOrder: ref('desc'),
+    cachedVideosHasMore: ref(false),
     formatDuration: (sec: number) => {
       const m = Math.floor(sec / 60)
       const s = Math.floor(sec % 60)
