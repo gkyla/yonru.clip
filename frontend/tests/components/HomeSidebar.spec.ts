@@ -355,6 +355,7 @@ describe('HomeSidebar Component', () => {
   })
 
   it('renders correct navigation and status buttons in collapsed mode and handles clicks directly', async () => {
+    vi.useFakeTimers()
     const router = useRouter()
     const pushSpy = vi.spyOn(router, 'push')
 
@@ -392,6 +393,7 @@ describe('HomeSidebar Component', () => {
     const movieBtn = wrapper.findAll('button').find(b => b.html().includes('ri:movie-2-fill'))
     expect(movieBtn).toBeDefined()
     await movieBtn!.trigger('click')
+    await vi.advanceTimersByTimeAsync(600)
     await flushPromises()
 
     expect(mockLoadReadyClipIntoEditor).toHaveBeenCalledWith('test_folder', '10_20_test')
@@ -402,6 +404,7 @@ describe('HomeSidebar Component', () => {
     expect(healthBtn).toBeDefined()
     await healthBtn!.trigger('click')
     expect((wrapper.vm as any).isCollapsed).toBe(true) // Should remain collapsed!
+    vi.useRealTimers()
   })
 
   it('restores collapsed state from localStorage on mount', () => {
