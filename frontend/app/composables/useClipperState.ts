@@ -157,6 +157,7 @@ function createClipperState() {
   const cachedVideosSortBy = useState<string>('cachedVideosSortBy', () => 'date')
   const cachedVideosSortOrder = useState<string>('cachedVideosSortOrder', () => 'desc')
   const cachedVideosHasMore = useState<boolean>('cachedVideosHasMore', () => false)
+  const cachedVideosRequestId = useState<number>('cachedVideosRequestId', () => 0)
 
 
   let isPersistenceInitialized = false
@@ -182,6 +183,10 @@ function createClipperState() {
     if (cachedVideosPage.value === 1 && cachedVideos.value.length === 0) {
       isCachedLoading.value = true
     }
+
+    cachedVideosRequestId.value++
+    const reqId = cachedVideosRequestId.value
+
     try {
       const queryParams: Record<string, any> = {
         page: cachedVideosPage.value,
@@ -198,6 +203,10 @@ function createClipperState() {
         { params: queryParams }
       )
       
+      if (reqId !== cachedVideosRequestId.value) {
+        return
+      }
+      
       if (cachedVideosPage.value === 1) {
         cachedVideos.value = res.videos || []
       } else {
@@ -206,6 +215,9 @@ function createClipperState() {
       cachedVideosTotal.value = res.total || 0
       cachedVideosHasMore.value = res.has_more || false
     } catch (e) {
+      if (reqId !== cachedVideosRequestId.value) {
+        return
+      }
       console.error('Failed to fetch cached videos', e)
       if (cachedVideosPage.value === 1) {
         cachedVideos.value = []
@@ -213,7 +225,9 @@ function createClipperState() {
         cachedVideosHasMore.value = false
       }
     } finally {
-      isCachedLoading.value = false
+      if (reqId === cachedVideosRequestId.value) {
+        isCachedLoading.value = false
+      }
     }
   }
 

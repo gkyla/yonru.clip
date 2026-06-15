@@ -159,5 +159,52 @@ describe('useClipperState Composable', () => {
     expect(state.cachedVideos.value[2]!.video_id).toBe('vid3')
     expect(state.cachedVideosHasMore.value).toBe(false)
   })
+
+  it('discards stale/out-of-order fetchCached responses to prevent race conditions (flickering)', async () => {
+    const state = useClipperState()
+    state.resetWorkspace()
+    await nextTick()
+
+    let resolveA: any
+    let resolveB: any
+    const promiseA = new Promise((resolve) => { resolveA = resolve })
+    const promiseB = new Promise((resolve) => { resolveB = resolve })
+
+    let callCount = 0
+    const mockFetch = vi.fn().mockImplementation(() => {
+      callCount++
+      if (callCount === 1) return promiseA
+      return promiseB
+    })
+    vi.stubGlobal('$fetch', mockFetch)
+
+    // Trigger request A (first/stale query)
+    const runA = state.fetchCached(true)
+
+    // Trigger request B (second/latest query)
+    const runB = state.fetchCached(true)
+
+    // Resolve the latest request B first
+    resolveB({
+      videos: [{ video_id: 'vidB', title: 'Latest Video', duration: 10, folder_name: 'Vid_B' }],
+      total: 1,
+      has_more: false
+    })
+    await runB
+
+    expect(state.cachedVideos.value).toHaveLength(1)
+    expect(state.cachedVideos.value[0]!.video_id).toBe('vidB')
+
+    // Now resolve the older/stale request A
+    resolveA({
+      videos: [{ video_id: 'vidA', title: 'Stale Video', duration: 10, folder_name: 'Vid_A' }],
+      total: 1,
+      has_more: false
+    })
+    await runA
+
+    // The state must NOT change to vidA, it should remain vidB!
+    expect(state.cachedVideos.value[0]!.video_id).toBe('vidB')
+  })
 })
 
