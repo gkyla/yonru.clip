@@ -551,17 +551,32 @@
             </div>
           </Transition>
 
-          <!-- Show More / Pagination Progress -->
-          <div v-if="state.cachedVideosHasMore.value && !isCachedLoading && cachedVideos.length > 0" class="mt-8 flex flex-col items-center justify-center gap-3">
-             <span class="text-xs font-mono text-slate-500 tracking-wider">
-               Showing {{ cachedVideos.length }} of {{ state.cachedVideosTotal.value }} videos
-             </span>
-             <button 
-               @click="loadMoreCached"
-               class="px-8 py-3 bg-surface-dark hover:bg-surface-panel border border-surface-border rounded-none cursor-pointer text-xs font-black uppercase tracking-widest text-slate-300 hover:text-accent-500 hover:border-accent-500 transition-all shadow-md active:scale-95"
-             >
-               Show More
-             </button>
+          <!-- Infinite Scroll Sentinel & Loading / Error States -->
+          <div v-if="state.cachedVideosHasMore.value && !isCachedLoading && cachedVideos.length > 0" class="mt-8 flex flex-col items-center justify-center gap-3 relative min-h-[60px]">
+             <!-- Sentinel target for IntersectionObserver -->
+             <div ref="scrollSentinel" class="absolute inset-0 pointer-events-none opacity-0"></div>
+
+             <!-- Loading state -->
+             <div v-if="state.isCachedMoreLoading.value" class="flex items-center gap-2 text-xs font-mono text-slate-500 tracking-wider">
+               <Icon name="ri:loader-2-line" class="animate-spin text-accent-500 text-sm" />
+               <span>LOADING MORE VIDEOS...</span>
+             </div>
+
+             <!-- Error state -->
+             <div v-else-if="state.cachedVideosFetchError.value" class="flex flex-col items-center gap-3 z-10">
+               <span class="text-xs font-mono text-red-400 tracking-wider">FAILED TO LOAD VIDEOS</span>
+               <button 
+                 @click="loadMoreCached"
+                 class="px-8 py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 hover:text-white rounded-none cursor-pointer text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-md"
+               >
+                 RETRY
+               </button>
+             </div>
+             
+             <!-- Idle helper so sentinel gets height if not loading/error -->
+             <div v-else class="text-xs font-mono text-slate-600/50 tracking-wider">
+               SCROLL TO LOAD MORE
+             </div>
           </div>
         </div>
 
@@ -1345,12 +1360,50 @@ function handleDocumentClick(e: MouseEvent) {
   }
 }
 
+const scrollSentinel = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
+
+function triggerLazyLoad() {
+  if (
+    state.cachedVideosHasMore.value &&
+    !isCachedLoading.value &&
+    !state.isCachedMoreLoading.value &&
+    !state.cachedVideosFetchError.value
+  ) {
+    loadMoreCached()
+  }
+}
+
+watch(scrollSentinel, (newEl) => {
+  if (observer) {
+    observer.disconnect()
+  }
+  if (newEl && observer) {
+    observer.observe(newEl)
+  }
+})
+
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
+  
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0]?.isIntersecting) {
+      triggerLazyLoad()
+    }
+  }, {
+    rootMargin: '150px'
+  })
+  
+  if (scrollSentinel.value) {
+    observer.observe(scrollSentinel.value)
+  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
+  if (observer) {
+    observer.disconnect()
+  }
 })
 
 const viewMode = ref<'grid' | 'list'>('grid')

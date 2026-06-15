@@ -36,6 +36,8 @@ vi.mock('../../app/composables/useClipperState', () => ({
     isNavigatingToEditor: ref(false),
     cachedVideos: ref([]),
     isCachedLoading: ref(false),
+    isCachedMoreLoading: ref(false),
+    cachedVideosFetchError: ref(false),
     cachedVideosTotal: ref(0),
     cachedVideosPage: ref(1),
     cachedVideosLimit: ref(6),
@@ -308,6 +310,50 @@ describe('Index Page', () => {
     expect(vm.state.cachedVideosSortOrder.value).toBe('asc')
     expect(vm.state.fetchCached).toHaveBeenCalledWith(true)
     expect(vm.isSortDropdownOpen).toBe(false)
+  })
+
+  it('triggers loadMoreCached when sentinel intersects', async () => {
+    const mockObserver = vi.fn().mockImplementation((callback) => {
+      // Expose callback so we can manually trigger intersection
+      (globalThis as any)._triggerIntersection = callback
+      return {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn()
+      }
+    })
+    vi.stubGlobal('IntersectionObserver', mockObserver)
+
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: {
+            template: '<div><slot /></div>'
+          },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+
+    // Mock hasMore videos
+    vm.state.cachedVideosHasMore.value = true
+    vm.state.cachedVideos.value = [{ video_id: 'vid1', title: 'Video 1', duration: 10, folder_name: 'Vid_1' }]
+    await wrapper.vm.$nextTick()
+
+    // Assert sentinel element is mounted
+    const sentinel = wrapper.find({ ref: 'scrollSentinel' })
+    expect(sentinel.exists()).toBe(true)
+
+    // Trigger intersection
+    if ((globalThis as any)._triggerIntersection) {
+      (globalThis as any)._triggerIntersection([{ isIntersecting: true }])
+    }
+    
+    // Assert fetchCached is triggered with false (page 2 incremental fetch)
+    expect(vm.state.fetchCached).toHaveBeenCalledWith(false)
   })
 })
 

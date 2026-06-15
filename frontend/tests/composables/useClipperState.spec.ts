@@ -263,6 +263,54 @@ describe('useClipperState Composable', () => {
     await runFetch
     expect(state.isCachedLoading.value).toBe(false)
   })
+
+  it('handles isCachedMoreLoading and cachedVideosFetchError for subsequent page fetches', async () => {
+    const state = useClipperState()
+    state.resetWorkspace()
+    await nextTick()
+
+    // 1. Initial page 1 fetch success
+    const mockFetch = vi.fn().mockResolvedValue({
+      videos: [{ video_id: 'vid1', title: 'Video 1', duration: 10, folder_name: 'Vid_1' }],
+      total: 2,
+      has_more: true
+    })
+    vi.stubGlobal('$fetch', mockFetch)
+
+    await state.fetchCached(true)
+    expect(state.isCachedLoading.value).toBe(false)
+    expect(state.isCachedMoreLoading.value).toBe(false)
+    expect(state.cachedVideosFetchError.value).toBe(false)
+
+    // 2. Fetch page 2 fails
+    mockFetch.mockRejectedValueOnce(new Error('Network error'))
+    state.cachedVideosPage.value = 2
+
+    const runFetch = state.fetchCached(false)
+    expect(state.isCachedLoading.value).toBe(false)
+    expect(state.isCachedMoreLoading.value).toBe(true)
+    expect(state.cachedVideosFetchError.value).toBe(false)
+
+    await runFetch
+    expect(state.isCachedMoreLoading.value).toBe(false)
+    expect(state.cachedVideosFetchError.value).toBe(true)
+
+    // 3. Retry succeeds
+    mockFetch.mockResolvedValueOnce({
+      videos: [{ video_id: 'vid2', title: 'Video 2', duration: 20, folder_name: 'Vid_2' }],
+      total: 2,
+      has_more: false
+    })
+
+    const runRetry = state.fetchCached(false)
+    expect(state.cachedVideosFetchError.value).toBe(false) // cleared immediately when starting retry
+    expect(state.isCachedMoreLoading.value).toBe(true)
+
+    await runRetry
+    expect(state.isCachedMoreLoading.value).toBe(false)
+    expect(state.cachedVideosFetchError.value).toBe(false)
+    expect(state.cachedVideos.value).toHaveLength(2)
+  })
 })
 
 

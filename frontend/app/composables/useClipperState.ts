@@ -147,6 +147,8 @@ function createClipperState() {
   // Cache / Library
   const cachedVideos = useState<CachedVideo[]>('cachedVideos', () => [])
   const isCachedLoading = useState<boolean>('isCachedLoading', () => false)
+  const isCachedMoreLoading = useState<boolean>('isCachedMoreLoading', () => false)
+  const cachedVideosFetchError = useState<boolean>('cachedVideosFetchError', () => false)
   const lastAccessedVideoId = useState<string | null>('lastAccessedVideoId', () => null)
   const lastAccessedClip = useState<{folder: string, clip_id: string, title?: string} | null>('lastAccessedClip', () => null)
   const lastAccessedVideoStored = useState<CachedVideo | null>('lastAccessedVideoStored', () => null)
@@ -205,9 +207,14 @@ function createClipperState() {
   async function fetchCached(reset = false) {
     if (reset) {
       cachedVideosPage.value = 1
+      cachedVideosFetchError.value = false
+      isCachedMoreLoading.value = false
     }
     if (cachedVideosPage.value === 1) {
       isCachedLoading.value = true
+    } else {
+      isCachedMoreLoading.value = true
+      cachedVideosFetchError.value = false
     }
 
     cachedVideosRequestId.value++
@@ -240,6 +247,7 @@ function createClipperState() {
       }
       cachedVideosTotal.value = res.total || 0
       cachedVideosHasMore.value = res.has_more || false
+      cachedVideosFetchError.value = false
     } catch (e) {
       if (reqId !== cachedVideosRequestId.value) {
         return
@@ -249,10 +257,13 @@ function createClipperState() {
         cachedVideos.value = []
         cachedVideosTotal.value = 0
         cachedVideosHasMore.value = false
+      } else {
+        cachedVideosFetchError.value = true
       }
     } finally {
       if (reqId === cachedVideosRequestId.value) {
         isCachedLoading.value = false
+        isCachedMoreLoading.value = false
       }
     }
   }
@@ -609,7 +620,7 @@ function createClipperState() {
     isPlaying, currentTime, videoTime: timeline.videoTime,
     isTimelineShifting: timeline.isTimelineShifting,
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
-    cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip, lastAccessedVideoStored,
+    cachedVideos, isCachedLoading, isCachedMoreLoading, cachedVideosFetchError, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip, lastAccessedVideoStored,
     cachedVideosTotal, cachedVideosPage, cachedVideosLimit, cachedVideosSearch, cachedVideosSortBy, cachedVideosSortOrder, cachedVideosHasMore,
     timelineTracks: timeline.timelineTracks, timelineDuration: timeline.timelineDuration, selectedTimelineItem: timeline.selectedTimelineItem,
     defaultTimelineTextStyle: timeline.defaultTimelineTextStyle,
