@@ -142,3 +142,24 @@ class TestAssetRepository(unittest.TestCase):
             saved_transcript = json.load(f)
         self.assertEqual(saved_transcript, [])
 
+    @patch('core.asset_repository.AssetRepository._generate_thumbnail')
+    @patch('core.asset_repository.AssetRepository.get_video_duration')
+    @patch('core.asset_repository.AssetRepository.get_video_resolution')
+    def test_list_cached_videos_includes_mtime(self, mock_res, mock_dur, mock_thumb):
+        mock_res.return_value = (1920, 1080)
+        mock_dur.return_value = 60.0
+        mock_thumb.return_value = "thumb.jpg"
+        
+        folder_name = "Test_Video_Title_abc12345678"
+        folder_path = os.path.join(self.output_dir, "sources", folder_name)
+        os.makedirs(folder_path, exist_ok=True)
+        video_path = os.path.join(folder_path, "full.mp4")
+        with open(video_path, "w") as f:
+            f.write("content")
+            
+        videos = self.repo.list_cached_videos()
+        self.assertEqual(len(videos), 1)
+        self.assertEqual(videos[0]["video_id"], "abc12345678")
+        self.assertIn("mtime", videos[0])
+        self.assertIsInstance(videos[0]["mtime"], float)
+

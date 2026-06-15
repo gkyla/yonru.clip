@@ -277,181 +277,306 @@
         </div>
 
         <!-- Cached Library -->
-        <div v-if="(cachedVideos.length > 0 || isCachedLoading) && !isProcessing && !state.hooks.value.length" class="mb-14 overflow-visible p-8">
-          <div class="flex items-center justify-between mb-6">
-            <h3 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+        <div v-if="(cachedVideos.length > 0 || isCachedLoading || state.cachedVideosSearch.value) && !isProcessing && !state.hooks.value.length" class="mb-14 overflow-visible p-8">
+          <div class="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center mb-6">
+            <h3 class="text-xl font-bold text-white tracking-tight flex items-center gap-2 shrink-0">
               <Icon name="ri:folder-video-fill" class="text-accent-500" />
               Cached Library
             </h3>
-            <div class="flex items-center gap-2 bg-surface-dark border border-surface-border p-1 rounded-lg">
-              <button 
-                @click="viewMode = 'grid'" 
-                class="p-1.5 rounded transition-all"
-                :class="viewMode === 'grid' ? 'bg-surface-panel text-white shadow' : 'text-slate-500 hover:text-slate-300'"
-              >
-                <Icon name="ri:grid-fill" />
-              </button>
-              <button 
-                @click="viewMode = 'list'" 
-                class="p-1.5 rounded transition-all"
-                :class="viewMode === 'list' ? 'bg-surface-panel text-white shadow' : 'text-slate-500 hover:text-slate-300'"
-              >
-                <Icon name="ri:list-check" />
-              </button>
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+              <!-- Search Input -->
+              <div class="relative flex items-center bg-surface-dark border border-surface-border focus-within:border-accent-500/50 transition-colors h-9 px-3 w-full sm:w-64 rounded-none">
+                <div class="w-4 h-4 relative flex items-center justify-center shrink-0 mr-2 select-none">
+                  <Transition name="scale-fade">
+                    <Icon v-if="isCachedLoading || isSearchPending" key="loading" name="ri:loader-2-line" class="absolute inset-0 animate-spin text-accent-500 text-sm" />
+                    <Icon v-else key="search" name="ri:search-line" class="absolute inset-0 text-slate-500 text-sm" />
+                  </Transition>
+                </div>
+                <input 
+                  v-model="state.cachedVideosSearch.value"
+                  type="text" 
+                  placeholder="Search cached videos..." 
+                  class="bg-transparent border-none text-white text-xs focus:ring-0 focus:outline-none w-full normal-case font-medium"
+                />
+                <button 
+                  v-if="state.cachedVideosSearch.value && !isCachedLoading && !isSearchPending"
+                  @click="state.cachedVideosSearch.value = ''"
+                  class="text-slate-500 hover:text-white shrink-0 ml-1 cursor-pointer"
+                >
+                  <Icon name="ri:close-fill" class="text-sm" />
+                </button>
+              </div>
+
+              <!-- Sort Dropdown -->
+              <div ref="sortDropdownRef" class="relative shrink-0 select-none">
+                <button 
+                  @click="isSortDropdownOpen = !isSortDropdownOpen"
+                  class="h-9 bg-surface-dark border border-surface-border text-slate-300 px-3 py-2 rounded-none text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-accent-500/50 flex items-center justify-between gap-2.5 cursor-pointer min-w-[150px]"
+                >
+                  <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 relative flex items-center justify-center shrink-0">
+                      <Transition name="scale-fade">
+                        <Icon v-if="isCachedLoading" key="loading" name="ri:loader-2-line" class="absolute inset-0 animate-spin text-accent-500 text-sm" />
+                        <Icon v-else :key="currentSortOption.value" :name="currentSortOption.icon" class="absolute inset-0 text-accent-500 text-sm" />
+                      </Transition>
+                    </div>
+                    <span class="truncate">{{ currentSortOption.label }}</span>
+                  </div>
+                  <Icon 
+                    name="ri:arrow-down-s-line" 
+                    class="text-slate-500 text-xs font-bold transition-transform duration-200" 
+                    :class="{ 'rotate-180': isSortDropdownOpen }"
+                  />
+                </button>
+                
+                <Transition
+                  enter-active-class="transition duration-100 ease-out"
+                  enter-from-class="transform scale-95 opacity-0"
+                  enter-to-class="transform scale-100 opacity-100"
+                  leave-active-class="transition duration-75 ease-in"
+                  leave-from-class="transform scale-100 opacity-100"
+                  leave-to-class="transform scale-95 opacity-0"
+                >
+                  <div 
+                    v-if="isSortDropdownOpen"
+                    class="absolute top-full mt-1.5 right-0 w-44 bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-none shadow-2xl py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                  >
+                    <div class="overflow-y-auto max-h-60 custom-scrollbar">
+                      <button 
+                        v-for="opt in sortOptions" 
+                        :key="opt.value"
+                        @click="selectSortOption(opt.value)"
+                        class="w-full px-3 py-2 flex items-center justify-between text-left text-xs text-slate-300 hover:bg-accent-500/10 hover:text-accent-500 transition-colors font-semibold uppercase tracking-wider select-none"
+                      >
+                        <div class="flex items-center gap-2">
+                          <Icon :name="opt.icon" class="text-xs shrink-0" :class="currentSortOption.value === opt.value ? 'text-accent-500' : 'text-slate-500'" />
+                          <span class="truncate" :class="{ 'text-accent-500 font-black': currentSortOption.value === opt.value }">
+                            {{ opt.label }}
+                          </span>
+                        </div>
+                        <Icon 
+                          v-if="currentSortOption.value === opt.value" 
+                          name="ri:checkbox-circle-fill" 
+                          class="text-accent-500 text-xs shrink-0 ml-2" 
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </Transition>
+              </div>
+
+              <!-- View Mode Toggle -->
+              <div class="flex items-center gap-1 bg-surface-dark border border-surface-border p-1 rounded-none shrink-0 h-9">
+                <button 
+                  @click="viewMode = 'grid'" 
+                  class="p-1 rounded-none transition-all cursor-pointer h-full aspect-square flex items-center justify-center"
+                  :class="viewMode === 'grid' ? 'bg-surface-panel text-white shadow' : 'text-slate-500 hover:text-slate-300'"
+                >
+                  <Icon name="ri:grid-fill" />
+                </button>
+                <button 
+                  @click="viewMode = 'list'" 
+                  class="p-1 rounded-none transition-all cursor-pointer h-full aspect-square flex items-center justify-center"
+                  :class="viewMode === 'list' ? 'bg-surface-panel text-white shadow' : 'text-slate-500 hover:text-slate-300'"
+                >
+                  <Icon name="ri:list-check" />
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- Skeletons (Grid Mode) -->
-          <div v-if="isCachedLoading && viewMode === 'grid'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-             <div v-for="i in 3" :key="i" class="bg-surface-panel/30 border border-surface-border/50 rounded-2xl flex flex-col animate-pulse overflow-hidden">
-                <div class="aspect-video bg-surface-dark flex items-center justify-center">
-                   <div class="w-6 h-6 border-2 border-accent-500/10 border-t-accent-500/30 rounded-full animate-spin"></div>
-                </div>
-                <div class="p-5">
-                   <div class="w-full h-4 bg-surface-dark rounded mb-3"></div>
-                   <div class="w-1/3 h-2.5 bg-surface-dark/50 rounded"></div>
-                </div>
-             </div>
-          </div>
+          <Transition name="fade-layout" mode="out-in">
+            <!-- Skeletons (Grid Mode) -->
+            <div v-if="isCachedLoading && cachedVideos.length === 0" key="skeletons" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+               <div v-for="i in 3" :key="i" class="bg-surface-panel/30 border border-surface-border/50 rounded-2xl flex flex-col animate-pulse overflow-hidden">
+                  <div class="aspect-video bg-surface-dark flex items-center justify-center">
+                     <div class="w-6 h-6 border-2 border-accent-500/10 border-t-accent-500/30 rounded-full animate-spin"></div>
+                  </div>
+                  <div class="p-5">
+                     <div class="w-full h-4 bg-surface-dark rounded mb-3"></div>
+                     <div class="w-1/3 h-2.5 bg-surface-dark/50 rounded"></div>
+                  </div>
+               </div>
+            </div>
 
-          <!-- Grid View -->
-          <div v-else-if="viewMode === 'grid'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            <div 
-              v-for="vid in cachedVideos" :key="vid.video_id"
-              class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-2xl flex flex-col group hover:border-accent-500/50 hover:shadow-[0_0_30px_rgba(207,255,80,0.05)] transition-all cursor-pointer relative overflow-hidden"
-              :class="{ 'opacity-50 pointer-events-none': isProcessing }"
-            >
-              <div class="aspect-video bg-black overflow-hidden relative">
-                <img v-if="vid.thumbnail_url" :src="`${API_BASE}${vid.thumbnail_url}`" class="w-full h-full object-cover opacity-80 group-hover:opacity-40 transition-opacity duration-500" />
-                <Icon v-else name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
-                
-                <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-lg text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md border border-white/10 group-hover:opacity-0 transition-opacity duration-300">
-                  {{ formatSec(vid.duration) }}
-                </div>
-
+            <!-- Empty Search State -->
+            <div v-else-if="cachedVideos.length === 0 && !isCachedLoading" key="empty" class="bg-surface-panel/30 border border-surface-border/50 border-dashed rounded-none p-12 flex flex-col items-center justify-center text-center">
+              <div class="w-16 h-16 bg-surface-dark rounded-none flex items-center justify-center mb-4 border border-surface-border/50">
+                 <Icon name="ri:search-line" class="text-3xl text-slate-600" />
               </div>
-              
-              <div class="flex-1 p-5 relative">
-                <h4 class="text-white font-bold text-sm line-clamp-2 leading-snug group-hover:text-accent-500 transition-colors">{{ vid.title }}</h4>
-                <p class="text-[10px] text-slate-500 font-mono mt-3">ID: {{ vid.video_id }}</p>
-              </div>
+              <h4 class="text-white font-bold text-lg mb-1">No videos found</h4>
+              <p class="text-slate-500 text-sm max-w-sm font-sans normal-case tracking-normal">No videos match your search: "{{ state.cachedVideosSearch.value }}".</p>
+            </div>
 
-              <!-- Full Card Action Overlay -->
-              <div class="absolute inset-0 bg-surface-dark/80 backdrop-blur-md opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all duration-300 z-20 pointer-events-none">
+            <!-- Grid View -->
+            <div v-else-if="viewMode === 'grid' && cachedVideos.length > 0" key="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 transition-opacity duration-200" :class="{ 'opacity-50 pointer-events-none': isCachedLoading }">
+              <div 
+                v-for="(vid, idx) in cachedVideos" :key="vid.video_id"
+                class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-2xl flex flex-col group hover:border-accent-500/50 hover:shadow-[0_0_30px_rgba(207,255,80,0.05)] transition-all cursor-pointer relative overflow-hidden animate-fade-in-up"
+                :class="{ 'opacity-50 pointer-events-none': isProcessing }"
+                :style="{ animationDelay: `${idx * 40}ms` }"
+              >
+                <div class="aspect-video bg-black overflow-hidden relative">
+                  <img v-if="vid.thumbnail_url" :src="`${API_BASE}${vid.thumbnail_url}`" class="w-full h-full object-cover opacity-80 group-hover:opacity-40 transition-opacity duration-500" />
+                  <Icon v-else name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
+                  
+                  <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-lg text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md border border-white/10 group-hover:opacity-0 transition-opacity duration-300">
+                    {{ formatSec(vid.duration) }}
+                  </div>
+
+                </div>
                 
-                <!-- Center Action Buttons -->
-                <div class="grid items-center gap-3 mb-4">
+                <div class="flex-1 p-5 relative">
+                  <h4 class="text-white font-bold text-sm line-clamp-2 leading-snug group-hover:text-accent-500 transition-colors">{{ vid.title }}</h4>
+                  <p class="text-[10px] text-slate-500 font-mono mt-3">ID: {{ vid.video_id }}</p>
+                </div>
+
+                <!-- Full Card Action Overlay -->
+                <div class="absolute inset-0 bg-surface-dark/80 backdrop-blur-md opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all duration-300 z-20 pointer-events-none">
+                  
+                  <!-- Center Action Buttons -->
+                  <div class="grid items-center gap-3 mb-4">
+                    <button 
+                      @click.stop="analyzeCached(vid.video_id, false)"
+                      class="bg-surface-card hover:bg-surface-panel border border-surface-border text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100"
+                    >
+                      <Icon name="ri:folder-open-line" class="text-base" />
+                      Load Cache Hooks
+                    </button>
+                    <button 
+                      @click.stop="analyzeCached(vid.video_id, true)"
+                      class="bg-accent-500 hover:bg-accent-400 text-black px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100"
+                    >
+                      <Icon name="ri:magic-line" class="text-base" />
+                      Reanalyze Hooks
+                    </button>
+                  </div>
+
+                  <!-- Bottom Utility Buttons -->
+                  <div class="absolute bottom-5 inset-x-0 flex justify-center items-center gap-3 pointer-events-auto">
+                    <a 
+                      :href="`https://youtube.com/watch?v=${vid.video_id}`" 
+                      target="_blank" 
+                      @click.stop 
+                      title="Watch on YouTube"
+                      class="py-2.5 px-3 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
+                    >
+                      <Icon name="ri:youtube-fill" class="text-sm" />
+                    </a>
+                    <button 
+                      @click.stop="confirmRedownload(vid)"
+                      class="py-2.5 px-3 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-white rounded-xl border border-sky-500/20 transition-colors shadow-xl"
+                      title="Refresh"
+                    >
+                      <Icon name="ri:download-cloud-2-line" class="text-sm" />
+                    </button>
+                    <button 
+                      @click.stop="confirmDelete(vid)"
+                      class="py-2.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl"
+                      title="Delete"
+                    >
+                      <Icon name="ri:delete-bin-line" class="text-sm" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- List View -->
+            <div v-else-if="viewMode === 'list' && cachedVideos.length > 0" key="list" class="flex flex-col gap-3 transition-opacity duration-200" :class="{ 'opacity-50 pointer-events-none': isCachedLoading }">
+              <div 
+                v-for="(vid, idx) in cachedVideos" :key="vid.video_id"
+                class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-2xl p-2 flex items-center gap-5 group hover:border-accent-500/50 hover:shadow-[0_0_20px_rgba(207,255,80,0.05)] transition-all cursor-pointer relative overflow-hidden animate-fade-in-up"
+                :class="{ 'opacity-50 pointer-events-none': isProcessing }"
+                :style="{ animationDelay: `${idx * 40}ms` }"
+              >
+                <div class="w-40 aspect-video bg-black rounded-xl overflow-hidden relative shrink-0">
+                  <img v-if="vid.thumbnail_url" :src="`${API_BASE}${vid.thumbnail_url}`" class="w-full h-full object-cover opacity-80 group-hover:opacity-40 transition-opacity duration-500" />
+                  <Icon v-else name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-xl opacity-50 group-hover:opacity-20 transition-opacity" />
+                  
+                  <div class="absolute bottom-1.5 right-1.5 bg-black/80 px-2 py-0.5 rounded-lg text-[9px] text-white font-mono font-bold tracking-widest backdrop-blur-md border border-white/10 group-hover:opacity-0 transition-opacity duration-300">
+                    {{ formatSec(vid.duration) }}
+                  </div>
+
+                </div>
+                
+                <div class="flex-1 min-w-0 py-2">
+                  <h4 class="text-white font-bold text-sm truncate group-hover:text-accent-500 transition-colors">{{ vid.title }}</h4>
+                  <p class="text-[10px] text-slate-500 font-mono mt-2">ID: {{ vid.video_id }}</p>
+                </div>
+
+                <!-- Full Card Action Overlay -->
+                <div class="absolute inset-0 bg-surface-dark/80 backdrop-blur-md opacity-0 group-hover:opacity-100 flex items-center justify-center gap-6 transition-all duration-300 z-20 pointer-events-none">
+                  
                   <button 
                     @click.stop="analyzeCached(vid.video_id, false)"
-                    class="bg-surface-card hover:bg-surface-panel border border-surface-border text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100"
+                    class="px-5 py-2.5 bg-surface-card hover:bg-surface-panel border border-surface-border text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100"
                   >
-                    <Icon name="ri:folder-open-line" class="text-base" />
-                    Load Cache Hooks
+                    <Icon name="ri:folder-open-line" class="text-base" /> Load Cache
                   </button>
                   <button 
                     @click.stop="analyzeCached(vid.video_id, true)"
-                    class="bg-accent-500 hover:bg-accent-400 text-black px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100"
+                    class="px-5 py-2.5 bg-accent-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-accent-400 transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100"
                   >
-                    <Icon name="ri:magic-line" class="text-base" />
-                    Reanalyze Hooks
+                    <Icon name="ri:magic-line" class="text-base" /> Reanalyze
                   </button>
-                </div>
 
-                <!-- Bottom Utility Buttons -->
-                <div class="absolute bottom-5 inset-x-0 flex justify-center items-center gap-3 pointer-events-auto">
-                  <a 
-                    :href="`https://youtube.com/watch?v=${vid.video_id}`" 
-                    target="_blank" 
-                    @click.stop 
-                    title="Watch on YouTube"
-                    class="py-2.5 px-3 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
-                  >
-                    <Icon name="ri:youtube-fill" class="text-sm" />
-                  </a>
-                  <button 
-                    @click.stop="confirmRedownload(vid)"
-                    class="py-2.5 px-3 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-white rounded-xl border border-sky-500/20 transition-colors shadow-xl"
-                    title="Refresh"
-                  >
-                    <Icon name="ri:download-cloud-2-line" class="text-sm" />
-                  </button>
-                  <button 
-                    @click.stop="confirmDelete(vid)"
-                    class="py-2.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl"
-                    title="Delete"
-                  >
-                    <Icon name="ri:delete-bin-line" class="text-sm" />
-                  </button>
+                  <div class="flex items-center gap-3 pointer-events-auto">
+                    <a 
+                      :href="`https://youtube.com/watch?v=${vid.video_id}`" 
+                      target="_blank" 
+                      @click.stop 
+                      class="p-2.5 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
+                      title="Watch on YouTube"
+                    >
+                      <Icon name="ri:youtube-fill" class="text-base" />
+                    </a>
+                    <button 
+                      @click.stop="confirmRedownload(vid)"
+                      class="p-2.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-white rounded-xl border border-sky-500/20 transition-colors shadow-xl"
+                      title="Refresh"
+                    >
+                      <Icon name="ri:download-cloud-2-line" class="text-base" />
+                    </button>
+                    <button 
+                      @click.stop="confirmDelete(vid)"
+                      class="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl"
+                      title="Delete"
+                    >
+                      <Icon name="ri:delete-bin-line" class="text-base" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </Transition>
 
-          <!-- List View -->
-          <div v-else class="flex flex-col gap-3">
-            <div 
-              v-for="vid in cachedVideos" :key="vid.video_id"
-              class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-2xl p-2 flex items-center gap-5 group hover:border-accent-500/50 hover:shadow-[0_0_20px_rgba(207,255,80,0.05)] transition-all cursor-pointer relative overflow-hidden"
-              :class="{ 'opacity-50 pointer-events-none': isProcessing }"
-            >
-              <div class="w-40 aspect-video bg-black rounded-xl overflow-hidden relative shrink-0">
-                <img v-if="vid.thumbnail_url" :src="`${API_BASE}${vid.thumbnail_url}`" class="w-full h-full object-cover opacity-80 group-hover:opacity-40 transition-opacity duration-500" />
-                <Icon v-else name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-xl opacity-50 group-hover:opacity-20 transition-opacity" />
-                
-                <div class="absolute bottom-1.5 right-1.5 bg-black/80 px-2 py-0.5 rounded-lg text-[9px] text-white font-mono font-bold tracking-widest backdrop-blur-md border border-white/10 group-hover:opacity-0 transition-opacity duration-300">
-                  {{ formatSec(vid.duration) }}
-                </div>
+          <!-- Infinite Scroll Sentinel & Loading / Error States -->
+          <div v-if="state.cachedVideosHasMore.value && !isCachedLoading && cachedVideos.length > 0" class="mt-8 flex flex-col items-center justify-center gap-3 relative min-h-[60px]">
+             <!-- Sentinel target for IntersectionObserver -->
+             <div ref="scrollSentinel" class="absolute inset-0 pointer-events-none opacity-0"></div>
 
-              </div>
-              
-              <div class="flex-1 min-w-0 py-2">
-                <h4 class="text-white font-bold text-sm truncate group-hover:text-accent-500 transition-colors">{{ vid.title }}</h4>
-                <p class="text-[10px] text-slate-500 font-mono mt-2">ID: {{ vid.video_id }}</p>
-              </div>
+             <!-- Loading state -->
+             <div v-if="state.isCachedMoreLoading.value" class="flex items-center gap-2 text-xs font-mono text-slate-500 tracking-wider">
+               <Icon name="ri:loader-2-line" class="animate-spin text-accent-500 text-sm" />
+               <span>LOADING MORE VIDEOS...</span>
+             </div>
 
-              <!-- Full Card Action Overlay -->
-              <div class="absolute inset-0 bg-surface-dark/80 backdrop-blur-md opacity-0 group-hover:opacity-100 flex items-center justify-center gap-6 transition-all duration-300 z-20 pointer-events-none">
-                
-                <button 
-                  @click.stop="analyzeCached(vid.video_id, false)"
-                  class="px-5 py-2.5 bg-surface-card hover:bg-surface-panel border border-surface-border text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100"
-                >
-                  <Icon name="ri:folder-open-line" class="text-base" /> Load Cache
-                </button>
-                <button 
-                  @click.stop="analyzeCached(vid.video_id, true)"
-                  class="px-5 py-2.5 bg-accent-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-accent-400 transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100"
-                >
-                  <Icon name="ri:magic-line" class="text-base" /> Reanalyze
-                </button>
-
-                <div class="flex items-center gap-3 pointer-events-auto">
-                  <a 
-                    :href="`https://youtube.com/watch?v=${vid.video_id}`" 
-                    target="_blank" 
-                    @click.stop 
-                    class="p-2.5 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
-                    title="Watch on YouTube"
-                  >
-                    <Icon name="ri:youtube-fill" class="text-base" />
-                  </a>
-                  <button 
-                    @click.stop="confirmRedownload(vid)"
-                    class="p-2.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-white rounded-xl border border-sky-500/20 transition-colors shadow-xl"
-                    title="Refresh"
-                  >
-                    <Icon name="ri:download-cloud-2-line" class="text-base" />
-                  </button>
-                  <button 
-                    @click.stop="confirmDelete(vid)"
-                    class="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl"
-                    title="Delete"
-                  >
-                    <Icon name="ri:delete-bin-line" class="text-base" />
-                  </button>
-                </div>
-              </div>
-            </div>
+             <!-- Error state -->
+             <div v-else-if="state.cachedVideosFetchError.value" class="flex flex-col items-center gap-3 z-10">
+               <span class="text-xs font-mono text-red-400 tracking-wider">FAILED TO LOAD VIDEOS</span>
+               <button 
+                 @click="loadMoreCached"
+                 class="px-8 py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 hover:text-white rounded-none cursor-pointer text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-md"
+               >
+                 RETRY
+               </button>
+             </div>
+             
+             <!-- Idle helper so sentinel gets height if not loading/error -->
+             <div v-else class="text-xs font-mono text-slate-600/50 tracking-wider">
+               SCROLL TO LOAD MORE
+             </div>
           </div>
         </div>
 
@@ -1190,6 +1315,37 @@ const isPromptDropdownOpen = ref(false)
 const promptDropdownRef = ref<HTMLElement | null>(null)
 const hoveredPrompt = ref<PromptTemplate | null>(null)
 
+const isSortDropdownOpen = ref(false)
+const sortDropdownRef = ref<HTMLElement | null>(null)
+
+interface SortOption {
+  value: string
+  label: string
+  icon: string
+}
+
+const sortOptions: SortOption[] = [
+  { value: 'date:desc', label: 'Newest First', icon: 'ri:calendar-line' },
+  { value: 'date:asc', label: 'Oldest First', icon: 'ri:calendar-line' },
+  { value: 'title:asc', label: 'Title A-Z', icon: 'ri:sort-alphabet-asc' },
+  { value: 'title:desc', label: 'Title Z-A', icon: 'ri:sort-alphabet-desc' }
+]
+
+const currentSortOption = computed<SortOption>(() => {
+  const activeVal = `${state.cachedVideosSortBy.value}:${state.cachedVideosSortOrder.value}`
+  return sortOptions.find(opt => opt.value === activeVal) || sortOptions[0]!
+})
+
+function selectSortOption(optionValue: string) {
+  const [sortBy, sortOrder] = optionValue.split(':')
+  if (sortBy && sortOrder) {
+    state.cachedVideosSortBy.value = sortBy
+    state.cachedVideosSortOrder.value = sortOrder
+    state.fetchCached(true)
+  }
+  isSortDropdownOpen.value = false
+}
+
 const activeWhisperMetadata = computed(() => {
   const modelId = state.whisperModel.value || 'base'
   return state.whisperModels.find((m: WhisperModelOption) => m.id === modelId) || state.whisperModels[1]
@@ -1199,22 +1355,66 @@ function handleDocumentClick(e: MouseEvent) {
   if (promptDropdownRef.value && !promptDropdownRef.value.contains(e.target as Node)) {
     isPromptDropdownOpen.value = false
   }
+  if (sortDropdownRef.value && !sortDropdownRef.value.contains(e.target as Node)) {
+    isSortDropdownOpen.value = false
+  }
 }
+
+const scrollSentinel = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
+
+function triggerLazyLoad() {
+  if (
+    state.cachedVideosHasMore.value &&
+    !isCachedLoading.value &&
+    !state.isCachedMoreLoading.value &&
+    !state.cachedVideosFetchError.value
+  ) {
+    loadMoreCached()
+  }
+}
+
+watch(scrollSentinel, (newEl) => {
+  if (observer) {
+    observer.disconnect()
+  }
+  if (newEl && observer) {
+    observer.observe(newEl)
+  }
+})
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
+  
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0]?.isIntersecting) {
+      triggerLazyLoad()
+    }
+  }, {
+    rootMargin: '150px'
+  })
+  
+  if (scrollSentinel.value) {
+    observer.observe(scrollSentinel.value)
+  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
+  if (observer) {
+    observer.disconnect()
+  }
 })
 
 const viewMode = ref<'grid' | 'list'>('grid')
+const isSearchPending = ref(false)
 const { 
   cachedVideos, isCachedLoading, lastAccessedVideo, lastAccessedVideoId, 
   setLastAccessed, isNavigatingToEditor,
   thumbnailEnabled, contentAudit, customBlacklist,
-  videoTitle, lastAccessedClip
+  videoTitle, lastAccessedClip,
+  cachedVideosTotal, cachedVideosPage, cachedVideosLimit, cachedVideosSearch,
+  cachedVideosSortBy, cachedVideosSortOrder, cachedVideosHasMore
 } = state
 const readyClips = useState<ReadyClip[]>('readyClips', () => [])
 const isReadyClipsLoading = ref(false)
@@ -1519,7 +1719,7 @@ async function initDashboard() {
 
   await state.fetchPrompts()
   await state.fetchSavedHooks()
-  await state.fetchCached()
+  await state.fetchCached(true)
   await fetchReadyClips()
   state.initPersistence()
   state.checkSystemHealth()
@@ -1807,6 +2007,27 @@ function formatHookDuration(start: number, end: number) {
 }
 
 // fetchCached moved to useClipperState.ts
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(cachedVideosSearch, (newVal) => {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+  
+  if (!newVal) {
+    isSearchPending.value = false
+    state.fetchCached(true)
+  } else {
+    isSearchPending.value = true
+    searchDebounceTimer = setTimeout(() => {
+      isSearchPending.value = false
+      state.fetchCached(true)
+    }, 300)
+  }
+})
+
+function loadMoreCached() {
+  cachedVideosPage.value += 1
+  state.fetchCached(false)
+}
 
 async function analyzeCached(videoId: string, force = false) {
   state.jobStatus.value = 'queued'
@@ -1846,7 +2067,7 @@ async function deleteThenRedownload(folderName: string, videoId: string) {
     await $fetch(`${API_BASE}/api/cached/${folderName}`, { method: 'DELETE' })
     state.youtubeUrl.value = `https://youtube.com/watch?v=${videoId}`
     state.analyzeUrl()
-    await state.fetchCached()
+    await state.fetchCached(true)
   } catch (e: unknown) {
     state.jobError.value = e instanceof Error ? e.message : String(e)
   }
@@ -1867,7 +2088,7 @@ async function deleteVideo(folderName: string) {
       state.showToast('Workspace reset because active video was deleted.', 'info')
     }
     
-    await state.fetchCached()
+    await state.fetchCached(true)
     state.showToast('Video source successfully deleted.', 'success')
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -2049,3 +2270,43 @@ async function selectHook(hook: Hook) {
 
 // onMounted moved up to unify initialization logic
 </script>
+
+<style scoped>
+.fade-layout-enter-active,
+.fade-layout-leave-active {
+  transition: opacity 200ms ease;
+}
+.fade-layout-enter-from,
+.fade-layout-leave-to {
+  opacity: 0;
+}
+
+.scale-fade-enter-active,
+.scale-fade-leave-active {
+  transition: opacity 80ms ease, transform 80ms ease;
+}
+.scale-fade-enter-from {
+  opacity: 0;
+  transform: scale(0.95);
+}
+.scale-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  opacity: 0;
+  animation: fadeInUp 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+</style>

@@ -147,37 +147,124 @@ function createClipperState() {
   // Cache / Library
   const cachedVideos = useState<CachedVideo[]>('cachedVideos', () => [])
   const isCachedLoading = useState<boolean>('isCachedLoading', () => false)
+  const isCachedMoreLoading = useState<boolean>('isCachedMoreLoading', () => false)
+  const cachedVideosFetchError = useState<boolean>('cachedVideosFetchError', () => false)
   const lastAccessedVideoId = useState<string | null>('lastAccessedVideoId', () => null)
   const lastAccessedClip = useState<{folder: string, clip_id: string, title?: string} | null>('lastAccessedClip', () => null)
+  const lastAccessedVideoStored = useState<CachedVideo | null>('lastAccessedVideoStored', () => null)
+  
+  const cachedVideosTotal = useState<number>('cachedVideosTotal', () => 0)
+  const cachedVideosPage = useState<number>('cachedVideosPage', () => 1)
+  const cachedVideosLimit = useState<number>('cachedVideosLimit', () => 6)
+  const cachedVideosSearch = useState<string>('cachedVideosSearch', () => '')
+  const cachedVideosSortBy = useState<string>('cachedVideosSortBy', () => 'date')
+  const cachedVideosSortOrder = useState<string>('cachedVideosSortOrder', () => 'desc')
+  const cachedVideosHasMore = useState<boolean>('cachedVideosHasMore', () => false)
+  const cachedVideosRequestId = useState<number>('cachedVideosRequestId', () => 0)
 
 
   let isPersistenceInitialized = false
 
 
+  function updateStoredVideo(vid: CachedVideo) {
+    lastAccessedVideoStored.value = vid
+    if (import.meta.client) {
+      localStorage.setItem('yonru_last_video_stored', JSON.stringify(vid))
+    }
+  }
 
   const lastAccessedVideo = computed(() => {
     const clip = lastAccessedClip.value
-    // Prioritize parent video of the last accessed clip
+    // 1. Prioritize parent video of the last accessed clip from cachedVideos
     if (clip && clip.folder) {
       const vid = cachedVideos.value.find(v => v.folder_name === clip.folder)
-      if (vid) return vid
+      if (vid) {
+        updateStoredVideo(vid)
+        return vid
+      }
     }
-    // Fallback to last accessed video ID
-    if (!lastAccessedVideoId.value) return null
-    return cachedVideos.value.find(v => v.video_id === lastAccessedVideoId.value) || null
+    // 2. Fallback to last accessed video ID from cachedVideos
+    if (lastAccessedVideoId.value) {
+      const vid = cachedVideos.value.find(v => v.video_id === lastAccessedVideoId.value)
+      if (vid) {
+        updateStoredVideo(vid)
+        return vid
+      }
+    }
+    // 3. Fallback to stored video object
+    if (lastAccessedVideoStored.value) {
+      const stored = lastAccessedVideoStored.value
+      const matchesClip = clip && clip.folder && stored.folder_name === clip.folder
+      const matchesId = lastAccessedVideoId.value && stored.video_id === lastAccessedVideoId.value
+      if (matchesClip || matchesId) {
+        return stored
+      }
+    }
+    return null
   })
 
-  async function fetchCached() {
-    if (cachedVideos.value.length === 0) {
-      isCachedLoading.value = true
+
+  async function fetchCached(reset = false) {
+    if (reset) {
+      cachedVideosPage.value = 1
+      cachedVideosFetchError.value = false
+      isCachedMoreLoading.value = false
     }
+    if (cachedVideosPage.value === 1) {
+      isCachedLoading.value = true
+    } else {
+      isCachedMoreLoading.value = true
+      cachedVideosFetchError.value = false
+    }
+
+    cachedVideosRequestId.value++
+    const reqId = cachedVideosRequestId.value
+
     try {
-      const res = await $fetch<{ videos: CachedVideo[] }>(`${API_BASE}/api/cached`)
-      cachedVideos.value = res.videos || []
-    } catch { 
-      if (cachedVideos.value.length === 0) cachedVideos.value = [] 
+      const queryParams: Record<string, any> = {
+        page: cachedVideosPage.value,
+        limit: cachedVideosLimit.value,
+        sort_by: cachedVideosSortBy.value,
+        order: cachedVideosSortOrder.value
+      }
+      if (cachedVideosSearch.value) {
+        queryParams.search = cachedVideosSearch.value
+      }
+      
+      const res = await $fetch<{ videos: CachedVideo[], total: number, has_more: boolean }>(
+        `${API_BASE}/api/cached`,
+        { params: queryParams }
+      )
+      
+      if (reqId !== cachedVideosRequestId.value) {
+        return
+      }
+      
+      if (cachedVideosPage.value === 1) {
+        cachedVideos.value = res.videos || []
+      } else {
+        cachedVideos.value = [...cachedVideos.value, ...(res.videos || [])]
+      }
+      cachedVideosTotal.value = res.total || 0
+      cachedVideosHasMore.value = res.has_more || false
+      cachedVideosFetchError.value = false
+    } catch (e) {
+      if (reqId !== cachedVideosRequestId.value) {
+        return
+      }
+      console.error('Failed to fetch cached videos', e)
+      if (cachedVideosPage.value === 1) {
+        cachedVideos.value = []
+        cachedVideosTotal.value = 0
+        cachedVideosHasMore.value = false
+      } else {
+        cachedVideosFetchError.value = true
+      }
     } finally {
-      isCachedLoading.value = false
+      if (reqId === cachedVideosRequestId.value) {
+        isCachedLoading.value = false
+        isCachedMoreLoading.value = false
+      }
     }
   }
 
@@ -403,6 +490,11 @@ function createClipperState() {
     const lv = localStorage.getItem('yonru_last_video')
     if (lv) lastAccessedVideoId.value = lv
 
+    const lvs = localStorage.getItem('yonru_last_video_stored')
+    if (lvs) {
+      try { lastAccessedVideoStored.value = JSON.parse(lvs) } catch {}
+    }
+
     const lc = localStorage.getItem('yonru_last_clip')
     if (lc) {
       try { lastAccessedClip.value = JSON.parse(lc) } catch {}
@@ -528,7 +620,8 @@ function createClipperState() {
     isPlaying, currentTime, videoTime: timeline.videoTime,
     isTimelineShifting: timeline.isTimelineShifting,
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
-    cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip,
+    cachedVideos, isCachedLoading, isCachedMoreLoading, cachedVideosFetchError, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip, lastAccessedVideoStored,
+    cachedVideosTotal, cachedVideosPage, cachedVideosLimit, cachedVideosSearch, cachedVideosSortBy, cachedVideosSortOrder, cachedVideosHasMore,
     timelineTracks: timeline.timelineTracks, timelineDuration: timeline.timelineDuration, selectedTimelineItem: timeline.selectedTimelineItem,
     defaultTimelineTextStyle: timeline.defaultTimelineTextStyle,
     deepAuditResults: auditor.deepAuditResults, isDeepAuditing: auditor.isDeepAuditing,

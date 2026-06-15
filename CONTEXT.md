@@ -81,6 +81,12 @@ A concrete adapter implementation of the Player Bridge that targets the Remotion
 ### Mock Player Bridge
 A concrete mock adapter implementation of the Player Bridge that stores calls and simulates events in memory for testing.
 
+### Pending Search Spinner
+A visual loading indicator integrated directly inside the Cached Library search input box. It displays instantly when the user types to indicate that the input is being debounced, and transitions smoothly into the network request loader when the query is executed, ensuring immediate feedback on keypress.
+
+### Infinite Scroll Sentinel
+A scroll-based lazy loading trigger zone positioned at the bottom of the Cached Library list that dynamically detects viewport intersection to fetch and append the next page of videos automatically without manual button clicks.
+
 
 ---
 

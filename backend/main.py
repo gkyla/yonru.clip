@@ -531,10 +531,46 @@ async def render_clip_stream(req: RenderRequest):
 # --- Cache Management ---
 
 @app.get("/api/cached")
-async def list_cached():
-    """List all cached full videos in temp_assets with resolution and size."""
+async def list_cached(
+    page: int = 1,
+    limit: int = 6,
+    search: Optional[str] = None,
+    sort_by: str = "date",
+    order: str = "desc"
+):
+    """List, search, sort and paginate cached full videos in temp_assets."""
     videos = asset_repository.list_cached_videos()
-    return {"videos": videos}
+    
+    # 1. Search Filter (case-insensitive)
+    if search:
+        search_lower = search.lower()
+        videos = [
+            v for v in videos
+            if search_lower in v.get("title", "").lower() or search_lower in v.get("video_id", "").lower()
+        ]
+        
+    # 2. Sorting
+    if sort_by == "title":
+        # Alphabetical sort: asc by default unless order is desc
+        reverse = (order == "desc")
+        videos.sort(key=lambda x: x.get("title", "").lower(), reverse=reverse)
+    else:
+        # Date sort (default): desc (newest first) unless order is asc
+        reverse = (order != "asc")
+        videos.sort(key=lambda x: x.get("mtime", 0.0), reverse=reverse)
+        
+    # 3. Pagination Slicing
+    total = len(videos)
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_videos = videos[start_idx:end_idx]
+    has_more = end_idx < total
+    
+    return {
+        "videos": paginated_videos,
+        "total": total,
+        "has_more": has_more
+    }
 
 @app.get("/api/ready-clips")
 async def list_ready_clips():
