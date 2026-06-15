@@ -206,5 +206,35 @@ describe('useClipperState Composable', () => {
     // The state must NOT change to vidA, it should remain vidB!
     expect(state.cachedVideos.value[0]!.video_id).toBe('vidB')
   })
+
+  it('retains lastAccessedVideo via fallback cache when cachedVideos is sorted or paginated out', async () => {
+    const state = useClipperState()
+    state.resetWorkspace()
+    await nextTick()
+
+    state.initPersistence()
+
+    // 1. Populate cachedVideos with target video
+    const video = { video_id: 'target_vid', title: 'Target Video', duration: 100, folder_name: 'target_folder' }
+    state.cachedVideos.value = [video]
+    
+    // Set as last accessed
+    state.setLastAccessed('target_vid')
+    state.setLastClip('target_folder', 'clip123', 'My Clip')
+    await nextTick()
+
+    // Video resolved from cachedVideos
+    expect(state.lastAccessedVideo.value).toEqual(video)
+
+    // 2. Clear/sort cachedVideos so it no longer contains target_vid
+    state.cachedVideos.value = [
+      { video_id: 'other_vid', title: 'Other Video', duration: 50, folder_name: 'other_folder' }
+    ]
+    await nextTick()
+
+    // Video must still be resolved via fallback cache
+    expect(state.lastAccessedVideo.value).toEqual(video)
+  })
 })
+
 

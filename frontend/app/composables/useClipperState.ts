@@ -149,6 +149,7 @@ function createClipperState() {
   const isCachedLoading = useState<boolean>('isCachedLoading', () => false)
   const lastAccessedVideoId = useState<string | null>('lastAccessedVideoId', () => null)
   const lastAccessedClip = useState<{folder: string, clip_id: string, title?: string} | null>('lastAccessedClip', () => null)
+  const lastAccessedVideoStored = useState<CachedVideo | null>('lastAccessedVideoStored', () => null)
   
   const cachedVideosTotal = useState<number>('cachedVideosTotal', () => 0)
   const cachedVideosPage = useState<number>('cachedVideosPage', () => 1)
@@ -163,18 +164,43 @@ function createClipperState() {
   let isPersistenceInitialized = false
 
 
+  function updateStoredVideo(vid: CachedVideo) {
+    lastAccessedVideoStored.value = vid
+    if (import.meta.client) {
+      localStorage.setItem('yonru_last_video_stored', JSON.stringify(vid))
+    }
+  }
 
   const lastAccessedVideo = computed(() => {
     const clip = lastAccessedClip.value
-    // Prioritize parent video of the last accessed clip
+    // 1. Prioritize parent video of the last accessed clip from cachedVideos
     if (clip && clip.folder) {
       const vid = cachedVideos.value.find(v => v.folder_name === clip.folder)
-      if (vid) return vid
+      if (vid) {
+        updateStoredVideo(vid)
+        return vid
+      }
     }
-    // Fallback to last accessed video ID
-    if (!lastAccessedVideoId.value) return null
-    return cachedVideos.value.find(v => v.video_id === lastAccessedVideoId.value) || null
+    // 2. Fallback to last accessed video ID from cachedVideos
+    if (lastAccessedVideoId.value) {
+      const vid = cachedVideos.value.find(v => v.video_id === lastAccessedVideoId.value)
+      if (vid) {
+        updateStoredVideo(vid)
+        return vid
+      }
+    }
+    // 3. Fallback to stored video object
+    if (lastAccessedVideoStored.value) {
+      const stored = lastAccessedVideoStored.value
+      const matchesClip = clip && clip.folder && stored.folder_name === clip.folder
+      const matchesId = lastAccessedVideoId.value && stored.video_id === lastAccessedVideoId.value
+      if (matchesClip || matchesId) {
+        return stored
+      }
+    }
+    return null
   })
+
 
   async function fetchCached(reset = false) {
     if (reset) {
@@ -453,6 +479,11 @@ function createClipperState() {
     const lv = localStorage.getItem('yonru_last_video')
     if (lv) lastAccessedVideoId.value = lv
 
+    const lvs = localStorage.getItem('yonru_last_video_stored')
+    if (lvs) {
+      try { lastAccessedVideoStored.value = JSON.parse(lvs) } catch {}
+    }
+
     const lc = localStorage.getItem('yonru_last_clip')
     if (lc) {
       try { lastAccessedClip.value = JSON.parse(lc) } catch {}
@@ -578,7 +609,7 @@ function createClipperState() {
     isPlaying, currentTime, videoTime: timeline.videoTime,
     isTimelineShifting: timeline.isTimelineShifting,
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,
-    cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip,
+    cachedVideos, isCachedLoading, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip, lastAccessedVideoStored,
     cachedVideosTotal, cachedVideosPage, cachedVideosLimit, cachedVideosSearch, cachedVideosSortBy, cachedVideosSortOrder, cachedVideosHasMore,
     timelineTracks: timeline.timelineTracks, timelineDuration: timeline.timelineDuration, selectedTimelineItem: timeline.selectedTimelineItem,
     defaultTimelineTextStyle: timeline.defaultTimelineTextStyle,
