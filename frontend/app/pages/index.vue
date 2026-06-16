@@ -618,15 +618,15 @@
                  <div class="flex items-center bg-surface-dark border border-surface-border p-1 rounded-none shrink-0 h-9 select-none">
                     <button 
                       @click="activeTab = 'generated'" 
-                      class="px-3 rounded-none transition-all cursor-pointer h-full flex items-center justify-center text-[10px] font-bold uppercase tracking-wider"
-                      :class="activeTab === 'generated' ? 'bg-surface-panel text-white shadow border border-surface-border/30' : 'text-slate-500 hover:text-slate-300'"
+                      class="px-3 rounded-none transition-colors duration-150 cursor-pointer h-full flex items-center justify-center text-[10px] font-bold uppercase tracking-wider focus:outline-none focus-visible:outline-none focus:ring-0"
+                      :class="activeTab === 'generated' ? 'bg-surface-panel text-white shadow' : 'text-slate-500 hover:text-slate-300'"
                     >
                       All Hooks ({{ state.hooks.value.length }})
                     </button>
                     <button 
                       @click="activeTab = 'saved'" 
-                      class="px-3 rounded-none transition-all cursor-pointer h-full flex items-center justify-center text-[10px] font-bold uppercase tracking-wider"
-                      :class="activeTab === 'saved' ? 'bg-surface-panel text-white shadow border border-surface-border/30' : 'text-slate-500 hover:text-slate-300'"
+                      class="px-3 rounded-none transition-colors duration-150 cursor-pointer h-full flex items-center justify-center text-[10px] font-bold uppercase tracking-wider focus:outline-none focus-visible:outline-none focus:ring-0"
+                      :class="activeTab === 'saved' ? 'bg-surface-panel text-white shadow' : 'text-slate-500 hover:text-slate-300'"
                     >
                       Saved Hooks ({{ state.savedHooks.value.length }})
                     </button>
@@ -635,7 +635,7 @@
                  <!-- Back to Library Button -->
                  <button 
                    @click="resetToStart" 
-                   class="h-9 px-4 bg-surface-dark border border-surface-border rounded-none cursor-pointer text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-accent-500 hover:border-accent-500 transition-all flex items-center justify-center gap-2 shadow-sm"
+                   class="h-9 px-4 bg-surface-dark border border-surface-border rounded-none cursor-pointer text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-accent-500 hover:border-accent-500 transition-colors duration-150 flex items-center justify-center gap-2 shadow-sm focus:outline-none focus-visible:outline-none focus:ring-0"
                  >
                    <Icon name="ri:arrow-left-line" class="text-sm" />
                    <span>Back to Library</span>
@@ -647,7 +647,7 @@
          <Transition name="fade-layout" mode="out-in">
            <!-- Generated Hooks List -->
            <div v-if="activeTab === 'generated'" key="generated" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div v-if="state.hooks.value.length === 0" class="col-span-full py-12 bg-surface-panel/30 border border-surface-border/50 border-dashed rounded-none flex flex-col items-center justify-center text-center p-8 animate-fade-in-up">
+              <div v-if="state.hooks.value.length === 0" class="col-span-full py-12 bg-surface-panel/30 border border-surface-border/50 border-dashed rounded-none flex flex-col items-center justify-center text-center p-8">
                  <div class="w-12 h-12 bg-surface-dark border border-surface-border/50 flex items-center justify-center mb-4 text-slate-500 rounded-none">
                     <Icon name="ri:fire-line" class="text-2xl" />
                  </div>
@@ -660,20 +660,21 @@
                 @click="selectedModalHook = hook"
                 @mouseenter="hoveredHookIndex = Number(idx)"
                 @mouseleave="hoveredHookIndex = null"
-                class="bg-surface-panel border border-surface-border hover:border-accent-500/50 rounded-none cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col animate-fade-in-up"
-                :style="{ animationDelay: `${idx * 40}ms` }"
+                class="bg-surface-panel border border-surface-border hover:border-accent-500/50 rounded-none cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col"
               >
                 <div class="absolute inset-0 bg-gradient-to-br from-accent-500/0 to-accent-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-0"></div>
                 
                 <!-- Video Preview Area -->
-                <div class="w-full aspect-video bg-black relative overflow-hidden rounded-none shrink-0 border-b border-surface-border z-10">
+                <div class="w-full aspect-video bg-black relative overflow-hidden rounded-none shrink-0 border-b border-surface-border z-10"
+                     style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);">
                    <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
                    <video 
                      v-if="state.videoUrl.value"
                      :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
                      muted
                      preload="metadata"
-                     class="absolute inset-0 w-full h-full object-cover z-10"
+                     class="absolute inset-0 w-full h-full object-cover z-10 focus:outline-none select-none pointer-events-none"
+                     style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);"
                      @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
                      @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
                      @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
@@ -734,20 +735,21 @@
                 @click="selectedModalHook = hook"
                 @mouseenter="hoveredHookIndex = Number(idx) + 1000"
                 @mouseleave="hoveredHookIndex = null"
-                class="bg-surface-panel border border-surface-border hover:border-amber-400/50 rounded-none cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col animate-fade-in-up"
-                :style="{ animationDelay: `${idx * 40}ms` }"
+                class="bg-surface-panel border border-surface-border hover:border-amber-400/50 rounded-none cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col"
               >
                 <div class="absolute inset-0 bg-gradient-to-br from-amber-400/0 to-amber-400/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-0"></div>
                 
                 <!-- Video Preview Area -->
-                <div class="w-full aspect-video bg-black relative overflow-hidden rounded-none shrink-0 border-b border-surface-border z-10">
+                <div class="w-full aspect-video bg-black relative overflow-hidden rounded-none shrink-0 border-b border-surface-border z-10"
+                     style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);">
                    <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
                    <video 
                      v-if="state.videoUrl.value"
                      :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
                      muted
                      preload="metadata"
-                     class="absolute inset-0 w-full h-full object-cover z-10"
+                     class="absolute inset-0 w-full h-full object-cover z-10 focus:outline-none select-none pointer-events-none"
+                     style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);"
                      @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
                      @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
                      @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
