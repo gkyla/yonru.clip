@@ -101,3 +101,47 @@ def test_fail_immediately_on_fatal_unauthorized_error(sample_transcript):
     
     assert result is None
     assert mock_client.call_count == 1
+
+
+def test_group_words_into_sentences():
+    """Verify that _group_words_into_sentences correctly groups word-level and sentence-level inputs."""
+    generator = HookGenerator(genai_client=MockGenAIClient())
+    
+    # 1. Test word-level input
+    word_level = [
+        {"start": 0.0, "duration": 0.5, "text": "Hello"},
+        {"start": 0.5, "duration": 0.5, "text": "world."},
+        {"start": 1.0, "duration": 0.5, "text": "This"},
+        {"start": 1.5, "duration": 0.5, "text": "is"},
+        {"start": 2.0, "duration": 0.5, "text": "a"},
+        {"start": 2.5, "duration": 0.5, "text": "test."}
+    ]
+    grouped = generator._group_words_into_sentences(word_level)
+    assert len(grouped) == 2
+    assert grouped[0]["text"] == "Hello world."
+    assert grouped[0]["start"] == 0.0
+    assert abs(grouped[0]["duration"] - 1.0) < 1e-5
+    
+    assert grouped[1]["text"] == "This is a test."
+    assert grouped[1]["start"] == 1.0
+    assert abs(grouped[1]["duration"] - 2.0) < 1e-5
+
+    # 2. Test max_words limit
+    many_words = [{"start": float(i), "duration": 1.0, "text": f"word{i}"} for i in range(25)]
+    grouped_limit = generator._group_words_into_sentences(many_words, max_words=10)
+    assert len(grouped_limit) == 3
+    assert len(grouped_limit[0]["text"].split()) == 10
+    assert len(grouped_limit[1]["text"].split()) == 10
+    assert len(grouped_limit[2]["text"].split()) == 5
+
+    # 3. Test silence gap limit
+    silence_input = [
+        {"start": 0.0, "duration": 1.0, "text": "first"},
+        {"start": 1.0, "duration": 1.0, "text": "second"},
+        {"start": 5.0, "duration": 1.0, "text": "third"}
+    ]
+    grouped_silence = generator._group_words_into_sentences(silence_input, max_silence=2.0)
+    assert len(grouped_silence) == 2
+    assert grouped_silence[0]["text"] == "first second"
+    assert grouped_silence[1]["text"] == "third"
+

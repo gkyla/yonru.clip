@@ -13,16 +13,76 @@ class HookGenerator:
             base_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts")
             self.repository = FilePromptRepository(base_dir)
 
+    def _group_words_into_sentences(self, segments: list, max_words: int = 15, max_silence: float = 1.5) -> list:
+        grouped = []
+        current_words = []
+        current_start = None
+        current_end = None
+        
+        for s in segments:
+            start = float(s.get("start", 0.0))
+            dur = float(s.get("duration", 0.0))
+            end = start + dur
+            text = s.get("text", "").strip()
+            if not text:
+                continue
+                
+            words = text.split()
+            word_dur = dur / len(words) if len(words) > 0 else 0.0
+            
+            for i, w in enumerate(words):
+                w_start = start + (i * word_dur)
+                w_end = w_start + word_dur
+                
+                if not current_words:
+                    current_start = w_start
+                    current_end = w_end
+                    current_words.append(w)
+                else:
+                    silence = w_start - current_end
+                    if silence > max_silence or len(current_words) >= max_words:
+                        grouped.append({
+                            "start": current_start,
+                            "duration": current_end - current_start,
+                            "text": " ".join(current_words)
+                        })
+                        current_start = w_start
+                        current_end = w_end
+                        current_words = [w]
+                    else:
+                        current_words.append(w)
+                        current_end = w_end
+                
+                if w.endswith(('.', '?', '!', '"', '”', ':', ';')):
+                    grouped.append({
+                        "start": current_start,
+                        "duration": current_end - current_start,
+                        "text": " ".join(current_words)
+                    })
+                    current_words = []
+                    current_start = None
+                    current_end = None
+                    
+        if current_words:
+            grouped.append({
+                "start": current_start,
+                "duration": current_end - current_start,
+                "text": " ".join(current_words)
+            })
+            
+        return grouped
+
     def find_hooks_from_transcript(self, transcript_segments: list, num_hooks: int = 3, auto_hooks: bool = False, video_duration: float = None, prompt_file: str = "prompt.json"):
         """
         Send raw transcript text to Gemini to identify hooks. 
         Much faster and more accurate than analyzing raw audio.
         """
-        print(f"[gemini] Requesting transcript-based analysis for {len(transcript_segments)} segments (auto={auto_hooks}, num={num_hooks})...")
+        grouped_segments = self._group_words_into_sentences(transcript_segments)
+        print(f"[gemini] Requesting transcript-based analysis for {len(transcript_segments)} segments grouped into {len(grouped_segments)} sentences (auto={auto_hooks}, num={num_hooks})...")
         
         # Format transcript for prompt
         transcript_text = ""
-        for s in transcript_segments:
+        for s in grouped_segments:
             start = float(s["start"])
             dur = float(s["duration"])
             transcript_text += f"[{start:.2f}s - {start+dur:.2f}s] {s['text']}\n"
