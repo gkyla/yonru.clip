@@ -598,173 +598,200 @@
              <p class="mb-1">» Pipeline: Verify Transcript → Download 1080p → Gemini AI</p>
              <p class="mb-1 text-slate-300">» Engine: yt-dlp + FFmpeg + Gemini API</p>
              <p class="mb-1">» Status: {{ state.jobStatus.value }}...</p>
-             <p class="text-accent-500 mt-2 font-bold animate-pulse">» Please wait, processing on server...</p>
+              <p class="text-accent-500 mt-2 font-bold animate-pulse">» Please wait, processing on server...</p>
           </div>
         </div>
 
       <!-- Hit List -->
       <div v-if="state.jobStatus.value !== 'idle' && (state.jobStatus.value === 'hooks_ready' || state.hooks.value.length > 0 || state.savedHooks.value.length > 0)" class="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full p-8 -mt-8">
          <div class="flex flex-col mb-6">
-            <div class="flex items-center justify-between gap-4 border-b border-surface-border/40 pb-4">
-               <div class="flex items-center bg-surface-dark border border-surface-border/40 p-1 gap-1 w-full max-w-[460px]">
+            <div class="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center mb-4">
+               <div class="flex flex-col gap-1.5 shrink-0">
+                  <h3 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <Icon name="ri:fire-fill" class="text-accent-500" />
+                    Generated Hooks
+                  </h3>
+                  <p class="text-slate-400 text-xs">Select a hook to cut the segment and start editing.</p>
+               </div>
+               <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                 <!-- Tab Switcher -->
+                 <div class="flex items-center bg-surface-dark border border-surface-border p-1 rounded-none shrink-0 h-9 select-none">
+                    <button 
+                      @click="activeTab = 'generated'" 
+                      class="px-3 rounded-none transition-all cursor-pointer h-full flex items-center justify-center text-[10px] font-bold uppercase tracking-wider"
+                      :class="activeTab === 'generated' ? 'bg-surface-panel text-white shadow border border-surface-border/30' : 'text-slate-500 hover:text-slate-300'"
+                    >
+                      All Hooks ({{ state.hooks.value.length }})
+                    </button>
+                    <button 
+                      @click="activeTab = 'saved'" 
+                      class="px-3 rounded-none transition-all cursor-pointer h-full flex items-center justify-center text-[10px] font-bold uppercase tracking-wider"
+                      :class="activeTab === 'saved' ? 'bg-surface-panel text-white shadow border border-surface-border/30' : 'text-slate-500 hover:text-slate-300'"
+                    >
+                      Saved Hooks ({{ state.savedHooks.value.length }})
+                    </button>
+                 </div>
+
+                 <!-- Back to Library Button -->
                  <button 
-                   @click="activeTab = 'generated'" 
-                   :class="activeTab === 'generated' ? 'bg-accent-500/10 text-accent-400 border-accent-500/20 font-bold shadow-[0_0_15px_rgba(207,255,80,0.08)]' : 'bg-transparent text-slate-400 hover:text-white border-transparent hover:bg-surface-panel/40'" 
-                   class="flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-2 rounded-none border transition-all cursor-pointer"
+                   @click="resetToStart" 
+                   class="h-9 px-4 bg-surface-dark border border-surface-border rounded-none cursor-pointer text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-accent-500 hover:border-accent-500 transition-all flex items-center justify-center gap-2 shadow-sm"
                  >
-                   <Icon name="ri:fire-fill" /> Generated hooks ({{ state.hooks.value.length }})
-                 </button>
-                 <button 
-                   @click="activeTab = 'saved'" 
-                   :class="activeTab === 'saved' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 font-bold shadow-[0_0_15px_rgba(245,158,11,0.08)]' : 'bg-transparent text-slate-400 hover:text-white border-transparent hover:bg-surface-panel/40'" 
-                   class="flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-2 rounded-none border transition-all cursor-pointer"
-                 >
-                   <Icon name="ri:bookmark-fill" /> Saved hooks ({{ state.savedHooks.value.length }})
+                   <Icon name="ri:arrow-left-line" class="text-sm" />
+                   <span>Back to Library</span>
                  </button>
                </div>
-               <button 
-                 @click="resetToStart" 
-                 class="flex items-center gap-2 px-5 py-2.5 bg-surface-dark border border-surface-border rounded-none cursor-pointer text-sm font-bold text-slate-300 hover:text-accent-500 hover:border-accent-500 transition-all shadow-sm"
-               >
-                 <Icon name="ri:arrow-left-line" /> Back to Library
-               </button>
-             </div>
-            <p class="text-slate-400 text-sm mt-3">Select a hook to cut the segment and start editing.</p>
-         </div>
-
-         <!-- Generated Hooks List -->
-         <div v-show="activeTab === 'generated'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div 
-              v-for="(hook, idx) in state.hooks.value" 
-              :key="idx"
-              @click="selectedModalHook = hook"
-              @mouseenter="hoveredHookIndex = Number(idx)"
-              @mouseleave="hoveredHookIndex = null"
-              class="bg-surface-panel border border-surface-border hover:border-accent-500/50 rounded-none cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col"
-            >
-              <div class="absolute inset-0 bg-gradient-to-br from-accent-500/0 to-accent-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-0"></div>
-              
-              <!-- Video Preview Area -->
-              <div class="w-full aspect-video bg-black relative overflow-hidden rounded-none shrink-0 border-b border-surface-border z-10">
-                 <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
-                 <video 
-                   v-if="state.videoUrl.value"
-                   :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
-                   muted
-                   preload="metadata"
-                   class="absolute inset-0 w-full h-full object-cover z-10"
-                   @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
-                   @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
-                   @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
-                 ></video>
-                 <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-none text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10">
-                   {{ formatHookDuration(hook.start, hook.end) }}
-                 </div>
-              </div>
-              
-              <div class="p-5 flex-1 flex flex-col relative z-10">
-                <div class="flex justify-between items-start mb-4">
-                  <div class="flex items-center gap-2">
-                    <span class="bg-surface-dark border border-surface-border px-2 py-0.5 rounded-none text-[10px] b-mono text-accent-500 font-black tracking-widest">HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}</span>
-                    <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
-                      <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
-                        <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
-                      </div>
-                      <!-- Custom Tooltip -->
-                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-none shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-30 font-medium normal-case tracking-normal text-center">
-                        This clip has already been cut and transcribed, and is ready for editing!
-                        <!-- Tooltip Arrow -->
-                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-3">
-                     <span class="text-slate-500 text-[10px] font-mono font-bold">{{ state.formatDuration(hook.start) }} - {{ state.formatDuration(hook.end) }}</span>
-                     <button @click.stop="toggleSaveHook(hook)" class="text-slate-400 hover:text-amber-400 transition-colors z-20">
-                        <Icon :name="isHookSaved(hook) ? 'ri:bookmark-fill' : 'ri:bookmark-line'" class="text-xl" :class="{'text-amber-400': isHookSaved(hook)}" />
-                     </button>
-                  </div>
-                </div>
-                
-                <h4 class="text-white font-bold mb-2 text-lg pr-2 leading-tight">{{ hook.theme || 'Untitled Hook' }}</h4>
-                <p class="text-slate-400 text-sm line-clamp-2 italic leading-relaxed flex-1">"{{ (hook.transcript_quote || '').length > 120 ? (hook.transcript_quote || '').substring(0, 117) + '...' : (hook.transcript_quote || '') }}"</p>
-                
-                <div class="mt-4 pt-4 border-t border-surface-border/50 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-accent-500 transition-colors">
-                   <span>Preview Segment</span>
-                   <Icon name="ri:play-circle-fill" class="text-lg group-hover:scale-110 transition-transform" />
-                </div>
-              </div>
             </div>
          </div>
 
-         <!-- Saved Hooks List -->
-         <div v-show="activeTab === 'saved'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div v-if="state.savedHooks.value.length === 0" class="col-span-1 md:col-span-2 py-12 text-center text-slate-500">
-               No saved hooks yet. Click the bookmark icon on any generated hook to save it here.
-            </div>
-            <div 
-              v-else
-              v-for="(hook, idx) in state.savedHooks.value" 
-              :key="hook._id || idx"
-              @click="selectedModalHook = hook"
-              @mouseenter="hoveredHookIndex = Number(idx) + 1000"
-              @mouseleave="hoveredHookIndex = null"
-              class="bg-surface-panel border border-surface-border hover:border-amber-400/50 rounded-none cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col"
-            >
-              <div class="absolute inset-0 bg-gradient-to-br from-amber-400/0 to-amber-400/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-0"></div>
-              
-              <!-- Video Preview Area -->
-              <div class="w-full aspect-video bg-black relative overflow-hidden rounded-none shrink-0 border-b border-surface-border z-10">
-                 <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
-                 <video 
-                   v-if="state.videoUrl.value"
-                   :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
-                   muted
-                   preload="metadata"
-                   class="absolute inset-0 w-full h-full object-cover z-10"
-                   @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
-                   @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
-                   @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
-                 ></video>
-                 <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-none text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10">
-                   {{ formatHookDuration(hook.start, hook.end) }}
+         <Transition name="fade-layout" mode="out-in">
+           <!-- Generated Hooks List -->
+           <div v-if="activeTab === 'generated'" key="generated" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div v-if="state.hooks.value.length === 0" class="col-span-full py-12 bg-surface-panel/30 border border-surface-border/50 border-dashed rounded-none flex flex-col items-center justify-center text-center p-8 animate-fade-in-up">
+                 <div class="w-12 h-12 bg-surface-dark border border-surface-border/50 flex items-center justify-center mb-4 text-slate-500 rounded-none">
+                    <Icon name="ri:fire-line" class="text-2xl" />
                  </div>
+                 <h4 class="text-white font-bold text-xs mb-1 uppercase tracking-wider">No Hooks Extracted</h4>
+                 <p class="text-slate-400 text-xs max-w-sm normal-case tracking-normal">We couldn't extract any segments from this video. Try adjusting the prompt template or using another URL.</p>
               </div>
-              
-              <div class="p-5 flex-1 flex flex-col relative z-10">
-                <div class="flex justify-between items-start mb-4">
-                  <div class="flex items-center gap-2">
-                    <span class="bg-surface-dark border border-amber-500/30 px-2 py-0.5 rounded-none text-[10px] b-mono text-amber-500 font-black tracking-widest">SAVED</span>
-                    <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
-                      <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
-                        <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
-                      </div>
-                      <!-- Custom Tooltip -->
-                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-none shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-30 font-medium normal-case tracking-normal text-center">
-                        This clip has already been cut and transcribed, and is ready for editing!
-                        <!-- Tooltip Arrow -->
-                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
+              <div 
+                v-for="(hook, idx) in state.hooks.value" 
+                :key="idx"
+                @click="selectedModalHook = hook"
+                @mouseenter="hoveredHookIndex = Number(idx)"
+                @mouseleave="hoveredHookIndex = null"
+                class="bg-surface-panel border border-surface-border hover:border-accent-500/50 rounded-none cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col animate-fade-in-up"
+                :style="{ animationDelay: `${idx * 40}ms` }"
+              >
+                <div class="absolute inset-0 bg-gradient-to-br from-accent-500/0 to-accent-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-0"></div>
+                
+                <!-- Video Preview Area -->
+                <div class="w-full aspect-video bg-black relative overflow-hidden rounded-none shrink-0 border-b border-surface-border z-10">
+                   <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
+                   <video 
+                     v-if="state.videoUrl.value"
+                     :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
+                     muted
+                     preload="metadata"
+                     class="absolute inset-0 w-full h-full object-cover z-10"
+                     @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
+                     @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
+                     @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
+                   ></video>
+                   <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-none text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10">
+                     {{ formatHookDuration(hook.start, hook.end) }}
+                   </div>
+                </div>
+                
+                <div class="p-5 flex-1 flex flex-col relative z-10">
+                  <div class="flex justify-between items-start mb-4">
+                    <div class="flex items-center gap-2">
+                      <span class="bg-surface-dark border border-surface-border px-2 py-0.5 rounded-none text-[10px] b-mono text-accent-500 font-black tracking-widest">HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}</span>
+                      <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
+                        <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
+                          <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                        </div>
+                        <!-- Custom Tooltip -->
+                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-none shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-30 font-medium normal-case tracking-normal text-center">
+                          This clip has already been cut and transcribed, and is ready for editing!
+                          <!-- Tooltip Arrow -->
+                          <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
+                        </div>
                       </div>
                     </div>
+                    <div class="flex items-center gap-3">
+                       <span class="text-slate-500 text-[10px] font-mono font-bold">{{ state.formatDuration(hook.start) }} - {{ state.formatDuration(hook.end) }}</span>
+                       <button @click.stop="toggleSaveHook(hook)" class="text-slate-400 hover:text-amber-400 transition-colors z-20">
+                          <Icon :name="isHookSaved(hook) ? 'ri:bookmark-fill' : 'ri:bookmark-line'" class="text-xl" :class="{'text-amber-400': isHookSaved(hook)}" />
+                       </button>
+                    </div>
                   </div>
-                  <div class="flex items-center gap-3">
-                     <span class="text-slate-500 text-[10px] font-mono font-bold">{{ state.formatDuration(hook.start) }} - {{ state.formatDuration(hook.end) }}</span>
-                     <button @click.stop="toggleSaveHook(hook)" class="text-amber-400 hover:text-red-400 transition-colors z-20">
-                        <Icon name="ri:bookmark-fill" class="text-xl" />
-                     </button>
+                  
+                  <h4 class="text-white font-bold mb-2 text-lg pr-2 leading-tight">{{ hook.theme || 'Untitled Hook' }}</h4>
+                  <p class="text-slate-400 text-sm line-clamp-2 italic leading-relaxed flex-1">"{{ (hook.transcript_quote || '').length > 120 ? (hook.transcript_quote || '').substring(0, 117) + '...' : (hook.transcript_quote || '') }}"</p>
+                  
+                  <div class="mt-4 pt-4 border-t border-surface-border/50 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-accent-500 transition-colors">
+                     <span>Preview Segment</span>
+                     <Icon name="ri:play-circle-fill" class="text-lg group-hover:scale-110 transition-transform" />
                   </div>
-                </div>
-                
-                <h4 class="text-white font-bold mb-2 text-lg pr-2 leading-tight">{{ hook.theme || 'Untitled Hook' }}</h4>
-                <p class="text-slate-400 text-sm line-clamp-2 italic leading-relaxed flex-1">"{{ (hook.transcript_quote || '').length > 120 ? (hook.transcript_quote || '').substring(0, 117) + '...' : (hook.transcript_quote || '') }}"</p>
-                
-                <div class="mt-4 pt-4 border-t border-surface-border/50 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-amber-500/50 group-hover:text-amber-400 transition-colors">
-                   <span>Preview Segment</span>
-                   <Icon name="ri:play-circle-fill" class="text-lg group-hover:scale-110 transition-transform" />
                 </div>
               </div>
-            </div>
-         </div>
+           </div>
+
+           <!-- Saved Hooks List -->
+           <div v-else-if="activeTab === 'saved'" key="saved" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div v-if="state.savedHooks.value.length === 0" class="col-span-full py-12 bg-surface-panel/30 border border-surface-border/50 border-dashed rounded-none flex flex-col items-center justify-center text-center p-8">
+                 <div class="w-12 h-12 bg-surface-dark border border-surface-border/50 flex items-center justify-center mb-4 text-slate-500 rounded-none">
+                    <Icon name="ri:bookmark-line" class="text-2xl" />
+                 </div>
+                 <h4 class="text-white font-bold text-xs mb-1 uppercase tracking-wider">No Saved Hooks Yet</h4>
+                 <p class="text-slate-400 text-xs max-w-sm normal-case tracking-normal">Click the bookmark icon on any generated hook to save it here for editing later.</p>
+              </div>
+              <div 
+                v-else
+                v-for="(hook, idx) in state.savedHooks.value" 
+                :key="hook._id || idx"
+                @click="selectedModalHook = hook"
+                @mouseenter="hoveredHookIndex = Number(idx) + 1000"
+                @mouseleave="hoveredHookIndex = null"
+                class="bg-surface-panel border border-surface-border hover:border-amber-400/50 rounded-none cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col animate-fade-in-up"
+                :style="{ animationDelay: `${idx * 40}ms` }"
+              >
+                <div class="absolute inset-0 bg-gradient-to-br from-amber-400/0 to-amber-400/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-0"></div>
+                
+                <!-- Video Preview Area -->
+                <div class="w-full aspect-video bg-black relative overflow-hidden rounded-none shrink-0 border-b border-surface-border z-10">
+                   <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
+                   <video 
+                     v-if="state.videoUrl.value"
+                     :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
+                     muted
+                     preload="metadata"
+                     class="absolute inset-0 w-full h-full object-cover z-10"
+                     @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
+                     @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
+                     @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
+                   ></video>
+                   <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-none text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10">
+                     {{ formatHookDuration(hook.start, hook.end) }}
+                   </div>
+                </div>
+                
+                <div class="p-5 flex-1 flex flex-col relative z-10">
+                  <div class="flex justify-between items-start mb-4">
+                    <div class="flex items-center gap-2">
+                      <span class="bg-surface-dark border border-amber-500/30 px-2 py-0.5 rounded-none text-[10px] b-mono text-amber-500 font-black tracking-widest">SAVED</span>
+                      <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
+                        <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
+                          <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                        </div>
+                        <!-- Custom Tooltip -->
+                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-none shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-30 font-medium normal-case tracking-normal text-center">
+                          This clip has already been cut and transcribed, and is ready for editing!
+                          <!-- Tooltip Arrow -->
+                          <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                       <span class="text-slate-500 text-[10px] font-mono font-bold">{{ state.formatDuration(hook.start) }} - {{ state.formatDuration(hook.end) }}</span>
+                       <button @click.stop="toggleSaveHook(hook)" class="text-amber-400 hover:text-red-400 transition-colors z-20">
+                          <Icon name="ri:bookmark-fill" class="text-xl" />
+                       </button>
+                    </div>
+                  </div>
+                  
+                  <h4 class="text-white font-bold mb-2 text-lg pr-2 leading-tight">{{ hook.theme || 'Untitled Hook' }}</h4>
+                  <p class="text-slate-400 text-sm line-clamp-2 italic leading-relaxed flex-1">"{{ (hook.transcript_quote || '').length > 120 ? (hook.transcript_quote || '').substring(0, 117) + '...' : (hook.transcript_quote || '') }}"</p>
+                  
+                  <div class="mt-4 pt-4 border-t border-surface-border/50 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-amber-500/50 group-hover:text-amber-400 transition-colors">
+                     <span>Preview Segment</span>
+                     <Icon name="ri:play-circle-fill" class="text-lg group-hover:scale-110 transition-transform" />
+                  </div>
+                </div>
+              </div>
+           </div>
+         </Transition>
       </div>
     </div>
 
