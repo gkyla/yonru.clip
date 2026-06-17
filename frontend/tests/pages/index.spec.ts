@@ -35,6 +35,7 @@ vi.mock('../../app/composables/useClipperState', () => ({
     folderName: ref('test-folder'),
     isMediaLoading: ref(false),
     isNavigatingToEditor: ref(false),
+    isCachedAnalysis: ref(false),
     cachedVideos: ref([]),
     isCachedLoading: ref(false),
     isCachedMoreLoading: ref(false),
@@ -449,6 +450,97 @@ describe('Index Page', () => {
     await wrapper.vm.$nextTick()
     
     expect(vm.activeTab).toBe('generated')
+  })
+
+  it('correctly maps jobStatus to stages and progressPercent', async () => {
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: {
+            template: '<div><slot /></div>'
+          },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+
+    // 1. Test status: queued
+    vm.state.jobStatus.value = 'queued'
+    await wrapper.vm.$nextTick()
+    expect(vm.progressPercent).toBe(12.5)
+    expect(vm.stages[0].state).toBe('active')
+    expect(vm.stages[1].state).toBe('pending')
+    expect(vm.stages[2].state).toBe('pending')
+    expect(vm.stages[3].state).toBe('pending')
+
+    // 2. Test status: transcribing
+    vm.state.jobStatus.value = 'transcribing'
+    await wrapper.vm.$nextTick()
+    expect(vm.progressPercent).toBe(75)
+    expect(vm.stages[0].state).toBe('completed')
+    expect(vm.stages[1].state).toBe('completed')
+    expect(vm.stages[2].state).toBe('active')
+    expect(vm.stages[3].state).toBe('pending')
+
+    // 3. Test status in cached mode (isCachedAnalysis = true, isReanalyzingCached = false - Load Cache Hooks)
+    vm.state.isCachedAnalysis.value = true
+    vm.isReanalyzingCached = false
+    vm.state.jobStatus.value = 'queued'
+    await wrapper.vm.$nextTick()
+    expect(vm.stages).toHaveLength(1)
+    expect(vm.stages[0].id).toBe('cache_lookup')
+    expect(vm.stages[0].state).toBe('active')
+    expect(vm.progressPercent).toBe(20)
+
+    vm.state.jobStatus.value = 'ready'
+    await wrapper.vm.$nextTick()
+    expect(vm.stages[0].state).toBe('completed')
+    expect(vm.progressPercent).toBe(100)
+
+    // 4. Test status in cached mode with force re-analysis (isCachedAnalysis = true, isReanalyzingCached = true - Reanalyze Hooks)
+    vm.isReanalyzingCached = true
+    vm.state.jobStatus.value = 'queued'
+    await wrapper.vm.$nextTick()
+    expect(vm.stages).toHaveLength(2)
+    expect(vm.progressPercent).toBe(20)
+    expect(vm.stages[0].id).toBe('cache_lookup')
+    expect(vm.stages[0].state).toBe('active')
+    expect(vm.stages[1].state).toBe('pending')
+
+    vm.state.jobStatus.value = 'generating_hooks'
+    await wrapper.vm.$nextTick()
+    expect(vm.progressPercent).toBe(85)
+    expect(vm.stages[0].state).toBe('completed')
+    expect(vm.stages[1].state).toBe('active')
+  })
+
+  it('renders cancel button that resets status to idle when clicked', async () => {
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: {
+            template: '<div><slot /></div>'
+          },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.state.jobStatus.value = 'queued'
+    vm.state.hooks.value = []
+    await wrapper.vm.$nextTick()
+
+    // Find the cancel button containing "Cancel & Return to Library"
+    const btn = wrapper.findAll('button').find(b => b.text().includes('Cancel & Return to Library'))
+    expect(btn).toBeDefined()
+    
+    await btn!.trigger('click')
+    expect(vm.state.jobStatus.value).toBe('idle')
   })
 })
 
