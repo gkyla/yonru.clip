@@ -358,3 +358,79 @@ def test_run_local_cut_whisper_fails(mock_dependencies, tmp_path):
         saved_transcript = json.load(f)
     assert saved_transcript == []
 
+
+def test_run_full_analysis_uses_cached_youtube_transcript(mock_dependencies, tmp_path):
+    """Verify that run_full_analysis loads cached youtube-transcript.json and bypasses YouTube client fetch."""
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    
+    job_id = "test_job_transcript_cache"
+    coordinator.jobs[job_id] = {
+        "status": "queued",
+        "url": "https://youtube.com/watch?v=cachedtrans123",
+        "video_info": None,
+        "full_video_path": None,
+        "hooks": None,
+        "error": None
+    }
+    
+    # Create mock folder and cached files
+    video_dir = tmp_path / "video_cachedtrans123"
+    video_dir.mkdir()
+    video_file = video_dir / "full.mp4"
+    video_file.write_text("dummy video")
+    
+    # Save a cached youtube-transcript.json
+    transcript_cache_file = video_dir / "youtube-transcript.json"
+    transcript_cache_file.write_text(json.dumps([
+        {"text": "Cached transcript hello", "start": 0.0, "duration": 3.0}
+    ]))
+    
+    # Setup mock asset repository to return this cached video
+    mock_dependencies["asset_repository"].get_cached_video.return_value = {
+        "file_path": str(video_file),
+        "duration": 60.0,
+        "fps": 30.0
+    }
+    mock_dependencies["asset_repository"].get_or_create_source.return_value = {
+        "file_path": str(video_file),
+        "duration": 60.0,
+        "fps": 30.0
+    }
+    
+    mock_dependencies["youtube_client"].extract_video_id.return_value = "cachedtrans123"
+    mock_dependencies["config_store"].get.return_value = "fake-gemini-key"
+    
+    # Mock HookGenerator
+    mock_hooks_response = json.dumps([
+        {"start": 0.0, "end": 3.0, "title": "Hook from cache"}
+    ])
+    
+    with patch("core.hook_generator.HookGenerator") as MockHookGenerator:
+        mock_generator_instance = MockHookGenerator.return_value
+        mock_generator_instance.find_hooks_from_transcript.return_value = mock_hooks_response
+        
+        # Run analysis (force_reanalyze=True to bypass step -1, but it should still hit Step 0 transcript cache)
+        coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=cachedtrans123", "id", force_reanalyze=True)
+        
+        # Verify HookGenerator was called with the cached transcript segment
+        called_args = mock_generator_instance.find_hooks_from_transcript.call_args[1]
+        assert called_args["transcript_segments"] == [
+            {"text": "Cached transcript hello", "start": 0.0, "duration": 3.0}
+        ]
+        
+    # Assertions
+    assert coordinator.jobs[job_id]["status"] == "hooks_ready"
+    hooks = coordinator.jobs[job_id]["hooks"]
+    assert len(hooks) == 1
+    
+    # Verify youtube_client.fetch_transcript was NOT called
+    mock_dependencies["youtube_client"].fetch_transcript.assert_not_called()
+
+
