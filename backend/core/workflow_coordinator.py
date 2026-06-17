@@ -83,7 +83,24 @@ class ClipWorkflowCoordinator:
                 self.jobs[job_id] = job
                 return
                 
-            transcript_segments = self.youtube_client.fetch_transcript(video_id)
+            # Try to load cached YouTube transcript first
+            transcript_segments = None
+            cached_video = self.asset_repository.get_cached_video(url)
+            if cached_video and cached_video.get("file_path"):
+                folder_path = os.path.dirname(cached_video["file_path"])
+                transcript_cache_path = os.path.join(folder_path, "youtube-transcript.json")
+                if os.path.exists(transcript_cache_path):
+                    try:
+                        with open(transcript_cache_path, "r", encoding="utf-8") as f:
+                            transcript_segments = json.load(f)
+                        print(f"[cache] Loaded YouTube transcript from {transcript_cache_path}")
+                    except Exception as e:
+                        print(f"[cache] Failed to read cached transcript: {e}")
+                        transcript_segments = None
+
+            if not transcript_segments:
+                transcript_segments = self.youtube_client.fetch_transcript(video_id)
+                
             if not transcript_segments or len(transcript_segments) == 0:
                 job = self.jobs[job_id]
                 job["status"] = "error"
@@ -103,6 +120,17 @@ class ClipWorkflowCoordinator:
                 job["error"] = "Failed to download video"
                 self.jobs[job_id] = job
                 return
+
+            # Save transcript to cache if it doesn't already exist on disk
+            video_folder = os.path.dirname(video_info["file_path"])
+            transcript_cache_path = os.path.join(video_folder, "youtube-transcript.json")
+            if not os.path.exists(transcript_cache_path) and transcript_segments:
+                try:
+                    with open(transcript_cache_path, "w", encoding="utf-8") as f:
+                        json.dump(transcript_segments, f, ensure_ascii=False, indent=2)
+                    print(f"[cache] Saved YouTube transcript to {transcript_cache_path}")
+                except Exception as e:
+                    print(f"[cache] Failed to cache YouTube transcript: {e}")
             
             job = self.jobs[job_id]
             job["video_info"] = video_info
