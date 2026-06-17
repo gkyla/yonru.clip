@@ -29,6 +29,7 @@ vi.mock('../../app/composables/useClipperState', () => ({
     lastAccessedVideoId: ref(null),
     lastAccessedClip: ref(null),
     videoUrl: ref(null),
+    outputUrl: ref(null),
     startSafetyBuffer: ref(2.0),
     videoDuration: ref(100),
     folderName: ref('test-folder'),
@@ -373,6 +374,54 @@ describe('Index Page', () => {
     const vm = wrapper.vm as any
     vm.state.jobStatus.value = 'idle'
     vm.state.savedHooks.value = [{ theme: 'Saved Hook', start: 10, end: 20 }]
+    await wrapper.vm.$nextTick()
+
+    // Find the Hit List container (it starts with .animate-in and contains generated hooks)
+    const hooksContainer = wrapper.find('.animate-in')
+    expect(hooksContainer.exists()).toBe(false)
+  })
+
+  it('resets savedHooks and folderName when starting a cached analysis', async () => {
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: {
+            template: '<div><slot /></div>'
+          },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.state.savedHooks.value = [{ theme: 'Stale Hook', start: 10, end: 20 }]
+    vm.state.folderName.value = 'stale-folder'
+    
+    // Call analyzeCached
+    await vm.analyzeCached('some-video-id', false)
+    
+    expect(vm.state.savedHooks.value).toEqual([])
+    expect(vm.state.folderName.value).toBeNull()
+  })
+
+  it('does not render the hooks section on the dashboard when jobStatus is queued and savedHooks is empty', async () => {
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: {
+            template: '<div><slot /></div>'
+          },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.state.jobStatus.value = 'queued'
+    vm.state.savedHooks.value = []
+    vm.state.hooks.value = []
     await wrapper.vm.$nextTick()
 
     // Find the Hit List container (it starts with .animate-in and contains generated hooks)
