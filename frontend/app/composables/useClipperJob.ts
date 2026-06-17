@@ -13,6 +13,7 @@ export const useClipperJob = () => {
   const jobStatus = useState<string>('jobStatus', () => 'idle')
   const jobError = useState<string | null>('jobError', () => null)
   const isNavigatingToEditor = useState<boolean>('isNavigatingToEditor', () => false)
+  const isCachedAnalysis = useState<boolean>('isCachedAnalysis', () => false)
 
   // Shared state references needed by polling and actions
   const videoTitle = useState<string>('videoTitle', () => '')
@@ -197,6 +198,7 @@ export const useClipperJob = () => {
   async function analyzeUrl(force = false) {
     if (!youtubeUrl.value) return
 
+    isCachedAnalysis.value = false
     jobStatus.value = 'queued'
     jobError.value = null
     hooks.value = []
@@ -605,6 +607,7 @@ export const useClipperJob = () => {
     stopPolling,
     extractClip,
     loadReadyClipIntoEditor,
-    startSafetyBuffer
+    startSafetyBuffer,
+    isCachedAnalysis
   }
 }

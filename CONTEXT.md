@@ -87,6 +87,9 @@ A visual loading indicator integrated directly inside the Cached Library search 
 ### Infinite Scroll Sentinel
 A scroll-based lazy loading trigger zone positioned at the bottom of the Cached Library list that dynamically detects viewport intersection to fetch and append the next page of videos automatically without manual button clicks.
 
+### Cinematic Progress Bar
+A visual loading progress bar used in the processing overlay that sweeps smoothly from 0% to 100% using hardware-accelerated CSS animations during instant cached loads, or reflects real-time status steps during full AI ingestion.
+
 
 ---
 

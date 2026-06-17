@@ -680,6 +680,71 @@ async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force
     if not cached:
         raise HTTPException(status_code=404, detail=f"Cached video for ID {video_id} not found in titled folders")
     
+    # If force is False, and hooks.json exists, load it immediately and return status ready
+    if not force and cached.get("file_path"):
+        import os
+        import json
+        folder_name = os.path.basename(os.path.dirname(cached["file_path"]))
+        hooks_cache_path = os.path.join(os.path.dirname(cached["file_path"]), "hooks.json")
+        if os.path.exists(hooks_cache_path):
+            try:
+                with open(hooks_cache_path, "r", encoding="utf-8") as f:
+                    raw_hooks = json.load(f)
+                video_duration = cached.get("duration", float("inf"))
+                MIN_DUR, MAX_DUR = 15, 180
+                filtered = []
+                for h in raw_hooks:
+                    try:
+                        h_start = float(h.get("start", 0))
+                        h_end = float(h.get("end", 0))
+                        h_dur = h_end - h_start
+                        if h_start < video_duration and h_end <= (video_duration + 5) and h_start >= 0:
+                            if h_dur < MIN_DUR:
+                                h_end = h_start + MIN_DUR
+                            if (h_end - h_start) > MAX_DUR:
+                                h_end = h_start + MAX_DUR
+                            h["start"] = round(h_start, 2)
+                            h["end"] = round(h_end, 2)
+                            h["duration"] = round(h_end - h_start, 2)
+                            filtered.append(h)
+                    except:
+                        pass
+                
+                job_id = str(uuid.uuid4())[:8]
+                jobs[job_id] = {
+                    "status": "ready",
+                    "url": f"https://youtube.com/watch?v={video_id}",
+                    "video_info": cached,
+                    "full_video_path": cached["file_path"],
+                    "audio_path": None,
+                    "clip_path": None,
+                    "clip_duration": None,
+                    "hooks": filtered,
+                    "fps": cached.get("fps", 30.0),
+                    "error": None
+                }
+                save_jobs()
+                print(f"[cache] Video and hooks loaded instantly from cache for {video_id}")
+                _heatmap = cached.get("heatmap") or []
+                return {
+                    "job_id": job_id,
+                    "status": "ready",
+                    "hooks": filtered,
+                    "folder_name": folder_name,
+                    "video": {
+                        "title": cached.get("title"),
+                        "duration": cached.get("duration"),
+                        "has_heatmap": len(_heatmap) > 0,
+                        "heatmap_segments": len(_heatmap),
+                        "asset_url": cached.get("asset_url"),
+                        "folder_name": folder_name,
+                        "fps": cached.get("fps", 30.0)
+                    },
+                    "cached": True
+                }
+            except Exception as e:
+                print(f"[cache] Failed to load cached hooks for {video_id}: {e}")
+
     job_id = str(uuid.uuid4())[:8]
     jobs[job_id] = {
         "status": "queued",

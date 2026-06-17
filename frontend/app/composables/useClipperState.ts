@@ -44,7 +44,7 @@ function createClipperState() {
   const thumbnailState = useClipperThumbnail()
 
   // Job state delegated from useClipperJob sub-composable
-  const { jobId, isMediaLoading, jobStatus, jobError, isNavigatingToEditor, startSafetyBuffer } = job
+  const { jobId, isMediaLoading, jobStatus, jobError, isNavigatingToEditor, startSafetyBuffer, isCachedAnalysis } = job
 
   // Thumbnail state delegated from useClipperThumbnail sub-composable
   const {
@@ -580,6 +580,7 @@ function createClipperState() {
     outputUrl.value = null
     renderStatus.value = 'idle'
     isMediaLoading.value = false
+    isCachedAnalysis.value = false
     resetThumbnailState()
   }
 
@@ -605,7 +606,7 @@ function createClipperState() {
     isCapturingThumbnail,
     defaultThumbnailStyle,
     // Other State
-    jobId, isMediaLoading, jobStatus, jobError,
+    jobId, isMediaLoading, jobStatus, jobError, isCachedAnalysis,
     isNavigatingToEditor,
     startSafetyBuffer,
     videoTitle, videoDuration, hasHeatmap, videoUrl, videoFps,
