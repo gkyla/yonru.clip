@@ -1448,6 +1448,12 @@ const {
 const readyClips = useState<ReadyClip[]>('readyClips', () => [])
 const isReadyClipsLoading = ref(false)
 const activeTab = ref<'generated' | 'saved'>('generated')
+
+watch(() => state.jobStatus.value, (newStatus) => {
+  if (newStatus === 'queued') {
+    activeTab.value = 'generated'
+  }
+})
 const hoveredHookIndex = ref<number | null>(null)
 const selectedModalHook = ref<Hook | null>(null)
 const modalVideoPlayer = ref<HTMLVideoElement | null>(null)

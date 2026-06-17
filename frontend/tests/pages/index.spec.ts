@@ -428,5 +428,27 @@ describe('Index Page', () => {
     const hooksContainer = wrapper.find('.animate-in')
     expect(hooksContainer.exists()).toBe(false)
   })
+
+  it('resets activeTab to generated when jobStatus transitions to queued', async () => {
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: {
+            template: '<div><slot /></div>'
+          },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.activeTab = 'saved'
+    
+    vm.state.jobStatus.value = 'queued'
+    await wrapper.vm.$nextTick()
+    
+    expect(vm.activeTab).toBe('generated')
+  })
 })
 
