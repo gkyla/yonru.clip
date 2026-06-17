@@ -200,6 +200,8 @@ export const useClipperJob = () => {
     jobStatus.value = 'queued'
     jobError.value = null
     hooks.value = []
+    savedHooks.value = []
+    folderName.value = null
     videoUrl.value = null
     outputUrl.value = null
     activeHook.value = null
