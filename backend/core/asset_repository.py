@@ -19,7 +19,11 @@ class AssetStore(ABC):
         pass
 
     @abstractmethod
-    def get_or_create_source(self, url: str, force_download: bool = False) -> Optional[dict]:
+    def get_or_create_source(self, url: str, force_download: bool = False, quality: str = "1080p", progress_callback = None) -> Optional[dict]:
+        pass
+
+    @abstractmethod
+    def extract_hook_thumbnail(self, video_path: str, timestamp: float, output_path: str) -> Optional[str]:
         pass
 
     @abstractmethod
@@ -70,6 +74,10 @@ class AssetRepository(AssetStore):
         self.cookie_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "cookies.txt"))
         self.client = youtube_client or YouTubeClient(cookie_path=self.cookie_path)
         self.config_store = config_store
+        
+        import threading
+        self._download_locks = {}
+        self._repo_lock = threading.Lock()
         
         self._env = os.environ.copy()
         
@@ -166,10 +174,15 @@ class AssetRepository(AssetStore):
     def _generate_thumbnail(self, folder_path: str, video_id: str) -> str:
         """Generate a video thumbnail inside the source folder."""
         video_path = os.path.join(folder_path, "full.mp4")
+        if not os.path.exists(video_path):
+            video_path = os.path.join(folder_path, "preview.mp4")
         thumb_path = os.path.join(folder_path, "thumb.jpg")
         
         if os.path.exists(thumb_path):
             return thumb_path
+            
+        if not os.path.exists(video_path):
+            return None
             
         try:
             self._run_ffmpeg(["-ss", "00:00:05", "-i", video_path, "-vframes", "1", "-q:v", "2", "-y", thumb_path])
@@ -190,19 +203,32 @@ class AssetRepository(AssetStore):
         
         for entry in os.scandir(self.source_dir):
             if entry.is_dir() and entry.name.endswith(f"_{video_id}"):
-                file_path = os.path.join(entry.path, "full.mp4")
-                if os.path.exists(file_path):
-                    w, h = self.get_video_resolution(file_path)
+                full_path = os.path.join(entry.path, "full.mp4")
+                preview_path = os.path.join(entry.path, "preview.mp4")
+                
+                target_path = None
+                hd_ready = False
+                if os.path.exists(full_path):
+                    target_path = full_path
+                    hd_ready = True
+                elif os.path.exists(preview_path):
+                    target_path = preview_path
+                    hd_ready = False
+                
+                if target_path:
+                    w, h = self.get_video_resolution(target_path)
+                    filename = os.path.basename(target_path)
                     return {
                         "video_id": video_id,
                         "title": entry.name.replace(f"_{video_id}", ""),
-                        "duration": self.get_video_duration(file_path),
-                        "fps": self._get_video_fps(file_path),
-                        "file_path": file_path,
+                        "duration": self.get_video_duration(target_path),
+                        "fps": self._get_video_fps(target_path),
+                        "file_path": target_path,
                         "folder_name": entry.name,
-                        "asset_url": f"/assets/sources/{entry.name}/full.mp4",
+                        "asset_url": f"/assets/sources/{entry.name}/{filename}",
                         "width": w,
                         "height": h,
+                        "hd_ready": hd_ready,
                         "heatmap": []
                     }
         return None
@@ -211,63 +237,106 @@ class AssetRepository(AssetStore):
         """Search sources/ subfolders by exact folder name."""
         target_dir = os.path.join(self.source_dir, folder_name)
         if os.path.exists(target_dir) and os.path.isdir(target_dir):
-            file_path = os.path.join(target_dir, "full.mp4")
-            if os.path.exists(file_path):
+            full_path = os.path.join(target_dir, "full.mp4")
+            preview_path = os.path.join(target_dir, "preview.mp4")
+            
+            target_path = None
+            hd_ready = False
+            if os.path.exists(full_path):
+                target_path = full_path
+                hd_ready = True
+            elif os.path.exists(preview_path):
+                target_path = preview_path
+                hd_ready = False
+                
+            if target_path:
                 video_id = folder_name.split("_")[-1]
-                w, h = self.get_video_resolution(file_path)
+                w, h = self.get_video_resolution(target_path)
+                filename = os.path.basename(target_path)
                 return {
                     "video_id": video_id,
                     "title": folder_name.replace(f"_{video_id}", ""),
-                    "duration": self.get_video_duration(file_path),
-                    "fps": self._get_video_fps(file_path),
-                    "file_path": file_path,
+                    "duration": self.get_video_duration(target_path),
+                    "fps": self._get_video_fps(target_path),
+                    "file_path": target_path,
                     "folder_name": folder_name,
-                    "asset_url": f"/assets/sources/{folder_name}/full.mp4",
+                    "asset_url": f"/assets/sources/{folder_name}/{filename}",
                     "width": w,
                     "height": h,
+                    "hd_ready": hd_ready,
                     "heatmap": []
                 }
         return None
 
-    def get_or_create_source(self, url: str, force_download: bool = False) -> dict:
+    def get_or_create_source(self, url: str, force_download: bool = False, quality: str = "1080p", progress_callback = None) -> dict:
         """
         Gets metadata of a video by URL, downloading and extracting transcript/audio 
         automatically if not already cached.
         """
-        if not force_download:
-            cached = self.get_cached_video(url)
-            if cached:
-                return cached
+        import threading
+        video_id = self.client.extract_video_id(url)
+        if not video_id:
+            # Fall back to URL md5 hash if extract fails
+            import hashlib
+            video_id = hashlib.md5(url.encode()).hexdigest()
+            
+        lock_key = (video_id, quality)
+        
+        with self._repo_lock:
+            if lock_key not in self._download_locks:
+                self._download_locks[lock_key] = threading.Lock()
+            download_lock = self._download_locks[lock_key]
+            
+        with download_lock:
+            if not force_download:
+                cached = self.get_cached_video(url)
+                if cached:
+                    if quality == "1080p" and not cached.get("hd_ready"):
+                        pass
+                    else:
+                        return cached
+            else:
+                # Even if force is True, if we are fetching 1080p and the file now exists on disk,
+                # we don't need to force download it again.
+                cached = self.get_cached_video(url)
+                if cached and cached.get("hd_ready") and quality == "1080p":
+                    return cached
+                if cached and quality == "360p":
+                    return cached
 
-        # Otherwise, retrieve metadata and download
-        info = self.client.get_video_info_fast(url)
-        video_id = info["id"]
-        safe_title = self._sanitize_filename(info["title"])
-        folder_name = f"{safe_title}_{video_id}"
-        
-        target_dir = os.path.join(self.source_dir, folder_name)
-        os.makedirs(target_dir, exist_ok=True)
-        
-        self.client.download_video(url, target_dir)
-        file_path = os.path.join(target_dir, "full.mp4")
-        w, h = self.get_video_resolution(file_path)
-        
-        return {
-            "video_id": video_id,
-            "title": info["title"],
-            "duration": self.get_video_duration(file_path),
-            "fps": self._get_video_fps(file_path),
-            "file_path": file_path,
-            "folder_name": folder_name,
-            "asset_url": f"/assets/sources/{folder_name}/full.mp4",
-            "width": w,
-            "height": h,
-            "heatmap": []
-        }
+            # Otherwise, retrieve metadata and download
+            info = self.client.get_video_info_fast(url)
+            video_id = info["id"]
+            safe_title = self._sanitize_filename(info["title"])
+            folder_name = f"{safe_title}_{video_id}"
+            
+            target_dir = os.path.join(self.source_dir, folder_name)
+            os.makedirs(target_dir, exist_ok=True)
+            
+            self.client.download_video(url, target_dir, quality=quality, progress_callback=progress_callback)
+            filename = "preview.mp4" if quality == "360p" else "full.mp4"
+            file_path = os.path.join(target_dir, filename)
+            w, h = self.get_video_resolution(file_path)
+            
+            return {
+                "video_id": video_id,
+                "title": info["title"],
+                "duration": self.get_video_duration(file_path),
+                "fps": self._get_video_fps(file_path),
+                "file_path": file_path,
+                "folder_name": folder_name,
+                "asset_url": f"/assets/sources/{folder_name}/{filename}",
+                "width": w,
+                "height": h,
+                "hd_ready": (quality == "1080p"),
+                "heatmap": []
+            }
 
     def extract_audio_from_local(self, video_path: str) -> str:
         """Extract high-stability WAV for AI analysis."""
-        audio_path = video_path.replace("full.mp4", "audio_v2.wav")
+        audio_path = video_path.replace("full.mp4", "audio_v2.wav").replace("preview.mp4", "audio_v2.wav").replace("video.mp4", "audio_v2.wav")
+        if audio_path == video_path:
+            audio_path = os.path.splitext(video_path)[0] + "_audio_v2.wav"
         if os.path.exists(audio_path):
             return audio_path
         
@@ -280,6 +349,36 @@ class AssetRepository(AssetStore):
             "-y", audio_path
         ])
         return audio_path
+
+    def extract_hook_thumbnail(self, video_path: str, timestamp: float, output_path: str) -> str:
+        """Extract a single frame at a specific timestamp and save as JPEG."""
+        if os.path.exists(output_path):
+            return output_path
+            
+        try:
+            self._run_ffmpeg([
+                "-ss", str(timestamp),
+                "-i", video_path,
+                "-vframes", "1",
+                "-s", "640x360",
+                "-q:v", "2",
+                "-y", output_path
+            ])
+            return output_path
+        except Exception as e:
+            print(f"[asset-repository] Failed to extract thumbnail at {timestamp}: {e}")
+            try:
+                self._run_ffmpeg([
+                    "-i", video_path,
+                    "-vframes", "1",
+                    "-s", "640x360",
+                    "-q:v", "2",
+                    "-y", output_path
+                ])
+                return output_path
+            except Exception as e2:
+                print(f"[asset-repository] Double fallback thumbnail extraction failed: {e2}")
+                return None
 
     def create_clip(self, video_path: str, start_time: float, end_time: float, theme: str = None) -> dict:
         """Cut video segment into a unique clips subfolder."""
@@ -348,15 +447,27 @@ class AssetRepository(AssetStore):
         for entry in os.scandir(self.source_dir):
             if entry.is_dir() and len(entry.name) >= 12 and entry.name[-12] == "_":
                 video_id = entry.name[-11:]
-                file_path = os.path.join(entry.path, "full.mp4")
-                if not os.path.exists(file_path):
+                full_path = os.path.join(entry.path, "full.mp4")
+                preview_path = os.path.join(entry.path, "preview.mp4")
+                
+                target_path = None
+                hd_ready = False
+                if os.path.exists(full_path):
+                    target_path = full_path
+                    hd_ready = True
+                elif os.path.exists(preview_path):
+                    target_path = preview_path
+                    hd_ready = False
+                
+                if not target_path:
                     continue
                 
-                w, h = self.get_video_resolution(file_path)
+                w, h = self.get_video_resolution(target_path)
                 thumb_path = self._generate_thumbnail(entry.path, video_id)
+                filename = os.path.basename(target_path)
                 
                 try:
-                    mtime = os.path.getmtime(file_path)
+                    mtime = os.path.getmtime(target_path)
                 except Exception:
                     mtime = 0.0
                 
@@ -365,11 +476,12 @@ class AssetRepository(AssetStore):
                     "title": entry.name.replace(f"_{video_id}", "").replace("_", " "),
                     "folder_name": entry.name,
                     "resolution": f"{w}x{h}",
-                    "duration": self.get_video_duration(file_path),
+                    "duration": self.get_video_duration(target_path),
                     "mtime": mtime,
-                    "asset_url": f"/assets/sources/{entry.name}/full.mp4",
+                    "asset_url": f"/assets/sources/{entry.name}/{filename}",
                     "thumbnail_url": f"/assets/sources/{entry.name}/thumb.jpg" if thumb_path else None,
-                    "youtube_url": f"https://youtube.com/watch?v={video_id}"
+                    "youtube_url": f"https://youtube.com/watch?v={video_id}",
+                    "hd_ready": hd_ready
                 })
         return results
 
@@ -537,25 +649,36 @@ class MockAssetStore(AssetStore):
                 return v
         return None
 
-    def get_or_create_source(self, url: str, force_download: bool = False) -> Optional[dict]:
-        self.calls.append(("get_or_create_source", url, force_download))
+    def get_or_create_source(self, url: str, force_download: bool = False, quality: str = "1080p", progress_callback = None) -> Optional[dict]:
+        self.calls.append(("get_or_create_source", url, force_download, quality))
         cached = self.get_cached_video(url)
         if cached:
-            return cached
+            if quality == "1080p" and not cached.get("hd_ready"):
+                pass
+            else:
+                return cached
+        filename = "preview.mp4" if quality == "360p" else "full.mp4"
         mock_source = {
             "video_id": "mock_id",
             "title": "Mock Video",
             "duration": 60.0,
             "fps": 30.0,
-            "file_path": "mock_path/full.mp4",
+            "file_path": f"mock_path/{filename}",
             "folder_name": "Mock_Video_mock_id",
-            "asset_url": "/assets/sources/Mock_Video_mock_id/full.mp4",
+            "asset_url": f"/assets/sources/Mock_Video_mock_id/{filename}",
             "width": 1920,
             "height": 1080,
+            "hd_ready": (quality == "1080p"),
             "mtime": 1600000000.0
         }
         self.cached_videos.append(mock_source)
+        if progress_callback:
+            progress_callback(100.0)
         return mock_source
+
+    def extract_hook_thumbnail(self, video_path: str, timestamp: float, output_path: str) -> Optional[str]:
+        self.calls.append(("extract_hook_thumbnail", video_path, timestamp, output_path))
+        return output_path
 
     def extract_audio_from_local(self, video_path: str) -> str:
         self.calls.append(("extract_audio_from_local", video_path))

@@ -27,10 +27,11 @@ class DummyYouTubeClient(YouTubeClient):
             {"start": 1.5, "duration": 2.0, "text": "world"}
         ]
 
-    def download_video(self, url: str, target_dir: str) -> None:
-        # Create a dummy full.mp4 so the repository can run its metadata checks
+    def download_video(self, url: str, target_dir: str, quality: str = "1080p", progress_callback = None) -> None:
+        # Create a dummy full.mp4 or preview.mp4 so the repository can run its metadata checks
         os.makedirs(target_dir, exist_ok=True)
-        with open(os.path.join(target_dir, "full.mp4"), "w") as f:
+        filename = "preview.mp4" if quality == "360p" else "full.mp4"
+        with open(os.path.join(target_dir, filename), "w") as f:
             f.write("dummy video data")
 
 

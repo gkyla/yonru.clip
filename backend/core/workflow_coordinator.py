@@ -55,13 +55,36 @@ class ClipWorkflowCoordinator:
                                         h["start"] = round(h_start, 2)
                                         h["end"] = round(h_end, 2)
                                         h["duration"] = round(h_end - h_start, 2)
+                                        
+                                        # Ensure static sharp thumbnail exists and is linked
+                                        thumb_name = f"thumb_{int(h_start)}.jpg"
+                                        thumb_local_path = os.path.join(os.path.dirname(cached_video["file_path"]), thumb_name)
+                                        if not os.path.exists(thumb_local_path):
+                                            self.asset_repository.extract_hook_thumbnail(
+                                                video_path=cached_video["file_path"],
+                                                timestamp=h_start,
+                                                output_path=thumb_local_path
+                                            )
+                                        h["thumbnail_url"] = f"/assets/sources/{cached_video['folder_name']}/{thumb_name}"
                                         filtered.append(h)
                                 except:
                                     pass
                             
                             job["hooks"] = filtered
-                            job["status"] = "ready"
-                            self.jobs[job_id] = job
+                            if cached_video.get("hd_ready"):
+                                job["status"] = "ready"
+                                job["download_percent"] = 100.0
+                                self.jobs[job_id] = job
+                            else:
+                                job["status"] = "hooks_ready"
+                                job["download_percent"] = 0.0
+                                self.jobs[job_id] = job
+                                # Trigger background HD prefetch
+                                import threading
+                                t = threading.Thread(target=self.run_source_download, args=(job_id, url))
+                                t.daemon = True
+                                t.start()
+                                
                             print(f"[cache] successfully load from cache")
                             return
                         except Exception as e:
@@ -108,16 +131,16 @@ class ClipWorkflowCoordinator:
                 self.jobs[job_id] = job
                 return
 
-            # Step 1: Download full 1080p video (single network call)
+            # Step 1: Download fast 360p video for analysis and previews
             job = self.jobs[job_id]
             job["status"] = "downloading_video"
             self.jobs[job_id] = job
-            video_info = self.asset_repository.get_or_create_source(url)
+            video_info = self.asset_repository.get_or_create_source(url, quality="360p")
             
             if not video_info:
                 job = self.jobs[job_id]
                 job["status"] = "error"
-                job["error"] = "Failed to download video"
+                job["error"] = "Failed to download preview video"
                 self.jobs[job_id] = job
                 return
 
@@ -190,6 +213,7 @@ class ClipWorkflowCoordinator:
                     video_duration = video_info.get("duration", float("inf"))
                     MIN_DUR, MAX_DUR = 15, 180
                     filtered = []
+                    video_folder = os.path.dirname(video_info["file_path"])
                     for h in raw_hooks:
                         h_start = float(h.get("start", 0))
                         h_end = float(h.get("end", 0))
@@ -210,6 +234,16 @@ class ClipWorkflowCoordinator:
                         if h["start"] < 0:
                             print(f"[filter] Drop hook {h['start']}→{h['end']}: negative start")
                             continue
+                        
+                        # Extract crisp thumbnail for frontend
+                        thumb_name = f"thumb_{int(h_start)}.jpg"
+                        thumb_local_path = os.path.join(video_folder, thumb_name)
+                        self.asset_repository.extract_hook_thumbnail(
+                            video_path=video_info["file_path"],
+                            timestamp=h_start,
+                            output_path=thumb_local_path
+                        )
+                        h["thumbnail_url"] = f"/assets/sources/{video_info['folder_name']}/{thumb_name}"
                         filtered.append(h)
                     
                     print(f"[filter] {len(filtered)}/{len(raw_hooks)} hooks valid for video ({video_duration:.1f}s)")
@@ -231,13 +265,50 @@ class ClipWorkflowCoordinator:
                 job["hooks"] = []
                     
             job["status"] = "hooks_ready"
+            job["download_percent"] = 0.0
             self.jobs[job_id] = job
+            
+            # Start background prefetch of the high-res 1080p source video
+            import threading
+            t = threading.Thread(target=self.run_source_download, args=(job_id, url))
+            t.daemon = True
+            t.start()
             
         except Exception as e:
             job = self.jobs[job_id]
             job["status"] = "error"
             job["error"] = str(e)
             self.jobs[job_id] = job
+
+    def run_source_download(self, job_id: str, url: str):
+        """Silently download 1080p source video in background with progress reporting"""
+        try:
+            print(f"[prefetch] Starting background 1080p prefetch for job {job_id} ({url})")
+            
+            def progress_callback(percent: float):
+                self.jobs.update_job(job_id, download_percent=round(percent, 1))
+            
+            # Download 1080p stream
+            video_info = self.asset_repository.get_or_create_source(
+                url=url,
+                force_download=True,
+                quality="1080p",
+                progress_callback=progress_callback
+            )
+            
+            # Once complete, update job
+            job = self.jobs.get_job(job_id)
+            if job:
+                job["video_info"] = video_info
+                job["full_video_path"] = video_info["file_path"]
+                job["download_percent"] = 100.0
+                if job.get("status") not in ["cutting", "transcribing", "error"]:
+                    job["status"] = "ready"
+                self.jobs[job_id] = job
+                print(f"[prefetch] 1080p prefetch complete for job {job_id}")
+                
+        except Exception as e:
+            print(f"[prefetch] Background prefetch failed for job {job_id}: {e}")
 
     def run_local_cut(self, job_id: str, start_time: float, end_time: float, theme: Optional[str] = None, whisper_model: str = "base"):
         """Background: cut segment from cached full video via local ffmpeg"""
@@ -247,10 +318,28 @@ class ClipWorkflowCoordinator:
             self.jobs[job_id] = job
             
             full_path = job.get("full_video_path")
+            
+            # If full_path is missing or only contains preview, synchronously fetch the high-res source video
+            if not full_path or not os.path.exists(full_path) or "preview.mp4" in full_path:
+                print(f"[cut] High-res video source not found locally. Triggering synchronous 1080p download...")
+                url = job.get("video_info", {}).get("youtube_url") or f"https://youtube.com/watch?v={job.get('video_info', {}).get('video_id')}"
+                
+                video_info = self.asset_repository.get_or_create_source(
+                    url=url,
+                    force_download=True,
+                    quality="1080p"
+                )
+                full_path = video_info["file_path"]
+                
+                job = self.jobs.get_job(job_id)
+                job["video_info"] = video_info
+                job["full_video_path"] = full_path
+                self.jobs[job_id] = job
+                
             if not full_path or not os.path.exists(full_path):
                 job = self.jobs[job_id]
                 job["status"] = "error"
-                job["error"] = "Full video not found. Re-analyze first."
+                job["error"] = "High-res video source not found and could not be fetched."
                 self.jobs[job_id] = job
                 return
             

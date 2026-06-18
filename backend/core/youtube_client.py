@@ -21,8 +21,8 @@ class AbstractYouTubeClient(ABC):
         pass
 
     @abstractmethod
-    def download_video(self, url: str, target_dir: str) -> None:
-        """Download high-quality video into target directory."""
+    def download_video(self, url: str, target_dir: str, quality: str = "1080p", progress_callback = None) -> None:
+        """Download video at the requested quality (1080p or 360p) into target directory."""
         pass
 
 
@@ -109,16 +109,38 @@ class YouTubeClient(AbstractYouTubeClient):
             print(f"[youtube-client] Transcript error: {e}")
             return []
 
-    def download_video(self, url: str, target_dir: str) -> None:
-        """Download high-quality video into target directory."""
+    def download_video(self, url: str, target_dir: str, quality: str = "1080p", progress_callback = None) -> None:
+        """Download video at requested quality (1080p or 360p) with optional progress reporting."""
+        filename_prefix = "preview" if quality == "360p" else "full"
+        
+        # 18 is 360p mp4 video+audio single stream. If unavailable, fall back.
+        if quality == "360p":
+            format_spec = "18/bestvideo[height<=360]+bestaudio/best[height<=360]"
+        else:
+            format_spec = "bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=1080]+bestaudio/best"
+
         ydl_opts = {
-            'format': 'bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=1080]+bestaudio',
+            'format': format_spec,
             'merge_output_format': 'mp4',
-            'outtmpl': os.path.join(target_dir, "full.%(ext)s"),
+            'outtmpl': os.path.join(target_dir, f"{filename_prefix}.%(ext)s"),
             'cookiefile': self.cookie_path if self.cookie_path and os.path.exists(self.cookie_path) else None,
             'quiet': False,
             'no_playlist': True,
         }
+
+        if progress_callback:
+            def hook(d):
+                if d.get('status') == 'downloading':
+                    total = d.get('total_bytes') or d.get('total_bytes_estimate')
+                    downloaded = d.get('downloaded_bytes', 0)
+                    if total:
+                        percent = (downloaded / total) * 100
+                        try:
+                            progress_callback(percent)
+                        except Exception as pe:
+                            print(f"[youtube-client] Progress callback error: {pe}")
+            ydl_opts['progress_hooks'] = [hook]
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
                 ydl.download([url])
@@ -150,6 +172,9 @@ class MockYouTubeClient(AbstractYouTubeClient):
     def fetch_transcript(self, video_id: str) -> list:
         return self.mock_transcript
 
-    def download_video(self, url: str, target_dir: str) -> None:
+    def download_video(self, url: str, target_dir: str, quality: str = "1080p", progress_callback = None) -> None:
         self.downloaded_urls.append(url)
         self.downloaded_dirs.append(target_dir)
+        if progress_callback:
+            progress_callback(50.0)
+            progress_callback(100.0)

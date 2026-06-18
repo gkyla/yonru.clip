@@ -44,7 +44,7 @@ function createClipperState() {
   const thumbnailState = useClipperThumbnail()
 
   // Job state delegated from useClipperJob sub-composable
-  const { jobId, isMediaLoading, jobStatus, jobError, isNavigatingToEditor, startSafetyBuffer, isCachedAnalysis } = job
+  const { jobId, isMediaLoading, jobStatus, jobError, isNavigatingToEditor, startSafetyBuffer, isCachedAnalysis, downloadPercent, hdReady } = job
 
   // Thumbnail state delegated from useClipperThumbnail sub-composable
   const {
@@ -581,6 +581,8 @@ function createClipperState() {
     renderStatus.value = 'idle'
     isMediaLoading.value = false
     isCachedAnalysis.value = false
+    downloadPercent.value = 0
+    hdReady.value = false
     resetThumbnailState()
   }
 
@@ -607,7 +609,7 @@ function createClipperState() {
     defaultThumbnailStyle,
     // Other State
     jobId, isMediaLoading, jobStatus, jobError, isCachedAnalysis,
-    isNavigatingToEditor,
+    isNavigatingToEditor, downloadPercent, hdReady,
     startSafetyBuffer,
     videoTitle, videoDuration, hasHeatmap, videoUrl, videoFps,
     hooks, savedHooks, activeHook, segmentPadding, folderName, clipId, fullTranscript,
