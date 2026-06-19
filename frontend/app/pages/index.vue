@@ -702,7 +702,24 @@
                <div class="flex flex-col gap-1.5 shrink-0">
                   <h3 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
                     <Icon name="ri:fire-fill" class="text-accent-500" />
-                    Generated Hooks
+                    <span>Generated Hooks</span>
+                    <!-- HD Caching Badge -->
+                    <Transition name="scale-fade">
+                      <span 
+                        v-if="!state.hdReady.value && state.downloadPercent.value < 100" 
+                        class="inline-flex items-center gap-1.5 px-2 py-0.5 border border-accent-500/20 bg-accent-500/[0.05] rounded-none text-[9px] font-black uppercase tracking-wider text-accent-500 animate-pulse"
+                      >
+                        <span class="w-1.5 h-1.5 rounded-full bg-accent-500 animate-ping"></span>
+                        Caching HD Source... {{ state.downloadPercent.value }}%
+                      </span>
+                      <span 
+                        v-else-if="state.hdReady.value || state.downloadPercent.value === 100" 
+                        class="inline-flex items-center gap-1.5 px-2 py-0.5 border border-emerald-500/20 bg-emerald-500/[0.05] rounded-none text-[9px] font-black uppercase tracking-wider text-emerald-400"
+                      >
+                        <Icon name="ri:checkbox-circle-fill" class="text-[10px]" />
+                        HD Local Ready
+                      </span>
+                    </Transition>
                   </h3>
                   <p class="text-slate-400 text-xs">Select a hook to cut the segment and start editing.</p>
                </div>
@@ -761,8 +778,14 @@
                 <div class="w-full aspect-video bg-black relative overflow-hidden rounded-none shrink-0 border-b border-surface-border z-10"
                      style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);">
                    <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
+                   <img 
+                     v-if="hook.thumbnail_url"
+                     :src="API_BASE + hook.thumbnail_url"
+                     class="absolute inset-0 w-full h-full object-cover z-10 select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
+                     alt="Hook thumbnail"
+                   />
                    <video 
-                     v-if="state.videoUrl.value"
+                     v-else-if="state.videoUrl.value"
                      :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
                      muted
                      preload="metadata"
@@ -836,8 +859,14 @@
                 <div class="w-full aspect-video bg-black relative overflow-hidden rounded-none shrink-0 border-b border-surface-border z-10"
                      style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);">
                    <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
+                   <img 
+                     v-if="hook.thumbnail_url"
+                     :src="API_BASE + hook.thumbnail_url"
+                     class="absolute inset-0 w-full h-full object-cover z-10 select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
+                     alt="Hook thumbnail"
+                   />
                    <video 
-                     v-if="state.videoUrl.value"
+                     v-else-if="state.videoUrl.value"
                      :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
                      muted
                      preload="metadata"
@@ -1322,7 +1351,6 @@
                         <div v-if="!loadedClips.has(clip.clip_id)" class="absolute inset-0 bg-surface-dark animate-pulse flex items-center justify-center z-10">
                            <div class="w-6 h-6 border-2 border-accent-500/20 border-t-accent-500 rounded-full animate-spin"></div>
                         </div>
-
                         <video 
                           :src="`${API_BASE}${clip.asset_url}`"
                           muted
@@ -1523,9 +1551,19 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleDocumentClick)
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('click', handleDocumentClick)
+  }
   if (observer) {
     observer.disconnect()
+  }
+  if (processingTimeout) {
+    clearTimeout(processingTimeout)
+    processingTimeout = null
+  }
+  if (scrollTimeout) {
+    clearTimeout(scrollTimeout)
+    scrollTimeout = null
   }
 })
 
@@ -2110,6 +2148,7 @@ const isAnalyzing = computed(() => {
 const showProcessingOverlay = ref(false)
 const isReanalyzingCached = ref(false)
 let processingTimeout: ReturnType<typeof setTimeout> | null = null
+let scrollTimeout: ReturnType<typeof setTimeout> | null = null
 
 watch(
   [() => isAnalyzing.value, () => state.jobStatus.value],
@@ -2119,6 +2158,10 @@ watch(
         clearTimeout(processingTimeout)
         processingTimeout = null
       }
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout)
+        scrollTimeout = null
+      }
       showProcessingOverlay.value = true
     } else {
       if (status === 'hooks_ready' || status === 'ready') {
@@ -2126,11 +2169,14 @@ watch(
           processingTimeout = setTimeout(() => {
             showProcessingOverlay.value = false
             processingTimeout = null
-            setTimeout(() => {
-              const el = document.getElementById('hooks-header')
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            scrollTimeout = setTimeout(() => {
+              if (typeof document !== 'undefined') {
+                const el = document.getElementById('hooks-header')
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
               }
+              scrollTimeout = null
             }, 300)
           }, 1000)
         }
@@ -2138,6 +2184,10 @@ watch(
         if (processingTimeout) {
           clearTimeout(processingTimeout)
           processingTimeout = null
+        }
+        if (scrollTimeout) {
+          clearTimeout(scrollTimeout)
+          scrollTimeout = null
         }
         showProcessingOverlay.value = false
       }
@@ -2201,17 +2251,17 @@ const stages = computed(() => {
       {
         id: 'analysis',
         name: 'AI Analysis',
-        description: 'Gemini AI generating hooks',
+        description: 'AI Model generating hooks',
         icon: 'ri:magic-line',
         state: getStageState(stage2Statuses)
       }
     ]
   } else {
-    // 4-stage layout: full URL ingestion pipeline
+    // 4-stage layout: full URL ingestion pipeline with preview-first
     const stage1Statuses = ['queued', 'checking_transcript']
     const stage2Statuses = ['downloading_video', 'downloading_ai_models']
-    const stage3Statuses = ['transcribing']
-    const stage4Statuses = ['generating_hooks', 'cutting', 'extracting_video']
+    const stage3Statuses = ['transcribing', 'generating_hooks']
+    const stage4Statuses = ['cutting', 'extracting_video']
     const allStatuses = [...stage1Statuses, ...stage2Statuses, ...stage3Statuses, ...stage4Statuses]
     const currentIndex = allStatuses.indexOf(currentStatus)
     
@@ -2228,29 +2278,29 @@ const stages = computed(() => {
       {
         id: 'ingestion',
         name: 'Ingestion',
-        description: 'Verifying URL & transcripts',
+        description: 'Verifying URL & transcript',
         icon: 'ri:link-m',
         state: getStageState(stage1Statuses)
       },
       {
-        id: 'download',
-        name: 'Download',
-        description: 'Downloading 1080p source file',
+        id: 'preview_download',
+        name: 'Fast Preview',
+        description: 'Fetching preview video',
         icon: 'ri:download-cloud-2-line',
         state: getStageState(stage2Statuses)
       },
       {
-        id: 'transcription',
-        name: 'Transcription',
-        description: 'Transcribing audio with Whisper',
-        icon: 'ri:voiceprint-line',
+        id: 'analysis',
+        name: 'AI Analysis',
+        description: 'AI Model generating hooks',
+        icon: 'ri:magic-line',
         state: getStageState(stage3Statuses)
       },
       {
-        id: 'analysis',
-        name: 'AI Analysis',
-        description: 'Gemini AI generating hooks',
-        icon: 'ri:magic-line',
+        id: 'previews',
+        name: 'Visual Previews',
+        description: 'Generating sharp hook thumbnails',
+        icon: 'ri:image-line',
         state: getStageState(stage4Statuses)
       }
     ]
@@ -2346,6 +2396,8 @@ function loadMoreCached() {
 async function analyzeCached(videoId: string, force = false) {
   state.isCachedAnalysis.value = true
   isReanalyzingCached.value = force
+  state.downloadPercent.value = 0
+  state.hdReady.value = false
   state.jobStatus.value = 'queued'
   state.jobError.value = null
   state.hooks.value = []
@@ -2369,22 +2421,30 @@ async function analyzeCached(videoId: string, force = false) {
     state.jobId.value = res.job_id
     state.jobStatus.value = res.status
     
-    if (res.status === 'ready' && res.hooks && res.folder_name) {
+    // Hydrate immediately from cached response
+    if (res.hooks) {
       state.hooks.value = res.hooks
+    }
+    if (res.folder_name) {
       state.folderName.value = res.folder_name
-      
-      // Hydrate video details for cached loads
-      if (res.video) {
-        if (res.video.title) state.videoTitle.value = res.video.title
-        if (res.video.duration) state.videoDuration.value = res.video.duration
-        if (res.video.fps) state.videoFps.value = res.video.fps
-        state.hasHeatmap.value = res.video.has_heatmap || false
-        if (res.video.asset_url) {
-          state.videoUrl.value = `${API_BASE}${res.video.asset_url}`
-        }
+    }
+    if (res.video) {
+      if (res.video.title) state.videoTitle.value = res.video.title
+      if (res.video.duration) state.videoDuration.value = res.video.duration
+      if (res.video.fps) state.videoFps.value = res.video.fps
+      state.hasHeatmap.value = res.video.has_heatmap || false
+      if (res.video.hd_ready !== undefined) {
+        state.hdReady.value = res.video.hd_ready
       }
-      
-      await state.fetchSavedHooks()
+      if (res.video.asset_url) {
+        state.videoUrl.value = `${API_BASE}${res.video.asset_url}`
+      }
+    }
+    
+    await state.fetchSavedHooks()
+    
+    if (res.status === 'ready') {
+      // Done, no polling needed
     } else {
       state.startPolling()
     }
@@ -2585,8 +2645,33 @@ async function selectHook(hook: Hook) {
   isNavigatingToEditor.value = true
   const minWait = new Promise(resolve => setTimeout(resolve, 600))
   state.activeHook.value = hook
-  console.log('[clipper] Navigating to editor...')
+  console.log('[clipper] Navigating to editor: waiting for HD cache readiness...')
   
+  // Wait for HD ready if background prefetching is still active
+  if (!state.hdReady.value && state.downloadPercent.value < 100) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const unwatch = watch(
+          [state.hdReady, state.downloadPercent, state.jobStatus],
+          ([ready, percent, status]) => {
+            if (ready || percent === 100) {
+              unwatch()
+              resolve()
+            } else if (status === 'error') {
+              unwatch()
+              reject(new Error(state.jobError.value || 'HD source download failed.'))
+            }
+          },
+          { immediate: true }
+        )
+      })
+    } catch (err: any) {
+      isNavigatingToEditor.value = false
+      state.showToast(err.message || 'Failed to prepare HD assets.', 'error')
+      return
+    }
+  }
+
   // Fire extract in background
   state.extractClip(hook)
   

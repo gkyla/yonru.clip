@@ -31,10 +31,20 @@
         <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay"></div>
         <div class="absolute w-[60vw] h-[60vw] rounded-full bg-accent-500/10 blur-[150px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mix-blend-screen animate-pulse"></div>
         
-        <div class="w-24 h-24 rounded-full border-[4px] border-surface-border border-t-accent-500 animate-spin flex items-center justify-center mb-10 shadow-[0_0_30px_#CFFF50_inset,0_0_50px_rgba(207,255,80,0.4)] relative z-10"></div>
-        
-        <h2 class="text-3xl font-black text-white tracking-[0.2em] uppercase mb-4 relative z-10">Initializing Editor</h2>
-        <p class="text-slate-400 font-mono text-sm uppercase tracking-widest animate-pulse relative z-10">Loading Timeline & Assets...</p>
+        <template v-if="!state.hdReady.value && state.downloadPercent.value < 100">
+          <div class="w-24 h-24 rounded-full border-[4px] border-surface-border border-t-accent-500 animate-spin flex items-center justify-center mb-10 shadow-[0_0_30px_#CFFF50_inset,0_0_50px_rgba(207,255,80,0.4)] relative z-10"></div>
+          <h2 class="text-3xl font-black text-white tracking-[0.2em] uppercase mb-4 relative z-10">Preparing HD Editor Assets</h2>
+          <p class="text-slate-400 font-mono text-sm uppercase tracking-widest relative z-10 mb-6">Caching high-resolution 1080p source...</p>
+          <div class="w-64 bg-black/40 border border-surface-border/50 h-2.5 overflow-hidden relative z-10 p-[2px]">
+            <div class="h-full bg-accent-500 transition-all duration-300" :style="{ width: `${state.downloadPercent.value}%` }"></div>
+          </div>
+          <span class="text-accent-500 font-mono font-bold text-xs mt-3 relative z-10">{{ state.downloadPercent.value }}% Completed</span>
+        </template>
+        <template v-else>
+          <div class="w-24 h-24 rounded-full border-[4px] border-surface-border border-t-accent-500 animate-spin flex items-center justify-center mb-10 shadow-[0_0_30px_#CFFF50_inset,0_0_50px_rgba(207,255,80,0.4)] relative z-10"></div>
+          <h2 class="text-3xl font-black text-white tracking-[0.2em] uppercase mb-4 relative z-10">Initializing Editor</h2>
+          <p class="text-slate-400 font-mono text-sm uppercase tracking-widest animate-pulse relative z-10">Loading Timeline & Assets...</p>
+        </template>
       </div>
     </Transition>
 

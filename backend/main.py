@@ -412,6 +412,7 @@ async def get_job(job_id: str):
         "job_id": job_id,
         "status": job["status"],
         "error": job.get("error"),
+        "download_percent": job.get("download_percent", 0.0),
     }
     
     if job.get("video_info"):
@@ -424,7 +425,8 @@ async def get_job(job_id: str):
             "has_heatmap": len(_heatmap) > 0,
             "heatmap_segments": len(_heatmap),
             "asset_url": job["video_info"].get("asset_url"),
-            "folder_name": folder_name
+            "folder_name": folder_name,
+            "hd_ready": job["video_info"].get("hd_ready", False)
         }
         response["folder_name"] = folder_name
     elif job.get("clip_path"):
@@ -711,8 +713,13 @@ async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force
                         pass
                 
                 job_id = str(uuid.uuid4())[:8]
+                is_hd_ready = cached.get("hd_ready", False)
+                
+                job_status = "ready" if is_hd_ready else "hooks_ready"
+                download_percent = 100.0 if is_hd_ready else 0.0
+                
                 jobs[job_id] = {
-                    "status": "ready",
+                    "status": job_status,
                     "url": f"https://youtube.com/watch?v={video_id}",
                     "video_info": cached,
                     "full_video_path": cached["file_path"],
@@ -721,14 +728,27 @@ async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force
                     "clip_duration": None,
                     "hooks": filtered,
                     "fps": cached.get("fps", 30.0),
+                    "download_percent": download_percent,
                     "error": None
                 }
                 save_jobs()
-                print(f"[cache] Video and hooks loaded instantly from cache for {video_id}")
+                
+                if not is_hd_ready:
+                    import threading
+                    t = threading.Thread(
+                        target=workflow_coordinator.run_source_download,
+                        args=(job_id, f"https://youtube.com/watch?v={video_id}")
+                    )
+                    t.daemon = True
+                    t.start()
+                    print(f"[cache] Triggered background prefetch of HD source for {video_id}")
+                else:
+                    print(f"[cache] Video and hooks loaded instantly from cache for {video_id}")
+                    
                 _heatmap = cached.get("heatmap") or []
                 return {
                     "job_id": job_id,
-                    "status": "ready",
+                    "status": job_status,
                     "hooks": filtered,
                     "folder_name": folder_name,
                     "video": {
@@ -738,7 +758,8 @@ async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force
                         "heatmap_segments": len(_heatmap),
                         "asset_url": cached.get("asset_url"),
                         "folder_name": folder_name,
-                        "fps": cached.get("fps", 30.0)
+                        "fps": cached.get("fps", 30.0),
+                        "hd_ready": is_hd_ready
                     },
                     "cached": True
                 }

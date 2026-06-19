@@ -45,6 +45,8 @@ vi.mock('../../app/composables/useClipperState', () => ({
     cachedVideosLimit: ref(6),
     cachedVideosSearch: ref(''),
     cachedVideosSortBy: ref('date'),
+    downloadPercent: ref(0),
+    hdReady: ref(false),
     cachedVideosSortOrder: ref('desc'),
     cachedVideosHasMore: ref(false),
     formatDuration: (sec: number) => {

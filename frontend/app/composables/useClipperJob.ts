@@ -14,6 +14,8 @@ export const useClipperJob = () => {
   const jobError = useState<string | null>('jobError', () => null)
   const isNavigatingToEditor = useState<boolean>('isNavigatingToEditor', () => false)
   const isCachedAnalysis = useState<boolean>('isCachedAnalysis', () => false)
+  const downloadPercent = useState<number>('downloadPercent', () => 0)
+  const hdReady = useState<boolean>('hdReady', () => false)
 
   // Shared state references needed by polling and actions
   const videoTitle = useState<string>('videoTitle', () => '')
@@ -199,6 +201,8 @@ export const useClipperJob = () => {
     if (!youtubeUrl.value) return
 
     isCachedAnalysis.value = false
+    downloadPercent.value = 0
+    hdReady.value = false
     jobStatus.value = 'queued'
     jobError.value = null
     hooks.value = []
@@ -255,8 +259,15 @@ export const useClipperJob = () => {
         if (!res) return
 
         jobStatus.value = res.status
+        
+        if (res.download_percent !== undefined) {
+          downloadPercent.value = res.download_percent
+        }
 
         if (res.video) {
+          if (res.video.hd_ready !== undefined) {
+            hdReady.value = res.video.hd_ready
+          }
           if (res.video.title) videoTitle.value = res.video.title
           if (res.video.duration) videoDuration.value = res.video.duration
           if (res.video.fps) videoFps.value = res.video.fps
@@ -395,7 +406,8 @@ export const useClipperJob = () => {
           jobError.value = res.error
         }
 
-        if (['hooks_ready', 'ready', 'error'].includes(res.status)) {
+        const isHdReady = res.video?.hd_ready || false
+        if (res.status === 'ready' || res.status === 'error' || (res.status === 'hooks_ready' && isHdReady)) {
           stopPolling()
         }
       } catch (e) {
@@ -455,6 +467,7 @@ export const useClipperJob = () => {
   async function loadReadyClipIntoEditor(folder: string, id: string) {
     jobStatus.value = 'queued'
     jobError.value = null
+    hdReady.value = true
     
     let start_time = 0
     let end_time = 0
@@ -608,6 +621,8 @@ export const useClipperJob = () => {
     extractClip,
     loadReadyClipIntoEditor,
     startSafetyBuffer,
-    isCachedAnalysis
+    isCachedAnalysis,
+    downloadPercent,
+    hdReady
   }
 }

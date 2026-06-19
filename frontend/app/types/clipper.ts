@@ -9,6 +9,7 @@ export interface Hook {
   transcript_quote?: string
   originalStart?: number
   originalEnd?: number
+  thumbnail_url?: string
 }
 
 export interface CachedVideo {
@@ -179,6 +180,7 @@ export interface JobApiResponse {
   folder_name?: string
   fps?: number
   error?: string
+  download_percent?: number
   video?: {
     title?: string
     duration?: number
@@ -186,6 +188,7 @@ export interface JobApiResponse {
     has_heatmap?: boolean
     asset_url?: string
     folder_name?: string
+    hd_ready?: boolean
   }
   clip?: {
     asset_url?: string

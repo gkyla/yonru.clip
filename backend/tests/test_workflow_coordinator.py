@@ -12,6 +12,13 @@ from core.workflow_coordinator import ClipWorkflowCoordinator
 class MockJobStore(dict):
     def save(self):
         pass
+    def get_job(self, job_id: str):
+        return self.get(job_id)
+    def update_job(self, job_id: str, **kwargs):
+        if job_id not in self:
+            self[job_id] = {}
+        self[job_id].update(kwargs)
+        return self[job_id]
 
 @pytest.fixture
 def mock_dependencies():
@@ -34,6 +41,7 @@ def test_run_full_analysis_cache_hit(mock_dependencies, tmp_path):
         prompt_repository=mock_dependencies["prompt_repository"],
         config_store=mock_dependencies["config_store"]
     )
+    coordinator.run_source_download = MagicMock()
     
     # Setup mock job
     job_id = "test_job"
@@ -57,7 +65,9 @@ def test_run_full_analysis_cache_hit(mock_dependencies, tmp_path):
     mock_dependencies["asset_repository"].get_cached_video.return_value = {
         "file_path": str(video_file),
         "fps": 30.0,
-        "duration": 60.0
+        "duration": 60.0,
+        "folder_name": "video_cached123",
+        "hd_ready": True
     }
     
     coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=cached123", "id", force_reanalyze=False)
@@ -85,6 +95,7 @@ def test_run_full_analysis_success_flow(mock_dependencies, tmp_path):
         prompt_repository=mock_dependencies["prompt_repository"],
         config_store=mock_dependencies["config_store"]
     )
+    coordinator.run_source_download = MagicMock()
     
     job_id = "test_job"
     coordinator.jobs[job_id] = {
@@ -107,7 +118,8 @@ def test_run_full_analysis_success_flow(mock_dependencies, tmp_path):
     mock_dependencies["asset_repository"].get_or_create_source.return_value = {
         "file_path": str(video_file),
         "duration": 120.0,
-        "fps": 30.0
+        "fps": 30.0,
+        "folder_name": "video_new123"
     }
     
     mock_dependencies["config_store"].get.return_value = "fake-gemini-key"
@@ -369,6 +381,7 @@ def test_run_full_analysis_uses_cached_youtube_transcript(mock_dependencies, tmp
         prompt_repository=mock_dependencies["prompt_repository"],
         config_store=mock_dependencies["config_store"]
     )
+    coordinator.run_source_download = MagicMock()
     
     job_id = "test_job_transcript_cache"
     coordinator.jobs[job_id] = {
@@ -396,12 +409,14 @@ def test_run_full_analysis_uses_cached_youtube_transcript(mock_dependencies, tmp
     mock_dependencies["asset_repository"].get_cached_video.return_value = {
         "file_path": str(video_file),
         "duration": 60.0,
-        "fps": 30.0
+        "fps": 30.0,
+        "folder_name": "video_cachedtrans123"
     }
     mock_dependencies["asset_repository"].get_or_create_source.return_value = {
         "file_path": str(video_file),
         "duration": 60.0,
-        "fps": 30.0
+        "fps": 30.0,
+        "folder_name": "video_cachedtrans123"
     }
     
     mock_dependencies["youtube_client"].extract_video_id.return_value = "cachedtrans123"
