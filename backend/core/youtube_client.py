@@ -129,14 +129,36 @@ class YouTubeClient(AbstractYouTubeClient):
         }
 
         if progress_callback:
+            # yt-dlp downloads video and audio as separate streams for bestvideo+bestaudio
+            # formats, firing progress_hooks independently for each. Track stream transitions
+            # to report a single smooth 0→99% to the caller (100% is set on completion).
+            stream_state = {'current_file': None, 'stream_index': 0}
+
             def hook(d):
                 if d.get('status') == 'downloading':
+                    filename = d.get('filename', '')
                     total = d.get('total_bytes') or d.get('total_bytes_estimate')
                     downloaded = d.get('downloaded_bytes', 0)
+
+                    # Detect stream transitions (e.g. video → audio)
+                    if filename != stream_state['current_file']:
+                        if stream_state['current_file'] is not None:
+                            stream_state['stream_index'] += 1
+                        stream_state['current_file'] = filename
+
                     if total:
-                        percent = (downloaded / total) * 100
+                        stream_percent = (downloaded / total) * 100
+                        idx = stream_state['stream_index']
+
+                        if idx == 0:
+                            # First stream (video): maps to 0–90%
+                            overall = stream_percent * 0.9
+                        else:
+                            # Subsequent streams (audio): maps to 90–99%
+                            overall = 90.0 + (stream_percent * 0.09)
+
                         try:
-                            progress_callback(percent)
+                            progress_callback(min(overall, 99.0))
                         except Exception as pe:
                             print(f"[youtube-client] Progress callback error: {pe}")
             ydl_opts['progress_hooks'] = [hook]
