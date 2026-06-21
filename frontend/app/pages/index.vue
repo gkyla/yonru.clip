@@ -785,8 +785,8 @@
                      alt="Hook thumbnail"
                    />
                    <video 
-                     v-else-if="state.videoUrl.value"
-                     :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
+                     v-else-if="previewVideoUrl"
+                     :src="previewVideoUrl + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
                      muted
                      preload="metadata"
                      class="absolute inset-0 w-full h-full object-cover z-10 focus:outline-none select-none pointer-events-none"
@@ -866,8 +866,8 @@
                      alt="Hook thumbnail"
                    />
                    <video 
-                     v-else-if="state.videoUrl.value"
-                     :src="state.videoUrl.value + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
+                     v-else-if="previewVideoUrl"
+                     :src="previewVideoUrl + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
                      muted
                      preload="metadata"
                      class="absolute inset-0 w-full h-full object-cover z-10 focus:outline-none select-none pointer-events-none"
@@ -940,8 +940,8 @@
              <div class="md:w-1/2 bg-black relative aspect-video md:aspect-auto flex-shrink-0 flex items-center justify-center">
                 <video 
                   ref="modalVideoPlayer"
-                  v-if="state.videoUrl.value"
-                  :src="state.videoUrl.value"
+                  v-if="previewVideoUrl"
+                  :src="previewVideoUrl"
                   controls
                   autoplay
                   class="w-full h-full object-contain max-h-[70vh]"
@@ -1501,6 +1501,18 @@ const activeWhisperMetadata = computed(() => {
   const modelId = state.whisperModel.value || 'base'
   return state.whisperModels.find((m: WhisperModelOption) => m.id === modelId) || state.whisperModels[1]
 })
+
+const previewVideoUrl = computed(() => {
+  const url = state.videoUrl.value
+  if (!url) return null
+  if (url.includes('/assets/sources/') && url.endsWith('/full.mp4')) {
+    if (state.hasPreview.value) {
+      return url.replace('/full.mp4', '/preview.mp4')
+    }
+  }
+  return url
+})
+
 
 function handleDocumentClick(e: MouseEvent) {
   if (promptDropdownRef.value && !promptDropdownRef.value.contains(e.target as Node)) {
@@ -2433,6 +2445,9 @@ async function analyzeCached(videoId: string, force = false) {
       if (res.video.duration) state.videoDuration.value = res.video.duration
       if (res.video.fps) state.videoFps.value = res.video.fps
       state.hasHeatmap.value = res.video.has_heatmap || false
+      if (res.video.has_preview !== undefined) {
+        state.hasPreview.value = res.video.has_preview
+      }
       if (res.video.hd_ready !== undefined) {
         state.hdReady.value = res.video.hd_ready
       }

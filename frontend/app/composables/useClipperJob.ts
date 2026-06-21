@@ -21,6 +21,7 @@ export const useClipperJob = () => {
   const videoTitle = useState<string>('videoTitle', () => '')
   const videoDuration = useState<number>('videoDuration', () => 0)
   const hasHeatmap = useState<boolean>('hasHeatmap', () => false)
+  const hasPreview = useState<boolean>('hasPreview', () => false)
   const videoUrl = useState<string | null>('videoUrl', () => null)
   const videoFps = useState<number>('videoFps', () => 30)
   const hooks = useState<Hook[]>('hooks', () => [])
@@ -272,6 +273,9 @@ export const useClipperJob = () => {
           if (res.video.duration) videoDuration.value = res.video.duration
           if (res.video.fps) videoFps.value = res.video.fps
           hasHeatmap.value = res.video.has_heatmap || false
+          if (res.video.has_preview !== undefined) {
+            hasPreview.value = res.video.has_preview
+          }
           
           const targetUrl = res.video.asset_url ? `${API_BASE}${res.video.asset_url}` : null
           if (!activeHook.value && targetUrl && videoUrl.value !== targetUrl) {

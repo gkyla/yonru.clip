@@ -189,6 +189,7 @@ export interface JobApiResponse {
     asset_url?: string
     folder_name?: string
     hd_ready?: boolean
+    has_preview?: boolean
   }
   clip?: {
     asset_url?: string

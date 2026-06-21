@@ -426,7 +426,8 @@ async def get_job(job_id: str):
             "heatmap_segments": len(_heatmap),
             "asset_url": job["video_info"].get("asset_url"),
             "folder_name": folder_name,
-            "hd_ready": job["video_info"].get("hd_ready", False)
+            "hd_ready": job["video_info"].get("hd_ready", False),
+            "has_preview": job["video_info"].get("has_preview", False)
         }
         response["folder_name"] = folder_name
     elif job.get("clip_path"):
@@ -692,25 +693,7 @@ async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force
             try:
                 with open(hooks_cache_path, "r", encoding="utf-8") as f:
                     raw_hooks = json.load(f)
-                video_duration = cached.get("duration", float("inf"))
-                MIN_DUR, MAX_DUR = 15, 180
-                filtered = []
-                for h in raw_hooks:
-                    try:
-                        h_start = float(h.get("start", 0))
-                        h_end = float(h.get("end", 0))
-                        h_dur = h_end - h_start
-                        if h_start < video_duration and h_end <= (video_duration + 5) and h_start >= 0:
-                            if h_dur < MIN_DUR:
-                                h_end = h_start + MIN_DUR
-                            if (h_end - h_start) > MAX_DUR:
-                                h_end = h_start + MAX_DUR
-                            h["start"] = round(h_start, 2)
-                            h["end"] = round(h_end, 2)
-                            h["duration"] = round(h_end - h_start, 2)
-                            filtered.append(h)
-                    except:
-                        pass
+                filtered = asset_repository.sanitize_and_prepare_hooks(raw_hooks, cached)
                 
                 job_id = str(uuid.uuid4())[:8]
                 is_hd_ready = cached.get("hd_ready", False)
@@ -759,7 +742,8 @@ async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force
                         "asset_url": cached.get("asset_url"),
                         "folder_name": folder_name,
                         "fps": cached.get("fps", 30.0),
-                        "hd_ready": is_hd_ready
+                        "hd_ready": is_hd_ready,
+                        "has_preview": cached.get("has_preview", False)
                     },
                     "cached": True
                 }
