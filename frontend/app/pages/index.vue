@@ -795,6 +795,10 @@
                      @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
                      @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
                    ></video>
+                   <!-- Low Res Preview badge overlay -->
+                   <div v-if="state.hasPreview.value && !hook.thumbnail_url" class="absolute top-2 left-2 z-20 bg-black/60 backdrop-blur-md border border-blue-500/30 text-blue-400 px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider select-none pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                     Low Res Preview
+                   </div>
                    <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-none text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10">
                      {{ formatHookDuration(hook.start, hook.end) }}
                    </div>
@@ -876,6 +880,10 @@
                      @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
                      @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
                    ></video>
+                   <!-- Low Res Preview badge overlay -->
+                   <div v-if="state.hasPreview.value && !hook.thumbnail_url" class="absolute top-2 left-2 z-20 bg-black/60 backdrop-blur-md border border-blue-500/30 text-blue-400 px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider select-none pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                     Low Res Preview
+                   </div>
                    <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded-none text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10">
                      {{ formatHookDuration(hook.start, hook.end) }}
                    </div>
@@ -934,7 +942,6 @@
                 <Icon name="ri:close-line" class="text-xl" />
              </button>
           </div>
-
           <div class="flex flex-col md:flex-row h-full overflow-hidden">
              <!-- Video Player (50/50) -->
              <div class="md:w-1/2 bg-black relative aspect-video md:aspect-auto flex-shrink-0 flex items-center justify-center">
@@ -946,14 +953,50 @@
                   autoplay
                   class="w-full h-full object-contain max-h-[70vh]"
                   @timeupdate="e => { if (selectedModalHook && (e.target as HTMLVideoElement).currentTime >= selectedModalHook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value); }"
-                  @loadedmetadata="e => {
-                    const videoEl = e.target as HTMLVideoElement;
-                    if (selectedModalHook) videoEl.currentTime = Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value);
-                    restoreModalVolume(videoEl);
-                  }"
+                  @loadedmetadata="onModalLoadedMetadata"
                   @volumechange="onVolumeChange"
                 ></video>
-                <div v-else class="w-full h-full flex flex-col items-center justify-center text-slate-500">
+                <div v-if="state.hasPreview.value && previewVideoUrl" class="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg p-0.5 flex items-center gap-1 select-none group/resolution">
+                   <!-- Icon for context -->
+                   <Icon name="ri:speed-line" class="text-[11px] text-slate-400 ml-1.5 mr-0.5" />
+                   
+                   <!-- SD Toggle Button -->
+                   <button 
+                     @click="toggleResolution(false)"
+                     class="px-2 py-1 text-[9px] font-black tracking-widest rounded transition-all cursor-pointer"
+                     :class="!forceHighRes ? 'bg-accent-500 text-black shadow-md' : 'text-slate-400 hover:text-white hover:bg-white/5'"
+                   >
+                     SD
+                   </button>
+                   
+                   <!-- HD Toggle Button -->
+                   <button 
+                     @click="state.hdReady.value && toggleResolution(true)"
+                     class="px-2 py-1 text-[9px] font-black tracking-widest rounded transition-all mr-0.5"
+                     :class="[
+                       state.hdReady.value 
+                         ? (forceHighRes ? 'bg-accent-500 text-black shadow-md cursor-pointer' : 'text-slate-400 hover:text-white hover:bg-white/5 cursor-pointer')
+                         : 'text-slate-500 cursor-not-allowed opacity-60'
+                     ]"
+                   >
+                     <span v-if="state.hdReady.value">HD</span>
+                     <span v-else-if="state.downloadPercent.value > 0">HD ({{ state.downloadPercent.value }}%)</span>
+                     <span v-else>HD (QUEUED)</span>
+                   </button>
+  
+                   <!-- Custom Tooltip on Hover -->
+                   <div class="absolute top-full left-0 mt-2 w-64 bg-[#171a21]/95 backdrop-blur-md border border-surface-border text-[10px] text-slate-300 p-3 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/resolution:opacity-100 group-hover/resolution:pointer-events-auto transition-all -translate-y-1 group-hover/resolution:translate-y-0 z-30 font-medium normal-case tracking-normal">
+                      <h5 class="text-accent-500 font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                         <Icon name="ri:information-line" class="text-xs" />
+                         Preview Quality
+                      </h5>
+                      <p v-if="state.hdReady.value" class="leading-relaxed">This toggle applies to the preview only. The timeline editor always uses the original high-definition (HD) version.</p>
+                      <p v-else class="leading-relaxed">The high-definition (HD) version is downloading in the background. You can preview the optimized SD version in the meantime.</p>
+                      <!-- Triangle Pointer -->
+                      <div class="absolute bottom-full left-4 -mb-[5px] border-4 border-transparent border-b-[#171a21]/95"></div>
+                   </div>
+                </div>
+                <div v-else-if="!previewVideoUrl" class="w-full h-full flex flex-col items-center justify-center text-slate-500">
                    <Icon name="ri:film-line" class="text-4xl mb-2 opacity-50" />
                    <p class="text-sm font-medium">Video source unavailable</p>
                 </div>
@@ -1462,6 +1505,10 @@ import type { CachedVideo, Hook, ReadyClip, PromptTemplate, WhisperModelOption }
 const state = useClipperState()
 const API_BASE = 'http://localhost:8000'
 
+const forceHighRes = ref(false)
+const isTogglingResolution = ref(false)
+const savedPlaybackTime = ref<number | null>(null)
+
 const isPromptDropdownOpen = ref(false)
 const promptDropdownRef = ref<HTMLElement | null>(null)
 const hoveredPrompt = ref<PromptTemplate | null>(null)
@@ -1476,22 +1523,28 @@ interface SortOption {
 }
 
 const sortOptions: SortOption[] = [
-  { value: 'date:desc', label: 'Newest First', icon: 'ri:calendar-line' },
-  { value: 'date:asc', label: 'Oldest First', icon: 'ri:calendar-line' },
-  { value: 'title:asc', label: 'Title A-Z', icon: 'ri:sort-alphabet-asc' },
-  { value: 'title:desc', label: 'Title Z-A', icon: 'ri:sort-alphabet-desc' }
+  { value: 'date:desc', label: 'NEWEST FIRST', icon: 'ri:calendar-line' },
+  { value: 'date:asc', label: 'OLDEST FIRST', icon: 'ri:calendar-line' },
+  { value: 'title:asc', label: 'TITLE A-Z', icon: 'ri:sort-asc' },
+  { value: 'title:desc', label: 'TITLE Z-A', icon: 'ri:sort-desc' },
+  { value: 'duration:desc', label: 'LONGEST FIRST', icon: 'ri:time-line' },
+  { value: 'duration:asc', label: 'SHORTEST FIRST', icon: 'ri:time-line' }
 ]
 
 const currentSortOption = computed<SortOption>(() => {
-  const activeVal = `${state.cachedVideosSortBy.value}:${state.cachedVideosSortOrder.value}`
-  return sortOptions.find(opt => opt.value === activeVal) || sortOptions[0]!
+  const by = state.cachedVideosSortBy.value
+  const order = state.cachedVideosSortOrder.value
+  const val = `${by}:${order}`
+  return sortOptions.find(o => o.value === val) || sortOptions[0]!
 })
 
-function selectSortOption(optionValue: string) {
-  const [sortBy, sortOrder] = optionValue.split(':')
-  if (sortBy && sortOrder) {
-    state.cachedVideosSortBy.value = sortBy
-    state.cachedVideosSortOrder.value = sortOrder
+function selectSortOption(val: string) {
+  const parts = val.split(':')
+  const by = parts[0]
+  const order = parts[1]
+  if (by && order) {
+    state.cachedVideosSortBy.value = by
+    state.cachedVideosSortOrder.value = order
     state.fetchCached(true)
   }
   isSortDropdownOpen.value = false
@@ -1506,7 +1559,7 @@ const previewVideoUrl = computed(() => {
   const url = state.videoUrl.value
   if (!url) return null
   if (url.includes('/assets/sources/') && url.endsWith('/full.mp4')) {
-    if (state.hasPreview.value) {
+    if (state.hasPreview.value && !forceHighRes.value) {
       return url.replace('/full.mp4', '/preview.mp4')
     }
   }
@@ -1601,6 +1654,28 @@ watch(() => state.jobStatus.value, (newStatus) => {
 const hoveredHookIndex = ref<number | null>(null)
 const selectedModalHook = ref<Hook | null>(null)
 const modalVideoPlayer = ref<HTMLVideoElement | null>(null)
+
+function toggleResolution(highRes: boolean) {
+  if (forceHighRes.value === highRes) return
+  
+  if (modalVideoPlayer.value) {
+    savedPlaybackTime.value = modalVideoPlayer.value.currentTime
+    isTogglingResolution.value = true
+  }
+  forceHighRes.value = highRes
+}
+
+function onModalLoadedMetadata(e: Event) {
+  const videoEl = e.target as HTMLVideoElement
+  if (isTogglingResolution.value && savedPlaybackTime.value !== null) {
+    videoEl.currentTime = savedPlaybackTime.value
+    isTogglingResolution.value = false
+    savedPlaybackTime.value = null
+  } else if (selectedModalHook.value) {
+    videoEl.currentTime = Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value)
+  }
+  restoreModalVolume(videoEl)
+}
 
 function restoreModalVolume(el: HTMLVideoElement | null) {
   if (!el) return
@@ -1831,8 +1906,14 @@ watch(selectedModalHook, (newHook) => {
     }
     startInputStr.value = formatMMSS(Math.max(0, newHook.start - state.startSafetyBuffer.value))
     endInputStr.value = formatMMSS(newHook.end)
+    forceHighRes.value = false
+    isTogglingResolution.value = false
+    savedPlaybackTime.value = null
   } else {
     showAdjustDuration.value = false
+    forceHighRes.value = false
+    isTogglingResolution.value = false
+    savedPlaybackTime.value = null
   }
 })
 
