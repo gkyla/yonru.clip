@@ -14,7 +14,7 @@ class GeminiGenAIClient(GenAIClient):
     # Class-level state to track key degradation: key_string -> { "degraded_until": float, "permanent": bool }
     _degradation_cache = {}
 
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str | None = None):
         self.api_keys = []
         self.key_titles = {}
         
@@ -95,7 +95,10 @@ class GeminiGenAIClient(GenAIClient):
                 if key in self._degradation_cache:
                     del self._degradation_cache[key]
                     
-                return response.text
+                text = response.text
+                if text is None:
+                    raise ValueError("Gemini API returned an empty text response.")
+                return text
             except Exception as e:
                 last_exception = e
                 error_msg = str(e)
