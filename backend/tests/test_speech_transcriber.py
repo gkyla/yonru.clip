@@ -90,3 +90,53 @@ def test_transcribe_skips_empty_cleaned_text():
         "duration": pytest.approx(0.6),
         "text": "Valid"
     }
+
+
+def test_transcribe_merges_hyphenated_words():
+    """Verify that transcribe merges words split by hyphens and computes timings correctly."""
+    mock_words = [
+        MockWord(word="paru-", start=0.0, end=0.5),
+        MockWord(word="paru", start=0.5, end=1.0),
+        MockWord(word="dan", start=1.2, end=1.5),
+        MockWord(word="laba", start=1.6, end=2.0),
+        MockWord(word="-laba", start=2.0, end=2.5),
+        MockWord(word="serta", start=2.7, end=3.0),
+        MockWord(word="anak", start=3.1, end=3.5),
+        MockWord(word="-", start=3.5, end=3.7),
+        MockWord(word="anak", start=3.7, end=4.1)
+    ]
+    mock_segments = [
+        MockSegment(text="paru- paru dan laba -laba serta anak - anak", start=0.0, end=4.5, words=mock_words)
+    ]
+    
+    mock_client = MockSpeechTranscriber(mock_segments=mock_segments)
+    results = mock_client.transcribe("dummy_audio.wav")
+    
+    assert len(results) == 5
+    
+    assert results[0] == {
+        "start": 0.0,
+        "duration": pytest.approx(1.0),
+        "text": "paru-paru"
+    }
+    assert results[1] == {
+        "start": 1.2,
+        "duration": pytest.approx(0.3),
+        "text": "dan"
+    }
+    assert results[2] == {
+        "start": 1.6,
+        "duration": pytest.approx(0.9),
+        "text": "laba-laba"
+    }
+    assert results[3] == {
+        "start": 2.7,
+        "duration": pytest.approx(0.3),
+        "text": "serta"
+    }
+    assert results[4] == {
+        "start": 3.1,
+        "duration": pytest.approx(1.0),
+        "text": "anak-anak"
+    }
+

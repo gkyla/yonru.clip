@@ -51,7 +51,80 @@ class SpeechTranscriber(ABC):
                         "text": cleaned
                     })
         
-        return word_level
+        return self._merge_hyphenated_words(word_level)
+
+    def _merge_hyphenated_words(self, word_level: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not word_level:
+            return []
+            
+        merged: List[Dict[str, Any]] = []
+        i = 0
+        n = len(word_level)
+        
+        while i < n:
+            current: Dict[str, Any] = dict(word_level[i])
+            
+            # Case C: Next word is exactly '-' and there is a word after it
+            if i + 2 < n and str(word_level[i + 1]["text"]) == "-":
+                after_word = word_level[i + 2]
+                merged_text = f"{str(current['text'])}-{str(after_word['text'])}"
+                merged_start = float(current["start"])
+                merged_end = float(after_word["start"]) + float(after_word["duration"])
+                current = {
+                    "start": merged_start,
+                    "duration": max(0.0, merged_end - merged_start),
+                    "text": merged_text
+                }
+                i += 3
+            # Case A & B: Current ends with '-' or next starts with '-'
+            elif i + 1 < n and (str(current["text"]).endswith("-") or str(word_level[i + 1]["text"]).startswith("-")):
+                next_word = word_level[i + 1]
+                left = str(current["text"])
+                right = str(next_word["text"])
+                if left.endswith("-") and right.startswith("-"):
+                    merged_text = left + right[1:]
+                else:
+                    merged_text = left + right
+                
+                merged_start = float(current["start"])
+                merged_end = float(next_word["start"]) + float(next_word["duration"])
+                current = {
+                    "start": merged_start,
+                    "duration": max(0.0, merged_end - merged_start),
+                    "text": merged_text
+                }
+                i += 2
+            else:
+                i += 1
+                
+            # Recursive check/merge with the last item in merged
+            while merged:
+                last = merged[-1]
+                last_text = str(last["text"])
+                curr_text = str(current["text"])
+                if last_text.endswith("-") or curr_text.startswith("-") or curr_text == "-":
+                    merged_text = last_text + curr_text
+                    if last_text.endswith("-") and curr_text.startswith("-"):
+                        merged_text = last_text + curr_text[1:]
+                    
+                    merged_text = merged_text.replace("--", "-")
+                    merged_start = float(last["start"])
+                    merged_end = float(current["start"]) + float(current["duration"])
+                    
+                    current = {
+                        "start": merged_start,
+                        "duration": max(0.0, merged_end - merged_start),
+                        "text": merged_text
+                    }
+                    merged.pop()
+                else:
+                    break
+                    
+            merged.append(current)
+            
+        return merged
+
+
 
 
 class FasterWhisperSpeechTranscriber(SpeechTranscriber):
