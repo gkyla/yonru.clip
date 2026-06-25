@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import cv2
 import mediapipe as mp
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Sequence
 import numpy as np
 
 class FaceDetectorSeam(ABC):
@@ -13,7 +13,8 @@ class FaceDetectorSeam(ABC):
 
 class MediaPipeFaceDetector(FaceDetectorSeam):
     def __init__(self, min_detection_confidence: float = 0.3):
-        self.mp_face_detection = mp.solutions.face_detection
+        solutions: Any = mp.solutions
+        self.mp_face_detection = solutions.face_detection
         self.face_detection = self.mp_face_detection.FaceDetection(
             model_selection=1,  # 1 = full-range
             min_detection_confidence=min_detection_confidence
@@ -37,7 +38,7 @@ class MediaPipeFaceDetector(FaceDetectorSeam):
 
 
 class MockFaceDetector(FaceDetectorSeam):
-    def __init__(self, coordinate_list: List[Optional[float]] = None):
+    def __init__(self, coordinate_list: Optional[Sequence[Optional[float]]] = None):
         self.coordinates = coordinate_list or []
         self._current_index = 0
 

@@ -9,7 +9,7 @@ class JobStore(ABC):
         self.lock = threading.Lock()
 
     @abstractmethod
-    def get(self, job_id: str) -> Optional[dict]:
+    def _get_raw(self, job_id: str) -> Optional[dict]:
         """Retrieve a job by ID."""
         pass
 
@@ -47,12 +47,12 @@ class JobStore(ABC):
     def get_job(self, job_id: str) -> Optional[dict]:
         """Retrieve a job thread-safely."""
         with self.lock:
-            return self.get(job_id)
+            return self._get_raw(job_id)
 
     def update_job(self, job_id: str, **kwargs) -> dict:
         """Atomically update specific keys of a job thread-safely."""
         with self.lock:
-            data = self.get(job_id)
+            data = self._get_raw(job_id)
             if data is None:
                 data = {
                     "job_id": job_id,
@@ -109,7 +109,7 @@ class InMemoryJobStore(JobStore):
         super().__init__()
         self._jobs: Dict[str, dict] = {}
 
-    def get(self, job_id: str) -> Optional[dict]:
+    def _get_raw(self, job_id: str) -> Optional[dict]:
         return self._jobs.get(job_id)
 
     def set(self, job_id: str, data: dict) -> None:
@@ -183,7 +183,7 @@ class JSONFileJobStore(JobStore):
         except Exception as e:
             print(f"[JSONFileJobStore] Failed to save job {job_id}: {e}")
 
-    def get(self, job_id: str) -> Optional[dict]:
+    def _get_raw(self, job_id: str) -> Optional[dict]:
         if not os.path.exists(self._job_path(job_id)):
             self._cache.pop(job_id, None)
             return None

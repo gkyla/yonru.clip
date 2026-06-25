@@ -353,7 +353,7 @@ class FilePromptRepository(PromptRepository):
 
 
 class InMemoryPromptRepository(PromptRepository):
-    def __init__(self, initial_prompts: List[PromptDTO] = None):
+    def __init__(self, initial_prompts: Optional[List[PromptDTO]] = None):
         self.prompts = {p.id: p for p in (initial_prompts or [])}
 
     def list_prompts(self) -> List[PromptDTO]:

@@ -39,10 +39,12 @@ def test_mock_asset_store_purges_and_clips():
     
     # Test get_or_create_source mock flow
     source = store.get_or_create_source("https://youtube.com/watch?v=newvid")
+    assert source is not None
     assert source["video_id"] == "mock_id"
     
     # Test create_clip mock flow
     clip = store.create_clip("mock_path/full.mp4", 10.0, 30.0, theme="test")
+    assert clip is not None
     assert clip["duration"] == 20.0
     assert clip["theme"] == "test"
     

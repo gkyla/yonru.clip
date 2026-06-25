@@ -31,7 +31,7 @@ class AssetStore(ABC):
         pass
 
     @abstractmethod
-    def create_clip(self, video_path: str, start_time: float, end_time: float, theme: str = None) -> Optional[dict]:
+    def create_clip(self, video_path: str, start_time: float, end_time: float, theme: Optional[str] = None) -> Optional[dict]:
         pass
 
     @abstractmethod
@@ -215,7 +215,7 @@ class AssetRepository(AssetStore):
                     return 30.0
         return 30.0
 
-    def _generate_thumbnail(self, folder_path: str, video_id: str) -> str:
+    def _generate_thumbnail(self, folder_path: str, video_id: str) -> Optional[str]:
         """Generate a video thumbnail inside the source folder."""
         video_path = os.path.join(folder_path, "full.mp4")
         if not os.path.exists(video_path):
@@ -239,7 +239,7 @@ class AssetRepository(AssetStore):
 
     # ── High Leverage Deep Interface Methods ────────────────────────
 
-    def get_cached_video(self, url: str) -> dict:
+    def get_cached_video(self, url: str) -> Optional[dict]:
         """Search sources/ subfolders for the video ID."""
         video_id = self.client.extract_video_id(url)
         if not video_id:
@@ -278,7 +278,7 @@ class AssetRepository(AssetStore):
                     }
         return None
 
-    def get_cached_video_by_folder(self, folder_name: str) -> dict:
+    def get_cached_video_by_folder(self, folder_name: str) -> Optional[dict]:
         """Search sources/ subfolders by exact folder name."""
         target_dir = os.path.join(self.source_dir, folder_name)
         if os.path.exists(target_dir) and os.path.isdir(target_dir):
@@ -397,7 +397,7 @@ class AssetRepository(AssetStore):
         ])
         return audio_path
 
-    def extract_hook_thumbnail(self, video_path: str, timestamp: float, output_path: str) -> str:
+    def extract_hook_thumbnail(self, video_path: str, timestamp: float, output_path: str) -> Optional[str]:
         """Extract a single frame at a specific timestamp and save as JPEG."""
         if os.path.exists(output_path):
             return output_path
@@ -427,7 +427,7 @@ class AssetRepository(AssetStore):
                 print(f"[asset-repository] Double fallback thumbnail extraction failed: {e2}")
                 return None
 
-    def create_clip(self, video_path: str, start_time: float, end_time: float, theme: str = None) -> dict:
+    def create_clip(self, video_path: str, start_time: float, end_time: float, theme: Optional[str] = None) -> Optional[dict]:
         """Cut video segment into a unique clips subfolder."""
         folder_name = os.path.basename(os.path.dirname(video_path))
         
@@ -732,7 +732,7 @@ class MockAssetStore(AssetStore):
         self.calls.append(("extract_audio_from_local", video_path))
         return video_path.replace("full.mp4", "audio_v2.wav")
 
-    def create_clip(self, video_path: str, start_time: float, end_time: float, theme: str = None) -> Optional[dict]:
+    def create_clip(self, video_path: str, start_time: float, end_time: float, theme: Optional[str] = None) -> Optional[dict]:
         self.calls.append(("create_clip", video_path, start_time, end_time, theme))
         return {
             "file_path": video_path.replace("full.mp4", "video.mp4"),

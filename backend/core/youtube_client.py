@@ -1,7 +1,7 @@
 import os
 import re
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 import yt_dlp
 
 class AbstractYouTubeClient(ABC):
@@ -27,10 +27,10 @@ class AbstractYouTubeClient(ABC):
 
 
 class YouTubeClient(AbstractYouTubeClient):
-    def __init__(self, cookie_path: str = None):
+    def __init__(self, cookie_path: Optional[str] = None):
         self.cookie_path = cookie_path
 
-    def extract_video_id(self, url: str) -> str:
+    def extract_video_id(self, url: str) -> Optional[str]:
         """Extract YouTube video ID from URL."""
         patterns = [
             r'(?:v=|/v/|youtu\.be/)([a-zA-Z0-9_-]{11})',
@@ -50,7 +50,8 @@ class YouTubeClient(AbstractYouTubeClient):
             'no_warnings': True,
             'cookiefile': self.cookie_path if self.cookie_path and os.path.exists(self.cookie_path) else None,
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        opts: Any = ydl_opts
+        with yt_dlp.YoutubeDL(opts) as ydl:
             try:
                 info = ydl.extract_info(url, download=False)
                 return {
@@ -163,7 +164,8 @@ class YouTubeClient(AbstractYouTubeClient):
                             print(f"[youtube-client] Progress callback error: {pe}")
             ydl_opts['progress_hooks'] = [hook]
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        opts: Any = ydl_opts
+        with yt_dlp.YoutubeDL(opts) as ydl:
             try:
                 ydl.download([url])
             except Exception as e:
@@ -172,7 +174,7 @@ class YouTubeClient(AbstractYouTubeClient):
 
 
 class MockYouTubeClient(AbstractYouTubeClient):
-    def __init__(self, mock_info: dict = None, mock_transcript: list = None):
+    def __init__(self, mock_info: Optional[dict] = None, mock_transcript: Optional[list] = None):
         self.mock_info = mock_info or {"title": "Mock Video", "id": "mock_id_123"}
         self.mock_transcript = mock_transcript or []
         self.downloaded_urls = []

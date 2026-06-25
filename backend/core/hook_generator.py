@@ -1,5 +1,6 @@
 import os
 import json
+from typing import Optional
 from core.genai_client import GeminiGenAIClient
 from core.prompt_repository import FilePromptRepository
 
@@ -39,11 +40,11 @@ class HookGenerator:
                     current_end = w_end
                     current_words.append(w)
                 else:
-                    silence = w_start - current_end
+                    silence = w_start - current_end if current_end is not None else 0.0
                     if silence > max_silence or len(current_words) >= max_words:
                         grouped.append({
                             "start": current_start,
-                            "duration": current_end - current_start,
+                            "duration": float(current_end) - float(current_start) if current_end is not None and current_start is not None else 0.0,
                             "text": " ".join(current_words)
                         })
                         current_start = w_start
@@ -56,7 +57,7 @@ class HookGenerator:
                 if w.endswith(('.', '?', '!', '"', '”', ':', ';')):
                     grouped.append({
                         "start": current_start,
-                        "duration": current_end - current_start,
+                        "duration": float(current_end) - float(current_start) if current_end is not None and current_start is not None else 0.0,
                         "text": " ".join(current_words)
                     })
                     current_words = []
@@ -66,13 +67,13 @@ class HookGenerator:
         if current_words:
             grouped.append({
                 "start": current_start,
-                "duration": current_end - current_start,
+                "duration": float(current_end) - float(current_start) if current_end is not None and current_start is not None else 0.0,
                 "text": " ".join(current_words)
             })
             
         return grouped
 
-    def find_hooks_from_transcript(self, transcript_segments: list, num_hooks: int = 3, auto_hooks: bool = False, video_duration: float = None, prompt_file: str = "prompt.json"):
+    def find_hooks_from_transcript(self, transcript_segments: list, num_hooks: int = 3, auto_hooks: bool = False, video_duration: Optional[float] = None, prompt_file: str = "prompt.json"):
         """
         Send raw transcript text to Gemini to identify hooks. 
         Much faster and more accurate than analyzing raw audio.

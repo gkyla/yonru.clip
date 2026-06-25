@@ -90,6 +90,7 @@ class TestAssetRepository(unittest.TestCase):
 
         clip = self.repo.create_clip(video_path, start_time=5.0, end_time=15.0, theme="Funny Moment")
         
+        assert clip is not None
         self.assertEqual(clip["clip_id"], "5_15_Funny_Moment")
         self.assertEqual(clip["start"], 5.0)
         self.assertEqual(clip["end"], 15.0)

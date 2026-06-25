@@ -28,6 +28,8 @@ class RenderComposition:
 
 
 class RenderEngine(ABC):
+    face_tracker: Any
+
     @abstractmethod
     def render(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
         """Synchronously render the composition and return the absolute output file path."""
@@ -190,15 +192,15 @@ class RenderEngine(ABC):
 
 class SafeEncoder(json.JSONEncoder):
     """JSON encoder that safely handles numpy types from MediaPipe/OpenCV."""
-    def default(self, obj):
+    def default(self, o):
         import numpy as np
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super().default(obj)
+        if isinstance(o, np.integer):
+            return int(o)
+        if isinstance(o, np.floating):
+            return float(o)
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        return super().default(o)
 
 
 class RemotionRenderEngine(RenderEngine):
@@ -420,6 +422,9 @@ class RemotionRenderEngine(RenderEngine):
                 encoding="utf-8"
             )
             
+            if process.stdout is None:
+                raise RuntimeError("Failed to capture stdout from subprocess")
+                
             start_time = time.time()
             render_start_time = None
             last_overall = 0

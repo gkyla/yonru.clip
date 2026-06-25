@@ -1,12 +1,13 @@
 import cv2
 from abc import ABC, abstractmethod
+from typing import Optional, Any
 import numpy as np
 from core.frame_source import OpenCVFrameSource
 from core.face_detector_seam import MediaPipeFaceDetector
 
 class AbstractFaceTracker(ABC):
     @abstractmethod
-    def analyze_video(self, video_path: str, words_data: list = None):
+    def analyze_video(self, video_path: str, words_data: Optional[list] = None) -> Any:
         """Analyzes a video and returns a crop_map of (time, x) keyframes."""
         pass
 
@@ -15,7 +16,7 @@ class FaceTracker(AbstractFaceTracker):
         self.frame_source = frame_source
         self.face_detector = face_detector
 
-    def analyze_video(self, video_path: str, words_data: list = None):
+    def analyze_video(self, video_path: str, words_data: Optional[list] = None) -> Any:
         """
         Analyzes a video and returns a crop_map of (time, x) keyframes.
         Triple-B Stability Strategy:
@@ -47,7 +48,7 @@ class FaceTracker(AbstractFaceTracker):
         
         while True:
             ret, frame = source.read()
-            if not ret:
+            if not ret or frame is None:
                 break
             
             if frame_idx % 2 == 0:
@@ -133,6 +134,6 @@ class MockFaceTracker(AbstractFaceTracker):
         self.mock_result = mock_result
         self.analyzed_paths = []
 
-    def analyze_video(self, video_path: str, words_data: list = None):
+    def analyze_video(self, video_path: str, words_data: Optional[list] = None) -> Any:
         self.analyzed_paths.append(video_path)
         return self.mock_result

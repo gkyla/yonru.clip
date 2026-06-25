@@ -18,6 +18,7 @@ class TestJobManager(unittest.TestCase):
         
         # Get job
         job = store.get_job("job_1")
+        assert job is not None
         self.assertEqual(job["job_id"], "job_1")
         self.assertEqual(job["url"], "https://example.com/1")
         self.assertEqual(job["status"], "pending")
@@ -25,6 +26,7 @@ class TestJobManager(unittest.TestCase):
         # Update job
         store.update_job("job_1", status="ready", progress=100)
         updated = store.get_job("job_1")
+        assert updated is not None
         self.assertEqual(updated["status"], "ready")
         self.assertEqual(updated["progress"], 100)
 
@@ -53,6 +55,7 @@ class TestJobManager(unittest.TestCase):
             # Retrieve from fresh store (caching sync verify)
             new_store = JSONFileJobStore(temp_dir)
             job = new_store.get("job_file")
+            assert job is not None
             self.assertEqual(job["status"], "started")
         finally:
             if os.path.exists(temp_dir):
@@ -95,6 +98,7 @@ class TestJobManager(unittest.TestCase):
             for _ in range(50):
                 # Retrieve, increment, and set atomic increments thread-safely
                 job = store.get_job("concurrent_job")
+                assert job is not None
                 current = job.get("counter", 0)
                 store.update_job("concurrent_job", counter=current + 1)
                 time.sleep(0.001)
@@ -106,6 +110,7 @@ class TestJobManager(unittest.TestCase):
             t.join()
 
         job = store.get_job("concurrent_job")
+        assert job is not None
         # Confirms concurrent lock protection works
         self.assertEqual(job["counter"], 250)
 

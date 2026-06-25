@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 class SubtitleEngine(ABC):
     @abstractmethod
@@ -125,7 +126,7 @@ class DefaultSubtitleEngine(SubtitleEngine):
 
 
 class MockSubtitleEngine(SubtitleEngine):
-    def __init__(self, mock_output: list = None):
+    def __init__(self, mock_output: Optional[list] = None):
         self.mock_output = mock_output or []
         self.calls = []
 
