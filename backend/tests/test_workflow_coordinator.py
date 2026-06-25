@@ -22,9 +22,12 @@ class MockJobStore(dict):
 
 @pytest.fixture
 def mock_dependencies():
+    from core.asset_repository import AssetStore
+    asset_repo = MagicMock()
+    asset_repo.sanitize_and_prepare_hooks = lambda raw_hooks, video_info: AssetStore.sanitize_and_prepare_hooks(asset_repo, raw_hooks, video_info)
     return {
         "job_store": MockJobStore(),
-        "asset_repository": MagicMock(),
+        "asset_repository": asset_repo,
         "youtube_client": MagicMock(),
         "speech_transcriber": MagicMock(),
         "prompt_repository": MagicMock(),

@@ -70,6 +70,7 @@ function createClipperState() {
   const videoTitle = useState<string>('videoTitle', () => '')
   const videoDuration = useState<number>('videoDuration', () => 0)
   const hasHeatmap = useState<boolean>('hasHeatmap', () => false)
+  const hasPreview = useState<boolean>('hasPreview', () => false)
   const videoUrl = useState<string | null>('videoUrl', () => null)
   const videoFps = useState<number>('videoFps', () => 30)
 
@@ -611,7 +612,7 @@ function createClipperState() {
     jobId, isMediaLoading, jobStatus, jobError, isCachedAnalysis,
     isNavigatingToEditor, downloadPercent, hdReady,
     startSafetyBuffer,
-    videoTitle, videoDuration, hasHeatmap, videoUrl, videoFps,
+    videoTitle, videoDuration, hasHeatmap, hasPreview, videoUrl, videoFps,
     hooks, savedHooks, activeHook, segmentPadding, folderName, clipId, fullTranscript,
     promptsList, selectedPrompt,
     youtubeUrl, language, subtitlePosition, subtitleOffset, subtitleSyncOffset,

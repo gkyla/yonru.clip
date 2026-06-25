@@ -39,36 +39,7 @@ class ClipWorkflowCoordinator:
                         
                         try:
                             raw_hooks = json.loads(hooks_json)
-                            video_duration = cached_video.get("duration", float("inf"))
-                            MIN_DUR, MAX_DUR = 15, 180
-                            filtered = []
-                            for h in raw_hooks:
-                                try:
-                                    h_start = float(h.get("start", 0))
-                                    h_end = float(h.get("end", 0))
-                                    h_dur = h_end - h_start
-                                    if h_start < video_duration and h_end <= (video_duration + 5) and h_start >= 0:
-                                        if h_dur < MIN_DUR:
-                                            h_end = h_start + MIN_DUR
-                                        if (h_end - h_start) > MAX_DUR:
-                                            h_end = h_start + MAX_DUR
-                                        h["start"] = round(h_start, 2)
-                                        h["end"] = round(h_end, 2)
-                                        h["duration"] = round(h_end - h_start, 2)
-                                        
-                                        # Ensure static sharp thumbnail exists and is linked
-                                        thumb_name = f"thumb_{int(h_start)}.jpg"
-                                        thumb_local_path = os.path.join(os.path.dirname(cached_video["file_path"]), thumb_name)
-                                        if not os.path.exists(thumb_local_path):
-                                            self.asset_repository.extract_hook_thumbnail(
-                                                video_path=cached_video["file_path"],
-                                                timestamp=h_start,
-                                                output_path=thumb_local_path
-                                            )
-                                        h["thumbnail_url"] = f"/assets/sources/{cached_video['folder_name']}/{thumb_name}"
-                                        filtered.append(h)
-                                except:
-                                    pass
+                            filtered = self.asset_repository.sanitize_and_prepare_hooks(raw_hooks, cached_video)
                             
                             job["hooks"] = filtered
                             if cached_video.get("hd_ready"):
@@ -209,44 +180,9 @@ class ClipWorkflowCoordinator:
                 try:
                     raw_hooks = json.loads(hooks_json)
                     
-                    # Filter: drop hooks with bad timestamps or out-of-range duration
-                    video_duration = video_info.get("duration", float("inf"))
-                    MIN_DUR, MAX_DUR = 15, 180
-                    filtered = []
-                    video_folder = os.path.dirname(video_info["file_path"])
-                    for h in raw_hooks:
-                        h_start = float(h.get("start", 0))
-                        h_end = float(h.get("end", 0))
-                        h_dur = h_end - h_start
-                        
-                        if h_dur < MIN_DUR:
-                            h_end = h_start + MIN_DUR
-                        if (h_end - h_start) > MAX_DUR:
-                            h_end = h_start + MAX_DUR
-                        
-                        h["start"] = round(h_start, 2)
-                        h["end"] = round(h_end, 2)
-                        h["duration"] = round(h["end"] - h["start"], 2)
-                        
-                        if h["end"] > (video_duration + 5):
-                            print(f"[filter] Drop hook {h['start']}→{h['end']}: beyond video ({video_duration:.1f}s)")
-                            continue
-                        if h["start"] < 0:
-                            print(f"[filter] Drop hook {h['start']}→{h['end']}: negative start")
-                            continue
-                        
-                        # Extract crisp thumbnail for frontend
-                        thumb_name = f"thumb_{int(h_start)}.jpg"
-                        thumb_local_path = os.path.join(video_folder, thumb_name)
-                        self.asset_repository.extract_hook_thumbnail(
-                            video_path=video_info["file_path"],
-                            timestamp=h_start,
-                            output_path=thumb_local_path
-                        )
-                        h["thumbnail_url"] = f"/assets/sources/{video_info['folder_name']}/{thumb_name}"
-                        filtered.append(h)
+                    filtered = self.asset_repository.sanitize_and_prepare_hooks(raw_hooks, video_info)
                     
-                    print(f"[filter] {len(filtered)}/{len(raw_hooks)} hooks valid for video ({video_duration:.1f}s)")
+                    print(f"[filter] {len(filtered)}/{len(raw_hooks)} hooks valid for video ({video_info.get('duration', 0.0):.1f}s)")
                     
                     # Write filtered hooks back to cache so it stays clean
                     if len(filtered) != len(raw_hooks) and os.path.exists(hooks_cache_path):
