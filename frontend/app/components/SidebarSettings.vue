@@ -5,7 +5,11 @@
     class="h-full flex flex-row relative bg-surface-panel/50 border-r border-surface-border shrink-0 select-none"
     :style="{ width: sidebarWidth + 'px' }"
   >
-    <div class="flex-1 h-full flex flex-col p-5 gap-6 overflow-y-auto custom-scrollbar">
+    <div class="flex-1 h-full overflow-y-auto custom-scrollbar">
+      <div 
+        class="min-h-full flex flex-col p-5 gap-6 transition-all duration-300"
+        :class="{ 'opacity-40 pointer-events-none': state.jobStatus.value !== 'ready' }"
+      >
 
     
     <!-- Editor Sidebar -->
@@ -486,6 +490,7 @@
         <Icon :name="state.renderStatus.value === 'rendering' ? 'ri:loader-4-line' : 'ri:movie-fill'" :class="{ 'animate-spin': state.renderStatus.value === 'rendering' }" />
         {{ state.renderStatus.value === 'rendering' ? 'RENDERING...' : 'RENDER CLIP' }}
       </button>
+      </div>
     </div>
   </div>
 
