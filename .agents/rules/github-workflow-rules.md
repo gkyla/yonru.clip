@@ -56,3 +56,7 @@ Example commit messages:
 - `feat: add system check and api key test`
 - `fix: correct text alignment on timeline`
 - `chore: update dependencies`
+
+## MANDATORY RULE 6: GITHUB ISSUE TEMPLATES (CRITICAL)
+
+When programmatically creating or updating GitHub Issues, all agents MUST ALWAYS read the corresponding template file in `.github/ISSUE_TEMPLATE/` (e.g., `feature_request.md` or `bug_report.md`) first, and structure the issue title, label, headings, and descriptions to strictly match that template's required syntax and fields. In particular, the issue title MUST use standard lowercase conventional prefixes followed by a colon (e.g., `feat: `, `fix: `) instead of bracketed uppercase styles (e.g., `[FEAT]`, `[BUG]`).
