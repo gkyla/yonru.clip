@@ -4,126 +4,171 @@ Welcome to the **yonru.clip** domain glossary. This document serves as the singl
 
 ---
 
-## Transcript Editor
+## Language
 
-### Flowing Document View
-A continuous text presentation area in the editor ("All Words" tab) where subtitle segments are rendered sequentially to look like a single flowing document page without bulky card boundaries.
+### Transcript Editor UI
 
-### Hybrid Highlight
+**Flowing Document View**:
+A continuous text presentation area in the editor where subtitle segments are rendered sequentially to look like a single flowing document page without bulky card boundaries.
+_Avoid_: All Words tab, continuous editor text
+
+**Hybrid Highlight**:
 A visual highlighting technique during video playback where the active subtitle segment block receives a soft glassmorphic background glow, while the exact spoken word inside it glows with a karaoke-style text highlight.
+_Avoid_: Active segment highlight, karaoke overlay
 
-### Segment-by-Segment Inline Edit
-An interaction model where clicking a segment in the Flowing Document View smoothly transforms that segment into a borderless, auto-growing text input. Changes are committed automatically on blur or `Enter`, and reverted on `Escape`.
+**Segment-by-Segment Inline Edit**:
+An interaction model where clicking a segment in the Flowing Document View smoothly transforms that segment into a borderless, auto-growing text input.
+_Avoid_: Inline text input, edit mode
 
-### Karaoke-Style Word Highlight
+**Karaoke-Style Word Highlight**:
 A visual state where individual word spans are highlighted dynamically based on the current playback timing, creating a smooth, active reading flow.
+_Avoid_: Word highlighting, text glow
 
-### Draggable Subtitle Panel
-A resizable sidebar panel in the editor whose width can be adjusted dynamically by dragging the left border handle, with boundaries restricted between 320px and 650px and the selected width persisted in browser `localStorage`.
+**Draggable Subtitle Panel**:
+A resizable sidebar panel in the editor whose width can be adjusted dynamically by dragging the left border handle.
+_Avoid_: Resizable sidebar, subtitle panel drawer
 
-### Sidebar Status Indicator
-A unified, real-time job status tracking element placed in the footer of the global sidebar panel, rendering as a clean, bordered micro-badge row in expanded mode and as a dynamic, glowing status dot overlaid on the database icon in collapsed mode.
+**Sidebar Status Indicator**:
+A unified, real-time job status tracking element placed in the global sidebar panel, rendering as a badge in expanded mode and as a status dot in collapsed mode.
+_Avoid_: Status badge, footer status
 
-### Workspace Continue Editing Card
-A sidebar card in the Workspace accordion that displays the last-accessed clip and video, allowing the user to resume editing from any page. When the displayed clip is currently loaded in the editor, the card transitions to an inactive "On Editing" state to prevent redundant workspace reload loops.
+**Workspace Continue Editing Card**:
+A sidebar card in the Workspace accordion that displays the last-accessed clip and video, allowing the user to resume editing from any page.
+_Avoid_: Continue editing button, edit resumption link
 
-### Section Divider
-A low-contrast, border-only horizontal seam (`border-t border-surface-border/30 pt-3`) used inside editor panels to separate functional control groups cleanly without nesting bulky card backgrounds or rounded containers, keeping visual density balanced.
+**Section Divider**:
+A subtle visual boundary line used to organize functional control groups in editor panels without nesting containers.
+_Avoid_: Border line, panel separator
 
-### Thumbnail Screenshot Preview
-The aspect-[9/16] still-image preview container displayed inside the sidebar Thumbnail Editor, representing the captured video frame that will be prepended as a thumbnail.
+**Thumbnail Screenshot Preview**:
+The still-image preview container displayed inside the sidebar Thumbnail Editor, representing the captured video frame that will be prepended as a thumbnail.
+_Avoid_: Screenshot container, preview frame
 
-### Horizontal Shift Offset
-A percentage value (0 to 100) representing the horizontal pan displacement of the background image within the 9:16 portrait viewport.
+**Horizontal Shift Offset**:
+A percentage value representing the horizontal pan displacement of the background image within the portrait viewport.
+_Avoid_: Pan offset, horizontal scroll value
 
-### Thumbnail Text Overlay
-A customizable text block overlaid on the thumbnail frame, supporting configurable typography, backgrounds, strokes, transformations, and positioning.
+**Thumbnail Text Overlay**:
+A customizable text block overlaid on the thumbnail frame, supporting configurable typography, backgrounds, strokes, and positioning.
+_Avoid_: Overlay text, subtitle text overlay
 
-### Default Thumbnail Style
-A reusable styling template that encapsulates typography and still frame duration, persisted inside `default_thumbnail_style.json` via backend APIs, automatically initialized on new clips, and applied to overlays when explicitly loaded.
+**Default Thumbnail Style**:
+A reusable template defining layout and styling rules applied automatically to new thumbnail overlays.
+_Avoid_: Preset thumbnail style, default text styling
 
-### Library Duplicate Intercept
-A client-side warning dialog that triggers when a user submits a YouTube URL that already exists in the Cached Library, offering choices to load existing hooks instantly or reanalyze hooks using Gemini without re-downloading the video.
+**Library Duplicate Intercept**:
+A client-side warning dialog that triggers when a user submits a video source that already exists in the library.
+_Avoid_: Duplicate URL warning, check dialog
 
-### Cinematic Preview Modal
-A fullscreen modal overlay that provides a dual-pane interface (video preview player on the left and hook details sidebar on the right) for reviewing generated or saved hooks before entering the subtitle editor.
+**Cinematic Preview Modal**:
+A fullscreen modal overlay that provides a dual-pane interface (video preview player and hook details sidebar) for reviewing hooks before entering the subtitle editor.
+_Avoid_: Ingestion preview player, hook previewer
 
-### Ready Badge
-A visual checkmark indicator displayed next to a hook in the sidebar to signify that its corresponding video clip has been successfully cut and transcribed on the server. The badge is suppressed while the clip is actively being processed (such as during the ffmpeg cut or Whisper transcription phases).
+**Ready Badge**:
+A visual checkmark indicator displayed next to a hook in the sidebar to signify that its corresponding video clip has been successfully cut and transcribed on the server.
+_Avoid_: Processed badge, ready checkmark
 
-### Start Safety Buffer
-A fixed time padding (strictly 2.0 seconds) subtracted from the AI-generated hook start time to prevent cut-off spoken words during preview playback and clip extraction.
+**Start Safety Buffer**:
+A fixed time padding subtracted from the AI-generated hook start time to prevent cut-off spoken words during preview playback and clip extraction.
+_Avoid_: Padding buffer, start time buffer
 
-### Hook Timing Adjustment
-A control panel within the Cinematic Preview Modal sidebar that allows the user to fine-tune the start and end times of a specific hook by entering timing in MM:SS format or by dragging a dual-ended timeline slider.
+**Hook Timing Adjustment**:
+A control panel within the Cinematic Preview Modal sidebar that allows the user to fine-tune the start and end times of a specific hook.
+_Avoid_: Timeline slider panel, hook cropper
 
-### Timeline History Stack
-An in-memory, transient double-stack (undo/redo) that stores deep-cloned snapshots of the timeline tracks, full transcripts, and selected item IDs to support state reversal.
+**Timeline History Stack**:
+An in-memory, transient double-stack (undo/redo) that stores deep-cloned snapshots of the timeline tracks, full transcripts, and selected item IDs.
+_Avoid_: Undo redo history, transaction logs
 
-### Manual State Snapshot
-A snapshot of the timeline tracks and transcription state committed to the history stack at discrete interaction boundaries (such as drag end, split, delete, or style commit) rather than on every reactive mutation.
+**Manual State Snapshot**:
+A snapshot of the timeline tracks and transcription state committed to the history stack at discrete interaction boundaries.
+_Avoid_: History snapshot, save point
 
-### Unified Analyzer Panel
-A unified control card on the index page that groups the YouTube URL search input, prompt template dropdown, current transcription settings metadata, and settings page shortcut into a single, border-divided interface.
+**Unified Analyzer Panel**:
+A unified control card on the index page that groups the YouTube URL search input, prompt template dropdown, current transcription settings metadata, and settings page shortcut.
+_Avoid_: Analyzer card, dashboard search
 
-### Transcription Model Tooltip Card
-A hover-activated glassmorphic card overlay displaying the name, speed, accuracy, and detailed description of the currently selected Whisper transcriber model size.
+**Transcription Model Tooltip Card**:
+A hover-activated card overlay displaying the name, speed, accuracy, and detailed description of the currently selected Whisper transcriber model size.
+_Avoid_: Model details card, hover information
 
-### Ambient Aura Glows
-Soft, high-blur radial gradient light backdrops (such as overlapping accent-500 and violet/indigo spans) positioned behind workspace layouts to provide visual depth, frame structural card borders, and establish a premium dark-mode aesthetic without introducing visual noise.
+**Ambient Aura Glows**:
+Soft, high-blur radial gradient light backdrops positioned behind workspace layouts to provide visual depth.
+_Avoid_: Blur backgrounds, radial accents
 
-### Player Bridge
-An abstract interface that decouples player controller logic from physical message-passing protocols (such as iframe postMessage). It handles properties updates, play/pause commands, seek frame requests, and listener cleanups.
+**Player Bridge**:
+An abstract interface that decouples player controller logic from physical message-passing protocols.
+_Avoid_: Player controller adapter, video player bridge
 
-### Iframe PostMessage Bridge
+**Iframe PostMessage Bridge**:
 A concrete adapter implementation of the Player Bridge that targets the Remotion preview iframe via window messages.
+_Avoid_: Remotion iframe bridge, message adapter
 
-### Mock Player Bridge
+**Mock Player Bridge**:
 A concrete mock adapter implementation of the Player Bridge that stores calls and simulates events in memory for testing.
+_Avoid_: Test player bridge, fake bridge
 
-### Pending Search Spinner
-A visual loading indicator integrated directly inside the Cached Library search input box. It displays instantly when the user types to indicate that the input is being debounced, and transitions smoothly into the network request loader when the query is executed, ensuring immediate feedback on keypress.
+**Pending Search Spinner**:
+A visual loading indicator integrated directly inside the library search input box to indicate keypress debouncing.
+_Avoid_: Debounce spinner, input loader
 
-### Infinite Scroll Sentinel
-A scroll-based lazy loading trigger zone positioned at the bottom of the Cached Library list that dynamically detects viewport intersection to fetch and append the next page of videos automatically without manual button clicks.
+**Infinite Scroll Sentinel**:
+A scroll-based lazy loading trigger zone positioned at the bottom of the Cached Library list that dynamically detects viewport intersection to fetch and append the next page of videos.
+_Avoid_: Scroll lazy loader, scroll detector
 
-### Cinematic Progress Bar
-A visual loading progress bar used in the processing overlay that sweeps smoothly from 0% to 100% using hardware-accelerated CSS animations during instant cached loads, or reflects real-time status steps during full AI ingestion.
+**Cinematic Progress Bar**:
+A visual loading progress bar used in the processing overlay that sweeps smoothly from 0% to 100%.
+_Avoid_: Ingestion progress bar, loading slider
 
+### Ingestion & Services
+
+**Font Synchronizer**:
+A coordinator responsible for validating, fetching, and offline-synchronizing web fonts.
+_Avoid_: Google Fonts sync, font sync module
+
+**Shared Font Manifest**:
+A configuration file that catalogs active fonts, subsets, and IDs, used to ensure absolute configuration alignment across the system.
+_Avoid_: Font list JSON, global font config
+
+**Speech Transcriber**:
+A domain adapter wrapping the AI engine to perform high-fidelity audio transcription.
+_Avoid_: Whisper engine wrapper, transcriber service
+
+**System Health Diagnostics**:
+Status indicators representing the availability of external system binaries required for media operations.
+_Avoid_: Dependency checker, diagnostic logs
+
+**Fallback API Key Manager**:
+A coordinator that rotates between multiple AI API keys to bypass rate limits or connection errors.
+_Avoid_: Gemini key rotator, key fallback manager
+
+**Key Degradation Cache**:
+A temporary record of exhausted or failed API keys and their cool-down periods to avoid retrying them prematurely.
+_Avoid_: Bad key cache, rotator state
+
+**Prompt Template**:
+A customizable set of AI guidelines and instructions used by the analyzer to extract segments from a transcript.
+_Avoid_: AI instructions template, analyzer prompt
+
+**Inline Variable Highlight**:
+A visual presentation style inside the prompt template editor where template variables are dynamically highlighted.
+_Avoid_: Variable tag highlight, inline highlight block
 
 ---
 
-## Asset Synchronization & Bootstrapping
+## Flagged Ambiguities
 
-### Font Synchronizer
-A backend deep module responsible for validating, fetching, and offline-synchronizing Google Web Fonts. It dynamically resolves missing local woff2 files and automatically compiles stylesheets tailored to both the main Transcription Editor and the Remotion Engine.
+**Hook vs. Ready Clip (or Clip)**:
+A **Hook** is a recommendation schema (timestamps, title, theme, and quote) generated by the AI analyzer. A **Ready Clip** (often referred to simply as a **Clip**) is the physical asset cut from the source video and initialized as an editable workspace project containing timeline tracks and editable transcripts.
 
-### Shared Font Manifest
-A single source of truth configuration file (`shared/fonts_manifest.json`) that catalogs active fonts, their subsets, and IDs, ingested directly by both the python backend Font Synchronizer and the Nuxt frontend state composables to ensure absolute configuration alignment across boundaries.
-
-### Speech Transcriber
-A deep backend domain adapter wrapping the Whisper AI engine to perform high-fidelity audio transcription. It converts audio files into word-level timestamps and dynamically loads different model sizes (e.g. tiny, base, small, medium) on demand according to active configuration settings.
-
-### System Health Diagnostics
-A backend verification API (`/api/system-health`) and associated global frontend state representing the readiness and availability of system prerequisites (FFmpeg, Node.js, and the Python virtual environment). The global sidebar component displays these diagnostics and automatically dispatches a check request on client-side mount if the state is not yet loaded.
+**Subtitle Segment vs. Word Span**:
+A **Subtitle Segment** represents the complete block of subtitle text rendered at once on screen. A **Word Span** represents an individual word within that segment, possessing its own timestamp for karaoke-style highlight synchronizations.
 
 ---
 
-## API Configuration & Fallbacks
+## Example Dialogue
 
-### Fallback API Key Manager
-A deep backend domain service that manages multiple Gemini API keys in sequence, automatically rolling over to backup keys if a primary key hits rate limits (429) or connection issues.
-
-### Key Degradation Cache
-An in-memory cache tracking the error status and cool-down times of individual fallback keys to prevent retrying known-failed keys within their recovery window.
-
----
-
-## Prompt Management
-
-### Prompt Template
-A customizable set of AI guidelines and instructions used by Gemini to analyze transcript data and extract segments. Each template specifies active parameters (like target hook counts and natural/fixed modes) and is classified using descriptive suitability tags.
-
-### Inline Variable Highlight
-A visual presentation style inside the prompt template editor where template variables (such as `{num_hooks}`) are dynamically expanded and rendered as border-highlighted text spans that blend seamlessly into the parent paragraph without disrupting reading flow, extra spacing, or layout shifts. A hover-activated premium tooltip displays the underlying variable name.
-
+**Developer**: "I am working on the video cuts. When a user clicks 'Load Existing', do we pull the Clip or the Hook?"
+**Domain Expert**: "We pull the **Hook** first to show it in the **Cinematic Preview Modal**. If they save it, we generate a **Ready Clip**. The editor then loads that Clip and displays its **Subtitle Segments** in the **Flowing Document View**."
+**Developer**: "Understood. And when the user is correcting text, are they editing Subtitle Segments or Word Spans?"
+**Domain Expert**: "They do **Segment-by-Segment Inline Edits**. But the video player synchronizes playback with individual **Word Spans** for the **Karaoke-Style Word Highlight**."
