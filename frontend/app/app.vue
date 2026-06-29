@@ -1,5 +1,8 @@
 <template>
   <div class="h-screen bg-[#060608] text-slate-300 font-sans flex flex-col overflow-hidden selection:bg-accent-500/30">
+    <!-- Top Route Progress Bar -->
+    <NuxtLoadingIndicator :height="3" color="linear-gradient(to right, #CFFF50, #9eff00)" :throttle="100" />
+
     <!-- Page Content -->
     <NuxtErrorBoundary>
       <NuxtPage keepalive />
@@ -116,3 +119,9 @@ const statusColor = computed(() => {
   return map[status] || 'bg-slate-600'
 })
 </script>
+
+<style>
+.nuxt-loading-indicator {
+  box-shadow: 0 0 10px rgba(207, 255, 80, 0.7), 0 0 5px rgba(207, 255, 80, 0.4) !important;
+}
+</style>

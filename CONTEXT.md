@@ -120,6 +120,10 @@ _Avoid_: Scroll lazy loader, scroll detector
 A visual loading progress bar used in the processing overlay that sweeps smoothly from 0% to 100%.
 _Avoid_: Ingestion progress bar, loading slider
 
+**Top Route Progress Bar**:
+A visual progress bar rendered at the top of the viewport during route transitions to signify active page loading.
+_Avoid_: Page load indicator, top route loader
+
 ### Ingestion & Services
 
 **Font Synchronizer**:
