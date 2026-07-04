@@ -1,7 +1,7 @@
 <template>
   <div class="h-screen bg-[#060608] text-slate-300 font-sans flex flex-col overflow-hidden selection:bg-accent-500/30">
     <!-- Top Route Progress Bar -->
-    <NuxtLoadingIndicator :height="3" color="linear-gradient(to right, #CFFF50, #9eff00)" :throttle="100" />
+    <NuxtLoadingIndicator v-if="showLoadingIndicator" :height="3" color="linear-gradient(to right, #CFFF50, #9eff00)" :throttle="100" />
 
     <!-- Page Content -->
     <NuxtErrorBoundary>
@@ -96,7 +96,26 @@
 
 <script setup lang="ts">
 const route = useRoute()
+const router = useRouter()
 const state = useClipperState()
+
+const showLoadingIndicator = ref(route.path !== '/editor' && !route.path.startsWith('/editor/'))
+
+router.beforeEach((to) => {
+  if (to.path === '/editor' || to.path.startsWith('/editor/')) {
+    showLoadingIndicator.value = false
+  } else {
+    showLoadingIndicator.value = true
+  }
+})
+
+router.afterEach((to) => {
+  if (to.path === '/editor' || to.path.startsWith('/editor/')) {
+    showLoadingIndicator.value = false
+  } else {
+    showLoadingIndicator.value = true
+  }
+})
 
 onMounted(() => {
   state.initPersistence()
