@@ -576,16 +576,32 @@ def main():
         "target", 
         nargs="?", 
         default="all", 
-        choices=["all", "backend", "frontend", "remotion"],
-        help="Target service to run (all, backend, frontend, remotion)"
+        choices=["all", "backend", "frontend", "remotion", "release"],
+        help="Target service to run (all, backend, frontend, remotion, release)"
     )
     parser.add_argument(
         "--force-fonts", 
         action="store_true", 
         help="Force redownload of offline fonts"
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Perform a dry run of the release process (no files will be modified)"
+    )
     args = parser.parse_args()
     
+    if args.target == "release":
+        cmd = ["node", "scripts/release.js"]
+        if args.dry_run:
+            cmd.append("--dry-run")
+        try:
+            res = subprocess.run(cmd)
+            sys.exit(res.returncode)
+        except Exception as e:
+            log_error(f"Failed to execute release script: {e}")
+            sys.exit(1)
+            
     launcher = BootstrappedLauncher(target=args.target, force_fonts=args.force_fonts)
     launcher.run()
 
