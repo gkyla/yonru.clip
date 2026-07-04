@@ -48,14 +48,14 @@ Format the note exactly as follows:
 
 ## MANDATORY RULE 5: CONVENTIONAL COMMITS AND PLAIN LANGUAGE (CRITICAL)
 
-YOU MUST ALWAYS format your Git commit messages using the Conventional Commits specification. Every commit message must begin with an appropriate type prefix (e.g., `feat:`, `fix:`, `chore:`, `docs:`, `style:`, `refactor:`, `test:`, `ci:`).
+YOU MUST ALWAYS format your Git commit messages using the Conventional Commits specification with an explicit scope representing the component or package being changed. Every commit message must begin with an appropriate type and scope prefix (e.g., `feat(editor):`, `fix(api):`, `chore(deps):`, `docs(readme):`, `style(styles):`, `refactor(player):`, `test(tests):`, `ci(actions):`).
 
 Additionally, YOU MUST ALWAYS use plain, straightforward, and simple language in your commit messages, code comments, and explanations. Avoid overly complex, high-brow, or jargon-heavy words (such as 'decommission', 'ameliorate', 'facilitate', etc.). Prefer simple, active verbs (such as 'remove', 'fix', 'help', 'use', etc.) after the Conventional Commit prefix so that all communications, comments, and Git history logs remain clear, direct, and accessible to everyone.
 
 Example commit messages:
-- `feat: add system check and api key test`
-- `fix: correct text alignment on timeline`
-- `chore: update dependencies`
+- `feat(settings): add system check and api key test`
+- `fix(timeline): correct text alignment on timeline`
+- `chore(deps): update dependencies`
 
 ## MANDATORY RULE 6: GITHUB ISSUE TEMPLATES (CRITICAL)
 
