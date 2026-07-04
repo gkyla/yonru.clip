@@ -242,24 +242,24 @@
                      ></div>
                     
                     <!-- Tabs -->
-                     <div class="flex bg-black/40 border border-white/5 rounded-full p-1 gap-1 mb-6">
+                     <div class="flex bg-black/40 border border-white/5 rounded-xl p-1 gap-1 mb-6">
                          <button 
                            @click="editorTab = 'edit'"
-                           class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-full transition-all duration-300 flex items-center justify-center gap-1.5"
+                           class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
                            :class="editorTab === 'edit' ? 'bg-white/10 text-accent-500 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
                          >
                            <Icon name="ri:edit-box-line" class="text-xs" /> Edit Subtitles
                          </button>
                          <button 
                            @click="editorTab = 'thumbnail'"
-                           class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-full transition-all duration-300 flex items-center justify-center gap-1.5"
+                           class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
                            :class="editorTab === 'thumbnail' ? 'bg-white/10 text-emerald-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
                          >
                            <Icon name="ri:image-line" class="text-xs" /> Thumbnail
                          </button>
                          <button 
                            @click="editorTab = 'quote'"
-                           class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-full transition-all duration-300 flex items-center justify-center gap-1.5"
+                           class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
                            :class="editorTab === 'quote' ? 'bg-white/10 text-sky-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
                          >
                            <Icon name="ri:double-quotes-l" class="text-xs" /> Raw Quote
@@ -303,60 +303,65 @@
                         </div>
 
                         <!-- ONE WORD: Per-segment editor -->
-                         <div v-if="subtitleSubTab === 'one'" class="flex-1 overflow-hidden pl-2">
+                         <div v-if="subtitleSubTab === 'one'" class="flex-1 overflow-hidden pl-2 relative">
                            <div 
-                               class="h-full overflow-y-auto pr-3 custom-scrollbar space-y-4 scroll-smooth relative border-l-2 border-surface-border/30 pl-6 ml-3" 
+                               class="h-full overflow-y-auto pr-3 custom-scrollbar scroll-smooth relative pl-10 ml-2" 
                                ref="subtitleContainer"
                                @mouseenter="isHoveringSubtitles = true"
                                @mouseleave="isHoveringSubtitles = false"
                            >
-                               <div 
-                                 v-for="(seg, i) in visibleSegments" :key="i"
-                                 :id="`seg-${i}`"
-                                 class="bg-[#111114]/40 border p-4 rounded-2xl transition-all flex flex-col gap-3 group relative"
-                                 :class="[
-                                   activeSegIdx === i 
-                                     ? 'border-accent-500/40 bg-accent-500/5 shadow-[0_4px_20px_rgba(207,255,80,0.05)]' 
-                                     : 'border-white/5 hover:border-white/10 hover:bg-[#151518]/50'
-                                 ]"
-                               >
-                                 <!-- Timeline connector dots -->
-                                 <div 
-                                   class="absolute rounded-full border-2 border-surface-dark transition-colors duration-300"
-                                   :class="[
-                                     activeSegIdx === i
-                                       ? '-left-[32px] top-5 w-4 h-4 bg-accent-500 shadow-[0_0_10px_#CFFF50]'
-                                       : '-left-[30px] top-[22px] w-3 h-3 bg-surface-border group-hover:bg-accent-500/50'
-                                   ]"
-                                 ></div>
+                               <!-- Vertical Timeline Line -->
+                               <div class="absolute left-[18px] top-0 bottom-0 w-0.5 bg-surface-border/20 z-0"></div>
 
-                                 <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-1.5">
-                                      <input 
-                                        :value="seg.start" 
-                                        @input="e => { updateSegmentStart(seg, parseFloat((e.target as HTMLInputElement).value)); }"
-                                        type="number" step="0.01" 
-                                        class="bg-black/30 border border-white/5 text-[10px] text-slate-300 font-mono px-2 py-1 rounded-lg w-16 focus:outline-none focus:border-accent-500/50 transition-all"
-                                      />
-                                      <span class="text-[10px] text-slate-600 font-mono">to</span>
-                                      <input 
-                                        :value="seg.duration" 
-                                        @input="e => { updateSegmentDuration(seg, parseFloat((e.target as HTMLInputElement).value)); }"
-                                        type="number" step="0.01" 
-                                        class="bg-black/30 border border-white/5 text-[10px] text-slate-300 font-mono px-2 py-1 rounded-lg w-16 focus:outline-none focus:border-accent-500/50 transition-all"
-                                      />
-                                      <span class="text-[8px] text-slate-500 font-black tracking-widest ml-1">SEC</span>
-                                    </div>
-                                    <button @click="jumpTo(seg.start)" class="opacity-0 group-hover:opacity-100 text-accent-500 hover:text-white transition-all p-1 hover:bg-white/5 rounded-lg">
-                                      <Icon name="ri:play-mini-fill" class="text-lg" />
-                                    </button>
+                               <div class="space-y-4 relative z-10">
+                                 <div 
+                                   v-for="(seg, i) in visibleSegments" :key="i"
+                                   :id="`seg-${i}`"
+                                   class="bg-[#111114]/40 border p-4 rounded-2xl transition-all flex flex-col gap-3 group relative"
+                                   :class="[
+                                     activeSegIdx === i 
+                                       ? 'border-accent-500/40 bg-accent-500/5 shadow-[0_4px_20px_rgba(207,255,80,0.05)]' 
+                                       : 'border-white/5 hover:border-white/10 hover:bg-[#151518]/50'
+                                   ]"
+                                 >
+                                   <!-- Timeline connector dots -->
+                                   <div 
+                                     class="absolute rounded-full border-2 border-surface-dark transition-colors duration-300 z-20"
+                                     :class="[
+                                       activeSegIdx === i
+                                         ? '-left-[30px] top-5 w-4 h-4 bg-accent-500 shadow-[0_0_10px_#CFFF50]'
+                                         : '-left-[28px] top-[22px] w-3 h-3 bg-surface-border group-hover:bg-accent-500/50'
+                                     ]"
+                                   ></div>
+
+                                   <div class="flex items-center justify-between">
+                                      <div class="flex items-center gap-1.5">
+                                        <input 
+                                          :value="seg.start" 
+                                          @input="e => { updateSegmentStart(seg, parseFloat((e.target as HTMLInputElement).value)); }"
+                                          type="number" step="0.01" 
+                                          class="bg-black/30 border border-white/5 text-[10px] text-slate-300 font-mono px-2 py-1 rounded-lg w-16 focus:outline-none focus:border-accent-500/50 transition-all"
+                                        />
+                                        <span class="text-[10px] text-slate-600 font-mono">to</span>
+                                        <input 
+                                          :value="seg.duration" 
+                                          @input="e => { updateSegmentDuration(seg, parseFloat((e.target as HTMLInputElement).value)); }"
+                                          type="number" step="0.01" 
+                                          class="bg-black/30 border border-white/5 text-[10px] text-slate-300 font-mono px-2 py-1 rounded-lg w-16 focus:outline-none focus:border-accent-500/50 transition-all"
+                                        />
+                                        <span class="text-[8px] text-slate-500 font-black tracking-widest ml-1">SEC</span>
+                                      </div>
+                                      <button @click="jumpTo(seg.start)" class="opacity-0 group-hover:opacity-100 text-accent-500 hover:text-white transition-all p-1 hover:bg-white/5 rounded-lg">
+                                        <Icon name="ri:play-mini-fill" class="text-lg" />
+                                      </button>
+                                   </div>
+                                   <textarea 
+                                     :value="seg.text" 
+                                     @input="e => { updateSegmentText(seg, (e.target as HTMLTextAreaElement).value); autoGrow(e); }"
+                                     rows="1"
+                                     class="w-full bg-transparent border-none text-white text-sm focus:outline-none resize-none font-semibold leading-relaxed italic"
+                                   ></textarea>
                                  </div>
-                                 <textarea 
-                                   :value="seg.text" 
-                                   @input="e => { updateSegmentText(seg, (e.target as HTMLTextAreaElement).value); autoGrow(e); }"
-                                   rows="1"
-                                   class="w-full bg-transparent border-none text-white text-sm focus:outline-none resize-none font-semibold leading-relaxed italic"
-                                 ></textarea>
                                </div>
                            </div>
                          </div>
