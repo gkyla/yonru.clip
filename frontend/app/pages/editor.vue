@@ -303,17 +303,17 @@
                         </div>
 
                         <!-- ONE WORD: Per-segment editor -->
-                         <div v-if="subtitleSubTab === 'one'" class="flex-1 overflow-hidden pl-2 relative">
+                         <div v-if="subtitleSubTab === 'one'" class="flex-1 overflow-hidden pl-0 relative">
                            <div 
-                               class="h-full overflow-y-auto pr-3 custom-scrollbar scroll-smooth relative pl-10 ml-2" 
+                               class="h-full overflow-y-auto pr-3 custom-scrollbar scroll-smooth relative pl-[35px] ml-0" 
                                ref="subtitleContainer"
                                @mouseenter="isHoveringSubtitles = true"
                                @mouseleave="isHoveringSubtitles = false"
                            >
-                               <!-- Vertical Timeline Line -->
-                               <div class="absolute left-[18px] top-0 bottom-0 w-0.5 bg-surface-border/20 z-0"></div>
 
                                <div class="space-y-4 relative z-10">
+                                  <!-- Vertical Timeline Line -->
+                                  <div class="absolute -left-[20px] top-5 bottom-5 w-0.5 bg-surface-border/20 z-0"></div>
                                  <div 
                                    v-for="(seg, i) in visibleSegments" :key="i"
                                    :id="`seg-${i}`"
@@ -329,8 +329,8 @@
                                      class="absolute rounded-full border-2 border-surface-dark transition-colors duration-300 z-20"
                                      :class="[
                                        activeSegIdx === i
-                                         ? '-left-[30px] top-5 w-4 h-4 bg-accent-500 shadow-[0_0_10px_#CFFF50]'
-                                         : '-left-[28px] top-[22px] w-3 h-3 bg-surface-border group-hover:bg-accent-500/50'
+                                         ? '-left-[28px] top-5 w-4 h-4 bg-accent-500 shadow-[0_0_10px_#CFFF50]'
+                                         : '-left-[26px] top-[22px] w-3 h-3 bg-surface-border group-hover:bg-accent-500/50'
                                      ]"
                                    ></div>
 
