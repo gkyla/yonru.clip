@@ -14,19 +14,22 @@
           </span>
         </div>
         <div ref="dropdownRef" class="relative flex items-center">
-          <button 
-            @click="handleSave" 
-            class="bg-emerald-500 hover:bg-emerald-400 text-black px-3 py-1.5 rounded-l-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-[0_4px_15px_rgba(16,185,129,0.15)] active:scale-95 border-r border-black/10"
-          >
-            Save Config
-          </button>
-          <button 
-            @click="isDropdownOpen = !isDropdownOpen"
-            class="bg-emerald-500 hover:bg-emerald-400 text-black px-2 py-1.5 rounded-r-lg text-[10px] font-black transition-all shadow-[0_4px_15px_rgba(16,185,129,0.15)] active:scale-95 flex items-center justify-center h-[28px]"
-            title="More save options"
-          >
-            <Icon name="ri:arrow-down-s-line" class="text-sm transition-transform duration-300" :class="{ 'rotate-180': isDropdownOpen }" />
-          </button>
+          <!-- Unified Wrapper for button-radius, border and scale feedback consistency -->
+          <div class="flex items-center bg-emerald-500/10 border border-emerald-500/30 rounded-xl overflow-hidden active:scale-95 transition-all h-8">
+            <button 
+              @click="handleSave" 
+              class="h-full px-3.5 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-transparent hover:bg-emerald-500/10 active:bg-emerald-500/20 transition-colors border-r border-emerald-500/30 flex items-center justify-center"
+            >
+              Save Config
+            </button>
+            <button 
+              @click="isDropdownOpen = !isDropdownOpen"
+              class="h-full px-2 text-emerald-400 bg-transparent hover:bg-emerald-500/10 active:bg-emerald-500/20 transition-colors flex items-center justify-center h-full"
+              title="More save options"
+            >
+              <Icon name="ri:arrow-down-s-line" class="text-sm transition-transform duration-300" :class="{ 'rotate-180': isDropdownOpen }" />
+            </button>
+          </div>
 
           <!-- Dropdown Menu -->
           <div 

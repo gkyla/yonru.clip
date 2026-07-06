@@ -285,7 +285,7 @@
                                  </div>
                                  <button 
                                    @click="handleSave()" 
-                                   class="bg-accent-500 hover:bg-accent-400 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-[0_4px_15px_rgba(207,255,80,0.15)] active:scale-95 shrink-0"
+                                   class="h-8 px-4 bg-accent-500/10 hover:bg-accent-500/20 text-accent-500 border border-accent-500/30 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shrink-0 flex items-center justify-center"
                                  >
                                    Save Edits
                                  </button>
@@ -468,7 +468,7 @@
                                 </div>
                                 <button 
                                   @click="copyQuoteToClipboard" 
-                                  class="flex items-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                              class="h-8 px-4 flex items-center justify-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shrink-0"
                                 >
                                   <Icon :name="copied ? 'ri:check-line' : 'ri:file-copy-line'" />
                                   {{ copied ? 'Copied' : 'Copy Quote' }}
