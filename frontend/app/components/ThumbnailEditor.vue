@@ -313,7 +313,7 @@
                 <div v-if="getActiveTab(overlay.id) === 'text'" class="space-y-3 animate-in fade-in duration-200 w-full">
                   <textarea 
                     v-model="overlay.text"
-                    rows="3"
+                    rows="5"
                     class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-violet-500/50 resize-none transition-all"
                     placeholder="Enter text..."
                   ></textarea>
