@@ -1,43 +1,54 @@
 <template>
-  <div v-if="state" class="flex flex-col h-full overflow-hidden">
+  <div v-if="state" class="flex flex-col h-full overflow-hidden p-1.5">
     <!-- Header -->
-    <div class="border-b border-surface-border/50 pb-4 mb-4 flex justify-between items-start">
-      <div>
-        <h3 class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold mb-1 flex items-center gap-2">
-          <Icon name="ri:image-edit-line" class="text-sm" /> Thumbnail Editor
-        </h3>
-        <p class="text-[9px] text-slate-400 max-w-[250px]">
-          Auto-generate a thumbnail frame prepended to your clip for YouTube Shorts.
-        </p>
-      </div>
-      <div ref="dropdownRef" class="relative flex items-center">
-        <button 
-          @click="handleSave" 
-          class="bg-emerald-500 hover:bg-emerald-400 text-black px-3 py-1.5 rounded-l-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-lg active:scale-95 border-r border-black/10"
-        >
-          Save Config
-        </button>
-        <button 
-          @click="isDropdownOpen = !isDropdownOpen"
-          class="bg-emerald-500 hover:bg-emerald-400 text-black px-2 py-1.5 rounded-r-lg text-[10px] font-black transition-all shadow-lg active:scale-95 flex items-center justify-center h-[28px]"
-          title="More save options"
-        >
-          <Icon name="ri:arrow-down-s-line" class="text-sm transition-transform duration-300" :class="{ 'rotate-180': isDropdownOpen }" />
-        </button>
-
-        <!-- Dropdown Menu -->
-        <div 
-          v-if="isDropdownOpen" 
-          class="absolute right-0 top-full mt-2 w-48 bg-surface-dark border border-surface-border/50 rounded-xl shadow-2xl z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 duration-200"
-        >
-          <button 
-            @click="handleSaveDefault" 
-            class="w-full text-left px-4 py-2 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
-          >
-            <Icon name="ri:save-line" class="text-sm text-emerald-400" />
-            Save as Default Style
-          </button>
+    <div class="border-b border-white/10 pb-4 mb-4 flex flex-col gap-3.5 shrink-0">
+      <!-- Top Row: Badge & Save Action -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-[0_2px_10px_rgba(16,185,129,0.02)]">
+            <Icon name="ri:image-edit-line" />
+            THUMBNAIL #{{ String((activeHookIndex >= 0 ? activeHookIndex : 0) + 1).padStart(2, '0') }}
+          </span>
+          <span class="mono text-[10px] text-slate-500 font-bold tracking-wider">
+            Active Hook
+          </span>
         </div>
+        <div ref="dropdownRef" class="relative flex items-center">
+          <button 
+            @click="handleSave" 
+            class="bg-emerald-500 hover:bg-emerald-400 text-black px-3 py-1.5 rounded-l-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-[0_4px_15px_rgba(16,185,129,0.15)] active:scale-95 border-r border-black/10"
+          >
+            Save Config
+          </button>
+          <button 
+            @click="isDropdownOpen = !isDropdownOpen"
+            class="bg-emerald-500 hover:bg-emerald-400 text-black px-2 py-1.5 rounded-r-lg text-[10px] font-black transition-all shadow-[0_4px_15px_rgba(16,185,129,0.15)] active:scale-95 flex items-center justify-center h-[28px]"
+            title="More save options"
+          >
+            <Icon name="ri:arrow-down-s-line" class="text-sm transition-transform duration-300" :class="{ 'rotate-180': isDropdownOpen }" />
+          </button>
+
+          <!-- Dropdown Menu -->
+          <div 
+            v-if="isDropdownOpen" 
+            class="absolute right-0 top-full mt-2 w-48 bg-surface-dark border border-surface-border/50 rounded-xl shadow-2xl z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 duration-200"
+          >
+            <button 
+              @click="handleSaveDefault" 
+              class="w-full text-left px-4 py-2 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
+            >
+              <Icon name="ri:save-line" class="text-sm text-emerald-400" />
+              Save as Default Style
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Bottom Row: Info Description -->
+      <div class="relative flex items-center w-full">
+        <p class="text-xs text-slate-300 leading-relaxed italic">
+          Configuring still image prepended to "{{ state?.activeHook?.value?.theme || 'Untitled Hook' }}".
+        </p>
       </div>
     </div>
 
@@ -497,9 +508,34 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { FONT_OPTIONS } from '../composables/useClipperState'
 const state = useClipperState()
+
+const activeHookIndex = computed(() => {
+  if (!state?.activeHook?.value) return -1
+  const active = state.activeHook.value
+  const aStart = typeof active.start === 'string' ? parseFloat(active.start) : active.start
+  const aEnd = typeof active.end === 'string' ? parseFloat(active.end) : active.end
+  
+  // Search in generated hooks first
+  let idx = state.hooks?.value?.findIndex((h: any) => {
+    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
+    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
+    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
+  })
+  
+  if (idx !== -1 && idx !== undefined) return idx
+  
+  // Search in saved hooks
+  idx = state.savedHooks?.value?.findIndex((h: any) => {
+    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
+    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
+    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
+  })
+  
+  return idx !== undefined ? idx : -1
+})
 
 const fontOptions = FONT_OPTIONS
 

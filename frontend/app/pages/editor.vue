@@ -266,22 +266,41 @@
                          </button>
                      </div>
 
-                     <div v-if="editorTab === 'edit'" class="flex flex-col h-full overflow-hidden">
-                         <div class="border-b border-surface-border/50 pb-4 mb-4 flex justify-between items-center gap-4">
-                             <div class="flex-1 flex items-center gap-2 group/title">
+                     <div v-if="editorTab === 'edit'" class="flex flex-col h-full overflow-hidden p-1.5">
+                         <!-- Unified Header -->
+                         <div class="border-b border-white/10 pb-4 mb-4 flex flex-col gap-3.5 shrink-0">
+                             <!-- Top Row: Badge & Save Action -->
+                             <div class="flex items-center justify-between">
+                                 <div class="flex items-center gap-2">
+                                     <span class="bg-accent-500/10 text-accent-500 border border-accent-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-[0_2px_10px_rgba(207,255,80,0.02)]">
+                                         <Icon name="ri:edit-box-line" />
+                                         HOOK #{{ String((activeHookIndex >= 0 ? activeHookIndex : 0) + 1).padStart(2, '0') }}
+                                     </span>
+                                     <span class="mono text-[10px] text-slate-500 font-bold tracking-wider">
+                                         {{ state.formatDuration(state?.activeHook?.value?.start || 0) }} – {{ state.formatDuration(state?.activeHook?.value?.end || 0) }}
+                                         <span class="ml-1 text-accent-500/80 font-black">
+                                             ({{ Math.floor((state?.activeHook?.value?.end || 0) - (state?.activeHook?.value?.start || 0)) }}s)
+                                         </span>
+                                     </span>
+                                 </div>
+                                 <button 
+                                   @click="handleSave()" 
+                                   class="bg-accent-500 hover:bg-accent-400 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-[0_4px_15px_rgba(207,255,80,0.15)] active:scale-95 shrink-0"
+                                 >
+                                   Save Edits
+                                 </button>
+                             </div>
+                             
+                             <!-- Bottom Row: Title Input Field -->
+                             <div class="relative flex items-center w-full group/title">
+                               <Icon name="ri:edit-2-line" class="absolute left-3 text-slate-500 text-xs pointer-events-none group-focus-within/title:text-accent-500 transition-colors" />
                                <input 
                                  :value="state?.activeHook?.value?.theme"
                                  @input="e => { if (state?.activeHook?.value) { state.activeHook.value.theme = (e.target as HTMLInputElement).value; state.updateHooks() } }"
-                                 class="bg-black/35 border border-white/5 hover:border-accent-500/50 focus:border-accent-500 focus:outline-none text-white font-bold leading-tight truncate w-full max-w-[240px] px-3 py-1.5 rounded-xl transition-all text-xs"
+                                 class="w-full bg-black/35 pl-8 pr-3 py-2 border border-white/5 hover:border-accent-500/40 focus:border-accent-500 focus:outline-none text-white font-bold leading-tight rounded-xl transition-all text-xs"
                                  placeholder="Enter clip name..."
                                />
                              </div>
-                             <button 
-                               @click="handleSave()" 
-                               class="bg-accent-500 hover:bg-accent-400 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-lg active:scale-95 shrink-0"
-                             >
-                               Save Edits
-                             </button>
                          </div>
 
                         <!-- Sub-tabs: One Word / All Words -->
@@ -433,23 +452,35 @@
                     </div>
 
                     <!-- Raw Quote Tab -->
-                    <div v-else-if="editorTab === 'quote'" class="flex flex-col h-full overflow-hidden">
+                    <div v-else-if="editorTab === 'quote'" class="flex flex-col h-full overflow-hidden p-1.5">
                         <!-- Header Section -->
-                        <div class="border-b border-white/10 pb-4 mb-4 flex items-center justify-between">
-                            <div>
-                                <h3 class="text-[10px] uppercase tracking-widest text-sky-400 font-bold mb-1 flex items-center gap-2">
-                                   <Icon name="ri:quote-text" class="text-sm" /> Transcript Quote
-                                </h3>
-                                <h4 class="text-white font-bold leading-tight truncate max-w-[200px]">{{ state?.activeHook?.value?.theme || 'Untitled Hook' }}</h4>
+                        <div class="border-b border-white/10 pb-4 mb-4 flex flex-col gap-3.5 shrink-0">
+                            <!-- Top Row: Badge & Save Action -->
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-[0_2px_10px_rgba(56,189,248,0.02)]">
+                                        <Icon name="ri:quote-text" />
+                                        QUOTE #{{ String((activeHookIndex >= 0 ? activeHookIndex : 0) + 1).padStart(2, '0') }}
+                                    </span>
+                                    <span class="mono text-[10px] text-slate-500 font-bold tracking-wider">
+                                        Active Hook
+                                    </span>
+                                </div>
+                                <button 
+                                  @click="copyQuoteToClipboard" 
+                                  class="flex items-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                >
+                                  <Icon :name="copied ? 'ri:check-line' : 'ri:file-copy-line'" />
+                                  {{ copied ? 'Copied' : 'Copy Quote' }}
+                                </button>
                             </div>
-                            <!-- Copy Button -->
-                            <button 
-                              @click="copyQuoteToClipboard" 
-                              class="flex items-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
-                            >
-                              <Icon :name="copied ? 'ri:check-line' : 'ri:file-copy-line'" />
-                              {{ copied ? 'Copied' : 'Copy Quote' }}
-                            </button>
+                            
+                            <!-- Bottom Row: Info Description -->
+                            <div class="relative flex items-center w-full">
+                                <p class="text-xs text-slate-300 leading-relaxed italic">
+                                    Transcript quote for "{{ state?.activeHook?.value?.theme || 'Untitled Hook' }}".
+                                </p>
+                            </div>
                         </div>
                         
                         <!-- Main Quote Container -->
@@ -538,7 +569,7 @@
             </div>
           </div>
 
-          <div v-if="panelTab === 'generated'" ref="hooksContainer" class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar min-h-0">
+          <div v-if="panelTab === 'generated'" ref="hooksContainer" class="flex-1 overflow-y-auto px-4 pb-4 pt-1.5 space-y-1.5 custom-scrollbar min-h-0">
             <div v-if="!state.hooks.value.length" class="text-center text-slate-600 text-xs p-6">
               No hooks generated yet.
             </div>
@@ -583,7 +614,7 @@
             </button>
           </div>
 
-          <div v-else class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar min-h-0">
+          <div v-else class="flex-1 overflow-y-auto px-4 pb-4 pt-1.5 space-y-1.5 custom-scrollbar min-h-0">
             <div v-if="!state.savedHooks.value.length" class="text-center text-slate-600 text-xs p-6">
               No saved hooks for this video yet.
             </div>
@@ -951,6 +982,31 @@ async function selectSidebarHook(hook: Hook) {
 
 const editorTab = ref<'edit' | 'quote' | 'thumbnail'>('edit')
 const subtitleSubTab = ref<'one' | 'all'>('one')
+
+const activeHookIndex = computed(() => {
+  if (!state?.activeHook?.value) return -1
+  const active = state.activeHook.value
+  const aStart = typeof active.start === 'string' ? parseFloat(active.start) : active.start
+  const aEnd = typeof active.end === 'string' ? parseFloat(active.end) : active.end
+  
+  // Search in generated hooks first
+  let idx = state.hooks?.value?.findIndex((h: Hook) => {
+    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
+    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
+    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
+  })
+  
+  if (idx !== -1 && idx !== undefined) return idx
+  
+  // Search in saved hooks
+  idx = state.savedHooks?.value?.findIndex((h: Hook) => {
+    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
+    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
+    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
+  })
+  
+  return idx !== undefined ? idx : -1
+})
 
 const copied = ref(false)
 function copyQuoteToClipboard() {
