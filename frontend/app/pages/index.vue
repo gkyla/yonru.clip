@@ -1085,44 +1085,46 @@
                        <!-- Timeline Range Drag Control -->
                        <div class="space-y-1">
                           <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Drag to adjust</label>
-                          <div 
-                             id="modal-hook-slider"
-                             class="relative w-full h-8 flex items-center cursor-pointer select-none"
-                             @mousedown="onSliderClick"
-                             @touchstart="onSliderClick"
-                          >
-                             <!-- Slider Track -->
-                             <div class="absolute left-0 right-0 h-2 bg-surface-dark border border-surface-border/50 rounded-full"></div>
-                             
-                             <!-- Highlighted Active range -->
-                             <div 
-                                class="absolute h-2 bg-accent-500 rounded-full"
-                                :style="{
-                                   left: ((Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value) / (state.videoDuration.value || 100)) * 100) + '%',
-                                   width: (((selectedModalHook.end - Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value)) / (state.videoDuration.value || 100)) * 100) + '%'
-                                }"
-                             ></div>
+                           <div class="relative w-full h-8 px-2 flex items-center select-none bg-black/20 border border-white/5 rounded-xl">
+                              <div 
+                                 id="modal-hook-slider"
+                                 class="relative w-full h-full flex items-center cursor-pointer"
+                                 @mousedown="onSliderClick"
+                                 @touchstart="onSliderClick"
+                              >
+                                 <!-- Slider Track -->
+                                 <div class="absolute left-0 right-0 h-2 bg-surface-dark border border-surface-border/50 rounded-full"></div>
+                                 
+                                 <!-- Highlighted Active range -->
+                                 <div 
+                                    class="absolute h-2 bg-accent-500 rounded-full"
+                                    :style="{
+                                       left: ((Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value) / (state.videoDuration.value || 100)) * 100) + '%',
+                                       width: (((selectedModalHook.end - Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value)) / (state.videoDuration.value || 100)) * 100) + '%'
+                                    }"
+                                 ></div>
 
-                             <!-- Start Handle -->
-                             <div 
-                                class="absolute w-4 h-4 rounded-full bg-accent-500 border border-white cursor-ew-resize -translate-x-1/2 flex items-center justify-center shadow-lg hover:scale-125 active:scale-125 transition-transform"
-                                :style="{ left: ((Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value) / (state.videoDuration.value || 100)) * 100) + '%' }"
-                                @mousedown.stop="startDrag('start')"
-                                @touchstart.stop="startDrag('start')"
-                             >
-                                <div class="w-1 h-1 bg-black rounded-full"></div>
-                             </div>
+                                 <!-- Start Handle -->
+                                 <div 
+                                    class="absolute w-4 h-4 rounded-full bg-accent-500 border border-white cursor-ew-resize -translate-x-1/2 flex items-center justify-center shadow-lg hover:scale-125 active:scale-125 transition-transform"
+                                    :style="{ left: ((Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value) / (state.videoDuration.value || 100)) * 100) + '%' }"
+                                    @mousedown.stop="startDrag('start')"
+                                    @touchstart.stop="startDrag('start')"
+                                 >
+                                    <div class="w-1 h-1 bg-black rounded-full"></div>
+                                 </div>
 
-                             <!-- End Handle -->
-                             <div 
-                                class="absolute w-4 h-4 rounded-full bg-accent-500 border border-white cursor-ew-resize -translate-x-1/2 flex items-center justify-center shadow-lg hover:scale-125 active:scale-125 transition-transform"
-                                :style="{ left: ((selectedModalHook.end / (state.videoDuration.value || 100)) * 100) + '%' }"
-                                @mousedown.stop="startDrag('end')"
-                                @touchstart.stop="startDrag('end')"
-                             >
-                                <div class="w-1 h-1 bg-black rounded-full"></div>
-                             </div>
-                          </div>
+                                 <!-- End Handle -->
+                                 <div 
+                                    class="absolute w-4 h-4 rounded-full bg-accent-500 border border-white cursor-ew-resize -translate-x-1/2 flex items-center justify-center shadow-lg hover:scale-125 active:scale-125 transition-transform"
+                                    :style="{ left: ((selectedModalHook.end / (state.videoDuration.value || 100)) * 100) + '%' }"
+                                    @mousedown.stop="startDrag('end')"
+                                    @touchstart.stop="startDrag('end')"
+                                 >
+                                    <div class="w-1 h-1 bg-black rounded-full"></div>
+                                 </div>
+                              </div>
+                           </div>
                        </div>
                     </div>
 

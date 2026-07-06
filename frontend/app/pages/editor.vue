@@ -434,16 +434,55 @@
 
                     <!-- Raw Quote Tab -->
                     <div v-else-if="editorTab === 'quote'" class="flex flex-col h-full overflow-hidden">
-                        <div class="border-b border-surface-border/50 pb-4 mb-4">
-                            <h3 class="text-[10px] uppercase tracking-widest text-sky-400 font-bold mb-2 flex items-center gap-2">
-                               <Icon name="ri:quote-text" class="text-sm" /> Transcript Quote
-                            </h3>
-                            <h4 class="text-white font-bold leading-tight">{{ state?.activeHook?.value?.theme || 'Untitled Hook' }}</h4>
+                        <!-- Header Section -->
+                        <div class="border-b border-white/10 pb-4 mb-4 flex items-center justify-between">
+                            <div>
+                                <h3 class="text-[10px] uppercase tracking-widest text-sky-400 font-bold mb-1 flex items-center gap-2">
+                                   <Icon name="ri:quote-text" class="text-sm" /> Transcript Quote
+                                </h3>
+                                <h4 class="text-white font-bold leading-tight truncate max-w-[200px]">{{ state?.activeHook?.value?.theme || 'Untitled Hook' }}</h4>
+                            </div>
+                            <!-- Copy Button -->
+                            <button 
+                              @click="copyQuoteToClipboard" 
+                              class="flex items-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                            >
+                              <Icon :name="copied ? 'ri:check-line' : 'ri:file-copy-line'" />
+                              {{ copied ? 'Copied' : 'Copy Quote' }}
+                            </button>
                         </div>
-                        <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                            <p class="text-slate-300 text-sm md:text-base leading-relaxed italic font-serif">
-                                "{{ state?.activeHook?.value?.transcript_quote || '' }}"
-                            </p>
+                        
+                        <!-- Main Quote Container -->
+                        <div class="flex-1 flex flex-col gap-4 overflow-hidden min-h-0">
+                            <!-- Premium Quote Card -->
+                            <div class="flex-1 bg-white/[0.02] border border-white/5 rounded-2xl relative overflow-hidden flex flex-col min-h-0 pr-1">
+                                <!-- Giant Decorative Quote Icon (Background) -->
+                                <Icon name="ri:double-quotes-l" class="absolute -right-4 -bottom-6 text-9xl text-white/[0.02] transform -rotate-12 pointer-events-none" />
+                                
+                                <div class="relative z-10 overflow-y-auto pl-6 pr-5 py-6 custom-scrollbar h-full w-full">
+                                    <span class="text-3xl text-sky-500/40 font-serif leading-none block mb-1">“</span>
+                                    <p class="text-slate-200 text-sm md:text-base leading-relaxed italic font-serif px-4">
+                                        {{ state?.activeHook?.value?.transcript_quote || 'No transcript quote available for this segment.' }}
+                                    </p>
+                                    <span class="text-3xl text-sky-500/40 font-serif leading-none block text-right mt-1">”</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Metadata Stats Badges -->
+                            <div class="flex items-center gap-2 flex-wrap pb-2">
+                                <div class="bg-white/[0.03] border border-white/5 rounded-xl px-3 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                    <Icon name="ri:text" class="text-sky-400" />
+                                    <span>{{ quoteWordCount }} Words</span>
+                                </div>
+                                <div class="bg-white/[0.03] border border-white/5 rounded-xl px-3 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                    <Icon name="ri:character-recognition-line" class="text-sky-400" />
+                                    <span>{{ quoteCharCount }} Chars</span>
+                                </div>
+                                <div class="bg-white/[0.03] border border-white/5 rounded-xl px-3 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                    <Icon name="ri:time-line" class="text-sky-400" />
+                                    <span>~{{ quoteReadingTime }}s Read</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -912,6 +951,30 @@ async function selectSidebarHook(hook: Hook) {
 
 const editorTab = ref<'edit' | 'quote' | 'thumbnail'>('edit')
 const subtitleSubTab = ref<'one' | 'all'>('one')
+
+const copied = ref(false)
+function copyQuoteToClipboard() {
+  if (!state?.activeHook?.value?.transcript_quote) return
+  navigator.clipboard.writeText(state.activeHook.value.transcript_quote)
+  copied.value = true
+  setTimeout(() => {
+    copied.value = false
+  }, 2000)
+}
+
+const quoteWordCount = computed(() => {
+  const quote = state?.activeHook?.value?.transcript_quote || ''
+  const clean = quote.trim()
+  return clean ? clean.split(/\s+/).length : 0
+})
+
+const quoteCharCount = computed(() => {
+  return (state?.activeHook?.value?.transcript_quote || '').length
+})
+
+const quoteReadingTime = computed(() => {
+  return Math.max(1, Math.round(quoteWordCount.value / 3.3))
+})
 const subtitleContainer = ref<HTMLElement | null>(null)
 const bulkContainer = ref<HTMLElement | null>(null)
 const isHoveringSubtitles = ref(false)
@@ -1173,7 +1236,7 @@ onMounted(() => {
   if (saved) {
     const parsed = parseInt(saved)
     if (!isNaN(parsed)) {
-      panelWidth.value = Math.max(320, Math.min(800, parsed))
+      panelWidth.value = Math.max(50, Math.min(800, parsed))
     }
   }
 })
@@ -1187,7 +1250,7 @@ function initResize(e: PointerEvent) {
   const handlePointerMove = (moveEvent: PointerEvent) => {
     const deltaX = moveEvent.clientX - startX
     const newWidth = startWidth - deltaX
-    panelWidth.value = Math.max(320, Math.min(800, newWidth))
+    panelWidth.value = Math.max(50, Math.min(800, newWidth))
   }
 
   const handlePointerUp = () => {
