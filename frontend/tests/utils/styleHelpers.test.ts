@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { hexToRgba, getEditingStyle } from '../../app/utils/styleHelpers'
+import { hexToRgba, getEditingStyle, transformText } from '../../app/utils/styleHelpers'
 
 describe('Style Helpers TDD', () => {
   it('converts 6-digit hex string to rgba correctly', () => {
@@ -60,4 +60,31 @@ describe('Style Helpers TDD', () => {
     expect(styles['-webkit-text-stroke']).toBe('3px #FFFFFF')
     expect(styles.textShadow).toBe('4px 4px 8px rgba(17, 17, 17, 0.6)')
   })
+
+  describe('transformText', () => {
+
+    it('transforms text to uppercase correctly', () => {
+      expect(transformText('hello world', 'uppercase')).toBe('HELLO WORLD')
+    })
+
+    it('transforms text to lowercase correctly', () => {
+      expect(transformText('HELLO WORLD', 'lowercase')).toBe('hello world')
+    })
+
+    it('transforms text to capitalize correctly', () => {
+      expect(transformText('hello world', 'capitalize')).toBe('Hello World')
+      expect(transformText('foo bar baz', 'capitalize')).toBe('Foo Bar Baz')
+    })
+
+    it('retains text casing when transform is none or unknown', () => {
+      expect(transformText('Hello World', 'none')).toBe('Hello World')
+      expect(transformText('Hello World', undefined)).toBe('Hello World')
+    })
+
+    it('handles empty inputs safely', () => {
+      expect(transformText('', 'uppercase')).toBe('')
+      expect(transformText(null as any, 'uppercase')).toBe('')
+    })
+  })
 })
+

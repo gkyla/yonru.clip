@@ -161,7 +161,7 @@
               />
               <v-text 
                 :config="{
-                  text: (item.textTransform === 'uppercase' ? (item.content || 'NEW TEXT').toUpperCase() : (item.textTransform === 'lowercase' ? (item.content || 'NEW TEXT').toLowerCase() : (item.content || 'NEW TEXT'))),
+                  text: transformText(item.content || 'NEW TEXT', item.textTransform),
                   fontSize: item.fontSize || 80,
                   fill: item.color || '#FFFFFF',
                   fontFamily: item.font || 'Outfit',
@@ -281,7 +281,7 @@
                   />
                   <v-text 
                     :config="{
-                      text: (overlay.textTransform === 'uppercase' ? (overlay.text || '').toUpperCase() : (overlay.text || '')),
+                      text: transformText(overlay.text || '', overlay.textTransform),
                       fontSize: overlay.fontSize ?? 100,
                       fill: overlay.color || '#FFFFFF',
                       fontFamily: overlay.fontFamily || 'Montserrat',
@@ -378,6 +378,8 @@ import { useCropDrag } from '../composables/useCropDrag'
 import { useRemotionBridge } from '../composables/useRemotionBridge'
 import { useInteractiveText } from '../composables/useInteractiveText'
 import { IframePostMessageBridge } from '../utils/playerBridge'
+import { transformText } from '../utils/styleHelpers'
+
 
 
 const state = useClipperState()

@@ -74,3 +74,14 @@ export function getEditingStyle(item: Partial<TimelineTrackItem>) {
     wordBreak: 'break-word' as const,
   }
 }
+
+export function transformText(text: string, transform?: string): string {
+  if (!text) return ''
+  if (transform === 'uppercase') return text.toUpperCase()
+  if (transform === 'lowercase') return text.toLowerCase()
+  if (transform === 'capitalize') {
+    return text.replace(/\b\w/g, char => char.toUpperCase())
+  }
+  return text
+}
+

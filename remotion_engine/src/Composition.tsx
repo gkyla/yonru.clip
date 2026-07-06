@@ -4,6 +4,16 @@ import { AnimatedSubtitles } from './AnimatedSubtitles';
 import { YonruClipProps, ThumbnailTextOverlay } from './types';
 import { getFont } from './fonts';
 
+function transformText(text: string, transform?: string): string {
+  if (!text) return '';
+  if (transform === 'uppercase') return text.toUpperCase();
+  if (transform === 'lowercase') return text.toLowerCase();
+  if (transform === 'capitalize') {
+    return text.replace(/\b\w/g, char => char.toUpperCase());
+  }
+  return text;
+}
+
 export const YonruClip: React.FC<YonruClipProps> = ({
   videoPath,
   words,
@@ -110,7 +120,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   fontSize: `${overlay.fontSize || 80}px`,
                   fontFamily: getFont(overlay.fontFamily || 'Montserrat'),
                   fontWeight: overlay.fontWeight || 900,
-                  textTransform: overlay.textTransform === 'uppercase' ? 'uppercase' : 'none',
+                  textTransform: overlay.textTransform || 'none',
                   WebkitTextStroke: overlay.showStroke !== false 
                     ? `${overlay.strokeWidth || 5}px ${overlay.strokeColor || '#000000'}` 
                     : undefined,
@@ -130,7 +140,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   width: 'fit-content',
                 }}
               >
-                {overlay.textTransform === 'uppercase' ? (overlay.text || '').toUpperCase() : (overlay.text || '')}
+                {transformText(overlay.text || '', overlay.textTransform)}
               </div>
             ))}
           </AbsoluteFill>

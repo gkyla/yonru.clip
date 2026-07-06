@@ -315,18 +315,19 @@
                     v-model="overlay.text"
                     rows="3"
                     class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-violet-500/50 resize-none transition-all"
+                    :style="{ textTransform: overlay.textTransform || 'none' }"
                     placeholder="Enter text..."
                   ></textarea>
                   <div>
                     <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Transform</label>
                     <div class="flex gap-1">
                       <button 
-                        v-for="t in ['uppercase', 'lowercase', 'none']" :key="t"
+                        v-for="t in ['uppercase', 'lowercase', 'capitalize', 'none']" :key="t"
                         @click="overlay.textTransform = t"
                         class="flex-1 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all border"
                         :class="overlay.textTransform === t ? 'bg-violet-500/20 border-violet-500/40 text-violet-400' : 'bg-transparent border-white/10 text-slate-500 hover:text-slate-400'"
                       >
-                        {{ t === 'none' ? 'Aa' : t === 'uppercase' ? 'AA' : 'aa' }}
+                        {{ t === 'none' ? 'None' : t === 'uppercase' ? 'AA' : t === 'lowercase' ? 'aa' : 'Aa' }}
                       </button>
                     </div>
                   </div>
