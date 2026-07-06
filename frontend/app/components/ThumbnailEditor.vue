@@ -315,7 +315,6 @@
                     v-model="overlay.text"
                     rows="3"
                     class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-violet-500/50 resize-none transition-all"
-                    :style="{ textTransform: overlay.textTransform || 'none' }"
                     placeholder="Enter text..."
                   ></textarea>
                   <div>
@@ -323,7 +322,7 @@
                     <div class="flex gap-1">
                       <button 
                         v-for="t in ['uppercase', 'lowercase', 'capitalize', 'none']" :key="t"
-                        @click="overlay.textTransform = t"
+                        @click="applyTextTransform(overlay, t)"
                         class="flex-1 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all border"
                         :class="overlay.textTransform === t ? 'bg-violet-500/20 border-violet-500/40 text-violet-400' : 'bg-transparent border-white/10 text-slate-500 hover:text-slate-400'"
                       >
@@ -596,6 +595,19 @@ const QUICK_PRESETS = [
 function applyPreset(overlay: any, preset: typeof QUICK_PRESETS[0]) {
   Object.assign(overlay, preset.style)
 }
+
+function applyTextTransform(overlay: any, mode: string) {
+  overlay.textTransform = mode
+  if (!overlay.text) return
+  if (mode === 'uppercase') {
+    overlay.text = overlay.text.toUpperCase()
+  } else if (mode === 'lowercase') {
+    overlay.text = overlay.text.toLowerCase()
+  } else if (mode === 'capitalize') {
+    overlay.text = overlay.text.toLowerCase().replace(/\b\w/g, (char: string) => char.toUpperCase())
+  }
+}
+
 
 import { onMounted, onUnmounted } from 'vue'
 
