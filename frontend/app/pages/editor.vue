@@ -232,7 +232,7 @@
                  <div 
                     v-if="state?.activeHook?.value" 
                     :style="{ width: panelWidth + 'px', flex: 'none' }"
-                    class="relative self-stretch bg-surface-panel/40 backdrop-blur-xl border-l border-surface-border p-6 flex flex-col shadow-2xl overflow-hidden"
+                    class="relative self-stretch bg-[#0e0e12]/90 backdrop-blur-xl border-l border-white/10 p-6 flex flex-col shadow-2xl overflow-hidden"
                   >
                      <!-- Resize Drag Handle Overlay -->
                      <div 
@@ -317,11 +317,11 @@
                                  <div 
                                    v-for="(seg, i) in visibleSegments" :key="i"
                                    :id="`seg-${i}`"
-                                   class="bg-[#111114]/40 border p-4 rounded-2xl transition-all flex flex-col gap-3 group relative"
+                                   class="bg-[#16161c]/60 border p-4 rounded-2xl transition-all flex flex-col gap-3 group relative"
                                    :class="[
                                      activeSegIdx === i 
-                                       ? 'border-accent-500/40 bg-accent-500/5 shadow-[0_4px_20px_rgba(207,255,80,0.05)]' 
-                                       : 'border-white/5 hover:border-white/10 hover:bg-[#151518]/50'
+                                       ? 'border-accent-500/60 bg-accent-500/[0.08] shadow-[0_4px_20px_rgba(207,255,80,0.08)]' 
+                                       : 'border-white/10 hover:border-white/20 hover:bg-[#1f1f28]/70'
                                    ]"
                                  >
                                    <!-- Timeline connector dots -->
@@ -458,7 +458,7 @@
 </div>
 
     <!-- Hooks Panel -->
-       <div class="w-80 border-l border-surface-border bg-surface-panel flex flex-col overflow-hidden text-white relative">
+       <div class="w-80 border-l border-white/10 bg-[#0e0e12]/90 backdrop-blur-xl flex flex-col overflow-hidden text-white relative">
           <!-- Content Safety Audit Panel -->
           <ContentAuditPanel 
             class="border-b border-surface-border min-h-0 shrink-0" 
@@ -467,7 +467,7 @@
             @settings="showBlacklistSettings = true" 
           />
 
-          <div class="border-b border-surface-border flex flex-col shrink-0">
+          <div class="border-b border-surface-border/30 flex flex-col shrink-0">
             <div class="flex items-center justify-between px-4 h-10">
                <span class="text-[10px] uppercase text-slate-400 font-bold tracking-widest flex items-center gap-2">
                  <Icon name="ri:list-settings-line" class="text-sky-500" /> Hooks Panel
@@ -481,18 +481,18 @@
                  Save Current
                </button>
             </div>
-            <div class="flex border-t border-surface-border">
+            <div class="flex bg-black/40 border border-white/5 rounded-xl p-1 gap-1 mb-4 mx-4 mt-2">
                <button 
                  @click="panelTab = 'generated'"
-                 class="flex-1 py-2 text-[10px] font-black tracking-widest uppercase transition-all"
-                 :class="panelTab === 'generated' ? 'bg-amber-500 text-black' : 'text-slate-500 hover:bg-surface-card'"
+                 class="flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
+                 :class="panelTab === 'generated' ? 'bg-white/10 text-amber-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
                >
                   Generated ({{ state.hooks.value.length }})
                </button>
                <button 
                  @click="panelTab = 'saved'"
-                 class="flex-1 py-2 text-[10px] font-black tracking-widest uppercase transition-all"
-                 :class="panelTab === 'saved' ? 'bg-amber-500 text-black' : 'text-slate-500 hover:bg-surface-card'"
+                 class="flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
+                 :class="panelTab === 'saved' ? 'bg-white/10 text-amber-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
                >
                   Saved ({{ state.savedHooks.value.length }})
                </button>
@@ -508,15 +508,15 @@
               :key="idx"
               @click="selectSidebarHook(hook)"
               :disabled="isOverlayVisible"
-              class="w-full text-left p-3 rounded-lg border transition-all text-xs group relative"
+              class="w-full text-left p-3.5 rounded-2xl border transition-all text-xs group relative overflow-hidden"
               :class="[
                 isActiveHook(hook)
-                  ? 'bg-amber-500/10 border-amber-500/50 text-amber-200 shadow-[inset_0_0_10px_rgba(245,158,11,0.05)] hook-item-active' 
-                  : 'bg-surface-dark/50 border-surface-border hover:border-amber-500/30 hover:bg-surface-card text-slate-400',
+                  ? 'bg-amber-500/[0.08] border-amber-500/60 text-amber-200 shadow-[0_4px_20px_rgba(245,158,11,0.08)] hook-item-active' 
+                  : 'bg-[#16161c]/60 border-white/10 hover:border-white/20 hover:bg-[#1f1f28]/70 text-slate-300',
                 isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
               ]"
             >
-              <div v-if="isActiveHook(hook)" class="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 shadow-[0_0_10px_#f59e0b]"></div>
+              
               <div class="flex justify-between items-center mb-1">
                 <div class="flex items-center gap-2">
                   <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
@@ -553,15 +553,15 @@
               :key="hook._id || idx"
               @click="selectSidebarHook(hook)"
               :disabled="isOverlayVisible"
-              class="w-full text-left p-3 rounded-lg border transition-all text-xs group relative"
+              class="w-full text-left p-3.5 rounded-2xl border transition-all text-xs group relative overflow-hidden"
               :class="[
                 isActiveHook(hook)
-                  ? 'bg-amber-500/10 border-amber-500/50 text-amber-200 shadow-[inset_0_0_10px_rgba(245,158,11,0.05)]' 
-                  : 'bg-surface-dark/50 border-surface-border hover:border-amber-500/30 hover:bg-surface-card text-slate-400',
+                  ? 'bg-amber-500/[0.08] border-amber-500/60 text-amber-200 shadow-[0_4px_20px_rgba(245,158,11,0.08)]' 
+                  : 'bg-[#16161c]/60 border-white/10 hover:border-white/20 hover:bg-[#1f1f28]/70 text-slate-300',
                 isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
               ]"
             >
-              <div v-if="isActiveHook(hook)" class="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 shadow-[0_0_10px_#f59e0b]"></div>
+              
               <div class="flex justify-between items-center mb-1">
                 <div class="flex items-center gap-2">
                   <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">

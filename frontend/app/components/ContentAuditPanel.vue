@@ -1,5 +1,5 @@
 <template>
-  <div v-if="state" class="bg-surface-dark flex flex-col transition-all duration-500">
+  <div v-if="state" class="bg-transparent flex flex-col transition-all duration-500">
     <!-- Diagnostic fallback if audit is missing -->
     <div v-if="!audit" class="p-8 text-center bg-surface-card/30">
       <Icon name="ri:loader-4-line" class="text-3xl text-accent-500 animate-spin mb-2" />
@@ -9,7 +9,7 @@
 
     <template v-else>
       <div 
-        class="px-4 h-10 bg-surface-panel border-b border-surface-border flex items-center justify-between cursor-pointer hover:bg-white/[0.03] shrink-0 transition-all duration-500"
+        class="px-4 h-10 bg-transparent border-b border-surface-border/30 flex items-center justify-between cursor-pointer hover:bg-white/[0.03] shrink-0 transition-all duration-500"
         :class="{'ring-1 ring-inset ring-rose-500 shadow-[inset_0_0_10px_rgba(244,63,94,0.3)] animate-pulse': audit && audit.flaggedWords.length > 0}"
         @click="$emit('toggle-expand')"
       >
