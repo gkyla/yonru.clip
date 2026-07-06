@@ -5,7 +5,7 @@
       <!-- Top Row: Badge & Save Action -->
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <span class="bg-violet-500/10 text-violet-400 border border-violet-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-[0_2px_10px_rgba(139,92,246,0.02)]">
+          <span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-[0_2px_10px_rgba(245,158,11,0.02)]">
             <Icon name="ri:image-edit-line" />
             THUMBNAIL #{{ String((activeHookIndex >= 0 ? activeHookIndex : 0) + 1).padStart(2, '0') }}
           </span>
@@ -15,16 +15,16 @@
         </div>
         <div ref="dropdownRef" class="relative flex items-center">
           <!-- Unified Wrapper for button-radius, border and scale feedback consistency -->
-          <div class="flex items-center bg-violet-500/10 border border-violet-500/30 rounded-xl overflow-hidden active:scale-95 transition-all h-8">
+          <div class="flex items-center bg-amber-500/10 border border-amber-500/30 rounded-xl overflow-hidden active:scale-95 transition-all h-8">
             <button 
               @click="handleSave" 
-              class="h-full px-3.5 text-[10px] font-black uppercase tracking-wider text-violet-400 bg-transparent hover:bg-violet-500/10 active:bg-violet-500/20 transition-colors border-r border-violet-500/30 flex items-center justify-center"
+              class="h-full px-3.5 text-[10px] font-black uppercase tracking-wider text-amber-400 bg-transparent hover:bg-amber-500/10 active:bg-amber-500/20 transition-colors border-r border-amber-500/30 flex items-center justify-center"
             >
               Save Config
             </button>
             <button 
               @click="isDropdownOpen = !isDropdownOpen"
-              class="h-full px-2 text-violet-400 bg-transparent hover:bg-violet-500/10 active:bg-violet-500/20 transition-colors flex items-center justify-center h-full"
+              class="h-full px-2 text-amber-400 bg-transparent hover:bg-amber-500/10 active:bg-amber-500/20 transition-colors flex items-center justify-center h-full"
               title="More save options"
             >
               <Icon name="ri:arrow-down-s-line" class="text-sm transition-transform duration-300" :class="{ 'rotate-180': isDropdownOpen }" />
@@ -40,7 +40,7 @@
               @click="handleSaveDefault" 
               class="w-full text-left px-4 py-2 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
             >
-              <Icon name="ri:save-line" class="text-sm text-violet-400" />
+              <Icon name="ri:save-line" class="text-sm text-amber-400" />
               Save as Default Style
             </button>
           </div>
@@ -61,8 +61,8 @@
       <!-- Enable Toggle -->
       <div class="flex items-center justify-between bg-surface-dark/50 border border-surface-border/50 rounded-xl px-4 py-3">
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="state.thumbnailEnabled.value ? 'bg-violet-500/20' : 'bg-white/5'">
-            <Icon name="ri:image-line" class="text-lg" :class="state.thumbnailEnabled.value ? 'text-violet-400' : 'text-slate-600'" />
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="state.thumbnailEnabled.value ? 'bg-amber-500/20' : 'bg-white/5'">
+            <Icon name="ri:image-line" class="text-lg" :class="state.thumbnailEnabled.value ? 'text-amber-400' : 'text-slate-600'" />
           </div>
           <div>
             <span class="text-xs font-bold text-white">Thumbnail Frame</span>
@@ -72,7 +72,7 @@
         <button 
           @click="state.toggleThumbnail()"
           class="w-10 h-5 rounded-none transition-all relative"
-          :class="state.thumbnailEnabled.value ? 'bg-violet-500' : 'bg-white/10'"
+          :class="state.thumbnailEnabled.value ? 'bg-amber-500' : 'bg-white/10'"
         >
           <div 
             class="absolute top-0.5 left-0.5 w-4 h-4 rounded-none bg-white transition-transform duration-300 shadow-sm"
@@ -87,13 +87,13 @@
         <!-- Preview Mode Toggle -->
         <div class="bg-surface-dark/50 border border-surface-border/50 rounded-xl px-4 py-3 flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <Icon name="ri:eye-line" class="text-violet-400" />
+            <Icon name="ri:eye-line" class="text-amber-400" />
             <span class="text-[10px] font-bold text-white">Preview Thumbnail</span>
           </div>
           <button 
             @click="state.thumbnailEditMode.value = !state.thumbnailEditMode.value"
             class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
-            :class="state.thumbnailEditMode.value ? 'bg-violet-500 text-black' : 'bg-white/5 text-slate-400 hover:bg-white/10'"
+            :class="state.thumbnailEditMode.value ? 'bg-amber-500 text-black' : 'bg-white/5 text-slate-400 hover:bg-white/10'"
           >
             {{ state.thumbnailEditMode.value ? 'Editing' : 'Off' }}
           </button>
@@ -115,7 +115,7 @@
               <span class="text-[8px] uppercase tracking-widest font-bold">No Frame</span>
             </div>
             <!-- Screenshot time badge -->
-            <div v-if="state.thumbnailUrl.value" class="absolute bottom-1 right-1 bg-black/70 backdrop-blur-md px-1 py-0.5 rounded text-[8px] mono text-violet-400 font-bold border border-violet-500/30">
+            <div v-if="state.thumbnailUrl.value" class="absolute bottom-1 right-1 bg-black/70 backdrop-blur-md px-1 py-0.5 rounded text-[8px] mono text-amber-400 font-bold border border-amber-500/30">
               {{ state.thumbnailScreenshotTime.value.toFixed(1) }}s
             </div>
           </div>
@@ -126,24 +126,24 @@
             <div class="bg-surface-dark/50 border border-surface-border/50 rounded-xl p-2.5 flex-1 flex flex-col justify-center">
               <div class="flex justify-between items-center mb-1">
                 <label class="text-[9px] font-black uppercase tracking-widest text-slate-300">Duration</label>
-                <div class="flex items-center gap-1 bg-violet-500/10 px-1.5 py-0.5 rounded border border-violet-500/20">
+                <div class="flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
                   <input 
                     type="number" 
                     v-model.number="state.thumbnailDuration.value"
                     min="0"
                     max="5"
                     step="0.1"
-                    class="bg-transparent text-[9px] mono text-violet-400 font-bold w-6 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    class="bg-transparent text-[9px] mono text-amber-400 font-bold w-6 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <div class="flex flex-col gap-0.5">
-                    <button @click="state.thumbnailDuration.value = Math.round(Math.min(5, state.thumbnailDuration.value + 0.1) * 10) / 10" class="text-[6px] text-violet-400/50 hover:text-violet-400 transition-colors leading-none">
+                    <button @click="state.thumbnailDuration.value = Math.round(Math.min(5, state.thumbnailDuration.value + 0.1) * 10) / 10" class="text-[6px] text-amber-400/50 hover:text-amber-400 transition-colors leading-none">
                       <Icon name="ri:arrow-up-s-fill" />
                     </button>
-                    <button @click="state.thumbnailDuration.value = Math.round(Math.max(0, state.thumbnailDuration.value - 0.1) * 10) / 10" class="text-[6px] text-violet-400/50 hover:text-violet-400 transition-colors leading-none">
+                    <button @click="state.thumbnailDuration.value = Math.round(Math.max(0, state.thumbnailDuration.value - 0.1) * 10) / 10" class="text-[6px] text-amber-400/50 hover:text-amber-400 transition-colors leading-none">
                       <Icon name="ri:arrow-down-s-fill" />
                     </button>
                   </div>
-                  <span class="text-[10px] mono text-violet-400/60 font-bold">s</span>
+                  <span class="text-[10px] mono text-amber-400/60 font-bold">s</span>
                 </div>
               </div>
               <input 
@@ -151,7 +151,7 @@
                 :value="state.thumbnailDuration.value"
                 @input="(e: any) => state.thumbnailDuration.value = parseFloat(e.target.value)"
                 min="0.5" max="5" step="0.5" 
-                class="w-full accent-violet-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                class="w-full accent-amber-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
               />
               <div class="flex justify-between text-[10px] text-slate-300 mt-1">
                 <span>0.5s</span>
@@ -166,7 +166,7 @@
             <div class="bg-surface-dark/50 border border-surface-border/50 rounded-xl p-2.5 flex-1 flex flex-col justify-center" :class="{ 'opacity-50': !state.thumbnailUrl.value }">
               <div class="flex justify-between items-center mb-1">
                 <label class="text-[9px] font-black uppercase tracking-widest text-slate-300">Shift</label>
-                <div class="flex items-center gap-1 bg-violet-500/10 px-1.5 py-0.5 rounded border border-violet-500/20">
+                <div class="flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
                   <input 
                     type="number" 
                     v-model.number="state.thumbnailXOffset.value"
@@ -174,10 +174,10 @@
                     max="100"
                     step="1"
                     :disabled="!state.thumbnailUrl.value"
-                    class="bg-transparent text-[9px] mono text-violet-400 font-bold w-6 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:cursor-not-allowed"
+                    class="bg-transparent text-[9px] mono text-amber-400 font-bold w-6 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:cursor-not-allowed"
                     @input="state.saveThumbnailConfig()"
                   />
-                  <span class="text-[10px] mono text-violet-400/60 font-bold">%</span>
+                  <span class="text-[10px] mono text-amber-400/60 font-bold">%</span>
                 </div>
               </div>
               <input 
@@ -185,7 +185,7 @@
                 v-model.number="state.thumbnailXOffset.value"
                 min="0" max="100" step="1" 
                 :disabled="!state.thumbnailUrl.value"
-                class="w-full accent-violet-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed"
+                class="w-full accent-amber-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed"
                 @change="state.saveThumbnailConfig()"
               />
               <div class="flex justify-between text-[10px] text-slate-300 mt-1">
@@ -202,7 +202,7 @@
           <button 
             @click="state.captureScreenshot()"
             :disabled="state.isCapturingThumbnail.value"
-            class="flex-1 py-2.5 rounded-xl border border-violet-500/30 bg-violet-500/10 text-violet-400 text-[10px] font-black uppercase tracking-widest hover:bg-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 active:scale-95"
+            class="flex-1 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px] font-black uppercase tracking-widest hover:bg-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 active:scale-95"
           >
             <Icon :name="state.isCapturingThumbnail.value ? 'ri:loader-4-line' : 'ri:refresh-line'" class="text-sm" :class="{ 'animate-spin': state.isCapturingThumbnail.value }" />
             Random Frame
@@ -237,7 +237,7 @@
               <button 
                 v-if="state.defaultThumbnailStyle.value && state.thumbnailTextOverlays.value.length > 0"
                 @click="state.applyDefaultThumbnailStyle()"
-                class="flex items-center gap-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/30 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
+                class="flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
                 title="Reset overlay styles to default template"
               >
                 <Icon name="ri:refresh-line" class="text-xs" />
@@ -245,7 +245,7 @@
               </button>
               <button 
                 @click="state.addThumbnailText()"
-                class="flex items-center gap-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/30 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
+                class="flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
               >
                 <Icon name="ri:add-line" class="text-xs" />
                 Add Text
@@ -381,7 +381,7 @@
                     <button 
                       @click="overlay.showStroke = !overlay.showStroke"
                       class="relative w-10 h-5 rounded-none transition-colors duration-300"
-                      :class="overlay.showStroke ? 'bg-violet-500' : 'bg-white/10'"
+                      :class="overlay.showStroke ? 'bg-amber-500' : 'bg-white/10'"
                     >
                       <div class="absolute top-0.5 left-0.5 w-4 h-4 rounded-none bg-white transition-transform duration-300 shadow-sm"
                            :class="overlay.showStroke ? 'translate-x-5' : 'translate-x-0'"
@@ -416,7 +416,7 @@
                     <button 
                       @click="overlay.showBackground = !overlay.showBackground"
                       class="relative w-10 h-5 rounded-none transition-colors duration-300"
-                      :class="overlay.showBackground ? 'bg-violet-500' : 'bg-white/10'"
+                      :class="overlay.showBackground ? 'bg-amber-500' : 'bg-white/10'"
                     >
                       <div class="absolute top-0.5 left-0.5 w-4 h-4 rounded-none bg-white transition-transform duration-300 shadow-sm"
                            :class="overlay.showBackground ? 'translate-x-5' : 'translate-x-0'"
