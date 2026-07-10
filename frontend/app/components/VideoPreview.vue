@@ -1,5 +1,5 @@
 <template>
-  <div v-if="state" ref="container" class="relative shrink-0 flex items-center justify-center transition-all duration-500 self-center ml-auto" :style="containerStyle">
+  <div v-if="state" ref="container" class="relative shrink-0 flex items-center justify-center transition-all duration-500 self-center mx-auto" :style="containerStyle">
     
     <!-- 1080x1920 Canvas scaled to fit container -->
     <div class="absolute top-1/2 left-1/2 w-[1080px] h-[1920px] overflow-hidden rounded-[36px] bg-black" :style="contentStyle">

@@ -328,15 +328,14 @@
                                ref="subtitleContainer"
                                @mouseenter="isHoveringSubtitles = true"
                                @mouseleave="isHoveringSubtitles = false"
-                           >
-
-                               <div class="space-y-4 relative z-10">
+                            >
+                               <div class="space-y-2.5 relative z-10">
                                   <!-- Vertical Timeline Line -->
                                   <div class="absolute -left-[20px] top-5 bottom-5 w-0.5 bg-surface-border/20 z-0"></div>
                                  <div 
                                    v-for="(seg, i) in visibleSegments" :key="i"
                                    :id="`seg-${i}`"
-                                   class="bg-[#16161c]/60 border p-4 rounded-2xl transition-all flex flex-col gap-3 group relative"
+                                   class="bg-[#16161c]/60 border p-3 rounded-xl transition-all flex flex-col gap-2 group relative"
                                    :class="[
                                      activeSegIdx === i 
                                        ? 'border-accent-500/60 bg-accent-500/[0.08] shadow-[0_4px_20px_rgba(207,255,80,0.08)]' 
@@ -348,8 +347,8 @@
                                      class="absolute rounded-full border-2 border-surface-dark transition-colors duration-300 z-20"
                                      :class="[
                                        activeSegIdx === i
-                                         ? '-left-[28px] top-5 w-4 h-4 bg-accent-500 shadow-[0_0_10px_#CFFF50]'
-                                         : '-left-[26px] top-[22px] w-3 h-3 bg-surface-border group-hover:bg-accent-500/50'
+                                         ? '-left-[28px] top-4 w-4 h-4 bg-accent-500 shadow-[0_0_10px_#CFFF50]'
+                                         : '-left-[26px] top-[18px] w-3 h-3 bg-surface-border group-hover:bg-accent-500/50'
                                      ]"
                                    ></div>
 
