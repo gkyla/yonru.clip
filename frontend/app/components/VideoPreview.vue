@@ -307,13 +307,24 @@
               @input="onEditingThumbInput($event, overlay)"
             ></div>
           </template>
+        </div>
+      </Transition>
 
-          <!-- Editing indicator -->
-          <div class="absolute top-12 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
-            <div class="bg-emerald-500/90 backdrop-blur-md text-black px-8 py-3 rounded-full text-[28px] font-black uppercase tracking-widest flex items-center gap-3 shadow-2xl">
-              <Icon name="ri:image-edit-fill" class="text-[32px]" />
-              {{ state.thumbnailEditMode.value ? 'THUMBNAIL EDIT MODE' : 'THUMBNAIL' }}
-            </div>
+      <!-- Editing indicator (moved outside of the z-[50] container to escape its CSS stacking context) -->
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div v-show="(state.thumbnailEditMode.value || isInThumbnailWindow) && state.thumbnailUrl.value" 
+             class="absolute top-2 left-1/2 -translate-x-1/2 z-[80] pointer-events-none"
+        >
+          <div class="bg-emerald-500/90 backdrop-blur-md text-black px-8 py-2 rounded-full text-[28px] font-black uppercase tracking-widest flex items-center gap-3 shadow-2xl">
+            <Icon name="ri:image-edit-fill" class="text-[32px]" />
+            {{ state.thumbnailEditMode.value ? 'THUMBNAIL EDIT MODE' : 'THUMBNAIL' }}
           </div>
         </div>
       </Transition>
@@ -327,7 +338,7 @@
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
       >
-        <div v-show="state.isCapturingThumbnail.value" class="absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-3xl">
+        <div v-show="state.isCapturingThumbnail.value" class="absolute inset-0 z-[90] flex items-center justify-center bg-black/90 backdrop-blur-3xl">
           <div class="flex flex-col items-center justify-center bg-black/60 border border-white/10 p-12 rounded-[48px] max-w-[650px] shadow-[0_24px_50px_-12px_rgba(0,0,0,0.8)]">
             <!-- Spinner Container -->
             <div class="relative w-32 h-32 flex items-center justify-center mb-8">
@@ -353,10 +364,14 @@
       <div class="absolute border-[6px] border-red-500/20 pointer-events-none rounded-[24px] z-10 mix-blend-screen border-dashed" style="top: 10%; bottom: 15%; left: 10%; right: 10%;"></div>
 
       <!-- TikTok Overlay -->
-      <div v-if="activeSafeZone === 'tiktok'" class="absolute inset-0 pointer-events-none z-40 select-none">
+      <div v-if="activeSafeZone === 'tiktok'" class="absolute inset-0 pointer-events-none z-[60] select-none">
         <!-- Top Deadzone -->
         <div class="absolute top-0 left-0 right-0 h-[130px] border-b border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
-          <span class="text-[20px] font-black tracking-widest text-white/70 uppercase">TikTok Header Zone (130px)</span>
+          <span class="text-[20px] font-black tracking-widest text-white/70 uppercase transition-all relative translate-y-[0px]"
+            :class="{
+              'translate-y-[30px]': (state.thumbnailEditMode.value || isInThumbnailWindow) && state.thumbnailUrl.value,
+            }"
+          >TikTok Header Zone (130px)</span>
         </div>
         <!-- Bottom Deadzone -->
         <div class="absolute bottom-0 left-0 right-0 h-[250px] border-t border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
@@ -373,7 +388,7 @@
       </div>
 
       <!-- Instagram Reels Overlay -->
-      <div v-else-if="activeSafeZone === 'reels'" class="absolute inset-0 pointer-events-none z-40 select-none">
+      <div v-else-if="activeSafeZone === 'reels'" class="absolute inset-0 pointer-events-none z-[60] select-none">
         <!-- Top Deadzone -->
         <div class="absolute top-0 left-0 right-0 h-[220px] border-b border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
           <span class="text-[20px] font-black tracking-widest text-white/70 uppercase">Reels Header Zone (220px)</span>
@@ -393,7 +408,7 @@
       </div>
 
       <!-- YouTube Shorts Overlay -->
-      <div v-else-if="activeSafeZone === 'shorts'" class="absolute inset-0 pointer-events-none z-40 select-none">
+      <div v-else-if="activeSafeZone === 'shorts'" class="absolute inset-0 pointer-events-none z-[60] select-none">
         <!-- Top Deadzone -->
         <div class="absolute top-0 left-0 right-0 h-[160px] border-b border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
           <span class="text-[20px] font-black tracking-widest text-white/70 uppercase">Shorts Header Zone (160px)</span>

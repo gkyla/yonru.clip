@@ -114,8 +114,9 @@
               <Icon name="ri:image-add-line" class="text-2xl mb-1" />
               <span class="text-[8px] uppercase tracking-widest font-bold">No Frame</span>
             </div>
+
             <!-- Screenshot time badge -->
-            <div v-if="state.thumbnailUrl.value" class="absolute bottom-1 right-1 bg-black/70 backdrop-blur-md px-1 py-0.5 rounded text-[8px] mono text-emerald-400 font-bold border border-emerald-500/30">
+            <div v-if="state.thumbnailUrl.value" class="absolute bottom-1 right-1 bg-black/70 backdrop-blur-md px-1 py-0.5 rounded text-[8px] mono text-emerald-400 font-bold border border-emerald-500/30 z-20">
               {{ state.thumbnailScreenshotTime.value.toFixed(1) }}s
             </div>
           </div>

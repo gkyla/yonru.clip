@@ -125,7 +125,7 @@ A visual progress bar rendered at the top of the viewport during route transitio
 _Avoid_: Page load indicator, top route loader
 
 **Social Safe Zone Overlay**:
-An interactive overlay layer positioned above the video preview canvas displaying platform-specific UI button placements (TikTok, Instagram Reels, YouTube Shorts) to ensure overlay text content remains unobstructed.
+An interactive overlay layer positioned above the video preview canvas and projected onto the Thumbnail Screenshot Preview, displaying platform-specific UI button placements (TikTok, Instagram Reels, YouTube Shorts) to ensure text and visual contents remain unobstructed.
 _Avoid_: Social media safe zone, safe area template
 
 ### Ingestion & Services
