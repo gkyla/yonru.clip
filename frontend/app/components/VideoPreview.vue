@@ -3,20 +3,6 @@
     
     <!-- 1080x1920 Canvas scaled to fit container -->
     <div class="absolute top-1/2 left-1/2 w-[1080px] h-[1920px] overflow-hidden rounded-[36px] bg-black" :style="contentStyle">
-      
-      <!-- Safe Area UI overlay -->
-      <div class="absolute inset-0 z-50 pointer-events-none p-12 pb-36 flex flex-col justify-between">
-         <div class="flex justify-between items-start">
-            <div class="flex flex-col gap-4 opacity-30">
-               <Icon name="ri:focus-3-line" class="text-6xl" />
-               <div class="text-[30px] mono border-[3px] border-white/20 px-3 py-1">1080x1920 PREVIEW</div>
-            </div>
-         </div>
-         <div class="flex justify-between items-end opacity-30">
-            <Icon name="ri:add-line" class="text-[72px] rotate-45" />
-            <Icon name="ri:add-line" class="text-[72px] rotate-45" />
-         </div>
-      </div>
 
       <!-- Rendered video output -->
       <div v-if="state?.outputUrl?.value" class="absolute inset-0 z-30 bg-black flex items-center justify-center">
@@ -366,6 +352,66 @@
       <!-- Title safe area -->
       <div class="absolute border-[6px] border-red-500/20 pointer-events-none rounded-[24px] z-10 mix-blend-screen border-dashed" style="top: 10%; bottom: 15%; left: 10%; right: 10%;"></div>
 
+      <!-- TikTok Overlay -->
+      <div v-if="activeSafeZone === 'tiktok'" class="absolute inset-0 pointer-events-none z-40 select-none">
+        <!-- Top Deadzone -->
+        <div class="absolute top-0 left-0 right-0 h-[130px] border-b border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
+          <span class="text-[20px] font-black tracking-widest text-white/70 uppercase">TikTok Header Zone (130px)</span>
+        </div>
+        <!-- Bottom Deadzone -->
+        <div class="absolute bottom-0 left-0 right-0 h-[250px] border-t border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
+          <span class="text-[20px] font-black tracking-widest text-white/70 uppercase">TikTok Caption / Music Zone (250px)</span>
+        </div>
+        <!-- Right Deadzone -->
+        <div class="absolute top-[130px] bottom-[250px] right-0 w-[120px] border-l border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
+          <span class="text-[18px] font-black tracking-widest text-white/70 uppercase rotate-90 whitespace-nowrap">TikTok Controls (120px)</span>
+        </div>
+        <!-- Left Buffer -->
+        <div class="absolute top-[130px] bottom-[250px] left-0 w-[60px] border-r border-dashed border-white/10 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, (safeZoneOpacity * 0.55) / 100) }">
+          <span class="text-[16px] font-black tracking-widest text-white/50 uppercase -rotate-90 whitespace-nowrap">Buffer (60px)</span>
+        </div>
+      </div>
+
+      <!-- Instagram Reels Overlay -->
+      <div v-else-if="activeSafeZone === 'reels'" class="absolute inset-0 pointer-events-none z-40 select-none">
+        <!-- Top Deadzone -->
+        <div class="absolute top-0 left-0 right-0 h-[220px] border-b border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
+          <span class="text-[20px] font-black tracking-widest text-white/70 uppercase">Reels Header Zone (220px)</span>
+        </div>
+        <!-- Bottom Deadzone -->
+        <div class="absolute bottom-0 left-0 right-0 h-[350px] border-t border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
+          <span class="text-[20px] font-black tracking-widest text-white/70 uppercase">Reels Caption Area (350px)</span>
+        </div>
+        <!-- Right Deadzone -->
+        <div class="absolute top-[220px] bottom-[350px] right-0 w-[130px] border-l border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
+          <span class="text-[18px] font-black tracking-widest text-white/70 uppercase rotate-90 whitespace-nowrap">Reels Controls (130px)</span>
+        </div>
+        <!-- Left Buffer -->
+        <div class="absolute top-[220px] bottom-[350px] left-0 w-[60px] border-r border-dashed border-white/10 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, (safeZoneOpacity * 0.55) / 100) }">
+          <span class="text-[16px] font-black tracking-widest text-white/50 uppercase -rotate-90 whitespace-nowrap">Buffer (60px)</span>
+        </div>
+      </div>
+
+      <!-- YouTube Shorts Overlay -->
+      <div v-else-if="activeSafeZone === 'shorts'" class="absolute inset-0 pointer-events-none z-40 select-none">
+        <!-- Top Deadzone -->
+        <div class="absolute top-0 left-0 right-0 h-[160px] border-b border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
+          <span class="text-[20px] font-black tracking-widest text-white/70 uppercase">Shorts Header Zone (160px)</span>
+        </div>
+        <!-- Bottom Deadzone -->
+        <div class="absolute bottom-0 left-0 right-0 h-[280px] border-t border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
+          <span class="text-[20px] font-black tracking-widest text-white/70 uppercase">Shorts Info Area (280px)</span>
+        </div>
+        <!-- Right Deadzone -->
+        <div class="absolute top-[160px] bottom-[280px] right-0 w-[150px] border-l border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
+          <span class="text-[18px] font-black tracking-widest text-white/70 uppercase rotate-90 whitespace-nowrap">Shorts Controls (150px)</span>
+        </div>
+        <!-- Left Buffer -->
+        <div class="absolute top-[160px] bottom-[280px] left-0 w-[60px] border-r border-dashed border-white/10 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, (safeZoneOpacity * 0.55) / 100) }">
+          <span class="text-[16px] font-black tracking-widest text-white/50 uppercase -rotate-90 whitespace-nowrap">Buffer (60px)</span>
+        </div>
+      </div>
+
     </div>
 
   </div>
@@ -383,6 +429,7 @@ import { transformText } from '../utils/styleHelpers'
 
 
 const state = useClipperState()
+const { activeSafeZone, safeZoneOpacity, safeZoneColor } = state
 
 const previewVideo = ref<HTMLVideoElement | null>(null)
 const remotionIframe = ref<HTMLIFrameElement | null>(null)

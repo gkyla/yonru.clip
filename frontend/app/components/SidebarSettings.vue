@@ -68,6 +68,69 @@
       </div>
     </div>
 
+    <!-- Safe Zone Overlay -->
+    <div>
+      <h2 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3 flex items-center justify-between">
+        Safe Zone Overlay
+        <Icon name="ri:layout-grid-line" />
+      </h2>
+      <div class="space-y-4">
+        <!-- Platform Selector Grid -->
+        <div class="grid grid-cols-4 gap-1.5">
+          <button 
+            v-for="platform in [
+              { id: 'none', label: 'None', icon: 'ri:eye-off-line' },
+              { id: 'tiktok', label: 'TikTok', icon: 'ri:tiktok-fill' },
+              { id: 'reels', label: 'Reels', icon: 'ri:instagram-line' },
+              { id: 'shorts', label: 'Shorts', icon: 'ri:youtube-fill' }
+            ]" :key="platform.id"
+            @click="activeSafeZone = platform.id"
+            class="bg-surface-dark/50 border border-surface-border rounded-xl p-2 text-center text-[10px] transition-all hover:bg-surface-card flex flex-col items-center gap-1"
+            :class="activeSafeZone === platform.id 
+              ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
+              : 'text-slate-400 hover:border-accent-500/30 hover:text-white'"
+          >
+            <Icon :name="platform.icon" class="text-sm" />
+            <span class="font-bold tracking-wider">{{ platform.label }}</span>
+          </button>
+        </div>
+
+        <!-- Customizations (only visible if platform is selected) -->
+        <div v-if="activeSafeZone !== 'none'" class="space-y-3.5 pt-2 border-t border-surface-border/30">
+          <!-- Opacity Slider -->
+          <div>
+            <label class="text-[10px] text-slate-400 flex justify-between mb-1.5 font-bold uppercase tracking-wider">
+              <span>Overlay Opacity</span>
+              <span class="mono text-accent-500 bg-accent-500/10 px-1 rounded">{{ safeZoneOpacity }}%</span>
+            </label>
+            <input 
+              v-model.number="safeZoneOpacity" 
+              type="range" min="10" max="90" step="5" 
+              class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer" 
+            />
+          </div>
+
+          <!-- Color Picker -->
+          <div>
+            <label class="text-[10px] text-slate-400 flex items-center justify-between mb-1.5 font-bold uppercase tracking-wider">
+              <span>Overlay Color</span>
+              <div class="w-3.5 h-3.5 rounded border border-white/20" :style="{ background: safeZoneColor }"></div>
+            </label>
+            <div class="flex gap-1.5 flex-wrap">
+              <button 
+                v-for="c in ['#000000', '#ef4444', '#3b82f6', '#10b981', '#f59e0b']" :key="'sz-color-'+c"
+                @click="safeZoneColor = c"
+                class="w-6 h-6 rounded-md border-2 transition-all hover:scale-110"
+                :class="safeZoneColor === c ? 'border-accent-500 scale-110' : 'border-transparent'"
+                :style="{ background: c }"
+              ></button>
+              <input type="color" v-model="safeZoneColor" class="w-6 h-6 rounded-md border-0 cursor-pointer bg-transparent" title="Custom color" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <hr class="border-surface-border/50" />
 
     <!-- Subtitle Settings -->
@@ -584,6 +647,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { FONT_OPTIONS } from '../composables/useClipperState'
 const state = useClipperState()
+const { activeSafeZone, safeZoneOpacity, safeZoneColor } = state
 
 const showBlacklistSettings = ref(false)
 const isNamingClip = ref(false)

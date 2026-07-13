@@ -124,6 +124,10 @@ _Avoid_: Ingestion progress bar, loading slider
 A visual progress bar rendered at the top of the viewport during route transitions to signify active page loading.
 _Avoid_: Page load indicator, top route loader
 
+**Social Safe Zone Overlay**:
+An interactive overlay layer positioned above the video preview canvas displaying platform-specific UI button placements (TikTok, Instagram Reels, YouTube Shorts) to ensure overlay text content remains unobstructed.
+_Avoid_: Social media safe zone, safe area template
+
 ### Ingestion & Services
 
 **Font Synchronizer**:

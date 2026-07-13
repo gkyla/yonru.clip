@@ -78,6 +78,9 @@ function createClipperState() {
   const hooks = useState<Hook[]>('hooks', () => [])
   const savedHooks = useState<Hook[]>('savedHooks', () => [])
   const activeHook = useState<Hook | null>('activeHook', () => null)
+  const activeSafeZone = useState<'none' | 'tiktok' | 'reels' | 'shorts'>('activeSafeZone', () => 'none')
+  const safeZoneOpacity = useState<number>('safeZoneOpacity', () => 55)
+  const safeZoneColor = useState<string>('safeZoneColor', () => '#000000')
   
   // Toast state
   const toast = useState<{message: string, type: 'success' | 'error' | 'info'} | null>('clipperToast', () => null)
@@ -618,6 +621,9 @@ function createClipperState() {
     youtubeUrl, language, subtitlePosition, subtitleOffset, subtitleSyncOffset,
     font, fontSize, faceTracking, cropMode, cropPercentX, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
     whisperModels: WHISPER_MODELS,
+    activeSafeZone,
+    safeZoneOpacity,
+    safeZoneColor,
     subtitleAnimation, subtitleHighlightMode, subtitleHighlightColor, subtitleTextColor,
     subtitleStrokeColor, subtitleStrokeWidth, subtitleFontWeight, subtitleTextTransform,
     subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing, subtitlePreset, volume,
