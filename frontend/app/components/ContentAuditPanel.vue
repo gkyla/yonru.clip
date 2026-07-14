@@ -28,14 +28,14 @@
         </div>
         <div class="flex items-center">
            <!-- Violations count badge in header -->
+           <span class="text-xs font-black tracking-tighter mr-2" :class="scoreTextClass">{{ audit ? Math.round(audit.score) : 'Lite' }}</span>
            <span 
              v-if="audit && audit.flaggedWords.length > 0" 
-             class="px-1.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1"
+             class="px-1 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1"
            >
              <Icon name="ri:alert-line" class="text-[9px]" />
              {{ audit.flaggedWords.length }} {{ audit.flaggedWords.length === 1 ? 'Risk' : 'Risks' }}
            </span>
-           <span class="text-xs font-black tracking-tighter mx-1.5" :class="scoreTextClass">{{ audit ? Math.round(audit.score) : 'Lite' }}</span>
            <Icon :name="audit && audit.flaggedWords.length > 0 ? 'ri:shield-alert-fill' : 'ri:shield-check-fill'" :class="scoreTextClass" class="text-sm" />
            <Icon :name="expanded ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-slate-500 text-lg ml-1" />
         </div>
@@ -186,8 +186,6 @@
             </div>
           </div>
         </div>
-
-        <hr class="border-surface-border/50" />
 
         <!-- Subtitle Readability Section -->
         <div 
