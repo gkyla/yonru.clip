@@ -9,18 +9,34 @@
 
     <template v-else>
       <div 
-        class="px-4 h-10 bg-transparent border-b border-surface-border/30 flex items-center justify-between cursor-pointer hover:bg-white/[0.03] shrink-0 transition-all duration-500"
-        :class="{'ring-1 ring-inset ring-rose-500 shadow-[inset_0_0_10px_rgba(244,63,94,0.3)] animate-pulse': audit && audit.flaggedWords.length > 0}"
+        class="px-4 h-10 border-b border-surface-border/30 flex items-center justify-between cursor-pointer hover:bg-white/[0.03] shrink-0 transition-all duration-500"
+        :class="audit && audit.flaggedWords.length > 0 
+          ? 'bg-rose-500/5 border-rose-500/20 text-rose-400 hover:bg-rose-500/10' 
+          : 'bg-transparent text-slate-400'"
         @click="$emit('toggle-expand')"
       >
         <div class="flex items-center gap-2">
-          <Icon name="ri:shield-keyhole-line" class="text-sky-500 text-xs" />
-          <h3 class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Content Safety Audit</h3>
-          <div class="w-1.5 h-1.5 rounded-full animate-pulse ml-0.5" :class="scoreBgClass"></div>
+          <Icon :name="audit && audit.flaggedWords.length > 0 ? 'ri:shield-flash-line' : 'ri:shield-keyhole-line'" :class="audit && audit.flaggedWords.length > 0 ? 'text-rose-500' : 'text-sky-500'" class="text-xs" />
+          <h3 class="text-[10px] font-bold uppercase tracking-widest" :class="audit && audit.flaggedWords.length > 0 ? 'text-rose-300' : 'text-slate-400'">Content Safety Audit</h3>
+          
+          <!-- Glowing Warning Light for risks -->
+          <span v-if="audit && audit.flaggedWords.length > 0" class="relative flex h-1.5 w-1.5 ml-0.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span>
+          </span>
+          <div v-else class="w-1.5 h-1.5 rounded-full ml-0.5" :class="scoreBgClass"></div>
         </div>
-        <div class="flex items-center gap-1.5">
-           <span class="text-xs font-black italic tracking-tighter" :class="scoreTextClass">{{ audit ? Math.round(audit.score) : 'Lite' }}</span>
-           <Icon name="ri:shield-check-fill" :class="scoreTextClass" class="text-sm" />
+        <div class="flex items-center">
+           <!-- Violations count badge in header -->
+           <span 
+             v-if="audit && audit.flaggedWords.length > 0" 
+             class="px-1.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1"
+           >
+             <Icon name="ri:alert-line" class="text-[9px]" />
+             {{ audit.flaggedWords.length }} {{ audit.flaggedWords.length === 1 ? 'Risk' : 'Risks' }}
+           </span>
+           <span class="text-xs font-black tracking-tighter ml-1.5" :class="scoreTextClass">{{ audit ? Math.round(audit.score) : 'Lite' }}</span>
+           <Icon :name="audit && audit.flaggedWords.length > 0 ? 'ri:shield-alert-fill' : 'ri:shield-check-fill'" :class="scoreTextClass" class="text-sm" />
            <Icon :name="expanded ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-slate-500 text-lg ml-1" />
         </div>
       </div>
@@ -31,36 +47,70 @@
         :style="{ gridTemplateRows: expanded ? '1fr' : '0fr' }"
       >
         <div class="overflow-hidden">
-          <!-- Safety Meter -->
-          <div class="p-4 space-y-5 custom-scrollbar min-h-0 overflow-y-auto" style="max-height: calc(75vh - 45px);">
-            <div>
-              <div class="flex justify-between items-end mb-3">
-                <div>
-                  <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Global Safety Meter</p>
-                  <p class="text-xs font-black italic tracking-tighter" :class="scoreTextClass">
-                    {{ scoreLabel }}
-                  </p>
-                </div>
-                <div class="text-right">
-                   <span class="text-2xl font-black italic tracking-tighter" :class="scoreTextClass">{{ Math.round(audit.score) }}</span>
-                   <span class="text-[10px] text-slate-600 font-bold ml-1">/100</span>
+          <!-- Safety Bento Card -->
+          <div class="p-4 space-y-4 custom-scrollbar min-h-0 overflow-y-auto" style="max-height: calc(75vh - 45px);">
+            <!-- Bento Score Card with Radial SVG Progress Ring -->
+            <div class="bg-white/[0.02] border border-white/5 rounded-2xl p-4 flex justify-center items-center gap-4 relative group hover:border-white/10 transition-colors">
+              <!-- Background Glow Container to clip the radial glow without clipping the tooltip -->
+              <div class="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                <div class="absolute -left-6 -bottom-6 w-24 h-24 rounded-full blur-2xl opacity-10 transition-opacity group-hover:opacity-20" :class="scoreBgClass"></div>
+              </div>
+              
+              <!-- SVG Radial Gauge Ring -->
+              <div class="relative w-14 h-14 flex items-center justify-center flex-shrink-0 z-10">
+                <svg class="w-full h-full transform -rotate-90" viewBox="0 0 56 56">
+                  <!-- Background Track Circle -->
+                  <circle 
+                    cx="28" cy="28" r="24" 
+                    fill="transparent" 
+                    class="stroke-white/5" 
+                    stroke-width="4.5"
+                  />
+                  <!-- Colored Progress Circle -->
+                  <circle 
+                    cx="28" cy="28" r="24" 
+                    fill="transparent" 
+                    class="transition-all duration-1000 ease-out"
+                    :class="[
+                      audit.score >= 90 ? 'stroke-emerald-500' :
+                      audit.score >= 70 ? 'stroke-accent-500' :
+                      audit.score >= 40 ? 'stroke-amber-500' :
+                      'stroke-rose-500'
+                    ]"
+                    stroke-width="4.5"
+                    stroke-linecap="round"
+                    :stroke-dasharray="150.79"
+                    :stroke-dashoffset="150.79 * (1 - audit.score / 100)"
+                  />
+                </svg>
+                <!-- Centered Score Text -->
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <span class="text-sm font-black tracking-tight" :class="scoreTextClass">{{ Math.round(audit.score) }}</span>
                 </div>
               </div>
-          
-          <!-- Progress Bar -->
-          <div class="h-3 bg-white/5 rounded-full p-0.5 overflow-hidden flex gap-0.5">
-             <div 
-               v-for="i in 20" :key="i"
-               class="h-full flex-1 transition-all duration-700"
-               :class="[
-                 i <= (audit.score / 5) ? scoreBgClass : 'bg-white/5',
-                 i === 1 ? 'rounded-l-sm' : '',
-                 i === 20 ? 'rounded-r-sm' : ''
-               ]"
-               :style="{ transitionDelay: (i * 20) + 'ms' }"
-             ></div>
-          </div>
-        </div>
+
+              <!-- Labels -->
+              <div class="flex flex-col gap-1 z-10 flex-1 min-w-0">
+                <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest leading-none">Safety Eligibility</span>
+                <span class="text-xs font-bold tracking-tight uppercase truncate" :class="scoreTextClass">
+                  {{ scoreLabel }}
+                </span>
+              </div>
+
+              <!-- Info Tooltip (Right) -->
+              <div class="relative group/tooltip flex items-center flex-shrink-0 z-[99]">
+                <Icon name="ri:question-line" class="text-slate-500 hover:text-slate-300 text-sm cursor-help transition-colors" />
+                <div class="absolute top-full right-0 mt-1.5 w-56 p-2.5 bg-surface-dark/95 border border-surface-border/80 rounded-xl shadow-black/80 shadow-[0_12px_40px_rgba(0,0,0,0.95)] text-[9px] text-slate-300 leading-normal opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity duration-200 z-30 tracking-normal normal-case">
+                  <p class="font-bold text-slate-200 mb-1 border-b border-white/5 pb-1">Safety Classifications:</p>
+                  <ul class="space-y-1">
+                    <li><span class="text-emerald-400 font-semibold">Excellent:</span> Safe from filters, maximum reach.</li>
+                    <li><span class="text-accent-400 font-semibold">Caution:</span> Minor duration or word warning.</li>
+                    <li><span class="text-amber-400 font-semibold">Restricted:</span> Mild profanity; limited recommendation.</li>
+                    <li><span class="text-rose-400 font-semibold">Danger:</span> High risk of shadowban or policy violation.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
 
         <!-- Detail Checks -->
         <div class="grid grid-cols-1 gap-3">
@@ -99,18 +149,18 @@
                <div class="flex flex-wrap gap-1.5">
                   <span 
                     v-for="word in audit.flaggedWords" :key="word"
-                    class="px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] font-bold rounded-md border border-rose-500/30 flex items-center gap-1.5"
+                    class="px-2 py-0.5 bg-rose-950/30 text-rose-300 text-[10px] font-bold rounded-md border border-rose-500/20 flex items-center gap-1.5"
                   >
-                    <Icon name="ri:alarm-warning-line" class="text-[10px]" />
+                    <Icon name="ri:alarm-warning-line" class="text-[10px] text-rose-500" />
                     {{ word }}
                   </span>
                </div>
                
                <button 
-                 @click="state.maskFlaggedWords()"
-                 class="w-full py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-               >
-                 <Icon name="ri:magic-line" />
+                  @click="state.maskFlaggedWords()"
+                  class="w-full py-2 bg-white/[0.03] border border-white/10 text-slate-300 hover:bg-white/[0.06] hover:border-white/20 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group active:scale-[0.98]"
+                >
+                 <Icon name="ri:magic-line" class="group-hover:rotate-12 transition-transform" />
                  Auto-Fix (Mask Words)
                </button>
 
@@ -147,7 +197,7 @@
           </button>
 
           <div v-else class="space-y-4">
-             <div class="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl relative overflow-hidden">
+             <div class="p-3 bg-blue-950/20 border border-blue-500/20 rounded-xl relative overflow-hidden">
                 <div class="absolute top-0 right-0 p-2 opacity-20">
                    <Icon name="ri:brain-line" class="text-2xl text-blue-400" />
                 </div>

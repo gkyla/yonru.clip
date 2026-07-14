@@ -44,6 +44,10 @@ _Avoid_: Border line, panel separator
 The still-image preview container displayed inside the sidebar Thumbnail Editor, representing the captured video frame that will be prepended as a thumbnail.
 _Avoid_: Screenshot container, preview frame
 
+**Content Safety Audit Panel**:
+An accordion-style sidebar panel displaying automatic profanity scan scores, flagged shadowban keywords, and deep AI-driven safety diagnostics with auto-fix trigger actions.
+_Avoid_: Safety audit box, profanity scanner container
+
 **Horizontal Shift Offset**:
 A percentage value representing the horizontal pan displacement of the background image within the portrait viewport.
 _Avoid_: Pan offset, horizontal scroll value
