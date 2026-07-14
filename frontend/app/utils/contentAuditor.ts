@@ -20,16 +20,13 @@ export interface AuditResult {
   score: number
   flaggedWords: string[]
   flaggedSegments: FlaggedSegment[]
-  isDurationOk: boolean
   uniqueFlagsCount: number
-  durationReason: string
 }
 
 export function auditTranscript(
   transcript: TranscriptSegment[],
   blacklist: string[],
-  mode: string,
-  duration: number
+  mode: string
 ): AuditResult {
   const flaggedWords: string[] = []
   const flaggedSegments: FlaggedSegment[] = []
@@ -112,24 +109,14 @@ export function auditTranscript(
     })
   })
 
-  // Duration check
-  const isDurationOk = duration >= 5 && duration <= 60
-
   let score = 100
   const uniqueTimeFlags = new Set(flaggedSegments.map(f => f.start.toFixed(2))).size
   score -= (uniqueTimeFlags * 12)
-
-  if (duration < 5 || duration > 90) score -= 30
-  else if (duration > 60) score -= 10
-
-  const durationReason = duration < 5 ? 'Too short' : duration > 60 ? 'Long' : 'Optimal'
 
   return {
     score: Math.max(0, score),
     flaggedWords,
     flaggedSegments,
-    isDurationOk,
-    uniqueFlagsCount: flaggedSegments.length,
-    durationReason
+    uniqueFlagsCount: flaggedSegments.length
   }
 }

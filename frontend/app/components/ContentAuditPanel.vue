@@ -35,7 +35,7 @@
              <Icon name="ri:alert-line" class="text-[9px]" />
              {{ audit.flaggedWords.length }} {{ audit.flaggedWords.length === 1 ? 'Risk' : 'Risks' }}
            </span>
-           <span class="text-xs font-black tracking-tighter ml-1.5" :class="scoreTextClass">{{ audit ? Math.round(audit.score) : 'Lite' }}</span>
+           <span class="text-xs font-black tracking-tighter mx-1.5" :class="scoreTextClass">{{ audit ? Math.round(audit.score) : 'Lite' }}</span>
            <Icon :name="audit && audit.flaggedWords.length > 0 ? 'ri:shield-alert-fill' : 'ri:shield-check-fill'" :class="scoreTextClass" class="text-sm" />
            <Icon :name="expanded ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-slate-500 text-lg ml-1" />
         </div>
@@ -114,17 +114,35 @@
 
         <!-- Detail Checks -->
         <div class="grid grid-cols-1 gap-3">
-          <!-- Technical: Duration -->
-          <div class="bg-surface-card/50 border border-surface-border/50 rounded-xl p-3 flex items-start gap-3">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" :class="audit.isDurationOk ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'">
-              <Icon :name="audit.isDurationOk ? 'ri:time-line' : 'ri:error-warning-line'" class="text-lg" />
+          <!-- Safe Zone Collision Audit -->
+          <div 
+            class="border rounded-xl p-3 flex flex-col gap-2.5 transition-all duration-500"
+            :class="state.layoutAudit.value.isSafe 
+              ? 'bg-surface-card/50 border-surface-border/50' 
+              : 'bg-amber-500/5 border-amber-500/20'"
+          >
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" :class="state.layoutAudit.value.isSafe ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'">
+                <Icon :name="state.layoutAudit.value.isSafe ? 'ri:layout-grid-line' : 'ri:layout-warning-line'" class="text-lg" />
+              </div>
+              <div class="flex-1 min-w-0">
+                 <div class="flex items-center justify-between mb-0.5">
+                   <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Safe Zone Alignment</p>
+                   <Icon :name="state.layoutAudit.value.isSafe ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'" :class="state.layoutAudit.value.isSafe ? 'text-emerald-500' : 'text-amber-500'" class="text-xs" />
+                 </div>
+                 <p class="text-xs text-slate-200 font-medium">{{ state.layoutAudit.value.reason }}</p>
+              </div>
             </div>
-            <div class="flex-1 min-w-0">
-               <div class="flex items-center justify-between mb-0.5">
-                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Content Duration</p>
-                 <Icon :name="audit.isDurationOk ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'" :class="audit.isDurationOk ? 'text-emerald-500' : 'text-amber-500'" class="text-xs" />
-               </div>
-               <p class="text-xs text-slate-200 font-medium">{{ audit.durationReason }} ({{ Math.round(state.timelineDuration.value) }}s)</p>
+            
+            <!-- Auto-fix action for safe zone collision -->
+            <div v-if="!state.layoutAudit.value.isSafe" class="pl-11">
+               <button 
+                 @click="state.fitSubtitlesToSafeZone()"
+                 class="w-full py-1.5 bg-white/[0.03] border border-white/10 text-slate-300 hover:bg-white/[0.06] hover:border-white/20 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group active:scale-[0.98]"
+               >
+                 <Icon name="ri:focus-3-line" class="group-hover:scale-110 transition-transform" />
+                 Auto-Fit to Safe Zone
+               </button>
             </div>
           </div>
 
@@ -136,10 +154,10 @@
               </div>
               <div class="flex-1 min-w-0">
                  <div class="flex items-center justify-between mb-0.5">
-                   <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Subtitle Safety</p>
-                   <Icon :name="audit.flaggedWords.length === 0 ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'" :class="audit.flaggedWords.length === 0 ? 'text-emerald-500' : 'text-rose-500'" class="text-xs" />
-                 </div>
-                 <p class="text-xs text-slate-200 font-medium">{{ audit.flaggedWords.length === 0 ? 'No sensitive words detected' : `${audit.flaggedWords.length} sensitive words found` }}</p>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Shadowban & Slang Scan</p>
+                    <Icon :name="audit.flaggedWords.length === 0 ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'" :class="audit.flaggedWords.length === 0 ? 'text-emerald-500' : 'text-rose-500'" class="text-xs" />
+                  </div>
+                  <p class="text-xs text-slate-200 font-medium">{{ audit.flaggedWords.length === 0 ? 'No sensitive words or localized slang detected' : `${audit.flaggedWords.length} sensitive words/slang found` }}</p>
               </div>
             </div>
 
@@ -171,55 +189,34 @@
 
         <hr class="border-surface-border/50" />
 
-        <!-- Deep Audit Section -->
-        <div>
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-1.5">
-              <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">AI Context Audit (Tier 2)</p>
-              <div class="group relative flex items-center">
-                <Icon name="ri:information-line" class="text-slate-500 hover:text-slate-300 text-xs cursor-help transition-colors" />
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-surface-dark border border-surface-border rounded shadow-xl text-[9px] font-mono text-slate-300 leading-tight opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 normal-case tracking-normal text-center">
-                  Use Gemini AI to detect hidden shadowban risks, nuanced policy violations, and inflammatory tone.
-                </div>
-              </div>
+        <!-- Subtitle Readability Section -->
+        <div 
+          class="border rounded-xl p-3 flex flex-col gap-2.5 transition-all duration-500"
+          :class="state.readabilityAudit.value.isSafe 
+            ? 'bg-surface-card/50 border-surface-border/50' 
+            : 'bg-amber-500/5 border-amber-500/20'"
+        >
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" :class="state.readabilityAudit.value.isSafe ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'">
+              <Icon :name="state.readabilityAudit.value.isSafe ? 'ri:font-size-2' : 'ri:font-color'" class="text-lg" />
             </div>
-            <div v-if="state.deepAuditResults.value" class="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[9px] font-black rounded uppercase">Deep Scan Active</div>
+            <div class="flex-1 min-w-0">
+               <div class="flex items-center justify-between mb-0.5">
+                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Subtitle Readability</p>
+                 <Icon :name="state.readabilityAudit.value.isSafe ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'" :class="state.readabilityAudit.value.isSafe ? 'text-emerald-500' : 'text-amber-500'" class="text-xs" />
+               </div>
+               <p class="text-xs text-slate-200 font-medium">{{ state.readabilityAudit.value.reason }}</p>
+            </div>
           </div>
           
-          <button 
-            v-if="!state.deepAuditResults.value"
-            @click="state.runDeepAudit()"
-            :disabled="state.isDeepAuditing.value"
-            class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20 disabled:opacity-50"
-          >
-            <Icon :name="state.isDeepAuditing.value ? 'ri:loader-4-line' : 'ri:brain-line'" :class="{ 'animate-spin': state.isDeepAuditing.value }" />
-            {{ state.isDeepAuditing.value ? 'Scanning Context...' : 'Analyze Context & Tone' }}
-          </button>
-
-          <div v-else class="space-y-4">
-             <div class="p-3 bg-blue-950/20 border border-blue-500/20 rounded-xl relative overflow-hidden">
-                <div class="absolute top-0 right-0 p-2 opacity-20">
-                   <Icon name="ri:brain-line" class="text-2xl text-blue-400" />
-                </div>
-                <div class="flex items-center gap-2 mb-2">
-                   <div class="w-1.5 h-1.5 rounded-full" :class="state.deepAuditResults.value.riskLevel === 'high' ? 'bg-rose-500 animate-pulse' : (state.deepAuditResults.value.riskLevel === 'medium' ? 'bg-amber-400' : 'bg-emerald-400')"></div>
-                   <span class="text-[10px] font-black uppercase text-blue-300">Risk Assessment: {{ state.deepAuditResults.value.riskLevel }}</span>
-                </div>
-                <p class="text-[11px] text-slate-300 italic mb-3 pr-6 leading-relaxed">{{ state.deepAuditResults.value.suggestions }}</p>
-                
-                <div v-if="state.deepAuditResults.value.violations?.length" class="space-y-1.5">
-                   <div v-for="(v, i) in state.deepAuditResults.value.violations" :key="i" class="flex items-start gap-2 text-[10px] text-slate-400">
-                      <Icon name="ri:alert-line" class="text-amber-500 mt-0.5 flex-shrink-0" />
-                      <span>{{ v }}</span>
-                   </div>
-                </div>
-             </div>
-             
+          <!-- Auto-fix action for readability -->
+          <div v-if="!state.readabilityAudit.value.isSafe" class="pl-11">
              <button 
-               @click="state.deepAuditResults.value = null"
-               class="w-full py-2 text-[9px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors"
+               @click="state.fitSubtitlesToReadability()"
+               class="w-full py-1.5 bg-white/[0.03] border border-white/10 text-slate-300 hover:bg-white/[0.06] hover:border-white/20 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group active:scale-[0.98]"
              >
-               Reset AI Scan
+               <Icon name="ri:magic-line" class="group-hover:rotate-12 transition-transform" />
+               Auto-Apply Text Outline
              </button>
           </div>
         </div>

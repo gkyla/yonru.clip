@@ -48,6 +48,14 @@ _Avoid_: Screenshot container, preview frame
 An accordion-style sidebar panel displaying automatic profanity scan scores, flagged shadowban keywords, and deep AI-driven safety diagnostics with auto-fix trigger actions.
 _Avoid_: Safety audit box, profanity scanner container
 
+**Safe Zone Alignment Check**:
+An automated diagnostic rule within the Content Safety Audit Panel that scans subtitle positions against active platform safe zones (TikTok, Reels, Shorts) and flags layouts that overlap with platform UI controls or bottom description fields.
+_Avoid_: Subtitle overlay scan, boundary collision check
+
+**Subtitle Readability Audit**:
+An automated accessibility check within the Content Safety Audit Panel that verifies if subtitle text styles have sufficient visual contrast (via border strokes or background boxes) to remain legible over bright video frames.
+_Avoid_: Contrast scan, subtitle legibility test
+
 **Horizontal Shift Offset**:
 A percentage value representing the horizontal pan displacement of the background image within the portrait viewport.
 _Avoid_: Pan offset, horizontal scroll value

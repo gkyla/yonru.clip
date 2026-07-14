@@ -9,12 +9,12 @@ export const DEFAULT_BLACKLIST = [
   '/bunuh/', 'mati', 'tewas', '/darah/', '/senjata/', '/tembak/', 'perang', '/teroris/', '/bom/',
   // Sexual
   'sex', 'porn', 'seggs', 'hentai', 'nude', 'nudity', 'sexy',
-  '/bokep/', '/telanjang/', '/seks/', '/mesum/', 's*ksi',
+  '/bokep/', '/telanjang/', '/seks/', '/mesum/', 's*ksi', '/lonte/', '/perek/',
   // Sensitive
   'war', 'terror', 'bomb', 'crash', 'accident', 'crime',
   // Algospeak / Profanity
   'sh!t', 'f*ck', 'b!tch', 'damn', 'hell',
-  '/anjing/', '/bangsat/', '/tolol/', '/goblok/', '/babi/', '/kontol/', '/memek/', '/itil/'
+  '/anjing/', '/anjg/', '/bangsat/', '/bgsat/', '/tolol/', '/goblok/', '/babi/', '/kontol/', '/kontl/', '/memek/', '/memk/', '/itil/', '/bajingan/', '/pantek/', '/jancok/', '/jancuk/', '/tai/'
 ]
 
 export const useSafetyAuditor = () => {
@@ -31,6 +31,12 @@ export const useSafetyAuditor = () => {
   const timelineDuration = useState<number>('timelineDuration')
   const activeHook = useState<Hook | null>('activeHook')
   const language = useState<string>('language')
+  const activeSafeZone = useState<'none' | 'tiktok' | 'reels' | 'shorts'>('activeSafeZone')
+  const subtitleOffset = useState<number>('subtitleOffset')
+  const subtitlePosition = useState<string>('subtitlePosition')
+  const subtitleBackground = useState<string>('subtitleBackground')
+  const subtitleStrokeWidth = useState<number>('subtitleStrokeWidth')
+  const subtitleStrokeColor = useState<string>('subtitleStrokeColor')
 
   const saveBlacklistToStorage = () => {
     if (import.meta.client) {
@@ -57,10 +63,105 @@ export const useSafetyAuditor = () => {
     const transcript = fullTranscript.value || []
     const combinedBlacklist = [...new Set([...DEFAULT_BLACKLIST, ...customBlacklist.value])]
     const mode = subtitleMode.value || 'word'
-    const duration = timelineDuration.value || 0
+    const rawAudit = auditTranscript(transcript, combinedBlacklist, mode)
+    
+    // Adjust score based on safe zone layout collision and readability
+    const isLayoutSafe = layoutAudit.value.isSafe
+    const isReadabilitySafe = readabilityAudit.value.isSafe
+    
+    let adjustedScore = rawAudit.score
+    if (!isLayoutSafe) adjustedScore -= 15
+    if (!isReadabilitySafe) adjustedScore -= 10
+    adjustedScore = Math.max(0, adjustedScore)
 
-    return auditTranscript(transcript, combinedBlacklist, mode, duration)
+    return {
+      ...rawAudit,
+      score: adjustedScore
+    }
   })
+
+  // Pilar 2: Cek Tabrakan Tata Letak dengan Safe Zone Platform aktif
+  const layoutAudit = computed(() => {
+    const platform = activeSafeZone.value || 'none'
+    const position = subtitlePosition.value || 'center'
+    const offset = subtitleOffset.value || 0
+
+    if (platform === 'none') {
+      return {
+        isSafe: true,
+        reason: 'No safe zone selected. Layout is safe.',
+        collisionCount: 0
+      }
+    }
+
+    let isColliding = false
+    let reason = 'Subtitles are placed in a safe layout zone.'
+
+    if (position === 'top') {
+      const topDeadzone = platform === 'tiktok' ? 130 : (platform === 'reels' ? 220 : 160)
+      if (offset < topDeadzone) {
+        isColliding = true
+        reason = `Subtitles collide with top ${platform} header zone (${topDeadzone}px).`
+      }
+    } else if (position === 'bottom') {
+      const bottomDeadzone = platform === 'tiktok' ? 250 : (platform === 'reels' ? 350 : 280)
+      if (offset < bottomDeadzone) {
+        isColliding = true
+        reason = `Subtitles collide with bottom ${platform} controls/caption zone (${bottomDeadzone}px).`
+      }
+    }
+
+    return {
+      isSafe: !isColliding,
+      reason,
+      collisionCount: isColliding ? 1 : 0
+    }
+  })
+
+  // Action to fit subtitle Y coordinate into safe zone
+  const fitSubtitlesToSafeZone = () => {
+    const platform = activeSafeZone.value || 'none'
+    const position = subtitlePosition.value || 'center'
+
+    if (platform === 'none') return
+
+    if (position === 'top') {
+      const topDeadzone = platform === 'tiktok' ? 130 : (platform === 'reels' ? 220 : 160)
+      subtitleOffset.value = topDeadzone + 20
+    } else if (position === 'bottom') {
+      const bottomDeadzone = platform === 'tiktok' ? 250 : (platform === 'reels' ? 350 : 280)
+      subtitleOffset.value = bottomDeadzone + 20
+    }
+  }
+
+  // Pilar 3: Cek Keterbacaan & Kontras Subtitle
+  const readabilityAudit = computed(() => {
+    const bg = subtitleBackground.value || 'none'
+    const strokeWidth = subtitleStrokeWidth.value || 0
+    const strokeColor = subtitleStrokeColor.value || '#000000'
+
+    const hasBg = bg !== 'none'
+    const hasStroke = strokeWidth >= 2 && strokeColor !== 'transparent' && strokeColor !== 'none'
+
+    let isSafe = true
+    let reason = 'Subtitle readability is secured with active outline or background styles.'
+
+    if (!hasBg && !hasStroke) {
+      isSafe = false
+      reason = 'Low subtitle contrast: Add a text outline or background box to guarantee readability.'
+    }
+
+    return {
+      isSafe,
+      reason
+    }
+  })
+
+  // Action to fix readability by applying a high-contrast dark outline
+  const fitSubtitlesToReadability = () => {
+    subtitleStrokeWidth.value = 4
+    subtitleStrokeColor.value = '#000000'
+  }
 
   async function runDeepAudit() {
     if (!activeHook.value || isDeepAuditing.value) return
@@ -114,6 +215,10 @@ export const useSafetyAuditor = () => {
     loadBlacklistFromStorage,
     contentAudit,
     runDeepAudit,
-    maskFlaggedWords
+    maskFlaggedWords,
+    layoutAudit,
+    fitSubtitlesToSafeZone,
+    readabilityAudit,
+    fitSubtitlesToReadability
   }
 }
