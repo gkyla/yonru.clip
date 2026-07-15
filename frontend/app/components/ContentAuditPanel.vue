@@ -48,7 +48,7 @@
       >
         <div class="overflow-hidden">
           <!-- Safety Bento Card -->
-          <div class="p-4 space-y-4 custom-scrollbar min-h-0 overflow-y-auto" style="max-height: calc(75vh - 45px);">
+          <div class="p-4 space-y-4 custom-scrollbar min-h-0 overflow-y-auto" style="max-height: 420px;">
             <!-- Bento Score Card with Radial SVG Progress Ring -->
             <div class="bg-white/[0.02] border border-white/5 rounded-2xl p-4 flex justify-center items-center gap-4 relative group hover:border-white/10 transition-colors">
               <!-- Background Glow Container to clip the radial glow without clipping the tooltip -->
@@ -123,7 +123,7 @@
           >
             <div class="flex items-start gap-3">
               <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" :class="state.layoutAudit.value.isSafe ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'">
-                <Icon :name="state.layoutAudit.value.isSafe ? 'ri:layout-grid-line' : 'ri:layout-warning-line'" class="text-lg" />
+                <Icon :name="state.layoutAudit.value.isSafe ? 'ri:layout-grid-line' : 'ri:error-warning-line'" class="text-lg" />
               </div>
               <div class="flex-1 min-w-0">
                  <div class="flex items-center justify-between mb-0.5">
