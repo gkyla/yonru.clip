@@ -2,7 +2,11 @@
  * Profanity Masker — pure-function extraction from useSafetyAuditor composable.
  */
 
-export function maskText(text: string, blacklist: string[]): string {
+export function maskText(
+  text: string, 
+  blacklist: string[], 
+  style: 'asterisk' | 'block' | 'bleep_marker' = 'asterisk'
+): string {
   let masked = text || ''
   blacklist.forEach(word => {
     if (!word) return
@@ -15,8 +19,15 @@ export function maskText(text: string, blacklist: string[]): string {
     }
     
     masked = masked.replace(regex, (match: string) => {
-      if (match.length <= 1) return match
-      return match.charAt(0) + '*' + match.slice(2)
+      if (style === 'block') {
+        return '*'.repeat(match.length)
+      } else if (style === 'bleep_marker') {
+        return '[BLEEP]'
+      } else {
+        if (match.length <= 1) return match
+        if (match.length === 2) return match.charAt(0) + '*'
+        return match.charAt(0) + '*' + match.slice(2)
+      }
     })
   })
   return masked

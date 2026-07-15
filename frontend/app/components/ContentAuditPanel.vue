@@ -16,7 +16,7 @@
         @click="$emit('toggle-expand')"
       >
         <div class="flex items-center gap-2">
-          <Icon :name="audit && audit.flaggedWords.length > 0 ? 'ri:shield-flash-line' : 'ri:shield-keyhole-line'" :class="audit && audit.flaggedWords.length > 0 ? 'text-rose-500' : 'text-sky-500'" class="text-xs" />
+          <Icon :name="audit && audit.flaggedWords.length > 0 ? 'ri:shield-flash-line' : 'ri:shield-keyhole-line'" :class="audit && audit.flaggedWords.length > 0 ? 'text-rose-500' : 'text-accent-500'" class="text-xs" />
           <h3 class="text-[10px] font-bold uppercase tracking-widest" :class="audit && audit.flaggedWords.length > 0 ? 'text-rose-300' : 'text-slate-400'">Content Safety Audit</h3>
           
           <!-- Glowing Warning Light for risks -->
@@ -49,6 +49,22 @@
         <div class="overflow-hidden">
           <!-- Safety Bento Card -->
           <div class="p-4 space-y-4 custom-scrollbar min-h-0 overflow-y-auto" style="max-height: 420px;">
+            <!-- Warnings Ignored Banner -->
+            <div 
+              v-if="state.isWarningIgnored.value" 
+              class="px-3 py-2 bg-amber-500/5 border border-amber-500/20 rounded-xl flex items-center justify-between gap-3 text-amber-400/90 transition-all duration-300"
+            >
+              <div class="flex items-center gap-2">
+                <Icon name="ri:error-warning-line" class="text-xs text-amber-500 animate-pulse" />
+                <span class="text-[9px] font-black uppercase tracking-widest leading-none">Warnings Ignored</span>
+              </div>
+              <button 
+                @click="state.restoreSafetyWarnings()"
+                class="px-2 py-1 bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] hover:border-white/20 text-slate-300 hover:text-white rounded-lg text-[8px] font-black uppercase tracking-wider transition-colors"
+              >
+                Restore
+              </button>
+            </div>
             <!-- Bento Score Card with Radial SVG Progress Ring -->
             <div class="bg-white/[0.02] border border-white/5 rounded-2xl p-4 flex justify-center items-center gap-4 relative group hover:border-white/10 transition-colors">
               <!-- Background Glow Container to clip the radial glow without clipping the tooltip -->
@@ -220,9 +236,18 @@
         </div>
 
         <!-- Action Footer -->
-        <div class="pt-2">
+        <div class="pt-2 flex flex-col gap-2">
           <button 
-            class="w-full py-2.5 bg-surface-card hover:bg-surface-card/80 border border-surface-border text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white rounded-xl transition-all flex items-center justify-center gap-2 group"
+            v-if="!state.isWarningIgnored.value && audit && audit.score < 100"
+            class="w-full py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-[10px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-300 rounded-xl transition-all flex items-center justify-center gap-2 group active:scale-[0.98]"
+            @click="state.ignoreSafetyWarnings()"
+          >
+            <Icon name="ri:spam-2-line" class="text-xs group-hover:scale-110 transition-transform" />
+            Ignore Safety Warnings
+          </button>
+
+          <button 
+            class="w-full py-2 bg-surface-card hover:bg-surface-card/80 border border-surface-border text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white rounded-xl transition-all flex items-center justify-center gap-2 group"
             @click="$emit('settings')"
           >
             <Icon name="ri:equalizer-line" class="text-xs group-hover:rotate-90 transition-transform" />

@@ -58,6 +58,11 @@ export const useClipperExport = (deps: ExportDeps) => {
   const thumbnailTextOverlays = useState<any[]>('thumbnailTextOverlays', () => [])
   const thumbnailXOffset = useState<number>('thumbnailXOffset', () => 50)
 
+  // Safety/Censorship configuration states
+  const audioBleepEnabled = useState<boolean>('audioBleepEnabled', () => false)
+  const safetySensitivity = useState<string>('safetySensitivity', () => 'moderate')
+  const maskingStyle = useState<string>('maskingStyle', () => 'asterisk')
+
   // --- Private SSE stream parser ---
   function handleSSEData(data: any) {
     const currentState = {
@@ -116,6 +121,9 @@ export const useClipperExport = (deps: ExportDeps) => {
       thumbnail_duration: thumbnailDuration.value,
       thumbnail_text_overlays: thumbnailTextOverlays.value,
       thumbnail_x_offset: thumbnailXOffset.value,
+      audio_bleep_enabled: audioBleepEnabled.value,
+      safety_sensitivity: safetySensitivity.value,
+      masking_style: maskingStyle.value,
       output_name: outputName
     }
   }
