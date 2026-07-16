@@ -1,6 +1,6 @@
 // Composable for managing the entire clipper state
 import { useSystemDiagnostics } from './useSystemDiagnostics'
-import { useSafetyAuditor, DEFAULT_BLACKLIST } from './useSafetyAuditor'
+import { useSafetyAuditor, DEFAULT_BLACKLIST, CATEGORIZED_BLACKLIST } from './useSafetyAuditor'
 import { useTimelineState } from './useTimelineState'
 import { useClipperJob } from './useClipperJob'
 import { useClipperThumbnail } from './useClipperThumbnail'
@@ -606,11 +606,13 @@ function createClipperState() {
     isWarningIgnored: auditor.isWarningIgnored,
     activeCategories: auditor.activeCategories,
     activePlatformFilters: auditor.activePlatformFilters,
+    categorizedBlacklist: auditor.categorizedBlacklist,
     safeZoneVisible: auditor.safeZoneVisible, 
     saveBlacklistToStorage: auditor.saveBlacklistToStorage, 
     layoutAudit: auditor.layoutAudit, 
     readabilityAudit: auditor.readabilityAudit, 
     DEFAULT_BLACKLIST,
+    CATEGORIZED_BLACKLIST,
     thumbnailEnabled, 
     thumbnailUrl, 
     thumbnailDuration, 

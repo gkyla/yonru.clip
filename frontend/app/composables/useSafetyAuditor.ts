@@ -3,7 +3,7 @@ import { auditTranscript } from '../utils/contentAuditor'
 import { maskText } from '../utils/profanityMasker'
 import type { Hook, TranscriptSegment, DeepAuditResult } from '../types/clipper'
 
-export const CATEGORIZED_BLACKLIST = {
+export const DEFAULT_CATEGORIZED_BLACKLIST = {
   violence: [
     'kill', 'death', 'suicide', 'unalive', 'gun', 'blood', 'weapon', 'murder', 'shot',
     '/bunuh/', 'mati', 'tewas', '/darah/', '/senjata/', '/tembak/', 'perang', '/teroris/', '/bom/',
@@ -19,10 +19,12 @@ export const CATEGORIZED_BLACKLIST = {
   ]
 }
 
+export const CATEGORIZED_BLACKLIST = DEFAULT_CATEGORIZED_BLACKLIST
+
 export const DEFAULT_BLACKLIST = [
-  ...CATEGORIZED_BLACKLIST.violence,
-  ...CATEGORIZED_BLACKLIST.sexual,
-  ...CATEGORIZED_BLACKLIST.profanity
+  ...DEFAULT_CATEGORIZED_BLACKLIST.violence,
+  ...DEFAULT_CATEGORIZED_BLACKLIST.sexual,
+  ...DEFAULT_CATEGORIZED_BLACKLIST.profanity
 ]
 
 export const useSafetyAuditor = () => {
@@ -49,6 +51,12 @@ export const useSafetyAuditor = () => {
   const isDeepAuditing = useState<boolean>('isDeepAuditing', () => false)
   const safeZoneVisible = useState<boolean>('safeZoneVisible', () => false)
 
+  const categorizedBlacklist = useState<Record<'violence' | 'sexual' | 'profanity', string[]>>('categorizedBlacklist', () => ({
+    violence: [...DEFAULT_CATEGORIZED_BLACKLIST.violence],
+    sexual: [...DEFAULT_CATEGORIZED_BLACKLIST.sexual],
+    profanity: [...DEFAULT_CATEGORIZED_BLACKLIST.profanity]
+  }))
+
   // Subtitle style / mode dependencies (will be synchronized globally via useState)
   const subtitleMode = useState<string>('subtitleMode')
   const fullTranscript = useState<TranscriptSegment[]>('fullTranscript')
@@ -66,6 +74,7 @@ export const useSafetyAuditor = () => {
     if (import.meta.client) {
       localStorage.setItem('yonru_subtitle_blacklist', JSON.stringify(customBlacklist.value))
       localStorage.setItem('yonru_subtitle_whitelist', JSON.stringify(customWhitelist.value))
+      localStorage.setItem('yonru_categorized_blacklist', JSON.stringify(categorizedBlacklist.value))
     }
   }
 
@@ -87,15 +96,23 @@ export const useSafetyAuditor = () => {
           customWhitelist.value = []
         }
       }
+      const savedCategorized = localStorage.getItem('yonru_categorized_blacklist')
+      if (savedCategorized) {
+        try {
+          categorizedBlacklist.value = JSON.parse(savedCategorized)
+        } catch (e) {
+          // Keep default values
+        }
+      }
     }
   }
 
   // Compile active blacklist categories & custom blacklist minus custom whitelist exceptions
   const compiledBlacklist = computed(() => {
     const list: string[] = []
-    if (activeCategories.value.violence) list.push(...CATEGORIZED_BLACKLIST.violence)
-    if (activeCategories.value.sexual) list.push(...CATEGORIZED_BLACKLIST.sexual)
-    if (activeCategories.value.profanity) list.push(...CATEGORIZED_BLACKLIST.profanity)
+    if (activeCategories.value.violence) list.push(...(categorizedBlacklist.value.violence || []))
+    if (activeCategories.value.sexual) list.push(...(categorizedBlacklist.value.sexual || []))
+    if (activeCategories.value.profanity) list.push(...(categorizedBlacklist.value.profanity || []))
     
     // Add custom blacklist
     list.push(...customBlacklist.value)
@@ -328,6 +345,7 @@ export const useSafetyAuditor = () => {
     isWarningIgnored,
     activeCategories,
     activePlatformFilters,
+    categorizedBlacklist,
     deepAuditResults,
     isDeepAuditing,
     safeZoneVisible,
