@@ -27,12 +27,21 @@ export const DEFAULT_BLACKLIST = [
   ...DEFAULT_CATEGORIZED_BLACKLIST.profanity
 ]
 
+export const SEVERE_WORDS = new Set([
+  // violence
+  'suicide', 'unalive', 'murder', 'bunuh', 'teroris', 'bom', 'terror', 'bomb',
+  // sexual
+  'porn', 'hentai', 'nude', 'nudity', 'bokep', 'telanjang', 'mesum', 'lonte', 'perek',
+  // profanity
+  'f*ck', 'b!tch', 'bangsat', 'bgsat', 'kontol', 'kontl', 'memek', 'memk', 'itil', 'bajingan', 'pantek', 'jancok', 'jancuk'
+])
+
 export const useSafetyAuditor = () => {
   const API_BASE = 'http://localhost:8000'
 
   const customBlacklist = useState<string[]>('customBlacklist', () => [])
   const customWhitelist = useState<string[]>('customWhitelist', () => [])
-  const safetySensitivity = useState<'conservative' | 'moderate' | 'relaxed'>('safetySensitivity', () => 'moderate')
+  const safetySensitivity = useState<'strict' | 'standard' | 'manual'>('safetySensitivity', () => 'standard')
   const maskingStyle = useState<'asterisk' | 'block' | 'bleep_marker'>('maskingStyle', () => 'asterisk')
   const audioBleepEnabled = useState<boolean>('audioBleepEnabled', () => false)
   const isWarningIgnored = useState<boolean>('isWarningIgnored', () => false)
@@ -110,9 +119,28 @@ export const useSafetyAuditor = () => {
   // Compile active blacklist categories & custom blacklist minus custom whitelist exceptions
   const compiledBlacklist = computed(() => {
     const list: string[] = []
-    if (activeCategories.value.violence) list.push(...(categorizedBlacklist.value.violence || []))
-    if (activeCategories.value.sexual) list.push(...(categorizedBlacklist.value.sexual || []))
-    if (activeCategories.value.profanity) list.push(...(categorizedBlacklist.value.profanity || []))
+    
+    if (safetySensitivity.value !== 'manual') {
+      const categories: ('violence' | 'sexual' | 'profanity')[] = ['violence', 'sexual', 'profanity']
+      for (const cat of categories) {
+        if (activeCategories.value[cat]) {
+          const words = categorizedBlacklist.value[cat] || []
+          if (safetySensitivity.value === 'standard') {
+            // Only severe words OR user-added words (not in default list)
+            const defaultSet = new Set(DEFAULT_CATEGORIZED_BLACKLIST[cat])
+            list.push(...words.filter(word => {
+              const clean = word.startsWith('/') && word.endsWith('/') ? word.slice(1, -1) : word
+              const isSevere = SEVERE_WORDS.has(clean.toLowerCase().trim())
+              const isUserAdded = !defaultSet.has(word)
+              return isSevere || isUserAdded
+            }))
+          } else {
+            // Strict mode uses all words
+            list.push(...words)
+          }
+        }
+      }
+    }
     
     // Add custom blacklist
     list.push(...customBlacklist.value)
@@ -130,13 +158,7 @@ export const useSafetyAuditor = () => {
     const mode = subtitleMode.value || 'word'
 
     // Compile active blacklist based on sensitivity
-    let activeBlacklist = compiledBlacklist.value
-    if (safetySensitivity.value === 'relaxed') {
-      activeBlacklist = customBlacklist.value.filter(word => {
-        const cleanWord = word.startsWith('/') && word.endsWith('/') ? word.slice(1, -1) : word
-        return !customWhitelist.value.map(w => w.toLowerCase().trim()).includes(cleanWord.toLowerCase().trim())
-      })
-    }
+    const activeBlacklist = compiledBlacklist.value
 
     const rawAudit = auditTranscript(transcript, activeBlacklist, mode)
     
@@ -322,13 +344,7 @@ export const useSafetyAuditor = () => {
     const transcript = fullTranscript.value || []
     
     // Choose blacklist according to sensitivity settings
-    let activeBlacklist = compiledBlacklist.value
-    if (safetySensitivity.value === 'relaxed') {
-      activeBlacklist = customBlacklist.value.filter(word => {
-        const cleanWord = word.startsWith('/') && word.endsWith('/') ? word.slice(1, -1) : word
-        return !customWhitelist.value.map(w => w.toLowerCase().trim()).includes(cleanWord.toLowerCase().trim())
-      })
-    }
+    const activeBlacklist = compiledBlacklist.value
     
     fullTranscript.value = transcript.map(seg => ({
       ...seg,

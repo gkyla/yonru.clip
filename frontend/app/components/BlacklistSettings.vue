@@ -25,7 +25,7 @@
           <label class="text-xs text-slate-500 font-black uppercase tracking-widest block">Safety Sensitivity</label>
           <div class="grid grid-cols-3 gap-1.5 p-1 bg-white/[0.02] border border-white/5 rounded-xl">
             <button 
-              v-for="level in ['conservative', 'moderate', 'relaxed']" 
+              v-for="level in ['strict', 'standard', 'manual']" 
               :key="level"
               @click="state.safetySensitivity.value = level; state.saveBlacklistToStorage()"
               class="py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all"
@@ -36,13 +36,13 @@
               {{ level }}
             </button>
           </div>
-          <p class="text-xs text-slate-500 leading-relaxed italic">
+          <p class="text-xs text-slate-400 leading-relaxed bg-white/[0.01] border border-white/5 rounded-xl p-3 mt-1.5 whitespace-pre-line font-medium">
             {{ 
-              state.safetySensitivity.value === 'conservative' 
-                ? 'Censors all possible slang & profanity. Highly advertiser-friendly.' :
-              state.safetySensitivity.value === 'moderate'
-                ? 'Standard filter targeting critical shadowban keywords.'
-                : 'Only filters words you manually add to your custom blacklist.'
+              state.safetySensitivity.value === 'strict' 
+                ? '• Subtitles: Censors all active categories (Violence, Sexual, Profanity) including mild slang + Custom Blacklist.\n• Audio: Only bleeped if "Mute/Bleep Audio" is enabled below (bleeps all Strict category words).' :
+              state.safetySensitivity.value === 'standard'
+                ? '• Subtitles: Censors only critical/severe shadowban keywords (e.g. suicide, murder, porn, f*ck, bangsat, kontol). Allows mild slang.\n• Audio: Only bleeped if "Mute/Bleep Audio" is enabled below (bleeps only Standard category words).'
+                : '• Subtitles: Censors Custom Blacklist only (ignores built-in categories).\n• Audio: Only bleeped if "Mute/Bleep Audio" is enabled below (bleeps only Custom Blacklist words).'
             }}
           </p>
         </div>
@@ -148,13 +148,34 @@
           
           <!-- Tab 1: Categories -->
           <div v-if="activeTab === 'categories'" class="flex-1 flex flex-col space-y-4 min-h-0">
-            <div class="space-y-3 flex-1 flex flex-col min-h-0">
+            <!-- If in Manual mode, show notice -->
+            <div v-if="state.safetySensitivity.value === 'manual'" class="flex-1 flex flex-col items-center justify-center text-center p-6 border border-dashed border-white/5 rounded-2xl bg-white/[0.01]">
+              <Icon name="ri:settings-5-line" class="text-3xl text-slate-500 mb-2" />
+              <h4 class="text-xs font-black text-slate-300 uppercase tracking-wider">Categories Disabled</h4>
+              <p class="text-xs text-slate-500 mt-1 max-w-[280px] leading-relaxed">
+                You are currently in <b>Manual Sensitivity Mode</b>. Built-in categories are ignored, and only your Custom Blacklist will be filtered.
+              </p>
+              <button 
+                @click="state.safetySensitivity.value = 'standard'; state.saveBlacklistToStorage()"
+                class="mt-4 px-3 py-1.5 bg-accent-500 hover:bg-accent-600 text-black text-xs font-black uppercase tracking-widest rounded-xl transition-all"
+              >
+                Switch to Standard
+              </button>
+            </div>
+
+            <div v-else class="space-y-3 flex-1 flex flex-col min-h-0">
               <span class="text-xs text-slate-500 font-black uppercase tracking-widest block">Categorized Filters</span>
               <div class="grid grid-cols-3 gap-2 shrink-0">
                 <div 
                   v-for="(val, cat) in state.activeCategories.value" 
                   :key="cat"
-                  class="p-2.5 bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 rounded-xl transition-colors flex flex-col gap-1.5"
+                  class="p-2.5 border rounded-xl transition-all duration-700 flex flex-col gap-1.5"
+                  :class="[
+                    val ? 'hover:bg-white/[0.03]' : '',
+                    categoriesFlash 
+                      ? 'border-accent-500/20 bg-accent-500/[0.01] shadow-[0_0_20px_rgba(207,255,80,0.1)]' 
+                      : 'bg-white/[0.01] border-white/5'
+                  ]"
                 >
                   <label class="flex items-center justify-between cursor-pointer select-none">
                     <div class="flex items-center gap-1.5 min-w-0">
@@ -182,11 +203,16 @@
                 >
                   <div 
                     v-if="val && state.categorizedBlacklist?.value?.[cat]"
-                    class="p-3 bg-white/[0.01] border border-white/5 rounded-xl flex flex-col gap-2"
+                    class="p-3 border rounded-xl flex flex-col gap-2 transition-all duration-700"
+                    :class="[
+                      categoriesFlash 
+                        ? 'border-accent-500/20 bg-accent-500/[0.01] shadow-[0_0_20px_rgba(207,255,80,0.1)]' 
+                        : 'bg-white/[0.01] border-white/5'
+                    ]"
                   >
                     <!-- Category Header with Edit and Reset buttons -->
                     <div class="flex items-center justify-between">
-                      <span class="text-xs text-accent-500 font-bold uppercase tracking-wider">{{ cat }} words ({{ state.categorizedBlacklist.value[cat].length }}):</span>
+                      <span class="text-xs text-accent-500 font-bold uppercase tracking-wider">{{ cat }} words ({{ getCategoryWords(cat).length }}):</span>
                       <div class="flex items-center gap-1.5">
                         <button 
                           v-if="editingCategory === cat"
@@ -227,7 +253,7 @@
                     <!-- Word List Badges (with delete toggle in Edit Mode) -->
                     <div class="flex flex-wrap gap-1">
                       <span 
-                        v-for="word in state.categorizedBlacklist.value[cat]" 
+                        v-for="word in getCategoryWords(cat)" 
                         :key="word"
                         class="px-2 py-0.5 bg-white/[0.02] border border-white/5 rounded text-xs font-mono text-slate-400 hover:text-white transition-colors flex items-center gap-1 group/badge"
                       >
@@ -426,8 +452,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { DEFAULT_CATEGORIZED_BLACKLIST } from '../composables/useSafetyAuditor'
+import { ref, computed, onMounted, watch } from 'vue'
+import { DEFAULT_CATEGORIZED_BLACKLIST, SEVERE_WORDS } from '../composables/useSafetyAuditor'
 
 const state = useClipperState()
 const newWord = ref('')
@@ -436,6 +462,41 @@ const activeTab = ref('categories')
 
 const editingCategory = ref(null)
 const newCategoryWord = ref('')
+
+const categoriesFlash = ref(false)
+
+function triggerFlash() {
+  categoriesFlash.value = true
+  setTimeout(() => {
+    categoriesFlash.value = false
+  }, 800)
+}
+
+watch(activeTab, (newTab) => {
+  if (newTab === 'categories') {
+    triggerFlash()
+  }
+})
+
+watch(() => state.safetySensitivity.value, () => {
+  if (activeTab.value === 'categories') {
+    triggerFlash()
+  }
+})
+
+function getCategoryWords(cat) {
+  const allWords = state.categorizedBlacklist.value[cat] || []
+  if (state.safetySensitivity.value === 'standard') {
+    const defaultSet = new Set(DEFAULT_CATEGORIZED_BLACKLIST[cat])
+    return allWords.filter(word => {
+      const clean = word.startsWith('/') && word.endsWith('/') ? word.slice(1, -1) : word
+      const isSevere = SEVERE_WORDS.has(clean.toLowerCase().trim())
+      const isUserAdded = !defaultSet.has(word)
+      return isSevere || isUserAdded
+    })
+  }
+  return allWords
+}
 
 function addCategoryWord(cat) {
   if (!newCategoryWord.value.trim()) return
@@ -464,6 +525,9 @@ defineEmits(['close'])
 onMounted(() => {
   if (state && state.loadBlacklistFromStorage) {
     state.loadBlacklistFromStorage()
+  }
+  if (activeTab.value === 'categories') {
+    triggerFlash()
   }
 })
 

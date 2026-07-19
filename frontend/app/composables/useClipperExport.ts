@@ -122,7 +122,8 @@ export const useClipperExport = (deps: ExportDeps) => {
       thumbnail_text_overlays: thumbnailTextOverlays.value,
       thumbnail_x_offset: thumbnailXOffset.value,
       audio_bleep_enabled: audioBleepEnabled.value,
-      safety_sensitivity: safetySensitivity.value,
+      safety_sensitivity: safetySensitivity.value === 'strict' ? 'conservative' :
+                          safetySensitivity.value === 'standard' ? 'moderate' : 'relaxed',
       masking_style: maskingStyle.value,
       output_name: outputName
     }
