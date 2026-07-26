@@ -369,6 +369,9 @@ export const useClipperJob = () => {
                   console.log('[clipper] Fetching timeline from:', timelineUrl)
                   const tracks = await $fetch<TimelineTrack[]>(timelineUrl)
                   if (tracks && tracks.length > 0) {
+                    if (!tracks.some(t => t.id === 'subtitle')) {
+                      tracks.push({ id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] })
+                    }
                     timeline.timelineTracks.value = tracks
                     timelineLoaded = true
                     console.log('[clipper] Loaded clip timeline into state')
@@ -572,6 +575,9 @@ export const useClipperJob = () => {
           const timelineUrl = baseClipUrl + '/timeline.json?t=' + Date.now()
           const tracks = await $fetch<TimelineTrack[]>(timelineUrl)
           if (tracks && tracks.length > 0) {
+            if (!tracks.some(t => t.id === 'subtitle')) {
+              tracks.push({ id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] })
+            }
             timeline.timelineTracks.value = tracks
             timelineLoaded = true
           }

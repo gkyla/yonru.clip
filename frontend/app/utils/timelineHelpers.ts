@@ -49,10 +49,13 @@ export function calculateVideoTime(
   const videoTrack = tracks.find(tr => tr.id === 'video')
   if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) return t
 
-  const activeItem = videoTrack.items.find(i => t >= i.start && t < i.start + i.duration)
+  const activeItem = videoTrack.items.find(i => t >= i.start && t <= i.start + i.duration)
+    || videoTrack.items[videoTrack.items.length - 1]
+
   if (activeItem) {
     const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : activeItem.start
     return mediaStart + (t - activeItem.start)
   }
+
   return t
 }

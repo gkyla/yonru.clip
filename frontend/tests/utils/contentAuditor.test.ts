@@ -44,15 +44,22 @@ describe('Content Auditor TDD', () => {
     expect(result.score).toBe(100)
   })
 
-  it('chunks words and flags multi-word chunk containing blacklist word', () => {
+  it('evaluates flaggedSegments strictly at word-level with padding offset', () => {
     const transcript = [
       { text: 'one kill three', start: 0, duration: 3 }
     ]
-    const result = auditTranscript(transcript, ['kill'], '3_words')
+    // With 0ms padding offset
+    const resultZeroPadding = auditTranscript(transcript, ['kill'], '3_words', 0)
 
-    expect(result.flaggedWords).toContain('kill')
-    expect(result.flaggedSegments).toEqual([
-      { start: 0, duration: 3, word: 'kill', text: 'one kill three' }
+    expect(resultZeroPadding.flaggedWords).toContain('kill')
+    expect(resultZeroPadding.flaggedSegments).toEqual([
+      { start: 1, duration: 1, word: 'kill', text: 'kill' }
+    ])
+
+    // With 50ms (default) padding offset
+    const resultPadded = auditTranscript(transcript, ['kill'], '3_words', 50)
+    expect(resultPadded.flaggedSegments).toEqual([
+      { start: 0.95, duration: 1.1, word: 'kill', text: 'kill' }
     ])
   })
 })

@@ -44,6 +44,9 @@ export const useSafetyAuditor = () => {
   const safetySensitivity = useState<'strict' | 'standard' | 'manual'>('safetySensitivity', () => 'standard')
   const maskingStyle = useState<'asterisk' | 'block' | 'bleep_marker'>('maskingStyle', () => 'asterisk')
   const audioBleepEnabled = useState<boolean>('audioBleepEnabled', () => false)
+  const audioBleepSource = useState<'mute' | 'custom'>('audioBleepSource', () => 'mute')
+  const customBleepFile = useState<{ name: string; data: string } | null>('customBleepFile', () => null)
+  const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 50)
   const isWarningIgnored = useState<boolean>('isWarningIgnored', () => false)
   const activeCategories = useState<{ violence: boolean; sexual: boolean; profanity: boolean }>('activeCategories', () => ({
     violence: true,
@@ -84,6 +87,14 @@ export const useSafetyAuditor = () => {
       localStorage.setItem('yonru_subtitle_blacklist', JSON.stringify(customBlacklist.value))
       localStorage.setItem('yonru_subtitle_whitelist', JSON.stringify(customWhitelist.value))
       localStorage.setItem('yonru_categorized_blacklist', JSON.stringify(categorizedBlacklist.value))
+      localStorage.setItem('yonru_audio_bleep_enabled', audioBleepEnabled.value ? 'true' : 'false')
+      localStorage.setItem('yonru_audio_bleep_source', audioBleepSource.value)
+      localStorage.setItem('yonru_bleep_padding_offset', bleepPaddingOffset.value.toString())
+      if (customBleepFile.value) {
+        localStorage.setItem('yonru_custom_bleep_file', JSON.stringify(customBleepFile.value))
+      } else {
+        localStorage.removeItem('yonru_custom_bleep_file')
+      }
     }
   }
 
@@ -113,6 +124,29 @@ export const useSafetyAuditor = () => {
           // Keep default values
         }
       }
+      const savedBleepSource = localStorage.getItem('yonru_audio_bleep_source')
+      if (savedBleepSource === 'mute' || savedBleepSource === 'custom') {
+        audioBleepSource.value = savedBleepSource
+      }
+      const savedBleepFile = localStorage.getItem('yonru_custom_bleep_file')
+      if (savedBleepFile) {
+        try {
+          customBleepFile.value = JSON.parse(savedBleepFile)
+        } catch (e) {
+          customBleepFile.value = null
+        }
+      }
+      const savedBleepEnabled = localStorage.getItem('yonru_audio_bleep_enabled')
+      if (savedBleepEnabled !== null) {
+        audioBleepEnabled.value = savedBleepEnabled === 'true'
+      }
+      const savedPadding = localStorage.getItem('yonru_bleep_padding_offset')
+      if (savedPadding !== null) {
+        const parsed = parseInt(savedPadding, 10)
+        if (!isNaN(parsed) && parsed >= 0) {
+          bleepPaddingOffset.value = parsed
+        }
+      }
     }
   }
 
@@ -125,7 +159,7 @@ export const useSafetyAuditor = () => {
       for (const cat of categories) {
         if (activeCategories.value[cat]) {
           const words = categorizedBlacklist.value[cat] || []
-          if (safetySensitivity.value === 'standard') {
+          if (safetySensitivity.value === 'standard' && !audioBleepEnabled.value) {
             // Only severe words OR user-added words (not in default list)
             const defaultSet = new Set(DEFAULT_CATEGORIZED_BLACKLIST[cat])
             list.push(...words.filter(word => {
@@ -135,7 +169,7 @@ export const useSafetyAuditor = () => {
               return isSevere || isUserAdded
             }))
           } else {
-            // Strict mode uses all words
+            // Strict mode OR audio bleep enabled uses all words from active categories
             list.push(...words)
           }
         }
@@ -160,7 +194,7 @@ export const useSafetyAuditor = () => {
     // Compile active blacklist based on sensitivity
     const activeBlacklist = compiledBlacklist.value
 
-    const rawAudit = auditTranscript(transcript, activeBlacklist, mode)
+    const rawAudit = auditTranscript(transcript, activeBlacklist, mode, bleepPaddingOffset.value)
     
     // Adjust score based on safe zone layout collision and readability
     const currentPlatform = activeSafeZone.value || 'none'
@@ -358,6 +392,9 @@ export const useSafetyAuditor = () => {
     safetySensitivity,
     maskingStyle,
     audioBleepEnabled,
+    audioBleepSource,
+    customBleepFile,
+    bleepPaddingOffset,
     isWarningIgnored,
     activeCategories,
     activePlatformFilters,

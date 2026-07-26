@@ -94,7 +94,7 @@ const App = () => {
         }}
         controls={false}
         autoPlay={false}
-        loop={true}
+        loop={false}
         volume={volume}
       />
       {props.showDebug && (

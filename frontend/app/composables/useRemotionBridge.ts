@@ -19,6 +19,37 @@ export const useRemotionBridge = (
   let nativeVideoStarted = false
   let unsubscribe: (() => void) | null = null
 
+  const isInsideFlaggedSegment = computed(() => {
+    if (!state.audioBleepEnabled.value) return false
+    
+    const firstStart = state.fullTranscript?.value?.[0]?.start || 0
+    const isTranscriptZeroBased = state.activeHook?.value
+      ? firstStart < (state.activeHook.value.start || 0) - 2
+      : true
+    
+    const thumbSec = state.thumbnailEnabled?.value ? (state.thumbnailDuration?.value || 0) : 0
+    const relativeTime = Math.max(0, state.currentTime.value - thumbSec)
+    
+    // Note: Do NOT include subtitleSyncOffset here. Audio waveform timing in video matches currentTime directly!
+    const searchTime = isTranscriptZeroBased 
+      ? relativeTime
+      : (state.activeHook?.value?.start || 0) + relativeTime
+
+    const segments = state.contentAudit.value?.flaggedSegments || []
+    return segments.some((seg: any) => searchTime >= seg.start && searchTime <= (seg.start + seg.duration))
+  })
+
+  function getCurrentTargetVolume() {
+    const isMutedByCensor = isInsideFlaggedSegment.value && state.isPlaying.value
+    return isMutedByCensor ? 0 : state.volume.value
+  }
+
+  function isTargetMuted() {
+    const isMutedByCensor = isInsideFlaggedSegment.value && state.isPlaying.value
+    if (isMutedByCensor) return true
+    return !state.useNativePlayer.value
+  }
+
   function syncRemotionProps() {
     const syncOffsetMs = state.subtitleSyncOffset.value
     const mode = state.subtitleMode.value || 'word'
@@ -91,9 +122,16 @@ export const useRemotionBridge = (
     if (!data) return
     if (data.type === 'REMOTION_TIMEUPDATE') {
       isInternalTimeUpdate.value = true
-      state.currentTime.value = data.currentTime
       
-      if (state.isPlaying.value && previewVideo.value && !isInThumbnailWindow.value) {
+      if (data.currentTime >= state.timelineDuration.value && state.isPlaying.value) {
+        state.currentTime.value = state.timelineDuration.value
+        state.isPlaying.value = false
+        bridge.pause()
+      } else {
+        state.currentTime.value = data.currentTime
+      }
+
+      if (state.useNativePlayer.value && state.isPlaying.value && previewVideo.value && !isInThumbnailWindow.value) {
         const expectedTime = videoTime.value
         const diff = previewVideo.value.currentTime - expectedTime
         
@@ -111,6 +149,7 @@ export const useRemotionBridge = (
       console.log('[VideoPreview] Forcing instant Remotion seek on IFRAME_READY:', targetFrame)
       bridge.seek(targetFrame)
       lastSeekFrame.value = targetFrame
+      state.isMediaLoading.value = false
     }
   }
 
@@ -149,20 +188,18 @@ export const useRemotionBridge = (
     if (!playing) nativeVideoStarted = false
     
     if (previewVideo.value) {
-      if (playing) {
+      if (playing && state.useNativePlayer.value) {
         if (isInThumbnailWindow.value) {
           previewVideo.value.currentTime = 0
           previewVideo.value.muted = true
         } else {
-          previewVideo.value.muted = !state.useNativePlayer.value
-          if (state.useNativePlayer.value) {
-            previewVideo.value.volume = state.volume.value
-          }
+          previewVideo.value.muted = isTargetMuted()
+          previewVideo.value.volume = getCurrentTargetVolume()
           previewVideo.value.currentTime = videoTime.value
           previewVideo.value.play().catch(e => console.warn('Native play blocked:', e))
         }
       } else {
-        previewVideo.value.pause()
+        if (!previewVideo.value.paused) previewVideo.value.pause()
       }
     }
 
@@ -174,16 +211,16 @@ export const useRemotionBridge = (
   })
 
   watch(() => state.volume.value, (newVol) => {
-    if (previewVideo.value && !isInThumbnailWindow.value) {
-      previewVideo.value.volume = newVol
+    if (previewVideo.value && !isInThumbnailWindow.value && state.useNativePlayer.value) {
+      previewVideo.value.volume = getCurrentTargetVolume()
     }
-    bridge.updateProps({ volume: newVol })
+    bridge.updateProps({ volume: getCurrentTargetVolume() })
   })
 
   watch(() => state.currentTime.value, (newTime) => {
     if (state.isTimelineShifting.value) return
 
-    if (state.isPlaying.value && previewVideo.value && state.thumbnailEnabled.value) {
+    if (state.useNativePlayer.value && state.isPlaying.value && previewVideo.value && state.thumbnailEnabled.value) {
       if (isInThumbnailWindow.value) {
         if (!previewVideo.value.paused) previewVideo.value.pause()
         previewVideo.value.currentTime = 0
@@ -192,10 +229,8 @@ export const useRemotionBridge = (
       } else if (!nativeVideoStarted) {
         nativeVideoStarted = true
         previewVideo.value.currentTime = videoTime.value
-        previewVideo.value.muted = !state.useNativePlayer.value
-        if (state.useNativePlayer.value) {
-          previewVideo.value.volume = state.volume.value
-        }
+        previewVideo.value.muted = isTargetMuted()
+        previewVideo.value.volume = getCurrentTargetVolume()
         previewVideo.value.play().catch(e => console.warn('Native play at boundary:', e))
         console.log(`[VideoPreview] Crossed thumb boundary — started native video from ${videoTime.value}s`)
       }
@@ -203,7 +238,7 @@ export const useRemotionBridge = (
 
     if (isInternalTimeUpdate.value) return
     
-    if (previewVideo.value && !state.isPlaying.value) {
+    if (state.useNativePlayer.value && previewVideo.value && !state.isPlaying.value) {
       if (isInThumbnailWindow.value) {
         if (previewVideo.value.currentTime !== 0) previewVideo.value.currentTime = 0
       } else {
@@ -245,6 +280,45 @@ export const useRemotionBridge = (
     }
   })
 
+  let bleepAudioPlayer: HTMLAudioElement | null = null
+  let lastMuteState: boolean | null = null
+
+  watch([isInsideFlaggedSegment, () => state.isPlaying.value, () => state.audioBleepSource?.value, () => state.customBleepFile?.value, () => state.volume.value], () => {
+    const isMuted = isInsideFlaggedSegment.value && state.isPlaying.value
+
+    if (lastMuteState === isMuted) return
+    lastMuteState = isMuted
+
+    if (isMuted) {
+      if (state.useNativePlayer.value && previewVideo.value) {
+        previewVideo.value.volume = 0
+        previewVideo.value.muted = true
+      }
+      bridge.updateProps({ volume: 0 })
+
+      if (state.audioBleepSource?.value === 'custom' && state.customBleepFile?.value?.data) {
+        if (!bleepAudioPlayer) {
+          bleepAudioPlayer = new Audio(state.customBleepFile.value.data)
+          bleepAudioPlayer.loop = true
+        }
+        if (bleepAudioPlayer.paused) {
+          bleepAudioPlayer.currentTime = 0
+          bleepAudioPlayer.play().catch(e => console.warn('Bleep playback failed:', e))
+        }
+      }
+    } else {
+      if (state.useNativePlayer.value && previewVideo.value && !isInThumbnailWindow.value) {
+        previewVideo.value.muted = isTargetMuted()
+        previewVideo.value.volume = getCurrentTargetVolume()
+      }
+      bridge.updateProps({ volume: getCurrentTargetVolume() })
+
+      if (bleepAudioPlayer && !bleepAudioPlayer.paused) {
+        bleepAudioPlayer.pause()
+      }
+    }
+  })
+
   onMounted(() => {
     unsubscribe = bridge.onMessage(onRemotionMessage)
   })
@@ -252,6 +326,10 @@ export const useRemotionBridge = (
   onUnmounted(() => {
     if (unsubscribe) {
       unsubscribe()
+    }
+    if (bleepAudioPlayer) {
+      bleepAudioPlayer.pause()
+      bleepAudioPlayer = null
     }
   })
 

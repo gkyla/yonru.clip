@@ -60,4 +60,24 @@ describe('Timeline Helpers TDD', () => {
     ]
     expect(calculateVideoTime(15.0, false, 3.0, tracksNoMediaStart)).toBe(15.0)
   })
+
+  it('maintains continuous linear videoTime motion across item boundaries and past item ends', () => {
+    const tracks = [
+      {
+        id: 'video',
+        items: [
+          { start: 0, duration: 10, mediaStart: 15 }
+        ]
+      }
+    ]
+
+    // Inside item: t = 5 -> mediaStart + 5 = 20.0
+    expect(calculateVideoTime(5.0, false, 0, tracks)).toBe(20.0)
+
+    // Exact end boundary: t = 10.0 -> mediaStart + 10 = 25.0
+    expect(calculateVideoTime(10.0, false, 0, tracks)).toBe(25.0)
+
+    // Past end boundary: t = 12.0 -> mediaStart + 12 = 27.0 (linear motion, does not collapse or freeze)
+    expect(calculateVideoTime(12.0, false, 0, tracks)).toBe(27.0)
+  })
 })

@@ -69,20 +69,142 @@
         <!-- 4. Guidelines & Audio Options -->
         <div class="space-y-3 pt-2 border-t border-white/5">
           <!-- Audio Bleep option -->
-          <label class="flex items-center justify-between cursor-pointer group">
-            <div class="flex flex-col">
-              <span class="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <Icon name="ri:volume-mute-line" class="text-xs text-accent-500" />
-                Mute/Bleep Audio
-              </span>
-              <span class="text-xs text-slate-500 mt-0.5">Bleep audio during final video render</span>
+          <div class="space-y-2">
+            <label class="flex items-center justify-between cursor-pointer group">
+              <div class="flex flex-col">
+                <span class="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <Icon :name="state.audioBleepEnabled.value ? 'ri:volume-up-line' : 'ri:volume-mute-line'" class="text-xs text-accent-500" />
+                  Mute/Bleep Audio
+                </span>
+                <span class="text-xs text-slate-500 mt-0.5">Censor audio during final video render</span>
+              </div>
+              <input 
+                type="checkbox" 
+                v-model="state.audioBleepEnabled.value"
+                @change="state.saveBlacklistToStorage()"
+                class="rounded border-white/10 bg-surface-dark text-accent-500 focus:ring-accent-500 w-4 h-4 cursor-pointer"
+              />
+            </label>
+
+            <!-- Audio Bleep options container -->
+            <div v-if="state.audioBleepEnabled.value" class="pl-4 border-l border-white/10 space-y-3 pt-1 pb-2">
+              <!-- Selector -->
+              <div class="space-y-1">
+                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Bleep Sound Type</label>
+                <div class="grid grid-cols-2 gap-1 p-0.5 bg-white/[0.02] border border-white/5 rounded-lg">
+                  <button
+                    type="button"
+                    @click="state.audioBleepSource.value = 'mute'; state.saveBlacklistToStorage()"
+                    class="py-1 text-[10px] font-black uppercase tracking-wider rounded transition-all"
+                    :class="state.audioBleepSource.value === 'mute'
+                      ? 'bg-white/10 text-white shadow-sm font-black'
+                      : 'text-slate-400 hover:text-white font-bold'"
+                  >
+                    Mute Audio (Default)
+                  </button>
+                  <button
+                    type="button"
+                    @click="state.audioBleepSource.value = 'custom'; state.saveBlacklistToStorage()"
+                    class="py-1 text-[10px] font-black uppercase tracking-wider rounded transition-all"
+                    :class="state.audioBleepSource.value === 'custom'
+                      ? 'bg-white/10 text-white shadow-sm font-black'
+                      : 'text-slate-400 hover:text-white font-bold'"
+                  >
+                    Custom Sound File
+                  </button>
+                </div>
+              </div>
+
+              <!-- Custom File Section -->
+              <div v-if="state.audioBleepSource.value === 'custom'" class="space-y-2">
+                <input
+                  type="file"
+                  ref="bleepFileInput"
+                  class="hidden"
+                  accept="audio/*"
+                  @change="handleBleepUpload"
+                />
+
+                <!-- Uploaded File Display -->
+                <div v-if="state.customBleepFile.value" class="p-2 bg-white/[0.02] border border-white/5 rounded-xl flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <Icon name="ri:music-2-line" class="text-accent-500 text-sm flex-shrink-0" />
+                    <div class="flex flex-col min-w-0">
+                      <span class="text-xs font-bold text-slate-300 truncate">{{ state.customBleepFile.value.name }}</span>
+                      <span class="text-[9px] text-slate-500 font-medium font-mono">Custom Beep Configured</span>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-1.5 flex-shrink-0">
+                    <!-- Play/Preview button -->
+                    <button
+                      type="button"
+                      @click="toggleBleepPreview"
+                      class="p-1 bg-white/[0.03] hover:bg-white/[0.08] hover:text-white text-slate-400 rounded transition-colors"
+                      :title="isPlayingPreview ? 'Pause Preview' : 'Play Preview'"
+                    >
+                      <Icon :name="isPlayingPreview ? 'ri:pause-line' : 'ri:play-line'" class="text-xs" />
+                    </button>
+                    
+                    <!-- Remove button -->
+                    <button
+                      type="button"
+                      @click="removeBleepFile"
+                      class="p-1 bg-white/[0.03] hover:bg-rose-500/10 hover:text-rose-400 text-slate-400 rounded transition-colors"
+                      title="Remove File"
+                    >
+                      <Icon name="ri:delete-bin-line" class="text-xs" />
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Upload Placeholder Zone -->
+                <div
+                  v-else
+                  @click="bleepFileInput.click()"
+                  class="border border-dashed border-white/10 hover:border-accent-500/50 hover:bg-white/[0.02] rounded-xl p-3 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 group/upload"
+                >
+                  <Icon name="ri:upload-cloud-2-line" class="text-lg text-slate-500 group-hover/upload:text-accent-500 transition-colors mb-1" />
+                  <span class="text-xs font-bold text-slate-300">Upload Bleep Sound</span>
+                  <span class="text-[9px] text-slate-500 mt-0.5">Supports .mp3, .wav (Max 1MB)</span>
+                </div>
+
+                <!-- Error message if any -->
+                <div v-if="bleepUploadError" class="text-[10px] text-rose-400 font-medium flex items-center gap-1">
+                  <Icon name="ri:error-warning-line" class="text-xs flex-shrink-0" />
+                  <span>{{ bleepUploadError }}</span>
+                </div>
+              </div>
+
+              <!-- Bleep Padding Offset Slider/Input -->
+              <div class="space-y-1 pt-1">
+                <div class="flex items-center justify-between">
+                  <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Bleep Padding (ms)</label>
+                  <span class="text-[10px] font-mono font-bold text-accent-400">{{ state.bleepPaddingOffset?.value ?? 50 }}ms</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="200"
+                    step="10"
+                    :value="state.bleepPaddingOffset?.value ?? 50"
+                    @input="state.bleepPaddingOffset.value = Number(($event.target).value); state.saveBlacklistToStorage()"
+                    class="w-full accent-accent-500 cursor-pointer h-1.5 bg-white/10 rounded-lg"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="500"
+                    :value="state.bleepPaddingOffset?.value ?? 50"
+                    @input="state.bleepPaddingOffset.value = Math.max(0, Number(($event.target).value)); state.saveBlacklistToStorage()"
+                    class="w-14 px-1.5 py-0.5 bg-white/[0.03] border border-white/10 rounded text-[10px] font-mono text-center text-white focus:outline-none focus:border-accent-500"
+                  />
+                </div>
+                <p class="text-[9px] text-slate-500 leading-tight">Margin aman sebelum & sesudah kata kasar untuk mencegah kebocoran fonem.</p>
+              </div>
             </div>
-            <input 
-              type="checkbox" 
-              v-model="state.audioBleepEnabled.value"
-              class="rounded border-white/10 bg-surface-dark text-accent-500 focus:ring-accent-500 w-4 h-4 cursor-pointer"
-            />
-          </label>
+          </div>
 
           <!-- Guideline settings link / checkbox list -->
           <div class="space-y-2 pt-1">
@@ -452,7 +574,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { DEFAULT_CATEGORIZED_BLACKLIST, SEVERE_WORDS } from '../composables/useSafetyAuditor'
 
 const state = useClipperState()
@@ -583,4 +705,75 @@ function resetList() {
     state.saveBlacklistToStorage()
   }
 }
+
+const isPlayingPreview = ref(false)
+const bleepUploadError = ref('')
+const bleepFileInput = ref(null)
+let previewAudio = null
+
+function handleBleepUpload(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  
+  if (file.size > 1024 * 1024) {
+    bleepUploadError.value = 'File size exceeds 1MB limit'
+    return
+  }
+  
+  bleepUploadError.value = ''
+  const reader = new FileReader()
+  reader.onload = (event) => {
+    state.customBleepFile.value = {
+      name: file.name,
+      data: event.target.result
+    }
+    state.saveBlacklistToStorage()
+  }
+  reader.onerror = () => {
+    bleepUploadError.value = 'Failed to read file'
+  }
+  reader.readAsDataURL(file)
+}
+
+function toggleBleepPreview() {
+  if (isPlayingPreview.value) {
+    if (previewAudio) {
+      previewAudio.pause()
+      isPlayingPreview.value = false
+    }
+  } else {
+    if (state.customBleepFile.value?.data) {
+      if (previewAudio) {
+        previewAudio.pause()
+      }
+      previewAudio = new Audio(state.customBleepFile.value.data)
+      previewAudio.onended = () => {
+        isPlayingPreview.value = false
+      }
+      previewAudio.onerror = () => {
+        bleepUploadError.value = 'Failed to play audio preview'
+        isPlayingPreview.value = false
+      }
+      previewAudio.play()
+      isPlayingPreview.value = true
+    }
+  }
+}
+
+function removeBleepFile() {
+  state.customBleepFile.value = null
+  state.audioBleepSource.value = 'mute'
+  state.saveBlacklistToStorage()
+  if (previewAudio) {
+    previewAudio.pause()
+    isPlayingPreview.value = false
+  }
+}
+
+onUnmounted(() => {
+  if (previewAudio) {
+    previewAudio.pause()
+    previewAudio = null
+  }
+})
 </script>

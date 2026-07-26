@@ -73,7 +73,10 @@ export const useClipperThumbnail = () => {
   }
 
   async function captureScreenshot(timestamp?: number, isAutoCapture = false) {
-    if (!jobId.value) return
+    if (!jobId.value) {
+      isCapturingThumbnail.value = false
+      return
+    }
     isCapturingThumbnail.value = true
     try {
       if (isAutoCapture) {
@@ -190,6 +193,11 @@ export const useClipperThumbnail = () => {
       const originalTime = currentTime.value
       
       if (!thumbnailUrl.value) {
+        if (!jobId.value) {
+          timeline.isTimelineShifting.value = false
+          timeline.isSavingLocked.value = false
+          return
+        }
         isCapturingThumbnail.value = true
         await new Promise(resolve => setTimeout(resolve, 350))
       }
