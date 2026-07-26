@@ -634,7 +634,7 @@
       >
         <div v-if="showBlacklistSettings" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
            <div class="absolute inset-0 bg-black/80 backdrop-blur-xl" @click="showBlacklistSettings = false"></div>
-           <div class="relative bg-surface-panel border border-surface-border rounded-3xl shadow-2xl max-w-lg w-full animate-in zoom-in-95 duration-300 overflow-hidden">
+           <div class="relative bg-surface-panel border border-surface-border rounded-3xl shadow-2xl max-w-4xl max-h-[90vh] w-full flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden">
               <BlacklistSettings @close="showBlacklistSettings = false" />
            </div>
         </div>

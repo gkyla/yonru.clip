@@ -80,6 +80,10 @@ _Avoid_: Background video playback, dual-player sync drift
 A reactive optimization in player bridge watchers that deduplicates mute state transitions and isolates currentTime from iframe props updates, preventing 60Hz React re-rendering loops and word replay bugs during video playback.
 _Avoid_: High-frequency props updates, 60Hz iframe re-renders
 
+**Partial Word End Audio Censorship**:
+A mechanism in the Content Safety Audit Panel where audio muting/bleeping targets only the ending 50% syllable duration of sensitive words, leaving the initial syllable audible so viewers retain spoken context.
+_Avoid_: Half muting, partial word bleeping
+
 **Horizontal Shift Offset**:
 A percentage value representing the horizontal pan displacement of the background image within the portrait viewport.
 _Avoid_: Pan offset, horizontal scroll value

@@ -5,7 +5,7 @@
     <!-- Blacklist Settings Modal -->
     <div v-if="showBlacklistSettings" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
        <div class="absolute inset-0 bg-black/80 backdrop-blur-xl" @click="showBlacklistSettings = false"></div>
-       <div class="w-full max-w-5xl bg-surface-panel border border-surface-border rounded-3xl shadow-2xl relative overflow-hidden">
+       <div class="w-full max-w-5xl max-h-[90vh] flex flex-col bg-surface-panel border border-surface-border rounded-3xl shadow-2xl relative overflow-hidden">
           <BlacklistSettings @close="showBlacklistSettings = false" />
        </div>
     </div>

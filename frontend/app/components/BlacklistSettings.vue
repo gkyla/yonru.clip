@@ -1,7 +1,7 @@
 <template>
-  <div v-if="state" class="p-6 space-y-6 bg-[#0e0e12] border border-white/5 rounded-3xl text-white">
+  <div v-if="state" class="p-6 space-y-6 bg-[#0e0e12] border border-white/5 rounded-3xl text-white max-h-[85vh] md:max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-white/5 pb-4">
+    <div class="flex items-center justify-between border-b border-white/5 pb-4 flex-shrink-0">
       <div>
         <h3 class="text-base font-black text-white tracking-tight uppercase flex items-center gap-2">
           <Icon name="ri:shield-keyhole-line" class="text-accent-500" />
@@ -15,7 +15,7 @@
     </div>
 
     <!-- 2-Column Responsive Layout -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[380px]">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
       
       <!-- COLUMN 1: Engine Controls & Platform Filters -->
       <div class="space-y-5 border-r border-white/5 pr-0 md:pr-6">
@@ -176,6 +176,33 @@
                 </div>
               </div>
 
+              <!-- Audio Mute Scope Selector -->
+              <div class="space-y-1 pt-1">
+                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Audio Mute Scope</label>
+                <div class="grid grid-cols-2 gap-1 p-0.5 bg-white/[0.02] border border-white/5 rounded-lg">
+                  <button
+                    type="button"
+                    @click="if (state.bleepMode) state.bleepMode.value = 'full'; state.saveBlacklistToStorage()"
+                    class="py-1 text-[10px] font-black uppercase tracking-wider rounded transition-all"
+                    :class="state.bleepMode?.value !== 'partial_end'
+                      ? 'bg-white/10 text-white shadow-sm font-black'
+                      : 'text-slate-400 hover:text-white font-bold'"
+                  >
+                    Full Word
+                  </button>
+                  <button
+                    type="button"
+                    @click="if (state.bleepMode) state.bleepMode.value = 'partial_end'; state.saveBlacklistToStorage()"
+                    class="py-1 text-[10px] font-black uppercase tracking-wider rounded transition-all"
+                    :class="state.bleepMode?.value === 'partial_end'
+                      ? 'bg-white/10 text-white shadow-sm font-black'
+                      : 'text-slate-400 hover:text-white font-bold'"
+                  >
+                    Partial End
+                  </button>
+                </div>
+              </div>
+
               <!-- Bleep Padding Offset Slider/Input -->
               <div class="space-y-1 pt-1">
                 <div class="flex items-center justify-between">
@@ -201,7 +228,7 @@
                     class="w-14 px-1.5 py-0.5 bg-white/[0.03] border border-white/10 rounded text-[10px] font-mono text-center text-white focus:outline-none focus:border-accent-500"
                   />
                 </div>
-                <p class="text-[9px] text-slate-500 leading-tight">Margin aman sebelum & sesudah kata kasar untuk mencegah kebocoran fonem.</p>
+                <p class="text-[9px] text-slate-500 leading-tight">Safety margin before & after flagged words to prevent phoneme leakage.</p>
               </div>
             </div>
           </div>

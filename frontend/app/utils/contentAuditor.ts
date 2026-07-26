@@ -27,7 +27,8 @@ export function auditTranscript(
   transcript: TranscriptSegment[],
   blacklist: string[],
   mode: string,
-  bleepPaddingOffsetMs: number = 50
+  bleepPaddingOffsetMs: number = 50,
+  bleepMode: 'full' | 'partial_end' = 'full'
 ): AuditResult {
   const flaggedWords: string[] = []
   const flaggedSegments: FlaggedSegment[] = []
@@ -73,11 +74,21 @@ export function auditTranscript(
         regex = new RegExp(`\\b${escapedWord}\\b`, 'i')
       }
       if (regex.test(lowerText)) {
-        const paddedStart = Math.max(0, w.start - paddingSec)
-        const paddedDuration = w.duration + (2 * paddingSec)
+        let segStart: number
+        let segDuration: number
+
+        if (bleepMode === 'partial_end') {
+          const halfDur = w.duration * 0.5
+          segStart = w.start + halfDur
+          segDuration = halfDur + paddingSec
+        } else {
+          segStart = Math.max(0, w.start - paddingSec)
+          segDuration = w.duration + (2 * paddingSec)
+        }
+
         flaggedSegments.push({
-          start: paddedStart,
-          duration: paddedDuration,
+          start: segStart,
+          duration: segDuration,
           word,
           text: w.text
         })

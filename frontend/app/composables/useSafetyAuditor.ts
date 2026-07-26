@@ -47,6 +47,7 @@ export const useSafetyAuditor = () => {
   const audioBleepSource = useState<'mute' | 'custom'>('audioBleepSource', () => 'mute')
   const customBleepFile = useState<{ name: string; data: string } | null>('customBleepFile', () => null)
   const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 50)
+  const bleepMode = useState<'full' | 'partial_end'>('bleepMode', () => 'full')
   const isWarningIgnored = useState<boolean>('isWarningIgnored', () => false)
   const activeCategories = useState<{ violence: boolean; sexual: boolean; profanity: boolean }>('activeCategories', () => ({
     violence: true,
@@ -147,8 +148,18 @@ export const useSafetyAuditor = () => {
           bleepPaddingOffset.value = parsed
         }
       }
+      const savedBleepMode = localStorage.getItem('yonru_bleep_mode')
+      if (savedBleepMode === 'full' || savedBleepMode === 'partial_end') {
+        bleepMode.value = savedBleepMode
+      }
     }
   }
+
+  watch(bleepMode, (val) => {
+    if (import.meta.client) {
+      localStorage.setItem('yonru_bleep_mode', val)
+    }
+  })
 
   // Compile active blacklist categories & custom blacklist minus custom whitelist exceptions
   const compiledBlacklist = computed(() => {
@@ -194,7 +205,7 @@ export const useSafetyAuditor = () => {
     // Compile active blacklist based on sensitivity
     const activeBlacklist = compiledBlacklist.value
 
-    const rawAudit = auditTranscript(transcript, activeBlacklist, mode, bleepPaddingOffset.value)
+    const rawAudit = auditTranscript(transcript, activeBlacklist, mode, bleepPaddingOffset.value, bleepMode.value)
     
     // Adjust score based on safe zone layout collision and readability
     const currentPlatform = activeSafeZone.value || 'none'
@@ -395,6 +406,7 @@ export const useSafetyAuditor = () => {
     audioBleepSource,
     customBleepFile,
     bleepPaddingOffset,
+    bleepMode,
     isWarningIgnored,
     activeCategories,
     activePlatformFilters,
