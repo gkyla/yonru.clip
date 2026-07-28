@@ -36,6 +36,20 @@ export const SEVERE_WORDS = new Set([
   'f*ck', 'b!tch', 'bangsat', 'bgsat', 'kontol', 'kontl', 'memek', 'memk', 'itil', 'bajingan', 'pantek', 'jancok', 'jancuk'
 ])
 
+export interface BleepAudioItem {
+  id: string
+  name: string
+  data: string
+  isPreset?: boolean
+}
+
+export const DEFAULT_BLEEP_PRESET: BleepAudioItem = {
+  id: 'default_preset',
+  name: 'Standard Bleep',
+  data: '/audio/bleep.wav',
+  isPreset: true
+}
+
 export const useSafetyAuditor = () => {
   const API_BASE = 'http://localhost:8000'
 
@@ -45,7 +59,12 @@ export const useSafetyAuditor = () => {
   const maskingStyle = useState<'asterisk' | 'block' | 'bleep_marker'>('maskingStyle', () => 'asterisk')
   const audioBleepEnabled = useState<boolean>('audioBleepEnabled', () => false)
   const audioBleepSource = useState<'mute' | 'custom'>('audioBleepSource', () => 'mute')
-  const customBleepFile = useState<{ name: string; data: string } | null>('customBleepFile', () => null)
+  const bleepLibrary = useState<BleepAudioItem[]>('bleepLibrary', () => [DEFAULT_BLEEP_PRESET])
+  const selectedBleepAudioId = useState<string>('selectedBleepAudioId', () => DEFAULT_BLEEP_PRESET.id)
+  const customBleepFile = useState<{ name: string; data: string } | null>('customBleepFile', () => ({
+    name: DEFAULT_BLEEP_PRESET.name,
+    data: DEFAULT_BLEEP_PRESET.data
+  }))
   const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 50)
   const bleepMode = useState<'full' | 'partial_end'>('bleepMode', () => 'full')
   const isWarningIgnored = useState<boolean>('isWarningIgnored', () => false)
@@ -83,6 +102,49 @@ export const useSafetyAuditor = () => {
   const subtitleStrokeWidth = useState<number>('subtitleStrokeWidth')
   const subtitleStrokeColor = useState<string>('subtitleStrokeColor')
 
+  const syncCustomBleepFile = () => {
+    const activeItem = bleepLibrary.value.find(item => item.id === selectedBleepAudioId.value) || DEFAULT_BLEEP_PRESET
+    customBleepFile.value = { name: activeItem.name, data: activeItem.data }
+  }
+
+  watch([selectedBleepAudioId, bleepLibrary], () => {
+    syncCustomBleepFile()
+  }, { deep: true, immediate: true })
+
+  const selectBleepAudio = (id: string) => {
+    if (bleepLibrary.value.some(item => item.id === id)) {
+      selectedBleepAudioId.value = id
+      syncCustomBleepFile()
+      saveBlacklistToStorage()
+    }
+  }
+
+  const addCustomBleepFile = (file: { name: string; data: string }) => {
+    const newItem: BleepAudioItem = {
+      id: `custom_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name: file.name,
+      data: file.data,
+      isPreset: false
+    }
+    bleepLibrary.value.push(newItem)
+    selectedBleepAudioId.value = newItem.id
+    syncCustomBleepFile()
+    saveBlacklistToStorage()
+    return newItem
+  }
+
+  const removeCustomBleepFile = (id: string) => {
+    const index = bleepLibrary.value.findIndex(item => item.id === id && !item.isPreset)
+    if (index !== -1) {
+      bleepLibrary.value.splice(index, 1)
+      if (selectedBleepAudioId.value === id) {
+        selectedBleepAudioId.value = DEFAULT_BLEEP_PRESET.id
+      }
+      syncCustomBleepFile()
+      saveBlacklistToStorage()
+    }
+  }
+
   const saveBlacklistToStorage = () => {
     if (import.meta.client) {
       localStorage.setItem('yonru_subtitle_blacklist', JSON.stringify(customBlacklist.value))
@@ -91,6 +153,9 @@ export const useSafetyAuditor = () => {
       localStorage.setItem('yonru_audio_bleep_enabled', audioBleepEnabled.value ? 'true' : 'false')
       localStorage.setItem('yonru_audio_bleep_source', audioBleepSource.value)
       localStorage.setItem('yonru_bleep_padding_offset', bleepPaddingOffset.value.toString())
+      localStorage.setItem('yonru_selected_bleep_id', selectedBleepAudioId.value)
+      const customOnly = bleepLibrary.value.filter(item => !item.isPreset)
+      localStorage.setItem('yonru_bleep_library', JSON.stringify(customOnly))
       if (customBleepFile.value) {
         localStorage.setItem('yonru_custom_bleep_file', JSON.stringify(customBleepFile.value))
       } else {
@@ -129,14 +194,27 @@ export const useSafetyAuditor = () => {
       if (savedBleepSource === 'mute' || savedBleepSource === 'custom') {
         audioBleepSource.value = savedBleepSource
       }
-      const savedBleepFile = localStorage.getItem('yonru_custom_bleep_file')
-      if (savedBleepFile) {
+
+      const savedLibrary = localStorage.getItem('yonru_bleep_library')
+      if (savedLibrary) {
         try {
-          customBleepFile.value = JSON.parse(savedBleepFile)
+          const parsedCustom: BleepAudioItem[] = JSON.parse(savedLibrary)
+          bleepLibrary.value = [DEFAULT_BLEEP_PRESET, ...parsedCustom]
         } catch (e) {
-          customBleepFile.value = null
+          bleepLibrary.value = [DEFAULT_BLEEP_PRESET]
         }
+      } else {
+        bleepLibrary.value = [DEFAULT_BLEEP_PRESET]
       }
+
+      const savedSelectedId = localStorage.getItem('yonru_selected_bleep_id')
+      if (savedSelectedId && bleepLibrary.value.some(item => item.id === savedSelectedId)) {
+        selectedBleepAudioId.value = savedSelectedId
+      } else {
+        selectedBleepAudioId.value = DEFAULT_BLEEP_PRESET.id
+      }
+      syncCustomBleepFile()
+
       const savedBleepEnabled = localStorage.getItem('yonru_audio_bleep_enabled')
       if (savedBleepEnabled !== null) {
         audioBleepEnabled.value = savedBleepEnabled === 'true'
@@ -405,6 +483,11 @@ export const useSafetyAuditor = () => {
     audioBleepEnabled,
     audioBleepSource,
     customBleepFile,
+    bleepLibrary,
+    selectedBleepAudioId,
+    selectBleepAudio,
+    addCustomBleepFile,
+    removeCustomBleepFile,
     bleepPaddingOffset,
     bleepMode,
     isWarningIgnored,

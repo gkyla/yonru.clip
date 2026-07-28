@@ -90,7 +90,16 @@
             <div v-if="state.audioBleepEnabled.value" class="pl-4 border-l border-white/10 space-y-3 pt-1 pb-2">
               <!-- Selector -->
               <div class="space-y-1">
-                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Bleep Sound Type</label>
+                <div class="flex items-center gap-1.5">
+                  <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Bleep Sound Type</label>
+                  <div class="relative group/tooltip flex items-center">
+                    <Icon name="ri:question-line" class="text-slate-500 hover:text-slate-300 text-xs cursor-help transition-colors" />
+                    <div class="absolute left-0 bottom-full mb-1.5 w-60 p-2.5 bg-surface-dark/95 border border-surface-border/80 rounded-xl shadow-black/80 shadow-[0_12px_40px_rgba(0,0,0,0.95)] text-[10px] text-slate-300 leading-normal opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity duration-200 z-50 tracking-normal normal-case space-y-1.5">
+                      <p><strong class="text-white font-bold">Mute Audio (Default):</strong> Mutes spoken audio during sensitive words without playing any sound effects.</p>
+                      <p><strong class="text-accent-400 font-bold">Custom Sound File:</strong> Plays a bleep sound (default preset or custom uploaded audio file) when sensitive words are spoken.</p>
+                    </div>
+                  </div>
+                </div>
                 <div class="grid grid-cols-2 gap-1 p-0.5 bg-white/[0.02] border border-white/5 rounded-lg">
                   <button
                     type="button"
@@ -115,7 +124,7 @@
                 </div>
               </div>
 
-              <!-- Custom File Section -->
+              <!-- Custom File Section / Bleep Sound Library -->
               <div v-if="state.audioBleepSource.value === 'custom'" class="space-y-2">
                 <input
                   type="file"
@@ -125,48 +134,66 @@
                   @change="handleBleepUpload"
                 />
 
-                <!-- Uploaded File Display -->
-                <div v-if="state.customBleepFile.value" class="p-2 bg-white/[0.02] border border-white/5 rounded-xl flex items-center justify-between gap-3">
-                  <div class="flex items-center gap-2 min-w-0">
-                    <Icon name="ri:music-2-line" class="text-accent-500 text-sm flex-shrink-0" />
-                    <div class="flex flex-col min-w-0">
-                      <span class="text-xs font-bold text-slate-300 truncate">{{ state.customBleepFile.value.name }}</span>
-                      <span class="text-[9px] text-slate-500 font-medium font-mono">Custom Beep Configured</span>
+                <!-- Library Items List -->
+                <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  <div
+                    v-for="item in state.bleepLibrary.value"
+                    :key="item.id"
+                    @click="state.selectBleepAudio(item.id)"
+                    class="p-2 border rounded-xl flex items-center justify-between gap-3 cursor-pointer transition-all duration-200"
+                    :class="state.selectedBleepAudioId.value === item.id
+                      ? 'bg-accent-500/10 border-accent-500/50 shadow-sm'
+                      : 'bg-white/[0.02] border-white/5 hover:border-white/20 hover:bg-white/[0.04]'"
+                  >
+                    <div class="flex items-center gap-2 min-w-0">
+                      <Icon
+                        :name="item.isPreset ? 'ri:volume-up-line' : 'ri:music-2-line'"
+                        class="text-sm flex-shrink-0"
+                        :class="state.selectedBleepAudioId.value === item.id ? 'text-accent-400' : 'text-slate-400'"
+                      />
+                      <div class="flex flex-col min-w-0">
+                        <span class="text-xs font-bold truncate" :class="state.selectedBleepAudioId.value === item.id ? 'text-white' : 'text-slate-300'">
+                          {{ item.name }}
+                        </span>
+                        <span class="text-[9px] font-mono font-medium" :class="item.isPreset ? 'text-accent-400/80' : 'text-slate-500'">
+                          {{ item.isPreset ? 'Default Preset' : 'Custom Upload' }}
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div class="flex items-center gap-1.5 flex-shrink-0">
-                    <!-- Play/Preview button -->
-                    <button
-                      type="button"
-                      @click="toggleBleepPreview"
-                      class="p-1 bg-white/[0.03] hover:bg-white/[0.08] hover:text-white text-slate-400 rounded transition-colors"
-                      :title="isPlayingPreview ? 'Pause Preview' : 'Play Preview'"
-                    >
-                      <Icon :name="isPlayingPreview ? 'ri:pause-line' : 'ri:play-line'" class="text-xs" />
-                    </button>
-                    
-                    <!-- Remove button -->
-                    <button
-                      type="button"
-                      @click="removeBleepFile"
-                      class="p-1 bg-white/[0.03] hover:bg-rose-500/10 hover:text-rose-400 text-slate-400 rounded transition-colors"
-                      title="Remove File"
-                    >
-                      <Icon name="ri:delete-bin-line" class="text-xs" />
-                    </button>
+                    <div class="flex items-center gap-1.5 flex-shrink-0" @click.stop>
+                      <!-- Play/Preview button -->
+                      <button
+                        type="button"
+                        @click="toggleBleepPreview(item)"
+                        class="p-1 bg-white/[0.03] hover:bg-white/[0.08] hover:text-white text-slate-400 rounded transition-colors"
+                        :title="isPlayingPreview && previewingAudioId === item.id ? 'Pause Preview' : 'Play Preview'"
+                      >
+                        <Icon :name="isPlayingPreview && previewingAudioId === item.id ? 'ri:pause-line' : 'ri:play-line'" class="text-xs" />
+                      </button>
+                      
+                      <!-- Delete button for custom upload items -->
+                      <button
+                        v-if="!item.isPreset"
+                        type="button"
+                        @click="state.removeCustomBleepFile(item.id)"
+                        class="p-1 bg-white/[0.03] hover:bg-rose-500/10 hover:text-rose-400 text-slate-400 rounded transition-colors"
+                        title="Delete File"
+                      >
+                        <Icon name="ri:delete-bin-line" class="text-xs" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <!-- Upload Placeholder Zone -->
+                <!-- Add New Custom Audio Upload Button -->
                 <div
-                  v-else
-                  @click="bleepFileInput.click()"
-                  class="border border-dashed border-white/10 hover:border-accent-500/50 hover:bg-white/[0.02] rounded-xl p-3 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 group/upload"
+                  @click="bleepFileInput?.click()"
+                  class="border border-dashed border-white/10 hover:border-accent-500/50 hover:bg-white/[0.02] rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer transition-all duration-300 group/upload"
                 >
-                  <Icon name="ri:upload-cloud-2-line" class="text-lg text-slate-500 group-hover/upload:text-accent-500 transition-colors mb-1" />
-                  <span class="text-xs font-bold text-slate-300">Upload Bleep Sound</span>
-                  <span class="text-[9px] text-slate-500 mt-0.5">Supports .mp3, .wav (Max 1MB)</span>
+                  <Icon name="ri:upload-cloud-2-line" class="text-base text-slate-500 group-hover/upload:text-accent-500 transition-colors" />
+                  <span class="text-xs font-bold text-slate-300">Upload Custom Sound</span>
+                  <span class="text-[9px] text-slate-500 font-mono">(.mp3, .wav, max 1MB)</span>
                 </div>
 
                 <!-- Error message if any -->
@@ -178,7 +205,16 @@
 
               <!-- Audio Mute Scope Selector -->
               <div class="space-y-1 pt-1">
-                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Audio Mute Scope</label>
+                <div class="flex items-center gap-1.5">
+                  <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Audio Mute Scope</label>
+                  <div class="relative group/tooltip flex items-center">
+                    <Icon name="ri:question-line" class="text-slate-500 hover:text-slate-300 text-xs cursor-help transition-colors" />
+                    <div class="absolute left-0 bottom-full mb-1.5 w-64 p-2.5 bg-surface-dark/95 border border-surface-border/80 rounded-xl shadow-black/80 shadow-[0_12px_40px_rgba(0,0,0,0.95)] text-[10px] text-slate-300 leading-normal opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity duration-200 z-50 tracking-normal normal-case space-y-1.5">
+                      <p><strong class="text-white font-bold">Full Word:</strong> Mutes or bleeps the full duration of sensitive words from start to end.</p>
+                      <p><strong class="text-accent-400 font-bold">Partial End:</strong> Mutes only the ending 50% syllable duration (initial syllable remains audible for spoken context).</p>
+                    </div>
+                  </div>
+                </div>
                 <div class="grid grid-cols-2 gap-1 p-0.5 bg-white/[0.02] border border-white/5 rounded-lg">
                   <button
                     type="button"
@@ -206,7 +242,15 @@
               <!-- Bleep Padding Offset Slider/Input -->
               <div class="space-y-1 pt-1">
                 <div class="flex items-center justify-between">
-                  <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Bleep Padding (ms)</label>
+                  <div class="flex items-center gap-1.5">
+                    <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Bleep Padding</label>
+                    <div class="relative group/tooltip flex items-center">
+                      <Icon name="ri:question-line" class="text-slate-500 hover:text-slate-300 text-xs cursor-help transition-colors" />
+                      <div class="absolute left-0 bottom-full mb-1.5 w-64 p-2.5 bg-surface-dark/95 border border-surface-border/80 rounded-xl shadow-black/80 shadow-[0_12px_40px_rgba(0,0,0,0.95)] text-[10px] text-slate-300 leading-normal opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity duration-200 z-50 tracking-normal normal-case space-y-1.5">
+                        <p><strong class="text-white font-bold">Bleep Padding (ms):</strong> Configurable time buffer in milliseconds added before and after flagged word timestamps to prevent phoneme leakage during audio muting.</p>
+                      </div>
+                    </div>
+                  </div>
                   <span class="text-[10px] font-mono font-bold text-accent-400">{{ state.bleepPaddingOffset?.value ?? 50 }}ms</span>
                 </div>
                 <div class="flex items-center gap-2">
@@ -734,6 +778,7 @@ function resetList() {
 }
 
 const isPlayingPreview = ref(false)
+const previewingAudioId = ref(null)
 const bleepUploadError = ref('')
 const bleepFileInput = ref(null)
 let previewAudio = null
@@ -750,11 +795,12 @@ function handleBleepUpload(e) {
   bleepUploadError.value = ''
   const reader = new FileReader()
   reader.onload = (event) => {
-    state.customBleepFile.value = {
-      name: file.name,
-      data: event.target.result
+    if (event.target?.result) {
+      state.addCustomBleepFile({
+        name: file.name,
+        data: event.target.result
+      })
     }
-    state.saveBlacklistToStorage()
   }
   reader.onerror = () => {
     bleepUploadError.value = 'Failed to read file'
@@ -762,38 +808,48 @@ function handleBleepUpload(e) {
   reader.readAsDataURL(file)
 }
 
-function toggleBleepPreview() {
-  if (isPlayingPreview.value) {
+function toggleBleepPreview(item) {
+  const targetItem = item || state.bleepLibrary.value.find(i => i.id === state.selectedBleepAudioId.value)
+  if (!targetItem?.data) return
+
+  if (isPlayingPreview.value && previewingAudioId.value === targetItem.id) {
     if (previewAudio) {
       previewAudio.pause()
       isPlayingPreview.value = false
+      previewingAudioId.value = null
     }
   } else {
-    if (state.customBleepFile.value?.data) {
-      if (previewAudio) {
-        previewAudio.pause()
-      }
-      previewAudio = new Audio(state.customBleepFile.value.data)
-      previewAudio.onended = () => {
-        isPlayingPreview.value = false
-      }
-      previewAudio.onerror = () => {
-        bleepUploadError.value = 'Failed to play audio preview'
-        isPlayingPreview.value = false
-      }
-      previewAudio.play()
-      isPlayingPreview.value = true
+    if (previewAudio) {
+      previewAudio.pause()
     }
+    previewAudio = new Audio(targetItem.data)
+    previewingAudioId.value = targetItem.id
+    previewAudio.onended = () => {
+      isPlayingPreview.value = false
+      previewingAudioId.value = null
+    }
+    previewAudio.onerror = () => {
+      bleepUploadError.value = 'Failed to play audio preview'
+      isPlayingPreview.value = false
+      previewingAudioId.value = null
+    }
+    previewAudio.play().catch(e => {
+      console.warn('Audio preview play failed:', e)
+      isPlayingPreview.value = false
+      previewingAudioId.value = null
+    })
+    isPlayingPreview.value = true
   }
 }
 
 function removeBleepFile() {
-  state.customBleepFile.value = null
-  state.audioBleepSource.value = 'mute'
-  state.saveBlacklistToStorage()
+  if (state.selectedBleepAudioId.value) {
+    state.removeCustomBleepFile(state.selectedBleepAudioId.value)
+  }
   if (previewAudio) {
     previewAudio.pause()
     isPlayingPreview.value = false
+    previewingAudioId.value = null
   }
 }
 

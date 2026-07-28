@@ -84,6 +84,10 @@ _Avoid_: High-frequency props updates, 60Hz iframe re-renders
 A mechanism in the Content Safety Audit Panel where audio muting/bleeping targets only the ending 50% syllable duration of sensitive words, leaving the initial syllable audible so viewers retain spoken context.
 _Avoid_: Half muting, partial word bleeping
 
+**Bleep Audio Preset Library**:
+A configurable collection of bleep audio assets within the Content Safety Audit Panel comprising static system default tones (e.g. 1000Hz beep) and user-uploaded custom audio files, allowing creators to select and manage their active audio censorship sound.
+_Avoid_: Bleep sound list, custom bleep array
+
 **Horizontal Shift Offset**:
 A percentage value representing the horizontal pan displacement of the background image within the portrait viewport.
 _Avoid_: Pan offset, horizontal scroll value

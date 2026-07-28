@@ -282,9 +282,20 @@ export const useRemotionBridge = (
 
   let bleepAudioPlayer: HTMLAudioElement | null = null
   let lastMuteState: boolean | null = null
+  let lastAudioData: string | null = null
 
-  watch([isInsideFlaggedSegment, () => state.isPlaying.value, () => state.audioBleepSource?.value, () => state.customBleepFile?.value, () => state.volume.value], () => {
+  watch([isInsideFlaggedSegment, () => state.isPlaying.value, () => state.audioBleepSource?.value, () => state.customBleepFile?.value?.data, () => state.volume.value], () => {
     const isMuted = isInsideFlaggedSegment.value && state.isPlaying.value
+    const currentAudioData = state.customBleepFile?.value?.data || ''
+
+    if (lastAudioData !== currentAudioData) {
+      lastAudioData = currentAudioData
+      if (bleepAudioPlayer) {
+        bleepAudioPlayer.pause()
+        bleepAudioPlayer = null
+      }
+      lastMuteState = null
+    }
 
     if (lastMuteState === isMuted) return
     lastMuteState = isMuted
@@ -296,9 +307,9 @@ export const useRemotionBridge = (
       }
       bridge.updateProps({ volume: 0 })
 
-      if (state.audioBleepSource?.value === 'custom' && state.customBleepFile?.value?.data) {
+      if (state.audioBleepSource?.value === 'custom' && currentAudioData) {
         if (!bleepAudioPlayer) {
-          bleepAudioPlayer = new Audio(state.customBleepFile.value.data)
+          bleepAudioPlayer = new Audio(currentAudioData)
           bleepAudioPlayer.loop = true
         }
         if (bleepAudioPlayer.paused) {
