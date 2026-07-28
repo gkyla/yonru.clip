@@ -201,37 +201,37 @@
                <p class="text-[9px] text-slate-500 italic">Flagged words appear as "K*lling" or "Unal*ve" to bypass automated filters.</p>
             </div>
           </div>
-        </div>
 
-        <!-- Subtitle Readability Section -->
-        <div 
-          class="border rounded-xl p-3 flex flex-col gap-2.5 transition-all duration-500"
-          :class="state.readabilityAudit.value.isSafe 
-            ? 'bg-surface-card/50 border-surface-border/50' 
-            : 'bg-amber-500/5 border-amber-500/20'"
-        >
-          <div class="flex items-start gap-3">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" :class="state.readabilityAudit.value.isSafe ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'">
-              <Icon :name="state.readabilityAudit.value.isSafe ? 'ri:font-size-2' : 'ri:font-color'" class="text-lg" />
+          <!-- Subtitle Readability Section -->
+          <div 
+            class="border rounded-xl p-3 flex flex-col gap-2.5 transition-all duration-500"
+            :class="state.readabilityAudit.value.isSafe 
+              ? 'bg-surface-card/50 border-surface-border/50' 
+              : 'bg-amber-500/5 border-amber-500/20'"
+          >
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" :class="state.readabilityAudit.value.isSafe ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'">
+                <Icon :name="state.readabilityAudit.value.isSafe ? 'ri:font-size-2' : 'ri:font-color'" class="text-lg" />
+              </div>
+              <div class="flex-1 min-w-0">
+                 <div class="flex items-center justify-between mb-0.5">
+                   <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Subtitle Readability</p>
+                   <Icon :name="state.readabilityAudit.value.isSafe ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'" :class="state.readabilityAudit.value.isSafe ? 'text-emerald-500' : 'text-amber-500'" class="text-xs" />
+                 </div>
+                 <p class="text-xs text-slate-200 font-medium">{{ state.readabilityAudit.value.reason }}</p>
+              </div>
             </div>
-            <div class="flex-1 min-w-0">
-               <div class="flex items-center justify-between mb-0.5">
-                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Subtitle Readability</p>
-                 <Icon :name="state.readabilityAudit.value.isSafe ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'" :class="state.readabilityAudit.value.isSafe ? 'text-emerald-500' : 'text-amber-500'" class="text-xs" />
-               </div>
-               <p class="text-xs text-slate-200 font-medium">{{ state.readabilityAudit.value.reason }}</p>
+            
+            <!-- Auto-fix action for readability -->
+            <div v-if="!state.readabilityAudit.value.isSafe" class="pl-11">
+               <button 
+                 @click="state.fitSubtitlesToReadability()"
+                 class="w-full py-1.5 bg-white/[0.03] border border-white/10 text-slate-300 hover:bg-white/[0.06] hover:border-white/20 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group active:scale-[0.98]"
+               >
+                 <Icon name="ri:magic-line" class="group-hover:rotate-12 transition-transform" />
+                 Auto-Apply Text Outline
+               </button>
             </div>
-          </div>
-          
-          <!-- Auto-fix action for readability -->
-          <div v-if="!state.readabilityAudit.value.isSafe" class="pl-11">
-             <button 
-               @click="state.fitSubtitlesToReadability()"
-               class="w-full py-1.5 bg-white/[0.03] border border-white/10 text-slate-300 hover:bg-white/[0.06] hover:border-white/20 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group active:scale-[0.98]"
-             >
-               <Icon name="ri:magic-line" class="group-hover:rotate-12 transition-transform" />
-               Auto-Apply Text Outline
-             </button>
           </div>
         </div>
 

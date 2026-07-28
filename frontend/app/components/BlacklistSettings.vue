@@ -276,28 +276,6 @@
               </div>
             </div>
           </div>
-
-          <!-- Guideline settings link / checkbox list -->
-          <div class="space-y-2 pt-1">
-            <span class="text-xs text-slate-500 font-bold uppercase tracking-wider block">Scan Layout Guidelines</span>
-            <div class="flex flex-wrap gap-2">
-              <label 
-                v-for="platform in ['tiktok', 'reels', 'shorts']" 
-                :key="platform"
-                class="px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-widest cursor-pointer select-none transition-colors flex items-center gap-1.5"
-                :class="state.activePlatformFilters.value[platform]
-                  ? 'bg-accent-500/10 border-accent-500/30 text-accent-500'
-                  : 'bg-white/[0.01] border-white/5 text-slate-500'"
-              >
-                <input 
-                  type="checkbox" 
-                  v-model="state.activePlatformFilters.value[platform]"
-                  class="hidden"
-                />
-                {{ platform }}
-              </label>
-            </div>
-          </div>
         </div>
 
       </div>

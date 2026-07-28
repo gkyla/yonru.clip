@@ -43,23 +43,45 @@ export interface BleepAudioItem {
   isPreset?: boolean
 }
 
-export const DEFAULT_BLEEP_PRESET: BleepAudioItem = {
-  id: 'default_preset',
-  name: 'Standard Bleep',
-  data: '/audio/bleep.wav',
-  isPreset: true
-}
+export const BUILTIN_BLEEP_PRESETS: BleepAudioItem[] = [
+  {
+    id: 'default_preset',
+    name: 'Standard Bleep',
+    data: '/audio/bleep.wav',
+    isPreset: true
+  },
+  {
+    id: 'discord_notification',
+    name: 'Discord Notification',
+    data: '/audio/discord-notification.mp3',
+    isPreset: true
+  },
+  {
+    id: 'roblox_death',
+    name: 'Roblox Death (Oof)',
+    data: '/audio/roblox-death.mp3',
+    isPreset: true
+  },
+  {
+    id: 'spongebob_dolphin',
+    name: 'Spongebob Dolphin Censor',
+    data: '/audio/spongebob-dolphin-censor.mp3',
+    isPreset: true
+  }
+]
+
+export const DEFAULT_BLEEP_PRESET: BleepAudioItem = BUILTIN_BLEEP_PRESETS[0]!
 
 export const useSafetyAuditor = () => {
   const API_BASE = 'http://localhost:8000'
 
   const customBlacklist = useState<string[]>('customBlacklist', () => [])
   const customWhitelist = useState<string[]>('customWhitelist', () => [])
-  const safetySensitivity = useState<'strict' | 'standard' | 'manual'>('safetySensitivity', () => 'standard')
+  const safetySensitivity = useState<'strict' | 'standard' | 'manual'>('safetySensitivity', () => 'strict')
   const maskingStyle = useState<'asterisk' | 'block' | 'bleep_marker'>('maskingStyle', () => 'asterisk')
-  const audioBleepEnabled = useState<boolean>('audioBleepEnabled', () => false)
+  const audioBleepEnabled = useState<boolean>('audioBleepEnabled', () => true)
   const audioBleepSource = useState<'mute' | 'custom'>('audioBleepSource', () => 'mute')
-  const bleepLibrary = useState<BleepAudioItem[]>('bleepLibrary', () => [DEFAULT_BLEEP_PRESET])
+  const bleepLibrary = useState<BleepAudioItem[]>('bleepLibrary', () => [...BUILTIN_BLEEP_PRESETS])
   const selectedBleepAudioId = useState<string>('selectedBleepAudioId', () => DEFAULT_BLEEP_PRESET.id)
   const customBleepFile = useState<{ name: string; data: string } | null>('customBleepFile', () => ({
     name: DEFAULT_BLEEP_PRESET.name,
@@ -199,12 +221,12 @@ export const useSafetyAuditor = () => {
       if (savedLibrary) {
         try {
           const parsedCustom: BleepAudioItem[] = JSON.parse(savedLibrary)
-          bleepLibrary.value = [DEFAULT_BLEEP_PRESET, ...parsedCustom]
+          bleepLibrary.value = [...BUILTIN_BLEEP_PRESETS, ...parsedCustom]
         } catch (e) {
-          bleepLibrary.value = [DEFAULT_BLEEP_PRESET]
+          bleepLibrary.value = [...BUILTIN_BLEEP_PRESETS]
         }
       } else {
-        bleepLibrary.value = [DEFAULT_BLEEP_PRESET]
+        bleepLibrary.value = [...BUILTIN_BLEEP_PRESETS]
       }
 
       const savedSelectedId = localStorage.getItem('yonru_selected_bleep_id')
