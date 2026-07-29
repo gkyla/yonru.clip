@@ -524,9 +524,9 @@ const containerStyle = computed(() => ({
   maxHeight: '90vh',
   width: `${displayWidth.value}px`,
   outline: '1px solid rgba(255,255,255,0.1)',
-  outlineOffset: '12px',
+  outlineOffset: '6px',
   boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-  borderRadius: '1.5rem'
+  borderRadius: `${Math.round(36 * previewScale.value)}px`
 }))
 
 const contentStyle = computed(() => ({

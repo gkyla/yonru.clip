@@ -172,6 +172,11 @@ _Avoid_: Page load indicator, top route loader
 An interactive overlay layer positioned above the video preview canvas and projected onto the Thumbnail Screenshot Preview, displaying platform-specific UI button placements (TikTok, Instagram Reels, YouTube Shorts) to ensure text and visual contents remain unobstructed.
 _Avoid_: Social media safe zone, safe area template
 
+**Nested Border Radius Formula**:
+A visual design rule for nested UI containers where the inner element's border radius ($R_{\text{inner}}$) is calculated using $R_{\text{inner}} = \max(0, R_{\text{outer}} - p)$, where $R_{\text{outer}}$ is the outer container radius and $p$ is the inner padding, ensuring smooth concentric corners without visual gaps or clashing curves.
+_Avoid_: Arbitrary inner border radius, mismatched corner curvature
+
+
 ### Ingestion & Services
 
 **Font Synchronizer**:

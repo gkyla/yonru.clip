@@ -224,7 +224,7 @@
            
            <div :class="{ 'select-none': isDragging }" class="flex items-stretch z-10 w-full max-w-full h-full p-0 overflow-hidden">
                 <!-- Video Workspace Pane -->
-                <div class="flex-1 flex items-center justify-center p-6 relative">
+                <div class="flex-1 flex items-center justify-center p-5 relative">
                   <VideoPreview />
                 </div>
 
@@ -335,7 +335,7 @@
                                  <div 
                                    v-for="(seg, i) in visibleSegments" :key="i"
                                    :id="`seg-${i}`"
-                                   class="bg-[#16161c]/60 border p-3 rounded-xl transition-all flex flex-col gap-2 group relative"
+                                   class="bg-[#16161c]/60 border p-3 rounded-2xl transition-all flex flex-col gap-2 group relative"
                                    :class="[
                                      activeSegIdx === i 
                                        ? 'border-accent-500/60 bg-accent-500/[0.08] shadow-[0_4px_20px_rgba(207,255,80,0.08)]' 
@@ -358,14 +358,14 @@
                                           :value="seg.start" 
                                           @input="e => { updateSegmentStart(seg, parseFloat((e.target as HTMLInputElement).value)); }"
                                           type="number" step="0.01" 
-                                          class="bg-black/30 border border-white/5 text-[10px] text-slate-300 font-mono px-2 py-1 rounded-lg w-16 focus:outline-none focus:border-accent-500/50 transition-all"
+                                          class="bg-black/30 border border-white/5 text-[10px] text-slate-300 font-mono px-2 py-1 rounded-md w-16 focus:outline-none focus:border-accent-500/50 transition-all"
                                         />
                                         <span class="text-[10px] text-slate-600 font-mono">to</span>
                                         <input 
                                           :value="seg.duration" 
                                           @input="e => { updateSegmentDuration(seg, parseFloat((e.target as HTMLInputElement).value)); }"
                                           type="number" step="0.01" 
-                                          class="bg-black/30 border border-white/5 text-[10px] text-slate-300 font-mono px-2 py-1 rounded-lg w-16 focus:outline-none focus:border-accent-500/50 transition-all"
+                                          class="bg-black/30 border border-white/5 text-[10px] text-slate-300 font-mono px-2 py-1 rounded-md w-16 focus:outline-none focus:border-accent-500/50 transition-all"
                                         />
                                         <span class="text-[8px] text-slate-500 font-black tracking-widest ml-1">SEC</span>
                                       </div>

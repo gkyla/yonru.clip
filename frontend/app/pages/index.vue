@@ -490,7 +490,7 @@
                 :class="{ 'opacity-50 pointer-events-none': isProcessing }"
                 :style="{ animationDelay: `${idx * 40}ms` }"
               >
-                <div class="w-40 aspect-video bg-black rounded-xl overflow-hidden relative shrink-0">
+                <div class="w-40 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0">
                   <img v-if="vid.thumbnail_url" :src="`${API_BASE}${vid.thumbnail_url}`" class="w-full h-full object-cover opacity-80 group-hover:opacity-40 transition-opacity duration-500" />
                   <Icon v-else name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-xl opacity-50 group-hover:opacity-20 transition-opacity" />
                   
