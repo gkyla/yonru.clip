@@ -16,7 +16,7 @@
         @click="$emit('toggle-expand')"
       >
         <div class="flex items-center gap-2">
-          <Icon :name="audit && audit.flaggedWords.length > 0 ? 'ri:shield-flash-line' : 'ri:shield-keyhole-line'" :class="audit && audit.flaggedWords.length > 0 ? 'text-rose-500' : 'text-accent-500'" class="text-xs" />
+          <Icon :name="audit && audit.flaggedWords.length > 0 ? 'ri:shield-flash-line' : 'ri:shield-keyhole-line'" :class="audit && audit.flaggedWords.length > 0 ? 'text-rose-500' : 'text-sky-500'" class="text-xs" />
           <h3 class="text-[10px] font-bold uppercase tracking-widest" :class="audit && audit.flaggedWords.length > 0 ? 'text-rose-300' : 'text-slate-400'">Content Safety Audit</h3>
           
           <!-- Glowing Warning Light for risks -->
@@ -28,7 +28,7 @@
         </div>
         <div class="flex items-center">
            <!-- Violations count badge in header -->
-           <span class="text-xs font-black tracking-tighter mr-2" :class="scoreTextClass">{{ audit ? Math.round(audit.score) : 'Lite' }}</span>
+           <span class="text-xs font-black tracking-tighter mr-2" :class="scoreTextClass">{{ audit && !audit.flaggedWords.length ? Math.round(audit.score) : '' }}</span>
            <span 
              v-if="audit && audit.flaggedWords.length > 0" 
              class="px-1 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1"
@@ -240,7 +240,7 @@
           <button 
             v-if="!state.isWarningIgnored.value && audit && audit.score < 100"
             class="w-full py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-[10px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-300 rounded-xl transition-all flex items-center justify-center gap-2 group active:scale-[0.98]"
-            @click="state.ignoreSafetyWarnings()"
+            @click="showIgnoreModal = true"
           >
             <Icon name="ri:spam-2-line" class="text-xs group-hover:scale-110 transition-transform" />
             Ignore Safety Warnings
@@ -258,13 +258,85 @@
         </div>
       </div>
     </template>
+
+    <!-- Teleport Modal: Ignore Safety Warnings Confirmation -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0 scale-95"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-95"
+      >
+        <div v-if="showIgnoreModal" class="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <!-- Backdrop -->
+          <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="showIgnoreModal = false"></div>
+
+          <!-- Modal Card -->
+          <div class="relative bg-[#0e0e12] border border-rose-500/30 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 text-white z-10">
+            <!-- Header Icon & Title -->
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center flex-shrink-0 text-rose-500">
+                <Icon name="ri:alert-line" class="text-xl" />
+              </div>
+              <div class="flex-1">
+                <h4 class="text-sm font-black uppercase tracking-wider text-rose-400">Ignore Safety Warnings?</h4>
+                <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Ignoring safety warnings will bypass shadowban keyword censoring and safe zone alignment checks for this video clip.
+                </p>
+              </div>
+            </div>
+
+            <!-- Risk Details Alert Box -->
+            <div class="bg-rose-500/5 border border-rose-500/15 rounded-xl p-3 text-[11px] text-slate-300 space-y-1.5 leading-normal">
+              <p class="font-bold text-rose-300 flex items-center gap-1.5">
+                <Icon name="ri:error-warning-line" class="text-xs text-rose-400" />
+                Potential Platform Impact:
+              </p>
+              <ul class="list-disc list-inside text-slate-400 space-y-0.5 pl-1 text-[10px]">
+                <li>Subtitles may collide with platform UI controls (TikTok, Reels, Shorts).</li>
+                <li>Sensitive words may be flagged by automated shadowban algorithms.</li>
+              </ul>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                @click="showIgnoreModal = false"
+                class="flex-1 py-2 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                @click="confirmIgnoreWarnings"
+                class="flex-1 py-2 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 hover:text-rose-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+              >
+                <Icon name="ri:check-line" class="text-sm" />
+                Ignore Warnings
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 const state = useClipperState()
+const showIgnoreModal = ref(false)
+
+const confirmIgnoreWarnings = () => {
+  if (state?.ignoreSafetyWarnings) {
+    state.ignoreSafetyWarnings()
+  }
+  showIgnoreModal.value = false
+}
 
 const audit = computed(() => {
   const res = state?.contentAudit?.value
