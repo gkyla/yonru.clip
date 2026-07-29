@@ -433,18 +433,9 @@ export const useSafetyAuditor = () => {
     subtitleStrokeColor.value = '#000000'
   }
 
-  // Action to ignore safety warnings with confirmation dialog
+  // Action to ignore safety warnings (confirmation is handled by modal UI)
   const ignoreSafetyWarnings = () => {
-    if (import.meta.client) {
-      const confirmIgnore = window.confirm(
-        "Are you sure you want to ignore safety warnings? Flagged words will remain uncensored in the final video export, which could lead to platform shadowbans."
-      )
-      if (confirmIgnore) {
-        isWarningIgnored.value = true
-      }
-    } else {
-      isWarningIgnored.value = true
-    }
+    isWarningIgnored.value = true
   }
 
   // Action to restore warnings
