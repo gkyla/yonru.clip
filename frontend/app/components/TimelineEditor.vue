@@ -140,10 +140,10 @@
             </div>
 
             <!-- Flagged markers layer (only for subtitle track) -->
-            <template v-if="track.id === 'text' && state.contentAudit.value?.flaggedSegments">
+            <template v-if="track.id === 'subtitle' && state.contentAudit.value?.flaggedSegments">
                <div v-for="(v, i) in state.contentAudit.value.flaggedSegments" :key="'v-'+i"
                     class="absolute top-0 bottom-0 bg-rose-500/20 border-x border-rose-500/40 pointer-events-none z-10"
-                    :style="{ left: getMarkerLeft(v.start) + 'px', width: (v.duration * pxPerSec) + 'px' }">
+                    :style="{ left: getMarkerLeft(getRelativeMarkerTime(v.start)) + 'px', width: (v.duration * pxPerSec) + 'px' }">
                   <div class="absolute -top-[1px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-rose-500 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.8)]"></div>
                </div>
             </template>
@@ -585,6 +585,16 @@ function getMarkerLeft(val: number) {
   return state.thumbnailEnabled.value ? base + thumbOffsetPx.value : base
 }
 
+function getRelativeMarkerTime(val: number) {
+  const firstStart = state.fullTranscript.value?.[0]?.start || 0
+  const isTranscriptZeroBased = state.activeHook.value
+    ? firstStart < (state.activeHook.value.start || 0) - 2
+    : true
+
+  if (isTranscriptZeroBased) return val
+  return val - (state.activeHook.value?.start || 0)
+}
+
 // --- Layout ---
 const totalW = computed(() => {
   return Math.max(state.timelineDuration.value * pxPerSec.value, 2000)
@@ -622,17 +632,26 @@ const rulerTicks = computed(() => {
 
 // --- Track helpers ---
 function trackIcon(type: string) {
-  return type === 'video' ? 'ri:film-line' : type === 'audio' ? 'ri:volume-up-line' : 'ri:text'
+  if (type === 'video') return 'ri:film-line'
+  if (type === 'audio') return 'ri:volume-up-line'
+  if (type === 'subtitle') return 'ri:chat-voice-line'
+  return 'ri:text'
 }
 function trackColor(type: string) {
-  return type === 'video' ? 'text-sky-400' : type === 'audio' ? 'text-green-400' : 'text-violet-400'
+  if (type === 'video') return 'text-sky-400'
+  if (type === 'audio') return 'text-green-400'
+  if (type === 'subtitle') return 'text-accent-500'
+  return 'text-violet-400'
 }
 function trackBorderColor(type: string) {
-  return type === 'video' ? 'bg-sky-500' : type === 'audio' ? 'bg-green-500' : 'bg-violet-500'
+  if (type === 'video') return 'bg-sky-500'
+  if (type === 'audio') return 'bg-green-500'
+  if (type === 'subtitle') return 'bg-accent-500'
+  return 'bg-violet-500'
 }
 
-const itemBg: Record<string, string> = { video: '#1a365d', audio: '#1a3a1a', text: '#2d1b5e' }
-const itemBorder: Record<string, string> = { video: '#3182ce', audio: '#38a169', text: '#805ad5' }
+const itemBg: Record<string, string> = { video: '#1a365d', audio: '#1a3a1a', text: '#2d1b5e', subtitle: 'rgba(207,255,80,0.05)' }
+const itemBorder: Record<string, string> = { video: '#3182ce', audio: '#38a169', text: '#805ad5', subtitle: '#CFFF50' }
 
 function itemClasses(type: string, item: any) {
   return item.id === state.selectedTimelineItem.value?.id ? 'border border-white/80' : 'border border-transparent'

@@ -159,7 +159,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
             return (
               <Sequence key={item.id} from={startFrame} durationInFrames={durationFrames} name={`VideoSegment-${item.id}`}>
                 <AbsoluteFill>
-                  <OffthreadVideo 
+                  <Video 
                     src={videoSrc} 
                     volume={volume}
                     crossOrigin="anonymous"

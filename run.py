@@ -496,7 +496,9 @@ class BootstrappedLauncher:
             "--env-file", ".env", 
             "--host", "0.0.0.0", 
             "--port", "8000", 
-            "--reload"
+            "--reload",
+            "--reload-exclude", "**/temp_assets/**",
+            "--reload-exclude", "**/static/**"
         ]
         frontend_cmd = ["npm", "run", "dev"]
         remotion_cmd = ["npm", "run", "preview"]

@@ -80,9 +80,9 @@ export interface TimelineTrackItem {
 }
 
 export interface TimelineTrack {
-  id: 'video' | 'audio' | 'text'
+  id: 'video' | 'audio' | 'text' | 'subtitle'
   name: string
-  type: 'video' | 'audio' | 'text'
+  type: 'video' | 'audio' | 'text' | 'subtitle'
   items: TimelineTrackItem[]
 }
 

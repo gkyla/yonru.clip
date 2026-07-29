@@ -1,6 +1,6 @@
 // Composable for managing the entire clipper state
 import { useSystemDiagnostics } from './useSystemDiagnostics'
-import { useSafetyAuditor, DEFAULT_BLACKLIST } from './useSafetyAuditor'
+import { useSafetyAuditor, DEFAULT_BLACKLIST, CATEGORIZED_BLACKLIST } from './useSafetyAuditor'
 import { useTimelineState } from './useTimelineState'
 import { useClipperJob } from './useClipperJob'
 import { useClipperThumbnail } from './useClipperThumbnail'
@@ -599,11 +599,28 @@ function createClipperState() {
   return {
     contentAudit: auditor.contentAudit, 
     customBlacklist: auditor.customBlacklist, 
+    customWhitelist: auditor.customWhitelist,
+    safetySensitivity: auditor.safetySensitivity,
+    maskingStyle: auditor.maskingStyle,
+    audioBleepEnabled: auditor.audioBleepEnabled,
+    audioBleepSource: auditor.audioBleepSource,
+    customBleepFile: auditor.customBleepFile,
+    bleepLibrary: auditor.bleepLibrary,
+    selectedBleepAudioId: auditor.selectedBleepAudioId,
+    selectBleepAudio: auditor.selectBleepAudio,
+    addCustomBleepFile: auditor.addCustomBleepFile,
+    removeCustomBleepFile: auditor.removeCustomBleepFile,
+    bleepPaddingOffset: auditor.bleepPaddingOffset,
+    isWarningIgnored: auditor.isWarningIgnored,
+    activeCategories: auditor.activeCategories,
+    activePlatformFilters: auditor.activePlatformFilters,
+    categorizedBlacklist: auditor.categorizedBlacklist,
     safeZoneVisible: auditor.safeZoneVisible, 
     saveBlacklistToStorage: auditor.saveBlacklistToStorage, 
     layoutAudit: auditor.layoutAudit, 
     readabilityAudit: auditor.readabilityAudit, 
     DEFAULT_BLACKLIST,
+    CATEGORIZED_BLACKLIST,
     thumbnailEnabled, 
     thumbnailUrl, 
     thumbnailDuration, 
@@ -637,6 +654,7 @@ function createClipperState() {
     timelineTracks: timeline.timelineTracks, timelineDuration: timeline.timelineDuration, selectedTimelineItem: timeline.selectedTimelineItem,
     defaultTimelineTextStyle: timeline.defaultTimelineTextStyle,
     deepAuditResults: auditor.deepAuditResults, isDeepAuditing: auditor.isDeepAuditing,
+    bleepMode: auditor.bleepMode,
     systemHealth: diagnostics.systemHealth, checkingHealth: diagnostics.checkingHealth, isAnyPrerequisiteMissing: diagnostics.isAnyPrerequisiteMissing, settingsScrollTarget: diagnostics.settingsScrollTarget,
     // Actions
     analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling, stopPolling,
@@ -646,6 +664,8 @@ function createClipperState() {
     runDeepAudit: auditor.runDeepAudit, maskFlaggedWords,
     fitSubtitlesToSafeZone: auditor.fitSubtitlesToSafeZone,
     fitSubtitlesToReadability: auditor.fitSubtitlesToReadability,
+    ignoreSafetyWarnings: auditor.ignoreSafetyWarnings,
+    restoreSafetyWarnings: auditor.restoreSafetyWarnings,
     fetchCached, setLastAccessed, setLastClip,
     saveTimelineTracks: timeline.saveTimelineTracks,
     addTimelineItem: timeline.addTimelineItem, deleteTimelineItem: timeline.deleteTimelineItem, updateTimelineItem: timeline.updateTimelineItem, saveTimelineTextStyleAsDefault: timeline.saveTimelineTextStyleAsDefault, syncGlobalStylesToItem: timeline.syncGlobalStylesToItem,

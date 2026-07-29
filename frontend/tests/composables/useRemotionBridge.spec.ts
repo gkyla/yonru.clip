@@ -36,8 +36,15 @@ describe('useRemotionBridge Composable', () => {
     const subtitleMode = useState<string>('subtitleMode', () => 'word')
     const timelineTracks = useState<any[]>('timelineTracks', () => [
       { id: 'video', name: 'Main Video', type: 'video', items: [] },
-      { id: 'audio', name: 'Audio layers', type: 'audio', items: [] }
+      { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
+      { id: 'text', name: 'Text layers', type: 'text', items: [] },
+      { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
     ])
+    const isTimelineShifting = useState<boolean>('isTimelineShifting', () => false)
+    const thumbnailEnabled = useState<boolean>('thumbnailEnabled', () => false)
+    const thumbnailDuration = useState<number>('thumbnailDuration', () => 0)
+    const useNativePlayer = useState<boolean>('useNativePlayer', () => false)
+    const videoFps = useState<number>('videoFps', () => 30)
 
     volume.value = 0.8
     isPlaying.value = false
@@ -48,8 +55,15 @@ describe('useRemotionBridge Composable', () => {
     subtitleMode.value = 'word'
     timelineTracks.value = [
       { id: 'video', name: 'Main Video', type: 'video', items: [] },
-      { id: 'audio', name: 'Audio layers', type: 'audio', items: [] }
+      { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
+      { id: 'text', name: 'Text layers', type: 'text', items: [] },
+      { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
     ]
+    isTimelineShifting.value = false
+    thumbnailEnabled.value = false
+    thumbnailDuration.value = 0
+    useNativePlayer.value = false
+    videoFps.value = 30
 
     bridge = new MockPlayerBridge()
     state = useClipperState()
@@ -216,6 +230,95 @@ describe('useRemotionBridge Composable', () => {
     // Should have updated props and seeked to current time
     expect(bridge.calls.some(c => c.type === 'updateProps')).toBe(true)
     expect(bridge.calls.some(c => c.type === 'seek')).toBe(true)
+
+    app.unmount()
+  })
+
+  it('mutes video volume when currentTime overlaps a flagged segment', async () => {
+    const mockVideoEl = {
+      volume: 0.5,
+      muted: false,
+      paused: false,
+      play: async () => {},
+      pause: () => {}
+    } as any
+    const previewVideo = ref<HTMLVideoElement | null>(mockVideoEl)
+
+    // Mock contentAudit flagged segments on the state object using defineProperty BEFORE setup
+    Object.defineProperty(state, 'contentAudit', {
+      value: ref({
+        flaggedSegments: [{ start: 2.0, duration: 1.5 }]
+      }),
+      writable: true,
+      configurable: true
+    })
+    state.audioBleepEnabled.value = true
+    state.useNativePlayer.value = true
+    state.subtitleSyncOffset.value = 0
+    state.volume.value = 0.5
+    state.isPlaying.value = true
+
+    const [_, app] = withSetup(() => useRemotionBridge(
+      bridge,
+      previewVideo,
+      ref(0),
+      ref(false),
+      ref('test-buster')
+    ))
+
+    await nextTick()
+
+    // 1. Outside flagged segment (currentTime = 0.5) -> volume should be state.volume
+    state.currentTime.value = 0.5
+    await nextTick()
+    expect(mockVideoEl.volume).toBe(0.5)
+    expect(mockVideoEl.muted).toBe(false)
+
+    // 2. Inside flagged segment (currentTime = 2.5) -> volume should be 0, muted should be true
+    state.currentTime.value = 2.5
+    await nextTick()
+    expect(mockVideoEl.volume).toBe(0)
+    expect(mockVideoEl.muted).toBe(true)
+
+    // 3. Back outside (currentTime = 4.0) -> volume and muted restored
+    state.currentTime.value = 4.0
+    await nextTick()
+    expect(mockVideoEl.volume).toBe(0.5)
+    expect(mockVideoEl.muted).toBe(false)
+
+    app.unmount()
+  })
+
+  it('keeps native video element paused when isPlaying changes and useNativePlayer is false', async () => {
+    const mockPlay = vi.fn().mockResolvedValue(undefined)
+    const mockPause = vi.fn()
+    const mockVideoEl = {
+      volume: 1.0,
+      muted: false,
+      paused: true,
+      play: mockPlay,
+      pause: mockPause
+    } as any
+    const previewVideo = ref<HTMLVideoElement | null>(mockVideoEl)
+
+    state.useNativePlayer.value = false
+
+    const [_, app] = withSetup(() => useRemotionBridge(
+      bridge,
+      previewVideo,
+      ref(0),
+      ref(false),
+      ref('test-buster')
+    ))
+
+    await nextTick()
+
+    state.isPlaying.value = true
+    await nextTick()
+
+    // Native video play should NOT have been called because useNativePlayer is false
+    expect(mockPlay).not.toHaveBeenCalled()
+    expect(bridge.calls.some(c => c.type === 'play')).toBe(true)
 
     app.unmount()
   })

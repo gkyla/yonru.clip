@@ -26,7 +26,9 @@ export interface AuditResult {
 export function auditTranscript(
   transcript: TranscriptSegment[],
   blacklist: string[],
-  mode: string
+  mode: string,
+  bleepPaddingOffsetMs: number = 50,
+  bleepMode: 'full' | 'partial_end' = 'full'
 ): AuditResult {
   const flaggedWords: string[] = []
   const flaggedSegments: FlaggedSegment[] = []
@@ -58,36 +60,10 @@ export function auditTranscript(
     }
   }
 
-  let chunks: { text: string; start: number; duration: number }[] = []
+  const paddingSec = (bleepPaddingOffsetMs || 0) / 1000
 
-  if (mode === 'word' || mode === '1_word') {
-    chunks = flatWords.map(w => ({ text: w.text, start: w.start, duration: w.duration }))
-  } else if (mode.endsWith('_words')) {
-    let numWords = 1
-    const match = mode.match(/^(\d+)_(?:word|words)$/)
-    if (match && match[1]) {
-      numWords = parseInt(match[1]) || 1
-    }
-    
-    for (let i = 0; i < flatWords.length; i += numWords) {
-      const chunk = flatWords.slice(i, i + numWords)
-      if (chunk.length > 0) {
-        const first = chunk[0]
-        const last = chunk[chunk.length - 1]
-        if (first && last) {
-          const start = first.start
-          const end = last.end
-          const text = chunk.map(w => w.text).join(' ')
-          chunks.push({ text, start, duration: end - start })
-        }
-      }
-    }
-  } else {
-    chunks = flatWords.map(w => ({ text: w.text, start: w.start, duration: w.duration }))
-  }
-
-  chunks.forEach(chunk => {
-    const lowerText = chunk.text.toLowerCase()
+  flatWords.forEach(w => {
+    const lowerText = w.text.toLowerCase()
     blacklist.forEach(word => {
       if (!word) return
       let regex: RegExp
@@ -98,11 +74,23 @@ export function auditTranscript(
         regex = new RegExp(`\\b${escapedWord}\\b`, 'i')
       }
       if (regex.test(lowerText)) {
+        let segStart: number
+        let segDuration: number
+
+        if (bleepMode === 'partial_end') {
+          const halfDur = w.duration * 0.5
+          segStart = w.start + halfDur
+          segDuration = halfDur + paddingSec
+        } else {
+          segStart = Math.max(0, w.start - paddingSec)
+          segDuration = w.duration + (2 * paddingSec)
+        }
+
         flaggedSegments.push({
-          start: chunk.start,
-          duration: chunk.duration,
+          start: segStart,
+          duration: segDuration,
           word,
-          text: chunk.text
+          text: w.text
         })
         if (!flaggedWords.includes(word)) flaggedWords.push(word)
       }

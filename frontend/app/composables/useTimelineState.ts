@@ -11,7 +11,8 @@ export const useTimelineState = () => {
   const timelineTracks = useState<TimelineTrack[]>('timelineTracks', () => [
     { id: 'video', name: 'Main Video', type: 'video', items: [] },
     { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-    { id: 'text', name: 'Text layers', type: 'text', items: [] }
+    { id: 'text', name: 'Text layers', type: 'text', items: [] },
+    { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
   ])
   const defaultTimelineTextStyle = useState<Partial<TimelineTrackItem> | null>('defaultTimelineTextStyle', () => null)
   const selectedTimelineItem = useState<TimelineTrackItem | null>('selectedTimelineItem', () => null)

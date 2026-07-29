@@ -54,6 +54,10 @@ logs/
 *.flac
 *.aac
 
+# Keep static frontend audio preset assets
+!frontend/public/audio/*.wav
+!frontend/public/audio/*.mp3
+
 # AI Models & Weights
 models/
 weights/

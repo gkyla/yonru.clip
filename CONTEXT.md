@@ -48,6 +48,18 @@ _Avoid_: Screenshot container, preview frame
 An accordion-style sidebar panel displaying automatic profanity scan scores, flagged shadowban keywords, and deep AI-driven safety diagnostics with auto-fix trigger actions.
 _Avoid_: Safety audit box, profanity scanner container
 
+**Granular Word-Level Audio Censorship**:
+A mechanism in the Content Safety Audit Panel where audio bleeping/muting and timeline flagged markers strictly target the exact timestamp bounds of individual sensitive words, decoupling audio censorship timing from visual subtitle chunking modes.
+_Avoid_: Chunk-level muting, full subtitle line bleeping
+
+**Bleep Padding Offset**:
+A configurable time buffer in milliseconds (defaulting to 50ms) added before and after a flagged sensitive word timestamp to prevent spoken phoneme leakage during audio censorship.
+_Avoid_: Audio padding, bleep margin
+
+**Comprehensive Audio Censorship Coverage**:
+A policy in the Content Safety Audit Panel ensuring that when audio bleeping is enabled, all flagged words across active categories are targeted for muting/bleeping, regardless of subtitle sensitivity presets.
+_Avoid_: Selective bleeping, partial category muting
+
 **Safe Zone Alignment Check**:
 An automated diagnostic rule within the Content Safety Audit Panel that scans subtitle positions against active platform safe zones (TikTok, Reels, Shorts) and flags layouts that overlap with platform UI controls or bottom description fields.
 _Avoid_: Subtitle overlay scan, boundary collision check
@@ -55,6 +67,26 @@ _Avoid_: Subtitle overlay scan, boundary collision check
 **Subtitle Readability Audit**:
 An automated accessibility check within the Content Safety Audit Panel that verifies if subtitle text styles have sufficient visual contrast (via border strokes or background boxes) to remain legible over bright video frames.
 _Avoid_: Contrast scan, subtitle legibility test
+
+**Timeline Linear Motion & Auto-Pause**:
+A video playback rule ensuring videoTime maps continuously and linearly from item mediaStart timestamps across timeline coordinates without static freezing, automatically pausing video playback and clamping playhead position when currentTime reaches timelineDuration.
+_Avoid_: Static timestamp clamping, end-of-clip overrun
+
+**Single Master Player Mode**:
+A video playback architecture rule ensuring that only one active media player (either the Remotion iframe or the native video element) controls playback and emits timeupdate events at any time, keeping the inactive player strictly paused to eliminate dual-player feedback loops.
+_Avoid_: Background video playback, dual-player sync drift
+
+**Mute State Deduplication & Iframe Props Isolation**:
+A reactive optimization in player bridge watchers that deduplicates mute state transitions and isolates currentTime from iframe props updates, preventing 60Hz React re-rendering loops and word replay bugs during video playback.
+_Avoid_: High-frequency props updates, 60Hz iframe re-renders
+
+**Partial Word End Audio Censorship**:
+A mechanism in the Content Safety Audit Panel where audio muting/bleeping targets only the ending 50% syllable duration of sensitive words, leaving the initial syllable audible so viewers retain spoken context.
+_Avoid_: Half muting, partial word bleeping
+
+**Bleep Audio Preset Library**:
+A configurable collection of bleep audio assets within the Content Safety Audit Panel comprising static system default tones (e.g. 1000Hz beep) and user-uploaded custom audio files, allowing creators to select and manage their active audio censorship sound.
+_Avoid_: Bleep sound list, custom bleep array
 
 **Horizontal Shift Offset**:
 A percentage value representing the horizontal pan displacement of the background image within the portrait viewport.

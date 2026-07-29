@@ -28,7 +28,7 @@
         </div>
         <div class="flex items-center">
            <!-- Violations count badge in header -->
-           <span class="text-xs font-black tracking-tighter mr-2" :class="scoreTextClass">{{ audit ? Math.round(audit.score) : 'Lite' }}</span>
+           <span class="text-xs font-black tracking-tighter mr-2" :class="scoreTextClass">{{ audit && !audit.flaggedWords.length ? Math.round(audit.score) : '' }}</span>
            <span 
              v-if="audit && audit.flaggedWords.length > 0" 
              class="px-1 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1"
@@ -48,7 +48,23 @@
       >
         <div class="overflow-hidden">
           <!-- Safety Bento Card -->
-          <div class="p-4 space-y-4 custom-scrollbar min-h-0 overflow-y-auto" style="max-height: calc(75vh - 45px);">
+          <div class="p-4 space-y-4 custom-scrollbar min-h-0 overflow-y-auto" style="max-height: 420px;">
+            <!-- Warnings Ignored Banner -->
+            <div 
+              v-if="state.isWarningIgnored.value" 
+              class="px-3 py-2 bg-amber-500/5 border border-amber-500/20 rounded-xl flex items-center justify-between gap-3 text-amber-400/90 transition-all duration-300"
+            >
+              <div class="flex items-center gap-2">
+                <Icon name="ri:error-warning-line" class="text-xs text-amber-500 animate-pulse" />
+                <span class="text-[9px] font-black uppercase tracking-widest leading-none">Warnings Ignored</span>
+              </div>
+              <button 
+                @click="state.restoreSafetyWarnings()"
+                class="px-2 py-1 bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] hover:border-white/20 text-slate-300 hover:text-white rounded-lg text-[8px] font-black uppercase tracking-wider transition-colors"
+              >
+                Restore
+              </button>
+            </div>
             <!-- Bento Score Card with Radial SVG Progress Ring -->
             <div class="bg-white/[0.02] border border-white/5 rounded-2xl p-4 flex justify-center items-center gap-4 relative group hover:border-white/10 transition-colors">
               <!-- Background Glow Container to clip the radial glow without clipping the tooltip -->
@@ -123,7 +139,7 @@
           >
             <div class="flex items-start gap-3">
               <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" :class="state.layoutAudit.value.isSafe ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'">
-                <Icon :name="state.layoutAudit.value.isSafe ? 'ri:layout-grid-line' : 'ri:layout-warning-line'" class="text-lg" />
+                <Icon :name="state.layoutAudit.value.isSafe ? 'ri:layout-grid-line' : 'ri:error-warning-line'" class="text-lg" />
               </div>
               <div class="flex-1 min-w-0">
                  <div class="flex items-center justify-between mb-0.5">
@@ -185,44 +201,53 @@
                <p class="text-[9px] text-slate-500 italic">Flagged words appear as "K*lling" or "Unal*ve" to bypass automated filters.</p>
             </div>
           </div>
-        </div>
 
-        <!-- Subtitle Readability Section -->
-        <div 
-          class="border rounded-xl p-3 flex flex-col gap-2.5 transition-all duration-500"
-          :class="state.readabilityAudit.value.isSafe 
-            ? 'bg-surface-card/50 border-surface-border/50' 
-            : 'bg-amber-500/5 border-amber-500/20'"
-        >
-          <div class="flex items-start gap-3">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" :class="state.readabilityAudit.value.isSafe ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'">
-              <Icon :name="state.readabilityAudit.value.isSafe ? 'ri:font-size-2' : 'ri:font-color'" class="text-lg" />
+          <!-- Subtitle Readability Section -->
+          <div 
+            class="border rounded-xl p-3 flex flex-col gap-2.5 transition-all duration-500"
+            :class="state.readabilityAudit.value.isSafe 
+              ? 'bg-surface-card/50 border-surface-border/50' 
+              : 'bg-amber-500/5 border-amber-500/20'"
+          >
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" :class="state.readabilityAudit.value.isSafe ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'">
+                <Icon :name="state.readabilityAudit.value.isSafe ? 'ri:font-size-2' : 'ri:font-color'" class="text-lg" />
+              </div>
+              <div class="flex-1 min-w-0">
+                 <div class="flex items-center justify-between mb-0.5">
+                   <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Subtitle Readability</p>
+                   <Icon :name="state.readabilityAudit.value.isSafe ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'" :class="state.readabilityAudit.value.isSafe ? 'text-emerald-500' : 'text-amber-500'" class="text-xs" />
+                 </div>
+                 <p class="text-xs text-slate-200 font-medium">{{ state.readabilityAudit.value.reason }}</p>
+              </div>
             </div>
-            <div class="flex-1 min-w-0">
-               <div class="flex items-center justify-between mb-0.5">
-                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Subtitle Readability</p>
-                 <Icon :name="state.readabilityAudit.value.isSafe ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'" :class="state.readabilityAudit.value.isSafe ? 'text-emerald-500' : 'text-amber-500'" class="text-xs" />
-               </div>
-               <p class="text-xs text-slate-200 font-medium">{{ state.readabilityAudit.value.reason }}</p>
+            
+            <!-- Auto-fix action for readability -->
+            <div v-if="!state.readabilityAudit.value.isSafe" class="pl-11">
+               <button 
+                 @click="state.fitSubtitlesToReadability()"
+                 class="w-full py-1.5 bg-white/[0.03] border border-white/10 text-slate-300 hover:bg-white/[0.06] hover:border-white/20 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group active:scale-[0.98]"
+               >
+                 <Icon name="ri:magic-line" class="group-hover:rotate-12 transition-transform" />
+                 Auto-Apply Text Outline
+               </button>
             </div>
-          </div>
-          
-          <!-- Auto-fix action for readability -->
-          <div v-if="!state.readabilityAudit.value.isSafe" class="pl-11">
-             <button 
-               @click="state.fitSubtitlesToReadability()"
-               class="w-full py-1.5 bg-white/[0.03] border border-white/10 text-slate-300 hover:bg-white/[0.06] hover:border-white/20 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group active:scale-[0.98]"
-             >
-               <Icon name="ri:magic-line" class="group-hover:rotate-12 transition-transform" />
-               Auto-Apply Text Outline
-             </button>
           </div>
         </div>
 
         <!-- Action Footer -->
-        <div class="pt-2">
+        <div class="pt-2 flex flex-col gap-2">
           <button 
-            class="w-full py-2.5 bg-surface-card hover:bg-surface-card/80 border border-surface-border text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white rounded-xl transition-all flex items-center justify-center gap-2 group"
+            v-if="!state.isWarningIgnored.value && audit && audit.score < 100"
+            class="w-full py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-[10px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-300 rounded-xl transition-all flex items-center justify-center gap-2 group active:scale-[0.98]"
+            @click="showIgnoreModal = true"
+          >
+            <Icon name="ri:spam-2-line" class="text-xs group-hover:scale-110 transition-transform" />
+            Ignore Safety Warnings
+          </button>
+
+          <button 
+            class="w-full py-2 bg-surface-card hover:bg-surface-card/80 border border-surface-border text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white rounded-xl transition-all flex items-center justify-center gap-2 group"
             @click="$emit('settings')"
           >
             <Icon name="ri:equalizer-line" class="text-xs group-hover:rotate-90 transition-transform" />
@@ -233,13 +258,85 @@
         </div>
       </div>
     </template>
+
+    <!-- Teleport Modal: Ignore Safety Warnings Confirmation -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0 scale-95"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-95"
+      >
+        <div v-if="showIgnoreModal" class="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <!-- Backdrop -->
+          <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="showIgnoreModal = false"></div>
+
+          <!-- Modal Card -->
+          <div class="relative bg-[#0e0e12] border border-rose-500/30 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 text-white z-10">
+            <!-- Header Icon & Title -->
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center flex-shrink-0 text-rose-500">
+                <Icon name="ri:alert-line" class="text-xl" />
+              </div>
+              <div class="flex-1">
+                <h4 class="text-sm font-black uppercase tracking-wider text-rose-400">Ignore Safety Warnings?</h4>
+                <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Ignoring safety warnings will bypass shadowban keyword censoring and safe zone alignment checks for this video clip.
+                </p>
+              </div>
+            </div>
+
+            <!-- Risk Details Alert Box -->
+            <div class="bg-rose-500/5 border border-rose-500/15 rounded-xl p-3 text-[11px] text-slate-300 space-y-1.5 leading-normal">
+              <p class="font-bold text-rose-300 flex items-center gap-1.5">
+                <Icon name="ri:error-warning-line" class="text-xs text-rose-400" />
+                Potential Platform Impact:
+              </p>
+              <ul class="list-disc list-inside text-slate-400 space-y-0.5 pl-1 text-[10px]">
+                <li>Subtitles may collide with platform UI controls (TikTok, Reels, Shorts).</li>
+                <li>Sensitive words may be flagged by automated shadowban algorithms.</li>
+              </ul>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                @click="showIgnoreModal = false"
+                class="flex-1 py-2 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                @click="confirmIgnoreWarnings"
+                class="flex-1 py-2 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 hover:text-rose-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+              >
+                <Icon name="ri:check-line" class="text-sm" />
+                Ignore Warnings
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 const state = useClipperState()
+const showIgnoreModal = ref(false)
+
+const confirmIgnoreWarnings = () => {
+  if (state?.ignoreSafetyWarnings) {
+    state.ignoreSafetyWarnings()
+  }
+  showIgnoreModal.value = false
+}
 
 const audit = computed(() => {
   const res = state?.contentAudit?.value

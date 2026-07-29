@@ -36,7 +36,6 @@
           :style="videoTransformStyle"
           @loadedmetadata="onVideoLoaded"
           @loadeddata="onVideoReady"
-          @loadstart="state.isMediaLoading.value = true"
           @canplay="onVideoReady"
           @canplaythrough="onVideoReady"
           @timeupdate="onNativeTimeUpdate"
@@ -607,7 +606,8 @@ function onNativeTimeUpdate(e: Event) {
     const activeItem = videoTrack.items.find((i: any) => {
       const mediaStart = i.mediaStart !== undefined ? i.mediaStart : i.start
       return video.currentTime >= mediaStart && video.currentTime <= mediaStart + i.duration
-    })
+    }) || videoTrack.items[videoTrack.items.length - 1]
+
     if (activeItem) {
       const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : activeItem.start
       const relativeOffset = video.currentTime - mediaStart
@@ -616,6 +616,13 @@ function onNativeTimeUpdate(e: Event) {
       state.currentTime.value = video.currentTime + thumbSec
     }
   }
+
+  if (state.currentTime.value >= state.timelineDuration.value) {
+    state.currentTime.value = state.timelineDuration.value
+    state.isPlaying.value = false
+    video.pause()
+  }
+
   nextTick(() => {
     isInternalTimeUpdate.value = false
   })
@@ -651,7 +658,9 @@ const videoTime = computed(() => {
   const videoTrack = state.timelineTracks.value.find((tr: any) => tr.id === 'video')
   if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) return t
   
-  const activeItem = videoTrack.items.find((i: any) => t >= i.start && t < i.start + i.duration)
+  const activeItem = videoTrack.items.find((i: any) => t >= i.start && t <= i.start + i.duration)
+    || videoTrack.items[videoTrack.items.length - 1]
+
   if (activeItem) {
     const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : activeItem.start
     return mediaStart + (t - activeItem.start)
