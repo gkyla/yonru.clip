@@ -48,6 +48,11 @@ _Avoid_: Screenshot container, preview frame
 An accordion-style sidebar panel displaying automatic profanity scan scores, flagged shadowban keywords, and deep AI-driven safety diagnostics with auto-fix trigger actions.
 _Avoid_: Safety audit box, profanity scanner container
 
+**Safety Score Tiers**:
+Four discrete eligibility brackets (Excellent >= 90, Good >= 70, Caution >= 40, High Risk < 40) calculated by the Content Safety Audit Panel to evaluate shadowban keyword risk, safe zone visual collisions, and subtitle legibility before export.
+_Avoid_: Audit score levels, safety ratings
+
+
 **Granular Word-Level Audio Censorship**:
 A mechanism in the Content Safety Audit Panel where audio bleeping/muting and timeline flagged markers strictly target the exact timestamp bounds of individual sensitive words, decoupling audio censorship timing from visual subtitle chunking modes.
 _Avoid_: Chunk-level muting, full subtitle line bleeping

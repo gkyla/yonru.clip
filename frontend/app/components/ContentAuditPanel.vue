@@ -116,13 +116,13 @@
               <!-- Info Tooltip (Right) -->
               <div class="relative group/tooltip flex items-center flex-shrink-0 z-[99]">
                 <Icon name="ri:question-line" class="text-slate-500 hover:text-slate-300 text-sm cursor-help transition-colors" />
-                <div class="absolute top-full right-0 mt-1.5 w-56 p-2.5 bg-surface-dark/95 border border-surface-border/80 rounded-xl shadow-black/80 shadow-[0_12px_40px_rgba(0,0,0,0.95)] text-[9px] text-slate-300 leading-normal opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity duration-200 z-30 tracking-normal normal-case">
+                <div class="absolute top-full right-0 mt-1.5 w-60 p-2.5 bg-surface-dark/95 border border-surface-border/80 rounded-xl shadow-black/80 shadow-[0_12px_40px_rgba(0,0,0,0.95)] text-[9px] text-slate-300 leading-normal opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity duration-200 z-30 tracking-normal normal-case">
                   <p class="font-bold text-slate-200 mb-1 border-b border-white/5 pb-1">Safety Classifications:</p>
                   <ul class="space-y-1">
-                    <li><span class="text-emerald-400 font-semibold">Excellent:</span> Safe from filters, maximum reach.</li>
-                    <li><span class="text-accent-400 font-semibold">Caution:</span> Minor duration or word warning.</li>
-                    <li><span class="text-amber-400 font-semibold">Restricted:</span> Mild profanity; limited recommendation.</li>
-                    <li><span class="text-rose-400 font-semibold">Danger:</span> High risk of shadowban or policy violation.</li>
+                    <li><span class="text-emerald-400 font-semibold">Excellent (&ge;90):</span> No sensitive keywords; safe zone & readability optimal for maximum reach.</li>
+                    <li><span class="text-accent-400 font-semibold">Good (&ge;70):</span> Minor visual risk (e.g. slight safe zone overlap or mild slang detected).</li>
+                    <li><span class="text-amber-400 font-semibold">Caution (&ge;40):</span> Flagged shadowban keywords detected; distribution may be restricted.</li>
+                    <li><span class="text-rose-400 font-semibold">High Risk (&lt;40):</span> Critical policy violations or profanity; severe risk of shadowban.</li>
                   </ul>
                 </div>
               </div>
