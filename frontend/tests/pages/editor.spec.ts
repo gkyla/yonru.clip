@@ -289,4 +289,50 @@ describe('Editor Page', () => {
     await wrapper.vm.$nextTick()
     expect(getHookButton()!.text()).toContain('Ready')
   })
+
+  it('renders Floating Subtitle Panel as a 500px far-right overlay and dismisses on ESC key', async () => {
+    mockActiveHook.value = {
+      theme: 'Test Floating Overlay Hook',
+      start: 10,
+      end: 25,
+      transcript_quote: 'Testing far right overlay panel positioning'
+    }
+
+    const wrapper = mount(editor, {
+      global: {
+        stubs: {
+          HomeSidebar: true,
+          SidebarSettings: true,
+          VideoPreview: true,
+          TimelineEditor: true,
+          BlacklistSettings: true,
+          ContentAuditPanel: true,
+          ThumbnailEditor: true,
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.vm.$nextTick()
+
+    // Open Floating Subtitle Panel
+    ;(wrapper.vm as any).isPanelOpen = true
+    await wrapper.vm.$nextTick()
+
+    // Find Floating Subtitle Panel container
+    const panel = wrapper.find('.w-\\[500px\\]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.classes()).toContain('right-0')
+    expect(panel.classes()).toContain('top-0')
+    expect(panel.classes()).toContain('bottom-0')
+    expect(panel.classes()).toContain('rounded-3xl')
+    expect(panel.classes()).toContain('z-50')
+
+    // Simulate ESC key press to dismiss panel
+    const escEvent = new KeyboardEvent('keydown', { key: 'Escape' })
+    window.dispatchEvent(escEvent)
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).isPanelOpen).toBe(false)
+  })
 })

@@ -225,20 +225,81 @@
                      <div :class="{ 'select-none': isDragging }" class="flex items-stretch z-10 w-full max-w-full h-full p-0 overflow-hidden relative">
                 <!-- Video Workspace Pane -->
                 <div class="flex-1 flex items-center justify-center p-5 relative overflow-hidden">
-                  <VideoPreview />
+                  <!-- Video Preview + Action Rail Group -->
+                  <div class="flex justify-center gap-4 relative h-full">
+                    <VideoPreview />
 
-                  <!-- Floating Subtitle Panel -->
+                    <!-- Editor Workspace Action Rail (Positioned directly beside VideoPreview) -->
+                    <div 
+                      v-if="state?.activeHook?.value"
+                      class="flex flex-col items-center gap-3 z-[60] relative"
+                    >
+                      <!-- Subtitles Button -->
+                      <div class="relative group">
+                        <button 
+                          @click="toggleTab('edit')"
+                          class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md"
+                          style="border-radius: 10px;"
+                          :class="isPanelOpen && editorTab === 'edit' 
+                            ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
+                            : 'bg-[#0e0e12]/90 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
+                        >
+                          <Icon name="ri:edit-box-line" class="text-lg" />
+                        </button>
+                        <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2.5 py-1 border border-white/10 shadow-lg pointer-events-none rounded-lg z-[70]">
+                          Subtitles
+                        </div>
+                      </div>
+
+                      <!-- Thumbnail Button -->
+                      <div class="relative group">
+                        <button 
+                          @click="toggleTab('thumbnail')"
+                          class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md"
+                          style="border-radius: 10px;"
+                          :class="isPanelOpen && editorTab === 'thumbnail' 
+                            ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
+                            : 'bg-[#0e0e12]/90 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
+                        >
+                          <Icon name="ri:image-line" class="text-lg" />
+                        </button>
+                        <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2.5 py-1 border border-white/10 shadow-lg pointer-events-none rounded-lg z-[70]">
+                          Thumbnail
+                        </div>
+                      </div>
+
+                      <!-- Raw Quote Button -->
+                      <div class="relative group">
+                        <button 
+                          @click="toggleTab('quote')"
+                          class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md"
+                          style="border-radius: 10px;"
+                          :class="isPanelOpen && editorTab === 'quote' 
+                            ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
+                            : 'bg-[#0e0e12]/90 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
+                        >
+                          <Icon name="ri:double-quotes-l" class="text-lg" />
+                        </button>
+                        <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2.5 py-1 border border-white/10 shadow-lg pointer-events-none rounded-lg z-[70]">
+                          Raw Quote
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                  <!-- Floating Subtitle Panel (Floating Card Overlay over Hooks Panel) -->
                   <Transition
                     enter-active-class="transition duration-300 ease-out transform"
-                    enter-from-class="translate-x-12 opacity-0"
-                    enter-to-class="translate-x-0 opacity-100"
+                    enter-from-class="translate-x-full opacity-0 scale-95"
+                    enter-to-class="translate-x-0 opacity-100 scale-100"
                     leave-active-class="transition duration-200 ease-in transform"
-                    leave-from-class="translate-x-0 opacity-100"
-                    leave-to-class="translate-x-12 opacity-0"
+                    leave-from-class="translate-x-0 opacity-100 scale-100"
+                    leave-to-class="translate-x-full opacity-0 scale-95"
                   >
                     <div 
                       v-if="isPanelOpen && state?.activeHook?.value" 
-                      class="absolute right-14 top-4 bottom-4 w-[380px] z-30 bg-[#0e0e12]/95 backdrop-blur-xl border border-white/10 shadow-2xl flex flex-col overflow-hidden rounded-none p-5 text-white"
+                      class="absolute right-0 top-0 bottom-0 w-[500px] z-50 bg-[#0e0e12]/95 backdrop-blur-2xl border border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden rounded-3xl p-6 text-white"
                     >
                       <!-- Top Header: Badge, Save & Close (X) -->
                       <div class="border-b border-white/10 pb-3 mb-3 flex flex-col gap-3 shrink-0">
@@ -538,66 +599,7 @@
                     </div>
                   </Transition>
 
-                  <!-- Editor Workspace Action Rail -->
-                  <div 
-                    v-if="state?.activeHook?.value"
-                    class="absolute right-0 top-0 bottom-0 z-40 bg-[#0e0e12]/95 border-l border-white/10 flex flex-col items-center py-4 gap-3 w-12 rounded-none"
-                  >
-                    <!-- Subtitles Button -->
-                    <div class="relative group">
-                      <button 
-                        @click="toggleTab('edit')"
-                        class="w-8 h-8 flex items-center justify-center border transition-all duration-200 rounded-none"
-                        :class="isPanelOpen && editorTab === 'edit' 
-                          ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
-                          : 'bg-black/30 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
-                      >
-                        <Icon name="ri:edit-box-line" class="text-base" />
-                      </button>
-                      <div class="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2 py-1 border border-white/10 shadow-lg pointer-events-none rounded-none">
-                        Subtitles
-                      </div>
-                    </div>
-
-                    <!-- Thumbnail Button -->
-                    <div class="relative group">
-                      <button 
-                        @click="toggleTab('thumbnail')"
-                        class="w-8 h-8 flex items-center justify-center border transition-all duration-200 rounded-none"
-                        :class="isPanelOpen && editorTab === 'thumbnail' 
-                          ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
-                          : 'bg-black/30 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
-                      >
-                        <Icon name="ri:image-line" class="text-base" />
-                      </button>
-                      <div class="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2 py-1 border border-white/10 shadow-lg pointer-events-none rounded-none">
-                        Thumbnail
-                      </div>
-                    </div>
-
-                    <!-- Raw Quote Button -->
-                    <div class="relative group">
-                      <button 
-                        @click="toggleTab('quote')"
-                        class="w-8 h-8 flex items-center justify-center border transition-all duration-200 rounded-none"
-                        :class="isPanelOpen && editorTab === 'quote' 
-                          ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
-                          : 'bg-black/30 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
-                      >
-                        <Icon name="ri:double-quotes-l" class="text-base" />
-                      </button>
-                      <div class="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2 py-1 border border-white/10 shadow-lg pointer-events-none rounded-none">
-                        Raw Quote
-                      </div>
-                    </div>
-                  </div>
-
-            </div>
-        </div>
-    </div>
-</div>
-
-    <!-- Hooks Panel -->
+                <!-- Hooks Panel -->
        <div class="w-80 border-l border-white/10 bg-[#0e0e12]/90 backdrop-blur-xl flex flex-col overflow-hidden text-white relative">
           <!-- Content Safety Audit Panel -->
           <ContentAuditPanel 
@@ -729,6 +731,9 @@
             </button>
           </div>
        </div>
+    </div>
+            </div>
+        </div>
     </div>
     
     <!-- Timeline -->
@@ -1360,13 +1365,28 @@ async function handleSave(isSilent = false) {
 const panelWidth = ref(450)
 const isDragging = ref(false)
 
+function handleGlobalKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && isPanelOpen.value) {
+    isPanelOpen.value = false
+  }
+}
+
 onMounted(() => {
+  window.addEventListener('keydown', handleGlobalKeydown)
   const saved = localStorage.getItem('yonru-editor-width')
   if (saved) {
     const parsed = parseInt(saved)
     if (!isNaN(parsed)) {
       panelWidth.value = Math.max(50, Math.min(800, parsed))
     }
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown)
+  if (overlayTimeout) {
+    clearTimeout(overlayTimeout)
+    overlayTimeout = null
   }
 })
 

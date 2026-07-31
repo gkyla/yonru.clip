@@ -28,6 +28,14 @@ _Avoid_: Word highlighting, text glow
 A resizable sidebar panel in the editor whose width can be adjusted dynamically by dragging the left border handle.
 _Avoid_: Resizable sidebar, subtitle panel drawer
 
+**Floating Subtitle Panel**:
+A floating overlay panel in the editor that slides in from the far-right boundary over the Hooks Panel, providing dedicated edit controls for Subtitles, Thumbnail, and Raw Quote modes.
+_Avoid_: Subtitle drawer, edit modal, right sidebar overlay
+
+**Editor Workspace Action Rail**:
+A narrow vertical icon rail positioned adjacent to the VideoPreview pane that provides single-click access and hover tooltips for toggling editor panel views.
+_Avoid_: Editor tab bar, right button column
+
 **Sidebar Status Indicator**:
 A unified, real-time job status tracking element placed in the global sidebar panel, rendering as a badge in expanded mode and as a status dot in collapsed mode.
 _Avoid_: Status badge, footer status
