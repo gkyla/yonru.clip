@@ -222,52 +222,66 @@
              </div>
            </Transition>
            
-           <div :class="{ 'select-none': isDragging }" class="flex items-stretch z-10 w-full max-w-full h-full p-0 overflow-hidden">
+                     <div :class="{ 'select-none': isDragging }" class="flex items-stretch z-10 w-full max-w-full h-full p-0 overflow-hidden relative">
                 <!-- Video Workspace Pane -->
-                <div class="flex-1 flex items-center justify-center p-5 relative">
+                <div class="flex-1 flex items-center justify-center p-5 relative overflow-hidden">
                   <VideoPreview />
-                </div>
 
-                 <!-- Subtitle Editor Panel -->
-                 <div 
-                    v-if="state?.activeHook?.value" 
-                    :style="{ width: panelWidth + 'px', flex: 'none' }"
-                    class="relative self-stretch bg-[#0e0e12]/90 backdrop-blur-xl border-l border-white/10 p-6 flex flex-col shadow-2xl overflow-hidden"
+                  <!-- Floating Subtitle Panel -->
+                  <Transition
+                    enter-active-class="transition duration-300 ease-out transform"
+                    enter-from-class="translate-x-12 opacity-0"
+                    enter-to-class="translate-x-0 opacity-100"
+                    leave-active-class="transition duration-200 ease-in transform"
+                    leave-from-class="translate-x-0 opacity-100"
+                    leave-to-class="translate-x-12 opacity-0"
                   >
-                     <!-- Resize Drag Handle Overlay -->
-                     <div 
-                       @pointerdown="initResize"
-                       class="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-sky-500/30 active:bg-sky-500 transition-colors z-50"
-                       :class="isDragging ? 'bg-sky-500/50' : ''"
-                     ></div>
-                    
-                    <!-- Tabs -->
-                     <div class="flex bg-black/40 border border-white/5 rounded-xl p-1 gap-1 mb-6">
-                         <button 
-                           @click="editorTab = 'edit'"
-                           class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
-                           :class="editorTab === 'edit' ? 'bg-white/10 text-accent-500 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
-                         >
-                           <Icon name="ri:edit-box-line" class="text-xs" /> Edit Subtitles
-                         </button>
-                         <button 
-                           @click="editorTab = 'thumbnail'"
-                           class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
-                           :class="editorTab === 'thumbnail' ? 'bg-white/10 text-emerald-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
-                         >
-                           <Icon name="ri:image-line" class="text-xs" /> Thumbnail
-                         </button>
-                         <button 
-                           @click="editorTab = 'quote'"
-                           class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
-                           :class="editorTab === 'quote' ? 'bg-white/10 text-sky-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
-                         >
-                           <Icon name="ri:double-quotes-l" class="text-xs" /> Raw Quote
-                         </button>
-                     </div>
+                    <div 
+                      v-if="isPanelOpen && state?.activeHook?.value" 
+                      class="absolute right-14 top-4 bottom-4 w-[380px] z-30 bg-[#0e0e12]/95 backdrop-blur-xl border border-white/10 shadow-2xl flex flex-col overflow-hidden rounded-none p-5 text-white"
+                    >
+                      <!-- Top Header: Badge, Save & Close (X) -->
+                      <div class="border-b border-white/10 pb-3 mb-3 flex flex-col gap-3 shrink-0">
+                          <div class="flex items-center justify-between">
+                              <div class="flex items-center gap-2">
+                                  <span class="bg-accent-500/10 text-accent-500 border border-accent-500/20 px-2 py-0.5 rounded-none text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
+                                      <Icon name="ri:edit-box-line" />
+                                      HOOK #{{ String((activeHookIndex >= 0 ? activeHookIndex : 0) + 1).padStart(2, '0') }}
+                                  </span>
+                                  <span class="mono text-[10px] text-slate-400 font-bold tracking-wider">
+                                      {{ state.formatDuration(state?.activeHook?.value?.start || 0) }} – {{ state.formatDuration(state?.activeHook?.value?.end || 0) }}
+                                  </span>
+                              </div>
+                              <div class="flex items-center gap-2">
+                                  <button 
+                                    @click="handleSave()" 
+                                    class="h-7 px-3 bg-accent-500/10 hover:bg-accent-500/20 text-accent-500 border border-accent-500/30 rounded-none text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-1"
+                                  >
+                                    <Icon name="ri:save-line" class="text-xs" /> Save
+                                  </button>
+                                  <button 
+                                    @click="isPanelOpen = false"
+                                    class="w-7 h-7 flex items-center justify-center rounded-none border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                                    title="Close Panel"
+                                  >
+                                    <Icon name="ri:close-line" class="text-sm" />
+                                  </button>
+                              </div>
+                          </div>
+                          
+                          <!-- Title Input Field -->
+                          <div class="relative flex items-center w-full group/title">
+                            <Icon name="ri:edit-2-line" class="absolute left-3 text-slate-500 text-xs pointer-events-none group-focus-within/title:text-accent-500 transition-colors" />
+                            <input 
+                              :value="state?.activeHook?.value?.theme"
+                              @input="e => { if (state?.activeHook?.value) { state.activeHook.value.theme = (e.target as HTMLInputElement).value; state.updateHooks() } }"
+                              class="w-full bg-black/35 pl-8 pr-3 py-1.5 border border-white/5 hover:border-accent-500/40 focus:border-accent-500 focus:outline-none text-white font-bold leading-tight rounded-none transition-all text-xs"
+                              placeholder="Enter clip name..."
+                            />
+                          </div>
+                      </div>
 
-                     <div v-if="editorTab === 'edit'" class="flex flex-col h-full overflow-hidden p-1.5">
-                         <!-- Unified Header -->
+                      <div v-if="editorTab === 'edit'" class="flex flex-col h-full overflow-hidden p-0">
                          <div class="border-b border-white/10 pb-4 mb-4 flex flex-col gap-3.5 shrink-0">
                              <!-- Top Row: Badge & Save Action -->
                              <div class="flex items-center justify-between">
@@ -520,6 +534,63 @@
                     <div v-else-if="editorTab === 'thumbnail'" class="flex flex-col h-full overflow-hidden">
                         <ThumbnailEditor />
                     </div>
+
+                    </div>
+                  </Transition>
+
+                  <!-- Editor Workspace Action Rail -->
+                  <div 
+                    v-if="state?.activeHook?.value"
+                    class="absolute right-0 top-0 bottom-0 z-40 bg-[#0e0e12]/95 border-l border-white/10 flex flex-col items-center py-4 gap-3 w-12 rounded-none"
+                  >
+                    <!-- Subtitles Button -->
+                    <div class="relative group">
+                      <button 
+                        @click="toggleTab('edit')"
+                        class="w-8 h-8 flex items-center justify-center border transition-all duration-200 rounded-none"
+                        :class="isPanelOpen && editorTab === 'edit' 
+                          ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
+                          : 'bg-black/30 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
+                      >
+                        <Icon name="ri:edit-box-line" class="text-base" />
+                      </button>
+                      <div class="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2 py-1 border border-white/10 shadow-lg pointer-events-none rounded-none">
+                        Subtitles
+                      </div>
+                    </div>
+
+                    <!-- Thumbnail Button -->
+                    <div class="relative group">
+                      <button 
+                        @click="toggleTab('thumbnail')"
+                        class="w-8 h-8 flex items-center justify-center border transition-all duration-200 rounded-none"
+                        :class="isPanelOpen && editorTab === 'thumbnail' 
+                          ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
+                          : 'bg-black/30 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
+                      >
+                        <Icon name="ri:image-line" class="text-base" />
+                      </button>
+                      <div class="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2 py-1 border border-white/10 shadow-lg pointer-events-none rounded-none">
+                        Thumbnail
+                      </div>
+                    </div>
+
+                    <!-- Raw Quote Button -->
+                    <div class="relative group">
+                      <button 
+                        @click="toggleTab('quote')"
+                        class="w-8 h-8 flex items-center justify-center border transition-all duration-200 rounded-none"
+                        :class="isPanelOpen && editorTab === 'quote' 
+                          ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
+                          : 'bg-black/30 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
+                      >
+                        <Icon name="ri:double-quotes-l" class="text-base" />
+                      </button>
+                      <div class="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2 py-1 border border-white/10 shadow-lg pointer-events-none rounded-none">
+                        Raw Quote
+                      </div>
+                    </div>
+                  </div>
 
             </div>
         </div>
@@ -972,8 +1043,18 @@ async function selectSidebarHook(hook: Hook) {
 }
 
 
+const isPanelOpen = ref(false)
 const editorTab = ref<'edit' | 'quote' | 'thumbnail'>('edit')
 const subtitleSubTab = ref<'one' | 'all'>('one')
+
+const toggleTab = (tab: 'edit' | 'quote' | 'thumbnail') => {
+  if (isPanelOpen.value && editorTab.value === tab) {
+    isPanelOpen.value = false
+  } else {
+    editorTab.value = tab
+    isPanelOpen.value = true
+  }
+}
 
 const activeHookIndex = computed(() => {
   if (!state?.activeHook?.value) return -1
