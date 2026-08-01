@@ -13,37 +13,48 @@
             Active Hook
           </span>
         </div>
-        <div ref="dropdownRef" class="relative flex items-center">
-          <!-- Unified Wrapper for button-radius, border and scale feedback consistency -->
-          <div class="flex items-center bg-emerald-500/10 border border-emerald-500/30 rounded-xl overflow-hidden active:scale-95 transition-all h-8">
-            <button 
-              @click="handleSave" 
-              class="h-full px-3.5 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-transparent hover:bg-emerald-500/10 active:bg-emerald-500/20 transition-colors border-r border-emerald-500/30 flex items-center justify-center"
+        <div class="flex items-center gap-2">
+          <div ref="dropdownRef" class="relative flex items-center">
+            <!-- Unified Wrapper for button-radius, border and scale feedback consistency -->
+            <div class="flex items-center bg-emerald-500/10 border border-emerald-500/30 rounded-xl overflow-hidden active:scale-95 transition-all h-8">
+              <button 
+                @click="handleSave" 
+                class="h-full px-3.5 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-transparent hover:bg-emerald-500/10 active:bg-emerald-500/20 transition-colors border-r border-emerald-500/30 flex items-center justify-center"
+              >
+                Save Config
+              </button>
+              <button 
+                @click="isDropdownOpen = !isDropdownOpen"
+                class="h-full px-2 text-emerald-400 bg-transparent hover:bg-emerald-500/10 active:bg-emerald-500/20 transition-colors flex items-center justify-center h-full"
+                title="More save options"
+              >
+                <Icon name="ri:arrow-down-s-line" class="text-sm transition-transform duration-300" :class="{ 'rotate-180': isDropdownOpen }" />
+              </button>
+            </div>
+
+            <!-- Dropdown Menu -->
+            <div 
+              v-if="isDropdownOpen" 
+              class="absolute right-0 top-full mt-2 w-48 bg-surface-dark border border-surface-border/50 rounded-xl shadow-2xl z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 duration-200"
             >
-              Save Config
-            </button>
-            <button 
-              @click="isDropdownOpen = !isDropdownOpen"
-              class="h-full px-2 text-emerald-400 bg-transparent hover:bg-emerald-500/10 active:bg-emerald-500/20 transition-colors flex items-center justify-center h-full"
-              title="More save options"
-            >
-              <Icon name="ri:arrow-down-s-line" class="text-sm transition-transform duration-300" :class="{ 'rotate-180': isDropdownOpen }" />
-            </button>
+              <button 
+                @click="handleSaveDefault" 
+                class="w-full text-left px-4 py-2 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
+              >
+                <Icon name="ri:save-line" class="text-sm text-emerald-400" />
+                Save as Default Style
+              </button>
+            </div>
           </div>
 
-          <!-- Dropdown Menu -->
-          <div 
-            v-if="isDropdownOpen" 
-            class="absolute right-0 top-full mt-2 w-48 bg-surface-dark border border-surface-border/50 rounded-xl shadow-2xl z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 duration-200"
+          <!-- Close Button (X) aligned right -->
+          <button 
+            @click="emit('close')"
+            class="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+            title="Close Panel"
           >
-            <button 
-              @click="handleSaveDefault" 
-              class="w-full text-left px-4 py-2 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
-            >
-              <Icon name="ri:save-line" class="text-sm text-emerald-400" />
-              Save as Default Style
-            </button>
-          </div>
+            <Icon name="ri:close-line" class="text-base" />
+          </button>
         </div>
       </div>
       
@@ -612,6 +623,7 @@ function applyTextTransform(overlay: any, mode: string) {
 
 import { onMounted, onUnmounted } from 'vue'
 
+const emit = defineEmits(['close'])
 const isDropdownOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 

@@ -301,231 +301,107 @@
                       v-if="isPanelOpen && state?.activeHook?.value" 
                       class="absolute right-0 top-0 bottom-0 w-[500px] z-50 bg-[#0e0e12]/95 backdrop-blur-2xl border border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden rounded-3xl p-6 text-white"
                     >
-                      <!-- Top Header: Badge, Save & Close (X) -->
-                      <div class="border-b border-white/10 pb-3 mb-3 flex flex-col gap-3 shrink-0">
-                          <div class="flex items-center justify-between">
-                              <div class="flex items-center gap-2">
-                                  <span class="bg-accent-500/10 text-accent-500 border border-accent-500/20 px-2 py-0.5 rounded-none text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
-                                      <Icon name="ri:edit-box-line" />
-                                      HOOK #{{ String((activeHookIndex >= 0 ? activeHookIndex : 0) + 1).padStart(2, '0') }}
-                                  </span>
-                                  <span class="mono text-[10px] text-slate-400 font-bold tracking-wider">
-                                      {{ state.formatDuration(state?.activeHook?.value?.start || 0) }} – {{ state.formatDuration(state?.activeHook?.value?.end || 0) }}
-                                  </span>
-                              </div>
-                              <div class="flex items-center gap-2">
-                                  <button 
-                                    @click="handleSave()" 
-                                    class="h-7 px-3 bg-accent-500/10 hover:bg-accent-500/20 text-accent-500 border border-accent-500/30 rounded-none text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-1"
-                                  >
-                                    <Icon name="ri:save-line" class="text-xs" /> Save
-                                  </button>
-                                  <button 
-                                    @click="isPanelOpen = false"
-                                    class="w-7 h-7 flex items-center justify-center rounded-none border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-                                    title="Close Panel"
-                                  >
-                                    <Icon name="ri:close-line" class="text-sm" />
-                                  </button>
-                              </div>
-                          </div>
-                          
-                          <!-- Title Input Field -->
-                          <div class="relative flex items-center w-full group/title">
-                            <Icon name="ri:edit-2-line" class="absolute left-3 text-slate-500 text-xs pointer-events-none group-focus-within/title:text-accent-500 transition-colors" />
-                            <input 
-                              :value="state?.activeHook?.value?.theme"
-                              @input="e => { if (state?.activeHook?.value) { state.activeHook.value.theme = (e.target as HTMLInputElement).value; state.updateHooks() } }"
-                              class="w-full bg-black/35 pl-8 pr-3 py-1.5 border border-white/5 hover:border-accent-500/40 focus:border-accent-500 focus:outline-none text-white font-bold leading-tight rounded-none transition-all text-xs"
-                              placeholder="Enter clip name..."
-                            />
-                          </div>
-                      </div>
-
                       <div v-if="editorTab === 'edit'" class="flex flex-col h-full overflow-hidden p-0">
-                         <div class="border-b border-white/10 pb-4 mb-4 flex flex-col gap-3.5 shrink-0">
-                             <!-- Top Row: Badge & Save Action -->
-                             <div class="flex items-center justify-between">
-                                 <div class="flex items-center gap-2">
-                                     <span class="bg-accent-500/10 text-accent-500 border border-accent-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-[0_2px_10px_rgba(207,255,80,0.02)]">
-                                         <Icon name="ri:edit-box-line" />
-                                         HOOK #{{ String((activeHookIndex >= 0 ? activeHookIndex : 0) + 1).padStart(2, '0') }}
-                                     </span>
-                                     <span class="mono text-[10px] text-slate-500 font-bold tracking-wider">
-                                         {{ state.formatDuration(state?.activeHook?.value?.start || 0) }} – {{ state.formatDuration(state?.activeHook?.value?.end || 0) }}
-                                         <span class="ml-1 text-accent-500/80 font-black">
-                                             ({{ Math.floor((state?.activeHook?.value?.end || 0) - (state?.activeHook?.value?.start || 0)) }}s)
-                                         </span>
-                                     </span>
-                                 </div>
-                                 <button 
-                                   @click="handleSave()" 
-                                   class="h-8 px-4 bg-accent-500/10 hover:bg-accent-500/20 text-accent-500 border border-accent-500/30 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shrink-0 flex items-center justify-center"
-                                 >
-                                   Save Edits
-                                 </button>
-                             </div>
-                             
-                             <!-- Bottom Row: Title Input Field -->
-                             <div class="relative flex items-center w-full group/title">
-                               <Icon name="ri:edit-2-line" class="absolute left-3 text-slate-500 text-xs pointer-events-none group-focus-within/title:text-accent-500 transition-colors" />
-                               <input 
-                                 :value="state?.activeHook?.value?.theme"
-                                 @input="e => { if (state?.activeHook?.value) { state.activeHook.value.theme = (e.target as HTMLInputElement).value; state.updateHooks() } }"
-                                 class="w-full bg-black/35 pl-8 pr-3 py-2 border border-white/5 hover:border-accent-500/40 focus:border-accent-500 focus:outline-none text-white font-bold leading-tight rounded-xl transition-all text-xs"
-                                 placeholder="Enter clip name..."
-                               />
-                             </div>
-                         </div>
 
-                        <!-- Sub-tabs: One Word / All Words -->
-                        <div class="flex mb-3 bg-black/20 rounded-lg p-0.5 border border-white/5">
+                        <!-- Subtitle Header Bar: Auto-Scroll Toggle & Action Buttons (Save + Close X) -->
+                        <div class="flex items-center justify-between gap-2 mb-3 shrink-0">
                           <button 
-                            @click="subtitleSubTab = 'one'"
-                            class="flex-1 py-2.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
-                            :class="subtitleSubTab === 'one' ? 'bg-accent-500/20 text-accent-500 shadow-sm' : 'text-slate-500 hover:text-slate-300'"
+                            @click="isAutoScrollEnabled = !isAutoScrollEnabled"
+                            class="h-8 px-2.5 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
+                            :class="isAutoScrollEnabled 
+                              ? 'bg-accent-500/10 text-accent-500 border-accent-500/30 shadow-[0_0_10px_rgba(207,255,80,0.1)]' 
+                              : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'"
+                            :title="isAutoScrollEnabled ? 'Auto-Scroll Active' : 'Auto-Scroll Paused'"
                           >
-                            <Icon name="ri:list-check-2" class="text-xs" /> {{ state.subtitleMode.value === 'word' ? '1 Word' : state.subtitleMode.value === '3_words' ? '3 Words' : '4 Words' }}
+                            <Icon :name="isAutoScrollEnabled ? 'ri:flashlight-fill' : 'ri:flashlight-line'" class="text-xs" />
+                            <span>Auto-Scroll {{ isAutoScrollEnabled ? 'ON' : 'OFF' }}</span>
                           </button>
-                          <button 
-                            @click="subtitleSubTab = 'all'"
-                            class="flex-1 py-2.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
-                            :class="subtitleSubTab === 'all' ? 'bg-sky-500/20 text-sky-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'"
-                          >
-                            <Icon name="ri:file-text-line" class="text-xs" /> All Words
-                          </button>
+
+                          <div class="flex items-center gap-2">
+                            <button 
+                              @click="handleSave()" 
+                              class="h-8 px-3 bg-accent-500/10 hover:bg-accent-500/20 text-accent-500 border border-accent-500/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-1 shadow-sm shrink-0"
+                              title="Save Subtitle Edits"
+                            >
+                              <Icon name="ri:save-line" class="text-xs" /> Save
+                            </button>
+
+                            <button 
+                              @click="isPanelOpen = false"
+                              class="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+                              title="Close Panel"
+                            >
+                              <Icon name="ri:close-line" class="text-base" />
+                            </button>
+                          </div>
                         </div>
 
-                        <!-- ONE WORD: Per-segment editor -->
-                         <div v-if="subtitleSubTab === 'one'" class="flex-1 overflow-hidden pl-0 relative">
-                           <div 
-                               class="h-full overflow-y-auto pr-3 custom-scrollbar scroll-smooth relative pl-[35px] ml-0" 
-                               ref="subtitleContainer"
-                               @mouseenter="isHoveringSubtitles = true"
-                               @mouseleave="isHoveringSubtitles = false"
-                            >
-                               <div class="space-y-2.5 relative z-10">
-                                  <!-- Vertical Timeline Line -->
-                                  <div class="absolute -left-[20px] top-5 bottom-5 w-0.5 bg-surface-border/20 z-0"></div>
-                                 <div 
-                                   v-for="(seg, i) in visibleSegments" :key="i"
-                                   :id="`seg-${i}`"
-                                   class="bg-[#16161c]/60 border p-3 rounded-2xl transition-all flex flex-col gap-2 group relative"
-                                   :class="[
-                                     activeSegIdx === i 
-                                       ? 'border-accent-500/60 bg-accent-500/[0.08] shadow-[0_4px_20px_rgba(207,255,80,0.08)]' 
-                                       : 'border-white/10 hover:border-white/20 hover:bg-[#1f1f28]/70'
-                                   ]"
-                                 >
-                                   <!-- Timeline connector dots -->
-                                   <div 
-                                     class="absolute rounded-full border-2 border-surface-dark transition-colors duration-300 z-20"
-                                     :class="[
-                                       activeSegIdx === i
-                                         ? '-left-[28px] top-4 w-4 h-4 bg-accent-500 shadow-[0_0_10px_#CFFF50]'
-                                         : '-left-[26px] top-[18px] w-3 h-3 bg-surface-border group-hover:bg-accent-500/50'
-                                     ]"
-                                   ></div>
-
-                                   <div class="flex items-center justify-between">
-                                      <div class="flex items-center gap-1.5">
-                                        <input 
-                                          :value="seg.start" 
-                                          @input="e => { updateSegmentStart(seg, parseFloat((e.target as HTMLInputElement).value)); }"
-                                          type="number" step="0.01" 
-                                          class="bg-black/30 border border-white/5 text-[10px] text-slate-300 font-mono px-2 py-1 rounded-md w-16 focus:outline-none focus:border-accent-500/50 transition-all"
-                                        />
-                                        <span class="text-[10px] text-slate-600 font-mono">to</span>
-                                        <input 
-                                          :value="seg.duration" 
-                                          @input="e => { updateSegmentDuration(seg, parseFloat((e.target as HTMLInputElement).value)); }"
-                                          type="number" step="0.01" 
-                                          class="bg-black/30 border border-white/5 text-[10px] text-slate-300 font-mono px-2 py-1 rounded-md w-16 focus:outline-none focus:border-accent-500/50 transition-all"
-                                        />
-                                        <span class="text-[8px] text-slate-500 font-black tracking-widest ml-1">SEC</span>
-                                      </div>
-                                      <button @click="jumpTo(seg.start)" class="opacity-0 group-hover:opacity-100 text-accent-500 hover:text-white transition-all p-1 hover:bg-white/5 rounded-lg">
-                                        <Icon name="ri:play-mini-fill" class="text-lg" />
-                                      </button>
-                                   </div>
-                                   <textarea 
-                                     :value="seg.text" 
-                                     @input="e => { updateSegmentText(seg, (e.target as HTMLTextAreaElement).value); autoGrow(e); }"
-                                     rows="1"
-                                     class="w-full bg-transparent border-none text-white text-sm focus:outline-none resize-none font-semibold leading-relaxed italic"
-                                   ></textarea>
-                                 </div>
-                               </div>
-                           </div>
-                         </div>
-
-                        <!-- ALL WORDS: Flowing Document View -->
-                        <div v-else class="flex-1 overflow-hidden flex flex-col gap-3">
-                          <p class="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Flowing document view. Active word glows dynamically. Click any sentence/block to edit inline seamlessly.</p>
-                          
-                          <!-- Scroll Container -->
+                        <!-- Subtitle Segment List (Ultra-Clean, High-Density, Single-Row per Segment) -->
+                        <div class="flex-1 overflow-hidden relative">
                           <div 
-                            ref="bulkContainer"
-                            @mouseenter="handleBulkMouseEnter"
-                            @mouseleave="handleBulkMouseLeave"
-                            class="flex-1 overflow-y-auto bg-black/30 border border-surface-border/50 rounded-xl p-6 custom-scrollbar leading-[2.2]"
+                            ref="subtitleContainer"
+                            @mouseenter="isHoveringSubtitles = true"
+                            @mouseleave="isHoveringSubtitles = false"
+                            class="h-full overflow-y-auto pr-1.5 space-y-1.5 custom-scrollbar scroll-smooth relative"
                           >
                             <div 
-                              v-for="(seg, idx) in visibleSegments" 
-                              :key="idx"
-                              :id="'bulk-seg-' + idx"
+                              v-for="(seg, i) in visibleSegments" :key="i"
+                              :id="`seg-${i}`"
+                              class="bg-[#14141a]/80 border rounded-xl p-2 transition-all duration-200 flex items-center gap-2.5 group relative"
                               :class="[
-                                'inline-block transition-all duration-300 rounded select-none cursor-pointer',
-                                idx === activeSegIdx 
-                                  ? 'bg-sky-500/10 ring-1 ring-sky-500/20 shadow-[0_0_6px_rgba(56,189,248,0.1)] px-1 py-0.5 mx-0.5' 
-                                  : 'hover:bg-white/5 px-0.5 mx-0'
+                                activeSegIdx === i 
+                                  ? 'border-accent-500/60 bg-accent-500/[0.1] shadow-[0_2px_16px_rgba(207,255,80,0.12)] ring-1 ring-accent-500/30' 
+                                  : 'border-white/5 hover:border-white/20 hover:bg-[#1a1a24]/90'
                               ]"
                             >
-                              <!-- Editing Mode -->
-                              <div v-if="editingSegIdx === idx" class="inline-block">
-                                <input
-                                  v-model="editSegText"
-                                  @blur="commitEdit(seg, idx)"
-                                  @keydown.enter.prevent="commitEdit(seg, idx)"
-                                  @keydown.esc.prevent="cancelEdit"
-                                  autofocus
-                                  class="bg-black/60 border border-sky-500/50 rounded px-1.5 py-0.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-sky-500/50 min-w-[80px] font-medium leading-relaxed italic"
+                              <!-- From-To Sec Timing Inputs -->
+                              <div class="flex items-center gap-0.5 shrink-0 bg-black/50 border border-white/5 px-1.5 py-0.5 rounded-lg">
+                                <Icon name="ri:time-line" class="text-[11px] text-slate-400 shrink-0 mr-0.5" />
+                                <input 
+                                  :value="seg.start" 
+                                  @input="e => { updateSegmentStart(seg, parseFloat((e.target as HTMLInputElement).value)); }"
+                                  type="number" step="0.01" 
+                                  class="bg-transparent text-[10px] text-slate-200 font-mono w-9 text-center focus:outline-none focus:text-accent-500 font-bold transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  title="Start time (sec)"
+                                />
+                                <span class="text-[9px] text-slate-500 font-mono select-none">–</span>
+                                <input 
+                                  :value="Number((seg.start + seg.duration).toFixed(2))" 
+                                  @input="e => { 
+                                    const newEnd = parseFloat((e.target as HTMLInputElement).value);
+                                    if (!isNaN(newEnd) && newEnd > seg.start) {
+                                      updateSegmentDuration(seg, parseFloat((newEnd - seg.start).toFixed(2)));
+                                    }
+                                  }"
+                                  type="number" step="0.01" 
+                                  class="bg-transparent text-[10px] text-slate-200 font-mono w-9 text-center focus:outline-none focus:text-accent-500 font-bold transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  title="End time (sec)"
                                 />
                               </div>
 
-                              <!-- Viewing Mode with Karaoke-Style Highlighting -->
-                              <p 
-                                v-else
-                                @click="startEdit(seg, idx)" 
-                                class="inline text-sm font-medium italic transition-colors"
-                                :class="idx === activeSegIdx ? 'text-white' : 'text-slate-300 hover:text-white'"
+                              <!-- Inline Subtitle Text Editor -->
+                              <textarea 
+                                :value="seg.text" 
+                                @input="e => { updateSegmentText(seg, (e.target as HTMLTextAreaElement).value); autoGrow(e); }"
+                                rows="1"
+                                class="flex-1 bg-transparent border-none text-white text-xs focus:outline-none resize-none font-semibold leading-snug py-0.5"
+                                placeholder="Enter subtitle text..."
+                              ></textarea>
+
+                              <!-- Jump to Segment Start Button -->
+                              <button 
+                                @click="jumpTo(seg.start)" 
+                                class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-accent-500 hover:bg-white/10 rounded-lg transition-all shrink-0 active:scale-95"
+                                title="Play from this segment start"
                               >
-                                <span 
-                                  v-for="(word, wIdx) in (seg.text || '').trim().split(/\s+/)" 
-                                  :key="wIdx"
-                                  class="inline-block mr-1 transition-all duration-200"
-                                  :class="[
-                                    idx === activeSegIdx && wIdx === activeWordIdxInSeg
-                                      ? 'bg-sky-500/40 text-white rounded-sm px-1 shadow-[0_0_8px_rgba(56,189,248,0.4)] ring-1 ring-sky-400/60 scale-105'
-                                      : ''
-                                  ]"
-                                >
-                                  {{ word }}
-                                </span>
-                              </p>
+                                <Icon name="ri:play-mini-fill" class="text-base" />
+                              </button>
                             </div>
                           </div>
-
-                          <div class="flex items-center justify-between">
-                            <span class="text-[9px] text-accent-500 uppercase tracking-widest font-bold flex items-center gap-1.5">
-                              <span class="w-1.5 h-1.5 bg-accent-500 rounded-full animate-ping"></span>
-                              Flowing Document Active
-                            </span>
-                          </div>
                         </div>
-                    </div>
+                      </div>
 
-                    <!-- Raw Quote Tab -->
+                      <!-- Raw Quote Tab -->
                     <div v-else-if="editorTab === 'quote'" class="flex flex-col h-full overflow-hidden p-1.5">
                         <!-- Header Section -->
                         <div class="border-b border-white/10 pb-4 mb-4 flex flex-col gap-3.5 shrink-0">
@@ -540,13 +416,22 @@
                                         Active Hook
                                     </span>
                                 </div>
-                                <button 
-                                  @click="copyQuoteToClipboard" 
-                              class="h-8 px-4 flex items-center justify-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shrink-0"
-                                >
-                                  <Icon :name="copied ? 'ri:check-line' : 'ri:file-copy-line'" />
-                                  {{ copied ? 'Copied' : 'Copy Quote' }}
-                                </button>
+                                <div class="flex items-center gap-2">
+                                    <button 
+                                      @click="copyQuoteToClipboard" 
+                                      class="h-8 px-4 flex items-center justify-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shrink-0"
+                                    >
+                                      <Icon :name="copied ? 'ri:check-line' : 'ri:file-copy-line'" />
+                                      {{ copied ? 'Copied' : 'Copy Quote' }}
+                                    </button>
+                                    <button 
+                                      @click="isPanelOpen = false"
+                                      class="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+                                      title="Close Panel"
+                                    >
+                                      <Icon name="ri:close-line" class="text-base" />
+                                    </button>
+                                </div>
                             </div>
                             
                             <!-- Bottom Row: Info Description -->
@@ -593,7 +478,7 @@
 
                     <!-- Thumbnail Tab -->
                     <div v-else-if="editorTab === 'thumbnail'" class="flex flex-col h-full overflow-hidden">
-                        <ThumbnailEditor />
+                        <ThumbnailEditor @close="isPanelOpen = false" />
                     </div>
 
                     </div>
@@ -1112,6 +997,7 @@ const quoteReadingTime = computed(() => {
 const subtitleContainer = ref<HTMLElement | null>(null)
 const bulkContainer = ref<HTMLElement | null>(null)
 const isHoveringSubtitles = ref(false)
+const isAutoScrollEnabled = ref(true)
 
 const absoluteTime = computed(() => state?.currentTime?.value || 0)
 const visibleSegments = computed(() => {
@@ -1140,20 +1026,8 @@ const activeSegIdx = computed(() => {
 })
 
 watch(activeSegIdx, (idx) => {
-  // Auto-scroll the 'One Word' view
-  if (subtitleSubTab.value === 'one' && idx !== -1 && subtitleContainer.value && !isHoveringSubtitles.value) {
+  if (isAutoScrollEnabled.value && idx !== -1 && subtitleContainer.value && !isHoveringSubtitles.value) {
     const el = document.getElementById(`seg-${idx}`)
-    if (el) {
-      subtitleContainer.value.scrollTo({
-        top: el.offsetTop - 80,
-        behavior: 'smooth'
-      })
-    }
-  }
-  
-  // Auto-scroll the 'All Words' flowing document view with smooth vertical centering
-  if (subtitleSubTab.value === 'all' && idx !== -1 && bulkContainer.value && !isHoveringBulk.value && editingSegIdx.value === -1) {
-    const el = document.getElementById(`bulk-seg-${idx}`)
     if (el) {
       el.scrollIntoView({
         behavior: 'smooth',
