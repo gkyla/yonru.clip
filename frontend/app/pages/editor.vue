@@ -1052,7 +1052,7 @@ const activeSegIdx = computed(() => {
     
   return visibleSegments.value.findIndex((s: ChunkerSegment) => 
     searchTime >= s.start && 
-    searchTime < (s.end ?? 0)
+    searchTime < (s.end ?? (s.start + s.duration))
   )
 })
 
@@ -1255,18 +1255,7 @@ function jumpTo(segmentStart: number) {
     : Math.max(0, segmentStart - hookStart)
     
   const targetTime = thumbSec + relativeSegStart
-
-  if (state.isPlaying?.value) {
-    state.isPlaying.value = false
-  }
-
-  state.currentTime.value = targetTime
-
-  nextTick(() => {
-    if (state?.isPlaying) {
-      state.isPlaying.value = true
-    }
-  })
+  state.seekTo(targetTime)
 }
 
 function autoGrow(e: Event) {

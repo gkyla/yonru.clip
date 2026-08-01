@@ -238,7 +238,7 @@ export const useRemotionBridge = (
 
     if (isInternalTimeUpdate.value) return
     
-    if (state.useNativePlayer.value && previewVideo.value && !state.isPlaying.value) {
+    if (state.useNativePlayer.value && previewVideo.value) {
       if (isInThumbnailWindow.value) {
         if (previewVideo.value.currentTime !== 0) previewVideo.value.currentTime = 0
       } else {
@@ -249,12 +249,10 @@ export const useRemotionBridge = (
       }
     }
     
-    if (!state.isPlaying.value) {
-      const targetFrame = Math.floor(newTime * (state.videoFps.value || 30))
-      if (lastSeekFrame.value !== targetFrame) {
-        bridge.seek(targetFrame)
-        lastSeekFrame.value = targetFrame
-      }
+    const targetFrame = Math.floor(newTime * (state.videoFps.value || 30))
+    if (lastSeekFrame.value !== targetFrame) {
+      bridge.seek(targetFrame)
+      lastSeekFrame.value = targetFrame
     }
   })
 

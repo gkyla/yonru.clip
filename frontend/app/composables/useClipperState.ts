@@ -368,6 +368,11 @@ function createClipperState() {
     } catch {}
   }
 
+  function seekTo(targetTime: number) {
+    const sanitized = Math.max(0, typeof targetTime === 'number' ? targetTime : 0)
+    currentTime.value = sanitized
+  }
+
   async function updateHooks() {
     if (!folderName.value || !hooks.value) return
     try {
@@ -657,6 +662,7 @@ function createClipperState() {
     bleepMode: auditor.bleepMode,
     systemHealth: diagnostics.systemHealth, checkingHealth: diagnostics.checkingHealth, isAnyPrerequisiteMissing: diagnostics.isAnyPrerequisiteMissing, settingsScrollTarget: diagnostics.settingsScrollTarget,
     // Actions
+    seekTo,
     analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling, stopPolling,
     checkSystemHealth: diagnostics.checkSystemHealth,
     formatDuration, fetchPrompts, editPrompt, deletePrompt, fetchSavedHooks, saveHook, deleteSavedHook,

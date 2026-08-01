@@ -162,7 +162,7 @@ describe('useRemotionBridge Composable', () => {
     app.unmount()
   })
 
-  it('does not seek on currentTime change if player is playing', async () => {
+  it('seeks on external currentTime change even if player is playing', async () => {
     const previewVideo = ref<HTMLVideoElement | null>(null)
     const [_, app] = withSetup(() => useRemotionBridge(
       bridge,
@@ -181,7 +181,7 @@ describe('useRemotionBridge Composable', () => {
     await nextTick()
 
     const seekCall = bridge.calls.find(c => c.type === 'seek')
-    expect(seekCall).toBeUndefined()
+    expect(seekCall?.frame).toBe(360)
 
     app.unmount()
   })

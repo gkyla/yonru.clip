@@ -756,7 +756,7 @@ function onRulerClick(e: MouseEvent) {
   const rect = (e.currentTarget as HTMLElement).querySelector('.relative')?.getBoundingClientRect()
   if (!rect) return
   const x = e.clientX - rect.left
-  state.currentTime.value = Math.max(0, x / pxPerSec.value)
+  state.seekTo(Math.max(0, x / pxPerSec.value))
   state.selectedTimelineItem.value = null
 }
 
@@ -764,7 +764,7 @@ function onTrackBgClick(e: MouseEvent) {
   if (e.target !== e.currentTarget) return
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   const x = e.clientX - rect.left
-  state.currentTime.value = Math.max(0, x / pxPerSec.value)
+  state.seekTo(Math.max(0, x / pxPerSec.value))
   state.selectedTimelineItem.value = null
 }
 
