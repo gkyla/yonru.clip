@@ -299,33 +299,44 @@
                   >
                     <div 
                       v-if="isPanelOpen && state?.activeHook?.value" 
-                      class="absolute right-0 top-0 bottom-0 w-[500px] z-50 bg-[#0e0e12]/95 backdrop-blur-2xl border border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden rounded-3xl p-6 text-white"
+                      class="absolute right-0 top-0 bottom-0 w-[500px] z-50 bg-[#0e0e12]/95 backdrop-blur-2xl border border-b-0 border-r-0 border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden rounded-3xl p-6 text-white"
                     >
                       <div v-if="editorTab === 'edit'" class="flex flex-col h-full overflow-hidden p-0">
 
-                        <!-- Subtitle Header Bar: Auto-Scroll Toggle & Action Buttons (Save + Close X) -->
+                        <!-- Subtitle Header Bar: Auto-Scroll Toggle, Segment Counter, Live Auto-Save Badge & Close (X) -->
                         <div class="flex items-center justify-between gap-2 mb-3 shrink-0">
-                          <button 
-                            @click="isAutoScrollEnabled = !isAutoScrollEnabled"
-                            class="h-8 px-2.5 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
-                            :class="isAutoScrollEnabled 
-                              ? 'bg-accent-500/10 text-accent-500 border-accent-500/30 shadow-[0_0_10px_rgba(207,255,80,0.1)]' 
-                              : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'"
-                            :title="isAutoScrollEnabled ? 'Auto-Scroll Active' : 'Auto-Scroll Paused'"
-                          >
-                            <Icon :name="isAutoScrollEnabled ? 'ri:flashlight-fill' : 'ri:flashlight-line'" class="text-xs" />
-                            <span>Auto-Scroll {{ isAutoScrollEnabled ? 'ON' : 'OFF' }}</span>
-                          </button>
-
                           <div class="flex items-center gap-2">
                             <button 
-                              @click="handleSave()" 
-                              class="h-8 px-3 bg-accent-500/10 hover:bg-accent-500/20 text-accent-500 border border-accent-500/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-1 shadow-sm shrink-0"
-                              title="Save Subtitle Edits"
+                              @click="isAutoScrollEnabled = !isAutoScrollEnabled"
+                              class="h-8 px-2.5 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
+                              :class="isAutoScrollEnabled 
+                                ? 'bg-accent-500/10 text-accent-500 border-accent-500/30 shadow-[0_0_10px_rgba(207,255,80,0.1)]' 
+                                : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'"
+                              :title="isAutoScrollEnabled ? 'Auto-Scroll Active' : 'Auto-Scroll Paused'"
                             >
-                              <Icon name="ri:save-line" class="text-xs" /> Save
+                              <Icon :name="isAutoScrollEnabled ? 'ri:flashlight-fill' : 'ri:flashlight-line'" class="text-xs" />
+                              <span>Auto-Scroll {{ isAutoScrollEnabled ? 'ON' : 'OFF' }}</span>
                             </button>
 
+                            <div class="h-8 px-2.5 rounded-xl border border-white/10 bg-black/40 text-slate-400 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0">
+                              <Icon name="ri:chat-3-line" class="text-xs text-sky-400" />
+                              <span>{{ visibleSegments.length }} Segments</span>
+                            </div>
+                          </div>
+
+                          <div class="flex items-center gap-2">
+                            <!-- Live Auto-Save Status Badge -->
+                            <div 
+                              class="h-8 px-2.5 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 select-none"
+                              :class="isAutoSaving 
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse' 
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'"
+                            >
+                              <Icon :name="isAutoSaving ? 'ri:loader-4-line' : 'ri:checkbox-circle-line'" class="text-xs" :class="{ 'animate-spin': isAutoSaving }" />
+                              <span>{{ isAutoSaving ? 'Saving...' : 'Saved' }}</span>
+                            </div>
+
+                            <!-- Close Button (X) -->
                             <button 
                               @click="isPanelOpen = false"
                               class="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
@@ -356,10 +367,9 @@
                             >
                               <!-- From-To Sec Timing Inputs -->
                               <div class="flex items-center gap-0.5 shrink-0 bg-black/50 border border-white/5 px-1.5 py-0.5 rounded-lg">
-                                <Icon name="ri:time-line" class="text-[11px] text-slate-400 shrink-0 mr-0.5" />
                                 <input 
                                   :value="seg.start" 
-                                  @input="e => { updateSegmentStart(seg, parseFloat((e.target as HTMLInputElement).value)); }"
+                                  @input="e => { updateSegmentStart(seg, parseFloat((e.target as HTMLInputElement).value)); triggerDebouncedAutoSave(); }"
                                   type="number" step="0.01" 
                                   class="bg-transparent text-[10px] text-slate-200 font-mono w-9 text-center focus:outline-none focus:text-accent-500 font-bold transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                   title="Start time (sec)"
@@ -371,18 +381,20 @@
                                     const newEnd = parseFloat((e.target as HTMLInputElement).value);
                                     if (!isNaN(newEnd) && newEnd > seg.start) {
                                       updateSegmentDuration(seg, parseFloat((newEnd - seg.start).toFixed(2)));
+                                      triggerDebouncedAutoSave();
                                     }
                                   }"
                                   type="number" step="0.01" 
                                   class="bg-transparent text-[10px] text-slate-200 font-mono w-9 text-center focus:outline-none focus:text-accent-500 font-bold transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                   title="End time (sec)"
                                 />
+                                <Icon name="ri:time-line" class="text-[11px] text-slate-400 shrink-0 ml-0.5" />
                               </div>
 
                               <!-- Inline Subtitle Text Editor -->
                               <textarea 
                                 :value="seg.text" 
-                                @input="e => { updateSegmentText(seg, (e.target as HTMLTextAreaElement).value); autoGrow(e); }"
+                                @input="e => { updateSegmentText(seg, (e.target as HTMLTextAreaElement).value); autoGrow(e); triggerDebouncedAutoSave(); }"
                                 rows="1"
                                 class="flex-1 bg-transparent border-none text-white text-xs focus:outline-none resize-none font-semibold leading-snug py-0.5"
                                 placeholder="Enter subtitle text..."
@@ -998,6 +1010,25 @@ const subtitleContainer = ref<HTMLElement | null>(null)
 const bulkContainer = ref<HTMLElement | null>(null)
 const isHoveringSubtitles = ref(false)
 const isAutoScrollEnabled = ref(true)
+const isAutoSaving = ref(false)
+const isAutoSaved = ref(true)
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+
+function triggerDebouncedAutoSave() {
+  isAutoSaved.value = false
+  isAutoSaving.value = true
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(async () => {
+    try {
+      await state.saveTranscript(true)
+    } catch {
+      // ignore
+    } finally {
+      isAutoSaving.value = false
+      isAutoSaved.value = true
+    }
+  }, 1000)
+}
 
 const absoluteTime = computed(() => state?.currentTime?.value || 0)
 const visibleSegments = computed(() => {
@@ -1211,11 +1242,31 @@ watch([() => state.activeHook.value, () => state.hooks.value], async ([active, h
   }, 100)
 }, { immediate: true })
 
-function jumpTo(time: number) {
-  const video = document.querySelector('video')
-  if (video) {
-    video.currentTime = time
+function jumpTo(segmentStart: number) {
+  if (!state?.currentTime) return
+  
+  const thumbSec = state?.thumbnailEnabled?.value ? (state?.thumbnailDuration?.value || 0) : 0
+  const firstStart = state?.fullTranscript?.value?.[0]?.start || 0
+  const hookStart = state?.activeHook?.value?.start || 0
+  const isTranscriptZeroBased = firstStart < hookStart - 2
+  
+  const relativeSegStart = isTranscriptZeroBased 
+    ? segmentStart 
+    : Math.max(0, segmentStart - hookStart)
+    
+  const targetTime = thumbSec + relativeSegStart
+
+  if (state.isPlaying?.value) {
+    state.isPlaying.value = false
   }
+
+  state.currentTime.value = targetTime
+
+  nextTick(() => {
+    if (state?.isPlaying) {
+      state.isPlaying.value = true
+    }
+  })
 }
 
 function autoGrow(e: Event) {
