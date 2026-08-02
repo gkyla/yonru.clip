@@ -75,7 +75,7 @@ def save_jobs():
 
 class AnalyzeRequest(BaseModel):
     url: str
-    language: str = "id"
+    language: str = "auto"
     prompt_file: Optional[str] = "prompt.json"
     num_hooks: Optional[int] = 10
     auto_hooks: Optional[bool] = False

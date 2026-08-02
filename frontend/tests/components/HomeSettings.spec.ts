@@ -10,6 +10,7 @@ vi.mock('../../app/composables/useClipperState', () => ({
     isAnyPrerequisiteMissing: { value: false },
     settingsScrollTarget: { value: '' },
     whisperModel: { value: 'base' },
+    language: { value: 'auto' },
     whisperModels: [
       { id: 'tiny', name: 'Tiny', speed: 'Ultra Fast', acc: 'Basic', desc: 'Minimal accuracy, best for quick testing on weak hardware.' },
       { id: 'base', name: 'Base', speed: 'Very Fast', acc: 'Good', desc: 'Great balance for clear audio. Default choice.' },

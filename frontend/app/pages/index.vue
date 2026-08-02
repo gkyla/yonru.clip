@@ -137,12 +137,70 @@
                    </div>
                 </div>
 
+                <!-- Language dropdown selector (Same style as AI PROMPT) -->
+                <div class="flex items-center gap-2">
+                   <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider shrink-0">LANGUAGE:</label>
+                   <div ref="langDropdownRef" class="relative w-44">
+                     <!-- Dropdown Toggle Button -->
+                     <button 
+                       @click="isLangDropdownOpen = !isLangDropdownOpen"
+                       :disabled="isProcessing"
+                       class="w-full bg-surface-dark border border-surface-border text-white pl-3 pr-4 py-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:border-accent-500/50 flex items-center justify-between cursor-pointer disabled:opacity-50 select-none"
+                     >
+                       <span class="truncate font-bold flex items-center gap-1.5">
+                         <Icon :name="currentLanguageOption.icon" class="text-accent-500 text-sm shrink-0" />
+                         {{ currentLanguageOption.label }}
+                       </span>
+                       <Icon 
+                         name="ri:arrow-down-s-line" 
+                         class="text-slate-500 text-base font-bold transition-transform duration-200" 
+                         :class="{ 'rotate-180': isLangDropdownOpen }"
+                       />
+                     </button>
+                     
+                     <!-- Dropdown Menu Options Panel -->
+                     <Transition
+                       enter-active-class="transition duration-100 ease-out"
+                       enter-from-class="transform scale-95 opacity-0"
+                       enter-to-class="transform scale-100 opacity-100"
+                       leave-active-class="transition duration-75 ease-in"
+                       leave-from-class="transform scale-100 opacity-100"
+                       leave-to-class="transform scale-95 opacity-0"
+                     >
+                       <div 
+                         v-if="isLangDropdownOpen"
+                         class="absolute bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-2 left-0 w-full bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-xl shadow-2xl py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                       >
+                         <!-- Language Options List -->
+                         <div class="overflow-y-auto custom-scrollbar">
+                           <button 
+                             v-for="l in languageOptions" 
+                             :key="l.id"
+                             @click="state.language.value = l.id; isLangDropdownOpen = false"
+                             class="w-full px-3 py-2 flex items-center justify-between text-left text-xs text-slate-300 hover:bg-accent-500/10 hover:text-accent-500 transition-colors font-medium select-none"
+                           >
+                             <span class="truncate flex items-center gap-1.5" :class="{ 'text-accent-500 font-bold': state.language.value === l.id }">
+                               <Icon :name="l.icon" class="text-sm shrink-0" />
+                               {{ l.label }}
+                             </span>
+                             <Icon 
+                               v-if="state.language.value === l.id" 
+                               name="ri:checkbox-circle-fill" 
+                               class="text-accent-500 text-sm shrink-0 ml-2" 
+                             />
+                           </button>
+                         </div>
+                       </div>
+                     </Transition>
+                   </div>
+                </div>
+
                 <!-- Transcriber settings display & Shortcut -->
                 <div class="flex items-center gap-2 justify-end shrink-0 select-none">
                   <!-- Active Transcriber Metadata Badge -->
                   <div class="group relative cursor-help flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 font-mono text-[10px] font-bold tracking-wider uppercase">
                     <span class="w-1.5 h-1.5 rounded-full bg-accent-500"></span>
-                    WHISPER: {{ state.whisperModel.value }}
+                    WHISPER: {{ state?.whisperModel?.value || 'BASE' }}
 
                     <!-- Transcription Model Tooltip Card -->
                     <div class="absolute bottom-full right-0 mb-3 w-72 bg-[#171a21]/95 backdrop-blur-md border border-accent-500/50 rounded-xl p-4 shadow-[0_0_20px_rgba(207,255,80,0.1)] opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left pointer-events-none">
@@ -1718,6 +1776,27 @@ const isPromptDropdownOpen = ref(false)
 const promptDropdownRef = ref<HTMLElement | null>(null)
 const hoveredPrompt = ref<PromptTemplate | null>(null)
 
+const isLangDropdownOpen = ref(false)
+const langDropdownRef = ref<HTMLElement | null>(null)
+
+interface LanguageOption {
+  id: string
+  label: string
+  icon: string
+  badge: string
+}
+
+const languageOptions: LanguageOption[] = [
+  { id: 'auto', label: 'Auto Detect', icon: 'ri:global-line', badge: 'AUTO' },
+  { id: 'id', label: 'Indonesian (ID)', icon: 'ri:translate-2', badge: 'ID' },
+  { id: 'en', label: 'English (EN)', icon: 'ri:translate', badge: 'EN' }
+]
+
+const currentLanguageOption = computed<LanguageOption>(() => {
+  const val = state.language.value || 'auto'
+  return languageOptions.find(l => l.id === val) || languageOptions[0]!
+})
+
 const isSortDropdownOpen = ref(false)
 const sortDropdownRef = ref<HTMLElement | null>(null)
 
@@ -1775,6 +1854,9 @@ const previewVideoUrl = computed(() => {
 function handleDocumentClick(e: MouseEvent) {
   if (promptDropdownRef.value && !promptDropdownRef.value.contains(e.target as Node)) {
     isPromptDropdownOpen.value = false
+  }
+  if (langDropdownRef.value && !langDropdownRef.value.contains(e.target as Node)) {
+    isLangDropdownOpen.value = false
   }
   if (sortDropdownRef.value && !sortDropdownRef.value.contains(e.target as Node)) {
     isSortDropdownOpen.value = false

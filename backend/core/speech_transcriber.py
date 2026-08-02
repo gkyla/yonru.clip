@@ -146,12 +146,13 @@ class FasterWhisperSpeechTranscriber(SpeechTranscriber):
         selected_model = model_size or self.default_model_size
         model = self.get_model(selected_model)
         
-        print(f"[whisper-client] Transcribing {audio_path} using model {selected_model}...")
+        lang_arg = None if (not language or language.lower() == 'auto') else language
+        print(f"[whisper-client] Transcribing {audio_path} using model {selected_model} (language={lang_arg or 'auto-detect'})...")
         segments, info = model.transcribe(
             audio_path, 
             beam_size=5, 
             word_timestamps=True,
-            language=language
+            language=lang_arg
         )
         return list(segments)
 
