@@ -537,14 +537,14 @@
             <div class="flex bg-black/40 border border-white/5 rounded-xl p-1 gap-1 mb-4 mx-4 mt-2">
                <button 
                  @click="panelTab = 'generated'"
-                 class="flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
+                 class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
                  :class="panelTab === 'generated' ? 'bg-white/10 text-amber-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
                >
                   Generated ({{ state.hooks.value.length }})
                </button>
                <button 
                  @click="panelTab = 'saved'"
-                 class="flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
+                 class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
                  :class="panelTab === 'saved' ? 'bg-white/10 text-amber-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
                >
                   Saved ({{ state.savedHooks.value.length }})
@@ -552,7 +552,8 @@
             </div>
           </div>
 
-          <div v-if="panelTab === 'generated'" ref="hooksContainer" class="flex-1 overflow-y-auto px-4 pb-4 pt-1.5 space-y-1.5 custom-scrollbar min-h-0">
+          <Transition name="panel-tab-fade" mode="out-in">
+            <div v-if="panelTab === 'generated'" key="generated" ref="hooksContainer" class="flex-1 overflow-y-auto px-4 pb-4 pt-1.5 space-y-1.5 custom-scrollbar min-h-0">
             <div v-if="!state.hooks.value.length" class="text-center text-slate-600 text-xs p-6">
               No hooks generated yet.
             </div>
@@ -595,9 +596,9 @@
               <p class="font-medium truncate" :class="isActiveHook(hook) ? 'text-white' : 'text-slate-300'">{{ hook.theme || 'Untitled' }}</p>
               <p class="text-[10px] mt-1 line-clamp-2 italic opacity-70">"{{ (hook.transcript_quote || '').length > 80 ? (hook.transcript_quote || '').substring(0, 77) + '...' : (hook.transcript_quote || '') }}"</p>
             </button>
-          </div>
+            </div>
 
-          <div v-else class="flex-1 overflow-y-auto px-4 pb-4 pt-1.5 space-y-1.5 custom-scrollbar min-h-0">
+            <div v-else key="saved" class="flex-1 overflow-y-auto px-4 pb-4 pt-1.5 space-y-1.5 custom-scrollbar min-h-0">
             <div v-if="!state.savedHooks.value.length" class="text-center text-slate-600 text-xs p-6">
               No saved hooks for this video yet.
             </div>
@@ -641,6 +642,7 @@
               <p class="text-[10px] mt-1 line-clamp-2 italic opacity-70">"{{ (hook.transcript_quote || '').length > 80 ? (hook.transcript_quote || '').substring(0, 77) + '...' : (hook.transcript_quote || '') }}"</p>
             </button>
           </div>
+        </Transition>
        </div>
     </div>
             </div>
