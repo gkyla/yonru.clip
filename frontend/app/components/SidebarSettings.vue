@@ -485,44 +485,6 @@
       </p>
     </div>
 
-    <!-- Advanced Settings -->
-    <div class="pt-4 border-t border-surface-border/50">
-      <h2 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3 flex items-center gap-2">
-        <Icon name="ri:settings-2-line" />
-        Advanced
-      </h2>
-      <div class="flex items-center justify-between bg-surface-dark/50 border border-surface-border rounded-lg p-3">
-         <div>
-            <p class="text-xs font-bold text-slate-300">Disable Remotion</p>
-            <p class="text-[9px] text-slate-500 mt-0.5">Use raw native video</p>
-         </div>
-         <button 
-            @click="state.useNativePlayer.value = !state.useNativePlayer.value"
-            class="relative w-8 h-4 rounded-none transition-colors duration-300"
-            :class="state.useNativePlayer.value ? 'bg-accent-500' : 'bg-surface-border'"
-         >
-            <div class="absolute top-0.5 left-0.5 w-3 h-3 rounded-none bg-white transition-transform duration-300 shadow-sm"
-                 :class="state.useNativePlayer.value ? 'translate-x-4' : 'translate-x-0'"
-            ></div>
-         </button>
-      </div>
-
-      <div class="flex items-center justify-between bg-surface-dark/50 border border-surface-border rounded-lg p-3 mt-3">
-         <div>
-            <p class="text-xs font-bold text-slate-300">Debug Info</p>
-            <p class="text-[9px] text-slate-500 mt-0.5">Show Remotion debug stats</p>
-         </div>
-         <button 
-            @click="state.showIframeDebug.value = !state.showIframeDebug.value"
-            class="relative w-8 h-4 rounded-none transition-colors duration-300"
-            :class="state.showIframeDebug.value ? 'bg-accent-500' : 'bg-surface-border'"
-         >
-            <div class="absolute top-0.5 left-0.5 w-3 h-3 rounded-none bg-white transition-transform duration-300 shadow-sm"
-                 :class="state.showIframeDebug.value ? 'translate-x-4' : 'translate-x-0'"
-            ></div>
-         </button>
-      </div>
-    </div>
 
       <!-- Save Default Style -->
     <div>
