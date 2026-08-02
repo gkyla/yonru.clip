@@ -249,6 +249,12 @@
                     offset: { x: 0, y: 0 },
                     visible: editingThumbOverlayId !== overlay.id
                   }"
+                  @mousedown="selectThumbnailOverlay(overlay)"
+                  @touchstart="selectThumbnailOverlay(overlay)"
+                  @pointerdown="selectThumbnailOverlay(overlay)"
+                  @click="selectThumbnailOverlay(overlay)"
+                  @tap="selectThumbnailOverlay(overlay)"
+                  @dragstart="selectThumbnailOverlay(overlay)"
                   @dragend="onThumbnailLabelDragEnd($event, overlay)"
                   @dblclick="startEditingThumbOverlay(overlay)"
                   @dbltap="startEditingThumbOverlay(overlay)"
@@ -741,7 +747,14 @@ function startThumbBgDragTouch(e: any) {
   window.addEventListener('touchend', handleWindowTouchEnd)
 }
 
+function selectThumbnailOverlay(overlay: any) {
+  if (state?.activeThumbnailTextId && overlay?.id) {
+    state.activeThumbnailTextId.value = overlay.id
+  }
+}
+
 function onThumbnailLabelDragEnd(e: any, overlay: any) {
+  selectThumbnailOverlay(overlay)
   overlay.x = e.target.x()
   overlay.y = e.target.y()
   state.saveThumbnailConfig()
@@ -757,6 +770,7 @@ function setEditingThumbInputRef(el: any) {
 }
 
 function startEditingThumbOverlay(overlay: any) {
+  selectThumbnailOverlay(overlay)
   editingThumbOverlayId.value = overlay.id
   originalThumbContent.value = overlay.text || ''
   nextTick(() => {

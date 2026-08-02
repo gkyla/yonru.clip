@@ -49,7 +49,7 @@ function createClipperState() {
   // Thumbnail state delegated from useClipperThumbnail sub-composable
   const {
     thumbnailEnabled, thumbnailUrl, thumbnailDuration, thumbnailScreenshotTime,
-    thumbnailTextOverlays, thumbnailEditMode, thumbnailXOffset, isDeletingThumbnail, isCapturingThumbnail,
+    thumbnailTextOverlays, thumbnailEditMode, thumbnailXOffset, activeThumbnailTextId, isDeletingThumbnail, isCapturingThumbnail,
     defaultThumbnailStyle,
     resetThumbnailState, captureScreenshot, addThumbnailText, removeThumbnailText,
     saveThumbnailConfig, loadThumbnailConfig, toggleThumbnail, deleteThumbnail,
@@ -633,6 +633,7 @@ function createClipperState() {
     thumbnailTextOverlays, 
     thumbnailEditMode,
     thumbnailXOffset,
+    activeThumbnailTextId,
     isCapturingThumbnail,
     defaultThumbnailStyle,
     // Other State

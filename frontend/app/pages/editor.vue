@@ -299,7 +299,7 @@
                   >
                     <div 
                       v-if="isPanelOpen && state?.activeHook?.value" 
-                      class="absolute right-0 top-0 bottom-0 w-[500px] z-50 bg-[#0e0e12]/95 backdrop-blur-2xl border border-b-0 border-r-0 border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden rounded-3xl p-6 text-white"
+                      class="absolute right-0 top-0 bottom-0 w-[500px] z-50 bg-[#0e0e12]/95 backdrop-blur-2xl border border-b-0 border-r-0 border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden rounded-3xl p-6 pt-4 text-white"
                     >
                       <div v-if="editorTab === 'edit'" class="flex flex-col h-full overflow-hidden p-0">
 

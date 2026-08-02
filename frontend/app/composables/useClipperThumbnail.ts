@@ -23,6 +23,7 @@ export const useClipperThumbnail = () => {
   const thumbnailEditMode = useState<boolean>('thumbnailEditMode', () => false)
   const thumbnailXOffset = useState<number>('thumbnailXOffset', () => 50)
   const defaultThumbnailStyle = useState<DefaultThumbnailStyle | null>('defaultThumbnailStyle', () => null)
+  const activeThumbnailTextId = useState<string | null>('activeThumbnailTextId', () => null)
 
   // Loading/saving transient states
   const isDeletingThumbnail = ref(false)
@@ -352,6 +353,7 @@ export const useClipperThumbnail = () => {
     thumbnailTextOverlays,
     thumbnailEditMode,
     thumbnailXOffset,
+    activeThumbnailTextId,
     isDeletingThumbnail,
     isCapturingThumbnail,
     defaultThumbnailStyle,
