@@ -413,80 +413,92 @@
                         </div>
                       </div>
 
-                      <!-- Raw Quote Tab -->
-                    <div v-else-if="editorTab === 'quote'" class="flex flex-col h-full overflow-hidden p-1.5">
-                        <!-- Header Section -->
-                        <div class="border-b border-white/10 pb-4 mb-4 flex flex-col gap-3.5 shrink-0">
-                            <!-- Top Row: Badge & Save Action -->
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <span class="bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-[0_2px_10px_rgba(56,189,248,0.02)]">
-                                        <Icon name="ri:quote-text" />
-                                        QUOTE #{{ String((activeHookIndex >= 0 ? activeHookIndex : 0) + 1).padStart(2, '0') }}
-                                    </span>
-                                    <span class="mono text-[10px] text-slate-500 font-bold tracking-wider">
-                                        Active Hook
-                                    </span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <button 
-                                      @click="copyQuoteToClipboard" 
-                                      class="h-8 px-4 flex items-center justify-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shrink-0"
-                                    >
-                                      <Icon :name="copied ? 'ri:check-line' : 'ri:file-copy-line'" />
-                                      {{ copied ? 'Copied' : 'Copy Quote' }}
-                                    </button>
-                                    <button 
-                                      @click="isPanelOpen = false"
-                                      class="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
-                                      title="Close Panel"
-                                    >
-                                      <Icon name="ri:close-line" class="text-base" />
-                                    </button>
-                                </div>
+                      <!-- Raw Quote Tab (Podcast Speaker Highlight) -->
+                      <div v-else-if="editorTab === 'quote'" class="flex flex-col h-full overflow-hidden p-0">
+                        <!-- Header Bar: Title, Quote # Badge, Copy Action & Close (X) -->
+                        <div class="pb-1 mb-3 flex items-center justify-between shrink-0">
+                          <!-- Title & Hook Badge -->
+                          <div class="flex items-center gap-2.5">
+                            <div class="flex items-center gap-1.5">
+                              <Icon name="ri:chat-quote-line" class="text-sky-400 text-base" />
+                              <span class="text-xs font-bold text-white tracking-wide">Raw Quote</span>
                             </div>
-                            
-                            <!-- Bottom Row: Info Description -->
-                            <div class="relative flex items-center w-full">
-                                <p class="text-xs text-slate-300 leading-relaxed italic">
-                                    Transcript quote for "{{ state?.activeHook?.value?.theme || 'Untitled Hook' }}".
-                                </p>
-                            </div>
+                            <span class="bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
+                              QUOTE #{{ String((activeHookIndex >= 0 ? activeHookIndex : 0) + 1).padStart(2, '0') }}
+                            </span>
+                          </div>
+
+                          <!-- Actions: Copy Quote & Close Button -->
+                          <div class="flex items-center gap-2">
+                            <button 
+                              @click="copyQuoteToClipboard" 
+                              class="h-8 px-3 flex items-center justify-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shrink-0"
+                              title="Copy full quote text"
+                            >
+                              <Icon :name="copied ? 'ri:check-line' : 'ri:file-copy-line'" class="text-xs" />
+                              <span>{{ copied ? 'Copied' : 'Copy Quote' }}</span>
+                            </button>
+                            <button 
+                              @click="isPanelOpen = false"
+                              class="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+                              title="Close Panel"
+                            >
+                              <Icon name="ri:close-line" class="text-base" />
+                            </button>
+                          </div>
                         </div>
-                        
-                        <!-- Main Quote Container -->
-                        <div class="flex-1 flex flex-col gap-4 overflow-hidden min-h-0">
-                            <!-- Premium Quote Card -->
-                            <div class="flex-1 bg-white/[0.02] border border-white/5 rounded-2xl relative overflow-hidden flex flex-col min-h-0 pr-1">
-                                <!-- Giant Decorative Quote Icon (Background) -->
-                                <Icon name="ri:double-quotes-l" class="absolute -right-4 -bottom-6 text-9xl text-white/[0.02] transform -rotate-12 pointer-events-none" />
-                                
-                                <div class="relative z-10 overflow-y-auto pl-6 pr-5 py-6 custom-scrollbar h-full w-full">
-                                    <span class="text-3xl text-sky-500/40 font-serif leading-none block mb-1">“</span>
-                                    <p class="text-slate-200 text-sm md:text-base leading-relaxed italic font-serif px-4">
-                                        {{ state?.activeHook?.value?.transcript_quote || 'No transcript quote available for this segment.' }}
-                                    </p>
-                                    <span class="text-3xl text-sky-500/40 font-serif leading-none block text-right mt-1">”</span>
-                                </div>
+
+                        <!-- Topic / Podcast Speaker Context Banner -->
+                        <div class="bg-[#14141a]/90 border border-white/5 rounded-xl p-3 mb-3 shrink-0 flex items-center gap-2.5">
+                          <div class="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
+                            <Icon name="ri:mic-line" class="text-sky-400 text-sm" />
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="text-[9px] font-black uppercase tracking-widest text-slate-400">Podcast Speaker Context</div>
+                            <div class="text-xs text-slate-200 font-semibold truncate" :title="state?.activeHook?.value?.theme || 'Untitled Hook'">
+                              {{ state?.activeHook?.value?.theme || 'Untitled Hook' }}
                             </div>
-                            
-                            <!-- Metadata Stats Badges -->
-                            <div class="flex items-center gap-2 flex-wrap pb-2">
-                                <div class="bg-white/[0.03] border border-white/5 rounded-xl px-3 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                                    <Icon name="ri:text" class="text-sky-400" />
-                                    <span>{{ quoteWordCount }} Words</span>
-                                </div>
-                                <div class="bg-white/[0.03] border border-white/5 rounded-xl px-3 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                                    <Icon name="ri:character-recognition-line" class="text-sky-400" />
-                                    <span>{{ quoteCharCount }} Chars</span>
-                                </div>
-                                <div class="bg-white/[0.03] border border-white/5 rounded-xl px-3 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                                    <Icon name="ri:time-line" class="text-sky-400" />
-                                    <span>~{{ quoteReadingTime }}s Read</span>
-                                </div>
-                            </div>
+                          </div>
                         </div>
-                    </div>
+
+                        <!-- Main Podcast Quote Transcript Container -->
+                        <div class="flex-1 flex flex-col gap-3 overflow-hidden min-h-0">
+                          <!-- Podcast Speaker Transcript Highlight Card -->
+                          <div class="flex-1 bg-[#14141a]/60 border border-white/10 border-l-4 border-l-sky-400 rounded-2xl relative overflow-hidden flex flex-col min-h-0">
+                            <div class="flex items-center justify-between px-4 pt-3 pb-2 border-b border-white/5 shrink-0">
+                              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <Icon name="ri:volume-up-line" class="text-sky-400 text-xs" />
+                                Audio Transcript Excerpt
+                              </span>
+                              <span class="text-[10px] font-mono text-slate-500">
+                                {{ quoteWordCount }} words
+                              </span>
+                            </div>
+
+                            <div class="relative z-10 overflow-y-auto p-4 custom-scrollbar flex-1 w-full">
+                              <p class="text-slate-100 text-sm leading-relaxed font-sans select-text whitespace-pre-wrap">
+                                {{ state?.activeHook?.value?.transcript_quote || 'No transcript quote available for this segment.' }}
+                              </p>
+                            </div>
+                          </div>
+
+                          <!-- Metadata Stats Badges Bar -->
+                          <div class="flex items-center gap-2 shrink-0 pt-0.5 pb-1">
+                            <div class="bg-black/40 border border-white/5 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                              <Icon name="ri:text" class="text-sky-400 text-xs" />
+                              <span>{{ quoteWordCount }} Words</span>
+                            </div>
+                            <div class="bg-black/40 border border-white/5 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                              <Icon name="ri:character-recognition-line" class="text-sky-400 text-xs" />
+                              <span>{{ quoteCharCount }} Chars</span>
+                            </div>
+                            <div class="bg-black/40 border border-white/5 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                              <Icon name="ri:time-line" class="text-sky-400 text-xs" />
+                              <span>~{{ quoteReadingTime }}s Audio Read</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
                     <!-- Thumbnail Tab -->
                     <div v-else-if="editorTab === 'thumbnail'" class="flex flex-col h-full overflow-hidden">
