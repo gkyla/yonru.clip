@@ -12,6 +12,7 @@ vi.mock('../../app/composables/useClipperState', () => ({
     selectedPrompt: ref('prompt.json'),
     promptsList: ref([]),
     whisperModel: ref('base'),
+    language: ref('auto'),
     whisperModels: [
       { id: 'tiny', name: 'Tiny', speed: 'Ultra Fast', acc: 'Basic', desc: 'Minimal accuracy, best for quick testing on weak hardware.' },
       { id: 'base', name: 'Base', speed: 'Very Fast', acc: 'Good', desc: 'Great balance for clear audio. Default choice.' },

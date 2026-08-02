@@ -111,7 +111,7 @@ function createClipperState() {
 
   // Settings
   const youtubeUrl = useState<string>('youtubeUrl', () => '')
-  const language = useState<string>('language', () => 'id')
+  const language = useState<string>('language', () => 'auto')
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => -500) // Default -500ms offset
@@ -496,6 +496,9 @@ function createClipperState() {
     const m = localStorage.getItem('yonru_model')
     if (m) whisperModel.value = m
 
+    const lang = localStorage.getItem('yonru_language')
+    if (lang) language.value = lang
+
     const lv = localStorage.getItem('yonru_last_video')
     if (lv) lastAccessedVideoId.value = lv
 
@@ -527,6 +530,7 @@ function createClipperState() {
 
     watch(selectedPrompt, (val) => localStorage.setItem('yonru_prompt', val))
     watch(whisperModel, (val) => localStorage.setItem('yonru_model', val))
+    watch(language, (val) => localStorage.setItem('yonru_language', val))
 
     watch(timeline.timelineTracks, () => {
       timeline.saveTimelineTracks()
