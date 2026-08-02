@@ -290,18 +290,19 @@
 
                   <!-- Floating Subtitle Panel (Floating Card Overlay over Hooks Panel) -->
                   <Transition
-                    enter-active-class="transition duration-300 ease-out transform"
-                    enter-from-class="translate-x-full opacity-0 scale-95"
-                    enter-to-class="translate-x-0 opacity-100 scale-100"
-                    leave-active-class="transition duration-200 ease-in transform"
-                    leave-from-class="translate-x-0 opacity-100 scale-100"
-                    leave-to-class="translate-x-full opacity-0 scale-95"
+                    enter-active-class="transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] transform"
+                    enter-from-class="translate-x-full opacity-0"
+                    enter-to-class="translate-x-0 opacity-100"
+                    leave-active-class="transition-all duration-200 ease-[cubic-bezier(0.4,0,1,1)] transform"
+                    leave-from-class="translate-x-0 opacity-100"
+                    leave-to-class="translate-x-full opacity-0"
                   >
                     <div 
                       v-if="isPanelOpen && state?.activeHook?.value" 
-                      class="absolute right-0 top-0 bottom-0 w-[500px] z-50 bg-[#0e0e12]/95 backdrop-blur-2xl border border-b-0 border-r-0 border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden rounded-3xl p-6 pt-4 text-white"
+                      class="absolute right-0 top-0 bottom-0 w-[500px] z-50 bg-[#0e0e12]/95 backdrop-blur-2xl border border-b-0 border-r-0 border-t-0 border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden rounded-3xl p-6 pt-4 text-white"
                     >
-                      <div v-if="editorTab === 'edit'" class="flex flex-col h-full overflow-hidden p-0">
+                      <Transition name="panel-tab-fade" mode="out-in">
+                        <div v-if="editorTab === 'edit'" key="edit" class="flex flex-col h-full overflow-hidden p-0">
 
                         <!-- Subtitle Header Bar: Auto-Scroll Toggle, Segment Counter, Live Auto-Save Badge & Close (X) -->
                         <div class="flex items-center justify-between gap-2 mb-3 shrink-0">
@@ -414,7 +415,7 @@
                       </div>
 
                       <!-- Raw Quote Tab (Podcast Speaker Highlight) -->
-                      <div v-else-if="editorTab === 'quote'" class="flex flex-col h-full overflow-hidden p-0">
+                      <div v-else-if="editorTab === 'quote'" key="quote" class="flex flex-col h-full overflow-hidden p-0">
                         <!-- Header Bar: Title, Quote # Badge, Copy Action & Close (X) -->
                         <div class="pb-1 mb-3 flex items-center justify-between shrink-0">
                           <!-- Title & Hook Badge -->
@@ -500,10 +501,11 @@
                         </div>
                       </div>
 
-                    <!-- Thumbnail Tab -->
-                    <div v-else-if="editorTab === 'thumbnail'" class="flex flex-col h-full overflow-hidden">
+                      <!-- Thumbnail Tab -->
+                      <div v-else-if="editorTab === 'thumbnail'" key="thumbnail" class="flex flex-col h-full overflow-hidden">
                         <ThumbnailEditor @close="isPanelOpen = false" />
-                    </div>
+                      </div>
+                      </Transition>
 
                     </div>
                   </Transition>
@@ -1339,3 +1341,18 @@ function initResize(e: PointerEvent) {
   document.addEventListener('pointerup', handlePointerUp)
 }
 </script>
+
+<style scoped>
+.panel-tab-fade-enter-active,
+.panel-tab-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.panel-tab-fade-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+.panel-tab-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+</style>
