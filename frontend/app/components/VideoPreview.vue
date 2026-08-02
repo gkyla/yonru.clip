@@ -325,9 +325,12 @@
         leave-to-class="opacity-0"
       >
         <div v-show="(state.thumbnailEditMode.value || isInThumbnailWindow) && state.thumbnailUrl.value" 
-             class="absolute top-2 left-1/2 -translate-x-1/2 z-[80] pointer-events-none"
+             class="absolute left-1/2 -translate-x-1/2 z-[80] pointer-events-none "
         >
-          <div class="bg-emerald-500/90 backdrop-blur-md text-black px-8 py-2 rounded-full text-[28px] font-black uppercase tracking-widest flex items-center gap-3 shadow-2xl">
+          <div class="bg-emerald-500/90 backdrop-blur-md text-black px-8 py-2 rounded-full text-[28px] font-black uppercase tracking-widest flex items-center gap-3 shadow-2xl transition-transform"
+          :class="{'translate-y-6': activeSafeZone === 'none',
+            'translate-y-4': activeSafeZone !== 'none'
+          }">
             <Icon name="ri:image-edit-fill" class="text-[32px]" />
             {{ state.thumbnailEditMode.value ? 'THUMBNAIL EDIT MODE' : 'THUMBNAIL' }}
           </div>
@@ -416,7 +419,9 @@
       <div v-else-if="activeSafeZone === 'shorts'" class="absolute inset-0 pointer-events-none z-[60] select-none">
         <!-- Top Deadzone -->
         <div class="absolute top-0 left-0 right-0 h-[160px] border-b border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">
-          <span class="text-[20px] font-black tracking-widest text-white/70 uppercase">Shorts Header Zone (160px)</span>
+          <span class="text-[20px] font-black tracking-widest text-white/70 uppercase relative transition-all translate-y-0" :class="{
+            'translate-y-5': (state.thumbnailEditMode.value || isInThumbnailWindow) && state.thumbnailUrl.value
+          }">Shorts Header Zone (160px)</span>
         </div>
         <!-- Bottom Deadzone -->
         <div class="absolute bottom-0 left-0 right-0 h-[280px] border-t border-dashed border-white/20 flex items-center justify-center" :style="{ backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100) }">

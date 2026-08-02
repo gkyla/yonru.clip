@@ -240,7 +240,7 @@
               v-for="(overlay, idx) in state.thumbnailTextOverlays.value" 
               :key="overlay.id"
               @click="activeOverlayId = overlay.id"
-              class="h-7 px-2.5 rounded-xl text-[10px] font-bold transition-all border flex items-center gap-1.5 shrink-0 active:scale-95 shadow-sm max-w-[130px]"
+              class="h-7 px-2.5 rounded-xl text-[10px] font-bold transition-colors border flex items-center gap-1.5 shrink-0 active:scale-95 shadow-sm max-w-[130px] focus:outline-none"
               :class="(activeOverlayId === overlay.id || (!activeOverlayId && idx === 0))
                 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-emerald-500/10 font-extrabold' 
                 : 'bg-white/5 text-slate-400 border-white/10 hover:text-white hover:bg-white/10'"
@@ -275,7 +275,7 @@
               
               <button 
                 @click="handleRemoveTextOverlay(activeOverlay.id)"
-                class="text-slate-400 hover:text-red-400 transition-colors px-2 py-1 hover:bg-red-500/10 rounded-lg flex items-center gap-1 text-[9px] font-bold"
+                class="text-slate-400 hover:text-red-400 transition-colors px-2 py-1 hover:bg-red-500/10 rounded-lg flex items-center gap-1 text-[9px] font-bold focus:outline-none"
                 title="Delete Text Overlay"
               >
                 <Icon name="ri:delete-bin-line" class="text-xs" />
@@ -290,7 +290,7 @@
                 <button 
                   v-for="preset in QUICK_PRESETS" :key="preset.name"
                   @click="applyPreset(activeOverlay, preset)"
-                  class="px-2.5 py-1 rounded-lg text-[9px] font-bold border whitespace-nowrap active:scale-95 transition-all shadow-sm flex items-center gap-1"
+                  class="px-2.5 py-1 rounded-lg text-[9px] font-bold border whitespace-nowrap active:scale-95 transition-colors shadow-sm flex items-center gap-1 focus:outline-none"
                   :class="preset.previewClass"
                 >
                   <span>{{ preset.name }}</span>
@@ -308,8 +308,10 @@
                   { id: 'layout', icon: 'ri:drag-move-2-line', label: 'Layout' }
                 ]" :key="t.id"
                 @click="setActiveTab(activeOverlay.id, t.id)"
-                class="flex-1 py-1.5 text-[9px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5"
-                :class="getActiveTab(activeOverlay.id) === t.id ? 'bg-emerald-500/20 text-emerald-400 font-extrabold border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white'"
+                class="flex-1 py-1.5 text-[9px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 border focus:outline-none"
+                :class="getActiveTab(activeOverlay.id) === t.id 
+                  ? 'bg-emerald-500/20 text-emerald-400 font-extrabold border-emerald-500/30 shadow-sm' 
+                  : 'border-transparent text-slate-400 hover:text-white hover:bg-white/5'"
               >
                 <Icon :name="t.icon" class="text-xs" />
                 <span>{{ t.label }}</span>
@@ -324,19 +326,19 @@
                   <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Content</label>
                   <textarea 
                     v-model="activeOverlay.text"
-                    rows="3"
+                    rows="5"
                     class="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-emerald-500/50 resize-none transition-all placeholder:text-slate-600"
                     placeholder="Type text overlay content here..."
                   ></textarea>
                 </div>
-                <div class="flex items-center justify-between gap-2">
-                  <label class="text-[8px] font-bold uppercase tracking-widest text-slate-500 shrink-0">Capitalization</label>
-                  <div class="flex gap-1 flex-1">
+                <div class="space-y-1">
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-slate-500">Capitalization</label>
+                  <div class="grid grid-cols-4 gap-1 w-full">
                     <button 
                       v-for="t in ['uppercase', 'lowercase', 'capitalize', 'none']" :key="t"
                       @click="applyTextTransform(activeOverlay, t)"
-                      class="flex-1 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border"
-                      :class="activeOverlay.textTransform === t ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : 'bg-white/5 border-white/5 text-slate-400 hover:text-white'"
+                      class="py-1.5 rounded-lg text-[9px] font-bold transition-colors border flex items-center justify-center focus:outline-none active:scale-95"
+                      :class="activeOverlay.textTransform === t ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 font-extrabold shadow-sm' : 'bg-white/5 border-transparent text-slate-400 hover:text-white hover:bg-white/10'"
                     >
                       {{ t === 'none' ? 'None' : t === 'uppercase' ? 'AA' : t === 'lowercase' ? 'aa' : 'Aa' }}
                     </button>
