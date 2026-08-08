@@ -142,16 +142,6 @@
       
       <div class="space-y-4">
         <div>
-          <label class="text-xs text-slate-400 block mb-1">Language</label>
-          <select v-model="state.language.value" class="w-full bg-surface-dark/50 border border-surface-border rounded p-2 text-sm focus:outline-none focus:border-accent-500 transition-colors">
-            <option value="id">Indonesian (ID)</option>
-            <option value="en">English (EN)</option>
-            <option value="ms">Malay (MS)</option>
-            <option value="jw">Javanese (JW)</option>
-          </select>
-        </div>
-
-        <div>
           <label class="text-xs text-slate-400 block mb-2">Display Mode</label>
           <div class="grid grid-cols-3 gap-1.5">
             <button 
