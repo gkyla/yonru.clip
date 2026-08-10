@@ -32,6 +32,10 @@ _Avoid_: Resizable sidebar, subtitle panel drawer
 A floating overlay panel in the editor that slides in from the far-right boundary over the Hooks Panel, providing dedicated edit controls for Subtitles, Thumbnail, and Raw Quote modes.
 _Avoid_: Subtitle drawer, edit modal, right sidebar overlay
 
+**Settings Segmented Navigation**:
+A top-level tabbed control bar inside the Draggable Subtitle Panel that categorizes subtitle and video customization controls into discrete tabs (Style & Presets, Typography & Color, Layout & Export) to optimize vertical space.
+_Avoid_: Editor tab bar, settings pagination, sub-header tabs
+
 **Editor Workspace Action Rail**:
 A narrow vertical icon rail positioned adjacent to the VideoPreview pane that provides single-click access and hover tooltips for toggling editor panel views.
 _Avoid_: Editor tab bar, right button column
