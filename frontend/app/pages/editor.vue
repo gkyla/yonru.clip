@@ -533,6 +533,14 @@
                  <Icon name="ri:bookmark-line" />
                  Save Current
                </button>
+               <button 
+                 v-else-if="state?.activeHook?.value && isCurrentHookSaved"
+                 @click="removeCurrentSavedHook"
+                 class="flex items-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter transition-all"
+               >
+                 <Icon name="ri:delete-bin-line" />
+                 Remove Saved
+               </button>
             </div>
             <div class="flex bg-black/40 border border-white/5 rounded-xl p-1 gap-1 mb-4 mx-4 mt-2">
                <button 
@@ -561,11 +569,11 @@
               v-for="(hook, idx) in state.hooks.value"
               :key="idx"
               @click="selectSidebarHook(hook)"
-              :disabled="isOverlayVisible"
-              class="w-full text-left p-3.5 rounded-2xl border transition-all text-xs group relative overflow-hidden"
+              :disabled="isOverlayVisible || isActiveHook(hook)"
+              class="w-full text-left p-3.5 rounded-2xl border transition-all text-xs group relative hover:z-30 overflow-visible"
               :class="[
                 isActiveHook(hook)
-                  ? 'bg-amber-500/[0.08] border-amber-500/60 text-amber-200 shadow-[0_4px_20px_rgba(245,158,11,0.08)] hook-item-active' 
+                  ? 'bg-amber-500/[0.08] border-amber-500/60 text-amber-200 shadow-[0_4px_20px_rgba(245,158,11,0.08)] hook-item-active cursor-default' 
                   : 'bg-[#16161c]/60 border-white/10 hover:border-white/20 hover:bg-[#1f1f28]/70 text-slate-300',
                 isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
               ]"
@@ -576,12 +584,12 @@
                   <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
                     HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}
                   </span>
-                  <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
+                  <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center z-20">
                     <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
                       <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
                     </div>
                     <!-- Custom Tooltip -->
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-30 font-medium normal-case tracking-normal text-center">
+                    <div class="absolute bottom-full ml-10 left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-[999] font-medium normal-case tracking-normal text-center">
                       This clip has already been cut and transcribed, and is ready for editing!
                       <!-- Tooltip Arrow -->
                       <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
@@ -606,11 +614,11 @@
               v-for="(hook, idx) in state.savedHooks.value"
               :key="hook._id || idx"
               @click="selectSidebarHook(hook)"
-              :disabled="isOverlayVisible"
-              class="w-full text-left p-3.5 rounded-2xl border transition-all text-xs group relative overflow-hidden"
+              :disabled="isOverlayVisible || isActiveHook(hook)"
+              class="w-full text-left p-3.5 rounded-2xl border transition-all text-xs group relative hover:z-30 overflow-visible"
               :class="[
                 isActiveHook(hook)
-                  ? 'bg-amber-500/[0.08] border-amber-500/60 text-amber-200 shadow-[0_4px_20px_rgba(245,158,11,0.08)]' 
+                  ? 'bg-amber-500/[0.08] border-amber-500/60 text-amber-200 shadow-[0_4px_20px_rgba(245,158,11,0.08)] hook-item-active cursor-default' 
                   : 'bg-[#16161c]/60 border-white/10 hover:border-white/20 hover:bg-[#1f1f28]/70 text-slate-300',
                 isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
               ]"
@@ -621,12 +629,12 @@
                   <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
                     SAVED {{ String(Number(idx) + 1).padStart(2, '0') }}
                   </span>
-                  <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
+                  <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center z-20">
                     <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
                       <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
                     </div>
                     <!-- Custom Tooltip -->
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-30 font-medium normal-case tracking-normal text-center">
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-50 font-medium normal-case tracking-normal text-center">
                       This clip has already been cut and transcribed, and is ready for editing!
                       <!-- Tooltip Arrow -->
                       <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
@@ -685,6 +693,27 @@ const isCurrentHookSaved = computed(() => {
     return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
   })
 })
+
+const currentSavedHookId = computed(() => {
+  if (!state?.activeHook?.value || !state?.savedHooks?.value?.length) return null
+  const active = state.activeHook.value
+  const aStart = typeof active.start === 'string' ? parseFloat(active.start) : active.start
+  const aEnd = typeof active.end === 'string' ? parseFloat(active.end) : active.end
+
+  const match = state.savedHooks.value.find((h: Hook) => {
+    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
+    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
+    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
+  })
+  return match?._id || null
+})
+
+async function removeCurrentSavedHook() {
+  const hookId = currentSavedHookId.value
+  if (hookId && state.deleteSavedHook) {
+    await state.deleteSavedHook(hookId)
+  }
+}
 
 // Read shared readyClips from dashboard (populated via useState in index.vue)
 const readyClips = useState<ReadyClip[]>('readyClips', () => [])
@@ -926,7 +955,7 @@ function restoreStateFromQuery() {
 }
 
 async function selectSidebarHook(hook: Hook) {
-  if (state.jobStatus.value === 'cutting') return
+  if (state.jobStatus.value === 'cutting' || isActiveHook(hook)) return
   
   // Explicitly save the current active hook settings before switching!
   if (state?.activeHook?.value && state?.clipId?.value) {
@@ -1247,19 +1276,19 @@ function isActiveHook(hook: Hook) {
 
 const hooksContainer = ref<HTMLElement | null>(null)
 
-watch([() => state.activeHook.value, () => state.hooks.value], async ([active, hooks]) => {
-  if (!active || !hooks?.length) return
+watch([() => state.activeHook.value, () => state.hooks.value, () => state.savedHooks.value, () => panelTab.value], async () => {
+  if (!state.activeHook.value) return
   
   await nextTick()
   setTimeout(() => {
     if (typeof document !== 'undefined') {
       const activeEl = document.querySelector('.hook-item-active')
-      if (activeEl && hooksContainer.value) {
-        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
     }
   }, 100)
-}, { immediate: true })
+}, { immediate: true, deep: true })
 
 function jumpTo(segmentStart: number) {
   if (!state?.currentTime) return
