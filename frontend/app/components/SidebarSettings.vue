@@ -555,7 +555,8 @@
         <div class="relative group shrink-0">
           <button 
             @click="state.saveDefaultStyleSettings(); if (state.showToast) state.showToast('Default style saved!', 'success')"
-            class="bg-surface-dark/80 border border-surface-border/80 hover:border-accent-500/50 text-slate-300 hover:text-accent-400 p-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 hover:bg-surface-card"
+            :disabled="state.jobStatus.value !== 'ready' || state.renderStatus.value === 'rendering'"
+            class="bg-surface-dark/80 border border-surface-border/80 hover:border-accent-500/50 text-slate-300 hover:text-accent-400 p-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 hover:bg-surface-card disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:border-surface-border/80 disabled:hover:text-slate-300 disabled:hover:bg-surface-dark/80"
           >
             <Icon name="ri:save-3-line" class="text-sm text-accent-500" />
             <span class="text-[10px] font-bold uppercase tracking-wider">Save Style</span>
