@@ -164,4 +164,20 @@ describe('SidebarSettings Component', () => {
     expect(wrapper.text()).toContain('Save Style')
     expect(wrapper.text()).toContain('RENDER CLIP')
   })
+
+  it('disables Save Style and RENDER CLIP buttons when clip is not loaded (jobStatus != ready)', async () => {
+    mockState.jobStatus.value = 'cutting'
+    const wrapper = mount(SidebarSettings, {
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, BlacklistSettings: true }
+      }
+    })
+
+    const buttons = wrapper.findAll('button')
+    const saveBtn = buttons.find(b => b.text().includes('Save Style'))
+    const renderBtn = buttons.find(b => b.text().includes('RENDER CLIP'))
+
+    expect(saveBtn?.attributes('disabled')).toBeDefined()
+    expect(renderBtn?.attributes('disabled')).toBeDefined()
+  })
 })
