@@ -60,6 +60,10 @@ _Avoid_: Editor tab bar, right button column
 A unified, real-time job status tracking element placed in the global sidebar panel, rendering as a badge in expanded mode and as a status dot in collapsed mode.
 _Avoid_: Status badge, footer status
 
+**Dynamic Saved Hook Header Action**:
+A contextual action button in the Hooks Panel header row that dynamically toggles between "Save Current" (amber bookmark icon) when the active hook is unsaved, and "Remove Saved" (rose-red trash icon) when the active hook is saved, allowing single-click save and unsave management.
+_Avoid_: Delete hook button, header bookmark toggle
+
 **Workspace Continue Editing Card**:
 A sidebar card in the Workspace accordion that displays the last-accessed clip and video, allowing the user to resume editing from any page.
 _Avoid_: Continue editing button, edit resumption link
