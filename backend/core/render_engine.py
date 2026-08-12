@@ -13,6 +13,7 @@ class RenderComposition:
     def __init__(self, original_video: str, crop_center_x: Any, **kwargs):
         self.original_video = original_video
         self.crop_center_x = crop_center_x
+        self.video_layout = kwargs.get("video_layout", "vertical")
         self.timeline_tracks = kwargs.get("timeline_tracks")
         self.words_data = kwargs.get("words_data")
         self.timeline_text_items = kwargs.get("timeline_text_items")
@@ -150,6 +151,7 @@ class RenderEngine(ABC):
         return RenderComposition(
             original_video=video_path,
             crop_center_x=crop_x or 960,
+            video_layout=getattr(req, "video_layout", "vertical") or "vertical",
             timeline_tracks=req.timeline_tracks,
             words_data=words_data,
             timeline_text_items=timeline_text,
@@ -323,6 +325,7 @@ class RemotionRenderEngine(RenderEngine):
             "cropX": comp.crop_center_x if isinstance(comp.crop_center_x, (int, float)) else (comp.crop_center_x[0]["x"] if isinstance(comp.crop_center_x, list) and len(comp.crop_center_x) > 0 else 960),
             "cropMap": comp.crop_center_x if isinstance(comp.crop_center_x, list) else [],
             "position": comp.position,
+            "videoLayout": comp.video_layout,
             "subtitleOffset": comp.subtitle_style.get("subtitleOffset", 50) if comp.subtitle_style else 50,
             "durationInFrames": frames,
             "subtitleStyle": comp.subtitle_style or {},

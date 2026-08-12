@@ -322,4 +322,28 @@ describe('useRemotionBridge Composable', () => {
 
     app.unmount()
   })
+
+  it('automatically triggers props update when videoLayout state changes', async () => {
+    const previewVideo = ref<HTMLVideoElement | null>(null)
+
+    const [_, app] = withSetup(() => useRemotionBridge(
+      bridge,
+      previewVideo,
+      ref(0),
+      ref(false),
+      ref('test-buster')
+    ))
+
+    await nextTick()
+    bridge.calls = [] // Clear initial setup calls
+
+    state.videoLayout.value = 'landscape'
+    await nextTick()
+
+    const updateCalls = bridge.calls.filter(c => c.type === 'updateProps')
+    expect(updateCalls.length).toBeGreaterThan(0)
+    expect(updateCalls[updateCalls.length - 1]?.payload?.videoLayout).toBe('landscape')
+
+    app.unmount()
+  })
 })

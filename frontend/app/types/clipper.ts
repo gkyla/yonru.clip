@@ -123,6 +123,7 @@ export interface HistorySnapshot {
 }
 
 export interface SubtitleStyleSettings {
+  videoLayout?: 'vertical' | 'landscape'
   subtitlePosition?: string
   subtitleOffset?: number
   subtitleSyncOffset?: number

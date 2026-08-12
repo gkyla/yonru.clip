@@ -385,6 +385,38 @@
 
           <!-- TAB 3: LAYOUT & EXPORT -->
           <div v-else-if="activeTab === 'layout'" key="layout" class="space-y-4">
+            <!-- Video Layout Mode -->
+            <div>
+              <h2 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 flex items-center justify-between">
+                <span>Video Layout Mode</span>
+                <Icon name="ri:aspect-ratio-line" class="text-slate-400" />
+              </h2>
+              <div class="grid grid-cols-2 gap-1.5 bg-surface-dark/60 border border-surface-border/80 rounded-xl p-1">
+                <button
+                  @click="state.videoLayout ? (state.videoLayout.value = 'vertical') : null"
+                  class="py-2 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border"
+                  :class="(state.videoLayout?.value || 'vertical') === 'vertical'
+                    ? 'border-accent-500 bg-accent-500/10 text-accent-500 shadow-sm font-black'
+                    : 'border-transparent text-slate-400 hover:text-white hover:bg-surface-card/50'"
+                >
+                  <Icon name="ri:smartphone-line" class="text-xs shrink-0" />
+                  <span>Vertical (Crop)</span>
+                </button>
+                <button
+                  @click="state.videoLayout ? (state.videoLayout.value = 'landscape') : null"
+                  class="py-2 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border"
+                  :class="state.videoLayout?.value === 'landscape'
+                    ? 'border-accent-500 bg-accent-500/10 text-accent-500 shadow-sm font-black'
+                    : 'border-transparent text-slate-400 hover:text-white hover:bg-surface-card/50'"
+                >
+                  <Icon name="ri:landscape-line" class="text-xs shrink-0" />
+                  <span>Landscape (Fit)</span>
+                </button>
+              </div>
+            </div>
+
+            <hr class="border-surface-border/40" />
+
             <!-- Safe Zone Overlay -->
             <div>
               <h2 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 flex items-center justify-between">

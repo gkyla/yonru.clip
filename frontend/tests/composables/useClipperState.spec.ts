@@ -311,6 +311,34 @@ describe('useClipperState Composable', () => {
     expect(state.cachedVideosFetchError.value).toBe(false)
     expect(state.cachedVideos.value).toHaveLength(2)
   })
+
+  it('manages videoLayout state and persists videoLayout in saveStyleSettings', async () => {
+    const state = useClipperState()
+    expect(state.videoLayout.value).toBe('vertical')
+
+    state.videoLayout.value = 'landscape'
+    expect(state.videoLayout.value).toBe('landscape')
+
+    const mockFetch = vi.fn().mockResolvedValue({})
+    vi.stubGlobal('$fetch', mockFetch)
+
+    state.folderName.value = 'folderX'
+    state.clipId.value = 'clipX'
+
+    await state.saveStyleSettings()
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/style-settings'),
+      expect.objectContaining({
+        method: 'PUT',
+        body: expect.objectContaining({
+          settings: expect.objectContaining({
+            videoLayout: 'landscape'
+          })
+        })
+      })
+    )
+  })
 })
 
 
