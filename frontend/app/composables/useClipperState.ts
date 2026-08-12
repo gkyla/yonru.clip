@@ -116,7 +116,7 @@ function createClipperState() {
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => -500) // Default -500ms offset
   const font = useState<string>('font', () => 'Montserrat')
-  const fontSize = useState<number>('fontSize', () => 100)
+  const fontSize = useState<number>('fontSize', () => 50)
   const faceTracking = useState<boolean>('faceTracking', () => false)
   const cropMode = useState<string>('cropMode', () => 'manual') // 'manual' | 'face_tracking'
   const cropPercentX = useState<number>('cropPercentX', () => 50) // 0=left, 50=center, 100=right
@@ -655,7 +655,8 @@ function createClipperState() {
     safeZoneColor,
     subtitleAnimation, subtitleHighlightMode, subtitleHighlightColor, subtitleTextColor,
     subtitleStrokeColor, subtitleStrokeWidth, subtitleFontWeight, subtitleTextTransform,
-    subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing, subtitlePreset, volume,
+    subtitleBackground, subtitleBackgroundOpacity,
+    subtitleWordSpacing, subtitlePreset, volume,
     isPlaying, currentTime, videoTime: timeline.videoTime,
     isTimelineShifting: timeline.isTimelineShifting,
     renderStatus, renderProgress, renderStage, renderEta, outputUrl,

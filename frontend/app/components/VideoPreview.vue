@@ -94,10 +94,18 @@
                fontSize: `${state.fontSize.value}px`, 
                color: 'white',
                fontWeight: state.subtitleFontWeight.value ? String(state.subtitleFontWeight.value) : '900',
-               wordSpacing: `${state.subtitleWordSpacing.value}px`
+               wordSpacing: `${state.subtitleWordSpacing.value}px`,
+               ...subtitleBackgroundStyle
              }">
           <template v-for="(w, idx) in activeSubtitleWords" :key="idx">
-            <span :style="getWordStyle(w)">{{ formatWordText(w.text) }}</span>
+            <span :style="getWordStyle(w)" class="relative inline-block">
+              {{ formatWordText(w.text) }}
+              <span
+                v-if="state.subtitleHighlightMode.value === 'underline' && w.isActive"
+                class="absolute -bottom-1 left-0.5 right-0.5 h-1.5 rounded-full pointer-events-none"
+                :style="{ backgroundColor: state.subtitleHighlightColor.value, boxShadow: `0 0 10px ${state.subtitleHighlightColor.value}80` }"
+              />
+            </span>
             <span v-if="idx < activeSubtitleWords.length - 1" style="display: inline-block; white-space: pre;" class="select-none"> </span>
           </template>
         </div>
@@ -1028,6 +1036,30 @@ const activeSubtitleWords = computed(() => {
   })
 })
 
+const subtitleBackgroundStyle = computed(() => {
+  const bg = state.subtitleBackground.value
+  const opacity = state.subtitleBackgroundOpacity.value
+
+  if (bg === 'box') {
+    return {
+      background: `rgba(0,0,0,${opacity})`,
+      borderRadius: '16px',
+      padding: '16px 32px',
+    }
+  }
+  if (bg === 'blur') {
+    return {
+      backdropFilter: 'blur(12px)',
+      WebkitBackdropFilter: 'blur(12px)',
+      background: `rgba(0,0,0,${opacity * 0.4})`,
+      borderRadius: '20px',
+      padding: '16px 32px',
+      border: '1px solid rgba(255,255,255,0.1)',
+    }
+  }
+  return {}
+})
+
 const getWordStyle = (w: { text: string, isActive: boolean, isPast: boolean }) => {
   const hlMode = state.subtitleHighlightMode.value
   const hlColor = state.subtitleHighlightColor.value
@@ -1037,10 +1069,13 @@ const getWordStyle = (w: { text: string, isActive: boolean, isPast: boolean }) =
   const baseStyle: Record<string, string | number> = {
     display: 'inline-block',
     transition: 'all 0.1s ease',
+    position: 'relative',
   }
 
   // Apply base stroke/textShadow to each word span
   if (strokeWidth > 0) {
+    baseStyle.paintOrder = 'stroke fill'
+    baseStyle.WebkitTextStroke = `${strokeWidth * 2}px ${strokeColor}`
     baseStyle.textShadow = `-${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, -${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}, 0 8px 16px rgba(0,0,0,0.8)`
   } else {
     baseStyle.textShadow = '0 8px 16px rgba(0,0,0,0.8)'
@@ -1053,8 +1088,7 @@ const getWordStyle = (w: { text: string, isActive: boolean, isPast: boolean }) =
     } else if (hlMode === 'scale') {
       baseStyle.transform = 'scale(1.15)'
     } else if (hlMode === 'underline') {
-      baseStyle.borderBottom = `6px solid ${hlColor}`
-      baseStyle.paddingBottom = '4px'
+      // Capsule marker rendered via pseudo pill in template
     } else if (hlMode === 'box') {
       baseStyle.background = hlColor
       baseStyle.color = '#000000'
@@ -1069,10 +1103,7 @@ const getWordStyle = (w: { text: string, isActive: boolean, isPast: boolean }) =
 }
 
 const formatWordText = (text: string) => {
-  if (state.subtitleTextTransform.value === 'uppercase') {
-    return text.toUpperCase()
-  }
-  return text
+  return transformText(text, state.subtitleTextTransform.value)
 }
 
 </script>

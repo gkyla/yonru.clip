@@ -46,7 +46,7 @@ export const useClipperJob = () => {
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => -500)
   const font = useState<string>('font', () => 'Montserrat')
-  const fontSize = useState<number>('fontSize', () => 100)
+  const fontSize = useState<number>('fontSize', () => 50)
   const cropPercentX = useState<number>('cropPercentX', () => 50)
   const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
   const subtitleAnimation = useState<string>('subtitleAnimation', () => 'pop')
@@ -83,7 +83,7 @@ export const useClipperJob = () => {
     subtitleOffset.value = 50
     subtitleSyncOffset.value = -500
     font.value = 'Montserrat'
-    fontSize.value = 100
+    fontSize.value = 50
     cropPercentX.value = 50
     subtitleMode.value = 'word'
     subtitleAnimation.value = 'pop'
@@ -91,7 +91,7 @@ export const useClipperJob = () => {
     subtitleHighlightColor.value = '#CFFF50'
     subtitleTextColor.value = '#FFFFFF'
     subtitleStrokeColor.value = '#000000'
-    subtitleStrokeWidth.value = 4
+    subtitleStrokeWidth.value = 0
     subtitleFontWeight.value = 900
     subtitleTextTransform.value = 'uppercase'
     subtitleBackground.value = 'none'
