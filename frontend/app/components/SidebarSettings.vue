@@ -82,20 +82,27 @@
                         fontWeight: preset.fontWeight,
                         color: preset.color,
                         textTransform: preset.textTransform === 'uppercase' ? 'uppercase' : 'none',
-                        WebkitTextStroke: preset.strokeWidth ? `${preset.strokeWidth / 6}px black` : 'none',
-                        textShadow: '0 1px 3px rgba(0,0,0,0.9)'
+                        paintOrder: preset.strokeWidth ? 'stroke fill' : 'normal',
+                        WebkitTextStroke: preset.strokeWidth ? `${preset.strokeWidth / 3}px black` : 'none',
+                        textShadow: preset.strokeWidth ? '0 1px 3px rgba(0,0,0,0.9)' : '0 1px 2px rgba(0,0,0,0.6)'
                       }"
                       class="px-1 py-0.5 rounded leading-none transition-all text-center inline-block truncate max-w-full"
                       :class="{
                         'bg-slate-950/80 px-1.5 py-0.5 rounded': preset.background === 'box',
-                        'bg-slate-900/40 backdrop-blur px-1.5 py-0.5 rounded-full border border-white/10': preset.background === 'blur',
-                        'bg-gradient-to-r from-red-500/20 to-amber-500/20 px-1.5 py-0.5 rounded border border-red-500/20': preset.background === 'gradient',
-                        'underline decoration-amber-400 decoration-2 underline-offset-1': preset.highlightMode === 'underline'
+                        'bg-slate-900/50 backdrop-blur px-1.5 py-0.5 rounded-full border border-white/10': preset.background === 'blur',
+                        'bg-gradient-to-t from-black/80 to-transparent px-1.5 py-0.5 rounded': preset.background === 'gradient',
                       }"
                     >
                       <template v-if="preset.highlightMode === 'color' || preset.highlightMode === 'box' || preset.highlightMode === 'scale'">
                         <span>Cool </span>
                         <span :style="{ color: preset.highlightColor }" :class="{ 'bg-red-500/25 px-0.5 rounded': preset.highlightMode === 'box', 'scale-105 inline-block font-black': preset.highlightMode === 'scale' }">Clip</span>
+                      </template>
+                      <template v-else-if="preset.highlightMode === 'underline'">
+                        <span>Cool </span>
+                        <span class="relative inline-block font-bold" :style="{ color: preset.highlightColor }">
+                          Clip
+                          <span class="absolute -bottom-0.5 left-0 right-0 h-[2px] rounded-full" :style="{ backgroundColor: preset.highlightColor }" />
+                        </span>
                       </template>
                       <template v-else>
                         <span>Cool Clip</span>
@@ -192,7 +199,7 @@
                 <span>Text Background</span>
                 <Icon name="ri:shape-2-line" class="text-slate-400" />
               </h2>
-              <div class="grid grid-cols-2 gap-1.5">
+              <div class="grid grid-cols-3 gap-1.5">
                 <button 
                   v-for="bg in backgrounds" :key="bg.id"
                   @click="state.subtitleBackground.value = bg.id"
@@ -766,16 +773,15 @@ const backgrounds = [
   { id: 'none', label: 'None' },
   { id: 'box', label: 'Dark Box' },
   { id: 'blur', label: 'Blur Pill' },
-  { id: 'gradient', label: 'Gradient' },
 ]
 
 const presets = [
-  { id: 'bold-podcast', name: 'Podcast', icon: '🎙️', font: 'Montserrat', fontSize: 100, fontWeight: 900, color: '#FFFFFF', highlightColor: '#FFD700', animation: 'pop', highlightMode: 'color', background: 'none', strokeWidth: 4, textTransform: 'uppercase' },
-  { id: 'clean-vlog', name: 'Vlog', icon: '📹', font: 'Inter', fontSize: 80, fontWeight: 700, color: '#FFFFFF', highlightColor: '#60A5FA', animation: 'slide-up', highlightMode: 'scale', background: 'none', strokeWidth: 3, textTransform: 'none' },
-  { id: 'street', name: 'Street', icon: '🔥', font: 'Bebas Neue', fontSize: 120, fontWeight: 400, color: '#FFFFFF', highlightColor: '#EF4444', animation: 'bounce', highlightMode: 'box', background: 'none', strokeWidth: 5, textTransform: 'uppercase' },
-  { id: 'minimal', name: 'Minimal', icon: '✨', font: 'Poppins', fontSize: 70, fontWeight: 600, color: '#FFFFFF', highlightColor: '#A78BFA', animation: 'fade', highlightMode: 'none', background: 'blur', strokeWidth: 2, textTransform: 'none' },
-  { id: 'karaoke', name: 'Karaoke', icon: '🎤', font: 'Oswald', fontSize: 90, fontWeight: 700, color: '#FFFFFF', highlightColor: '#CFFF50', animation: 'karaoke', highlightMode: 'color', background: 'none', strokeWidth: 4, textTransform: 'uppercase' },
-  { id: 'documentary', name: 'Docu', icon: '🎬', font: 'Noto Sans', fontSize: 65, fontWeight: 500, color: '#FFFFFF', highlightColor: '#FCD34D', animation: 'typewriter', highlightMode: 'underline', background: 'box', strokeWidth: 2, textTransform: 'none' },
+  { id: 'bold-podcast', name: 'Hormozi Bold', icon: '🎙️', font: 'Montserrat', fontSize: 50, fontWeight: 900, color: '#FFFFFF', highlightColor: '#CFFF50', animation: 'pop', highlightMode: 'color', background: 'none', strokeWidth: 0, textTransform: 'uppercase' },
+  { id: 'clean-vlog', name: 'Minimal Glass', icon: '✨', font: 'Outfit', fontSize: 50, fontWeight: 700, color: '#FFFFFF', highlightColor: '#A78BFA', animation: 'karaoke', highlightMode: 'scale', background: 'blur', strokeWidth: 0, textTransform: 'capitalize' },
+  { id: 'street', name: 'Urban Street', icon: '🔥', font: 'Outfit', fontSize: 50, fontWeight: 900, color: '#FFFFFF', highlightColor: '#E2F952', animation: 'pop', highlightMode: 'color', background: 'none', strokeWidth: 3, textTransform: 'uppercase' },
+  { id: 'documentary', name: 'Cinematic Docu', icon: '🎬', font: 'Noto Sans', fontSize: 50, fontWeight: 600, color: '#FFFBEB', highlightColor: '#F59E0B', animation: 'typewriter', highlightMode: 'underline', background: 'none', strokeWidth: 2, textTransform: 'capitalize' },
+  { id: 'karaoke', name: 'Rhythm Karaoke', icon: '🎤', font: 'Oswald', fontSize: 50, fontWeight: 700, color: '#F1F5F9', highlightColor: '#FFD700', animation: 'karaoke', highlightMode: 'color', background: 'none', strokeWidth: 4, textTransform: 'uppercase' },
+  { id: 'minimal', name: 'Modern Vlog', icon: '📹', font: 'Poppins', fontSize: 50, fontWeight: 700, color: '#FFFFFF', highlightColor: '#38BDF8', animation: 'slide-up', highlightMode: 'scale', background: 'none', strokeWidth: 3, textTransform: 'capitalize' },
 ]
 
 function applyPreset(preset) {

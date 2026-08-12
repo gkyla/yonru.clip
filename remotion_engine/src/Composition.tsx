@@ -121,8 +121,9 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   fontFamily: getFont(overlay.fontFamily || 'Montserrat'),
                   fontWeight: overlay.fontWeight || 900,
                   textTransform: overlay.textTransform || 'none',
+                  paintOrder: overlay.showStroke !== false ? 'stroke fill' : undefined,
                   WebkitTextStroke: overlay.showStroke !== false 
-                    ? `${overlay.strokeWidth || 5}px ${overlay.strokeColor || '#000000'}` 
+                    ? `${(overlay.strokeWidth || 5) * 2}px ${overlay.strokeColor || '#000000'}` 
                     : undefined,
                   textShadow: '3px 5px 15px rgba(0,0,0,0.6)',
                   whiteSpace: 'pre-wrap',
@@ -281,7 +282,8 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                 display: 'inline-block',
                 width: 'fit-content',
                 // Text Stroke
-                WebkitTextStroke: textStroke,
+                paintOrder: item.showStroke ? 'stroke fill' : undefined,
+                WebkitTextStroke: item.showStroke && item.strokeWidth ? `${item.strokeWidth * 2}px ${item.strokeColor || '#000000'}` : textStroke,
                 // Text Shadow / Glow
                 textShadow: getTextShadow(item),
               }}>

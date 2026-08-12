@@ -52,7 +52,8 @@ export const AnimatedSubtitles: React.FC<AnimatedSubtitlesProps> = ({
     fontSize: `${s.fontSize}px`,
     fontWeight: s.fontWeight,
     color: s.color,
-    WebkitTextStroke: s.strokeWidth > 0 ? `${s.strokeWidth}px ${s.strokeColor}` : undefined,
+    paintOrder: s.strokeWidth > 0 ? 'stroke fill' : undefined,
+    WebkitTextStroke: s.strokeWidth > 0 ? `${s.strokeWidth * 2}px ${s.strokeColor}` : undefined,
     textShadow: s.strokeWidth > 0 
       ? `-${s.strokeWidth}px -${s.strokeWidth}px 0 ${s.strokeColor}, ${s.strokeWidth}px -${s.strokeWidth}px 0 ${s.strokeColor}, -${s.strokeWidth}px ${s.strokeWidth}px 0 ${s.strokeColor}, ${s.strokeWidth}px ${s.strokeWidth}px 0 ${s.strokeColor}, 0 10px 20px rgba(0,0,0,0.8)`
       : `0 10px 20px rgba(0,0,0,0.8)`,
@@ -94,12 +95,6 @@ function getBackgroundStyle(s: SubtitleStyle): React.CSSProperties {
         borderRadius: '16px',
         padding: '16px 32px',
       };
-    case 'gradient':
-      return {
-        background: `linear-gradient(180deg, transparent, rgba(0,0,0,${s.backgroundOpacity}))`,
-        borderRadius: '16px',
-        padding: '16px 32px',
-      };
     case 'blur':
       return {
         backdropFilter: 'blur(12px)',
@@ -135,7 +130,7 @@ function renderAnimation(
     case 'bounce':
       return renderBounce(activeWord, s, baseStyle, frame, fps, wordTimings, currentTime);
     case 'typewriter':
-      return renderTypewriter(activeWord, s, baseStyle, frame, fps);
+      return renderTypewriter(activeWord, s, baseStyle, frame, fps, wordTimings, currentTime);
     case 'karaoke':
       return renderKaraoke(activeWord, wordTimings, s, baseStyle, frame, fps, currentTime);
     case 'none':
@@ -187,7 +182,7 @@ function renderChunkTextWithHighlight(
         const isActive = currentTime >= w.start && currentTime <= w.end;
         const isPast = currentTime > w.end;
 
-        let wordStyle: React.CSSProperties = { display: 'inline', transition: 'all 0.1s' };
+        let wordStyle: React.CSSProperties = { display: 'inline', transition: 'all 0.1s', position: 'relative' };
 
         if (isActive) {
           switch (s.highlightMode) {
@@ -201,8 +196,7 @@ function renderChunkTextWithHighlight(
               wordStyle.display = 'inline-block';
               break;
             case 'underline':
-              wordStyle.borderBottom = `4px solid ${s.highlightColor}`;
-              wordStyle.paddingBottom = '4px';
+              wordStyle.display = 'inline-block';
               break;
             case 'box':
               wordStyle.background = s.highlightColor;
@@ -210,6 +204,7 @@ function renderChunkTextWithHighlight(
               wordStyle.borderRadius = '8px';
               wordStyle.padding = '2px 8px';
               wordStyle.WebkitTextStroke = 'none';
+              wordStyle.display = 'inline-block';
               break;
           }
         } else if (isPast && dimPast) {
@@ -218,7 +213,24 @@ function renderChunkTextWithHighlight(
 
         return (
           <React.Fragment key={i}>
-            <span style={wordStyle}>{w.word}</span>
+            <span style={wordStyle}>
+              {w.word}
+              {s.highlightMode === 'underline' && isActive && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: '-4px',
+                    left: '2px',
+                    right: '2px',
+                    height: '5px',
+                    borderRadius: '9999px',
+                    backgroundColor: s.highlightColor,
+                    boxShadow: `0 0 8px ${s.highlightColor}66`,
+                    display: 'block',
+                  }}
+                />
+              )}
+            </span>
             {i < chunkWords.length - 1 && ' '}
           </React.Fragment>
         );
@@ -227,7 +239,7 @@ function renderChunkTextWithHighlight(
   );
 }
 
-// --- POP (Enhanced) ---
+// --- POP (Elastic Spring Pop) ---
 function renderPop(
   word: SubtitleWord,
   s: SubtitleStyle,
@@ -241,13 +253,13 @@ function renderPop(
   const progress = spring({
     fps,
     frame: frame - startFrame,
-    config: { damping: 12, stiffness: 200, mass: 0.5 },
-    durationInFrames: 12,
+    config: { damping: 14, stiffness: 180, mass: 0.6 },
+    durationInFrames: 14,
   });
 
-  const scale = interpolate(progress, [0, 1], [0.7, 1]);
-  const opacity = interpolate(progress, [0, 1], [0, 1]);
-  const rotate = interpolate(progress, [0, 0.5, 1], [-2, 1, 0]);
+  const scale = interpolate(progress, [0, 0.7, 1], [0.6, 1.12, 1]);
+  const opacity = interpolate(progress, [0, 0.3], [0, 1], { extrapolateRight: 'clamp' });
+  const rotate = interpolate(progress, [0, 0.5, 1], [-1.5, 0.8, 0]);
 
   return (
     <span style={{
@@ -327,7 +339,7 @@ function renderFade(
   );
 }
 
-// --- BOUNCE ---
+// --- BOUNCE (Elastic Spring Dynamic Pop) ---
 function renderBounce(
   word: SubtitleWord,
   s: SubtitleStyle,
@@ -338,23 +350,21 @@ function renderBounce(
   currentTime: number
 ) {
   const startFrame = word.start * fps;
-  const drop = spring({
+  const progress = spring({
     fps,
     frame: frame - startFrame,
-    config: { damping: 8, stiffness: 250, mass: 0.6 },
+    config: { damping: 11, stiffness: 200, mass: 0.5 },
     durationInFrames: 15,
   });
 
-  const translateY = interpolate(drop, [0, 1], [-120, 0]);
-  const scaleX = interpolate(drop, [0, 0.8, 1], [0.8, 1.05, 1]);
-  const scaleY = interpolate(drop, [0, 0.8, 1], [1.2, 0.95, 1]);
-  const opacity = interpolate(drop, [0, 0.3], [0, 1], { extrapolateRight: 'clamp' });
+  const scale = interpolate(progress, [0, 0.6, 0.85, 1], [0.5, 1.18, 0.96, 1]);
+  const opacity = interpolate(progress, [0, 0.25], [0, 1], { extrapolateRight: 'clamp' });
 
   return (
     <span style={{
       ...style,
       display: 'inline-block',
-      transform: `translateY(${translateY}px) scaleX(${scaleX}) scaleY(${scaleY})`,
+      transform: `scale(${scale})`,
       opacity,
     }}>
       {renderChunkTextWithHighlight(word, wordTimings, s, currentTime)}
@@ -362,31 +372,98 @@ function renderBounce(
   );
 }
 
-// --- TYPEWRITER ---
-function renderTypewriter(word: SubtitleWord, s: SubtitleStyle, style: React.CSSProperties, frame: number, fps: number) {
-  const startFrame = word.start * fps;
-  const endFrame = word.end * fps;
-  const duration = endFrame - startFrame;
-  const localFrame = Math.max(0, frame - startFrame);
-  
-  const text = word.word;
-  const typingDuration = Math.min(duration * 0.7, text.length * 2); // 2 frames per char
-  const progress = Math.min(1, localFrame / typingDuration);
-  const visibleChars = Math.floor(progress * text.length);
-  const visibleText = text.substring(0, visibleChars);
-  const showCursor = localFrame < typingDuration + 8; // Blink cursor for 8 frames after done
+// --- TYPEWRITER (Word Wave Reveal) ---
+function renderTypewriter(
+  word: SubtitleWord,
+  s: SubtitleStyle,
+  style: React.CSSProperties,
+  frame: number,
+  fps: number,
+  wordTimings?: SubtitleWord[],
+  currentTime?: number
+) {
+  const chunkWords = wordTimings?.filter(
+    w => w.start >= word.start - 0.05 && w.end <= word.end + 0.05
+  ) || [];
+
+  if (chunkWords.length === 0) {
+    const splitWords = word.word.split(/\s+/);
+    const chunkDuration = word.end - word.start;
+    const wordDur = chunkDuration / splitWords.length;
+    splitWords.forEach((w, i) => {
+      chunkWords.push({
+        word: w,
+        start: word.start + i * wordDur,
+        end: word.start + (i + 1) * wordDur,
+      });
+    });
+  }
 
   return (
-    <span style={{ ...style, display: 'inline-block', position: 'relative' }}>
-      {visibleText}
-      {showCursor && (
-        <span style={{
-          borderRight: `4px solid ${s.highlightColor}`,
-          marginLeft: '4px',
-          animation: 'none',
-          opacity: Math.floor(localFrame / 4) % 2 === 0 ? 1 : 0,
-        }}>&nbsp;</span>
-      )}
+    <span style={{ ...style, display: 'inline-block' }}>
+      {chunkWords.map((w, i) => {
+        const wordStartFrame = w.start * fps;
+        const wordProgress = spring({
+          fps,
+          frame: frame - wordStartFrame,
+          config: { damping: 16, stiffness: 160, mass: 0.6 },
+          durationInFrames: 10,
+        });
+        const wordOpacity = interpolate(wordProgress, [0, 1], [0, 1]);
+        const wordTranslateY = interpolate(wordProgress, [0, 1], [12, 0]);
+        const isActive = (currentTime ?? 0) >= w.start && (currentTime ?? 0) <= w.end;
+
+        let wordStyle: React.CSSProperties = {
+          display: 'inline-block',
+          opacity: wordOpacity,
+          transform: `translateY(${wordTranslateY}px)`,
+          position: 'relative',
+          transition: 'all 0.1s ease',
+        };
+
+        if (isActive) {
+          switch (s.highlightMode) {
+            case 'color':
+              wordStyle.color = s.highlightColor;
+              wordStyle.transform = `translateY(${wordTranslateY}px) scale(1.08)`;
+              break;
+            case 'scale':
+              wordStyle.transform = `translateY(${wordTranslateY}px) scale(1.15)`;
+              break;
+            case 'box':
+              wordStyle.background = s.highlightColor;
+              wordStyle.color = '#000';
+              wordStyle.borderRadius = '8px';
+              wordStyle.padding = '2px 8px';
+              wordStyle.WebkitTextStroke = 'none';
+              break;
+          }
+        }
+
+        return (
+          <React.Fragment key={i}>
+            <span style={wordStyle}>
+              {w.word}
+              {s.highlightMode === 'underline' && isActive && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: '-4px',
+                    left: '2px',
+                    right: '2px',
+                    height: '5px',
+                    borderRadius: '9999px',
+                    backgroundColor: s.highlightColor,
+                    boxShadow: `0 0 8px ${s.highlightColor}66`,
+                    display: 'block',
+                  }}
+                />
+              )}
+            </span>
+            {i < chunkWords.length - 1 && ' '}
+          </React.Fragment>
+        );
+      })}
     </span>
   );
 }

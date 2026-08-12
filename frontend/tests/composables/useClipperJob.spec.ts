@@ -120,9 +120,9 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     const { loadReadyClipIntoEditor } = useClipperJob()
     await loadReadyClipIntoEditor('folder', '10_20_clip')
 
-    // Montserrat and 100 are the hardcoded defaults
+    // Montserrat and 50 are the hardcoded defaults
     expect(font.value).toBe('Montserrat')
-    expect(fontSize.value).toBe(100)
+    expect(fontSize.value).toBe(50)
   })
 
   it('cascades global default settings under custom style settings overrides', async () => {

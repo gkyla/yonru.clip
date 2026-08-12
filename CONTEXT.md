@@ -36,6 +36,22 @@ _Avoid_: Subtitle drawer, edit modal, right sidebar overlay
 A top-level tabbed control bar inside the Draggable Subtitle Panel that categorizes subtitle and video customization controls into discrete tabs (Style & Presets, Typography & Color, Layout & Export) to optimize vertical space.
 _Avoid_: Editor tab bar, settings pagination, sub-header tabs
 
+**Elastic Spring Pop**:
+A dynamic entry animation for subtitle chunks where text expands smoothly from a scaled-down state with a calibrated spring overshoot before settling, creating an energetic caption pop without disorienting vertical drops.
+_Avoid_: Hard bounce, rigid drop animation
+
+**Word Wave Reveal**:
+A fluid subtitle entry animation where words or characters emerge sequentially via smooth opacity easing and subtle motion sweep, replacing character-by-character typewriter steps with modern short-form motion.
+_Avoid_: Old typewriter effect, character-by-character cursor chop
+
+**Capsule Marker Underline**:
+A floating, rounded pill accent underline rendered beneath the active highlighted word with smooth border radiuses and calibrated vertical offsets to avoid colliding with text descenders.
+_Avoid_: Harsh table border line, rigid square underline
+
+**Curated Gradient Backdrop**:
+A configurable subtitle background styling mode offering preset visual gradients (Cinematic Dark, Ambient Aura Glow, Two-Tone Duo) with variable opacity and spread to maximize subtitle legibility and aesthetic depth.
+_Avoid_: Static dark gradient box, hardcoded linear gradient
+
 **Editor Workspace Action Rail**:
 A narrow vertical icon rail positioned adjacent to the VideoPreview pane that provides single-click access and hover tooltips for toggling editor panel views.
 _Avoid_: Editor tab bar, right button column
