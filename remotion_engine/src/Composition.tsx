@@ -21,6 +21,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   cropX,
   cropMap = [],
   position,
+  videoLayout = 'vertical',
   subtitleOffset = 50,
   showDebug,
   subtitleStyle,
@@ -48,7 +49,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   const videoSrc = videoPath ? (isUrl ? videoPath : staticFile(videoPath)) : '';
 
   if (isRendering) {
-    console.log('[Remotion Render] Props:', { videoPath, wordsCount: words?.length, position, thumbnailEnabled, thumbnailFrames });
+    console.log('[Remotion Render] Props:', { videoPath, wordsCount: words?.length, position, videoLayout, thumbnailEnabled, thumbnailFrames });
   }
 
   // Filter active text items (adjusted for thumbnail offset)
@@ -79,17 +80,19 @@ export const YonruClip: React.FC<YonruClipProps> = ({
     }
 
   // Exact math from VideoPreview.vue to guarantee 1:1 match
+  const isLandscape = videoLayout === 'landscape';
   const videoAspect = (sourceWidth && sourceHeight) ? (sourceWidth / sourceHeight) : (16 / 9);
   const CONTAINER_W = 1080;
   const CONTAINER_H = 1920;
-  const videoDisplayW = CONTAINER_H * videoAspect;
+  
+  const videoDisplayW = isLandscape ? CONTAINER_W : CONTAINER_H * videoAspect;
+  const videoDisplayH = isLandscape ? (CONTAINER_W / videoAspect) : CONTAINER_H;
   const maxOffset = Math.max(0, videoDisplayW - CONTAINER_W);
   
-  // Target center calculation: map the activeCropX pixel exactly to the center of the container
-  const scale = videoDisplayW / (sourceWidth || 1920);
-  const targetTranslateX = (CONTAINER_W / 2) - (activeCropX * scale);
-  // Clamp to prevent black bars revealing the container background
-  const translateX = Math.max(-maxOffset, Math.min(0, targetTranslateX));
+  const scale = videoDisplayW / (sourceWidth || (isLandscape ? 1080 : 1920));
+  const targetTranslateX = isLandscape ? 0 : (CONTAINER_W / 2) - (activeCropX * scale);
+  const translateX = isLandscape ? 0 : Math.max(-maxOffset, Math.min(0, targetTranslateX));
+  const translateY = isLandscape ? (CONTAINER_H - videoDisplayH) / 2 : 0;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'black', overflow: 'hidden' }}>
@@ -167,10 +170,10 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                     startFrom={mediaStartFrame}
                     endAt={mediaStartFrame + durationFrames}
                     style={{ 
-                      height: '100%', 
+                      height: `${videoDisplayH}px`, 
                       width: `${videoDisplayW}px`, 
                       maxWidth: 'none',
-                      transform: `translateX(${translateX}px)`,
+                      transform: `translate(${translateX}px, ${translateY}px)`,
                       objectFit: 'cover'
                     }} 
                   />
@@ -185,10 +188,10 @@ export const YonruClip: React.FC<YonruClipProps> = ({
               volume={volume}
               crossOrigin="anonymous"
               style={{ 
-                height: '100%', 
+                height: `${videoDisplayH}px`, 
                 width: `${videoDisplayW}px`, 
                 maxWidth: 'none',
-                transform: `translateX(${translateX}px)`,
+                transform: `translate(${translateX}px, ${translateY}px)`,
                 objectFit: 'cover'
               }} 
             />

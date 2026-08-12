@@ -125,6 +125,18 @@ _Avoid_: Half muting, partial word bleeping
 A configurable collection of bleep audio assets within the Content Safety Audit Panel comprising static system default tones (e.g. 1000Hz beep) and user-uploaded custom audio files, allowing creators to select and manage their active audio censorship sound.
 _Avoid_: Bleep sound list, custom bleep array
 
+**Video Layout Mode**:
+A setting in the Layout & Export tab controlling how the video source is framed within the 1080x1920 portrait canvas, offering `vertical` (full-height 9:16 crop using horizontal pan offset) and `landscape` (centered letterboxed video with top and bottom blank zones for text overlays).
+_Avoid_: Video aspect ratio, crop mode switch, orientation toggle
+
+**Letterbox Blank Zone**:
+The un-covered black area above (Top Blank Zone) and below (Bottom Blank Zone) a centered 16:9 video when Video Layout Mode is set to `landscape` on a 1080x1920 portrait canvas.
+_Avoid_: Black bars, letterbox margin
+
+**Blank Zone Alignment Snap**:
+A quick action control in the timeline text item inspector that calculates and snaps the vertical ($Y$) position of a text overlay to the center of either the Top Blank Zone or Bottom Blank Zone.
+_Avoid_: Auto header snap, bar alignment toggle
+
 **Horizontal Shift Offset**:
 A percentage value representing the horizontal pan displacement of the background image within the portrait viewport.
 _Avoid_: Pan offset, horizontal scroll value

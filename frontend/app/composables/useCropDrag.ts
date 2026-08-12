@@ -14,6 +14,7 @@ export const useCropDrag = (
   const dragStartPercent = ref(50)
 
   function startDrag(e: MouseEvent) {
+    if (state.videoLayout?.value === 'landscape') return
     if (state.cropMode.value !== 'manual') return
     // Don't start pan drag if a timeline text overlay is selected
     if (state.selectedTimelineItem.value?.type === 'text' && hasActiveTextItems.value) return
@@ -38,6 +39,7 @@ export const useCropDrag = (
   }
 
   function startDragTouch(e: TouchEvent) {
+    if (state.videoLayout?.value === 'landscape') return
     if (state.cropMode.value !== 'manual') return
     if (state.selectedTimelineItem.value?.type === 'text' && hasActiveTextItems.value) return
     const touch = e.touches[0]

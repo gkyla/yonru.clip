@@ -112,6 +112,7 @@ function createClipperState() {
   // Settings
   const youtubeUrl = useState<string>('youtubeUrl', () => '')
   const language = useState<string>('language', () => 'auto')
+  const videoLayout = useState<'vertical' | 'landscape'>('videoLayout', () => 'vertical')
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => -500) // Default -500ms offset
@@ -424,6 +425,7 @@ function createClipperState() {
   async function saveStyleSettings() {
     if (!folderName.value || !clipId.value) return
     const settings = {
+      videoLayout: videoLayout.value,
       subtitlePreset: subtitlePreset.value,
       subtitlePosition: subtitlePosition.value,
       subtitleOffset: subtitleOffset.value,
@@ -455,6 +457,7 @@ function createClipperState() {
 
   async function saveDefaultStyleSettings() {
     const settings = {
+      videoLayout: videoLayout.value,
       subtitlePreset: subtitlePreset.value,
       subtitlePosition: subtitlePosition.value,
       subtitleOffset: subtitleOffset.value,
@@ -647,7 +650,7 @@ function createClipperState() {
     videoTitle, videoDuration, hasHeatmap, hasPreview, videoUrl, videoFps,
     hooks, savedHooks, activeHook, segmentPadding, folderName, clipId, fullTranscript,
     promptsList, selectedPrompt,
-    youtubeUrl, language, subtitlePosition, subtitleOffset, subtitleSyncOffset,
+    youtubeUrl, language, videoLayout, subtitlePosition, subtitleOffset, subtitleSyncOffset,
     font, fontSize, faceTracking, cropMode, cropPercentX, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
     whisperModels: WHISPER_MODELS,
     activeSafeZone,

@@ -90,6 +90,7 @@ class ExtractRequest(BaseModel):
 class RenderRequest(BaseModel):
     job_id: str
     hook_index: int = 0
+    video_layout: Optional[str] = "vertical"
     subtitle_position: str = "bottom"
     subtitle_offset: int = 50
     font: str = "Arial"

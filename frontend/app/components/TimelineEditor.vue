@@ -270,6 +270,32 @@
                     </button>
                   </div>
                 </div>
+
+                <!-- Blank Zone Alignment Snap for Landscape Mode -->
+                <div v-if="state.videoLayout.value === 'landscape'" class="pt-2 border-t border-white/5 space-y-1">
+                  <label class="block text-[8px] font-bold uppercase tracking-widest text-accent-500 flex items-center justify-between">
+                    <span>Blank Zone Snap</span>
+                    <Icon name="ri:layout-grid-line" class="text-accent-500 text-[10px]" />
+                  </label>
+                  <div class="grid grid-cols-2 gap-1.5">
+                    <button 
+                      @click="decoupleItem(); state.selectedTimelineItem.value.y = 328"
+                      class="py-1 px-2 bg-surface-dark/80 hover:bg-surface-card border border-accent-500/30 hover:border-accent-500 text-accent-500 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1"
+                      title="Snap text overlay to top blank zone center"
+                    >
+                      <Icon name="ri:align-top" class="text-xs" />
+                      <span>Snap Top Zone</span>
+                    </button>
+                    <button 
+                      @click="decoupleItem(); state.selectedTimelineItem.value.y = 1592"
+                      class="py-1 px-2 bg-surface-dark/80 hover:bg-surface-card border border-accent-500/30 hover:border-accent-500 text-accent-500 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1"
+                      title="Snap text overlay to bottom blank zone center"
+                    >
+                      <Icon name="ri:align-bottom" class="text-xs" />
+                      <span>Snap Bottom Zone</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

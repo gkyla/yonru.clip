@@ -57,6 +57,7 @@ export interface YonruClipProps {
   cropX: number;
   cropMap?: CropMapEntry[];
   position: 'top' | 'center' | 'bottom';
+  videoLayout?: 'vertical' | 'landscape';
   subtitleOffset?: number;
   durationInFrames?: number;
   showDebug?: boolean;
