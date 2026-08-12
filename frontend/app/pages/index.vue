@@ -2963,30 +2963,31 @@ async function loadReadyClip(clip: ReadyClip) {
       const clipStart = parseFloat(part0) || 0
       const clipEnd = parseFloat(part1) || 0
       
-      // Ensure saved hooks are loaded
-      await state.fetchSavedHooks()
-      
-      // Look in saved hooks first
-      const savedIdx = state.savedHooks.value.findIndex((h: Hook) => {
-        const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
-        const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
-        return Math.abs(hStart - clipStart) < 1.1 && Math.abs(hEnd - clipEnd) < 1.1
-      })
-      
-      if (savedIdx >= 0) {
-        hookIndex = savedIdx
-        tab = 'saved'
-      } else {
-        // Look in generated hooks
-        const genIdx = state.hooks.value.findIndex((h: Hook) => {
+      // Helper to find the best matching hook by minimum timestamp distance
+      function findBestMatchingHookIndex(list: Hook[], targetStart: number, targetEnd: number) {
+        let bestIndex = -1
+        let minDiff = 5.0
+        list.forEach((h, idx) => {
           const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
           const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
-          return Math.abs(hStart - clipStart) < 1.1 && Math.abs(hEnd - clipEnd) < 1.1
+          const diff = Math.abs(hStart - targetStart) + Math.abs(hEnd - targetEnd)
+          if (diff < minDiff) {
+            minDiff = diff
+            bestIndex = idx
+          }
         })
-        if (genIdx >= 0) {
-          hookIndex = genIdx
-          tab = 'generated'
-        }
+        return { index: bestIndex, diff: minDiff }
+      }
+
+      const savedMatch = findBestMatchingHookIndex(state.savedHooks.value, clipStart, clipEnd)
+      const genMatch = findBestMatchingHookIndex(state.hooks.value, clipStart, clipEnd)
+
+      if (savedMatch.index >= 0 && (genMatch.index < 0 || savedMatch.diff <= genMatch.diff)) {
+        hookIndex = savedMatch.index
+        tab = 'saved'
+      } else if (genMatch.index >= 0) {
+        hookIndex = genMatch.index
+        tab = 'generated'
       }
     }
     

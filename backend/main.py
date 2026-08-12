@@ -1326,12 +1326,18 @@ async def load_ready_clip(req: LoadReadyClipRequest, background_tasks: Backgroun
     # 8. Snap the active clip's start/end to the closest hook in the list 
     # to ensure the frontend highlight logic (matching by timestamp) works perfectly.
     snapped_start, snapped_end = start_time, end_time
+    best_dist = float("inf")
     for h in ready_hooks:
-        if abs(h.get("start", 0) - start_time) < 3.5 and abs(h.get("end", 0) - end_time) < 1.5:
-            snapped_start = h.get("start", 0)
-            snapped_end = h.get("end", 0)
-            print(f"[debug] Snapped active clip to matching hook: {snapped_start} - {snapped_end}")
-            break
+        h_start = float(h.get("start", 0.0))
+        h_end = float(h.get("end", 0.0))
+        dist = abs(h_start - start_time) + abs(h_end - end_time)
+        if dist < 5.0 and dist < best_dist:
+            best_dist = dist
+            snapped_start = h_start
+            snapped_end = h_end
+
+    if best_dist < float("inf"):
+        print(f"[debug] Snapped active clip to matching hook: {snapped_start} - {snapped_end} (dist: {best_dist:.2f}s)")
 
     status = "ready" if is_transcript_valid else "queued"
     jobs[job_id] = {

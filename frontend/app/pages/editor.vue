@@ -908,7 +908,10 @@ function restoreStateFromQuery() {
         const targetIndex = isNaN(hookIndex) ? 0 : hookIndex
         if (hooksList && hooksList[targetIndex]) {
           console.log('[editor] Restoring hook from index:', targetIndex)
-          if (state?.activeHook) state.activeHook.value = hooksList[targetIndex]
+          // Only overwrite activeHook if it is not already populated for a ready clip
+          if (state?.activeHook && (!state.activeHook.value || status !== 'ready')) {
+            state.activeHook.value = hooksList[targetIndex]
+          }
           // Only trigger extraction if we don't already have a ready clip
           if (status !== 'ready') {
             state?.extractClip?.(hooksList[targetIndex])
