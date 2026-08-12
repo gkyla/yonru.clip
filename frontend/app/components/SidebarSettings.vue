@@ -516,10 +516,9 @@
               </div>
             </div>
 
-            <hr class="border-surface-border/40" />
-
-            <!-- Crop Mode -->
-            <div>
+            <!-- Crop Mode (Vertical Only) -->
+            <div v-if="(state.videoLayout?.value || 'vertical') === 'vertical'">
+              <hr class="border-surface-border/40 mb-4" />
               <h2 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 flex items-center justify-between">
                 <span>Crop Mode</span>
                 <Icon name="ri:crop-line" class="text-slate-400" />

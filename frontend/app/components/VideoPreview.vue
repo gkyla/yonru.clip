@@ -17,7 +17,8 @@
 
       <!-- Draggable crop preview -->
       <div v-if="state?.videoUrl?.value && !state?.outputUrl?.value" 
-           class="absolute inset-0 z-30 bg-black cursor-grab active:cursor-grabbing select-none"
+           class="absolute inset-0 z-30 bg-black select-none"
+           :class="state?.videoLayout?.value === 'landscape' ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'"
            @mousedown="startDrag"
            @mousemove="onDrag"
            @mouseup="stopDrag"
@@ -56,8 +57,8 @@
           allow="autoplay"
         ></iframe>
         
-        <!-- Crop guide lines -->
-        <div class="absolute inset-0 pointer-events-none z-10">
+        <!-- Crop guide lines (Vertical only) -->
+        <div v-if="state?.videoLayout?.value !== 'landscape'" class="absolute inset-0 pointer-events-none z-10">
           <div class="absolute inset-y-0 w-[3px] bg-white/20" style="left: 33.33%"></div>
           <div class="absolute inset-y-0 w-[3px] bg-white/20" style="left: 66.66%"></div>
           <div class="absolute inset-x-0 h-[3px] bg-white/20" style="top: 33.33%"></div>
@@ -65,8 +66,8 @@
         </div>
 
 
-        <!-- Drag indicator -->
-        <div class="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center gap-4">
+        <!-- Drag indicator (Vertical only) -->
+        <div v-if="state?.videoLayout?.value !== 'landscape'" class="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center gap-4">
           <div class="bg-black/70 backdrop-blur-3xl px-8 py-4 rounded-full border-[3px] border-white/20 text-[28px] mono text-white flex items-center gap-3">
             <Icon name="ri:drag-move-2-line" class="text-accent-500 text-[36px]" />
             DRAG TO PAN • {{ Math.round(state.cropPercentX.value) }}%
