@@ -543,7 +543,7 @@
                     : 'border-surface-border text-slate-400 hover:border-accent-500 hover:text-white'"
                 >
                   <Icon name="ri:body-scan-line" class="text-base" />
-                  AI Face Track
+                  Face Track
                 </button>
               </div>
 
@@ -560,8 +560,9 @@
                 </div>
               </div>
               
-              <p v-if="state.cropMode.value === 'face_tracking'" class="text-[9px] text-slate-400 mt-1.5 italic">
-                AI will auto-detect the primary face and center the 9:16 crop during render.
+              <p v-if="state.cropMode.value === 'face_tracking'" class="text-[9px] text-slate-400 mt-1.5 flex items-center gap-1.5">
+                <Icon name="ri:sparkling-fill" class="text-accent-500 text-xs shrink-0" />
+                <span>Pre-computed face tracking active. Drag canvas anytime to override.</span>
               </p>
             </div>
           </div>

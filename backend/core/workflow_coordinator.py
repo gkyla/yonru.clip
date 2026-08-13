@@ -5,19 +5,52 @@ import re
 from typing import Optional, Dict, Any
 
 class ClipWorkflowCoordinator:
-    def __init__(self, job_store, asset_repository, youtube_client, speech_transcriber, prompt_repository, config_store):
+    def __init__(self, job_store, asset_repository, youtube_client, speech_transcriber, prompt_repository, config_store, face_tracker=None):
         self.jobs = job_store
         self.asset_repository = asset_repository
         self.youtube_client = youtube_client
         self.speech_transcriber = speech_transcriber
         self.prompt_repository = prompt_repository
         self.config_store = config_store
+        self.face_tracker = face_tracker
 
     def save_jobs(self):
         try:
             self.jobs.save()
         except:
             pass
+
+    def _ensure_crop_map(self, clip_path: str):
+        """Generates and caches Auto-Reframe crop_map.json for the clip if not already present."""
+        clip_dir = os.path.dirname(clip_path)
+        crop_map_path = os.path.join(clip_dir, "crop_map.json")
+        if os.path.exists(crop_map_path):
+            return
+        
+        tracker = getattr(self, "face_tracker", None)
+        if not tracker:
+            from core.face_tracker import FaceTracker
+            tracker = FaceTracker()
+        
+        crop_map_points = None
+        try:
+            crop_data = tracker.analyze_video(clip_path)
+            if isinstance(crop_data, (int, float)):
+                crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
+            elif isinstance(crop_data, list) and len(crop_data) > 0:
+                crop_map_points = crop_data
+            else:
+                crop_map_points = [{"time": 0.0, "x": 960}]
+        except Exception as e:
+            print(f"[cut] Face tracking failed for clip, falling back to center: {e}")
+            crop_map_points = [{"time": 0.0, "x": 960}]
+            
+        try:
+            with open(crop_map_path, "w", encoding="utf-8") as f:
+                json.dump(crop_map_points, f, ensure_ascii=False, indent=2)
+            print(f"[cut] Saved auto-reframe crop map ({len(crop_map_points)} points) to {crop_map_path}")
+        except Exception as e:
+            print(f"[cut] Failed to write crop_map.json: {e}")
 
     def run_full_analysis(self, job_id: str, url: str, language: str, force_reanalyze: bool = False, prompt_file: str = "prompt.json", num_hooks: int = 10, auto_hooks: bool = False):
         """Background: check transcript → download full 1080p → Gemini hooks"""
@@ -332,6 +365,9 @@ class ClipWorkflowCoordinator:
                     except Exception as e:
                         print(f"[transcribe] Failed to populate default thumbnail config: {e}")
 
+                # Ensure Auto-Reframe crop_map.json is generated/cached
+                self._ensure_crop_map(clip["file_path"])
+
                 job = self.jobs[job_id]
                 job["clip"] = clip 
                 job["clip_path"] = clip["file_path"]
@@ -409,6 +445,9 @@ class ClipWorkflowCoordinator:
                     print(f"[transcribe] Populated default thumbnail config to {clip_thumb_config_path}")
                 except Exception as e:
                     print(f"[transcribe] Failed to populate default thumbnail config: {e}")
+
+            # Ensure Auto-Reframe crop_map.json is generated/cached
+            self._ensure_crop_map(clip["file_path"])
 
             # Store full clip metadata
             job = self.jobs[job_id]

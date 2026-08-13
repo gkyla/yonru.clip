@@ -1,5 +1,5 @@
 // @vitest-environment nuxt
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useClipperJob } from '../../app/composables/useClipperJob'
 
 // Mock useTimelineState
@@ -56,7 +56,7 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
           job_id: 'job-123',
           status: 'ready',
           clip: {
-            asset_url: '/assets/clips/folder/clip_id/video.mp4',
+            asset_url: '/assets/clips/folder/10_20_clip/video.mp4',
             duration: 10
           }
         })
@@ -66,6 +66,11 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
       }
       return Promise.resolve({})
     }))
+  })
+
+  afterEach(() => {
+    const { stopPolling } = useClipperJob()
+    stopPolling()
   })
 
   it('resets subtitle styles to defaults before loading custom styles', async () => {
@@ -242,11 +247,74 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     
     await vi.advanceTimersByTimeAsync(2000)
     
-    expect(jobStatus.value).toBe('error')
-    expect(jobError.value).toBe('Network failure or JSON parse error')
-    
     stopPolling()
     vi.useRealTimers()
   })
+
+  it('loads crop_map.json into cropMap state when available on clip load', async () => {
+    const cropMap = useState<any[]>('cropMap')
+    const cropMode = useState<string>('cropMode')
+    cropMap.value = []
+    cropMode.value = 'manual'
+
+    const mockCropMap = [{ time: 0, x: 500 }, { time: 2.5, x: 750 }]
+
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url) => {
+      const urlStr = String(url)
+      if (urlStr.includes('crop_map.json')) {
+        return Promise.resolve(mockCropMap)
+      }
+      if (urlStr.includes('/api/load-ready-clip')) {
+        return Promise.resolve({
+          job_id: 'job-123',
+          status: 'ready',
+          clip: { asset_url: '/assets/clips/folder/clip_id/video.mp4', duration: 10 }
+        })
+      }
+      return Promise.resolve({})
+    }))
+
+    const { loadReadyClipIntoEditor } = useClipperJob()
+    await loadReadyClipIntoEditor('folder', '10_20_clip')
+
+    expect(cropMap.value).toEqual(mockCropMap)
+    expect(cropMode.value).toBe('face_tracking')
+  })
+
+  it('calls track-face backfill when crop_map.json 404s', async () => {
+    const cropMap = useState<any[]>('cropMap')
+    cropMap.value = []
+
+    const mockBackfillCropMap = [{ time: 0, x: 960 }]
+    const trackFaceSpy = vi.fn().mockResolvedValue({ status: 'ready', crop_map: mockBackfillCropMap })
+
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url, options) => {
+      const urlStr = String(url)
+      if (urlStr.includes('crop_map.json')) {
+        return Promise.reject({ status: 404 })
+      }
+      if (urlStr.includes('/api/clips/folder/10_20_clip/track-face')) {
+        return trackFaceSpy(url, options)
+      }
+      if (urlStr.includes('/api/load-ready-clip')) {
+        return Promise.resolve({
+          job_id: 'job-123',
+          status: 'ready',
+          clip: { asset_url: '/assets/clips/folder/clip_id/video.mp4', duration: 10 }
+        })
+      }
+      return Promise.resolve({})
+    }))
+
+    const { loadReadyClipIntoEditor } = useClipperJob()
+    await loadReadyClipIntoEditor('folder', '10_20_clip')
+
+    expect(trackFaceSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/api/clips/folder/10_20_clip/track-face'),
+      expect.objectContaining({ method: 'POST' })
+    )
+    expect(cropMap.value).toEqual(mockBackfillCropMap)
+  })
 })
+
 

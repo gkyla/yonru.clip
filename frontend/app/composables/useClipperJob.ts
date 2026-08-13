@@ -48,6 +48,8 @@ export const useClipperJob = () => {
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => -500)
   const font = useState<string>('font', () => 'Montserrat')
   const fontSize = useState<number>('fontSize', () => 50)
+  const cropMode = useState<string>('cropMode', () => 'face_tracking')
+  const cropMap = useState<Array<{ time: number, x: number }>>('cropMap', () => [])
   const cropPercentX = useState<number>('cropPercentX', () => 50)
   const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
   const subtitleAnimation = useState<string>('subtitleAnimation', () => 'pop')
@@ -86,6 +88,8 @@ export const useClipperJob = () => {
     subtitleSyncOffset.value = -500
     font.value = 'Montserrat'
     fontSize.value = 50
+    cropMode.value = 'face_tracking'
+    cropMap.value = []
     cropPercentX.value = 50
     subtitleMode.value = 'word'
     subtitleAnimation.value = 'pop'
@@ -110,6 +114,8 @@ export const useClipperJob = () => {
     if (styles.subtitleSyncOffset !== undefined) subtitleSyncOffset.value = styles.subtitleSyncOffset
     if (styles.font) font.value = styles.font
     if (styles.fontSize !== undefined) fontSize.value = styles.fontSize
+    if (styles.cropMode) cropMode.value = styles.cropMode
+    if (styles.cropMap) cropMap.value = styles.cropMap
     if (styles.cropPercentX !== undefined) cropPercentX.value = styles.cropPercentX
     if (styles.subtitleMode) subtitleMode.value = styles.subtitleMode
     if (styles.subtitleAnimation) subtitleAnimation.value = styles.subtitleAnimation
@@ -142,15 +148,44 @@ export const useClipperJob = () => {
       console.log('[clipper] No global default style settings found, using hardcoded defaults')
     }
 
-    // 2. Load custom clip overrides on top of defaults
+    // 2. Override with custom clip settings if they exist
     try {
-      const styles = await $fetch<SubtitleStyleSettings>(baseClipUrl + '/style_settings.json?t=' + Date.now())
-      if (styles) {
-        applySubtitleStyles(styles)
+      const customStyles = await $fetch<Record<string, unknown>>(`${baseClipUrl}/style_settings.json?t=${Date.now()}`)
+      if (customStyles) {
+        const config = (customStyles.settings || customStyles) as Partial<SubtitleStyleSettings>
+        applySubtitleStyles(config)
         console.log('[clipper] Loaded custom clip style settings')
       }
     } catch (e) {
       console.log('[clipper] No custom style settings for this clip, keeping global defaults')
+    }
+  }
+
+  async function loadCropMap(baseClipUrl: string, folder?: string | null, id?: string | null) {
+    try {
+      const cropMapUrl = baseClipUrl + '/crop_map.json?t=' + Date.now()
+      const fetchedCropMap = await $fetch<Array<{ time: number, x: number }>>(cropMapUrl)
+      if (fetchedCropMap && Array.isArray(fetchedCropMap) && fetchedCropMap.length > 0) {
+        cropMap.value = fetchedCropMap
+        console.log('[clipper] Loaded auto-reframe crop map into state:', fetchedCropMap.length, 'points')
+        return
+      }
+    } catch (cme) {}
+
+    // Fallback: If crop_map.json 404s, trigger on-demand backfill API
+    if (folder && id) {
+      try {
+        const backfillRes = await $fetch<{ status: string, crop_map: Array<{ time: number, x: number }> }>(
+          `${API_BASE}/api/clips/${folder}/${id}/track-face`,
+          { method: 'POST' }
+        )
+        if (backfillRes && backfillRes.crop_map && Array.isArray(backfillRes.crop_map)) {
+          cropMap.value = backfillRes.crop_map
+          console.log('[clipper] Backfilled auto-reframe crop map from API:', backfillRes.crop_map.length, 'points')
+        }
+      } catch (bfe) {
+        console.warn('[clipper] Failed to backfill crop map:', bfe)
+      }
     }
   }
 
@@ -365,6 +400,7 @@ export const useClipperJob = () => {
                 }
 
                 await loadStyleSettings(baseClipUrl)
+                await loadCropMap(baseClipUrl, respFolder || folderName.value, newClipId || clipId.value)
 
                 let timelineLoaded = false
                 try {
@@ -571,6 +607,9 @@ export const useClipperJob = () => {
 
         // Load Style Settings
         await loadStyleSettings(baseClipUrl)
+
+        // Load Auto-Reframe Crop Map
+        await loadCropMap(baseClipUrl, folder, id)
 
         // Load Timeline
         let timelineLoaded = false

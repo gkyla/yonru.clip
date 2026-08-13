@@ -129,6 +129,8 @@ export interface SubtitleStyleSettings {
   subtitleSyncOffset?: number
   font?: string
   fontSize?: number
+  cropMode?: string
+  cropMap?: Array<{ time: number, x: number }>
   cropPercentX?: number
   subtitleMode?: 'word' | '3_words' | '4_words'
   subtitleAnimation?: string

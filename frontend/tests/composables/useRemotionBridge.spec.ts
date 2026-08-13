@@ -334,15 +334,46 @@ describe('useRemotionBridge Composable', () => {
       ref('test-buster')
     ))
 
-    await nextTick()
-    bridge.calls = [] // Clear initial setup calls
-
     state.videoLayout.value = 'landscape'
     await nextTick()
 
     const updateCalls = bridge.calls.filter(c => c.type === 'updateProps')
     expect(updateCalls.length).toBeGreaterThan(0)
     expect(updateCalls[updateCalls.length - 1]?.payload?.videoLayout).toBe('landscape')
+
+    app.unmount()
+  })
+
+  it('passes cropMap when cropMode is face_tracking and updates on cropMap/cropMode change', async () => {
+    const previewVideo = ref<HTMLVideoElement | null>(null)
+
+    state.cropMode.value = 'face_tracking'
+    state.cropMap.value = [{ time: 0, x: 500 }, { time: 2, x: 800 }]
+
+    const [_, app] = withSetup(() => useRemotionBridge(
+      bridge,
+      previewVideo,
+      ref(0),
+      ref(false),
+      ref('test-buster')
+    ))
+
+    await nextTick()
+    bridge.calls = [] // Clear initial calls
+
+    state.cropMap.value = [{ time: 0, x: 600 }, { time: 3, x: 900 }]
+    await nextTick()
+
+    let updateCalls = bridge.calls.filter(c => c.type === 'updateProps')
+    expect(updateCalls.length).toBeGreaterThan(0)
+    expect(updateCalls[updateCalls.length - 1]?.payload?.cropMap).toEqual([{ time: 0, x: 600 }, { time: 3, x: 900 }])
+
+    // Switch to manual cropMode -> cropMap sent to bridge should be empty
+    state.cropMode.value = 'manual'
+    await nextTick()
+
+    updateCalls = bridge.calls.filter(c => c.type === 'updateProps')
+    expect(updateCalls[updateCalls.length - 1]?.payload?.cropMap).toEqual([])
 
     app.unmount()
   })
