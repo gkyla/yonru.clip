@@ -72,6 +72,7 @@ export const useRemotionBridge = (
       words: wordsData,
       wordTimings: allWordTimings,
       cropX: isNaN(cropXPixel) ? 960 : cropXPixel,
+      cropMap: state.cropMode?.value === 'face_tracking' ? JSON.parse(JSON.stringify(state.cropMap?.value || [])) : [],
       sourceWidth: previewVideo.value?.videoWidth || 1920,
       sourceHeight: previewVideo.value?.videoHeight || 1080,
       position: state.subtitlePosition.value,
@@ -156,6 +157,8 @@ export const useRemotionBridge = (
 
   watch([
     () => state.videoUrl.value,
+    () => state.cropMode?.value,
+    () => state.cropMap?.value,
     () => state.cropPercentX.value,
     () => state.subtitlePosition.value,
     () => state.videoLayout?.value,

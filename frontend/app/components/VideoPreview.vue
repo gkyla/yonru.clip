@@ -67,10 +67,30 @@
 
 
         <!-- Drag indicator (Vertical only) -->
-        <div v-if="state?.videoLayout?.value !== 'landscape'" class="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center gap-4">
-          <div class="bg-black/70 backdrop-blur-3xl px-8 py-4 rounded-full border-[3px] border-white/20 text-[28px] mono text-white flex items-center gap-3">
-            <Icon name="ri:drag-move-2-line" class="text-accent-500 text-[36px]" />
-            DRAG TO PAN • {{ Math.round(state.cropPercentX.value) }}%
+        <div v-if="state?.videoLayout?.value !== 'landscape'" class="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center gap-2">
+          <!-- Override toast -->
+          <Transition
+            enter-active-class="transition duration-300 ease-out"
+            enter-from-class="transform -translate-y-2 opacity-0"
+            enter-to-class="transform translate-y-0 opacity-100"
+            leave-active-class="transition duration-200 ease-in"
+            leave-from-class="transform translate-y-0 opacity-100"
+            leave-to-class="transform -translate-y-2 opacity-0"
+          >
+            <div v-if="showOverrideToast" class="bg-amber-400 text-black px-6 py-2 rounded-full text-[24px] font-bold shadow-2xl flex items-center gap-2 backdrop-blur-md mb-3">
+              <Icon name="ri:cursor-line" class="text-[36px]" />
+              Switched to Manual Pan
+            </div>
+          </Transition>
+
+          <div class="bg-black/70 backdrop-blur-3xl px-8 py-4 rounded-full border-[3px] border-white/20 text-[28px] mono text-white flex items-center gap-3 shadow-xl">
+            <Icon :name="state.cropMode.value === 'face_tracking' ? 'ri:scan-line' : 'ri:drag-move-2-line'" class="text-accent-500 text-[36px]" />
+            <span v-if="state.cropMode.value === 'face_tracking'" class="text-white/90 ml-2">
+              FACE TRACKING 
+            </span>
+            <span v-else>
+              MANUAL PAN • {{ Math.round(state.cropPercentX.value) }}%
+            </span>
           </div>
         </div>
       </div>
@@ -504,6 +524,7 @@ const cropState = useCropDrag(
 )
 const {
   isDragging,
+  showOverrideToast,
   startDrag,
   onDrag,
   stopDrag,

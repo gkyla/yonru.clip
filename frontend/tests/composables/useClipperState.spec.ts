@@ -8,6 +8,9 @@ describe('useClipperState Composable', () => {
   beforeEach(() => {
     localStorage.clear()
     vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({}))
+    const state = useClipperState()
+    state.cropMode.value = 'face_tracking'
+    state.cropMap.value = []
   })
 
   it('updates lastAccessedClip when a valid clip finishes loading (ready)', async () => {
@@ -338,6 +341,12 @@ describe('useClipperState Composable', () => {
         })
       })
     )
+  })
+
+  it('initializes cropMode to face_tracking by default and exposes cropMap', () => {
+    const state = useClipperState()
+    expect(state.cropMode.value).toBe('face_tracking')
+    expect(state.cropMap.value).toEqual([])
   })
 })
 

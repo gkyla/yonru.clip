@@ -1,6 +1,7 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, mock_open
 import os
+import json
 import sys
 
 # Path resolution
@@ -188,3 +189,62 @@ class TestRenderEngine(unittest.TestCase):
 
             self.assertEqual(comp.crop_center_x, 500)
             self.assertIn("temp_assets/sources/video.mp4", mock_tracker.analyzed_paths)
+
+    def test_compile_composition_uses_cached_crop_map_file(self):
+        from core.face_tracker import MockFaceTracker
+
+        mock_req = MagicMock()
+        mock_req.fps = 30.0
+        mock_req.hook_index = 0
+        mock_req.timeline_tracks = []
+        mock_req.transcript = []
+        mock_req.subtitle_mode = "word"
+        mock_req.subtitle_sync_offset = 0.0
+        mock_req.font = "Arial"
+        mock_req.font_size = 24
+        mock_req.subtitle_offset = 50
+        mock_req.subtitle_font_weight = 900
+        mock_req.subtitle_text_color = "#FFFFFF"
+        mock_req.subtitle_highlight_color = "#CFFF50"
+        mock_req.subtitle_stroke_color = "#000000"
+        mock_req.subtitle_stroke_width = 4.0
+        mock_req.subtitle_text_transform = "uppercase"
+        mock_req.subtitle_animation = "pop"
+        mock_req.subtitle_highlight_mode = "color"
+        mock_req.subtitle_background = "none"
+        mock_req.subtitle_background_opacity = 0.7
+        mock_req.subtitle_word_spacing = 0
+        mock_req.volume = 0.5
+        mock_req.thumbnail_enabled = False
+        mock_req.face_tracking = True
+        mock_req.crop_percent_x = 50.0
+        mock_req.subtitle_position = "bottom"
+
+        mock_job = {
+            "clip_path": "temp_assets/clips/demo/video.mp4",
+            "video_info": {"file_path": "temp_assets/clips/demo/video.mp4", "duration": 10.0, "fps": 30.0},
+            "hooks": []
+        }
+
+        mock_asset_repo = MagicMock()
+        mock_asset_repo.get_video_resolution.return_value = (1920, 1080)
+
+        cached_crop_map = [{"time": 0.0, "x": 750}, {"time": 2.5, "x": 820}]
+        mock_tracker = MockFaceTracker(mock_result=500)
+
+        def mock_exists_side_effect(path):
+            if "crop_map.json" in str(path):
+                return True
+            return False
+
+        mock_open_data = json.dumps(cached_crop_map)
+        with patch("os.path.exists", side_effect=mock_exists_side_effect), \
+             patch("builtins.open", mock_open(read_data=mock_open_data)):
+            engine = FakeRenderEngine()
+            engine.face_tracker = mock_tracker
+            comp = engine.compile_composition(mock_job, mock_req, mock_asset_repo)
+
+            self.assertEqual(comp.crop_center_x, cached_crop_map)
+            # tracker should NOT have been invoked because crop_map.json was cached
+            self.assertEqual(len(mock_tracker.analyzed_paths), 0)
+

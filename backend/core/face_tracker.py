@@ -130,7 +130,7 @@ class FaceTracker(AbstractFaceTracker):
 
 
 class MockFaceTracker(AbstractFaceTracker):
-    def __init__(self, mock_result=960):
+    def __init__(self, mock_result: Any = 960):
         self.mock_result = mock_result
         self.analyzed_paths = []
 

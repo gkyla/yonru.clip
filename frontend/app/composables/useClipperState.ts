@@ -119,7 +119,8 @@ function createClipperState() {
   const font = useState<string>('font', () => 'Montserrat')
   const fontSize = useState<number>('fontSize', () => 50)
   const faceTracking = useState<boolean>('faceTracking', () => false)
-  const cropMode = useState<string>('cropMode', () => 'manual') // 'manual' | 'face_tracking'
+  const cropMode = useState<string>('cropMode', () => 'face_tracking') // 'manual' | 'face_tracking'
+  const cropMap = useState<Array<{ time: number, x: number }>>('cropMap', () => [])
   const cropPercentX = useState<number>('cropPercentX', () => 50) // 0=left, 50=center, 100=right
   const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
   const whisperModel = useState<string>('whisperModel', () => 'base')
@@ -432,6 +433,7 @@ function createClipperState() {
       subtitleSyncOffset: subtitleSyncOffset.value,
       font: font.value,
       fontSize: fontSize.value,
+      cropMode: cropMode.value,
       cropPercentX: cropPercentX.value,
       subtitleMode: subtitleMode.value,
       subtitleAnimation: subtitleAnimation.value,
@@ -464,6 +466,7 @@ function createClipperState() {
       subtitleSyncOffset: subtitleSyncOffset.value,
       font: font.value,
       fontSize: fontSize.value,
+      cropMode: cropMode.value,
       cropPercentX: cropPercentX.value,
       subtitleMode: subtitleMode.value,
       subtitleAnimation: subtitleAnimation.value,
@@ -651,7 +654,7 @@ function createClipperState() {
     hooks, savedHooks, activeHook, segmentPadding, folderName, clipId, fullTranscript,
     promptsList, selectedPrompt,
     youtubeUrl, language, videoLayout, subtitlePosition, subtitleOffset, subtitleSyncOffset,
-    font, fontSize, faceTracking, cropMode, cropPercentX, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
+    font, fontSize, faceTracking, cropMode, cropMap, cropPercentX, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
     whisperModels: WHISPER_MODELS,
     activeSafeZone,
     safeZoneOpacity,

@@ -125,11 +125,25 @@ class RenderEngine(ABC):
         source_height = h if h > 0 else 1080
         
         if req.face_tracking:
-            tracker = getattr(self, "face_tracker", None)
-            if not tracker:
-                from core.face_tracker import FaceTracker
-                tracker = FaceTracker()
-            crop_x = tracker.analyze_video(video_path, words_data=words_data)
+            clip_dir = os.path.dirname(video_path)
+            cached_crop_map_path = os.path.join(clip_dir, "crop_map.json")
+            crop_x = None
+            if os.path.exists(cached_crop_map_path):
+                try:
+                    with open(cached_crop_map_path, "r", encoding="utf-8") as f:
+                        cached_data = json.load(f)
+                        if (isinstance(cached_data, list) and len(cached_data) > 0) or isinstance(cached_data, (int, float)):
+                            crop_x = cached_data
+                except Exception as e:
+                    print(f"[render-engine] Failed to load cached crop_map.json: {e}")
+                    crop_x = None
+
+            if crop_x is None:
+                tracker = getattr(self, "face_tracker", None)
+                if not tracker:
+                    from core.face_tracker import FaceTracker
+                    tracker = FaceTracker()
+                crop_x = tracker.analyze_video(video_path, words_data=words_data)
         else:
             crop_x = int((req.crop_percent_x / 100.0) * source_width)
             

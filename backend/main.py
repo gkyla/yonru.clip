@@ -357,6 +357,29 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
                 except Exception as e:
                     print(f"[api] Failed to populate default thumbnail config: {e}")
 
+            # Check for Auto-Reframe crop_map
+            clip_crop_map_path = os.path.join(target_dir, "crop_map.json")
+            if not os.path.exists(clip_crop_map_path):
+                from core.face_tracker import FaceTracker
+                try:
+                    tracker = FaceTracker()
+                    crop_data = tracker.analyze_video(os.path.join(target_dir, "video.mp4"))
+                    if isinstance(crop_data, (int, float)):
+                        crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
+                    elif isinstance(crop_data, list) and len(crop_data) > 0:
+                        crop_map_points = crop_data
+                    else:
+                        crop_map_points = [{"time": 0.0, "x": 960}]
+                except Exception as e:
+                    print(f"[api] Face tracking failed for clip {clip_id}: {e}")
+                    crop_map_points = [{"time": 0.0, "x": 960}]
+                try:
+                    with open(clip_crop_map_path, "w", encoding="utf-8") as f:
+                        json.dump(crop_map_points, f, ensure_ascii=False, indent=2)
+                    print(f"[api] Populated default auto-reframe crop map to {clip_crop_map_path}")
+                except Exception as e:
+                    print(f"[api] Failed to save crop_map.json: {e}")
+
             # Ensure job object is updated for polling atomically
             job = jobs[req.job_id]
             job["status"] = "ready"
@@ -1373,6 +1396,29 @@ async def load_ready_clip(req: LoadReadyClipRequest, background_tasks: Backgroun
         )
         print(f"[api] Triggered recovery transcription for ready clip {req.clip_id} in job {job_id}")
 
+    # Check for Auto-Reframe crop_map
+    clip_crop_map_path = os.path.join(clip_dir, "crop_map.json")
+    if not os.path.exists(clip_crop_map_path):
+        from core.face_tracker import FaceTracker
+        try:
+            tracker = FaceTracker()
+            crop_data = tracker.analyze_video(clip_path)
+            if isinstance(crop_data, (int, float)):
+                crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
+            elif isinstance(crop_data, list) and len(crop_data) > 0:
+                crop_map_points = crop_data
+            else:
+                crop_map_points = [{"time": 0.0, "x": 960}]
+        except Exception as e:
+            print(f"[api] Face tracking failed for clip {req.clip_id}: {e}")
+            crop_map_points = [{"time": 0.0, "x": 960}]
+        try:
+            with open(clip_crop_map_path, "w", encoding="utf-8") as f:
+                json.dump(crop_map_points, f, ensure_ascii=False, indent=2)
+            print(f"[api] Populated default auto-reframe crop map to {clip_crop_map_path}")
+        except Exception as e:
+            print(f"[api] Failed to save crop_map.json: {e}")
+
     save_jobs()
     
     # Load persisted history if it exists
@@ -1394,3 +1440,46 @@ async def load_ready_clip(req: LoadReadyClipRequest, background_tasks: Backgroun
         "fps": jobs[job_id]["fps"],
         "history": history_data
     }
+
+
+@app.post("/api/clips/{folder_name}/{clip_id}/track-face")
+async def track_face_for_clip(folder_name: str, clip_id: str):
+    """Generates, saves, and returns Auto-Reframe crop_map.json for a clip."""
+    clip_dir = os.path.join(asset_repository.clips_dir, folder_name, clip_id)
+    video_path = os.path.join(clip_dir, "video.mp4")
+    if not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="Clip video not found")
+    
+    crop_map_path = os.path.join(clip_dir, "crop_map.json")
+    if os.path.exists(crop_map_path):
+        try:
+            with open(crop_map_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list) and len(data) > 0:
+                    return {"status": "ready", "crop_map": data}
+        except:
+            pass
+    
+    from core.face_tracker import FaceTracker
+    tracker = FaceTracker()
+    try:
+        crop_data = tracker.analyze_video(video_path)
+        if isinstance(crop_data, (int, float)):
+            crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
+        elif isinstance(crop_data, list) and len(crop_data) > 0:
+            crop_map_points = crop_data
+        else:
+            crop_map_points = [{"time": 0.0, "x": 960}]
+    except Exception as e:
+        print(f"[api] Face tracking failed for clip {clip_id}: {e}")
+        crop_map_points = [{"time": 0.0, "x": 960}]
+        
+    try:
+        with open(crop_map_path, "w", encoding="utf-8") as f:
+            json.dump(crop_map_points, f, ensure_ascii=False, indent=2)
+        print(f"[api] Saved auto-reframe crop map ({len(crop_map_points)} points) to {crop_map_path}")
+    except Exception as e:
+        print(f"[api] Failed to save crop_map.json: {e}")
+        
+    return {"status": "ready", "crop_map": crop_map_points}
+

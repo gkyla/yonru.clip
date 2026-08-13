@@ -260,6 +260,18 @@ _Avoid_: AI instructions template, analyzer prompt
 A visual presentation style inside the prompt template editor where template variables are dynamically highlighted.
 _Avoid_: Variable tag highlight, inline highlight block
 
+**Auto-Reframe Crop Map**:
+A pre-computed time-series keyframe sequence mapping video timestamps to horizontal pan positions ($X$), generated during clip ingestion via face tracking detection to provide instant WYSIWYG camera tracking in the editor and export engine.
+_Avoid_: Pan keyframes, tracking coords, face position array
+
+**Canvas Auto-Reframe Override**:
+A direct-manipulation gesture in the Video Preview canvas where dragging the video frame during active Face Tracking mode automatically switches Crop Mode to Manual Pan at the dragged horizontal position.
+_Avoid_: Drag override, manual pan switch gesture
+
+**Triple-B Stability Strategy**:
+The camera stabilization policy used during face tracking comprising Backfill (applying first detected face position to clip start), Persistence (freezing camera position during tracking loss or scene transitions), and Verification (requiring multi-frame confirmation before snapping to a new speaker).
+_Avoid_: Face smoothing, camera lock policy
+
 ---
 
 ## Flagged Ambiguities
