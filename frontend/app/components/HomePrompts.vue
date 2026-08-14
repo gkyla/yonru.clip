@@ -128,7 +128,7 @@
       <!-- Right Column: Editor Detail Canvas -->
       <div class="flex-1 w-full bg-[#111318]/90 border border-surface-border rounded-2xl p-5 sm:p-6 min-h-[560px] flex flex-col shadow-sm">
         <!-- Empty Selection State -->
-        <div v-if="!editingId && !isCreatingNew" class="flex-1 flex flex-col items-center justify-center text-center p-8">
+        <div v-if="!editingId && !isCreatingNew" class="flex-1 w-full h-full flex flex-col items-center justify-center text-center p-8">
           <div class="w-14 h-14 bg-surface-dark rounded-full border border-surface-border flex items-center justify-center mb-3 text-slate-500 shadow-inner">
             <Icon name="ri:chat-quote-line" class="text-2xl" />
           </div>
@@ -143,164 +143,168 @@
         </div>
 
         <!-- Editor Form Canvas -->
-        <div v-else class="flex flex-col gap-4 flex-1">
-          <!-- Editor Title & Action Bar -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-border/50 pb-3.5">
-            <div class="flex items-center gap-2">
-              <div class="w-2 h-2 rounded-full bg-accent-500 animate-pulse shadow-[0_0_8px_#CFFF50]"></div>
-              <h3 class="text-xs font-black text-white uppercase tracking-wider">
-                {{ editingId ? 'Modify Prompt Template' : 'New Prompt Configuration' }}
-              </h3>
-            </div>
-            <div class="flex items-center gap-2 self-end sm:self-auto">
-              <button 
-                v-if="editingId"
-                @click="showDeleteModal = true"
-                class="px-3 py-1.5 bg-[#ff4a4a]/10 border border-[#ff4a4a]/30 hover:border-[#ff4a4a] text-[#ff4a4a] hover:bg-[#ff4a4a]/20 font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all cursor-pointer"
-              >
-                Delete
-              </button>
-              <button 
-                @click="cancelEdit"
-                class="px-3 py-1.5 bg-surface-dark border border-surface-border text-slate-400 hover:text-white font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all cursor-pointer hover:border-slate-600"
-              >
-                Cancel
-              </button>
-              <button 
-                @click="savePrompt"
-                :disabled="!promptName || !promptText"
-                class="px-4 py-1.5 bg-accent-500 text-black font-black uppercase tracking-wider text-[10px] rounded-lg hover:bg-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_15px_rgba(207,255,80,0.15)] active:scale-95 cursor-pointer"
-              >
-                {{ editingId ? 'Update Prompt' : 'Save Prompt' }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Row 1: Prompt Name -->
-          <div class="flex flex-col gap-1">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5">Prompt Name</label>
-            <input 
-              v-model="promptName"
-              type="text" 
-              placeholder="e.g. Comedy Podcast Hooks" 
-              class="w-full bg-surface-dark border border-surface-border text-white px-3.5 py-2 rounded-xl focus:outline-none focus:border-accent-500/50 transition-all text-xs font-semibold placeholder-slate-600"
-            />
-          </div>
-
-          <!-- Row 2: Suitable For Tags (Option C: Pill List + Popover) -->
-          <div class="flex flex-col gap-1.5 relative">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5">Suitable For (Tags)</label>
-            <div class="flex items-center gap-1.5 flex-wrap min-h-[34px]">
-              <!-- Active Tag Badges with Custom Tooltip -->
-              <div 
-                v-for="(tag, index) in suitableFor" 
-                :key="index"
-                class="group/pill relative inline-flex items-center"
-              >
-                <span 
-                  class="bg-surface-dark border border-surface-border text-slate-200 text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1.5 group-hover/pill:border-slate-600 transition-colors select-none"
-                >
-                  <span class="text-accent-500 font-bold text-[11px]">#</span>
-                  <span class="max-w-[160px] truncate">{{ tag }}</span>
-                  <button 
-                    @click="removeTag(index)" 
-                    class="text-slate-500 hover:text-red-400 transition-colors p-0.5 rounded focus:outline-none cursor-pointer"
-                  >
-                    <Icon name="ri:close-line" class="text-xs" />
-                  </button>
-                </span>
-
-                <!-- Custom Hover Tooltip -->
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-xs font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(207,255,80,0.12)] opacity-0 group-hover/pill:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/pill:translate-y-0 flex items-center gap-1">
-                  <span class="text-accent-500 font-black">#</span>
-                  <span>{{ tag }}</span>
-                  <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0a0c12] border-b border-r border-slate-700/80 transform rotate-45"></div>
-                </div>
+        <div 
+          v-else 
+          class="flex flex-col gap-4 flex-1 w-full h-full"
+          :class="{ 'animate-template-crossfade': isSwitchingPrompt }"
+        >
+            <!-- Editor Title & Action Bar -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-border/50 pb-3.5">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-accent-500 animate-pulse shadow-[0_0_8px_#CFFF50]"></div>
+                <h3 class="text-xs font-black text-white uppercase tracking-wider">
+                  {{ editingId ? 'Modify Prompt Template' : 'New Prompt Configuration' }}
+                </h3>
               </div>
-
-              <!-- + Add Tag Trigger Button & Popover -->
-              <div class="relative" ref="tagPopoverRef">
+              <div class="flex items-center gap-2 self-end sm:self-auto">
                 <button 
-                  @click.stop="openTagPopover"
-                  class="px-2.5 py-1 bg-surface-dark hover:bg-surface-panel border border-dashed border-surface-border hover:border-accent-500/50 text-slate-400 hover:text-accent-500 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer select-none"
-                  :class="{ 'border-accent-500 text-accent-500 bg-accent-500/10': isTagPopoverOpen }"
+                  v-if="editingId"
+                  @click="showDeleteModal = true"
+                  class="px-3 py-1.5 bg-[#ff4a4a]/10 border border-[#ff4a4a]/30 hover:border-[#ff4a4a] text-[#ff4a4a] hover:bg-[#ff4a4a]/20 font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all cursor-pointer"
                 >
-                  <Icon name="ri:add-line" class="text-xs font-bold" />
-                  <span>Tag</span>
+                  Delete
                 </button>
-
-                <!-- Floating Popover -->
-                <Transition
-                  enter-active-class="transition duration-150 ease-out"
-                  enter-from-class="transform scale-95 opacity-0"
-                  enter-to-class="transform scale-100 opacity-100"
-                  leave-active-class="transition duration-100 ease-in"
-                  leave-from-class="transform scale-100 opacity-100"
-                  leave-to-class="transform scale-95 opacity-0"
+                <button 
+                  @click="cancelEdit"
+                  class="px-3 py-1.5 bg-surface-dark border border-surface-border text-slate-400 hover:text-white font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all cursor-pointer hover:border-slate-600"
                 >
-                  <div 
-                    v-if="isTagPopoverOpen"
-                    @click.stop
-                    class="absolute top-full left-0 mt-1.5 w-64 bg-[#0f1117] border border-surface-border rounded-xl shadow-2xl p-2.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150 text-left"
+                  Cancel
+                </button>
+                <button 
+                  @click="savePrompt"
+                  :disabled="!promptName || !promptText"
+                  class="px-4 py-1.5 bg-accent-500 text-black font-black uppercase tracking-wider text-[10px] rounded-lg hover:bg-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_15px_rgba(207,255,80,0.15)] active:scale-95 cursor-pointer"
+                >
+                  {{ editingId ? 'Update Prompt' : 'Save Prompt' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Row 1: Prompt Name -->
+            <div class="flex flex-col gap-1">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5">Prompt Name</label>
+              <input 
+                v-model="promptName"
+                type="text" 
+                placeholder="e.g. Comedy Podcast Hooks" 
+                class="w-full bg-surface-dark border border-surface-border text-white px-3.5 py-2 rounded-xl focus:outline-none focus:border-accent-500/50 transition-all text-xs font-semibold placeholder-slate-600"
+              />
+            </div>
+
+            <!-- Row 2: Suitable For Tags (Option C: Pill List + Popover) -->
+            <div class="flex flex-col gap-1.5 relative">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5">Suitable For (Tags)</label>
+              <div class="flex items-center gap-1.5 flex-wrap min-h-[34px]">
+                <!-- Active Tag Badges with Custom Tooltip -->
+                <div 
+                  v-for="(tag, index) in suitableFor" 
+                  :key="index"
+                  class="group/pill relative inline-flex items-center"
+                >
+                  <span 
+                    class="bg-surface-dark border border-surface-border text-slate-200 text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1.5 group-hover/pill:border-slate-600 transition-colors select-none"
                   >
-                    <div class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 px-1 flex items-center justify-between">
-                      <span>Add Tags</span>
-                      <button @click="isTagPopoverOpen = false" class="text-slate-500 hover:text-white cursor-pointer">
-                        <Icon name="ri:close-line" class="text-xs" />
-                      </button>
-                    </div>
+                    <span class="text-accent-500 font-bold text-[11px]">#</span>
+                    <span class="max-w-[160px] truncate">{{ tag }}</span>
+                    <button 
+                      @click="removeTag(index)" 
+                      class="text-slate-500 hover:text-red-400 transition-colors p-0.5 rounded focus:outline-none cursor-pointer"
+                    >
+                      <Icon name="ri:close-line" class="text-xs" />
+                    </button>
+                  </span>
 
-                    <div class="flex items-center gap-1.5 bg-surface-dark border border-surface-border rounded-lg px-2 py-1.5 focus-within:border-accent-500/60 transition-colors">
-                      <Icon name="ri:hashtag" class="text-accent-500 text-xs shrink-0" />
-                      <input 
-                        ref="tagInputRef"
-                        v-model="newTagInput"
-                        @keydown.enter.prevent="addTagFromPopover"
-                        @keydown.esc="isTagPopoverOpen = false"
-                        type="text" 
-                        placeholder="Tag name (Enter to add)" 
-                        class="w-full bg-transparent text-white text-xs focus:outline-none placeholder-slate-500"
-                      />
-                      <button 
-                        v-if="newTagInput.trim()"
-                        @click="addTagFromPopover"
-                        class="px-2 py-0.5 bg-accent-500 text-black text-[10px] font-black rounded uppercase tracking-wider hover:bg-accent-400 transition-colors shrink-0 cursor-pointer"
-                      >
-                        Add
-                      </button>
-                    </div>
+                  <!-- Custom Hover Tooltip -->
+                  <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-xs font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(207,255,80,0.12)] opacity-0 group-hover/pill:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/pill:translate-y-0 flex items-center gap-1">
+                    <span class="text-accent-500 font-black">#</span>
+                    <span>{{ tag }}</span>
+                    <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0a0c12] border-b border-r border-slate-700/80 transform rotate-45"></div>
+                  </div>
+                </div>
 
-                    <!-- Available Tag Suggestions from existing prompts -->
-                    <div v-if="suggestedTags.length > 0" class="mt-2 pt-2 border-t border-surface-border/50 flex flex-col gap-1">
-                      <span class="text-[9px] uppercase font-bold text-slate-500 px-1">Suggested</span>
-                      <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto custom-scrollbar px-1">
-                        <button
-                          v-for="st in suggestedTags"
-                          :key="st"
-                          @click="addSuggestedTag(st)"
-                          class="text-[10px] bg-white/5 hover:bg-accent-500/20 hover:text-accent-400 border border-white/5 px-2 py-0.5 rounded text-slate-300 transition-colors cursor-pointer select-none"
-                        >
-                          + {{ st }}
+                <!-- + Add Tag Trigger Button & Popover -->
+                <div class="relative" ref="tagPopoverRef">
+                  <button 
+                    @click.stop="openTagPopover"
+                    class="px-2.5 py-1 bg-surface-dark hover:bg-surface-panel border border-dashed border-surface-border hover:border-accent-500/50 text-slate-400 hover:text-accent-500 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer select-none"
+                    :class="{ 'border-accent-500 text-accent-500 bg-accent-500/10': isTagPopoverOpen }"
+                  >
+                    <Icon name="ri:add-line" class="text-xs font-bold" />
+                    <span>Tag</span>
+                  </button>
+
+                  <!-- Floating Popover -->
+                  <Transition
+                    enter-active-class="transition duration-150 ease-out"
+                    enter-from-class="transform scale-95 opacity-0"
+                    enter-to-class="transform scale-100 opacity-100"
+                    leave-active-class="transition duration-100 ease-in"
+                    leave-from-class="transform scale-100 opacity-100"
+                    leave-to-class="transform scale-95 opacity-0"
+                  >
+                    <div 
+                      v-if="isTagPopoverOpen"
+                      @click.stop
+                      class="absolute top-full left-0 mt-1.5 w-64 bg-[#0f1117] border border-surface-border rounded-xl shadow-2xl p-2.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150 text-left"
+                    >
+                      <div class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 px-1 flex items-center justify-between">
+                        <span>Add Tags</span>
+                        <button @click="isTagPopoverOpen = false" class="text-slate-500 hover:text-white cursor-pointer">
+                          <Icon name="ri:close-line" class="text-xs" />
                         </button>
                       </div>
+
+                      <div class="flex items-center gap-1.5 bg-surface-dark border border-surface-border rounded-lg px-2 py-1.5 focus-within:border-accent-500/60 transition-colors">
+                        <Icon name="ri:hashtag" class="text-accent-500 text-xs shrink-0" />
+                        <input 
+                          ref="tagInputRef"
+                          v-model="newTagInput"
+                          @keydown.enter.prevent="addTagFromPopover"
+                          @keydown.esc="isTagPopoverOpen = false"
+                          type="text" 
+                          placeholder="Tag name (Enter to add)" 
+                          class="w-full bg-transparent text-white text-xs focus:outline-none placeholder-slate-500"
+                        />
+                        <button 
+                          v-if="newTagInput.trim()"
+                          @click="addTagFromPopover"
+                          class="px-2 py-0.5 bg-accent-500 text-black text-[10px] font-black rounded uppercase tracking-wider hover:bg-accent-400 transition-colors shrink-0 cursor-pointer"
+                        >
+                          Add
+                        </button>
+                      </div>
+
+                      <!-- Available Tag Suggestions from existing prompts -->
+                      <div v-if="suggestedTags.length > 0" class="mt-2 pt-2 border-t border-surface-border/50 flex flex-col gap-1">
+                        <span class="text-[9px] uppercase font-bold text-slate-500 px-1">Suggested</span>
+                        <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto custom-scrollbar px-1">
+                          <button
+                            v-for="st in suggestedTags"
+                            :key="st"
+                            @click="addSuggestedTag(st)"
+                            class="text-[10px] bg-white/5 hover:bg-accent-500/20 hover:text-accent-400 border border-white/5 px-2 py-0.5 rounded text-slate-300 transition-colors cursor-pointer select-none"
+                          >
+                            + {{ st }}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </Transition>
+                  </Transition>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Row 3: Content Style Editor Canvas -->
-          <div class="flex flex-col gap-1 flex-1">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5">Content Style & Extraction Criteria</label>
-            <PromptEditor 
-              ref="promptEditorRef"
-              v-slot="editor"
-              v-model="promptText"
-              class="font-mono flex-1"
-            />
+            <!-- Row 3: Content Style Editor Canvas -->
+            <div class="flex flex-col gap-1 flex-1">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5">Content Style & Extraction Criteria</label>
+              <PromptEditor 
+                ref="promptEditorRef"
+                v-slot="editor"
+                v-model="promptText"
+                class="font-mono flex-1"
+              />
+            </div>
           </div>
-        </div>
       </div>
     </div>
   </div>
@@ -386,6 +390,19 @@ const searchQuery = ref('')
 
 // Refs
 const promptEditorRef = ref<any>(null)
+const isSwitchingPrompt = ref(false)
+let switchTimer: any = null
+
+function triggerSwitchAnimation() {
+  isSwitchingPrompt.value = false
+  nextTick(() => {
+    isSwitchingPrompt.value = true
+    clearTimeout(switchTimer)
+    switchTimer = setTimeout(() => {
+      isSwitchingPrompt.value = false
+    }, 280)
+  })
+}
 
 // Filtered prompts list
 const filteredPrompts = computed(() => {
@@ -469,6 +486,7 @@ function editExistingPrompt(p: any) {
   autoHooks.value = p.autoHooks ?? true
   isTagPopoverOpen.value = false
   newTagInput.value = ''
+  triggerSwitchAnimation()
 }
 
 function startNewPrompt() {
@@ -481,6 +499,7 @@ function startNewPrompt() {
   autoHooks.value = true
   isTagPopoverOpen.value = false
   newTagInput.value = ''
+  triggerSwitchAnimation()
 }
 
 function cancelEdit() {
@@ -548,6 +567,19 @@ async function executeDeletePrompt() {
 </script>
 
 <style scoped>
+@keyframes templateFade {
+  0% {
+    opacity: 0.15;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-template-crossfade {
+  animation: templateFade 280ms ease-out forwards;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
