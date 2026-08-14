@@ -213,4 +213,50 @@ describe('HomePrompts Component', () => {
     expect((wrapper.vm as any).showDeleteModal).toBe(false)
     expect((wrapper.vm as any).editingId).toBeNull()
   })
+
+  it('renders max-w-5xl container and simplified info callout banner', () => {
+    const wrapper = mount(HomePrompts, {
+      global: {
+        stubs: {
+          Icon: true,
+          PromptEditor: true
+        }
+      }
+    })
+
+    // Root container must have max-w-5xl
+    expect(wrapper.find('.max-w-5xl').exists()).toBe(true)
+
+    // Info banner should contain clear non-technical guidance
+    expect(wrapper.text()).toContain('Kustomisasi Gaya Prompt')
+    expect(wrapper.text()).not.toContain('Scoped Archetype Directives')
+    expect(wrapper.text()).not.toContain('100% Natural AI Detection')
+  })
+
+  it('limits visible tags to max 2 in list cards, displays +N badge, and provides custom tooltips', async () => {
+    mockPromptsList.value = [
+      { id: 'prompt.json::multi', name: 'Multi Tag Prompt', suitableFor: ['podcast', 'comedy', 'humor', 'talkshow'], prompt: 'Multi tag test', numHooks: 10, autoHooks: true }
+    ]
+
+    const wrapper = mount(HomePrompts, {
+      global: {
+        stubs: {
+          Icon: true,
+          PromptEditor: true
+        }
+      }
+    })
+
+    await wrapper.vm.$nextTick()
+
+    // Card should render first 2 tags and +2 count
+    expect(wrapper.text()).toContain('podcast')
+    expect(wrapper.text()).toContain('comedy')
+    expect(wrapper.text()).toContain('+2')
+
+    // Custom tooltips with hashtag prefixes should be present in the DOM
+    expect(wrapper.text()).toContain('#podcast')
+    expect(wrapper.text()).toContain('#comedy')
+    expect(wrapper.text()).toContain('#humor, #talkshow')
+  })
 })

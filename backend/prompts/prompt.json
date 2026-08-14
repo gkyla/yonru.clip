@@ -1,17 +1,5 @@
 [
     {
-        "promptName": "Podcast Blak-Blakan & Relatable Hooks",
-        "suitableFor": [
-            "Podcast ngobrol santai dengan opini jujur dan blak-blakan",
-            "Interview tamu dengan cerita hidup, kegagalan, turning point",
-            "Podcast komedian dengan humor spontan dan relatable",
-            "Podcast relationship / curhat yang penuh kejujuran personal",
-            "Live ngobrol QnA yang natural dan penuh opini"
-        ],
-        "prompt": "Identify moments where the speaker sounds unusually honest, blunt, unfiltered, witty, personally revealing, or delivering bold/uncommon opinions.\n\nLOOK FOR MOMENTS THAT FEEL LIKE:\n- \"Eh, kok dia berani ngomong gitu?\"\n- \"Ini jujur banget sih\"\n- \"Relate parah\"\n\nKEY PHRASES TO WATCH:\n- \"Gue sebenernya...\"\n- \"Orang tuh salah paham...\"\n- \"Yang orang nggak tau...\"\n- \"Gue paling benci...\"\n- \"Masalahnya tuh...\"\n- \"Sebenernya simpel...\"\n- \"Gue pernah...\"\n- \"Lucunya ya...\"\n- \"Ini kontroversial sih tapi...\"\n\nPRIORITIZE:\nMoments where the speaker uses strong emotion, emphasis, personal revelation, or expressive conversational delivery.",
-        "id": "f110fcda-91f7-4804-8615-d53fd319fd93"
-    },
-    {
         "promptName": "Podcast Blak-Blakan V2 (Deep & Raw)",
         "suitableFor": [
             "Podcast ngobrol santai dengan opini jujur dan blak-blakan",
@@ -19,8 +7,10 @@
             "Storytelling pengalaman pribadi dengan gaya conversational",
             "Obrolan deep talk dan pengakuan personal"
         ],
-        "prompt": "Identify authentic, unfiltered, and deeply relatable conversational moments:\n- Bold, unapologetic personal opinions that challenge common social norms\n- Vulnerable admissions of failure, insecurity, turning points, or personal life lessons\n- Sharp comedic banter, witty comebacks, and spontaneous humor between speakers\n- Moments that trigger intense viewer curiosity (\"Ini jujur banget\", \"Kok kepikiran ngomong gitu?\")\n\nKEY PHRASES & SIGNALS:\n- \"Jujur aja...\"\n- \"Gue baru pertama kali ngomong ini...\"\n- \"Banyak orang sok tahu...\"\n- \"Gue nyesel...\"\n- \"Titik terendah gue tuh...\"\n- \"Lucunya tuh gini...\"\n- Spontaneous laughter or sudden shifts to serious/intimate tone.",
-        "id": "78204419-c347-4df2-8a72-bb6cdf2ef134"
+        "prompt": "<p>Identify authentic, unfiltered, and deeply relatable conversational moments: </p><p>- Bold, unapologetic personal opinions that challenge common social norms - Vulnerable admissions of failure, insecurity, turning points, or personal life lessons</p><p>- Sharp comedic banter, witty comebacks, and spontaneous humor between speakers</p><p>- Moments that trigger intense viewer curiosity (\"Ini jujur banget\", \"Kok kepikiran ngomong gitu?\") </p><p>KEY PHRASES &amp; SIGNALS: </p><p>- \"Jujur aja...\" </p><p>- \"Gue baru pertama kali ngomong ini...\" </p><p>- \"Banyak orang sok tahu...\" </p><p>- \"Gue nyesel...\" </p><p>- \"Titik terendah gue tuh...\" </p><p>- \"Lucunya tuh gini...\" </p><p>- Spontaneous laughter or sudden shifts to serious/intimate tone.</p><p></p>",
+        "id": "78204419-c347-4df2-8a72-bb6cdf2ef134",
+        "numHooks": 10,
+        "autoHooks": true
     },
     {
         "promptName": "DR.Tirta Mitos & Fakta V2",
@@ -28,8 +18,10 @@
             "Segmen Mitos & Fakta",
             "Edukasi Kesehatan Ngegas & Blak-blakan"
         ],
-        "prompt": "Prioritize high-energy medical education and \"Mitos vs Fakta\" segments:\n- Speaker is highly energetic, \"ngegas\" (passionate/expressive), or frustrated by medical misinformation\n- Direct, no-nonsense debunking of widespread health myths, dangerous hoaxes, or bad advice\n- Clear, simple medical logic and relatable analogies that ordinary people understand immediately\n- Bold health revelations delivered with a blunt, authentic, and entertaining attitude\n\nQ&A PREMISE REQUIREMENT:\nIf the segment discusses a specific myth or question, ensure the opening includes the premise (the myth/question being addressed) within the first few seconds before the medical breakdown.\n\nKEY PHRASES:\n- \"Itu mitos!\"\n- \"Mitos banget!\"\n- \"Itu hoax!\"\n- \"Banyak orang ngira...\"\n- \"Secara medis tuh gini...\"\n- \"Logikanya gini ya...\"",
-        "id": "e656136a-a136-49b8-9519-14b3cc0d4bf7"
+        "prompt": "<p>Prioritize high-energy medical education and \"Mitos vs Fakta\" segments:</p><p>- Speaker is highly energetic, \"ngegas\" (passionate/expressive), or frustrated by medical misinformation <br>- Direct, no-nonsense debunking of widespread health myths, dangerous hoaxes, or bad advice <br>- Clear, simple medical logic and relatable analogies that ordinary people understand immediately <br>- Bold health revelations delivered with a blunt, authentic, and entertaining attitude <br><br>Q&amp;A PREMISE REQUIREMENT: If the segment discusses a specific myth or question, ensure the opening includes the premise (the myth/question being addressed) within the first few seconds before the medical breakdown. <br><br>KEY PHRASES: <br>- \"Itu mitos!\" <br>- \"Mitos banget!\" <br>- \"Itu hoax!\" </p><p>- \"Banyak orang ngira...\" <br>- \"Secara medis tuh gini...\"<br>- \"Logikanya gini ya...\"</p>",
+        "id": "e656136a-a136-49b8-9519-14b3cc0d4bf7",
+        "numHooks": 10,
+        "autoHooks": true
     },
     {
         "promptName": "Tentang Kesehatan (Health & Medical Education)",
@@ -38,8 +30,10 @@
             "Fact Checker",
             "Medical Revelations"
         ],
-        "prompt": "Prioritize authoritative, empathetic, and eye-opening medical breakdowns:\n- Debunking common health misconceptions and dangerous daily habits\n- Breaking down complex illnesses, bodily functions, or nutrition into simple, relatable concepts\n- Actionable, practical medical advice that changes how viewers manage their health\n- Surprising health facts that make viewers think: \"Wah, ternyata selama ini saya salah kaprah!\"\n\nQ&A PREMISE REQUIREMENT:\nIf the segment answers a specific health question or addresses a condition, ensure the topic/question context is established at the very beginning.\n\nKEY PHRASES:\n- \"Banyak orang salah paham tentang...\"\n- \"Faktanya secara medis...\"\n- \"Sebenarnya yang terjadi di tubuh kita itu...\"\n- \"Kesalahan terbesar saat sedang diet/sakit adalah...\"\n- \"Jangan langsung percaya kalau...\"",
-        "id": "6db4fd9e-a733-457d-9611-d54990334b1e"
+        "prompt": "<p>Prioritize authoritative, empathetic, and eye-opening medical breakdowns: - Debunking common health misconceptions and dangerous daily habits</p><p> - Breaking down complex illnesses, bodily functions, or nutrition into simple, relatable concepts </p><p>- Actionable, practical medical advice that changes how viewers manage their health </p><p>- Surprising health facts that make viewers think: \"Wah, ternyata selama ini saya salah kaprah!\" </p><p>Q&amp;A PREMISE REQUIREMENT: If the segment answers a specific health question or addresses a condition, ensure the topic/question context is established at the very beginning. </p><p>KEY PHRASES: </p><p>- \"Banyak orang salah paham tentang...\" </p><p>- \"Faktanya secara medis...\" </p><p>- \"Sebenarnya yang terjadi di tubuh kita itu...\" </p><p>- \"Kesalahan terbesar saat sedang diet/sakit adalah...\" </p><p>- \"Jangan langsung percaya kalau...\"</p>",
+        "id": "6db4fd9e-a733-457d-9611-d54990334b1e",
+        "numHooks": 10,
+        "autoHooks": true
     },
     {
         "promptName": "Podcast Kesehatan V1 (Storytelling & Analogi)",
