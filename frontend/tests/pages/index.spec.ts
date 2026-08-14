@@ -11,6 +11,11 @@ vi.mock('../../app/composables/useClipperState', () => ({
     youtubeUrl: ref(''),
     selectedPrompt: ref('prompt.json'),
     promptsList: ref([]),
+    extractionMode: ref('preset'),
+    selectedPresetId: ref('auto'),
+    focusTopic: ref(''),
+    minDuration: ref(30),
+    maxDuration: ref(180),
     whisperModel: ref('base'),
     language: ref('auto'),
     whisperModels: [

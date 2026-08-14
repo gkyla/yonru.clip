@@ -1,3 +1,6 @@
+export type HookIntentPreset = 'auto' | 'humor' | 'educational' | 'storytelling' | 'debate'
+export type HookExtractionMode = 'preset' | 'custom'
+
 export interface Hook {
   id?: string
   _id?: string
@@ -10,6 +13,8 @@ export interface Hook {
   originalStart?: number
   originalEnd?: number
   thumbnail_url?: string
+  virality_score?: number
+  virality_reason?: string
 }
 
 export interface CachedVideo {

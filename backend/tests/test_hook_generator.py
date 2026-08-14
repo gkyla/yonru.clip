@@ -145,3 +145,68 @@ def test_group_words_into_sentences():
     assert grouped_silence[0]["text"] == "first second"
     assert grouped_silence[1]["text"] == "third"
 
+def test_hook_generator_with_preset_mode_and_virality_sorting(sample_transcript):
+    """Verify that preset extraction works and sorts hooks descending by virality_score."""
+    raw_response = json.dumps([
+        {
+            "start": 0.0,
+            "end": 35.0,
+            "duration_seconds": 35.0,
+            "transcript_quote": "Hook 1 quote",
+            "theme": "Lower Virality Hook",
+            "virality_score": 78,
+            "virality_reason": "Good explanation but lacks emotional opening."
+        },
+        {
+            "start": 40.0,
+            "end": 90.0,
+            "duration_seconds": 50.0,
+            "transcript_quote": "Hook 2 quote",
+            "theme": "Top Viral Hook",
+            "virality_score": 95,
+            "virality_reason": "Exceptional first 3 seconds hook with strong contrast."
+        }
+    ])
+    
+    mock_client = MockGenAIClient(raw_response)
+    generator = HookGenerator(genai_client=mock_client)
+    
+    result = generator.find_hooks_from_transcript(
+        sample_transcript,
+        extraction_mode="preset",
+        preset_id="educational",
+        focus_topic="diet",
+        min_duration=30,
+        max_duration=180
+    )
+    
+    assert result is not None
+    parsed = json.loads(result)
+    assert len(parsed) == 2
+    # Verify descending sort by virality_score
+    assert parsed[0]["virality_score"] == 95
+    assert parsed[0]["theme"] == "Top Viral Hook"
+    assert parsed[1]["virality_score"] == 78
+
+def test_hook_generator_virality_score_fallback(sample_transcript):
+    """Verify fallback defaults if LLM output omits virality_score or virality_reason."""
+    raw_response = json.dumps([
+        {
+            "start": 0.0,
+            "end": 30.0,
+            "duration_seconds": 30.0,
+            "transcript_quote": "Hook without virality quote",
+            "theme": "Fallback Hook"
+        }
+    ])
+    
+    mock_client = MockGenAIClient(raw_response)
+    generator = HookGenerator(genai_client=mock_client)
+    
+    result = generator.find_hooks_from_transcript(sample_transcript, extraction_mode="preset")
+    assert result is not None
+    parsed = json.loads(result)
+    assert parsed[0]["virality_score"] >= 0
+    assert "virality_reason" in parsed[0]
+
+

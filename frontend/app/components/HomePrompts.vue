@@ -140,7 +140,7 @@
                 />
              </div>
 
-             <!-- Row 2: Tag Editor & Configuration Grid -->
+             <!-- Row 2: Tag Editor & Architectural Info Banner -->
              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                <!-- Left Column: Suitable For Tags -->
                <div class="flex flex-col gap-1.5">
@@ -170,103 +170,29 @@
                   </div>
                </div>
 
-               <!-- Right Column: Settings Grid (AI Mode & Hook Count) -->
-               <div class="bg-black/10 border border-surface-border/50 rounded-xl p-5 flex flex-col gap-3 justify-center">
-                 <!-- AI Mode toggle -->
-                 <div class="flex items-center justify-between gap-3">
-                   <div class="flex flex-col">
-                     <span class="text-xs font-black text-white uppercase tracking-wider">AI Mode Selection</span>
-                     <span class="text-[10px] text-slate-500 leading-tight mt-0.5">{{ autoHooks ? 'Natural length detection' : 'Force count' }}</span>
-                   </div>
-                   <button 
-                     @click="autoHooks = !autoHooks"
-                     class="flex items-center gap-2.5 px-3.5 py-2 rounded-lg border transition-all text-xs font-bold cursor-pointer"
-                     :class="autoHooks 
-                       ? 'bg-accent-500/10 border-accent-500/30 text-accent-500 shadow-[0_0_10px_rgba(207,255,80,0.05)]' 
-                       : 'bg-[#111318] border-surface-border text-slate-400 hover:border-accent-500/30 hover:text-slate-300'"
-                   >
-                     <div class="w-6 h-3.5 rounded-none transition-all relative" :class="autoHooks ? 'bg-accent-500' : 'bg-surface-border'">
-                       <div class="absolute top-[2px] w-2.5 h-2.5 rounded-none bg-white shadow transition-all" :class="autoHooks ? 'left-[12px]' : 'left-[2px]'"></div>
-                     </div>
-                     <span>{{ autoHooks ? 'Natural' : 'Fixed' }}</span>
-                   </button>
+               <!-- Right Column: Scoped Archetype Info Card -->
+               <div class="bg-black/10 border border-surface-border/50 rounded-xl p-4 flex flex-col justify-center gap-2">
+                 <div class="flex items-center gap-2 text-accent-500">
+                   <Icon name="ri:shield-check-line" class="text-base" />
+                   <span class="text-xs font-black uppercase tracking-wider">Scoped Archetype Directives</span>
                  </div>
- 
-                 <!-- Divider -->
-                 <div class="border-t border-surface-border/30"></div>
- 
-                 <!-- Number of Hooks slider -->
-                 <div class="flex flex-col gap-1">
-                   <div class="flex justify-between items-center">
-                     <span class="text-xs font-black text-slate-400 uppercase tracking-wider">Number of Hooks</span>
-                     <span class="text-white font-mono font-bold text-xs bg-[#111318] border border-surface-border px-2 py-0.5 rounded-md min-w-[32px] text-center" :class="{ 'opacity-30': autoHooks }">{{ autoHooks ? '—' : numHooks }}</span>
-                   </div>
-                   <div class="flex items-center gap-3 mt-1">
-                     <input 
-                       v-model.number="numHooks"
-                       type="range" min="1" max="30" step="1"
-                       class="flex-1 accent-accent-500 h-1 bg-surface-dark rounded-full appearance-none cursor-pointer disabled:opacity-30 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:bg-accent-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow"
-                       :disabled="autoHooks"
-                     />
-                   </div>
-                 </div>
+                 <p class="text-[11px] text-slate-400 leading-relaxed font-medium">
+                   Focus purely on describing your content criteria, tone, and key phrases. Core guardrails (<em class="text-slate-300">Thought Completion 4-Step</em>, <em class="text-slate-300">Anti-Overlap</em>, <em class="text-slate-300">Duration Range</em>, and <em class="text-slate-300">JSON output</em>) are automatically enforced by the analyzer engine.
+                 </p>
                </div>
              </div>
 
-             <!-- Row 3: Monospaced Text Editor Canvas -->
+             <!-- Row 3: Content Style Editor Canvas -->
              <div class="flex flex-col gap-1.5">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Prompt Template</label>
-                  
-                  <!-- Clickable badge variables legend -->
-                  <div class="flex items-center gap-1.5 text-[9px] text-slate-500 bg-surface-dark border border-surface-border px-2 py-1 rounded-lg">
-                    <span class="uppercase font-bold tracking-widest text-[8px]">Insert Variables:</span>
-                    
-                    <!-- num_hooks variable -->
-                    <div class="relative group/tooltip">
-                      <button 
-                        @click="insertVariable('{num_hooks}')"
-                        class="font-mono px-1.5 py-0.5 rounded cursor-pointer transition-all bg-surface-panel hover:text-accent-500 hover:bg-accent-500/10 hover:ring-1 hover:ring-accent-500/20 active:scale-95 text-slate-400"
-                        :class="{ 'text-accent-500 bg-accent-500/10 ring-1 ring-accent-500/30': promptText?.includes('{num_hooks}') }"
-                      >
-                        {num_hooks}
-                      </button>
-                      <!-- Tooltip Content -->
-                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 bg-slate-950/95 border border-surface-border text-slate-200 p-3 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-[60] font-sans text-[11px] leading-relaxed text-left">
-                        <div class="font-bold text-accent-500 mb-1 font-mono text-[10px] uppercase tracking-wider">{num_hooks} value:</div>
-                        <div class="font-mono bg-black/40 p-2 border border-surface-border/50 rounded-lg text-slate-300 select-all whitespace-pre-wrap break-words">{{ editorVariables.num_hooks }}</div>
-                        <!-- Tooltip Arrow -->
-                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-slate-950/95"></div>
-                      </div>
-                    </div>                     <!-- duration_constraint variable -->
-                    <div class="relative group/tooltip">
-                      <button 
-                        @click="insertVariable('{duration_constraint}')"
-                        class="font-mono px-1.5 py-0.5 rounded cursor-pointer transition-all bg-surface-panel hover:text-accent-500 hover:bg-accent-500/10 hover:ring-1 hover:ring-accent-500/20 active:scale-95 text-slate-400"
-                        :class="{ 'text-accent-500 bg-accent-500/10 ring-1 ring-accent-500/30': promptText?.includes('{duration_constraint}') }"
-                      >
-                        {duration_constraint}
-                      </button>
-                      <!-- Tooltip Content -->
-                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 bg-slate-950/95 border border-surface-border text-slate-200 p-3 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-[60] font-sans text-[11px] leading-relaxed text-left">
-                        <div class="font-bold text-accent-500 mb-1 font-mono text-[10px] uppercase tracking-wider">{duration_constraint} value:</div>
-                        <div class="font-mono bg-black/40 p-2 border border-surface-border/50 rounded-lg text-slate-300 select-all whitespace-pre-wrap break-words mb-2">{{ editorVariables.duration_constraint.trim() }}</div>
-                        <div class="text-[10px] text-slate-400 leading-normal border-t border-surface-border/50 pt-2">
-                          <span class="text-accent-500 font-semibold">Note:</span> <code class="font-mono text-white">X.X</code> will be dynamically replaced with the actual video length by the backend during analysis.
-                        </div>
-                        <!-- Tooltip Arrow -->
-                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-slate-950/95"></div>
-                      </div>
-                    </div>
-
-                  </div>
+                  <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Content Style & Extraction Criteria</label>
+                  <span class="text-[10px] text-slate-500 font-mono">100% Natural AI Detection</span>
                 </div>
                 
                 <PromptEditor 
                   ref="promptEditorRef"
                   v-slot="editor"
                   v-model="promptText"
-                  :variables="editorVariables"
                   class="font-mono"
                 />
              </div>
@@ -346,7 +272,7 @@ const suitableFor = ref<string[]>([])
 const newTag = ref('')
 const promptText = ref('')
 const numHooks = ref(10)
-const autoHooks = ref(false)
+const autoHooks = ref(true)
 
 // Search State
 const searchQuery = ref('')
@@ -359,16 +285,6 @@ const filteredPrompts = computed(() => {
   return state.promptsList.value.filter((p: any) => {
     return p.name.toLowerCase().includes(searchQuery.value.toLowerCase())
   })
-})
-
-// Computed variables for editor WYSIWYG replacement
-const editorVariables = computed(() => {
-  return {
-    num_hooks: autoHooks.value
-      ? 'Find ALL naturally compelling hooks in the transcript. Do not force a specific number — return as many or as few as genuinely qualify. Quality over quantity.'
-      : `Find exactly ${numHooks.value} hooks.`,
-    duration_constraint: '\n            VIDEO DURATION: The total length is X.X seconds. ALL timestamps MUST be within 0 and X.X.'
-  }
 })
 
 onMounted(() => {
@@ -410,7 +326,7 @@ function editExistingPrompt(p: any) {
   suitableFor.value = [...(p.suitableFor || [])]
   promptText.value = p.prompt || ''
   numHooks.value = p.numHooks ?? 10
-  autoHooks.value = p.autoHooks ?? false
+  autoHooks.value = p.autoHooks ?? true
   newTag.value = ''
 }
 
@@ -421,78 +337,13 @@ function startNewPrompt() {
   suitableFor.value = []
   promptText.value = ''
   numHooks.value = 10
-  autoHooks.value = false
+  autoHooks.value = true
   newTag.value = ''
 }
 
 function cancelEdit() {
   editingId.value = null
   isCreatingNew.value = false
-}
-
-// Click-to-insert or toggle variable logic
-function insertVariable(variable: string) {
-  const hasVar = promptText.value?.includes(variable)
-  
-  if (hasVar) {
-    // Remove the variable
-    if (promptEditorRef.value?.editor) {
-      const editor = promptEditorRef.value.editor
-      let tr = editor.state.tr
-      const matches: { start: number; end: number }[] = []
-      
-      editor.state.doc.descendants((node: any, pos: number) => {
-        if (node.isText && node.text) {
-          let index = node.text.indexOf(variable)
-          while (index !== -1) {
-            matches.push({
-              start: pos + index,
-              end: pos + index + variable.length
-            })
-            index = node.text.indexOf(variable, index + 1)
-          }
-        }
-      })
-      
-      // Sort in descending order of start position to prevent offset shifting
-      matches.sort((a, b) => b.start - a.start)
-      
-      if (matches.length > 0) {
-        matches.forEach(m => {
-          tr = tr.delete(m.start, m.end)
-        })
-        editor.view.dispatch(tr)
-      }
-    } else {
-      // Fallback for stubs or raw textareas in tests
-      const el = document.querySelector('textarea')
-      if (el) {
-        promptText.value = promptText.value.replaceAll(variable, '')
-      } else {
-        promptText.value = (promptText.value || '').replaceAll(variable, '')
-      }
-    }
-  } else {
-    // Insert the variable at cursor position
-    if (promptEditorRef.value?.editor) {
-      promptEditorRef.value.editor.chain().focus().insertContent(variable).run()
-    } else {
-      // Fallback for stubs or raw textareas in tests
-      const el = document.querySelector('textarea')
-      if (el) {
-        const start = el.selectionStart
-        const end = el.selectionEnd
-        const text = promptText.value || ''
-        promptText.value = text.substring(0, start) + variable + text.substring(end)
-        nextTick(() => {
-          el.selectionStart = el.selectionEnd = start + variable.length
-          el.focus()
-        })
-      } else {
-        promptText.value = (promptText.value || '') + variable
-      }
-    }
-  }
 }
 
 async function savePrompt() {
@@ -505,7 +356,7 @@ async function savePrompt() {
   }
   
   if (editingId.value) {
-    const success = await state.editPrompt(editingId.value, promptName.value, tags, promptText.value, numHooks.value, autoHooks.value)
+    const success = await state.editPrompt(editingId.value, promptName.value, tags, promptText.value, 10, true)
     if (success) {
       // Keep editing mode active on success
     }
@@ -517,8 +368,8 @@ async function savePrompt() {
           promptName: promptName.value,
           suitableFor: tags,
           prompt: promptText.value,
-          numHooks: numHooks.value,
-          autoHooks: autoHooks.value
+          numHooks: 10,
+          autoHooks: true
         }
       })
       state.showToast('Prompt saved successfully', 'success')

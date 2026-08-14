@@ -2,236 +2,531 @@
   <NuxtLayout>
     <div class="w-full max-w-5xl z-10 flex flex-col">
         <!-- Header Input Area -->
-        <div class="text-center mt-12 mb-10">
+        <div class="text-center mt-12 mb-10 relative z-30">
           <h2 class="text-4xl font-bold tracking-tight text-white mb-4">Paste URL. Extract Hooks.</h2>
           <p class="text-slate-400 max-w-xl mx-auto mb-8">Download strict 1080p video, extract audio locally, and let Gemini find the most viral segments.</p>
           
           <!-- Unified Analyzer Panel -->
-          <div class="px-8 w-full mb-10">
-            <div class="bg-[#111318] border border-surface-border rounded-2xl p-4 flex flex-col gap-4 shadow-2xl relative">
-              <!-- Row 1: YouTube URL Input + Analyze Button -->
-              <div class="flex items-center gap-3 relative">
-                 <input 
-                   v-model="state.youtubeUrl.value"
-                   type="url" 
-                   placeholder="Paste YouTube video URL (e.g. https://youtube.com/watch?v=...)" 
-                   class="flex-1 bg-surface-dark border border-surface-border text-white px-5 py-3.5 rounded-xl focus:outline-none focus:border-accent-500/50 transition-all font-medium text-sm placeholder-slate-500 pr-10"
+          <div class="px-4 sm:px-8 w-full mb-10 relative z-30">
+            <div 
+              class="bg-[#111318]/90 backdrop-blur-xl border border-surface-border rounded-2xl p-3 sm:p-4 shadow-2xl relative z-30 transition-all duration-300 focus-within:border-slate-600/70 focus-within:shadow-[0_0_20px_rgba(255,255,255,0.03)]"
+            >
+              <!-- Tier 1: YouTube URL Input + Analyze Button + Mobile Options Button -->
+              <div class="flex items-center gap-2 sm:gap-3 relative">
+                 <div class="relative flex-1 flex items-center">
+                   <div class="absolute left-3.5 sm:left-4 text-slate-500 flex items-center pointer-events-none">
+                     <Icon name="ri:youtube-fill" class="text-lg text-red-500/80" />
+                   </div>
+                   <input 
+                     v-model="state.youtubeUrl.value"
+                     type="url" 
+                     placeholder="Paste YouTube video URL (e.g. https://youtube.com/watch?v=...)" 
+                     class="w-full bg-surface-dark/80 border border-surface-border/80 text-white pl-10 sm:pl-11 pr-20 py-3 sm:py-3.5 rounded-xl focus:outline-none focus:border-slate-500/60 focus:ring-1 focus:ring-slate-500/20 transition-all font-medium text-xs sm:text-sm placeholder-slate-500"
+                     :disabled="isProcessing"
+                   />
+                   <div class="absolute right-2 sm:right-3 flex items-center gap-1.5">
+                     <button 
+                       v-if="state.youtubeUrl.value" 
+                       @click="state.youtubeUrl.value = ''"
+                       class="text-slate-500 hover:text-white transition-colors p-1 cursor-pointer"
+                       title="Clear URL"
+                     >
+                       <Icon name="ri:close-circle-fill" class="text-base" />
+                     </button>
+                     <button 
+                       v-else
+                       @click="handlePasteUrl"
+                       :disabled="isProcessing"
+                       class="px-2.5 py-1 bg-surface-dark hover:bg-[#1a1e27] border border-surface-border hover:border-slate-600 rounded-lg text-slate-400 hover:text-slate-200 text-[11px] font-medium transition-all flex items-center gap-1.5 cursor-pointer select-none active:scale-95 disabled:opacity-50"
+                       title="Paste URL from Clipboard"
+                     >
+                       <Icon name="ri:clipboard-line" class="text-xs text-slate-400" />
+                       <span>Paste</span>
+                     </button>
+                   </div>
+                 </div>
+
+                 <!-- Mobile Options Trigger Button (< 640px) -->
+                 <button 
+                   @click="isMobileOptionsOpen = true"
                    :disabled="isProcessing"
-                 />
+                   class="sm:hidden p-3 bg-surface-dark border border-surface-border rounded-xl text-slate-300 hover:text-white transition-all flex items-center justify-center relative shrink-0 disabled:opacity-50"
+                   :class="{ 'border-accent-500/50 text-accent-500 bg-accent-500/10': hasActiveAdvancedFilters }"
+                   title="Analyzer Settings"
+                 >
+                   <Icon name="ri:equalizer-line" class="text-lg" />
+                   <span v-if="hasActiveAdvancedFilters" class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-accent-500 ring-2 ring-[#111318]"></span>
+                 </button>
+
+                 <!-- Primary CTA Button -->
                  <button 
                    @click="handleAnalyzeClick" 
                    :disabled="!state.youtubeUrl.value || isProcessing"
-                   class="px-6 py-3.5 bg-accent-500 text-black font-black uppercase tracking-widest text-xs rounded-xl hover:bg-accent-400 hover:shadow-[0_0_15px_rgba(207,255,80,0.5)] focus:outline-none disabled:opacity-50 disabled:hover:shadow-none transition-all duration-300 shrink-0"
+                   class="px-5 sm:px-7 py-3 sm:py-3.5 bg-accent-500 text-black font-black uppercase tracking-widest text-xs rounded-xl hover:bg-accent-400 hover:shadow-[0_0_15px_rgba(207,255,80,0.5)] active:scale-[0.98] focus:outline-none disabled:opacity-50 disabled:hover:shadow-none transition-all duration-200 shrink-0 flex items-center gap-1.5 cursor-pointer"
                  >
-                   {{ isProcessing ? 'WORKING...' : 'ANALYZE' }}
+                   <Icon v-if="isProcessing" name="ri:loader-4-line" class="text-sm animate-spin" />
+                   <Icon v-else name="ri:flashlight-fill" class="text-sm" />
+                   <span>{{ isProcessing ? 'WORKING...' : 'ANALYZE' }}</span>
                  </button>
               </div>
-              
-              <!-- Separator Line -->
-              <div class="border-t border-surface-border/70"></div>
 
-              <!-- Row 2: Prompt Selection & Transcription Settings Shortcut -->
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
-                <!-- AI Prompt dropdown selector -->
-                <div class="flex items-center gap-2 flex-1 min-w-0">
-                   <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider shrink-0">AI PROMPT:</label>
-                   <div ref="promptDropdownRef" class="relative flex-1 max-w-[350px]">
-                     <!-- Dropdown Toggle Button -->
-                     <button 
-                       @click="isPromptDropdownOpen = !isPromptDropdownOpen"
-                       :disabled="isProcessing"
-                       class="w-full bg-surface-dark border border-surface-border text-white pl-3 pr-4 py-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:border-accent-500/50 flex items-center justify-between cursor-pointer disabled:opacity-50 select-none"
-                     >
-                       <span class="truncate">{{ currentPrompt?.name || 'Select a Prompt' }}</span>
-                       <Icon 
-                         name="ri:arrow-down-s-line" 
-                         class="text-slate-500 text-base font-bold transition-transform duration-200" 
-                         :class="{ 'rotate-180': isPromptDropdownOpen }"
-                       />
-                     </button>
-                     
-                     <!-- Dropdown Menu Options Panel -->
-                     <Transition
-                       enter-active-class="transition duration-100 ease-out"
-                       enter-from-class="transform scale-95 opacity-0"
-                       enter-to-class="transform scale-100 opacity-100"
-                       leave-active-class="transition duration-75 ease-in"
-                       leave-from-class="transform scale-100 opacity-100"
-                       leave-to-class="transform scale-95 opacity-0"
-                     >
-                       <div 
-                         v-if="isPromptDropdownOpen"
-                         class="absolute bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-2 left-0 w-full bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-xl shadow-2xl py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
-                       >
-                         <!-- Prompt Options List -->
-                         <div class="max-h-60 overflow-y-auto custom-scrollbar">
-                           <button 
-                             v-for="p in state.promptsList.value" 
-                             :key="p.id"
-                             @click="state.selectedPrompt.value = p.id; isPromptDropdownOpen = false"
-                             @mouseenter="hoveredPrompt = p"
-                             @mouseleave="hoveredPrompt = null"
-                             class="w-full px-3 py-2 flex items-center justify-between text-left text-xs text-slate-300 hover:bg-accent-500/10 hover:text-accent-500 transition-colors font-medium select-none"
-                           >
-                             <span class="truncate" :class="{ 'text-accent-500 font-bold': state.selectedPrompt.value === p.id }">
-                               {{ p.name }}
-                             </span>
-                             <Icon 
-                               v-if="state.selectedPrompt.value === p.id" 
-                               name="ri:checkbox-circle-fill" 
-                               class="text-accent-500 text-sm shrink-0 ml-2" 
-                             />
-                           </button>
-                         </div>
-                         
-                         <!-- Manage Prompts shortcut -->
-                         <button 
-                           @click="navigateTo('/prompts'); isPromptDropdownOpen = false"
-                           class="w-full px-3 py-2.5 flex items-center gap-2 text-left text-xs font-black text-slate-400 hover:text-accent-500 bg-[#111318] hover:bg-[#1e222b] transition-all duration-200 tracking-wider uppercase border-t border-surface-border/30"
-                         >
-                           <Icon name="ri:settings-5-line" class="text-sm shrink-0" />
-                           + Manage Prompts
-                         </button>
+              <!-- Subtle Divider (Desktop/Tablet sm:block) -->
+              <div class="hidden sm:block border-t border-surface-border/50 my-2.5"></div>
 
-                         <!-- Hover Tooltip showing Suitable For (placed outside overflow container) -->
-                         <div 
-                           v-if="hoveredPrompt && hoveredPrompt.suitableFor && hoveredPrompt.suitableFor.length"
-                           class="absolute left-full top-0 ml-2.5 w-64 bg-[#171a21]/95 backdrop-blur-md border border-accent-500/50 rounded-xl shadow-[0_0_20px_rgba(207,255,80,0.1)] p-3 z-[60] text-left animate-in fade-in duration-150 pointer-events-none"
-                         >
-                           <h5 class="text-accent-500 text-sm font-bold uppercase tracking-wider mb-2">Suitable For:</h5>
-                           <div class="flex flex-col gap-1.5">
-                             <div 
-                               v-for="(item, i) in hoveredPrompt.suitableFor" :key="i"
-                               class="text-xs text-slate-300 leading-tight flex items-start gap-1.5"
-                             >
-                               <span class="text-accent-500 mt-0.5">•</span>
-                               <span>{{ item }}</span>
-                             </div>
-                           </div>
-                         </div>
-                       </div>
-                     </Transition>
-                   </div>
+              <!-- Tier 2: Dedicated Chips Toolbar (Desktop/Tablet sm:flex) -->
+              <div class="hidden sm:flex items-center justify-between gap-2 text-left select-none text-xs">
+                <!-- Left: Dedicated Config Chips -->
+                <div class="flex items-center gap-2 flex-wrap">
+                  
+                  <!-- 1. Preset & Custom Template Dropdown Chip -->
+                  <div ref="presetDropdownRef" class="relative" :class="{ 'z-50': isPresetDropdownOpen }">
+                    <button 
+                      @click="isPresetDropdownOpen = !isPresetDropdownOpen; isLangDropdownOpen = false; isDurationDropdownOpen = false; isTopicPopoverOpen = false"
+                      :disabled="isProcessing"
+                      class="px-3 py-1.5 rounded-lg border font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-xs"
+                      :class="currentPresetOption.isCustom
+                        ? 'bg-purple-500/15 border-purple-500/40 text-purple-300 hover:border-purple-400'
+                        : isPresetDropdownOpen || state.selectedPresetId.value !== 'auto'
+                          ? 'bg-accent-500/10 border-accent-500/50 text-accent-500'
+                          : 'bg-surface-dark border-surface-border text-slate-300 hover:text-white hover:border-slate-600'"
+                    >
+                      <Icon :name="currentPresetOption.icon" class="text-sm shrink-0" :class="currentPresetOption.isCustom ? 'text-purple-400' : 'text-accent-500'" />
+                      <span class="max-w-[170px] truncate">{{ currentPresetOption.label }}</span>
+                      <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-200" :class="{ 'rotate-180': isPresetDropdownOpen }" />
+                    </button>
 
-                   <!-- Tooltip for suitableFor -->
-                   <div class="relative group cursor-help shrink-0">
-                     <Icon name="ri:information-line" class="text-slate-500 text-lg group-hover:text-accent-500 transition-colors" />
-                     
-                     <!-- Tooltip Content -->
-                     <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-80 bg-surface-panel border border-surface-border rounded-xl shadow-2xl p-4 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left">
-                       <h4 class="text-accent-500 text-xs font-bold uppercase tracking-widest mb-3">Suitable For:</h4>
-                       <div v-if="currentPrompt && currentPrompt.suitableFor && currentPrompt.suitableFor.length" class="flex flex-col gap-2">
-                         <div 
-                           v-for="(item, i) in currentPrompt.suitableFor" :key="i"
-                           class="text-[11px] text-slate-300 leading-tight flex items-start gap-2"
-                         >
-                           <span class="text-accent-500 mt-0.5">•</span>
-                           <span>{{ item }}</span>
-                         </div>
-                       </div>
-                       <div v-else class="text-[11px] text-slate-500 italic">No specific categories defined.</div>
-                       
-                       <!-- Triangle pointer -->
-                       <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-surface-panel border-b border-r border-surface-border transform rotate-45"></div>
-                     </div>
-                   </div>
+                    <!-- Preset & Custom Template Popover (Wider 2-Column Opaque Dark Layout) -->
+                    <Transition
+                      enter-active-class="transition duration-150 ease-out"
+                      enter-from-class="transform scale-95 opacity-0"
+                      enter-to-class="transform scale-100 opacity-100"
+                      leave-active-class="transition duration-100 ease-in"
+                      leave-from-class="transform scale-100 opacity-100"
+                      leave-to-class="transform scale-95 opacity-0"
+                    >
+                      <div 
+                        v-if="isPresetDropdownOpen"
+                        class="absolute top-full mt-2 left-0 w-[680px] bg-[#0f1117] border border-surface-border rounded-xl shadow-2xl p-3.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+                      >
+                        <div class="grid grid-cols-[1.3fr_1fr] gap-4 divide-x divide-surface-border/60">
+                          <!-- Column 1: Smart Intent Presets -->
+                          <div class="pr-2 flex flex-col">
+                            <div class="px-1.5 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                              <span class="flex items-center gap-1.5">
+                                <Icon name="ri:sparkling-fill" class="text-accent-500 text-xs" />
+                                Smart Intent Presets
+                              </span>
+                              <span class="text-[9px] text-slate-500 font-mono">5 PRESETS</span>
+                            </div>
+                            <div class="flex flex-col gap-1 mt-0.5">
+                              <button
+                                v-for="preset in presetOptions"
+                                :key="preset.id"
+                                @click="state.extractionMode.value = 'preset'; state.selectedPresetId.value = preset.id; isPresetDropdownOpen = false"
+                                class="w-full px-2.5 py-1.5 rounded-lg text-left transition-all flex items-start gap-2.5 hover:bg-white/5 cursor-pointer select-none"
+                                :class="state.extractionMode.value === 'preset' && state.selectedPresetId.value === preset.id ? 'bg-accent-500/10 text-accent-500 font-bold' : 'text-slate-300'"
+                              >
+                                <Icon :name="preset.icon" class="text-base shrink-0 mt-0.5" :class="state.extractionMode.value === 'preset' && state.selectedPresetId.value === preset.id ? 'text-accent-500' : 'text-slate-400'" />
+                                <div class="flex-1 min-w-0">
+                                  <div class="font-bold text-xs flex items-center justify-between">
+                                    <span>{{ preset.label }}</span>
+                                    <Icon v-if="state.extractionMode.value === 'preset' && state.selectedPresetId.value === preset.id" name="ri:check-line" class="text-accent-500 text-xs shrink-0 ml-1" />
+                                  </div>
+                                  <div class="text-[11px] text-slate-400 font-normal leading-snug mt-0.5">{{ preset.desc }}</div>
+                                </div>
+                              </button>
+                            </div>
+                          </div>
+
+                          <!-- Column 2: Custom Prompt Templates -->
+                          <div class="pl-3 flex flex-col">
+                            <div class="px-1.5 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                              <span class="flex items-center gap-1.5">
+                                <Icon name="ri:file-code-line" class="text-purple-400 text-xs" />
+                                Custom Templates
+                              </span>
+                              <NuxtLink to="/prompts" class="text-accent-500 hover:underline text-[10px] normal-case font-semibold flex items-center gap-0.5">
+                                Manage
+                                <Icon name="ri:arrow-right-up-line" class="text-[10px]" />
+                              </NuxtLink>
+                            </div>
+
+                            <div v-if="state.promptsList.value.length" class="flex flex-col gap-1 mt-0.5 max-h-[240px] overflow-y-auto custom-scrollbar flex-1">
+                              <button
+                                v-for="p in state.promptsList.value"
+                                :key="p.id"
+                                @click="state.extractionMode.value = 'custom'; state.selectedPrompt.value = p.id; isPresetDropdownOpen = false"
+                                class="w-full px-2.5 py-2 rounded-lg text-left transition-all flex items-center justify-between hover:bg-white/5 cursor-pointer select-none"
+                                :class="state.extractionMode.value === 'custom' && state.selectedPrompt.value === p.id ? 'bg-purple-500/15 text-purple-300 font-bold' : 'text-slate-300'"
+                              >
+                                <div class="flex items-center gap-1.5 min-w-0">
+                                  <Icon name="ri:file-text-line" class="text-xs shrink-0" :class="state.extractionMode.value === 'custom' && state.selectedPrompt.value === p.id ? 'text-purple-400' : 'text-slate-400'" />
+                                  <span class="truncate text-xs">{{ p.name }}</span>
+                                </div>
+                                <Icon v-if="state.extractionMode.value === 'custom' && state.selectedPrompt.value === p.id" name="ri:check-line" class="text-purple-400 text-xs shrink-0 ml-1" />
+                              </button>
+                            </div>
+                            <div v-else class="flex-1 flex flex-col items-center justify-center p-4 text-center border border-dashed border-surface-border/50 rounded-lg my-1">
+                              <Icon name="ri:file-add-line" class="text-xl text-slate-500 mb-1" />
+                              <span class="text-[11px] text-slate-400 font-medium">No custom templates</span>
+                              <NuxtLink to="/prompts" class="text-[10px] text-accent-500 hover:underline mt-1 font-bold">Create Template</NuxtLink>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Transition>
+                  </div>
+
+                  <!-- 2. Language Dropdown Chip -->
+                  <div ref="langDropdownRef" class="relative" :class="{ 'z-50': isLangDropdownOpen }">
+                    <button 
+                      @click="isLangDropdownOpen = !isLangDropdownOpen; isPresetDropdownOpen = false; isDurationDropdownOpen = false; isTopicPopoverOpen = false"
+                      :disabled="isProcessing"
+                      class="px-2.5 py-1.5 rounded-lg bg-surface-dark border border-surface-border text-slate-300 hover:text-white hover:border-slate-600 font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-xs"
+                      :class="{ 'border-accent-500/50 text-accent-500 bg-accent-500/10': state.language.value && state.language.value !== 'auto' }"
+                    >
+                      <Icon :name="currentLanguageOption.icon" class="text-sm shrink-0 text-accent-500" />
+                      <span>{{ currentLanguageOption.badge }}</span>
+                      <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-200" :class="{ 'rotate-180': isLangDropdownOpen }" />
+                    </button>
+
+                    <!-- Language Popover -->
+                    <Transition
+                      enter-active-class="transition duration-150 ease-out"
+                      enter-from-class="transform scale-95 opacity-0"
+                      enter-to-class="transform scale-100 opacity-100"
+                      leave-active-class="transition duration-100 ease-in"
+                      leave-from-class="transform scale-100 opacity-100"
+                      leave-to-class="transform scale-95 opacity-0"
+                    >
+                      <div 
+                        v-if="isLangDropdownOpen"
+                        class="absolute top-full mt-2 left-0 w-44 bg-[#0f1117] border border-surface-border rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+                      >
+                        <button 
+                          v-for="l in languageOptions" 
+                          :key="l.id"
+                          @click="state.language.value = l.id; isLangDropdownOpen = false"
+                          class="w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-left text-xs text-slate-300 hover:bg-white/5 transition-colors font-medium cursor-pointer"
+                          :class="{ 'bg-accent-500/10 text-accent-500 font-bold': (state.language.value || 'auto') === l.id }"
+                        >
+                          <span class="truncate flex items-center gap-1.5">
+                            <Icon :name="l.icon" class="text-sm shrink-0" />
+                            {{ l.label }}
+                          </span>
+                          <Icon 
+                            v-if="(state.language.value || 'auto') === l.id" 
+                            name="ri:check-line" 
+                            class="text-accent-500 text-sm shrink-0 ml-1" 
+                          />
+                        </button>
+                      </div>
+                    </Transition>
+                  </div>
+
+                  <!-- 3. Target Duration Dropdown Chip -->
+                  <div ref="durationDropdownRef" class="relative" :class="{ 'z-50': isDurationDropdownOpen }">
+                    <button 
+                      @click="isDurationDropdownOpen = !isDurationDropdownOpen; isPresetDropdownOpen = false; isLangDropdownOpen = false; isTopicPopoverOpen = false"
+                      :disabled="isProcessing"
+                      class="px-2.5 py-1.5 rounded-lg bg-surface-dark border border-surface-border text-slate-300 hover:text-white hover:border-slate-600 font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-xs"
+                      :class="{ 'border-accent-500/50 text-accent-500 bg-accent-500/10': state.minDuration.value !== 30 || state.maxDuration.value !== 180 }"
+                    >
+                      <Icon name="ri:time-line" class="text-sm shrink-0 text-accent-500" />
+                      <span>{{ currentDurationLabel }}</span>
+                      <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-200" :class="{ 'rotate-180': isDurationDropdownOpen }" />
+                    </button>
+
+                    <!-- Duration Popover -->
+                    <Transition
+                      enter-active-class="transition duration-150 ease-out"
+                      enter-from-class="transform scale-95 opacity-0"
+                      enter-to-class="transform scale-100 opacity-100"
+                      leave-active-class="transition duration-100 ease-in"
+                      leave-from-class="transform scale-100 opacity-100"
+                      leave-to-class="transform scale-95 opacity-0"
+                    >
+                      <div 
+                        v-if="isDurationDropdownOpen"
+                        class="absolute top-full mt-2 left-0 w-60 bg-[#0f1117] border border-surface-border rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+                      >
+                        <div class="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400">Target Duration</div>
+                        <div class="flex flex-col gap-0.5 mt-1">
+                          <button
+                            v-for="dp in durationPresets"
+                            :key="dp.label"
+                            @click="selectDurationPreset(dp.min, dp.max); isDurationDropdownOpen = false"
+                            class="w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-left text-xs text-slate-300 hover:bg-white/5 transition-colors font-medium cursor-pointer"
+                            :class="{ 'bg-accent-500/10 text-accent-500 font-bold': state.minDuration.value === dp.min && state.maxDuration.value === dp.max }"
+                          >
+                            <span>{{ dp.label }}</span>
+                            <Icon 
+                              v-if="state.minDuration.value === dp.min && state.maxDuration.value === dp.max" 
+                              name="ri:check-line" 
+                              class="text-accent-500 text-sm shrink-0 ml-1" 
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    </Transition>
+                  </div>
+
+                  <!-- 4. Topic Focus Chip & Mini Popover -->
+                  <div ref="topicPopoverRef" class="relative" :class="{ 'z-50': isTopicPopoverOpen }">
+                    <button 
+                      @click="isTopicPopoverOpen = !isTopicPopoverOpen; isPresetDropdownOpen = false; isLangDropdownOpen = false; isDurationDropdownOpen = false"
+                      :disabled="isProcessing"
+                      class="px-2.5 py-1.5 rounded-lg border font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-xs"
+                      :class="state.focusTopic.value
+                        ? 'bg-accent-500/10 border-accent-500/60 text-accent-500'
+                        : 'bg-surface-dark border-surface-border text-slate-300 hover:text-white hover:border-slate-600'"
+                    >
+                      <Icon name="ri:search-eye-line" class="text-sm shrink-0" :class="state.focusTopic.value ? 'text-accent-500' : 'text-slate-400'" />
+                      <span class="max-w-[130px] truncate">{{ state.focusTopic.value ? `Topic: ${state.focusTopic.value}` : 'Topic Focus' }}</span>
+                      <button 
+                        v-if="state.focusTopic.value" 
+                        @click.stop="state.focusTopic.value = ''"
+                        class="hover:text-white text-slate-400 p-0.5 rounded transition-colors"
+                        title="Clear topic"
+                      >
+                        <Icon name="ri:close-line" class="text-xs" />
+                      </button>
+                    </button>
+
+                    <!-- Topic Focus Popover Input -->
+                    <Transition
+                      enter-active-class="transition duration-150 ease-out"
+                      enter-from-class="transform scale-95 opacity-0"
+                      enter-to-class="transform scale-100 opacity-100"
+                      leave-active-class="transition duration-100 ease-in"
+                      leave-from-class="transform scale-100 opacity-100"
+                      leave-to-class="transform scale-95 opacity-0"
+                    >
+                      <div 
+                        v-if="isTopicPopoverOpen"
+                        class="absolute top-full mt-2 left-0 w-72 bg-[#0f1117] border border-surface-border rounded-xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+                      >
+                        <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 mb-2">
+                          <Icon name="ri:search-eye-line" class="text-accent-500 text-xs" />
+                          Topic Focus / Keyword (Optional)
+                        </label>
+                        <div class="relative flex items-center">
+                          <input 
+                            v-model="state.focusTopic.value"
+                            type="text"
+                            placeholder="e.g. Mitos air es, tips diet..."
+                            class="w-full bg-surface-dark border border-surface-border text-white text-xs px-3 py-2 rounded-lg focus:outline-none focus:border-slate-500/60 focus:ring-1 focus:ring-slate-500/20 placeholder-slate-500 pr-7 transition-colors"
+                            :disabled="isProcessing"
+                            @keydown.enter="isTopicPopoverOpen = false"
+                          />
+                          <button 
+                            v-if="state.focusTopic.value" 
+                            @click="state.focusTopic.value = ''"
+                            class="absolute right-2 text-slate-500 hover:text-white text-xs cursor-pointer"
+                          >
+                            <Icon name="ri:close-circle-fill" />
+                          </button>
+                        </div>
+                        <div class="flex items-center justify-between mt-2 pt-1 border-t border-surface-border/50">
+                          <span class="text-[10px] text-slate-500">Injects focused instruction</span>
+                          <button 
+                            @click="isTopicPopoverOpen = false"
+                            class="text-[10px] text-accent-500 hover:underline font-bold cursor-pointer"
+                          >
+                            Done
+                          </button>
+                        </div>
+                      </div>
+                    </Transition>
+                  </div>
+
                 </div>
 
-                <!-- Language dropdown selector (Same style as AI PROMPT) -->
-                <div class="flex items-center gap-2">
-                   <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider shrink-0">LANGUAGE:</label>
-                   <div ref="langDropdownRef" class="relative w-44">
-                     <!-- Dropdown Toggle Button -->
-                     <button 
-                       @click="isLangDropdownOpen = !isLangDropdownOpen"
-                       :disabled="isProcessing"
-                       class="w-full bg-surface-dark border border-surface-border text-white pl-3 pr-4 py-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:border-accent-500/50 flex items-center justify-between cursor-pointer disabled:opacity-50 select-none"
-                     >
-                       <span class="truncate font-bold flex items-center gap-1.5">
-                         <Icon :name="currentLanguageOption.icon" class="text-accent-500 text-sm shrink-0" />
-                         {{ currentLanguageOption.label }}
-                       </span>
-                       <Icon 
-                         name="ri:arrow-down-s-line" 
-                         class="text-slate-500 text-base font-bold transition-transform duration-200" 
-                         :class="{ 'rotate-180': isLangDropdownOpen }"
-                       />
-                     </button>
-                     
-                     <!-- Dropdown Menu Options Panel -->
-                     <Transition
-                       enter-active-class="transition duration-100 ease-out"
-                       enter-from-class="transform scale-95 opacity-0"
-                       enter-to-class="transform scale-100 opacity-100"
-                       leave-active-class="transition duration-75 ease-in"
-                       leave-from-class="transform scale-100 opacity-100"
-                       leave-to-class="transform scale-95 opacity-0"
-                     >
-                       <div 
-                         v-if="isLangDropdownOpen"
-                         class="absolute bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-2 left-0 w-full bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-xl shadow-2xl py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
-                       >
-                         <!-- Language Options List -->
-                         <div class="overflow-y-auto custom-scrollbar">
-                           <button 
-                             v-for="l in languageOptions" 
-                             :key="l.id"
-                             @click="state.language.value = l.id; isLangDropdownOpen = false"
-                             class="w-full px-3 py-2 flex items-center justify-between text-left text-xs text-slate-300 hover:bg-accent-500/10 hover:text-accent-500 transition-colors font-medium select-none"
-                           >
-                             <span class="truncate flex items-center gap-1.5" :class="{ 'text-accent-500 font-bold': state.language.value === l.id }">
-                               <Icon :name="l.icon" class="text-sm shrink-0" />
-                               {{ l.label }}
-                             </span>
-                             <Icon 
-                               v-if="state.language.value === l.id" 
-                               name="ri:checkbox-circle-fill" 
-                               class="text-accent-500 text-sm shrink-0 ml-2" 
-                             />
-                           </button>
-                         </div>
-                       </div>
-                     </Transition>
-                   </div>
-                </div>
-
-                <!-- Transcriber settings display & Shortcut -->
-                <div class="flex items-center gap-2 justify-end shrink-0 select-none">
+                <!-- Right: Whisper Model Status & Settings Shortcut -->
+                <div class="flex items-center gap-1.5 shrink-0 justify-end">
                   <!-- Active Transcriber Metadata Badge -->
-                  <div class="group relative cursor-help flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 font-mono text-[10px] font-bold tracking-wider uppercase">
+                  <div class="group relative cursor-help flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 font-mono text-[10px] font-bold tracking-wider uppercase hover:border-slate-600 transition-colors">
                     <span class="w-1.5 h-1.5 rounded-full bg-accent-500"></span>
-                    WHISPER: {{ state?.whisperModel?.value || 'BASE' }}
+                    <span>WHISPER: {{ state?.whisperModel?.value || 'BASE' }}</span>
 
                     <!-- Transcription Model Tooltip Card -->
-                    <div class="absolute bottom-full right-0 mb-3 w-72 bg-[#171a21]/95 backdrop-blur-md border border-accent-500/50 rounded-xl p-4 shadow-[0_0_20px_rgba(207,255,80,0.1)] opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left pointer-events-none">
-                      <div class="flex justify-between items-start mb-2">
+                    <div class="absolute bottom-full right-0 mb-2 w-72 bg-[#0f1117] border border-accent-500/50 rounded-xl p-3.5 shadow-[0_0_20px_rgba(207,255,80,0.15)] opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left pointer-events-none">
+                      <div class="flex justify-between items-start mb-1.5">
                         <span class="font-black uppercase tracking-widest text-xs text-accent-500">{{ activeWhisperMetadata.name }}</span>
-                        <Icon name="ri:checkbox-circle-fill" class="text-accent-500 text-base shrink-0" />
+                        <Icon name="ri:checkbox-circle-fill" class="text-accent-500 text-sm shrink-0" />
                       </div>
-                      <div class="flex gap-2 mb-3">
+                      <div class="flex gap-1.5 mb-2">
                         <span class="text-[9px] px-1.5 py-0.5 rounded bg-surface-dark border border-surface-border text-slate-400 font-bold uppercase tracking-tighter">{{ activeWhisperMetadata.speed }}</span>
                         <span class="text-[9px] px-1.5 py-0.5 rounded bg-surface-dark border border-surface-border text-slate-400 font-bold uppercase tracking-tighter">{{ activeWhisperMetadata.acc }}</span>
                       </div>
                       <p class="text-[11px] leading-relaxed text-slate-400 font-sans normal-case tracking-normal">{{ activeWhisperMetadata.desc }}</p>
-
-                      <!-- Triangle pointer -->
-                      <div class="absolute -bottom-2 right-8 w-4 h-4 bg-[#171a21] border-b border-r border-accent-500/50 transform rotate-45 z-40"></div>
+                      <div class="absolute -bottom-1.5 right-6 w-3 h-3 bg-[#0f1117] border-b border-r border-accent-500/50 transform rotate-45 z-40"></div>
                     </div>
                   </div>
-                  
+
                   <!-- Settings Shortcut Button -->
                   <button 
                     @click="state.settingsScrollTarget.value = 'settings-whisper'; navigateTo('/settings')"
-                    class="p-2.5 bg-surface-dark hover:bg-surface-panel border border-surface-border text-slate-400 hover:text-white rounded-lg hover:border-accent-500/50 hover:shadow-[0_0_10px_rgba(207,255,80,0.1)] transition-all duration-300 flex items-center justify-center cursor-pointer"
+                    class="p-1.5 bg-surface-dark hover:bg-surface-panel border border-surface-border text-slate-400 hover:text-white rounded-lg hover:border-accent-500/50 hover:shadow-[0_0_10px_rgba(207,255,80,0.1)] transition-all duration-200 flex items-center justify-center cursor-pointer"
                     title="Transcriber Settings"
                     :disabled="isProcessing"
                   >
-                    <Icon name="ri:settings-4-fill" class="text-base" />
+                    <Icon name="ri:settings-4-fill" class="text-sm" />
                   </button>
                 </div>
               </div>
             </div>
           </div>
+
+          <!-- Mobile Action Sheet Modal (< 640px) -->
+          <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+          >
+            <div v-if="isMobileOptionsOpen" class="fixed inset-0 z-50 flex items-end sm:hidden">
+              <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="isMobileOptionsOpen = false"></div>
+              
+              <div class="relative w-full bg-[#14171f] border-t border-surface-border rounded-t-2xl p-5 shadow-2xl flex flex-col gap-4 max-h-[85vh] overflow-y-auto custom-scrollbar animate-in slide-in-from-bottom duration-200 text-left">
+                <!-- Header -->
+                <div class="flex items-center justify-between pb-2 border-b border-surface-border/60">
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-xl bg-accent-500/10 border border-accent-500/30 flex items-center justify-center text-accent-500">
+                      <Icon name="ri:equalizer-line" class="text-base" />
+                    </div>
+                    <div>
+                      <h4 class="text-sm font-bold text-white">Analyzer Options</h4>
+                      <p class="text-[11px] text-slate-400">Configure AI extraction parameters</p>
+                    </div>
+                  </div>
+                  <button @click="isMobileOptionsOpen = false" class="p-2 text-slate-400 hover:text-white rounded-lg">
+                    <Icon name="ri:close-line" class="text-xl" />
+                  </button>
+                </div>
+
+                <!-- Section: Presets -->
+                <div class="flex flex-col gap-2">
+                  <label class="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                    <Icon name="ri:sparkling-fill" class="text-accent-500 text-xs" />
+                    Intent Preset
+                  </label>
+                  <div class="grid grid-cols-1 gap-1.5">
+                    <button
+                      v-for="preset in presetOptions"
+                      :key="preset.id"
+                      @click="state.extractionMode.value = 'preset'; state.selectedPresetId.value = preset.id"
+                      class="w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer"
+                      :class="state.extractionMode.value === 'preset' && state.selectedPresetId.value === preset.id
+                        ? 'bg-accent-500/15 border-accent-500 text-accent-400 font-bold'
+                        : 'bg-surface-dark border-surface-border text-slate-300'"
+                    >
+                      <div class="flex items-center gap-2.5">
+                        <Icon :name="preset.icon" class="text-base" :class="state.extractionMode.value === 'preset' && state.selectedPresetId.value === preset.id ? 'text-accent-500' : 'text-slate-400'" />
+                        <div>
+                          <div class="text-xs font-bold">{{ preset.label }}</div>
+                          <div class="text-[10px] text-slate-400">{{ preset.desc }}</div>
+                        </div>
+                      </div>
+                      <Icon v-if="state.extractionMode.value === 'preset' && state.selectedPresetId.value === preset.id" name="ri:check-line" class="text-accent-500 text-base shrink-0" />
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Section: Custom Templates (if any) -->
+                <div v-if="state.promptsList.value.length" class="flex flex-col gap-2">
+                  <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                      <Icon name="ri:file-code-line" class="text-purple-400 text-xs" />
+                      Or Custom Template
+                    </label>
+                    <NuxtLink to="/prompts" @click="isMobileOptionsOpen = false" class="text-accent-500 text-[10px] font-bold hover:underline">Manage</NuxtLink>
+                  </div>
+                  <div class="grid grid-cols-1 gap-1.5">
+                    <button
+                      v-for="p in state.promptsList.value"
+                      :key="p.id"
+                      @click="state.extractionMode.value = 'custom'; state.selectedPrompt.value = p.id"
+                      class="w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer"
+                      :class="state.extractionMode.value === 'custom' && state.selectedPrompt.value === p.id
+                        ? 'bg-purple-500/20 border-purple-500 text-purple-300 font-bold'
+                        : 'bg-surface-dark border-surface-border text-slate-300'"
+                    >
+                      <span class="text-xs">{{ p.name }}</span>
+                      <Icon v-if="state.extractionMode.value === 'custom' && state.selectedPrompt.value === p.id" name="ri:check-line" class="text-purple-400 text-base shrink-0" />
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Section: Language & Duration in Grid -->
+                <div class="grid grid-cols-2 gap-3">
+                  <!-- Language -->
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">Language</label>
+                    <select
+                      v-model="state.language.value"
+                      class="w-full bg-surface-dark border border-surface-border text-white text-xs px-3 py-2.5 rounded-xl focus:outline-none focus:border-slate-500/60 focus:ring-1 focus:ring-slate-500/20"
+                    >
+                      <option v-for="l in languageOptions" :key="l.id" :value="l.id">
+                        {{ l.label }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <!-- Duration -->
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">Target Duration</label>
+                    <select
+                      :value="`${state.minDuration.value}-${state.maxDuration.value}`"
+                      @change="(e) => {
+                        const val = (e.target as HTMLSelectElement).value;
+                        const [min, max] = val.split('-').map(Number);
+                        if (min !== undefined && max !== undefined) selectDurationPreset(min, max);
+                      }"
+                      class="w-full bg-surface-dark border border-surface-border text-white text-xs px-3 py-2.5 rounded-xl focus:outline-none focus:border-slate-500/60 focus:ring-1 focus:ring-slate-500/20"
+                    >
+                      <option v-for="dp in durationPresets" :key="dp.label" :value="`${dp.min}-${dp.max}`">
+                        {{ dp.label }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Section: Topic Focus -->
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                    <Icon name="ri:search-eye-line" class="text-accent-500 text-xs" />
+                    Topic Focus / Keyword
+                  </label>
+                  <div class="relative flex items-center">
+                    <input 
+                      v-model="state.focusTopic.value"
+                      type="text"
+                      placeholder="e.g. Mitos air es, diet pemula..."
+                      class="w-full bg-surface-dark border border-surface-border text-white text-xs px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-slate-500/60 focus:ring-1 focus:ring-slate-500/20 placeholder-slate-500 pr-8"
+                    />
+                    <button 
+                      v-if="state.focusTopic.value" 
+                      @click="state.focusTopic.value = ''"
+                      class="absolute right-3 text-slate-500 hover:text-white text-xs cursor-pointer"
+                    >
+                      <Icon name="ri:close-circle-fill" />
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Footer Action -->
+                <button
+                  @click="isMobileOptionsOpen = false"
+                  class="w-full py-3 bg-accent-500 text-black font-black uppercase tracking-widest text-xs rounded-xl hover:bg-accent-400 transition-colors mt-2 cursor-pointer"
+                >
+                  Apply & Close
+                </button>
+              </div>
+            </div>
+          </Transition>
 
           <div v-if="state.jobError.value" class="text-red-400 text-sm mt-4 mono bg-red-500/10 inline-block px-3 py-1 rounded border border-red-500/20 shadow-lg">
             {{ state.jobError.value }}
@@ -866,6 +1161,35 @@
                   <div class="flex justify-between items-start mb-4">
                     <div class="flex items-center gap-2">
                       <span class="bg-surface-dark border border-surface-border px-2 py-0.5 rounded-none text-[10px] b-mono text-accent-500 font-black tracking-widest">HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}</span>
+                      
+                      <!-- Virality Score Badge -->
+                      <div v-if="hook.virality_score !== undefined" class="relative group/viral flex items-center">
+                        <div 
+                          class="px-2 py-0.5 rounded text-[10px] font-black tracking-wider flex items-center gap-1 cursor-help transition-all shadow-sm select-none"
+                          :class="{
+                            'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]': hook.virality_score >= 90,
+                            'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.2)]': hook.virality_score >= 75 && hook.virality_score < 90,
+                            'bg-slate-700/40 text-slate-300 border border-slate-600/40': hook.virality_score < 75
+                          }"
+                        >
+                          <Icon :name="hook.virality_score >= 90 ? 'ri:fire-fill' : (hook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-xs" />
+                          <span>{{ hook.virality_score }}</span>
+                        </div>
+
+                        <!-- Tooltip with English Explanation -->
+                        <div 
+                          v-if="hook.virality_reason"
+                          class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-[#171a21]/95 backdrop-blur-md border border-surface-border text-[11px] text-slate-200 p-2.5 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/viral:opacity-100 group-hover/viral:pointer-events-auto transition-all translate-y-1 group-hover/viral:translate-y-0 z-40 font-medium normal-case tracking-normal text-left"
+                        >
+                          <div class="text-[10px] font-bold text-accent-500 uppercase tracking-widest mb-1 flex items-center gap-1">
+                            <Icon name="ri:sparkling-fill" class="text-xs" />
+                            Virality Breakdown ({{ hook.virality_score }}/100)
+                          </div>
+                          <div class="text-slate-300 leading-snug">{{ hook.virality_reason }}</div>
+                          <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-[#171a21]"></div>
+                        </div>
+                      </div>
+
                       <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
                         <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
                           <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
@@ -951,6 +1275,35 @@
                   <div class="flex justify-between items-start mb-4">
                     <div class="flex items-center gap-2">
                       <span class="bg-surface-dark border border-amber-500/30 px-2 py-0.5 rounded-none text-[10px] b-mono text-amber-500 font-black tracking-widest">SAVED</span>
+                      
+                      <!-- Virality Score Badge -->
+                      <div v-if="hook.virality_score !== undefined" class="relative group/viral flex items-center">
+                        <div 
+                          class="px-2 py-0.5 rounded text-[10px] font-black tracking-wider flex items-center gap-1 cursor-help transition-all shadow-sm select-none"
+                          :class="{
+                            'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]': hook.virality_score >= 90,
+                            'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.2)]': hook.virality_score >= 75 && hook.virality_score < 90,
+                            'bg-slate-700/40 text-slate-300 border border-slate-600/40': hook.virality_score < 75
+                          }"
+                        >
+                          <Icon :name="hook.virality_score >= 90 ? 'ri:fire-fill' : (hook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-xs" />
+                          <span>{{ hook.virality_score }}</span>
+                        </div>
+
+                        <!-- Tooltip with English Explanation -->
+                        <div 
+                          v-if="hook.virality_reason"
+                          class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-[#171a21]/95 backdrop-blur-md border border-surface-border text-[11px] text-slate-200 p-2.5 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/viral:opacity-100 group-hover/viral:pointer-events-auto transition-all translate-y-1 group-hover/viral:translate-y-0 z-40 font-medium normal-case tracking-normal text-left"
+                        >
+                          <div class="text-[10px] font-bold text-accent-500 uppercase tracking-widest mb-1 flex items-center gap-1">
+                            <Icon name="ri:sparkling-fill" class="text-xs" />
+                            Virality Breakdown ({{ hook.virality_score }}/100)
+                          </div>
+                          <div class="text-slate-300 leading-snug">{{ hook.virality_reason }}</div>
+                          <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-[#171a21]"></div>
+                        </div>
+                      </div>
+
                       <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
                         <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
                           <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
@@ -1064,13 +1417,40 @@
              <div class="md:w-1/2 p-6 md:p-8 flex flex-col border-t md:border-t-0 md:border-l border-surface-border bg-surface-panel/50 overflow-y-auto custom-scrollbar select-text">
                 <div class="flex-1">
                    <div class="flex items-center gap-3 mb-4">
-                     <span class="bg-accent-500/10 text-accent-500 border border-accent-500/20 px-2 py-1 rounded text-[10px] b-mono font-black tracking-widest">
-                       PREVIEW
-                     </span>
-                     <button @click.stop="toggleSaveHook(selectedModalHook)" class="text-slate-400 hover:text-amber-400 transition-colors">
-                        <Icon :name="isHookSaved(selectedModalHook) ? 'ri:bookmark-fill' : 'ri:bookmark-line'" class="text-xl" :class="{'text-amber-400': isHookSaved(selectedModalHook)}" />
-                     </button>
-                   </div>
+                      <span class="bg-accent-500/10 text-accent-500 border border-accent-500/20 px-2 py-1 rounded text-[10px] b-mono font-black tracking-widest">
+                        PREVIEW
+                      </span>
+
+                      <!-- Virality Score Pill in Modal -->
+                      <div 
+                        v-if="selectedModalHook.virality_score !== undefined"
+                        class="px-2.5 py-0.5 rounded-lg text-xs font-black tracking-wider flex items-center gap-1.5 shadow-sm"
+                        :class="{
+                          'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40': selectedModalHook.virality_score >= 90,
+                          'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40': selectedModalHook.virality_score >= 75 && selectedModalHook.virality_score < 90,
+                          'bg-slate-700/40 text-slate-300 border border-slate-600/40': selectedModalHook.virality_score < 75
+                        }"
+                      >
+                        <Icon :name="selectedModalHook.virality_score >= 90 ? 'ri:fire-fill' : (selectedModalHook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-sm" />
+                        <span>VIRAL SCORE: {{ selectedModalHook.virality_score }}/100</span>
+                      </div>
+
+                      <button @click.stop="toggleSaveHook(selectedModalHook)" class="text-slate-400 hover:text-amber-400 transition-colors ml-auto">
+                         <Icon :name="isHookSaved(selectedModalHook) ? 'ri:bookmark-fill' : 'ri:bookmark-line'" class="text-xl" :class="{'text-amber-400': isHookSaved(selectedModalHook)}" />
+                      </button>
+                    </div>
+
+                    <!-- Virality Explanation Box (if present) -->
+                    <div 
+                      v-if="selectedModalHook.virality_reason"
+                      class="mb-4 p-3.5 bg-[#171a21] border border-surface-border rounded-xl text-left shadow-lg"
+                    >
+                      <div class="text-[10px] font-bold text-accent-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                        <Icon name="ri:sparkling-fill" class="text-xs" />
+                        Virality Breakdown
+                      </div>
+                      <p class="text-xs text-slate-300 leading-relaxed">{{ selectedModalHook.virality_reason }}</p>
+                    </div>
 
                    <h3 class="text-xl md:text-2xl font-bold text-white mb-3 leading-tight">{{ selectedModalHook.theme || 'Untitled Hook' }}</h3>
                    
@@ -1763,7 +2143,7 @@
 </template>
 
 <script setup lang="ts">
-import type { CachedVideo, Hook, ReadyClip, PromptTemplate, WhisperModelOption } from '../types/clipper'
+import type { CachedVideo, Hook, ReadyClip, PromptTemplate, WhisperModelOption, HookExtractionMode, HookIntentPreset } from '../types/clipper'
 
 const state = useClipperState()
 const API_BASE = 'http://localhost:8000'
@@ -1775,6 +2155,90 @@ const savedPlaybackTime = ref<number | null>(null)
 const isPromptDropdownOpen = ref(false)
 const promptDropdownRef = ref<HTMLElement | null>(null)
 const hoveredPrompt = ref<PromptTemplate | null>(null)
+
+async function handlePasteUrl() {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+      const text = await navigator.clipboard.readText()
+      if (text) {
+        state.youtubeUrl.value = text.trim()
+      }
+    }
+  } catch (err) {
+    console.error('Failed to read from clipboard:', err)
+  }
+}
+
+const isPresetDropdownOpen = ref(false)
+const presetDropdownRef = ref<HTMLElement | null>(null)
+
+const isDurationDropdownOpen = ref(false)
+const durationDropdownRef = ref<HTMLElement | null>(null)
+
+const isTopicPopoverOpen = ref(false)
+const topicPopoverRef = ref<HTMLElement | null>(null)
+
+const isMobileOptionsOpen = ref(false)
+
+interface PresetOption {
+  id: HookIntentPreset
+  label: string
+  icon: string
+  desc: string
+}
+
+const presetOptions: PresetOption[] = [
+  { id: 'auto', label: 'Auto Detect Virality', icon: 'ri:fire-fill', desc: 'Identifies highest-retention moments across all styles' },
+  { id: 'humor', label: 'Funny & Relatable', icon: 'ri:emotion-laugh-line', desc: 'Focuses on punchlines, comedic timing, and humor' },
+  { id: 'educational', label: 'Edukasi & Debunk', icon: 'ri:lightbulb-line', desc: 'Debunks myths, explains facts, and provides simple analogies' },
+  { id: 'storytelling', label: 'Story & Deep Talk', icon: 'ri:mic-line', desc: 'Narrative story arcs, turning points, and personal reflections' },
+  { id: 'debate', label: 'Hot Takes', icon: 'ri:flashlight-fill', desc: 'Bold opinions, passionate arguments, and controversial takes' }
+]
+
+const currentPresetOption = computed(() => {
+  if (state.extractionMode.value === 'custom') {
+    const promptName = currentPrompt.value?.name
+    return {
+      id: 'custom',
+      label: promptName ? `Custom: ${promptName}` : 'Custom Template',
+      icon: 'ri:file-code-line',
+      desc: 'Using custom prompt template',
+      isCustom: true
+    }
+  }
+  const found = presetOptions.find(p => p.id === state.selectedPresetId.value)
+  return found ? { ...found, isCustom: false } : { ...presetOptions[0]!, isCustom: false }
+})
+
+const durationPresets = [
+  { label: '30s - 180s (Default / Full Story)', min: 30, max: 180 },
+  { label: '< 60s (Quick Bites)', min: 15, max: 60 },
+  { label: '60s - 180s (Deep Insight)', min: 60, max: 180 }
+]
+
+function selectDurationPreset(min: number, max: number) {
+  state.minDuration.value = min
+  state.maxDuration.value = max
+}
+
+const currentDurationLabel = computed(() => {
+  const min = state.minDuration.value
+  const max = state.maxDuration.value
+  if (min === 30 && max === 180) return '30s - 180s'
+  if (min === 15 && max === 60) return '< 60s'
+  if (min === 60 && max === 180) return '60s - 180s'
+  return `${min}s - ${max}s`
+})
+
+const hasActiveAdvancedFilters = computed(() => {
+  return Boolean(
+    state.focusTopic.value ||
+    state.extractionMode.value === 'custom' ||
+    state.minDuration.value !== 30 ||
+    state.maxDuration.value !== 180 ||
+    (state.language.value && state.language.value !== 'auto')
+  )
+})
 
 const isLangDropdownOpen = ref(false)
 const langDropdownRef = ref<HTMLElement | null>(null)
@@ -1852,14 +2316,24 @@ const previewVideoUrl = computed(() => {
 
 
 function handleDocumentClick(e: MouseEvent) {
-  if (promptDropdownRef.value && !promptDropdownRef.value.contains(e.target as Node)) {
-    isPromptDropdownOpen.value = false
+  const target = e.target as Node
+  if (presetDropdownRef.value && !presetDropdownRef.value.contains(target)) {
+    isPresetDropdownOpen.value = false
   }
-  if (langDropdownRef.value && !langDropdownRef.value.contains(e.target as Node)) {
+  if (langDropdownRef.value && !langDropdownRef.value.contains(target)) {
     isLangDropdownOpen.value = false
   }
-  if (sortDropdownRef.value && !sortDropdownRef.value.contains(e.target as Node)) {
+  if (durationDropdownRef.value && !durationDropdownRef.value.contains(target)) {
+    isDurationDropdownOpen.value = false
+  }
+  if (topicPopoverRef.value && !topicPopoverRef.value.contains(target)) {
+    isTopicPopoverOpen.value = false
+  }
+  if (sortDropdownRef.value && !sortDropdownRef.value.contains(target)) {
     isSortDropdownOpen.value = false
+  }
+  if (promptDropdownRef.value && !promptDropdownRef.value.contains(target)) {
+    isPromptDropdownOpen.value = false
   }
 }
 

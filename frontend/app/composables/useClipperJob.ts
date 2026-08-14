@@ -1,7 +1,7 @@
 // useClipperJob.ts - Extracted video ingestion and polling lifecycle
 import { useTimelineState } from './useTimelineState'
 import { mapThumbnailOverlays } from '../utils/thumbnailHelpers'
-import type { Hook, TranscriptSegment, ThumbnailTextOverlay, SubtitleStyleSettings, ThumbnailConfig, JobApiResponse, TimelineTrack } from '../types/clipper'
+import type { Hook, TranscriptSegment, ThumbnailTextOverlay, SubtitleStyleSettings, ThumbnailConfig, JobApiResponse, TimelineTrack, HookExtractionMode, HookIntentPreset } from '../types/clipper'
 
 export const useClipperJob = () => {
   const API_BASE = 'http://localhost:8000'
@@ -36,6 +36,11 @@ export const useClipperJob = () => {
   // Settings/prompts
   const promptsList = useState<{id: string, name: string, suitableFor: string[], prompt?: string, numHooks?: number, autoHooks?: boolean}[]>('promptsList', () => [])
   const selectedPrompt = useState<string>('selectedPrompt', () => 'prompt.json')
+  const extractionMode = useState<HookExtractionMode>('extractionMode', () => 'preset')
+  const selectedPresetId = useState<HookIntentPreset>('selectedPresetId', () => 'auto')
+  const focusTopic = useState<string>('focusTopic', () => '')
+  const minDuration = useState<number>('minDuration', () => 30)
+  const maxDuration = useState<number>('maxDuration', () => 180)
   const youtubeUrl = useState<string>('youtubeUrl', () => '')
   const language = useState<string>('language', () => 'id')
   const whisperModel = useState<string>('whisperModel', () => 'base')
@@ -261,7 +266,12 @@ export const useClipperJob = () => {
           language: language.value, 
           prompt_file: selectedPrompt.value,
           num_hooks: currentPrompt?.numHooks ?? 10,
-          auto_hooks: currentPrompt?.autoHooks ?? false
+          auto_hooks: currentPrompt?.autoHooks ?? false,
+          extraction_mode: extractionMode.value,
+          preset_id: selectedPresetId.value,
+          focus_topic: focusTopic.value ? focusTopic.value.trim() : null,
+          min_duration: minDuration.value || 30,
+          max_duration: maxDuration.value || 180
         }
       })
 
