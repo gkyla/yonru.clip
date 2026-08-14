@@ -50,9 +50,19 @@ Format the note exactly as follows:
 
 YOU MUST ALWAYS format your Git commit messages using the Conventional Commits specification with an explicit scope representing the component or package being changed. Every commit message must begin with an appropriate type and scope prefix (e.g., `feat(editor):`, `fix(api):`, `chore(deps):`, `docs(readme):`, `style(styles):`, `refactor(player):`, `test(tests):`, `ci(actions):`).
 
+### Commit Type Classification Guidelines:
+- **`style(<scope>):`**: Visual UI adjustments, CSS/Tailwind tweaks, layout positioning, padding/margins, component aesthetics, tooltips, and copywriting polish without adding new backend endpoints or core business logic.
+- **`feat(<scope>):`**: New business features, new backend APIs, or major system capability additions.
+- **`fix(<scope>):`**: Bug fixes, error resolutions, and logic regressions.
+- **`refactor(<scope>):`**: Code reorganization, cleanup, or structure improvements without changing external behavior or UI appearance.
+- **`test(<scope>):`**: Adding or updating unit/integration test suites.
+- **`docs(<scope>):`**: Updating documentation, guides, or README files.
+- **`chore(<scope>):`**: Dependency upgrades, build configuration, or tooling maintenance.
+
 Additionally, YOU MUST ALWAYS use plain, straightforward, and simple language in your commit messages, code comments, and explanations. Avoid overly complex, high-brow, or jargon-heavy words (such as 'decommission', 'ameliorate', 'facilitate', etc.). Prefer simple, active verbs (such as 'remove', 'fix', 'help', 'use', etc.) after the Conventional Commit prefix so that all communications, comments, and Git history logs remain clear, direct, and accessible to everyone.
 
 Example commit messages:
+- `style(prompts): revamp layout width, banner callout, and tag selector`
 - `feat(settings): add system check and api key test`
 - `fix(timeline): correct text alignment on timeline`
 - `chore(deps): update dependencies`
