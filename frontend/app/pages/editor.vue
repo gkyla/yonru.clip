@@ -584,6 +584,21 @@
                   <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
                     HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}
                   </span>
+                  
+                  <!-- Virality Score Badge -->
+                  <div 
+                    v-if="hook.virality_score !== undefined"
+                    class="px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider flex items-center gap-0.5"
+                    :class="{
+                      'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40': hook.virality_score >= 90,
+                      'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40': hook.virality_score >= 75 && hook.virality_score < 90,
+                      'bg-slate-700/40 text-slate-300 border border-slate-600/40': hook.virality_score < 75
+                    }"
+                  >
+                    <Icon :name="hook.virality_score >= 90 ? 'ri:fire-fill' : (hook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-[10px]" />
+                    <span>{{ hook.virality_score }}</span>
+                  </div>
+
                   <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center z-20">
                     <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
                       <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
@@ -629,6 +644,20 @@
                   <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
                     SAVED {{ String(Number(idx) + 1).padStart(2, '0') }}
                   </span>
+                  
+                  <!-- Virality Score Badge -->
+                  <div 
+                    v-if="hook.virality_score !== undefined"
+                    class="px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider flex items-center gap-0.5"
+                    :class="{
+                      'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40': hook.virality_score >= 90,
+                      'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40': hook.virality_score >= 75 && hook.virality_score < 90,
+                      'bg-slate-700/40 text-slate-300 border border-slate-600/40': hook.virality_score < 75
+                    }"
+                  >
+                    <Icon :name="hook.virality_score >= 90 ? 'ri:fire-fill' : (hook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-[10px]" />
+                    <span>{{ hook.virality_score }}</span>
+                  </div>
                   <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center z-20">
                     <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
                       <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready

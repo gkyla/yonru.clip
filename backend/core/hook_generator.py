@@ -3,11 +3,13 @@ import json
 from typing import Optional
 from core.genai_client import GeminiGenAIClient
 from core.prompt_repository import FilePromptRepository
+from core.modular_prompt_builder import ModularCompositePromptBuilder
 
 class HookGenerator:
-    def __init__(self, api_key=None, genai_client=None, prompt_repository=None):
+    def __init__(self, api_key=None, genai_client=None, prompt_repository=None, modular_builder=None):
         self.client = genai_client or GeminiGenAIClient(api_key=api_key)
         self.model_name = "gemini-2.5-flash"
+        self.modular_builder = modular_builder or ModularCompositePromptBuilder()
         if prompt_repository is not None:
             self.repository = prompt_repository
         else:
@@ -73,13 +75,25 @@ class HookGenerator:
             
         return grouped
 
-    def find_hooks_from_transcript(self, transcript_segments: list, num_hooks: int = 3, auto_hooks: bool = False, video_duration: Optional[float] = None, prompt_file: str = "prompt.json"):
+    def find_hooks_from_transcript(
+        self,
+        transcript_segments: list,
+        num_hooks: int = 10,
+        auto_hooks: bool = False,
+        video_duration: Optional[float] = None,
+        prompt_file: Optional[str] = None,
+        extraction_mode: str = "preset",
+        preset_id: str = "auto",
+        focus_topic: Optional[str] = None,
+        min_duration: int = 30,
+        max_duration: int = 180
+    ):
         """
-        Send raw transcript text to Gemini to identify hooks. 
-        Much faster and more accurate than analyzing raw audio.
+        Send raw transcript text to Gemini to identify hooks.
+        Supports both Smart Presets (via ModularCompositePromptBuilder) and Custom Templates.
         """
         grouped_segments = self._group_words_into_sentences(transcript_segments)
-        print(f"[gemini] Requesting transcript-based analysis for {len(transcript_segments)} segments grouped into {len(grouped_segments)} sentences (auto={auto_hooks}, num={num_hooks})...")
+        print(f"[gemini] Requesting transcript-based analysis for {len(transcript_segments)} segments grouped into {len(grouped_segments)} sentences (mode={extraction_mode}, preset={preset_id}, auto={auto_hooks}, num={num_hooks})...")
         
         # Format transcript for prompt
         transcript_text = ""
@@ -88,23 +102,33 @@ class HookGenerator:
             dur = float(s["duration"])
             transcript_text += f"[{start:.2f}s - {start+dur:.2f}s] {s['text']}\n"
 
-        duration_constraint = ""
-        if video_duration:
-            duration_constraint = f"\n            VIDEO DURATION: The total length is {video_duration:.1f} seconds. ALL timestamps MUST be within 0 and {video_duration:.1f}."
-
-        prompt_template = self.repository.get_prompt_text(prompt_file)
-        if prompt_template is None:
-            print(f"[gemini] Failed to load prompt file {prompt_file} via repository")
-            return None
-            
-        try:
-            # Build hook count instruction
-            if auto_hooks:
-                hook_count_instruction = "Find ALL naturally compelling hooks in the transcript. Do not force a specific number — return as many or as few as genuinely qualify. Quality over quantity."
+        # Determine prompt based on extraction_mode
+        if extraction_mode == "custom" and prompt_file:
+            prompt_template = self.repository.get_prompt_text(prompt_file)
+            if prompt_template is None:
+                print(f"[gemini] Failed to load prompt file {prompt_file} via repository, falling back to preset builder")
+                prompt = self.modular_builder.build_prompt(
+                    transcript_text=transcript_text,
+                    preset_id=preset_id,
+                    focus_topic=focus_topic,
+                    min_duration=min_duration,
+                    max_duration=max_duration,
+                    num_hooks=num_hooks,
+                    auto_hooks=auto_hooks,
+                    video_duration=video_duration
+                )
             else:
-                hook_count_instruction = f"Find exactly {num_hooks} hooks."
-                
-            fixed_suffix = """
+                try:
+                    duration_constraint = ""
+                    if video_duration:
+                        duration_constraint = f"\n            VIDEO DURATION: The total length is {video_duration:.1f} seconds. ALL timestamps MUST be within 0 and {video_duration:.1f}."
+
+                    if auto_hooks:
+                        hook_count_instruction = "Find ALL naturally compelling hooks in the transcript. Do not force a specific number — return as many or as few as genuinely qualify. Quality over quantity."
+                    else:
+                        hook_count_instruction = f"Find exactly {num_hooks} hooks."
+
+                    fixed_suffix = """
 
 OUTPUT FORMAT (JSON Array):
 Each object must have:
@@ -113,21 +137,32 @@ Each object must have:
 - "duration_seconds" (number).
 - "transcript_quote" (string): exact spoken words.
 - "theme" (string): short title.
+- "virality_score" (integer 0-100): rating of virality potential.
+- "virality_reason" (string): concise explanation in English.
 
 TRANSCRIPT DATA:
 {transcript_text}"""
-            prompt_template += fixed_suffix
-                
-            prompt = prompt_template.format(
-                num_hooks=hook_count_instruction,
-                duration_constraint=duration_constraint,
-                transcript_text=transcript_text
+                    prompt_template += fixed_suffix
+                    prompt = prompt_template.format(
+                        num_hooks=hook_count_instruction,
+                        duration_constraint=duration_constraint,
+                        transcript_text=transcript_text
+                    )
+                except Exception as e:
+                    print(f"[gemini] Failed to build custom prompt template: {e}")
+                    return None
+        else:
+            prompt = self.modular_builder.build_prompt(
+                transcript_text=transcript_text,
+                preset_id=preset_id,
+                focus_topic=focus_topic,
+                min_duration=min_duration,
+                max_duration=max_duration,
+                num_hooks=num_hooks,
+                auto_hooks=auto_hooks,
+                video_duration=video_duration
             )
-        except Exception as e:
-            print(f"[gemini] Failed to build prompt template: {e}")
-            return None
 
-            
         max_retries = 3
         for attempt in range(max_retries):
             print(f"[gemini] Requesting text analysis (Attempt {attempt + 1}/{max_retries})...")
@@ -135,14 +170,31 @@ TRANSCRIPT DATA:
                 raw_json = self.client.generate_json(prompt, self.model_name)
                 parsed = json.loads(raw_json)
                 if isinstance(parsed, list) and len(parsed) > 0:
+                    # Sanitize and ensure virality_score and virality_reason are present
+                    for idx, hook in enumerate(parsed):
+                        if not isinstance(hook, dict):
+                            continue
+                        # Default virality_score if missing or invalid
+                        v_score = hook.get("virality_score")
+                        if not isinstance(v_score, (int, float)) or v_score < 0 or v_score > 100:
+                            hook["virality_score"] = 85 - (idx * 2) # Graceful tier fallback
+                        else:
+                            hook["virality_score"] = int(round(v_score))
+
+                        if not hook.get("virality_reason"):
+                            hook["virality_reason"] = "Compelling opening hook with natural narrative pacing."
+
+                    # Sort hooks descending by virality_score
+                    parsed.sort(key=lambda h: h.get("virality_score", 0), reverse=True)
+
                     print(f"[gemini] Successfully generated {len(parsed)} hooks from transcript.")
                     return json.dumps(parsed)
             except Exception as e:
                 print(f"[gemini] Error analyzing transcript (Retry {attempt+1}): {e}")
-                # Check for fatal HTTP/API status codes to fail fast
                 code = getattr(e, "code", None) or getattr(e, "status_code", None)
                 if code and code in [400, 401, 403, 404]:
                     print(f"[gemini] Fatal error {code}. Failing fast without retry.")
                     break
         
         return None
+

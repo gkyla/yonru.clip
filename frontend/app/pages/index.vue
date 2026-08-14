@@ -30,114 +30,195 @@
               <!-- Separator Line -->
               <div class="border-t border-surface-border/70"></div>
 
-              <!-- Row 2: Prompt Selection & Transcription Settings Shortcut -->
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
-                <!-- AI Prompt dropdown selector -->
-                <div class="flex items-center gap-2 flex-1 min-w-0">
-                   <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider shrink-0">AI PROMPT:</label>
-                   <div ref="promptDropdownRef" class="relative flex-1 max-w-[350px]">
-                     <!-- Dropdown Toggle Button -->
-                     <button 
-                       @click="isPromptDropdownOpen = !isPromptDropdownOpen"
-                       :disabled="isProcessing"
-                       class="w-full bg-surface-dark border border-surface-border text-white pl-3 pr-4 py-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:border-accent-500/50 flex items-center justify-between cursor-pointer disabled:opacity-50 select-none"
-                     >
-                       <span class="truncate">{{ currentPrompt?.name || 'Select a Prompt' }}</span>
-                       <Icon 
-                         name="ri:arrow-down-s-line" 
-                         class="text-slate-500 text-base font-bold transition-transform duration-200" 
-                         :class="{ 'rotate-180': isPromptDropdownOpen }"
-                       />
-                     </button>
-                     
-                     <!-- Dropdown Menu Options Panel -->
-                     <Transition
-                       enter-active-class="transition duration-100 ease-out"
-                       enter-from-class="transform scale-95 opacity-0"
-                       enter-to-class="transform scale-100 opacity-100"
-                       leave-active-class="transition duration-75 ease-in"
-                       leave-from-class="transform scale-100 opacity-100"
-                       leave-to-class="transform scale-95 opacity-0"
-                     >
-                       <div 
-                         v-if="isPromptDropdownOpen"
-                         class="absolute bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-2 left-0 w-full bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-xl shadow-2xl py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
-                       >
-                         <!-- Prompt Options List -->
-                         <div class="max-h-60 overflow-y-auto custom-scrollbar">
-                           <button 
-                             v-for="p in state.promptsList.value" 
-                             :key="p.id"
-                             @click="state.selectedPrompt.value = p.id; isPromptDropdownOpen = false"
-                             @mouseenter="hoveredPrompt = p"
-                             @mouseleave="hoveredPrompt = null"
-                             class="w-full px-3 py-2 flex items-center justify-between text-left text-xs text-slate-300 hover:bg-accent-500/10 hover:text-accent-500 transition-colors font-medium select-none"
-                           >
-                             <span class="truncate" :class="{ 'text-accent-500 font-bold': state.selectedPrompt.value === p.id }">
-                               {{ p.name }}
-                             </span>
-                             <Icon 
-                               v-if="state.selectedPrompt.value === p.id" 
-                               name="ri:checkbox-circle-fill" 
-                               class="text-accent-500 text-sm shrink-0 ml-2" 
-                             />
-                           </button>
-                         </div>
-                         
-                         <!-- Manage Prompts shortcut -->
-                         <button 
-                           @click="navigateTo('/prompts'); isPromptDropdownOpen = false"
-                           class="w-full px-3 py-2.5 flex items-center gap-2 text-left text-xs font-black text-slate-400 hover:text-accent-500 bg-[#111318] hover:bg-[#1e222b] transition-all duration-200 tracking-wider uppercase border-t border-surface-border/30"
-                         >
-                           <Icon name="ri:settings-5-line" class="text-sm shrink-0" />
-                           + Manage Prompts
-                         </button>
+              <!-- Row 2: Smart Intent Presets Bar & Quick Controls -->
+              <div class="flex flex-wrap items-center justify-between gap-3 text-left">
+                <!-- Preset Pills -->
+                <div class="flex items-center gap-1.5 flex-wrap min-w-0">
+                  <span class="text-slate-400 text-[10px] font-black uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
+                    <Icon name="ri:sparkling-fill" class="text-accent-500 text-xs" />
+                    PRESET:
+                  </span>
 
-                         <!-- Hover Tooltip showing Suitable For (placed outside overflow container) -->
-                         <div 
-                           v-if="hoveredPrompt && hoveredPrompt.suitableFor && hoveredPrompt.suitableFor.length"
-                           class="absolute left-full top-0 ml-2.5 w-64 bg-[#171a21]/95 backdrop-blur-md border border-accent-500/50 rounded-xl shadow-[0_0_20px_rgba(207,255,80,0.1)] p-3 z-[60] text-left animate-in fade-in duration-150 pointer-events-none"
-                         >
-                           <h5 class="text-accent-500 text-sm font-bold uppercase tracking-wider mb-2">Suitable For:</h5>
-                           <div class="flex flex-col gap-1.5">
-                             <div 
-                               v-for="(item, i) in hoveredPrompt.suitableFor" :key="i"
-                               class="text-xs text-slate-300 leading-tight flex items-start gap-1.5"
-                             >
-                               <span class="text-accent-500 mt-0.5">•</span>
-                               <span>{{ item }}</span>
-                             </div>
-                           </div>
-                         </div>
-                       </div>
-                     </Transition>
-                   </div>
+                  <!-- Smart Presets -->
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      v-for="preset in presetOptions"
+                      :key="preset.id"
+                      @click="state.extractionMode.value = 'preset'; state.selectedPresetId.value = preset.id"
+                      :disabled="isProcessing"
+                      class="group/preset relative px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 select-none"
+                      :class="state.extractionMode.value === 'preset' && state.selectedPresetId.value === preset.id 
+                        ? 'bg-accent-500 text-black shadow-[0_0_15px_rgba(207,255,80,0.3)] ring-1 ring-accent-400' 
+                        : 'bg-surface-dark border border-surface-border text-slate-300 hover:text-white hover:border-slate-600 hover:bg-[#1a1e27]'"
+                    >
+                      <Icon :name="preset.icon" class="text-sm shrink-0" :class="state.extractionMode.value === 'preset' && state.selectedPresetId.value === preset.id ? 'text-black' : 'text-accent-500'" />
+                      <span>{{ preset.label }}</span>
 
-                   <!-- Tooltip for suitableFor -->
-                   <div class="relative group cursor-help shrink-0">
-                     <Icon name="ri:information-line" class="text-slate-500 text-lg group-hover:text-accent-500 transition-colors" />
-                     
-                     <!-- Tooltip Content -->
-                     <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-80 bg-surface-panel border border-surface-border rounded-xl shadow-2xl p-4 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left">
-                       <h4 class="text-accent-500 text-xs font-bold uppercase tracking-widest mb-3">Suitable For:</h4>
-                       <div v-if="currentPrompt && currentPrompt.suitableFor && currentPrompt.suitableFor.length" class="flex flex-col gap-2">
-                         <div 
-                           v-for="(item, i) in currentPrompt.suitableFor" :key="i"
-                           class="text-[11px] text-slate-300 leading-tight flex items-start gap-2"
-                         >
-                           <span class="text-accent-500 mt-0.5">•</span>
-                           <span>{{ item }}</span>
-                         </div>
-                       </div>
-                       <div v-else class="text-[11px] text-slate-500 italic">No specific categories defined.</div>
-                       
-                       <!-- Triangle pointer -->
-                       <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-surface-panel border-b border-r border-surface-border transform rotate-45"></div>
-                     </div>
-                   </div>
+                      <!-- Tooltip -->
+                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-[#171a21]/95 backdrop-blur-md border border-surface-border text-[11px] text-slate-300 p-2.5 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/preset:opacity-100 group-hover/preset:pointer-events-auto transition-all translate-y-1 group-hover/preset:translate-y-0 z-50 font-medium normal-case tracking-normal text-left">
+                        <div class="font-bold text-accent-500 text-[10px] uppercase tracking-wider mb-1">{{ preset.label }}</div>
+                        <div>{{ preset.desc }}</div>
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-[#171a21]"></div>
+                      </div>
+                    </button>
+
+                    <!-- Active Custom Prompt Pill (if custom mode is selected) -->
+                    <button
+                      v-if="state.extractionMode.value === 'custom'"
+                      @click="isOptionsDrawerOpen = true"
+                      class="px-3 py-2 rounded-xl text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.2)] flex items-center gap-1.5"
+                    >
+                      <Icon name="ri:file-code-line" class="text-sm text-purple-400" />
+                      <span>Custom: {{ currentPrompt?.name || 'Custom Prompt' }}</span>
+                    </button>
+                  </div>
                 </div>
 
-                <!-- Language dropdown selector (Same style as AI PROMPT) -->
+                <!-- Right Side: Options Drawer Toggle -->
+                <div class="flex items-center gap-2">
+                  <button
+                    @click="isOptionsDrawerOpen = !isOptionsDrawerOpen"
+                    :disabled="isProcessing"
+                    class="px-3 py-2 bg-surface-dark border border-surface-border text-slate-300 hover:text-white hover:border-accent-500/50 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    :class="{ 'border-accent-500/50 text-accent-500 bg-surface-panel shadow-[0_0_10px_rgba(207,255,80,0.1)]': isOptionsDrawerOpen || state.focusTopic.value || state.extractionMode.value === 'custom' }"
+                  >
+                    <Icon name="ri:equalizer-line" class="text-sm" />
+                    <span>Options</span>
+                    <span v-if="state.focusTopic.value" class="w-2 h-2 rounded-full bg-accent-500"></span>
+                    <Icon 
+                      name="ri:arrow-down-s-line" 
+                      class="text-xs transition-transform duration-200" 
+                      :class="{ 'rotate-180': isOptionsDrawerOpen }" 
+                    />
+                  </button>
+                </div>
+              </div>
+
+              <!-- Collapsible Options Drawer -->
+              <Transition
+                enter-active-class="transition duration-200 ease-out"
+                enter-from-class="transform opacity-0 -translate-y-2 scale-98"
+                enter-to-class="transform opacity-100 translate-y-0 scale-100"
+                leave-active-class="transition duration-150 ease-in"
+                leave-from-class="transform opacity-100 translate-y-0 scale-100"
+                leave-to-class="transform opacity-0 -translate-y-2 scale-98"
+              >
+                <div 
+                  v-if="isOptionsDrawerOpen" 
+                  class="pt-3 border-t border-surface-border/50 grid grid-cols-1 md:grid-cols-3 gap-4 text-left animate-in fade-in duration-200"
+                >
+                  <!-- Option 1: Focus Topic / Keyword -->
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                      <Icon name="ri:search-eye-line" class="text-accent-500 text-xs" />
+                      Topic Focus / Keyword (Optional)
+                    </label>
+                    <div class="relative flex items-center">
+                      <input
+                        v-model="state.focusTopic.value"
+                        type="text"
+                        placeholder="e.g. Mitos air es, diet pemula..."
+                        class="w-full bg-surface-dark border border-surface-border text-white text-xs px-3 py-2.5 rounded-xl focus:outline-none focus:border-accent-500/50 placeholder-slate-500 pr-8 transition-colors"
+                        :disabled="isProcessing"
+                      />
+                      <button 
+                        v-if="state.focusTopic.value" 
+                        @click="state.focusTopic.value = ''"
+                        class="absolute right-2.5 text-slate-500 hover:text-white text-xs"
+                      >
+                        <Icon name="ri:close-circle-fill" />
+                      </button>
+                    </div>
+                    <span class="text-[10px] text-slate-500">Injects focused instruction to find moments matching this topic.</span>
+                  </div>
+
+                  <!-- Option 2: Target Duration Selector -->
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                      <Icon name="ri:time-line" class="text-accent-500 text-xs" />
+                      Target Duration
+                    </label>
+                    <div class="flex flex-col gap-1">
+                      <div class="grid grid-cols-3 gap-1">
+                        <button
+                          @click="selectDurationPreset(30, 180)"
+                          class="px-2 py-2 rounded-lg text-[10px] font-bold transition-all text-center border"
+                          :class="state.minDuration.value === 30 && state.maxDuration.value === 180 
+                            ? 'bg-accent-500 text-black border-accent-400 shadow-sm' 
+                            : 'bg-surface-dark border-surface-border text-slate-300 hover:text-white'"
+                        >
+                          30s-180s (Default)
+                        </button>
+                        <button
+                          @click="selectDurationPreset(15, 60)"
+                          class="px-2 py-2 rounded-lg text-[10px] font-bold transition-all text-center border"
+                          :class="state.minDuration.value === 15 && state.maxDuration.value === 60 
+                            ? 'bg-accent-500 text-black border-accent-400 shadow-sm' 
+                            : 'bg-surface-dark border-surface-border text-slate-300 hover:text-white'"
+                        >
+                          &lt; 60s (Quick)
+                        </button>
+                        <button
+                          @click="selectDurationPreset(60, 180)"
+                          class="px-2 py-2 rounded-lg text-[10px] font-bold transition-all text-center border"
+                          :class="state.minDuration.value === 60 && state.maxDuration.value === 180 
+                            ? 'bg-accent-500 text-black border-accent-400 shadow-sm' 
+                            : 'bg-surface-dark border-surface-border text-slate-300 hover:text-white'"
+                        >
+                          60s-180s (Deep)
+                        </button>
+                      </div>
+                      <span class="text-[10px] text-slate-500">Constraint target: {{ state.minDuration.value }}s – {{ state.maxDuration.value }}s</span>
+                    </div>
+                  </div>
+
+                  <!-- Option 3: Extraction Mode & Custom Prompts -->
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider flex items-center justify-between">
+                      <span class="flex items-center gap-1">
+                        <Icon name="ri:tools-line" class="text-accent-500 text-xs" />
+                        Extraction Mode
+                      </span>
+                      <NuxtLink to="/prompts" class="text-accent-500 hover:underline text-[10px] normal-case">Manage Templates</NuxtLink>
+                    </label>
+                    <div class="flex items-center gap-1">
+                      <button
+                        @click="state.extractionMode.value = 'preset'"
+                        class="flex-1 px-3 py-2 rounded-lg text-xs font-bold border transition-all text-center"
+                        :class="state.extractionMode.value === 'preset' ? 'bg-accent-500 text-black border-accent-400 font-bold' : 'bg-surface-dark border-surface-border text-slate-400 hover:text-white'"
+                      >
+                        ✨ Smart Presets
+                      </button>
+                      <button
+                        @click="state.extractionMode.value = 'custom'"
+                        class="flex-1 px-3 py-2 rounded-lg text-xs font-bold border transition-all text-center"
+                        :class="state.extractionMode.value === 'custom' ? 'bg-purple-500 text-white border-purple-400 font-bold' : 'bg-surface-dark border-surface-border text-slate-400 hover:text-white'"
+                      >
+                        📁 Custom Template
+                      </button>
+                    </div>
+
+                    <!-- Custom Prompt Dropdown (if custom mode active) -->
+                    <div v-if="state.extractionMode.value === 'custom'" class="mt-1">
+                      <select
+                        v-model="state.selectedPrompt.value"
+                        class="w-full bg-surface-dark border border-surface-border text-white text-xs px-3 py-2 rounded-lg focus:outline-none focus:border-purple-400 transition-colors"
+                      >
+                        <option v-for="p in state.promptsList.value" :key="p.id" :value="p.id">
+                          {{ p.name }}
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </Transition>
+
+              <!-- Separator Line -->
+              <div class="border-t border-surface-border/70"></div>
+
+              <!-- Row 3: Language & Whisper Transcriber -->
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                <!-- Language dropdown selector -->
                 <div class="flex items-center gap-2">
                    <label class="text-slate-400 text-[10px] font-black uppercase tracking-wider shrink-0">LANGUAGE:</label>
                    <div ref="langDropdownRef" class="relative w-44">
@@ -866,6 +947,35 @@
                   <div class="flex justify-between items-start mb-4">
                     <div class="flex items-center gap-2">
                       <span class="bg-surface-dark border border-surface-border px-2 py-0.5 rounded-none text-[10px] b-mono text-accent-500 font-black tracking-widest">HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}</span>
+                      
+                      <!-- Virality Score Badge -->
+                      <div v-if="hook.virality_score !== undefined" class="relative group/viral flex items-center">
+                        <div 
+                          class="px-2 py-0.5 rounded text-[10px] font-black tracking-wider flex items-center gap-1 cursor-help transition-all shadow-sm select-none"
+                          :class="{
+                            'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]': hook.virality_score >= 90,
+                            'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.2)]': hook.virality_score >= 75 && hook.virality_score < 90,
+                            'bg-slate-700/40 text-slate-300 border border-slate-600/40': hook.virality_score < 75
+                          }"
+                        >
+                          <Icon :name="hook.virality_score >= 90 ? 'ri:fire-fill' : (hook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-xs" />
+                          <span>{{ hook.virality_score }}</span>
+                        </div>
+
+                        <!-- Tooltip with English Explanation -->
+                        <div 
+                          v-if="hook.virality_reason"
+                          class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-[#171a21]/95 backdrop-blur-md border border-surface-border text-[11px] text-slate-200 p-2.5 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/viral:opacity-100 group-hover/viral:pointer-events-auto transition-all translate-y-1 group-hover/viral:translate-y-0 z-40 font-medium normal-case tracking-normal text-left"
+                        >
+                          <div class="text-[10px] font-bold text-accent-500 uppercase tracking-widest mb-1 flex items-center gap-1">
+                            <Icon name="ri:sparkling-fill" class="text-xs" />
+                            Virality Breakdown ({{ hook.virality_score }}/100)
+                          </div>
+                          <div class="text-slate-300 leading-snug">{{ hook.virality_reason }}</div>
+                          <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-[#171a21]"></div>
+                        </div>
+                      </div>
+
                       <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
                         <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
                           <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
@@ -951,6 +1061,35 @@
                   <div class="flex justify-between items-start mb-4">
                     <div class="flex items-center gap-2">
                       <span class="bg-surface-dark border border-amber-500/30 px-2 py-0.5 rounded-none text-[10px] b-mono text-amber-500 font-black tracking-widest">SAVED</span>
+                      
+                      <!-- Virality Score Badge -->
+                      <div v-if="hook.virality_score !== undefined" class="relative group/viral flex items-center">
+                        <div 
+                          class="px-2 py-0.5 rounded text-[10px] font-black tracking-wider flex items-center gap-1 cursor-help transition-all shadow-sm select-none"
+                          :class="{
+                            'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]': hook.virality_score >= 90,
+                            'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.2)]': hook.virality_score >= 75 && hook.virality_score < 90,
+                            'bg-slate-700/40 text-slate-300 border border-slate-600/40': hook.virality_score < 75
+                          }"
+                        >
+                          <Icon :name="hook.virality_score >= 90 ? 'ri:fire-fill' : (hook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-xs" />
+                          <span>{{ hook.virality_score }}</span>
+                        </div>
+
+                        <!-- Tooltip with English Explanation -->
+                        <div 
+                          v-if="hook.virality_reason"
+                          class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-[#171a21]/95 backdrop-blur-md border border-surface-border text-[11px] text-slate-200 p-2.5 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/viral:opacity-100 group-hover/viral:pointer-events-auto transition-all translate-y-1 group-hover/viral:translate-y-0 z-40 font-medium normal-case tracking-normal text-left"
+                        >
+                          <div class="text-[10px] font-bold text-accent-500 uppercase tracking-widest mb-1 flex items-center gap-1">
+                            <Icon name="ri:sparkling-fill" class="text-xs" />
+                            Virality Breakdown ({{ hook.virality_score }}/100)
+                          </div>
+                          <div class="text-slate-300 leading-snug">{{ hook.virality_reason }}</div>
+                          <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-[#171a21]"></div>
+                        </div>
+                      </div>
+
                       <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
                         <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
                           <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
@@ -1064,13 +1203,40 @@
              <div class="md:w-1/2 p-6 md:p-8 flex flex-col border-t md:border-t-0 md:border-l border-surface-border bg-surface-panel/50 overflow-y-auto custom-scrollbar select-text">
                 <div class="flex-1">
                    <div class="flex items-center gap-3 mb-4">
-                     <span class="bg-accent-500/10 text-accent-500 border border-accent-500/20 px-2 py-1 rounded text-[10px] b-mono font-black tracking-widest">
-                       PREVIEW
-                     </span>
-                     <button @click.stop="toggleSaveHook(selectedModalHook)" class="text-slate-400 hover:text-amber-400 transition-colors">
-                        <Icon :name="isHookSaved(selectedModalHook) ? 'ri:bookmark-fill' : 'ri:bookmark-line'" class="text-xl" :class="{'text-amber-400': isHookSaved(selectedModalHook)}" />
-                     </button>
-                   </div>
+                      <span class="bg-accent-500/10 text-accent-500 border border-accent-500/20 px-2 py-1 rounded text-[10px] b-mono font-black tracking-widest">
+                        PREVIEW
+                      </span>
+
+                      <!-- Virality Score Pill in Modal -->
+                      <div 
+                        v-if="selectedModalHook.virality_score !== undefined"
+                        class="px-2.5 py-0.5 rounded-lg text-xs font-black tracking-wider flex items-center gap-1.5 shadow-sm"
+                        :class="{
+                          'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40': selectedModalHook.virality_score >= 90,
+                          'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40': selectedModalHook.virality_score >= 75 && selectedModalHook.virality_score < 90,
+                          'bg-slate-700/40 text-slate-300 border border-slate-600/40': selectedModalHook.virality_score < 75
+                        }"
+                      >
+                        <Icon :name="selectedModalHook.virality_score >= 90 ? 'ri:fire-fill' : (selectedModalHook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-sm" />
+                        <span>VIRAL SCORE: {{ selectedModalHook.virality_score }}/100</span>
+                      </div>
+
+                      <button @click.stop="toggleSaveHook(selectedModalHook)" class="text-slate-400 hover:text-amber-400 transition-colors ml-auto">
+                         <Icon :name="isHookSaved(selectedModalHook) ? 'ri:bookmark-fill' : 'ri:bookmark-line'" class="text-xl" :class="{'text-amber-400': isHookSaved(selectedModalHook)}" />
+                      </button>
+                    </div>
+
+                    <!-- Virality Explanation Box (if present) -->
+                    <div 
+                      v-if="selectedModalHook.virality_reason"
+                      class="mb-4 p-3.5 bg-[#171a21] border border-surface-border rounded-xl text-left shadow-lg"
+                    >
+                      <div class="text-[10px] font-bold text-accent-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                        <Icon name="ri:sparkling-fill" class="text-xs" />
+                        Virality Breakdown
+                      </div>
+                      <p class="text-xs text-slate-300 leading-relaxed">{{ selectedModalHook.virality_reason }}</p>
+                    </div>
 
                    <h3 class="text-xl md:text-2xl font-bold text-white mb-3 leading-tight">{{ selectedModalHook.theme || 'Untitled Hook' }}</h3>
                    
@@ -1763,7 +1929,7 @@
 </template>
 
 <script setup lang="ts">
-import type { CachedVideo, Hook, ReadyClip, PromptTemplate, WhisperModelOption } from '../types/clipper'
+import type { CachedVideo, Hook, ReadyClip, PromptTemplate, WhisperModelOption, HookExtractionMode, HookIntentPreset } from '../types/clipper'
 
 const state = useClipperState()
 const API_BASE = 'http://localhost:8000'
@@ -1775,6 +1941,34 @@ const savedPlaybackTime = ref<number | null>(null)
 const isPromptDropdownOpen = ref(false)
 const promptDropdownRef = ref<HTMLElement | null>(null)
 const hoveredPrompt = ref<PromptTemplate | null>(null)
+
+const isOptionsDrawerOpen = ref(false)
+
+interface PresetOption {
+  id: HookIntentPreset
+  label: string
+  icon: string
+  desc: string
+}
+
+const presetOptions: PresetOption[] = [
+  { id: 'auto', label: 'Auto Viral', icon: 'ri:fire-fill', desc: 'Identifies highest-retention moments across all styles' },
+  { id: 'humor', label: 'Funny & Relatable', icon: 'ri:emotion-laugh-line', desc: 'Focuses on punchlines, comedic timing, and humor' },
+  { id: 'educational', label: 'Edukasi & Debunk', icon: 'ri:lightbulb-line', desc: 'Debunks myths, explains facts, and provides simple analogies' },
+  { id: 'storytelling', label: 'Story & Deep Talk', icon: 'ri:mic-line', desc: 'Narrative story arcs, turning points, and personal reflections' },
+  { id: 'debate', label: 'Hot Takes', icon: 'ri:flashlight-fill', desc: 'Bold opinions, passionate arguments, and controversial takes' }
+]
+
+const durationPresets = [
+  { label: '30s - 180s (Default / Full Story)', min: 30, max: 180 },
+  { label: '< 60s (Quick Bites)', min: 15, max: 60 },
+  { label: '60s - 180s (Deep Insight)', min: 60, max: 180 }
+]
+
+function selectDurationPreset(min: number, max: number) {
+  state.minDuration.value = min
+  state.maxDuration.value = max
+}
 
 const isLangDropdownOpen = ref(false)
 const langDropdownRef = ref<HTMLElement | null>(null)

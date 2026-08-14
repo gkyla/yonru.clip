@@ -7,7 +7,7 @@ import { useClipperThumbnail } from './useClipperThumbnail'
 import { useClipperExport } from './useClipperExport'
 
 import fontsManifest from '../../../shared/fonts_manifest.json'
-import type { Hook, CachedVideo, TranscriptSegment, PromptTemplate, SubtitleStyleSettings, TimelineTrack, TimelineTrackItem } from '../types/clipper'
+import type { Hook, CachedVideo, TranscriptSegment, PromptTemplate, SubtitleStyleSettings, TimelineTrack, TimelineTrackItem, HookExtractionMode, HookIntentPreset } from '../types/clipper'
 
 export const FONT_OPTIONS = fontsManifest.fonts.map((f: { name: string }) => f.name)
 
@@ -105,9 +105,14 @@ function createClipperState() {
   const clipId = useState<string | null>('clipId', () => null)
   const fullTranscript = useState<TranscriptSegment[]>('fullTranscript', () => [])
 
-  // Prompts
+  // Prompts & Smart Presets
   const promptsList = useState<{id: string, name: string, suitableFor: string[], prompt?: string, numHooks?: number, autoHooks?: boolean}[]>('promptsList', () => [])
   const selectedPrompt = useState<string>('selectedPrompt', () => 'prompt.json')
+  const extractionMode = useState<HookExtractionMode>('extractionMode', () => 'preset')
+  const selectedPresetId = useState<HookIntentPreset>('selectedPresetId', () => 'auto')
+  const focusTopic = useState<string>('focusTopic', () => '')
+  const minDuration = useState<number>('minDuration', () => 30)
+  const maxDuration = useState<number>('maxDuration', () => 180)
 
   // Settings
   const youtubeUrl = useState<string>('youtubeUrl', () => '')
@@ -498,6 +503,21 @@ function createClipperState() {
 
     const p = localStorage.getItem('yonru_prompt')
     if (p) selectedPrompt.value = p
+
+    const em = localStorage.getItem('yonru_extraction_mode') as HookExtractionMode | null
+    if (em) extractionMode.value = em
+
+    const sp = localStorage.getItem('yonru_preset_id') as HookIntentPreset | null
+    if (sp) selectedPresetId.value = sp
+
+    const ft = localStorage.getItem('yonru_focus_topic')
+    if (ft) focusTopic.value = ft
+
+    const minD = localStorage.getItem('yonru_min_duration')
+    if (minD) minDuration.value = parseInt(minD, 10) || 30
+
+    const maxD = localStorage.getItem('yonru_max_duration')
+    if (maxD) maxDuration.value = parseInt(maxD, 10) || 180
     
     const m = localStorage.getItem('yonru_model')
     if (m) whisperModel.value = m
@@ -535,6 +555,11 @@ function createClipperState() {
     )
 
     watch(selectedPrompt, (val) => localStorage.setItem('yonru_prompt', val))
+    watch(extractionMode, (val) => localStorage.setItem('yonru_extraction_mode', val))
+    watch(selectedPresetId, (val) => localStorage.setItem('yonru_preset_id', val))
+    watch(focusTopic, (val) => localStorage.setItem('yonru_focus_topic', val))
+    watch(minDuration, (val) => localStorage.setItem('yonru_min_duration', String(val)))
+    watch(maxDuration, (val) => localStorage.setItem('yonru_max_duration', String(val)))
     watch(whisperModel, (val) => localStorage.setItem('yonru_model', val))
     watch(language, (val) => localStorage.setItem('yonru_language', val))
 
@@ -653,6 +678,7 @@ function createClipperState() {
     videoTitle, videoDuration, hasHeatmap, hasPreview, videoUrl, videoFps,
     hooks, savedHooks, activeHook, segmentPadding, folderName, clipId, fullTranscript,
     promptsList, selectedPrompt,
+    extractionMode, selectedPresetId, focusTopic, minDuration, maxDuration,
     youtubeUrl, language, videoLayout, subtitlePosition, subtitleOffset, subtitleSyncOffset,
     font, fontSize, faceTracking, cropMode, cropMap, cropPercentX, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
     whisperModels: WHISPER_MODELS,

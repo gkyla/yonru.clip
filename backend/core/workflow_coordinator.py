@@ -52,7 +52,21 @@ class ClipWorkflowCoordinator:
         except Exception as e:
             print(f"[cut] Failed to write crop_map.json: {e}")
 
-    def run_full_analysis(self, job_id: str, url: str, language: str, force_reanalyze: bool = False, prompt_file: str = "prompt.json", num_hooks: int = 10, auto_hooks: bool = False):
+    def run_full_analysis(
+        self,
+        job_id: str,
+        url: str,
+        language: str,
+        force_reanalyze: bool = False,
+        prompt_file: Optional[str] = "prompt.json",
+        num_hooks: int = 10,
+        auto_hooks: bool = False,
+        extraction_mode: str = "preset",
+        preset_id: str = "auto",
+        focus_topic: Optional[str] = None,
+        min_duration: int = 30,
+        max_duration: int = 180
+    ):
         """Background: check transcript → download full 1080p → Gemini hooks"""
         try:
             # Step -1: Check for cached video and hooks FIRST to avoid YouTube network calls
@@ -189,7 +203,12 @@ class ClipWorkflowCoordinator:
                             num_hooks=num_hooks,
                             auto_hooks=auto_hooks,
                             video_duration=video_info.get("duration"),
-                            prompt_file=prompt_file
+                            prompt_file=prompt_file,
+                            extraction_mode=extraction_mode,
+                            preset_id=preset_id,
+                            focus_topic=focus_topic,
+                            min_duration=min_duration,
+                            max_duration=max_duration
                         )
                     
                     if not hooks_json:

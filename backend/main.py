@@ -79,6 +79,11 @@ class AnalyzeRequest(BaseModel):
     prompt_file: Optional[str] = "prompt.json"
     num_hooks: Optional[int] = 10
     auto_hooks: Optional[bool] = False
+    extraction_mode: Optional[str] = "preset"
+    preset_id: Optional[str] = "auto"
+    focus_topic: Optional[str] = None
+    min_duration: Optional[int] = 30
+    max_duration: Optional[int] = 180
 
 class ExtractRequest(BaseModel):
     job_id: str
@@ -282,7 +287,21 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, fo
         "error": None
     }
     
-    background_tasks.add_task(workflow_coordinator.run_full_analysis, job_id, req.url, req.language, force, req.prompt_file or "prompt.json", req.num_hooks or 10, req.auto_hooks or False)
+    background_tasks.add_task(
+        workflow_coordinator.run_full_analysis,
+        job_id,
+        req.url,
+        req.language,
+        force,
+        req.prompt_file or "prompt.json",
+        req.num_hooks or 10,
+        req.auto_hooks or False,
+        req.extraction_mode or "preset",
+        req.preset_id or "auto",
+        req.focus_topic,
+        req.min_duration or 30,
+        req.max_duration or 180
+    )
     save_jobs()
     return {"job_id": job_id, "status": "queued"}
 
@@ -697,6 +716,11 @@ class AnalyzeCachedRequest(BaseModel):
     prompt_file: Optional[str] = "prompt.json"
     num_hooks: Optional[int] = 10
     auto_hooks: Optional[bool] = False
+    extraction_mode: Optional[str] = "preset"
+    preset_id: Optional[str] = "auto"
+    focus_topic: Optional[str] = None
+    min_duration: Optional[int] = 30
+    max_duration: Optional[int] = 180
 
 @app.post("/api/analyze-cached/{video_id}")
 async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force: bool = False, req: AnalyzeCachedRequest = AnalyzeCachedRequest()):
@@ -716,12 +740,11 @@ async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force
         if os.path.exists(hooks_cache_path):
             try:
                 with open(hooks_cache_path, "r", encoding="utf-8") as f:
-                    raw_hooks = json.load(f)
+                    hooks_json = f.read()
+                raw_hooks = json.loads(hooks_json)
                 filtered = asset_repository.sanitize_and_prepare_hooks(raw_hooks, cached)
-                
                 job_id = str(uuid.uuid4())[:8]
                 is_hd_ready = cached.get("hd_ready", False)
-                
                 job_status = "ready" if is_hd_ready else "hooks_ready"
                 download_percent = 100.0 if is_hd_ready else 0.0
                 
@@ -788,7 +811,21 @@ async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force
         "error": None
     }
     
-    background_tasks.add_task(workflow_coordinator.run_full_analysis, job_id, f"https://youtube.com/watch?v={video_id}", "id", force, req.prompt_file or "prompt.json", req.num_hooks or 10, req.auto_hooks or False)
+    background_tasks.add_task(
+        workflow_coordinator.run_full_analysis,
+        job_id,
+        f"https://youtube.com/watch?v={video_id}",
+        "id",
+        force,
+        req.prompt_file or "prompt.json",
+        req.num_hooks or 10,
+        req.auto_hooks or False,
+        req.extraction_mode or "preset",
+        req.preset_id or "auto",
+        req.focus_topic,
+        req.min_duration or 30,
+        req.max_duration or 180
+    )
     save_jobs()
     return {"job_id": job_id, "status": "queued", "cached": True}
 
