@@ -103,65 +103,23 @@ class HookGenerator:
             transcript_text += f"[{start:.2f}s - {start+dur:.2f}s] {s['text']}\n"
 
         # Determine prompt based on extraction_mode
+        custom_archetype = None
         if extraction_mode == "custom" and prompt_file:
-            prompt_template = self.repository.get_prompt_text(prompt_file)
-            if prompt_template is None:
+            custom_archetype = self.repository.get_prompt_text(prompt_file)
+            if custom_archetype is None:
                 print(f"[gemini] Failed to load prompt file {prompt_file} via repository, falling back to preset builder")
-                prompt = self.modular_builder.build_prompt(
-                    transcript_text=transcript_text,
-                    preset_id=preset_id,
-                    focus_topic=focus_topic,
-                    min_duration=min_duration,
-                    max_duration=max_duration,
-                    num_hooks=num_hooks,
-                    auto_hooks=auto_hooks,
-                    video_duration=video_duration
-                )
-            else:
-                try:
-                    duration_constraint = ""
-                    if video_duration:
-                        duration_constraint = f"\n            VIDEO DURATION: The total length is {video_duration:.1f} seconds. ALL timestamps MUST be within 0 and {video_duration:.1f}."
 
-                    if auto_hooks:
-                        hook_count_instruction = "Find ALL naturally compelling hooks in the transcript. Do not force a specific number — return as many or as few as genuinely qualify. Quality over quantity."
-                    else:
-                        hook_count_instruction = f"Find exactly {num_hooks} hooks."
-
-                    fixed_suffix = """
-
-OUTPUT FORMAT (JSON Array):
-Each object must have:
-- "start" (number): start time in seconds.
-- "end" (number): end time in seconds.
-- "duration_seconds" (number).
-- "transcript_quote" (string): exact spoken words.
-- "theme" (string): short title.
-- "virality_score" (integer 0-100): rating of virality potential.
-- "virality_reason" (string): concise explanation in English.
-
-TRANSCRIPT DATA:
-{transcript_text}"""
-                    prompt_template += fixed_suffix
-                    prompt = prompt_template.format(
-                        num_hooks=hook_count_instruction,
-                        duration_constraint=duration_constraint,
-                        transcript_text=transcript_text
-                    )
-                except Exception as e:
-                    print(f"[gemini] Failed to build custom prompt template: {e}")
-                    return None
-        else:
-            prompt = self.modular_builder.build_prompt(
-                transcript_text=transcript_text,
-                preset_id=preset_id,
-                focus_topic=focus_topic,
-                min_duration=min_duration,
-                max_duration=max_duration,
-                num_hooks=num_hooks,
-                auto_hooks=auto_hooks,
-                video_duration=video_duration
-            )
+        prompt = self.modular_builder.build_prompt(
+            transcript_text=transcript_text,
+            preset_id=preset_id,
+            custom_archetype=custom_archetype,
+            focus_topic=focus_topic,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            num_hooks=num_hooks,
+            auto_hooks=True,
+            video_duration=video_duration
+        )
 
         max_retries = 3
         for attempt in range(max_retries):

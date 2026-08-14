@@ -95,3 +95,26 @@ def test_video_duration_constraint_injection():
         video_duration=145.5
     )
     assert "VIDEO DURATION: The total length is 145.5 seconds" in prompt
+
+def test_custom_archetype_injection():
+    builder = ModularCompositePromptBuilder()
+    custom_content = "INTENT ARCHETYPE — CUSTOM TECH CODING FAILS:\nLook for moments where developer talks about 3am production outages."
+    prompt = builder.build_prompt(
+        transcript_text="sample text",
+        custom_archetype=custom_content,
+        focus_topic="database crash",
+        min_duration=45,
+        max_duration=120
+    )
+    
+    # Custom archetype is injected
+    assert custom_content in prompt
+    
+    # Core guardrails and duration constraints are preserved
+    assert "TOPIC FOCUS DIRECTIVE" in prompt
+    assert "database crash" in prompt
+    assert "45 AND 120 SECONDS" in prompt
+    assert "NO OVERLAP RULE (CRITICAL)" in prompt
+    assert "THOUGHT COMPLETION RULE (CRITICAL" in prompt
+    assert "OUTPUT FORMAT (JSON Array):" in prompt
+

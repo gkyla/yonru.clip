@@ -8,40 +8,35 @@ class ModularCompositePromptBuilder:
     """
     
     ARCHETYPES: Dict[str, str] = {
-        "auto": """INTENT ARCHETYPE — UNIVERSAL AUTO VIRAL:
-Identify the absolute most captivating, high-retention podcast moments across all styles:
+        "auto": """Identify the absolute most captivating, high-retention podcast moments across all styles:
 - Unusually honest, bold, or unfiltered statements
 - Unexpectedly funny, witty, or relatable punchlines
 - Surprising revelations, debunked misconceptions, or mind-blowing facts
 - Engaging storytelling with strong emotional peaks or plot twists
 - Relatable thoughts that make viewers think: "Ini jujur banget" or "Relate parah".""",
 
-        "humor": """INTENT ARCHETYPE — HUMOR & RELATABLE MOMENTS:
-Prioritize funny, entertaining, and relatable moments:
+        "humor": """Prioritize funny, entertaining, and relatable moments:
 - Spontaneous laughter, sharp comedic timing, and witty comebacks
 - Absurd, hilarious, or self-deprecating personal experiences
 - Punchlines and banter between speakers
 - Highly relatable everyday observations that evoke humor
 - Moments where the speaker is playfully blunt or sarcastic.""",
 
-        "educational": """INTENT ARCHETYPE — EDUCATIONAL & MYTH DEBUNKING:
-Prioritize educational breakdowns, medical/scientific revelations, and "MYTHS & FACTS" segments:
+        "educational": """Prioritize educational breakdowns, medical/scientific revelations, and "MYTHS & FACTS" segments:
 - Direct debunking of common myths, misconceptions, or dangerous misinformation
 - Clear, simple analogies that make complex topics instantly understandable
 - Authoritative, passionate, or eye-opening explanations from experts
 - Surprising health, science, or life facts that contradict common belief
 - Practical, actionable advice backed by solid reasoning.""",
 
-        "storytelling": """INTENT ARCHETYPE — DEEP TALK & STORYTELLING:
-Prioritize narrative story arcs and personal reflections:
+        "storytelling": """Prioritize narrative story arcs and personal reflections:
 - Gripping personal stories (real cases, turning points, failures, triumphs)
 - Clear narrative structure: 1. Setup/Context, 2. Conflict/Shocking moment, 3. Resolution/Lesson
 - Deep emotional moments, vulnerability, and life lessons
 - Sudden twists or realizations where things didn't go as expected
 - Stories that keep the audience eager to know what happened next.""",
 
-        "debate": """INTENT ARCHETYPE — HOT TAKES, OPINIONS & DEBATE:
-Prioritize controversial, opinionated, and passionate discourse:
+        "debate": """Prioritize controversial, opinionated, and passionate discourse:
 - Bold, unfiltered opinions that challenge mainstream consensus
 - Passionate arguments, healthy debate, or strong rebuttals
 - "Unpopular opinions" delivered with conviction and authentic emotion
@@ -56,18 +51,23 @@ Prioritize controversial, opinionated, and passionate discourse:
         self,
         transcript_text: str,
         preset_id: str = "auto",
+        custom_archetype: Optional[str] = None,
         focus_topic: Optional[str] = None,
         min_duration: int = 30,
         max_duration: int = 180,
         num_hooks: int = 10,
-        auto_hooks: bool = False,
+        auto_hooks: bool = True,
         video_duration: Optional[float] = None
     ) -> str:
         """
         Build the complete composite prompt.
+        Supports both built-in Smart Presets and Scoped Custom Archetype Templates.
         """
-        archetype_key = preset_id.lower() if preset_id else "auto"
-        archetype_directive = self.ARCHETYPES.get(archetype_key, self.ARCHETYPES["auto"])
+        if custom_archetype and custom_archetype.strip():
+            archetype_directive = custom_archetype.strip()
+        else:
+            archetype_key = preset_id.lower() if preset_id else "auto"
+            archetype_directive = self.ARCHETYPES.get(archetype_key, self.ARCHETYPES["auto"])
 
         # 1. Quantity instruction
         if auto_hooks:

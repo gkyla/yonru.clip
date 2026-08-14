@@ -261,11 +261,15 @@ A temporary record of exhausted or failed API keys and their cool-down periods t
 _Avoid_: Bad key cache, rotator state
 
 **Prompt Template**:
-A customizable set of AI guidelines and instructions used by the analyzer to extract segments from a transcript.
-_Avoid_: AI instructions template, analyzer prompt
+A user-defined custom content archetype directive providing specific thematic criteria, tone guidelines, and key phrase triggers, which is dynamically composed with core system guardrails inside the Modular Composite Prompt Builder.
+_Avoid_: Raw prompt override, full prompt script, AI instructions template
+
+**Natural AI Hook Detection**:
+An extraction policy where the AI engine identifies all naturally compelling hooks based on content density and virality standards without enforcing an artificial fixed count quota (`auto_hooks = true`).
+_Avoid_: Fixed hook quota, manual hook count, forced clip count
 
 **Modular Composite Prompt Builder**:
-A service in the ingestion domain that dynamically assembles core extraction guardrails, intent archetypes, and optional topic focus filters into a cohesive AI prompt.
+A service in the ingestion domain that dynamically assembles core extraction guardrails, intent archetypes (or custom prompt templates), and optional topic focus filters into a cohesive AI prompt.
 _Avoid_: Prompt stitcher, prompt concatenator, prompt builder script
 
 **Thought Completion Verification**:

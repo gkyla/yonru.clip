@@ -111,7 +111,7 @@ describe('HomePrompts Component', () => {
     expect((wrapper.vm as any).editingId).toBeNull()
   })
 
-  it('inserts variable tags at textarea cursor position when clicked', async () => {
+  it('edits content text directly and saves with natural AI defaults', async () => {
     const wrapper = mount(HomePrompts, {
       global: {
         stubs: {
@@ -133,40 +133,26 @@ describe('HomePrompts Component', () => {
     const textarea = wrapper.find('textarea')
     expect(textarea.exists()).toBe(true)
 
-    // Set value and focus/cursor position
-    const el = textarea.element as HTMLTextAreaElement
-    el.value = 'Custom prompt '
-    el.selectionStart = el.selectionEnd = 14
-    await textarea.trigger('input')
-
-    // Find and click {duration_constraint} badge button
-    const varBtn = wrapper.findAll('button').find(b => b.text().includes('{duration_constraint}'))
-    expect(varBtn).toBeDefined()
-    await varBtn!.trigger('click')
+    // Set updated prompt text
+    await textarea.setValue('Updated archetype criteria for podcast')
     await wrapper.vm.$nextTick()
 
-    // Should insert variable
-    expect((wrapper.vm as any).promptText).toBe('Custom prompt {duration_constraint}')
+    expect((wrapper.vm as any).promptText).toBe('Updated archetype criteria for podcast')
 
-    // Click it again to toggle/remove it
-    await varBtn!.trigger('click')
+    // Click Update Prompt
+    const saveBtn = wrapper.findAll('button').find(b => b.text().includes('Update Prompt'))
+    expect(saveBtn).toBeDefined()
+    await saveBtn!.trigger('click')
     await wrapper.vm.$nextTick()
-    expect((wrapper.vm as any).promptText).toBe('Custom prompt ')
 
-    // Verify computed editorVariables updates based on numHooks and autoHooks settings
-    const vm = wrapper.vm as any
-    expect(vm.editorVariables.num_hooks).toBe('Find exactly 5 hooks.')
-    
-    // Toggle autoHooks
-    vm.autoHooks = true
-    await wrapper.vm.$nextTick()
-    expect(vm.editorVariables.num_hooks).toContain('Find ALL naturally compelling hooks')
-
-    // Untoggle and change numHooks
-    vm.autoHooks = false
-    vm.numHooks = 15
-    await wrapper.vm.$nextTick()
-    expect(vm.editorVariables.num_hooks).toBe('Find exactly 15 hooks.')
+    expect(mockEditPrompt).toHaveBeenCalledWith(
+      'prompt.json::0',
+      'Podcast Hooks',
+      ['podcast', 'comedy'],
+      'Updated archetype criteria for podcast',
+      10,
+      true
+    )
   })
 
   it('displays delete confirmation modal and executes deletion on confirm', async () => {
