@@ -316,4 +316,41 @@ describe('HomePrompts Component', () => {
     expect((wrapper.vm as any).showUnsavedModal).toBe(false)
     expect((wrapper.vm as any).editingId).toBe('prompt.json::1')
   })
+
+  it('navigates to target route when discard is confirmed during route leave interception', async () => {
+    const wrapper = mount(HomePrompts, {
+      global: {
+        stubs: {
+          Icon: true,
+          PromptEditor: true
+        }
+      }
+    })
+
+    // Click on 'Podcast Hooks' to edit
+    const podcastCard = wrapper.findAll('button').find(d => d.text().includes('Podcast Hooks'))
+    await podcastCard!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Modify promptName to make it dirty
+    const nameInput = wrapper.find('input[placeholder*="Comedy Podcast Hooks"]')
+    await nameInput.setValue('Modified Podcast Hooks')
+    await wrapper.vm.$nextTick()
+    expect((wrapper.vm as any).isDirty).toBe(true)
+
+    // Trigger route leave guard
+    const mockNext = vi.fn()
+    ;(wrapper.vm as any).handleRouteLeave({ fullPath: '/editor' }, {}, mockNext)
+    expect(mockNext).toHaveBeenCalledWith(false)
+    expect((wrapper.vm as any).showUnsavedModal).toBe(true)
+    expect((wrapper.vm as any).pendingActionDescription).toBe('Navigate to /editor')
+
+    // Confirm discard
+    await (wrapper.vm as any).confirmDiscardAndProceed()
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).showUnsavedModal).toBe(false)
+    expect((wrapper.vm as any).editingId).toBeNull()
+    expect((wrapper.vm as any).isDirty).toBe(false)
+  })
 })

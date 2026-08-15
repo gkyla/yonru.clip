@@ -315,126 +315,132 @@
     </div>
   </div>
 
-  <!-- Unsaved Prompt Guard Modal (Tri-Action) -->
-  <div v-if="showUnsavedModal" class="fixed inset-0 z-[140] flex items-center justify-center p-4">
-    <!-- Backdrop filter blurring background -->
-    <div class="absolute inset-0 bg-black/85 backdrop-blur-md" @click="keepEditing"></div>
-    
-    <!-- Content Card -->
-    <div class="relative w-full max-w-lg bg-[#0e1017] border border-surface-border/80 rounded-3xl p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.9),0_0_30px_rgba(245,158,11,0.08)] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[150]">
-       <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
-       
-       <!-- Warning shield icon with ambient amber glow -->
-       <div class="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-400 flex items-center justify-center mb-5 shadow-[0_0_25px_rgba(245,158,11,0.15)]">
-          <Icon name="ri:alert-line" class="text-2xl" />
-       </div>
+  <!-- Unsaved Prompt Guard Modal -->
+  <Transition name="modal-fade">
+    <div v-if="showUnsavedModal" class="fixed inset-0 z-[140] flex items-center justify-center p-4">
+      <!-- Backdrop filter blurring background -->
+      <div class="absolute inset-0 bg-black/85 backdrop-blur-md cursor-pointer" @click="keepEditing"></div>
+      
+      <!-- Content Card -->
+      <div class="modal-dialog-card relative w-full max-w-lg bg-[#0e1017] border border-surface-border/80 rounded-3xl p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.9),0_0_30px_rgba(245,158,11,0.08)] flex flex-col overflow-hidden z-[150]">
+         <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
 
-       <h3 class="text-xl font-black text-white tracking-wide mb-1.5">Unsaved Changes Detected</h3>
-       <p class="text-slate-400 text-xs leading-relaxed mb-5">
-         You have unsaved changes on the current prompt configuration. What would you like to do before proceeding?
-       </p>
-       
-       <!-- Context summary card -->
-       <div class="bg-surface-panel/40 border border-surface-border/80 rounded-xl p-3.5 mb-6 flex flex-col gap-1.5">
-          <div class="flex items-center justify-between text-[10px] uppercase font-bold tracking-widest text-slate-500">
-             <span>Active Template</span>
-             <span class="text-amber-400 font-semibold lowercase tracking-normal flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                unsaved draft
-             </span>
-          </div>
-          <span class="text-white font-mono text-xs font-bold truncate">
-             {{ promptName || 'Untitled Template' }}
-          </span>
-          <div v-if="pendingActionDescription" class="text-[11px] text-slate-400 border-t border-surface-border/50 pt-1.5 mt-0.5 flex items-center gap-1">
-             <span class="text-slate-500">Target:</span>
-             <span class="text-slate-300 font-medium">{{ pendingActionDescription }}</span>
-          </div>
-       </div>
+         <!-- Top-Right Close Button (X) -->
+         <button 
+           @click="keepEditing"
+           class="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-slate-400 hover:text-white flex items-center justify-center transition-all active:scale-95 cursor-pointer z-20 group"
+           title="Keep Editing (Esc)"
+         >
+           <Icon name="ri:close-line" class="text-lg group-hover:rotate-90 transition-transform duration-200" />
+         </button>
+         
+         <!-- Warning shield icon with ambient amber glow -->
+         <div class="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-400 flex items-center justify-center mb-5 shadow-[0_0_25px_rgba(245,158,11,0.15)]">
+            <Icon name="ri:alert-line" class="text-2xl" />
+         </div>
 
-       <!-- Tri-Action Buttons (Option A) -->
-       <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full">
-          <button 
-            @click="confirmSaveAndProceed"
-            :disabled="!promptName || !promptText"
-            class="flex-1 py-3 px-3 bg-accent-500 hover:bg-accent-400 text-black rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(207,255,80,0.2)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
-          >
-             <Icon name="ri:save-3-line" class="text-sm font-bold" />
-             <span>Save & Continue</span>
-          </button>
-          
-          <button 
-            @click="confirmDiscardAndProceed"
-            class="py-3 px-3.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/25 hover:border-red-500/50 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1"
-          >
-             <Icon name="ri:delete-bin-line" class="text-sm" />
-             <span>Discard</span>
-          </button>
+         <h3 class="text-xl font-black text-white tracking-wide mb-1.5">Unsaved Changes Detected</h3>
+         <p class="text-slate-400 text-xs leading-relaxed mb-5">
+           You have unsaved changes on the current prompt configuration. What would you like to do before proceeding?
+         </p>
+         
+         <!-- Context summary card -->
+         <div class="bg-surface-panel/40 border border-surface-border/80 rounded-xl p-3.5 mb-6 flex flex-col gap-1.5">
+            <div class="flex items-center justify-between text-[10px] uppercase font-bold tracking-widest text-slate-500">
+               <span>Active Template</span>
+               <span class="text-amber-400 font-semibold lowercase tracking-normal flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                  unsaved draft
+               </span>
+            </div>
+            <span class="text-white font-mono text-xs font-bold truncate">
+               {{ promptName || 'Untitled Template' }}
+            </span>
+            <div v-if="pendingActionDescription" class="text-[11px] text-slate-400 border-t border-surface-border/50 pt-1.5 mt-0.5 flex items-center gap-1">
+               <span class="text-slate-500">Target:</span>
+               <span class="text-slate-300 font-medium">{{ pendingActionDescription }}</span>
+            </div>
+         </div>
 
-          <button 
-            @click="keepEditing"
-            class="py-3 px-3.5 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-slate-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all active:scale-[0.98] cursor-pointer"
-          >
-             Cancel
-          </button>
-       </div>
+         <!-- Action Buttons: Save & Continue + Discard Changes -->
+         <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
+            <button 
+              @click="confirmSaveAndProceed"
+              :disabled="!promptName || !promptText"
+              class="flex-1 py-3 px-4 bg-accent-500 hover:bg-accent-400 text-black rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(207,255,80,0.2)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+            >
+               <Icon name="ri:save-3-line" class="text-base font-bold" />
+               <span>Save & Continue</span>
+            </button>
+            
+            <button 
+              @click="confirmDiscardAndProceed"
+              class="sm:w-auto py-3 px-5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/25 hover:border-red-500/50 rounded-xl text-xs font-black uppercase tracking-wider transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5"
+            >
+               <Icon name="ri:delete-bin-line" class="text-base" />
+               <span>Discard Changes</span>
+            </button>
+         </div>
+      </div>
     </div>
-  </div>
+  </Transition>
 
   <!-- Confirmation Delete Modal -->
-  <div v-if="showDeleteModal" class="fixed inset-0 z-[120] flex items-center justify-center p-4">
-    <!-- Backdrop filter blurring background -->
-    <div class="absolute inset-0 bg-black/85 backdrop-blur-md" @click="showDeleteModal = false"></div>
-    
-    <!-- Content Card -->
-    <div class="relative w-full max-w-lg bg-surface-dark border border-surface-border rounded-3xl p-8 shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[130]">
-       <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
-       
-       <!-- Large warning shield icon -->
-       <div class="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
-          <Icon name="ri:delete-bin-2-line" class="text-3xl" />
-       </div>
+  <Transition name="modal-fade">
+    <div v-if="showDeleteModal" class="fixed inset-0 z-[120] flex items-center justify-center p-4">
+      <!-- Backdrop filter blurring background -->
+      <div class="absolute inset-0 bg-black/85 backdrop-blur-md cursor-pointer" @click="showDeleteModal = false"></div>
+      
+      <!-- Content Card -->
+      <div class="modal-dialog-card relative w-full max-w-lg bg-surface-dark border border-surface-border rounded-3xl p-8 shadow-2xl flex flex-col overflow-hidden z-[130]">
+         <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
+         
+         <!-- Large warning shield icon -->
+         <div class="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
+            <Icon name="ri:delete-bin-2-line" class="text-3xl" />
+         </div>
 
-       <h3 class="text-2xl font-black text-white tracking-wide mb-3">Delete Prompt Template?</h3>
-       
-       <!-- Subtitle / target template name -->
-       <div class="bg-surface-panel/30 border border-surface-border rounded-xl p-4 mb-6 flex flex-col gap-1">
-          <span class="text-[10px] uppercase font-bold tracking-widest text-slate-500">
-             Selected Template
-          </span>
-          <span class="text-white font-mono text-xs font-bold truncate">
-             {{ promptName || 'Untitled Template' }}
-          </span>
-       </div>
+         <h3 class="text-2xl font-black text-white tracking-wide mb-3">Delete Prompt Template?</h3>
+         
+         <!-- Subtitle / target template name -->
+         <div class="bg-surface-panel/30 border border-surface-border rounded-xl p-4 mb-6 flex flex-col gap-1">
+            <span class="text-[10px] uppercase font-bold tracking-widest text-slate-500">
+               Selected Template
+            </span>
+            <span class="text-white font-mono text-xs font-bold truncate">
+               {{ promptName || 'Untitled Template' }}
+            </span>
+         </div>
 
-       <!-- Warning details -->
-       <div class="flex flex-col gap-4 text-xs mb-8">
-          <div class="flex items-start gap-3 bg-red-500/5 border border-red-500/10 rounded-2xl p-4">
-             <Icon name="ri:error-warning-line" class="text-red-400 text-lg shrink-0 mt-0.5" />
-             <div>
-                <h4 class="text-red-400 font-bold uppercase tracking-wider text-[10px] mb-1">Permanent Removal</h4>
-                <p class="text-slate-400 leading-relaxed font-semibold">This will permanently delete this prompt template from the storage file. This action cannot be undone.</p>
-             </div>
-          </div>
-       </div>
+         <!-- Warning details -->
+         <div class="flex flex-col gap-4 text-xs mb-8">
+            <div class="flex items-start gap-3 bg-red-500/5 border border-red-500/10 rounded-2xl p-4">
+               <Icon name="ri:error-warning-line" class="text-red-400 text-lg shrink-0 mt-0.5" />
+               <div>
+                  <h4 class="text-red-400 font-bold uppercase tracking-wider text-[10px] mb-1">Permanent Removal</h4>
+                  <p class="text-slate-400 leading-relaxed font-semibold">This will permanently delete this prompt template from the storage file. This action cannot be undone.</p>
+               </div>
+            </div>
+         </div>
 
-       <!-- Buttons -->
-       <div class="flex items-center gap-3 w-full">
-          <button 
-            @click="showDeleteModal = false"
-            class="flex-1 py-3 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-[0.98] cursor-pointer"
-          >
-             Cancel
-          </button>
-          <button 
-            @click="executeDeletePrompt"
-            class="flex-1 py-3 bg-red-500 text-white hover:bg-red-400 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_30px_rgba(239,68,68,0.2)] active:scale-[0.98] cursor-pointer"
-          >
-             Confirm Delete
-          </button>
-       </div>
+         <!-- Buttons -->
+         <div class="flex items-center gap-3 w-full">
+            <button 
+              @click="showDeleteModal = false"
+              class="flex-1 py-3 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-[0.98] cursor-pointer"
+            >
+               Cancel
+            </button>
+            <button 
+              @click="executeDeletePrompt"
+              class="flex-1 py-3 bg-red-500 text-white hover:bg-red-400 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_30px_rgba(239,68,68,0.2)] active:scale-[0.98] cursor-pointer"
+            >
+               Confirm Delete
+            </button>
+         </div>
+      </div>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -472,7 +478,7 @@ type PendingAction =
   | { type: 'switch_prompt', prompt: any }
   | { type: 'create_new' }
   | { type: 'cancel_edit' }
-  | { type: 'route_leave', next: () => void }
+  | { type: 'route_leave', to: string }
 
 const pendingAction = ref<PendingAction | null>(null)
 
@@ -513,7 +519,7 @@ const pendingActionDescription = computed(() => {
     return 'Cancel & Close Editor'
   }
   if (pendingAction.value.type === 'route_leave') {
-    return 'Leave this page'
+    return `Navigate to ${pendingAction.value.to}`
   }
   return ''
 })
@@ -570,7 +576,8 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 // Router Navigation Guard Handler (Invoked by page route guard)
 function handleRouteLeave(to: any, from: any, next: (proceed?: boolean) => void) {
   if (isDirty.value) {
-    pendingAction.value = { type: 'route_leave', next }
+    const target = typeof to === 'string' ? to : (to.fullPath || to.path || '/')
+    pendingAction.value = { type: 'route_leave', to: target }
     showUnsavedModal.value = true
     next(false)
   } else {
@@ -587,17 +594,29 @@ defineExpose({
   confirmSaveAndProceed
 })
 
+function handleKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    if (showUnsavedModal.value) {
+      keepEditing()
+    } else if (showDeleteModal.value) {
+      showDeleteModal.value = false
+    }
+  }
+}
+
 onMounted(() => {
   if (state.promptsList.value.length === 0) {
     state.fetchPrompts()
   }
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('beforeunload', handleBeforeUnload)
+  window.addEventListener('keydown', handleKeyDown)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('beforeunload', handleBeforeUnload)
+  window.removeEventListener('keydown', handleKeyDown)
 })
 
 function handleClickOutside(e: MouseEvent) {
@@ -717,7 +736,13 @@ function executePendingAction() {
   } else if (action.type === 'cancel_edit') {
     cancelEdit()
   } else if (action.type === 'route_leave') {
-    action.next()
+    cancelEdit()
+    try {
+      const router = useRouter()
+      router.push(action.to)
+    } catch {
+      window.location.href = action.to
+    }
   }
 }
 
@@ -826,6 +851,35 @@ async function executeDeletePrompt() {
 
 .animate-template-crossfade {
   animation: templateFade 280ms ease-out forwards;
+}
+
+/* Dialog Modal Transitions */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-fade-enter-active .modal-dialog-card,
+.modal-fade-leave-active .modal-dialog-card {
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1), opacity 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-fade-enter-from {
+  opacity: 0;
+}
+
+.modal-fade-enter-from .modal-dialog-card {
+  opacity: 0;
+  transform: scale(0.95) translateY(10px);
+}
+
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-leave-to .modal-dialog-card {
+  opacity: 0;
+  transform: scale(0.96) translateY(8px);
 }
 
 .custom-scrollbar::-webkit-scrollbar {
