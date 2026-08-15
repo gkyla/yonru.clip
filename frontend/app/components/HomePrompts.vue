@@ -295,13 +295,13 @@
             </div>
 
             <!-- Row 3: Content Style Editor Canvas -->
-            <div class="flex flex-col gap-1 flex-1">
+            <div class="flex flex-col gap-1 flex-1 min-h-[420px]">
               <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5">Content Style & Extraction Criteria</label>
               <PromptEditor 
                 ref="promptEditorRef"
                 v-slot="editor"
                 v-model="promptText"
-                class="font-mono flex-1"
+                class="font-mono flex-1 flex flex-col w-full"
               />
             </div>
           </div>

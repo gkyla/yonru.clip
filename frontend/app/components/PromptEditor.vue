@@ -1,12 +1,12 @@
 <template>
   <ClientOnly>
-    <div class="w-full bg-[#111318] border border-surface-border rounded-lg overflow-hidden focus-within:border-accent-500/50 transition-all flex flex-col min-h-[400px]">
+    <div class="w-full bg-[#111318] border border-surface-border rounded-xl overflow-hidden focus-within:border-accent-500/50 transition-all flex flex-col flex-1 min-h-[400px]">
       <!-- Toolbar -->
-      <div v-if="editor" class="flex flex-wrap items-center gap-1 p-2 border-b border-surface-border bg-surface-dark/50">
+      <div v-if="editor" class="flex flex-wrap items-center gap-1 p-2 border-b border-surface-border bg-surface-dark/50 shrink-0">
         <button 
           @click="editor.chain().focus().toggleBold().run()"
           :class="{ 'bg-accent-500 text-black': editor.isActive('bold'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('bold') }"
-          class="p-1.5 rounded transition-all"
+          class="p-1.5 rounded transition-all cursor-pointer"
           title="Bold"
         >
           <Icon name="ri:bold" class="text-lg" />
@@ -14,7 +14,7 @@
         <button 
           @click="editor.chain().focus().toggleItalic().run()"
           :class="{ 'bg-accent-500 text-black': editor.isActive('italic'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('italic') }"
-          class="p-1.5 rounded transition-all"
+          class="p-1.5 rounded transition-all cursor-pointer"
           title="Italic"
         >
           <Icon name="ri:italic" class="text-lg" />
@@ -22,7 +22,7 @@
         <button 
           @click="editor.chain().focus().toggleCode().run()"
           :class="{ 'bg-accent-500 text-black': editor.isActive('code'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('code') }"
-          class="p-1.5 rounded transition-all"
+          class="p-1.5 rounded transition-all cursor-pointer"
           title="Inline Code"
         >
           <Icon name="ri:code-line" class="text-lg" />
@@ -33,7 +33,7 @@
         <button 
           @click="editor.chain().focus().toggleBulletList().run()"
           :class="{ 'bg-accent-500 text-black': editor.isActive('bulletList'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('bulletList') }"
-          class="p-1.5 rounded transition-all"
+          class="p-1.5 rounded transition-all cursor-pointer"
           title="Bullet List"
         >
           <Icon name="ri:list-unordered" class="text-lg" />
@@ -41,7 +41,7 @@
         <button 
           @click="editor.chain().focus().toggleOrderedList().run()"
           :class="{ 'bg-accent-500 text-black': editor.isActive('orderedList'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('orderedList') }"
-          class="p-1.5 rounded transition-all"
+          class="p-1.5 rounded transition-all cursor-pointer"
           title="Ordered List"
         >
           <Icon name="ri:list-ordered" class="text-lg" />
@@ -49,7 +49,7 @@
         <button 
           @click="editor.chain().focus().toggleCodeBlock().run()"
           :class="{ 'bg-accent-500 text-black': editor.isActive('codeBlock'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('codeBlock') }"
-          class="p-1.5 rounded transition-all"
+          class="p-1.5 rounded transition-all cursor-pointer"
           title="Code Block"
         >
           <Icon name="ri:code-box-line" class="text-lg" />
@@ -59,22 +59,27 @@
 
         <button 
           @click="editor.chain().focus().undo().run()"
-          class="p-1.5 text-slate-400 hover:text-white hover:bg-surface-panel rounded transition-all"
+          class="p-1.5 text-slate-400 hover:text-white hover:bg-surface-panel rounded transition-all cursor-pointer"
           title="Undo"
         >
           <Icon name="ri:arrow-go-back-line" class="text-lg" />
         </button>
         <button 
           @click="editor.chain().focus().redo().run()"
-          class="p-1.5 text-slate-400 hover:text-white hover:bg-surface-panel rounded transition-all"
+          class="p-1.5 text-slate-400 hover:text-white hover:bg-surface-panel rounded transition-all cursor-pointer"
           title="Redo"
         >
           <Icon name="ri:arrow-go-forward-line" class="text-lg" />
         </button>
       </div>
 
-      <!-- Editor Content -->
-      <editor-content :editor="editor" class="flex-1 custom-scrollbar overflow-y-auto p-4" />
+      <!-- Editor Content Full Area Wrapper (Click anywhere to focus) -->
+      <div 
+        @click="focusEditor" 
+        class="flex-1 flex flex-col p-4 custom-scrollbar overflow-y-auto cursor-text min-h-[350px]"
+      >
+        <editor-content :editor="editor" class="flex-1 flex flex-col h-full cursor-text" />
+      </div>
     </div>
   </ClientOnly>
 </template>
@@ -226,13 +231,21 @@ const editor = useEditor({
   ],
   editorProps: {
     attributes: {
-      class: 'prose prose-invert max-w-none focus:outline-none text-sm leading-relaxed min-h-full',
+      class: 'prose prose-invert max-w-none focus:outline-none text-sm leading-relaxed min-h-full flex-1 flex flex-col cursor-text outline-none',
     },
   },
   onUpdate: ({ editor }) => {
     emit('update:modelValue', editor.getHTML())
   },
 })
+
+function focusEditor(event?: MouseEvent) {
+  if (editor.value) {
+    if (!editor.value.isFocused) {
+      editor.value.commands.focus('end')
+    }
+  }
+}
 
 // Sync external changes to editor
 watch(() => props.modelValue, (newValue) => {
@@ -250,7 +263,8 @@ watch(() => props.variables, () => {
 }, { deep: true })
 
 defineExpose({
-  editor
+  editor,
+  focusEditor
 })
 
 onBeforeUnmount(() => {
@@ -269,6 +283,12 @@ onBeforeUnmount(() => {
 
 .tiptap {
   @apply text-slate-200;
+  min-height: 100%;
+  flex: 1 1 auto;
+  outline: none;
+  cursor: text;
+  display: flex;
+  flex-direction: column;
   
   & p {
     @apply my-2;
