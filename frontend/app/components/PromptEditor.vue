@@ -54,6 +54,13 @@
         >
           <Icon name="ri:code-box-line" class="text-lg" />
         </button>
+        <button 
+          @click="editor.chain().focus().setHardBreak().run()"
+          class="p-1.5 text-slate-400 hover:text-white hover:bg-surface-panel rounded transition-all cursor-pointer"
+          title="Line Break <br> (Shift + Enter)"
+        >
+          <Icon name="ri:corner-down-left-line" class="text-lg" />
+        </button>
 
         <div class="w-px h-4 bg-surface-border mx-1"></div>
 
@@ -291,7 +298,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   
   & p {
-    @apply my-2;
+    @apply my-1.5;
   }
 
   & ul {
