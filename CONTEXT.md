@@ -289,8 +289,12 @@ A visual presentation style inside the prompt template editor where template var
 _Avoid_: Variable tag highlight, inline highlight block
 
 **Unsaved Prompt Guard**:
-A client-side navigation and interaction interceptor in the Prompt Template editor that detects unsaved form changes (dirty state) and presents a tri-action confirmation dialog (Save & Continue, Discard Changes, Keep Editing) before executing template switching, page navigation, or window unloading.
+A client-side navigation and interaction interceptor in the Prompt Template editor that detects unsaved form changes (dirty state) and presents an exit confirmation dialog (Save & Continue, Discard Changes, or dismiss) before executing template switching, page navigation, or window unloading.
 _Avoid_: Unsaved changes alert, dirty prompt popup, navigation blocker
+
+**Prompt Draft Revert**:
+An explicit in-editor action that restores all modified prompt template fields (name, tags, content) back to their baseline saved state without closing or unselecting the active template, guarded by a dedicated binary confirmation dialog.
+_Avoid_: Cancel edit, prompt undo all, form reset
 
 **Auto-Reframe Crop Map**:
 A pre-computed time-series keyframe sequence mapping video timestamps to horizontal pan positions ($X$), generated during clip ingestion via face tracking detection to provide instant WYSIWYG camera tracking in the editor and export engine.

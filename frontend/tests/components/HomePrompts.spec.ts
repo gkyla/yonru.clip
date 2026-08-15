@@ -101,14 +101,25 @@ describe('HomePrompts Component', () => {
     expect((wrapper.vm as any).promptName).toBe('Education Explainer')
     expect((wrapper.vm as any).autoHooks).toBe(true)
 
-    // Click "Cancel" to deselect
+    // Action bar shows Revert button when editing
+    const revertBtn = wrapper.findAll('button').find(b => b.text().includes('Revert'))
+    expect(revertBtn).toBeDefined()
+
+    // Start New Prompt to test Cancel button
+    const createBtn = wrapper.findAll('button').find(b => b.text().includes('Create New'))
+    expect(createBtn).toBeDefined()
+    await createBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Click "Cancel" in new template form to deselect
     const cancelBtn = wrapper.findAll('button').find(b => b.text().includes('Cancel'))
     expect(cancelBtn).toBeDefined()
     await cancelBtn!.trigger('click')
     await wrapper.vm.$nextTick()
 
-    // Editor should show empty state or reset
+    // Editor should show empty state
     expect((wrapper.vm as any).editingId).toBeNull()
+    expect((wrapper.vm as any).isCreatingNew).toBe(false)
   })
 
   it('edits content text directly and saves with natural AI defaults', async () => {
@@ -352,5 +363,92 @@ describe('HomePrompts Component', () => {
     expect((wrapper.vm as any).showUnsavedModal).toBe(false)
     expect((wrapper.vm as any).editingId).toBeNull()
     expect((wrapper.vm as any).isDirty).toBe(false)
+  })
+
+  it('reverts modified template draft back to saved baseline snapshot without closing editor', async () => {
+    const wrapper = mount(HomePrompts, {
+      global: {
+        stubs: {
+          Icon: true,
+          PromptEditor: true
+        }
+      }
+    })
+
+    // Click on 'Podcast Hooks' to edit
+    const podcastCard = wrapper.findAll('button').find(d => d.text().includes('Podcast Hooks'))
+    await podcastCard!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Find Revert button - should be disabled when clean
+    const revertBtn = wrapper.findAll('button').find(b => b.text().includes('Revert'))
+    expect(revertBtn).toBeDefined()
+    expect(revertBtn!.attributes('disabled')).toBeDefined()
+
+    // Modify promptName
+    const nameInput = wrapper.find('input[placeholder*="Comedy Podcast Hooks"]')
+    await nameInput.setValue('Modified Podcast Hooks')
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).isDirty).toBe(true)
+    expect(revertBtn!.attributes('disabled')).toBeUndefined()
+
+    // Click Revert button -> opens showRevertModal
+    await revertBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).showRevertModal).toBe(true)
+    expect(wrapper.text()).toContain('Revert Template Changes?')
+
+    // Execute revert
+    await (wrapper.vm as any).executeRevertPrompt()
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).showRevertModal).toBe(false)
+    expect((nameInput.element as HTMLInputElement).value).toBe('Podcast Hooks')
+    expect((wrapper.vm as any).isDirty).toBe(false)
+    expect((wrapper.vm as any).editingId).toBe('prompt.json::0')
+  })
+
+  it('opens Discard New Template modal when canceling an unsaved new template draft', async () => {
+    const wrapper = mount(HomePrompts, {
+      global: {
+        stubs: {
+          Icon: true,
+          PromptEditor: true
+        }
+      }
+    })
+
+    // Click + Create New Template
+    const createBtn = wrapper.findAll('button').find(b => b.text().includes('+ Create New Template'))
+    await createBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).isCreatingNew).toBe(true)
+    expect((wrapper.vm as any).isDirty).toBe(false)
+
+    // Type name in new template
+    const nameInput = wrapper.find('input[placeholder*="Comedy Podcast Hooks"]')
+    await nameInput.setValue('Brand New Archetype')
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).isDirty).toBe(true)
+
+    // Click Cancel in action bar
+    const cancelBtn = wrapper.findAll('button').find(b => b.text().includes('Cancel'))
+    await cancelBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).showDiscardNewModal).toBe(true)
+    expect(wrapper.text()).toContain('Discard New Template Draft?')
+
+    // Confirm discard
+    await (wrapper.vm as any).confirmDiscardNew()
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).showDiscardNewModal).toBe(false)
+    expect((wrapper.vm as any).isCreatingNew).toBe(false)
+    expect((wrapper.vm as any).editingId).toBeNull()
   })
 })
