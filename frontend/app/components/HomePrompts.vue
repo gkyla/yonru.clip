@@ -68,7 +68,7 @@
             v-else
             v-for="p in filteredPrompts" 
             :key="p.id"
-            @click="editExistingPrompt(p)"
+            @click="onSelectPrompt(p)"
             class="w-full text-left bg-surface-dark/60 border border-surface-border/60 hover:border-slate-600 hover:bg-surface-panel/40 rounded-xl p-3 cursor-pointer transition-all flex flex-col gap-1.5 group select-none relative"
             :class="{ 'border-accent-500 bg-accent-500/10 shadow-[0_0_15px_rgba(207,255,80,0.05)] ring-1 ring-accent-500/40 z-10': editingId === p.id }"
           >
@@ -135,7 +135,7 @@
           <h4 class="text-white font-bold text-xs uppercase tracking-wider mb-1">No Template Selected</h4>
           <p class="text-slate-500 text-xs max-w-sm leading-relaxed mb-5">Select an existing template from the sidebar list to edit, or initialize a new prompt template configuration.</p>
           <button 
-            @click="startNewPrompt"
+            @click="onStartNewPrompt"
             class="px-4 py-2 bg-surface-dark hover:bg-surface-panel border border-surface-border text-slate-300 font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all cursor-pointer hover:border-slate-600"
           >
             + Create New Template
@@ -151,9 +151,15 @@
             <!-- Editor Title & Action Bar -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-border/50 pb-3.5">
               <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full bg-accent-500 animate-pulse shadow-[0_0_8px_#CFFF50]"></div>
-                <h3 class="text-xs font-black text-white uppercase tracking-wider">
-                  {{ editingId ? 'Modify Prompt Template' : 'New Prompt Configuration' }}
+                <div 
+                  class="w-2 h-2 rounded-full transition-colors"
+                  :class="isDirty ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24] animate-pulse' : 'bg-accent-500 shadow-[0_0_8px_#CFFF50]'"
+                ></div>
+                <h3 class="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                  <span>{{ editingId ? 'Modify Prompt Template' : 'New Prompt Configuration' }}</span>
+                  <span v-if="isDirty" class="text-[9px] bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono font-bold px-1.5 py-0.5 rounded uppercase tracking-wider lowercase">
+                    unsaved
+                  </span>
                 </h3>
               </div>
               <div class="flex items-center gap-2 self-end sm:self-auto">
@@ -165,13 +171,13 @@
                   Delete
                 </button>
                 <button 
-                  @click="cancelEdit"
+                  @click="onCancelEdit"
                   class="px-3 py-1.5 bg-surface-dark border border-surface-border text-slate-400 hover:text-white font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all cursor-pointer hover:border-slate-600"
                 >
                   Cancel
                 </button>
                 <button 
-                  @click="savePrompt"
+                  @click="handleSaveButtonClick"
                   :disabled="!promptName || !promptText"
                   class="px-4 py-1.5 bg-accent-500 text-black font-black uppercase tracking-wider text-[10px] rounded-lg hover:bg-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_15px_rgba(207,255,80,0.15)] active:scale-95 cursor-pointer"
                 >
@@ -309,6 +315,72 @@
     </div>
   </div>
 
+  <!-- Unsaved Prompt Guard Modal (Tri-Action) -->
+  <div v-if="showUnsavedModal" class="fixed inset-0 z-[140] flex items-center justify-center p-4">
+    <!-- Backdrop filter blurring background -->
+    <div class="absolute inset-0 bg-black/85 backdrop-blur-md" @click="keepEditing"></div>
+    
+    <!-- Content Card -->
+    <div class="relative w-full max-w-lg bg-[#0e1017] border border-surface-border/80 rounded-3xl p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.9),0_0_30px_rgba(245,158,11,0.08)] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[150]">
+       <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
+       
+       <!-- Warning shield icon with ambient amber glow -->
+       <div class="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-400 flex items-center justify-center mb-5 shadow-[0_0_25px_rgba(245,158,11,0.15)]">
+          <Icon name="ri:alert-line" class="text-2xl" />
+       </div>
+
+       <h3 class="text-xl font-black text-white tracking-wide mb-1.5">Unsaved Changes Detected</h3>
+       <p class="text-slate-400 text-xs leading-relaxed mb-5">
+         You have unsaved changes on the current prompt configuration. What would you like to do before proceeding?
+       </p>
+       
+       <!-- Context summary card -->
+       <div class="bg-surface-panel/40 border border-surface-border/80 rounded-xl p-3.5 mb-6 flex flex-col gap-1.5">
+          <div class="flex items-center justify-between text-[10px] uppercase font-bold tracking-widest text-slate-500">
+             <span>Active Template</span>
+             <span class="text-amber-400 font-semibold lowercase tracking-normal flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                unsaved draft
+             </span>
+          </div>
+          <span class="text-white font-mono text-xs font-bold truncate">
+             {{ promptName || 'Untitled Template' }}
+          </span>
+          <div v-if="pendingActionDescription" class="text-[11px] text-slate-400 border-t border-surface-border/50 pt-1.5 mt-0.5 flex items-center gap-1">
+             <span class="text-slate-500">Target:</span>
+             <span class="text-slate-300 font-medium">{{ pendingActionDescription }}</span>
+          </div>
+       </div>
+
+       <!-- Tri-Action Buttons (Option A) -->
+       <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full">
+          <button 
+            @click="confirmSaveAndProceed"
+            :disabled="!promptName || !promptText"
+            class="flex-1 py-3 px-3 bg-accent-500 hover:bg-accent-400 text-black rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(207,255,80,0.2)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
+          >
+             <Icon name="ri:save-3-line" class="text-sm font-bold" />
+             <span>Save & Continue</span>
+          </button>
+          
+          <button 
+            @click="confirmDiscardAndProceed"
+            class="py-3 px-3.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/25 hover:border-red-500/50 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1"
+          >
+             <Icon name="ri:delete-bin-line" class="text-sm" />
+             <span>Discard</span>
+          </button>
+
+          <button 
+            @click="keepEditing"
+            class="py-3 px-3.5 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-slate-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all active:scale-[0.98] cursor-pointer"
+          >
+             Cancel
+          </button>
+       </div>
+    </div>
+  </div>
+
   <!-- Confirmation Delete Modal -->
   <div v-if="showDeleteModal" class="fixed inset-0 z-[120] flex items-center justify-center p-4">
     <!-- Backdrop filter blurring background -->
@@ -367,6 +439,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 
 const state = useClipperState()
 const API_BASE = 'http://localhost:8000'
@@ -384,6 +457,66 @@ const tagPopoverRef = ref<HTMLElement | null>(null)
 const promptText = ref('')
 const numHooks = ref(10)
 const autoHooks = ref(true)
+
+// Baseline Snapshot & Dirty State Tracking
+interface PromptSnapshot {
+  name: string
+  suitableFor: string[]
+  prompt: string
+}
+
+const baselineSnapshot = ref<PromptSnapshot | null>(null)
+const showUnsavedModal = ref(false)
+
+type PendingAction = 
+  | { type: 'switch_prompt', prompt: any }
+  | { type: 'create_new' }
+  | { type: 'cancel_edit' }
+  | { type: 'route_leave', next: () => void }
+
+const pendingAction = ref<PendingAction | null>(null)
+
+function updateBaselineSnapshot() {
+  baselineSnapshot.value = {
+    name: promptName.value,
+    suitableFor: [...suitableFor.value],
+    prompt: promptText.value
+  }
+}
+
+function normalizePromptText(text: string): string {
+  return (text || '').replace(/<p><\/p>/g, '').trim()
+}
+
+const isDirty = computed(() => {
+  if (!editingId.value && !isCreatingNew.value) return false
+  if (!baselineSnapshot.value) return false
+
+  const nameChanged = promptName.value.trim() !== baselineSnapshot.value.name.trim()
+  const textChanged = normalizePromptText(promptText.value) !== normalizePromptText(baselineSnapshot.value.prompt)
+  const currentTags = [...suitableFor.value].map(t => t.trim()).filter(Boolean).sort().join(',')
+  const baselineTags = [...baselineSnapshot.value.suitableFor].map(t => t.trim()).filter(Boolean).sort().join(',')
+  const tagsChanged = currentTags !== baselineTags
+
+  return nameChanged || textChanged || tagsChanged
+})
+
+const pendingActionDescription = computed(() => {
+  if (!pendingAction.value) return ''
+  if (pendingAction.value.type === 'switch_prompt') {
+    return `Switch to "${pendingAction.value.prompt.name}"`
+  }
+  if (pendingAction.value.type === 'create_new') {
+    return 'Create New Template'
+  }
+  if (pendingAction.value.type === 'cancel_edit') {
+    return 'Cancel & Close Editor'
+  }
+  if (pendingAction.value.type === 'route_leave') {
+    return 'Leave this page'
+  }
+  return ''
+})
 
 // Search State
 const searchQuery = ref('')
@@ -425,15 +558,46 @@ const suggestedTags = computed(() => {
   return Array.from(allTags).slice(0, 8)
 })
 
+// Browser Unload Guard
+function handleBeforeUnload(e: BeforeUnloadEvent) {
+  if (isDirty.value) {
+    e.preventDefault()
+    e.returnValue = ''
+    return ''
+  }
+}
+
+// Router Navigation Guard Handler (Invoked by page route guard)
+function handleRouteLeave(to: any, from: any, next: (proceed?: boolean) => void) {
+  if (isDirty.value) {
+    pendingAction.value = { type: 'route_leave', next }
+    showUnsavedModal.value = true
+    next(false)
+  } else {
+    next()
+  }
+}
+
+defineExpose({
+  isDirty,
+  showUnsavedModal,
+  handleRouteLeave,
+  keepEditing,
+  confirmDiscardAndProceed,
+  confirmSaveAndProceed
+})
+
 onMounted(() => {
   if (state.promptsList.value.length === 0) {
     state.fetchPrompts()
   }
   document.addEventListener('click', handleClickOutside)
+  window.addEventListener('beforeunload', handleBeforeUnload)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
 function handleClickOutside(e: MouseEvent) {
@@ -476,6 +640,36 @@ function removeTag(index: number) {
   suitableFor.value.splice(index, 1)
 }
 
+// Guarded Interaction Handlers
+function onSelectPrompt(p: any) {
+  if (p.id === editingId.value) return
+  if (isDirty.value) {
+    pendingAction.value = { type: 'switch_prompt', prompt: p }
+    showUnsavedModal.value = true
+  } else {
+    editExistingPrompt(p)
+  }
+}
+
+function onStartNewPrompt() {
+  if (isCreatingNew.value) return
+  if (isDirty.value) {
+    pendingAction.value = { type: 'create_new' }
+    showUnsavedModal.value = true
+  } else {
+    startNewPrompt()
+  }
+}
+
+function onCancelEdit() {
+  if (isDirty.value) {
+    pendingAction.value = { type: 'cancel_edit' }
+    showUnsavedModal.value = true
+  } else {
+    cancelEdit()
+  }
+}
+
 function editExistingPrompt(p: any) {
   editingId.value = p.id
   isCreatingNew.value = false
@@ -486,6 +680,7 @@ function editExistingPrompt(p: any) {
   autoHooks.value = p.autoHooks ?? true
   isTagPopoverOpen.value = false
   newTagInput.value = ''
+  updateBaselineSnapshot()
   triggerSwitchAnimation()
 }
 
@@ -499,6 +694,7 @@ function startNewPrompt() {
   autoHooks.value = true
   isTagPopoverOpen.value = false
   newTagInput.value = ''
+  updateBaselineSnapshot()
   triggerSwitchAnimation()
 }
 
@@ -506,10 +702,50 @@ function cancelEdit() {
   editingId.value = null
   isCreatingNew.value = false
   isTagPopoverOpen.value = false
+  baselineSnapshot.value = null
 }
 
-async function savePrompt() {
+function executePendingAction() {
+  const action = pendingAction.value
+  pendingAction.value = null
+  if (!action) return
+
+  if (action.type === 'switch_prompt') {
+    editExistingPrompt(action.prompt)
+  } else if (action.type === 'create_new') {
+    startNewPrompt()
+  } else if (action.type === 'cancel_edit') {
+    cancelEdit()
+  } else if (action.type === 'route_leave') {
+    action.next()
+  }
+}
+
+function confirmDiscardAndProceed() {
+  showUnsavedModal.value = false
+  executePendingAction()
+}
+
+async function confirmSaveAndProceed() {
   if (!promptName.value || !promptText.value) return
+  const success = await savePrompt(false)
+  if (success !== false) {
+    showUnsavedModal.value = false
+    executePendingAction()
+  }
+}
+
+function keepEditing() {
+  showUnsavedModal.value = false
+  pendingAction.value = null
+}
+
+function handleSaveButtonClick() {
+  savePrompt(true)
+}
+
+async function savePrompt(keepEditingActive: boolean = true): Promise<boolean> {
+  if (!promptName.value || !promptText.value) return false
   
   const tags = [...suitableFor.value]
   if (newTagInput.value.trim().length > 0) {
@@ -523,11 +759,13 @@ async function savePrompt() {
   if (editingId.value) {
     const success = await state.editPrompt(editingId.value, promptName.value, tags, promptText.value, 10, true)
     if (success) {
-      // Keep editing mode active on success
+      updateBaselineSnapshot()
+      return true
     }
+    return false
   } else {
     try {
-      await $fetch(`${API_BASE}/api/prompts/add`, {
+      const res: any = await $fetch(`${API_BASE}/api/prompts/add`, {
         method: 'POST',
         body: { 
           promptName: promptName.value,
@@ -539,9 +777,18 @@ async function savePrompt() {
       })
       state.showToast('Prompt saved successfully', 'success')
       await state.fetchPrompts()
-      cancelEdit()
+      if (res && res.id) {
+        editingId.value = res.id
+        isCreatingNew.value = false
+      }
+      updateBaselineSnapshot()
+      if (!keepEditingActive) {
+        cancelEdit()
+      }
+      return true
     } catch (e) {
       state.showToast('Failed to save prompt', 'error')
+      return false
     }
   }
 }
@@ -562,6 +809,7 @@ async function executeDeletePrompt() {
     autoHooks.value = false
     newTagInput.value = ''
     isTagPopoverOpen.value = false
+    baselineSnapshot.value = null
   }
 }
 </script>

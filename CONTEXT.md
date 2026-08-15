@@ -288,6 +288,10 @@ _Avoid_: Virality reason, hook description
 A visual presentation style inside the prompt template editor where template variables are dynamically highlighted.
 _Avoid_: Variable tag highlight, inline highlight block
 
+**Unsaved Prompt Guard**:
+A client-side navigation and interaction interceptor in the Prompt Template editor that detects unsaved form changes (dirty state) and presents a tri-action confirmation dialog (Save & Continue, Discard Changes, Keep Editing) before executing template switching, page navigation, or window unloading.
+_Avoid_: Unsaved changes alert, dirty prompt popup, navigation blocker
+
 **Auto-Reframe Crop Map**:
 A pre-computed time-series keyframe sequence mapping video timestamps to horizontal pan positions ($X$), generated during clip ingestion via face tracking detection to provide instant WYSIWYG camera tracking in the editor and export engine.
 _Avoid_: Pan keyframes, tracking coords, face position array

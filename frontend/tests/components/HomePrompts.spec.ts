@@ -259,4 +259,61 @@ describe('HomePrompts Component', () => {
     expect(wrapper.text()).toContain('#comedy')
     expect(wrapper.text()).toContain('#humor, #talkshow')
   })
+
+  it('triggers Unsaved Changes modal when switching templates with unsaved modifications', async () => {
+    const wrapper = mount(HomePrompts, {
+      global: {
+        stubs: {
+          Icon: true,
+          PromptEditor: true
+        }
+      }
+    })
+
+    // Click on 'Podcast Hooks' to edit
+    const podcastCard = wrapper.findAll('button').find(d => d.text().includes('Podcast Hooks'))
+    await podcastCard!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).isDirty).toBe(false)
+    expect((wrapper.vm as any).showUnsavedModal).toBe(false)
+
+    // Modify promptName
+    const nameInput = wrapper.find('input[placeholder*="Comedy Podcast Hooks"]')
+    await nameInput.setValue('Modified Podcast Hooks')
+    await wrapper.vm.$nextTick()
+
+    // Should now be dirty
+    expect((wrapper.vm as any).isDirty).toBe(true)
+
+    // Try to click 'Education Explainer' card
+    const explainerCard = wrapper.findAll('button').find(d => d.text().includes('Education Explainer'))
+    await explainerCard!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Unsaved Changes modal should open instead of switching immediately
+    expect((wrapper.vm as any).showUnsavedModal).toBe(true)
+    expect(wrapper.text()).toContain('Unsaved Changes Detected')
+    expect((wrapper.vm as any).editingId).toBe('prompt.json::0')
+
+    // Test 'Keep Editing / Cancel'
+    const cancelModalBtn = wrapper.findAll('button').find(b => b.text() === 'Cancel' && (wrapper.vm as any).showUnsavedModal)
+    await (wrapper.vm as any).keepEditing()
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).showUnsavedModal).toBe(false)
+    expect((wrapper.vm as any).editingId).toBe('prompt.json::0')
+
+    // Trigger switch again and Discard
+    await explainerCard!.trigger('click')
+    await wrapper.vm.$nextTick()
+    expect((wrapper.vm as any).showUnsavedModal).toBe(true)
+
+    // Click Discard
+    await (wrapper.vm as any).confirmDiscardAndProceed()
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as any).showUnsavedModal).toBe(false)
+    expect((wrapper.vm as any).editingId).toBe('prompt.json::1')
+  })
 })
