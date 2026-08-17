@@ -674,8 +674,130 @@ class AssetRepository(AssetStore):
             json.dump(hooks, f, indent=4)
         return hooks
 
+    # ── Clip Artifacts & Config Persistence ───────────────────────
+
+    def _resolve_clip_path(self, folder_name: str, clip_id: str, filename: str) -> str:
+        base = os.path.realpath(self.clips_dir)
+        target = os.path.realpath(os.path.join(self.clips_dir, folder_name, clip_id, filename))
+        if os.path.commonpath([base, target]) != base:
+            raise ValueError(f"Path traversal detected: {folder_name}/{clip_id}/{filename}")
+        return target
+
+    def save_clip_transcript(self, folder_name: str, clip_id: str, transcript: list) -> bool:
+        clip_transcript_path = self._resolve_clip_path(folder_name, clip_id, "transcript.json")
+        os.makedirs(os.path.dirname(clip_transcript_path), exist_ok=True)
+        with open(clip_transcript_path, "w", encoding="utf-8") as f:
+            json.dump(transcript, f, ensure_ascii=False, indent=2)
+        return True
+
+    def update_source_hooks(self, folder_name: str, hooks: list) -> bool:
+        base = os.path.realpath(self.source_dir)
+        hooks_path = os.path.realpath(os.path.join(self.source_dir, folder_name, "hooks.json"))
+        if os.path.commonpath([base, hooks_path]) != base:
+            raise ValueError(f"Path traversal detected: {folder_name}/hooks.json")
+        if not os.path.exists(hooks_path):
+            return False
+        with open(hooks_path, "w", encoding="utf-8") as f:
+            json.dump(hooks, f, ensure_ascii=False, indent=2)
+        return True
+
+    def save_clip_style_settings(self, folder_name: str, clip_id: str, settings: dict) -> bool:
+        style_path = self._resolve_clip_path(folder_name, clip_id, "style_settings.json")
+        os.makedirs(os.path.dirname(style_path), exist_ok=True)
+        with open(style_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+        return True
+
+    def save_clip_timeline(self, folder_name: str, clip_id: str, timeline_tracks: list) -> bool:
+        timeline_path = self._resolve_clip_path(folder_name, clip_id, "timeline.json")
+        os.makedirs(os.path.dirname(timeline_path), exist_ok=True)
+        with open(timeline_path, "w", encoding="utf-8") as f:
+            json.dump(timeline_tracks, f, ensure_ascii=False, indent=2)
+        return True
+
+    def save_clip_history(self, folder_name: str, clip_id: str, undo_stack: list, redo_stack: list) -> bool:
+        history_path = self._resolve_clip_path(folder_name, clip_id, "history.json")
+        os.makedirs(os.path.dirname(history_path), exist_ok=True)
+        with open(history_path, "w", encoding="utf-8") as f:
+            json.dump({"undo_stack": undo_stack, "redo_stack": redo_stack}, f, ensure_ascii=False)
+        return True
+
+    def save_default_style_settings(self, settings: dict) -> bool:
+        default_style_path = os.path.join(self.output_dir, "default_style_settings.json")
+        with open(default_style_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+        return True
+
+    def get_default_style_settings(self) -> Optional[dict]:
+        default_style_path = os.path.join(self.output_dir, "default_style_settings.json")
+        if os.path.exists(default_style_path):
+            try:
+                with open(default_style_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return None
+
+    def save_default_thumbnail_style(self, style: dict) -> bool:
+        default_thumb_path = os.path.join(self.output_dir, "default_thumbnail_style.json")
+        with open(default_thumb_path, "w", encoding="utf-8") as f:
+            json.dump(style, f, ensure_ascii=False, indent=2)
+        return True
+
+    def get_default_thumbnail_style(self) -> Optional[dict]:
+        default_thumb_path = os.path.join(self.output_dir, "default_thumbnail_style.json")
+        if os.path.exists(default_thumb_path):
+            try:
+                with open(default_thumb_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return None
+
+    def save_thumbnail_config(self, folder_name: str, clip_id: str, config: dict) -> bool:
+        config_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail_config.json")
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        return True
+
+    def get_thumbnail_config(self, folder_name: str, clip_id: str) -> Optional[dict]:
+        config_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail_config.json")
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return None
+
+    def delete_thumbnail(self, folder_name: str, clip_id: str) -> bool:
+        thumb_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail.jpg")
+        if os.path.exists(thumb_path):
+            try:
+                os.remove(thumb_path)
+            except Exception:
+                pass
+        return True
+
+    def extract_clip_screenshot(self, clip_path: str, timestamp: float, output_path: str) -> bool:
+        if not os.path.exists(clip_path):
+            return False
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(timestamp),
+            "-i", clip_path,
+            "-vframes", "1",
+            "-q:v", "2",
+            output_path
+        ]
+        res = self._run_ffmpeg(cmd)
+        return res and os.path.exists(output_path)
+
 
 class MockAssetStore(AssetStore):
+
     def __init__(self, cached_videos=None, ready_clips=None, saved_hooks=None):
         self.cached_videos = cached_videos or []
         self.ready_clips = ready_clips or []

@@ -705,48 +705,45 @@ def remove_saved_hook(folder_name: str, hook_id: str):
 @app.put("/api/transcript")
 async def update_transcript(req: TranscriptEditRequest):
     """Manually update the transcript for a specific clip."""
-    clip_transcript_path = os.path.join("temp_assets", "clips", req.folder_name, req.clip_id, "transcript.json")
-    
     try:
-        os.makedirs(os.path.dirname(clip_transcript_path), exist_ok=True)
-        word_count = len(req.transcript)
-        with open(clip_transcript_path, "w", encoding="utf-8") as f:
-            json.dump(req.transcript, f, ensure_ascii=False, indent=2)
-        print(f"[edit] Updated isolated clip transcript at {clip_transcript_path} ({word_count} words)")
+        asset_repository.save_clip_transcript(req.folder_name, req.clip_id, req.transcript)
+        print(f"[edit] Updated isolated clip transcript for {req.folder_name}/{req.clip_id} ({len(req.transcript)} words)")
         return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"[edit] Clip save failed for {req.folder_name}/{req.clip_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @app.put("/api/hooks")
 async def update_hooks(req: HookUpdateRequest):
     """Update themes/names in the source hooks.json"""
-    hooks_path = os.path.join("temp_assets", "sources", req.folder_name, "hooks.json")
-    if os.path.exists(hooks_path):
-        try:
-            with open(hooks_path, "w", encoding="utf-8") as f:
-                json.dump(req.hooks, f, ensure_ascii=False, indent=2)
-            # Also update in-memory jobs if active
-            for job in jobs.values():
-                if job.get("video_info") and os.path.dirname(job["video_info"].get("file_path", "")) == os.path.dirname(hooks_path):
-                    job["hooks"] = req.hooks
-            return {"status": "ok"}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-    raise HTTPException(status_code=404, detail="hooks.json not found")
+    try:
+        updated = asset_repository.update_source_hooks(req.folder_name, req.hooks)
+        if not updated:
+            raise HTTPException(status_code=404, detail="hooks.json not found")
+        # Also update in-memory jobs if active
+        for job in jobs.values():
+            if job.get("video_info") and job["video_info"].get("folder_name") == req.folder_name:
+                job["hooks"] = req.hooks
+        return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/style-settings")
 async def update_style_settings(req: StyleSettingsRequest):
     """Persist style settings for a specific clip."""
-    style_path = os.path.join("temp_assets", "clips", req.folder_name, req.clip_id, "style_settings.json")
     try:
-        os.makedirs(os.path.dirname(style_path), exist_ok=True)
-        with open(style_path, "w", encoding="utf-8") as f:
-            json.dump(req.settings, f, ensure_ascii=False, indent=2)
-        print(f"[edit] Updated style settings at {style_path}")
+        asset_repository.save_clip_style_settings(req.folder_name, req.clip_id, req.settings)
+        print(f"[edit] Updated style settings for {req.folder_name}/{req.clip_id}")
         return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"[edit] Style save failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -754,13 +751,12 @@ async def update_style_settings(req: StyleSettingsRequest):
 @app.put("/api/timeline")
 async def update_timeline(req: TimelineSaveRequest):
     """Persist timeline tracks for a specific clip."""
-    timeline_path = os.path.join("temp_assets", "clips", req.folder_name, req.clip_id, "timeline.json")
     try:
-        os.makedirs(os.path.dirname(timeline_path), exist_ok=True)
-        with open(timeline_path, "w", encoding="utf-8") as f:
-            json.dump(req.timeline_tracks, f, ensure_ascii=False, indent=2)
-        print(f"[edit] Updated timeline tracks at {timeline_path}")
+        asset_repository.save_clip_timeline(req.folder_name, req.clip_id, req.timeline_tracks)
+        print(f"[edit] Updated timeline tracks for {req.folder_name}/{req.clip_id}")
         return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"[edit] Timeline save failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -768,16 +764,12 @@ async def update_timeline(req: TimelineSaveRequest):
 @app.put("/api/timeline-history")
 async def update_timeline_history(req: TimelineHistoryRequest):
     """Persist undo/redo history stacks for a specific clip."""
-    base = os.path.realpath(os.path.join("temp_assets", "clips"))
-    history_path = os.path.realpath(os.path.join("temp_assets", "clips", req.folder_name, req.clip_id, "history.json"))
-    if os.path.commonpath([base, history_path]) != base:
-        raise HTTPException(status_code=400, detail="Invalid path")
     try:
-        os.makedirs(os.path.dirname(history_path), exist_ok=True)
-        with open(history_path, "w", encoding="utf-8") as f:
-            json.dump({"undo_stack": req.undo_stack, "redo_stack": req.redo_stack}, f, ensure_ascii=False)
-        print(f"[edit] Saved timeline history at {history_path}")
+        asset_repository.save_clip_history(req.folder_name, req.clip_id, req.undo_stack, req.redo_stack)
+        print(f"[edit] Saved timeline history for {req.folder_name}/{req.clip_id}")
         return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"[edit] Timeline history save failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -785,11 +777,9 @@ async def update_timeline_history(req: TimelineHistoryRequest):
 @app.put("/api/default-style-settings")
 async def update_default_style_settings(req: DefaultStyleSettingsRequest):
     """Persist default style settings for all future clips."""
-    default_style_path = os.path.join("temp_assets", "default_style_settings.json")
     try:
-        with open(default_style_path, "w", encoding="utf-8") as f:
-            json.dump(req.settings, f, ensure_ascii=False, indent=2)
-        print(f"[edit] Updated default style settings at {default_style_path}")
+        asset_repository.save_default_style_settings(req.settings)
+        print(f"[edit] Updated default style settings")
         return {"status": "ok"}
     except Exception as e:
         print(f"[edit] Default style save failed: {e}")
@@ -798,28 +788,20 @@ async def update_default_style_settings(req: DefaultStyleSettingsRequest):
 @app.get("/api/default-thumbnail-style")
 async def get_default_thumbnail_style():
     """Retrieve default thumbnail style settings."""
-    default_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
-    if os.path.exists(default_style_path):
-        try:
-            with open(default_style_path, "r", encoding="utf-8") as f:
-                style = json.load(f)
-            return {"style": style}
-        except Exception as e:
-            print(f"[api] Error reading default thumbnail style: {e}")
-    return {"style": None}
+    style = asset_repository.get_default_thumbnail_style()
+    return {"style": style}
 
 @app.put("/api/default-thumbnail-style")
 async def update_default_thumbnail_style(req: DefaultThumbnailStyleRequest):
     """Persist default thumbnail style settings for all future clips."""
-    default_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
     try:
-        with open(default_style_path, "w", encoding="utf-8") as f:
-            json.dump(req.style, f, ensure_ascii=False, indent=2)
-        print(f"[edit] Updated default thumbnail style at {default_style_path}")
+        asset_repository.save_default_thumbnail_style(req.style)
+        print(f"[edit] Updated default thumbnail style")
         return {"status": "ok"}
     except Exception as e:
         print(f"[edit] Default thumbnail style save failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/system-settings")
 async def get_system_settings():
@@ -1042,8 +1024,6 @@ async def system_health():
 @app.post("/api/thumbnail/screenshot")
 async def thumbnail_screenshot(req: ThumbnailScreenshotRequest):
     """Extract a single frame from the clip video as thumbnail."""
-    import subprocess, random
-    
     if req.job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     
@@ -1059,35 +1039,21 @@ async def thumbnail_screenshot(req: ThumbnailScreenshotRequest):
     if req.timestamp is not None:
         ts = max(0.0, min(req.timestamp, clip_duration - 0.1))
     else:
-        # Random frame from first 80% of clip
+        import random
         ts = random.uniform(0.5, clip_duration * 0.8)
     
     thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
-    
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", clip_path,
-        "-ss", f"{ts:.3f}",
-        "-frames:v", "1",
-        "-q:v", "2",
-        thumb_path
-    ]
-    
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
-    if result.returncode != 0:
-        print(f"[thumbnail] FFmpeg failed: {result.stderr}")
+    success = asset_repository.extract_clip_screenshot(clip_path, ts, thumb_path)
+    if not success:
         raise HTTPException(status_code=500, detail="Failed to extract thumbnail frame")
     
-    # Build asset URL from clip path structure
-    # clip_path = temp_assets/clips/<folder>/<clip_id>/video.mp4
     parts = clip_path.replace("\\", "/").split("/")
-    # Find clips index
     try:
         clips_idx = parts.index("clips")
         relative = "/".join(parts[clips_idx:])
         asset_url = f"/assets/{relative.rsplit('/', 1)[0]}/thumbnail.jpg"
-    except:
-        asset_url = f"/assets/clips/thumbnail.jpg"
+    except Exception:
+        asset_url = "/assets/clips/thumbnail.jpg"
     
     print(f"[thumbnail] Captured frame at {ts:.3f}s → {thumb_path}")
     return {"status": "ok", "timestamp": round(ts, 3), "thumbnail_url": asset_url}
@@ -1095,31 +1061,24 @@ async def thumbnail_screenshot(req: ThumbnailScreenshotRequest):
 @app.put("/api/thumbnail/config")
 async def save_thumbnail_config(req: ThumbnailConfigRequest):
     """Save thumbnail configuration for a clip."""
-    config_path = os.path.join("temp_assets", "clips", req.folder_name, req.clip_id, "thumbnail_config.json")
     try:
-        os.makedirs(os.path.dirname(config_path), exist_ok=True)
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(req.config, f, ensure_ascii=False, indent=2)
-        print(f"[thumbnail] Saved config to {config_path}")
+        asset_repository.save_thumbnail_config(req.folder_name, req.clip_id, req.config)
         return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/thumbnail/config/{folder_name}/{clip_id}")
 async def get_thumbnail_config(folder_name: str, clip_id: str):
     """Load thumbnail configuration for a clip."""
-    config_path = os.path.join("temp_assets", "clips", folder_name, clip_id, "thumbnail_config.json")
-    if os.path.exists(config_path):
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-        return {"config": config}
-    
-    # Pre-populate with default thumbnail config if default_thumbnail_style exists
-    default_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
-    if os.path.exists(default_style_path):
-        try:
-            with open(default_style_path, "r", encoding="utf-8") as f:
-                default_style = json.load(f)
+    try:
+        config = asset_repository.get_thumbnail_config(folder_name, clip_id)
+        if config is not None:
+            return {"config": config}
+        
+        default_style = asset_repository.get_default_thumbnail_style()
+        if default_style:
             duration = default_style.get("thumbnailDuration", 1.0)
             initial_config = {
                 "enabled": False,
@@ -1128,34 +1087,25 @@ async def get_thumbnail_config(folder_name: str, clip_id: str):
                 "textOverlays": [],
                 "xOffset": 50
             }
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(initial_config, f, ensure_ascii=False, indent=2)
-            print(f"[thumbnail] Pre-populated default thumbnail config to {config_path}")
+            asset_repository.save_thumbnail_config(folder_name, clip_id, initial_config)
             return {"config": initial_config}
-        except Exception as e:
-            print(f"[thumbnail] Failed to pre-populate default config: {e}")
-            
-    return {"config": None}
+        return {"config": None}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/thumbnail/{folder_name}/{clip_id}")
 async def delete_thumbnail(folder_name: str, clip_id: str):
     """Delete thumbnail image and config for a clip."""
-    clip_dir = os.path.join("temp_assets", "clips", folder_name, clip_id)
-    thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
-    config_path = os.path.join(clip_dir, "thumbnail_config.json")
-    
-    deleted_files = []
     try:
-        if os.path.exists(thumb_path):
-            os.remove(thumb_path)
-            deleted_files.append("thumbnail.jpg")
-        if os.path.exists(config_path):
-            os.remove(config_path)
-            deleted_files.append("thumbnail_config.json")
-        return {"status": "ok", "deleted": deleted_files}
+        asset_repository.delete_thumbnail(folder_name, clip_id)
+        return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.post("/api/load-ready-clip")

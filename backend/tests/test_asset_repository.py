@@ -165,3 +165,67 @@ class TestAssetRepository(unittest.TestCase):
         self.assertIn("mtime", videos[0])
         self.assertIsInstance(videos[0]["mtime"], float)
 
+    def test_save_clip_transcript_and_security(self):
+        folder_name = "test_video_123"
+        clip_id = "10_20"
+        transcript = [{"text": "hello", "start": 0.0, "duration": 1.0}]
+        
+        success = self.repo.save_clip_transcript(folder_name, clip_id, transcript)
+        self.assertTrue(success)
+        
+        saved_file = os.path.join(self.output_dir, "clips", folder_name, clip_id, "transcript.json")
+        self.assertTrue(os.path.exists(saved_file))
+        with open(saved_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(data, transcript)
+
+        # Test path traversal prevention
+        with self.assertRaises(ValueError):
+            self.repo.save_clip_transcript("../../unsafe", clip_id, transcript)
+
+    def test_save_clip_style_and_timeline(self):
+        folder_name = "test_video_123"
+        clip_id = "10_20"
+        settings = {"fontSize": 32, "font": "Impact"}
+        timeline = [{"id": "video", "items": []}]
+        
+        self.assertTrue(self.repo.save_clip_style_settings(folder_name, clip_id, settings))
+        self.assertTrue(self.repo.save_clip_timeline(folder_name, clip_id, timeline))
+        self.assertTrue(self.repo.save_clip_history(folder_name, clip_id, ["undo1"], ["redo1"]))
+
+        style_file = os.path.join(self.output_dir, "clips", folder_name, clip_id, "style_settings.json")
+        timeline_file = os.path.join(self.output_dir, "clips", folder_name, clip_id, "timeline.json")
+        history_file = os.path.join(self.output_dir, "clips", folder_name, clip_id, "history.json")
+
+        self.assertTrue(os.path.exists(style_file))
+        self.assertTrue(os.path.exists(timeline_file))
+        self.assertTrue(os.path.exists(history_file))
+
+    def test_default_styles_persistence(self):
+        style = {"font": "Roboto", "fontSize": 48}
+        thumb_style = {"thumbnailDuration": 2.0}
+
+        self.assertTrue(self.repo.save_default_style_settings(style))
+        self.assertEqual(self.repo.get_default_style_settings(), style)
+
+        self.assertTrue(self.repo.save_default_thumbnail_style(thumb_style))
+        self.assertEqual(self.repo.get_default_thumbnail_style(), thumb_style)
+
+    def test_thumbnail_config_and_deletion(self):
+        folder_name = "test_video_123"
+        clip_id = "10_20"
+        config = {"enabled": True, "duration": 1.5}
+        
+        self.assertTrue(self.repo.save_thumbnail_config(folder_name, clip_id, config))
+        self.assertEqual(self.repo.get_thumbnail_config(folder_name, clip_id), config)
+
+        # Create dummy thumbnail image
+        thumb_img = os.path.join(self.output_dir, "clips", folder_name, clip_id, "thumbnail.jpg")
+        with open(thumb_img, "w") as f:
+            f.write("image data")
+        self.assertTrue(os.path.exists(thumb_img))
+
+        self.assertTrue(self.repo.delete_thumbnail(folder_name, clip_id))
+        self.assertFalse(os.path.exists(thumb_img))
+
+
