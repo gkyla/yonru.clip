@@ -2,6 +2,11 @@
 
 This document formalizes the development guidelines, testing loops, and architectural rules for agentic assistants working on the **yonru.clip** codebase.
 
+## Technology Stack & Framework Anchoring
+- **Frontend**: **Nuxt 4 (`^4.4.x`)** using the `frontend/app/` directory structure, **Vue 3.5+**, **Vite**, and **TailwindCSS**. Developer agents must strictly anchor all mental models and documentation to Nuxt 4 (never Nuxt 3).
+- **Backend**: **Python 3.12+**, **FastAPI**, and **Pyright**.
+- **Inspection Rule**: Always check `frontend/package.json` before diagnosing issues or proposing framework changes.
+
 ## Detailed Guidelines
 
 For specific guidelines, see:
