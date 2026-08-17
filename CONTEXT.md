@@ -233,6 +233,11 @@ _Avoid_: Social media safe zone, safe area template
 A visual design rule for nested UI containers where the inner element's border radius ($R_{\text{inner}}$) is calculated using $R_{\text{inner}} = \max(0, R_{\text{outer}} - p)$, where $R_{\text{outer}}$ is the outer container radius and $p$ is the inner padding, ensuring smooth concentric corners without visual gaps or clashing curves.
 _Avoid_: Arbitrary inner border radius, mismatched corner curvature
 
+**Hero Headline Typewriter**:
+An interactive, high-visibility text element within the home hero header that dynamically cycles through short-form video content phrases using smooth typewriter character pacing and a glowing Radioactive Green cursor.
+_Avoid_: Static technical header, rapid text ticker
+
+
 
 ### Ingestion & Services
 

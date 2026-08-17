@@ -1,9 +1,29 @@
 <template>
   <div class="w-full max-w-5xl z-10 flex flex-col">
-        <!-- Header Input Area -->
-        <div class="text-center mt-12 mb-10 relative z-30">
-          <h2 class="text-4xl font-bold tracking-tight text-white mb-4">Paste URL. Extract Hooks.</h2>
-          <p class="text-slate-400 max-w-xl mx-auto mb-8">Download strict 1080p video, extract audio locally, and let Gemini find the most viral segments.</p>
+        <!-- Hero Header Area -->
+        <div class="text-center mt-4 mb-10 relative z-30 flex flex-col items-center">
+          <!-- Ambient Aura Glow Behind Header -->
+          <div class="absolute -top-12 left-1/2 -translate-x-1/2 w-96 sm:w-[500px] h-44 bg-accent-500/10 rounded-full blur-[100px] pointer-events-none -z-10 mix-blend-screen"></div>
+
+          <!-- Eyebrow Glassmorphic Badge -->
+          <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/10 backdrop-blur-md shadow-[0_0_20px_rgba(207,255,80,0.04)] mb-5 select-none hover:border-accent-500/30 transition-all duration-300">
+            <Icon name="ri:sparkling-2-fill" class="text-accent-500 text-xs sm:text-sm shrink-0" />
+            <span class="text-[11px] sm:text-xs font-semibold text-slate-300 tracking-wide">Next-Gen Short Video Clipper</span>
+          </div>
+
+          <!-- Dynamic Typewriter Headline (Zero Layout Shift) -->
+          <h1 class="text-3xl sm:text-5xl font-bold tracking-tight text-white mb-4 max-w-3xl flex flex-col items-center gap-1 sm:gap-1.5 select-none">
+            <span class="block text-white leading-tight">Turn Long Videos into</span>
+            <span class="inline-flex items-center justify-center min-h-[1.25em] text-transparent bg-clip-text bg-gradient-to-r from-accent-500 via-lime-300 to-accent-500 font-extrabold text-center">
+              <span>{{ currentTypewriterText || '\u00A0' }}</span>
+              <span class="inline-block w-[3px] sm:w-[4px] h-[0.85em] bg-accent-500 ml-1.5 align-middle animate-pulse shadow-[0_0_8px_#CFFF50]"></span>
+            </span>
+          </h1>
+
+          <!-- Clean Plain-Language Subtitle -->
+          <p class="text-slate-400 max-w-xl sm:max-w-2xl mx-auto text-xs sm:text-sm sm:leading-relaxed mb-8 px-4 font-normal">
+            Automatically find the most exciting moments, add animated captions, and create ready-to-post Shorts in seconds.
+          </p>
           
           <!-- Unified Analyzer Panel -->
           <div class="px-4 sm:px-8 w-full mb-10 relative z-30">
@@ -2150,6 +2170,41 @@ const forceHighRes = ref(false)
 const isTogglingResolution = ref(false)
 const savedPlaybackTime = ref<number | null>(null)
 
+// Hero Headline Typewriter
+const typewriterPhrases: string[] = [
+  'Viral Short Clips',
+  'Catchy Video Hooks',
+  'Podcast Highlights',
+  'Ready-to-Post Shorts'
+]
+const currentPhraseIndex = ref(0)
+const currentTypewriterText = ref<string>(typewriterPhrases[0] ?? 'Viral Short Clips')
+const isDeleting = ref(false)
+let typewriterTimer: ReturnType<typeof setTimeout> | null = null
+
+function updateTypewriter() {
+  const fullText = typewriterPhrases[currentPhraseIndex.value] ?? typewriterPhrases[0] ?? ''
+
+  if (isDeleting.value) {
+    currentTypewriterText.value = fullText.substring(0, (currentTypewriterText.value || '').length - 1)
+  } else {
+    currentTypewriterText.value = fullText.substring(0, (currentTypewriterText.value || '').length + 1)
+  }
+
+  let typeSpeed = isDeleting.value ? 40 : 80
+
+  if (!isDeleting.value && currentTypewriterText.value === fullText) {
+    typeSpeed = 2200
+    isDeleting.value = true
+  } else if (isDeleting.value && currentTypewriterText.value === '') {
+    isDeleting.value = false
+    currentPhraseIndex.value = (currentPhraseIndex.value + 1) % typewriterPhrases.length
+    typeSpeed = 400
+  }
+
+  typewriterTimer = setTimeout(updateTypewriter, typeSpeed)
+}
+
 const isPromptDropdownOpen = ref(false)
 const promptDropdownRef = ref<HTMLElement | null>(null)
 const hoveredPrompt = ref<PromptTemplate | null>(null)
@@ -2372,6 +2427,11 @@ onMounted(() => {
   if (scrollSentinel.value) {
     observer.observe(scrollSentinel.value)
   }
+
+  const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (!prefersReducedMotion) {
+    typewriterTimer = setTimeout(updateTypewriter, 1200)
+  }
 })
 
 onUnmounted(() => {
@@ -2388,6 +2448,10 @@ onUnmounted(() => {
   if (scrollTimeout) {
     clearTimeout(scrollTimeout)
     scrollTimeout = null
+  }
+  if (typewriterTimer) {
+    clearTimeout(typewriterTimer)
+    typewriterTimer = null
   }
 })
 
