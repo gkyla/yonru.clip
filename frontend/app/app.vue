@@ -101,7 +101,28 @@ const route = useRoute()
 const router = useRouter()
 const state = useClipperState()
 
-const showLoadingIndicator = computed(() => !route.path.startsWith('/editor'))
+// Track unique routes visited in this session to show progress bar only on first visit
+const visitedRoutes = ref(new Set<string>())
+const showLoadingIndicator = ref(true)
+
+if (import.meta.client) {
+  if (route.path && !route.path.startsWith('/editor')) {
+    visitedRoutes.value.add(route.path)
+  }
+
+  router.beforeEach((to) => {
+    if (to.path.startsWith('/editor')) {
+      showLoadingIndicator.value = false
+      return
+    }
+    if (!visitedRoutes.value.has(to.path)) {
+      visitedRoutes.value.add(to.path)
+      showLoadingIndicator.value = true
+    } else {
+      showLoadingIndicator.value = false
+    }
+  })
+}
 
 onMounted(() => {
   state.initPersistence()

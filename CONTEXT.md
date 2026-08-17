@@ -300,6 +300,10 @@ _Avoid_: Cancel edit, prompt undo all, form reset
 A lightweight, high-performance client-side page transition across application routes featuring a fast 120ms ease-out pure opacity fade without positional shift ($Y = 0$), synchronized with the top route loading bar.
 _Avoid_: Route animation, page slide effect, route fade slide
 
+**First-Visit Route Progress Bar**:
+A top-level loading indicator policy where `<NuxtLoadingIndicator>` only activates on the first time a unique route path is visited during a user session, suppressing subsequent loading bars for already-visited routes to provide instantaneous, clutter-free tab switching.
+_Avoid_: Constant route loading bar, global progress bar on every click
+
 **Auto-Reframe Crop Map**:
 A pre-computed time-series keyframe sequence mapping video timestamps to horizontal pan positions ($X$), generated during clip ingestion via face tracking detection to provide instant WYSIWYG camera tracking in the editor and export engine.
 _Avoid_: Pan keyframes, tracking coords, face position array
