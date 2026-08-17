@@ -1,16 +1,22 @@
+// @vitest-environment nuxt
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
+import { ref } from 'vue'
 import HomeSettings from '../../app/components/HomeSettings.vue'
+import { useRouter, useRoute } from '#imports'
 
 // Mock useClipperState
+const mockSettingsScrollTarget = ref<string | null>(null)
+const mockSystemHealth = ref<any>({})
+
 vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => ({
-    systemHealth: { value: {} },
-    checkingHealth: { value: false },
-    isAnyPrerequisiteMissing: { value: false },
-    settingsScrollTarget: { value: '' },
-    whisperModel: { value: 'base' },
-    language: { value: 'auto' },
+    systemHealth: mockSystemHealth,
+    checkingHealth: ref(false),
+    isAnyPrerequisiteMissing: ref(false),
+    settingsScrollTarget: mockSettingsScrollTarget,
+    whisperModel: ref('base'),
+    language: ref('auto'),
     whisperModels: [
       { id: 'tiny', name: 'Tiny', speed: 'Ultra Fast', acc: 'Basic', desc: 'Minimal accuracy, best for quick testing on weak hardware.' },
       { id: 'base', name: 'Base', speed: 'Very Fast', acc: 'Good', desc: 'Great balance for clear audio. Default choice.' },
@@ -28,6 +34,9 @@ describe('HomeSettings Component', () => {
 
   beforeEach(() => {
     mockEnvConfig = 'key_1, key_2'
+    mockSettingsScrollTarget.value = null
+    mockSystemHealth.value = {}
+
     // Mock global $fetch to return mock settings
     vi.stubGlobal('$fetch', vi.fn().mockImplementation((url, options) => {
       const urlStr = String(url)
@@ -57,8 +66,7 @@ describe('HomeSettings Component', () => {
       }
     })
     
-    // Wait for onMounted fetchSettings to execute
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await flushPromises()
     
     const vm = wrapper.vm as any
     expect(vm.keysList).toBeDefined()
@@ -79,7 +87,7 @@ describe('HomeSettings Component', () => {
       }
     })
     
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await flushPromises()
     const vm = wrapper.vm as any
     
     expect(vm.keysList.length).toBe(2)
@@ -99,7 +107,7 @@ describe('HomeSettings Component', () => {
       }
     })
     
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await flushPromises()
     const vm = wrapper.vm as any
     
     expect(vm.keysList.length).toBe(2)
@@ -127,7 +135,7 @@ describe('HomeSettings Component', () => {
       }
     })
     
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await flushPromises()
     const vm = wrapper.vm as any
     
     expect(vm.keysList[0].value).toBe('k1')
@@ -168,7 +176,7 @@ describe('HomeSettings Component', () => {
       }
     })
     
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await flushPromises()
     const vm = wrapper.vm as any
     
     expect(vm.draggedIndex).toBeNull()
@@ -227,7 +235,7 @@ describe('HomeSettings Component', () => {
       }
     })
     
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await flushPromises()
     const vm = wrapper.vm as any
     
     // Initial state: no unsaved changes
@@ -261,7 +269,7 @@ describe('HomeSettings Component', () => {
       }
     })
     
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await flushPromises()
     const vm = wrapper.vm as any
     
     vi.useFakeTimers()
@@ -289,5 +297,58 @@ describe('HomeSettings Component', () => {
     expect(vm.keysList[1].value).toBe('k2')
     
     vi.useRealTimers()
+  })
+
+  it('initializes default active tab to health and handles switchTab properly', async () => {
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+    
+    const vm = wrapper.vm as any
+    expect(vm.activeTab).toBe('health')
+    expect(vm.sections.length).toBe(5)
+
+    // Switch to API tab
+    vm.switchTab('api')
+    expect(vm.activeTab).toBe('api')
+
+    // Switch to Whisper tab
+    vm.switchTab('whisper')
+    expect(vm.activeTab).toBe('whisper')
+
+    // Switch to Cookies tab
+    vm.switchTab('cookies')
+    expect(vm.activeTab).toBe('cookies')
+
+    // Switch to Env tab
+    vm.switchTab('env')
+    expect(vm.activeTab).toBe('env')
+  })
+
+  it('syncs active tab when settingsScrollTarget changes', async () => {
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+    
+    const vm = wrapper.vm as any
+    expect(vm.activeTab).toBe('health')
+
+    // Trigger settingsScrollTarget update (e.g. from alert banner)
+    mockSettingsScrollTarget.value = 'settings-api'
+    await wrapper.vm.$nextTick()
+    await flushPromises()
+
+    expect(vm.activeTab).toBe('api')
+    expect(mockSettingsScrollTarget.value).toBeNull()
   })
 })

@@ -36,6 +36,10 @@ _Avoid_: Subtitle drawer, edit modal, right sidebar overlay
 A top-level tabbed control bar inside the Draggable Subtitle Panel that categorizes subtitle and video customization controls into discrete tabs (Style & Presets, Typography & Color, Layout & Export) to optimize vertical space.
 _Avoid_: Editor tab bar, settings pagination, sub-header tabs
 
+**Settings Two-Column Navigation**:
+A responsive two-column layout on the global settings page featuring a sticky category sidebar on the left and a focused content panel on the right, synchronized with URL query parameters and system health status indicators.
+_Avoid_: Settings tabs, stacked settings list, settings accordion
+
 **Elastic Spring Pop**:
 A dynamic entry animation for subtitle chunks where text expands smoothly from a scaled-down state with a calibrated spring overshoot before settling, creating an energetic caption pop without disorienting vertical drops.
 _Avoid_: Hard bounce, rigid drop animation

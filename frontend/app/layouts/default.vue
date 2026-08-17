@@ -18,7 +18,7 @@
     <div class="flex-1 flex flex-col h-full overflow-hidden relative">
       <TheTopbar />
       
-      <div class="flex-1 overflow-y-auto custom-scrollbar w-full relative flex flex-col items-center p-8">
+      <div class="flex-1 overflow-y-auto custom-scrollbar [scrollbar-gutter:stable] w-full relative flex flex-col items-center p-8">
         <!-- Abstract Background Setup -->
         <div class="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-[#060608]">
            <div class="absolute w-[60vw] h-[60vw] rounded-full bg-accent-500/5 blur-[120px] -top-1/4 -right-1/4 mix-blend-screen"></div>
