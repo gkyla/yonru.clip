@@ -248,3 +248,80 @@ class TestRenderEngine(unittest.TestCase):
             # tracker should NOT have been invoked because crop_map.json was cached
             self.assertEqual(len(mock_tracker.analyzed_paths), 0)
 
+    def test_resolve_output_filename_default(self):
+        engine = FakeRenderEngine()
+        filename = engine.resolve_output_filename(None, job_id="job123", hook_index=2)
+        self.assertEqual(filename, "job123_clip_2.mp4")
+
+    def test_resolve_output_filename_sanitized(self):
+        engine = FakeRenderEngine()
+        filename = engine.resolve_output_filename("My Cool Clip! #1", job_id="job123", hook_index=0)
+        self.assertEqual(filename, "My_Cool_Clip_1.mp4")
+
+    def test_resolve_output_filename_auto_versioning(self, tmp_path=None):
+        import tempfile
+        import shutil
+        temp_dir = tempfile.mkdtemp()
+        try:
+            engine = FakeRenderEngine(output_dir=temp_dir)
+            # Create existing files
+            (open(os.path.join(temp_dir, "My_Clip.mp4"), "w")).close()
+            (open(os.path.join(temp_dir, "My_Clip_v2.mp4"), "w")).close()
+
+            filename = engine.resolve_output_filename("My Clip", job_id="job123")
+            self.assertEqual(filename, "My_Clip_v3.mp4")
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_unified_render_and_render_stream(self):
+        mock_req = MagicMock()
+        mock_req.fps = 30.0
+        mock_req.hook_index = 0
+        mock_req.timeline_tracks = []
+        mock_req.transcript = None
+        mock_req.subtitle_mode = "word"
+        mock_req.subtitle_sync_offset = 0.0
+        mock_req.font = "Arial"
+        mock_req.font_size = 24
+        mock_req.subtitle_offset = 50
+        mock_req.subtitle_font_weight = 900
+        mock_req.subtitle_text_color = "#FFFFFF"
+        mock_req.subtitle_highlight_color = "#CFFF50"
+        mock_req.subtitle_stroke_color = "#000000"
+        mock_req.subtitle_stroke_width = 4.0
+        mock_req.subtitle_text_transform = "uppercase"
+        mock_req.subtitle_animation = "pop"
+        mock_req.subtitle_highlight_mode = "color"
+        mock_req.subtitle_background = "none"
+        mock_req.subtitle_background_opacity = 0.7
+        mock_req.subtitle_word_spacing = 0
+        mock_req.volume = 0.5
+        mock_req.thumbnail_enabled = False
+        mock_req.face_tracking = False
+        mock_req.crop_percent_x = 50.0
+        mock_req.subtitle_position = "bottom"
+        mock_req.output_name = "Epic Reel"
+
+        mock_job = {
+            "clip_path": "temp_assets/sources/video.mp4",
+            "video_info": {"file_path": "temp_assets/sources/video.mp4", "duration": 10.0, "fps": 30.0},
+            "hooks": []
+        }
+
+        mock_asset_repo = MagicMock()
+        mock_asset_repo.get_video_resolution.return_value = (1920, 1080)
+
+        with patch("os.path.exists", return_value=False):
+            engine = FakeRenderEngine()
+            
+            # Unified render
+            res = engine.render(mock_job, mock_req, mock_asset_repo, output_name=mock_req.output_name)
+            self.assertEqual(res["out_filename"], "Epic_Reel.mp4")
+            self.assertEqual(res["output_url"], "/static/output/Epic_Reel.mp4")
+
+            # Unified render_stream
+            events = list(engine.render_stream(mock_job, mock_req, mock_asset_repo, output_name=mock_req.output_name))
+            self.assertEqual(events[-1]["stage"], "done")
+            self.assertEqual(events[-1]["outputUrl"], "/static/output/Epic_Reel.mp4")
+
+

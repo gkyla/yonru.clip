@@ -405,13 +405,9 @@ async def render_clip(req: RenderRequest):
     if req.job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    job = jobs[req.job_id]
-    out_filename = f"{req.job_id}_clip_{req.hook_index}.mp4"
-    
-    output = render_engine.compile_and_render(job, req, asset_repository, out_filename)
-    
-    if output:
-        return {"status": "done", "output_url": f"/static/output/{out_filename}"}
+    result = render_engine.render(jobs[req.job_id], req, asset_repository, output_name=req.output_name)
+    if result:
+        return {"status": "done", "output_url": result["output_url"]}
     else:
         raise HTTPException(status_code=500, detail="Render failed")
 
@@ -421,29 +417,8 @@ async def render_clip_stream(req: RenderRequest):
     if req.job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    job = jobs[req.job_id]
-    
-    import re
-    if req.output_name:
-        safe_name = re.sub(r'[^\w\s-]', '', req.output_name).strip().replace(' ', '_')
-        base_filename = f"{safe_name}.mp4"
-        
-        # Check for existing file and add suffix
-        out_dir = os.path.join("static", "output")
-        os.makedirs(out_dir, exist_ok=True)
-        
-        if os.path.exists(os.path.join(out_dir, base_filename)):
-            counter = 2
-            while os.path.exists(os.path.join(out_dir, f"{safe_name}_v{counter}.mp4")):
-                counter += 1
-            out_filename = f"{safe_name}_v{counter}.mp4"
-        else:
-            out_filename = base_filename
-    else:
-        out_filename = f"{req.job_id}_clip_{req.hook_index}.mp4"
-
     def sse_generator():
-        for progress in render_engine.compile_and_render_streaming(job, req, asset_repository, out_filename):
+        for progress in render_engine.render_stream(jobs[req.job_id], req, asset_repository, output_name=req.output_name):
             yield f"data: {json.dumps(progress)}\n\n"
     
     return StreamingResponse(sse_generator(), media_type="text/event-stream", headers={
@@ -451,6 +426,7 @@ async def render_clip_stream(req: RenderRequest):
         "Connection": "keep-alive",
         "X-Accel-Buffering": "no"
     })
+
 
 # --- Cache Management ---
 

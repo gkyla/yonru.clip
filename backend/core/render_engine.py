@@ -18,6 +18,7 @@ class RenderComposition:
         self.words_data = kwargs.get("words_data")
         self.timeline_text_items = kwargs.get("timeline_text_items")
         self.timeline_audio_items = kwargs.get("timeline_audio_items")
+        self.timeline_video_items = kwargs.get("timeline_video_items")
         self.position = kwargs.get("position", "bottom")
         self.clip_duration = kwargs.get("clip_duration")
         self.subtitle_style = kwargs.get("subtitle_style")
@@ -30,16 +31,76 @@ class RenderComposition:
 
 class RenderEngine(ABC):
     face_tracker: Any
+    output_dir: str = "static/output"
+
+    def resolve_output_filename(self, output_name: Optional[str], job_id: str, hook_index: int = 0) -> str:
+        """Determines and deduplicates output filename against the output directory."""
+        output_dir = getattr(self, "output_dir", "static/output")
+        os.makedirs(output_dir, exist_ok=True)
+
+        if output_name:
+            safe_name = re.sub(r'[^\w\s-]', '', output_name).strip().replace(' ', '_')
+            if not safe_name:
+                safe_name = f"{job_id}_clip_{hook_index}"
+            base_filename = f"{safe_name}.mp4"
+
+            if os.path.exists(os.path.join(output_dir, base_filename)):
+                counter = 2
+                while os.path.exists(os.path.join(output_dir, f"{safe_name}_v{counter}.mp4")):
+                    counter += 1
+                return f"{safe_name}_v{counter}.mp4"
+            return base_filename
+        else:
+            return f"{job_id}_clip_{hook_index}.mp4"
 
     @abstractmethod
-    def render(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
-        """Synchronously render the composition and return the absolute output file path."""
+    def _render_comp(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
+        """Internal synchronous render method for RenderComposition."""
         pass
 
     @abstractmethod
     def render_streaming(self, comp: RenderComposition, out_filename: str) -> Generator[dict, None, None]:
         """Asynchronously render and yield progress dictionaries."""
         pass
+
+    def render(self, target: Any, out_filename_or_req: Any = None, asset_repository: Any = None, output_name: Optional[str] = None) -> Any:
+        """
+        Unified render entrypoint.
+        Can be called with:
+          render(comp, out_filename) -> str (legacy DTO path)
+          render(job, req, asset_repository, output_name=...) -> dict {"status": "done", "out_filename": ..., "output_path": ..., "output_url": ...}
+        """
+        if isinstance(target, RenderComposition):
+            return self._render_comp(target, out_filename_or_req)
+        
+        # Unified call: target is job dict, out_filename_or_req is req
+        job = target
+        req = out_filename_or_req
+        job_id = req.job_id if hasattr(req, "job_id") else job.get("job_id", "job")
+        hook_index = getattr(req, "hook_index", 0)
+        resolved_name = output_name or getattr(req, "output_name", None)
+        out_filename = self.resolve_output_filename(resolved_name, job_id, hook_index)
+
+        comp = self.compile_composition(job, req, asset_repository)
+        output_path = self._render_comp(comp, out_filename)
+        if output_path:
+            return {
+                "status": "done",
+                "out_filename": out_filename,
+                "output_path": output_path,
+                "output_url": f"/static/output/{out_filename}"
+            }
+        return None
+
+    def render_stream(self, job: dict, req: Any, asset_repository: Any, output_name: Optional[str] = None) -> Generator[dict, None, None]:
+        """Unified SSE progress streaming entrypoint."""
+        job_id = req.job_id if hasattr(req, "job_id") else job.get("job_id", "job")
+        hook_index = getattr(req, "hook_index", 0)
+        resolved_name = output_name or getattr(req, "output_name", None)
+        out_filename = self.resolve_output_filename(resolved_name, job_id, hook_index)
+
+        comp = self.compile_composition(job, req, asset_repository)
+        yield from self.render_streaming(comp, out_filename)
 
     def compile_composition(self, job: dict, req: Any, asset_repository: Any) -> RenderComposition:
         """
@@ -64,12 +125,24 @@ class RenderEngine(ABC):
             clip_start = 0
             clip_duration = job.get("video_info", {}).get("duration") or 0
 
-        # Overwrite clip_duration from timeline tracks if present
+        # Extract tracks and calculate duration override in a single consolidated pass
+        timeline_text = []
+        timeline_audio = []
+        timeline_video = []
         max_timeline_end = 0.0
         has_timeline_items = False
+
         if req.timeline_tracks:
             for track in req.timeline_tracks:
+                track_id = track.get('id')
                 items = track.get("items", [])
+                if track_id == 'text':
+                    timeline_text = items
+                elif track_id == 'audio':
+                    timeline_audio = items
+                elif track_id == 'video':
+                    timeline_video = items
+
                 if items:
                     has_timeline_items = True
                     for item in items:
@@ -78,6 +151,9 @@ class RenderEngine(ABC):
                         end = start + dur
                         if end > max_timeline_end:
                             max_timeline_end = end
+
+        if not timeline_video and req.timeline_tracks and len(req.timeline_tracks) > 0:
+            timeline_video = req.timeline_tracks[0].get('items', [])
 
         if has_timeline_items and max_timeline_end > 0.0:
             print(f"[render-engine] Overriding clip_duration with timeline duration: {max_timeline_end:.2f}s (was: {clip_duration}s)")
@@ -109,16 +185,6 @@ class RenderEngine(ABC):
             clip_start=clip_start,
             is_relative=is_relative
         )
-        
-        timeline_text = []
-        timeline_audio = []
-        if req.timeline_tracks:
-            text_track = next((t for t in req.timeline_tracks if t['id'] == 'text'), None)
-            if text_track:
-                timeline_text = text_track.get('items', [])
-            audio_track = next((t for t in req.timeline_tracks if t['id'] == 'audio'), None)
-            if audio_track:
-                timeline_audio = audio_track.get('items', [])
                 
         w, h = asset_repository.get_video_resolution(video_path)
         source_width = w if w > 0 else 1920
@@ -170,6 +236,7 @@ class RenderEngine(ABC):
             words_data=words_data,
             timeline_text_items=timeline_text,
             timeline_audio_items=timeline_audio,
+            timeline_video_items=timeline_video,
             position=req.subtitle_position,
             clip_duration=clip_duration,
             subtitle_style={
@@ -196,14 +263,15 @@ class RenderEngine(ABC):
         )
 
     def compile_and_render(self, job: dict, req: Any, asset_repository: Any, out_filename: str) -> Optional[str]:
-        """Compiles composition properties and triggers rendering."""
+        """Legacy helper: compiles composition properties and triggers rendering."""
         comp = self.compile_composition(job, req, asset_repository)
-        return self.render(comp, out_filename)
+        return self._render_comp(comp, out_filename)
 
     def compile_and_render_streaming(self, job: dict, req: Any, asset_repository: Any, out_filename: str) -> Generator[dict, None, None]:
-        """Compiles composition properties and yields progress dicts streaming."""
+        """Legacy helper: compiles composition properties and yields progress dicts streaming."""
         comp = self.compile_composition(job, req, asset_repository)
         yield from self.render_streaming(comp, out_filename)
+
 
 
 class SafeEncoder(json.JSONEncoder):
@@ -281,52 +349,26 @@ class RemotionRenderEngine(RenderEngine):
                 shutil.copy2(thumb_src, os.path.join(public_dir, thumbnail_image_name))
                 thumb_duration = comp.thumbnail_config.get("duration", 1.0)
         
-        # Calculate composition end time override
-        max_timeline_end = 0.0
-        has_timeline_items = False
-
-        if comp.timeline_tracks:
-            for track in comp.timeline_tracks:
-                items = track.get("items", [])
-                if items:
-                    has_timeline_items = True
-                    for item in items:
-                        start = float(item.get("start") or 0.0)
-                        dur = float(item.get("duration") or 0.0)
-                        end = start + dur
-                        if end > max_timeline_end:
-                            max_timeline_end = end
-
-        if comp.timeline_text_items:
-            has_timeline_items = True
-            for item in comp.timeline_text_items:
-                start = float(item.get("start") or 0.0)
-                dur = float(item.get("duration") or 0.0)
-                end = start + dur
-                if end > max_timeline_end:
-                    max_timeline_end = end
-
-        if comp.timeline_audio_items:
-            has_timeline_items = True
-            for item in comp.timeline_audio_items:
-                start = float(item.get("start") or 0.0)
-                dur = float(item.get("duration") or 0.0)
-                end = start + dur
-                if end > max_timeline_end:
-                    max_timeline_end = end
-
+        # Determine duration (using single pre-calculated clip_duration or fallback calculating from tracks)
         clip_dur = comp.clip_duration
-        if has_timeline_items and max_timeline_end > 0.0:
-            print(f"[render-engine] Overriding duration with timeline duration: {max_timeline_end:.2f}s (was: {comp.clip_duration}s)")
-            clip_dur = max_timeline_end
-
-        timeline_video_items = []
         if comp.timeline_tracks:
+            max_timeline_end = 0.0
+            for track in comp.timeline_tracks:
+                for item in track.get("items", []):
+                    end = float(item.get("start") or 0.0) + float(item.get("duration") or 0.0)
+                    if end > max_timeline_end:
+                        max_timeline_end = end
+            if max_timeline_end > 0.0:
+                clip_dur = max_timeline_end
+
+        timeline_video_items = comp.timeline_video_items
+        if timeline_video_items is None and comp.timeline_tracks:
             video_track = next((t for t in comp.timeline_tracks if t.get('id') == 'video'), None)
             if video_track:
                 timeline_video_items = video_track.get('items', [])
             elif len(comp.timeline_tracks) > 0:
                 timeline_video_items = comp.timeline_tracks[0].get('items', [])
+        timeline_video_items = timeline_video_items or []
 
         video_frames = max(1, int((clip_dur or 10.0) * comp.fps))
         thumbnail_frames = int(thumb_duration * comp.fps)
@@ -363,7 +405,7 @@ class RemotionRenderEngine(RenderEngine):
             
         return remotion_dir, public_video_path, props_path, frames
 
-    def render(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
+    def _render_comp(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
         output_path = os.path.join(self.output_dir, out_filename)
         remotion_dir, public_video_path, props_path, frames = self._prepare_props_and_paths(comp, out_filename)
         
@@ -564,13 +606,14 @@ class RemotionRenderEngine(RenderEngine):
 
 
 class FakeRenderEngine(RenderEngine):
-    def __init__(self, should_fail=False):
+    def __init__(self, output_dir: str = "static/output", should_fail: bool = False):
+        self.output_dir = output_dir
         self.should_fail = should_fail
 
-    def render(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
+    def _render_comp(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
         if self.should_fail:
             return None
-        return f"static/output/{out_filename}"
+        return f"{self.output_dir}/{out_filename}"
 
     def render_streaming(self, comp: RenderComposition, out_filename: str) -> Generator[dict, None, None]:
         if self.should_fail:
@@ -587,6 +630,7 @@ class FakeRenderEngine(RenderEngine):
             "percent": 100,
             "frame": frames,
             "totalFrames": frames,
-            "outputPath": f"static/output/{out_filename}",
+            "outputPath": f"{self.output_dir}/{out_filename}",
             "outputUrl": f"/static/output/{out_filename}"
         }
+
