@@ -1,6 +1,5 @@
 <template>
-  <NuxtLayout>
-    <div class="w-full max-w-5xl z-10 flex flex-col">
+  <div class="w-full max-w-5xl z-10 flex flex-col">
         <!-- Header Input Area -->
         <div class="text-center mt-12 mb-10 relative z-30">
           <h2 class="text-4xl font-bold tracking-tight text-white mb-4">Paste URL. Extract Hooks.</h2>
@@ -1337,7 +1336,6 @@
          </Transition>
       </div>
     </Transition>
-    </div>
 
 
 
@@ -2136,10 +2134,10 @@
                [ NEXT ]
              </button>
           </div>
-       </div>
-    </div>
-    </div>
-  </NuxtLayout>
+        </div>
+     </div>
+   </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -2779,7 +2777,7 @@ async function initDashboard() {
   state.initPersistence()
   state.checkSystemHealth()
   
-  if (import.meta.client) {
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
     const savedVid = localStorage.getItem('yonru_last_video')
     if (savedVid) state.lastAccessedVideoId.value = savedVid
     

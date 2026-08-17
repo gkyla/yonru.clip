@@ -1,7 +1,5 @@
 <template>
-  <NuxtLayout>
-    <HomePrompts ref="homePromptsRef" />
-  </NuxtLayout>
+  <HomePrompts ref="homePromptsRef" />
 </template>
 
 <script setup lang="ts">
@@ -10,11 +8,10 @@ import { onBeforeRouteLeave } from 'vue-router'
 
 const homePromptsRef = ref<any>(null)
 
-onBeforeRouteLeave((to, from, next) => {
+onBeforeRouteLeave((to, from) => {
   if (homePromptsRef.value?.handleRouteLeave) {
-    homePromptsRef.value.handleRouteLeave(to, from, next)
-  } else {
-    next()
+    return homePromptsRef.value.handleRouteLeave(to, from)
   }
+  return true
 })
 </script>

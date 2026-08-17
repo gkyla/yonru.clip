@@ -329,7 +329,6 @@
           </div>
       </div>
     </div>
-  </div>
 
   <!-- Unsaved Prompt Guard Modal -->
   <Transition name="modal-fade">
@@ -585,11 +584,11 @@
       </div>
     </div>
   </Transition>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
 
 const state = useClipperState()
 const API_BASE = 'http://localhost:8000'
@@ -721,15 +720,14 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 }
 
 // Router Navigation Guard Handler (Invoked by page route guard)
-function handleRouteLeave(to: any, from: any, next: (proceed?: boolean) => void) {
+function handleRouteLeave(to: any, from?: any): boolean {
   if (isDirty.value) {
     const target = typeof to === 'string' ? to : (to.fullPath || to.path || '/')
     pendingAction.value = { type: 'route_leave', to: target }
     showUnsavedModal.value = true
-    next(false)
-  } else {
-    next()
+    return false
   }
+  return true
 }
 
 function handleKeyDown(e: KeyboardEvent) {

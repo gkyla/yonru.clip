@@ -296,6 +296,10 @@ _Avoid_: Unsaved changes alert, dirty prompt popup, navigation blocker
 An explicit in-editor action that restores all modified prompt template fields (name, tags, content) back to their baseline saved state without closing or unselecting the active template, guarded by a dedicated binary confirmation dialog.
 _Avoid_: Cancel edit, prompt undo all, form reset
 
+**Route Page Transition**:
+A lightweight, high-performance client-side page transition across application routes featuring a fast 120ms ease-out pure opacity fade without positional shift ($Y = 0$), synchronized with the top route loading bar.
+_Avoid_: Route animation, page slide effect, route fade slide
+
 **Auto-Reframe Crop Map**:
 A pre-computed time-series keyframe sequence mapping video timestamps to horizontal pan positions ($X$), generated during clip ingestion via face tracking detection to provide instant WYSIWYG camera tracking in the editor and export engine.
 _Avoid_: Pan keyframes, tracking coords, face position array

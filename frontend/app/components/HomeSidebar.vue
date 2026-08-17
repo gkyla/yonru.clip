@@ -603,6 +603,12 @@ const isProjectOpen = ref(true)
 const isHealthOpen = ref(true)
 
 function handleNav(view: string) {
+  if (props.activeView === view) {
+    if (props.isFloating) {
+      isCollapsed.value = true
+    }
+    return
+  }
   const router = useRouter()
   emit('update:activeView', view)
   if (view === 'settings') {

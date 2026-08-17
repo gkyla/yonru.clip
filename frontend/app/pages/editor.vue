@@ -701,6 +701,11 @@ import { ref, computed, watch, onMounted, nextTick, onActivated, onDeactivated, 
 import { groupTranscript, updateSegmentText, updateSegmentStart, updateSegmentDuration, redistributeTranscript } from '../utils/subtitleChunker'
 import type { ChunkerSegment } from '../utils/subtitleChunker'
 import type { Hook, ReadyClip } from '../types/clipper'
+
+definePageMeta({
+  layout: false,
+  keepalive: true
+})
 const state = useClipperState()
 const route = useRoute()
 const router = useRouter()

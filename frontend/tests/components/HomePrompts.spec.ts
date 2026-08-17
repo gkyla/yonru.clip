@@ -350,9 +350,8 @@ describe('HomePrompts Component', () => {
     expect((wrapper.vm as any).isDirty).toBe(true)
 
     // Trigger route leave guard
-    const mockNext = vi.fn()
-    ;(wrapper.vm as any).handleRouteLeave({ fullPath: '/editor' }, {}, mockNext)
-    expect(mockNext).toHaveBeenCalledWith(false)
+    const shouldLeave = (wrapper.vm as any).handleRouteLeave({ fullPath: '/editor' }, {})
+    expect(shouldLeave).toBe(false)
     expect((wrapper.vm as any).showUnsavedModal).toBe(true)
     expect((wrapper.vm as any).pendingActionDescription).toBe('Navigate to /editor')
 

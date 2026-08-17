@@ -77,3 +77,14 @@ h1, h2, h3, h4, h5, h6 {
 .font-p-marker { font-family: 'Permanent Marker'; }
 .font-p-russo { font-family: 'Russo One'; }
 .font-p-teko { font-family: 'Teko'; }
+
+/* Route Page Transitions (Pure Fast Fade) */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 120ms ease-out;
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+}
