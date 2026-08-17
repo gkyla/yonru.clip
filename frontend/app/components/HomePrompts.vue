@@ -18,8 +18,8 @@
     </div>
 
     <!-- Clean, Non-Technical Info Callout -->
-    <div class="bg-[#111318]/90 border border-surface-border/70 rounded-xl p-3.5 sm:p-4 flex items-start gap-3 text-xs shadow-sm">
-      <div class="p-1.5 rounded-lg bg-accent-500/10 border border-accent-500/20 text-accent-500 shrink-0 mt-0.5">
+    <div class="bg-surface-panel border border-surface-border rounded-2xl p-4 flex items-start gap-3.5 text-xs shadow-sm">
+      <div class="p-2 rounded-xl bg-accent-500/10 border border-accent-500/20 text-accent-500 shrink-0 mt-0.5">
         <Icon name="ri:lightbulb-line" class="text-base" />
       </div>
       <div class="flex-1 min-w-0">
@@ -32,101 +32,113 @@
 
     <!-- Main Workspace: Split Pane -->
     <div class="flex flex-col lg:flex-row gap-5 items-start w-full">
-      <!-- Left Column: Search & Templates List (w-full lg:w-[290px]) -->
-      <div class="w-full lg:w-[290px] lg:sticky lg:top-4 flex flex-col gap-3 shrink-0 bg-[#111318]/80 border border-surface-border/60 rounded-2xl p-3.5">
-        
-        <!-- Search bar -->
-        <div class="relative w-full">
-          <input 
-            v-model="searchQuery"
-            type="text" 
-            placeholder="Search prompts..." 
-            class="w-full bg-surface-dark border border-surface-border text-white pl-9 pr-8 py-2 rounded-xl focus:outline-none focus:border-accent-500/50 transition-all text-xs font-medium placeholder-slate-500"
-          />
-          <Icon name="ri:search-2-line" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
-          <button 
-            v-if="searchQuery" 
-            @click="searchQuery = ''" 
-            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
-          >
-            <Icon name="ri:close-circle-fill" class="text-xs" />
-          </button>
-        </div>
-
-        <!-- Prompts Count Subheader -->
-        <div class="flex items-center justify-between px-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
-          <span>Templates</span>
-          <span>{{ filteredPrompts.length }} items</span>
-        </div>
-
-        <!-- Scrollable List of Templates -->
-        <div class="flex flex-col gap-1.5 max-h-[560px] overflow-y-auto custom-scrollbar p-1 w-full">
-          <div v-if="filteredPrompts.length === 0" class="text-center py-8 text-xs text-slate-500 italic">
-            No templates match the criteria.
+      <!-- Left Column: Search & Templates List -->
+      <aside class="w-full lg:w-[290px] lg:sticky lg:top-2 flex flex-col gap-3 shrink-0 self-start">
+        <div class="bg-surface-panel border border-surface-border rounded-2xl p-3 sm:p-3.5 flex flex-col gap-3 shadow-xl">
+          
+          <!-- Search bar -->
+          <div class="relative w-full">
+            <input 
+              v-model="searchQuery"
+              type="text" 
+              placeholder="Search prompts..." 
+              class="w-full bg-surface-dark border border-surface-border text-white pl-9 pr-8 py-2.5 rounded-xl focus:outline-none focus:border-accent-500/50 transition-all text-xs font-medium placeholder-slate-500"
+            />
+            <Icon name="ri:search-2-line" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
+            <button 
+              v-if="searchQuery" 
+              @click="searchQuery = ''" 
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors cursor-pointer"
+            >
+              <Icon name="ri:close-circle-fill" class="text-xs" />
+            </button>
           </div>
-          <button 
-            v-else
-            v-for="p in filteredPrompts" 
-            :key="p.id"
-            @click="onSelectPrompt(p)"
-            class="w-full text-left bg-surface-dark/60 border border-surface-border/60 hover:border-slate-600 hover:bg-surface-panel/40 rounded-xl p-3 cursor-pointer transition-all flex flex-col gap-1.5 group select-none relative"
-            :class="{ 'border-accent-500 bg-accent-500/10 shadow-[0_0_15px_rgba(207,255,80,0.05)] ring-1 ring-accent-500/40 z-10': editingId === p.id }"
-          >
-            <div class="flex justify-between items-center w-full gap-2">
-              <span class="font-bold text-white text-xs truncate group-hover:text-accent-500 transition-colors">{{ p.name }}</span>
-              <Icon 
-                name="ri:checkbox-circle-fill" 
-                class="text-accent-500 text-xs shrink-0 transition-opacity" 
-                :class="editingId === p.id ? 'opacity-100' : 'opacity-0'" 
-              />
+
+          <!-- Prompts Count Subheader -->
+          <div class="flex items-center justify-between px-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
+            <span>Templates</span>
+            <span class="text-[9px] text-slate-600 font-mono font-normal">{{ filteredPrompts.length }} items</span>
+          </div>
+
+          <!-- Scrollable List of Templates -->
+          <div class="flex flex-col gap-1.5 max-h-[560px] overflow-y-auto custom-scrollbar p-0.5 w-full">
+            <div v-if="filteredPrompts.length === 0" class="text-center py-8 text-xs text-slate-500 italic">
+              No templates match the criteria.
             </div>
-
-            <!-- Single-Line Compact Tags with Custom Tooltips & +N Badge -->
-            <div class="flex items-center gap-1 overflow-hidden w-full" v-if="p.suitableFor && p.suitableFor.length">
+            <button 
+              v-else
+              v-for="p in filteredPrompts" 
+              :key="p.id"
+              @click="onSelectPrompt(p)"
+              class="w-full text-left rounded-xl p-3 cursor-pointer transition-all flex flex-col gap-1.5 group select-none relative outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-500/50"
+              :class="editingId === p.id 
+                ? 'bg-accent-500/10 border border-accent-500/30 text-white shadow-[0_0_15px_rgba(207,255,80,0.08)]' 
+                : 'text-slate-400 hover:text-slate-200 hover:bg-surface-dark/70 border border-transparent bg-surface-dark/40'"
+            >
+              <!-- Active Neon Indicator Bar -->
               <div 
-                v-for="tag in p.suitableFor.slice(0, 2)" 
-                :key="tag" 
-                class="group/tag relative inline-flex items-center shrink-0"
-              >
-                <span 
-                  class="text-[9px] bg-black/40 border border-white/5 text-slate-400 px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold max-w-[80px] truncate shrink-0"
-                >
-                  {{ tag }}
-                </span>
+                v-if="editingId === p.id"
+                class="absolute left-0 top-2.5 bottom-2.5 w-1 bg-accent-500 rounded-r shadow-[0_0_8px_rgba(207,255,80,0.8)]"
+              ></div>
 
-                <!-- Custom Hover Tooltip -->
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-[10px] font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(207,255,80,0.12)] opacity-0 group-hover/tag:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/tag:translate-y-0 flex items-center gap-0.5">
-                  <span class="text-accent-500 font-black">#</span>
-                  <span>{{ tag }}</span>
-                  <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0a0c12] border-b border-r border-slate-700/80 transform rotate-45"></div>
-                </div>
+              <div class="flex justify-between items-center w-full gap-2 pl-0.5">
+                <span class="font-bold text-xs truncate transition-colors" :class="editingId === p.id ? 'text-white' : 'text-slate-300 group-hover:text-white'">
+                  {{ p.name }}
+                </span>
+                <Icon 
+                  name="ri:checkbox-circle-fill" 
+                  class="text-accent-500 text-xs shrink-0 transition-opacity" 
+                  :class="editingId === p.id ? 'opacity-100' : 'opacity-0'" 
+                />
               </div>
 
-              <!-- +N Badge with Custom Tooltip showing remaining tags -->
-              <div 
-                v-if="p.suitableFor.length > 2"
-                class="group/more relative inline-flex items-center shrink-0"
-              >
-                <span 
-                  class="text-[9px] bg-surface-dark border border-surface-border text-slate-500 px-1 py-0.5 rounded font-mono font-bold shrink-0"
+              <!-- Single-Line Compact Tags with Custom Tooltips & +N Badge -->
+              <div class="flex items-center gap-1 overflow-hidden w-full pl-0.5" v-if="p.suitableFor && p.suitableFor.length">
+                <div 
+                  v-for="tag in p.suitableFor.slice(0, 2)" 
+                  :key="tag" 
+                  class="group/tag relative inline-flex items-center shrink-0"
                 >
-                  +{{ p.suitableFor.length - 2 }}
-                </span>
+                  <span 
+                    class="text-[9px] bg-black/40 border border-white/5 text-slate-400 px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold max-w-[80px] truncate shrink-0"
+                  >
+                    {{ tag }}
+                  </span>
 
-                <!-- Custom Tooltip showing hidden tags list -->
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-[10px] font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(207,255,80,0.12)] opacity-0 group-hover/more:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/more:translate-y-0">
-                  <span class="text-accent-500 font-black mr-1">+{{ p.suitableFor.length - 2 }} more:</span>
-                  <span class="text-slate-200 font-normal">{{ p.suitableFor.slice(2).map((t: string) => `#${t}`).join(', ') }}</span>
-                  <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0a0c12] border-b border-r border-slate-700/80 transform rotate-45"></div>
+                  <!-- Custom Hover Tooltip -->
+                  <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-[10px] font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(207,255,80,0.12)] opacity-0 group-hover/tag:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/tag:translate-y-0 flex items-center gap-0.5">
+                    <span class="text-accent-500 font-black">#</span>
+                    <span>{{ tag }}</span>
+                    <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0a0c12] border-b border-r border-slate-700/80 transform rotate-45"></div>
+                  </div>
+                </div>
+
+                <!-- +N Badge with Custom Tooltip showing remaining tags -->
+                <div 
+                  v-if="p.suitableFor.length > 2"
+                  class="group/more relative inline-flex items-center shrink-0"
+                >
+                  <span 
+                    class="text-[9px] bg-surface-dark border border-surface-border text-slate-500 px-1 py-0.5 rounded font-mono font-bold shrink-0"
+                  >
+                    +{{ p.suitableFor.length - 2 }}
+                  </span>
+
+                  <!-- Custom Tooltip showing hidden tags list -->
+                  <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-[10px] font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(207,255,80,0.12)] opacity-0 group-hover/more:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/more:translate-y-0">
+                    <span class="text-accent-500 font-black mr-1">+{{ p.suitableFor.length - 2 }} more:</span>
+                    <span class="text-slate-200 font-normal">{{ p.suitableFor.slice(2).map((t: string) => `#${t}`).join(', ') }}</span>
+                    <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0a0c12] border-b border-r border-slate-700/80 transform rotate-45"></div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </button>
+            </button>
+          </div>
         </div>
-      </div>
+      </aside>
 
       <!-- Right Column: Editor Detail Canvas -->
-      <div class="flex-1 w-full bg-[#111318]/90 border border-surface-border rounded-2xl p-5 sm:p-6 min-h-[560px] flex flex-col shadow-sm">
+      <main class="flex-1 min-w-0 w-full bg-surface-panel border border-surface-border rounded-2xl p-6 sm:p-8 shadow-xl min-h-[560px] flex flex-col self-start relative">
         <!-- Empty Selection State -->
         <div v-if="!editingId && !isCreatingNew" class="flex-1 w-full h-full flex flex-col items-center justify-center text-center p-8">
           <div class="w-14 h-14 bg-surface-dark rounded-full border border-surface-border flex items-center justify-center mb-3 text-slate-500 shadow-inner">
@@ -327,7 +339,7 @@
               />
             </div>
           </div>
-      </div>
+      </main>
     </div>
 
   <!-- Unsaved Prompt Guard Modal -->
