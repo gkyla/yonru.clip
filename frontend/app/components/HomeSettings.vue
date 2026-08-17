@@ -152,7 +152,7 @@
             <div>
               <div class="flex justify-between items-center mb-2">
                 <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                  <Icon name="ri:shield-cross-fill" class="text-accent-500" /> Prerequisite Health & Diagnostics
+                  <Icon name="ri:shield-cross-line" class="text-accent-500" /> Prerequisite Health & Diagnostics
                 </h3>
                 <span 
                   class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
@@ -167,17 +167,17 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <!-- FFmpeg Diagnostics -->
               <div class="p-4 rounded-xl border bg-[#111318] border-surface-border flex items-start gap-3">
-                <div class="p-2 rounded-lg bg-surface-dark">
-                  <Icon 
-                    :name="healthData?.ffmpeg?.status === 'OK' ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'"
-                    :class="healthData?.ffmpeg?.status === 'OK' ? 'text-accent-500' : 'text-red-500'"
-                    class="text-2xl shrink-0" 
-                  />
+                <div class="p-2.5 rounded-xl bg-surface-dark border border-surface-border/60 text-slate-300 shrink-0">
+                  <Icon name="ri:movie-2-line" class="text-xl block text-accent-500" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">FFmpeg (Video Engine)</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter" :class="healthData?.ffmpeg?.status === 'OK' ? 'bg-accent-500/10 text-accent-500' : 'bg-red-500/10 text-red-500'">
+                    <span class="text-xs font-black uppercase tracking-widest text-slate-300">FFmpeg (Video Engine)</span>
+                    <span 
+                      class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter flex items-center gap-1" 
+                      :class="healthData?.ffmpeg?.status === 'OK' ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'"
+                    >
+                      <Icon :name="healthData?.ffmpeg?.status === 'OK' ? 'ri:check-line' : 'ri:close-line'" class="text-xs font-bold" />
                       {{ healthData?.ffmpeg?.status || 'Detecting...' }}
                     </span>
                   </div>
@@ -197,17 +197,17 @@
 
               <!-- Node.js Diagnostics -->
               <div class="p-4 rounded-xl border bg-[#111318] border-surface-border flex items-start gap-3">
-                <div class="p-2 rounded-lg bg-surface-dark">
-                  <Icon 
-                    :name="healthData?.node?.status === 'OK' ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'"
-                    :class="healthData?.node?.status === 'OK' ? 'text-accent-500' : 'text-red-500'"
-                    class="text-2xl shrink-0" 
-                  />
+                <div class="p-2.5 rounded-xl bg-surface-dark border border-surface-border/60 text-slate-300 shrink-0">
+                  <Icon name="ri:nodejs-line" class="text-xl block text-accent-500" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">Node.js (Remotion engine)</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter" :class="healthData?.node?.status === 'OK' ? 'bg-accent-500/10 text-accent-500' : 'bg-red-500/10 text-red-500'">
+                    <span class="text-xs font-black uppercase tracking-widest text-slate-300">Node.js (Remotion Engine)</span>
+                    <span 
+                      class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter flex items-center gap-1" 
+                      :class="healthData?.node?.status === 'OK' ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'"
+                    >
+                      <Icon :name="healthData?.node?.status === 'OK' ? 'ri:check-line' : 'ri:close-line'" class="text-xs font-bold" />
                       {{ healthData?.node?.status || 'Detecting...' }}
                     </span>
                   </div>
@@ -227,17 +227,17 @@
 
               <!-- Python Virtual Environment Diagnostics -->
               <div class="p-4 rounded-xl border bg-[#111318] border-surface-border flex items-start gap-3">
-                <div class="p-2 rounded-lg bg-surface-dark">
-                  <Icon 
-                    :name="healthData?.python_env?.status === 'OK' ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'"
-                    :class="healthData?.python_env?.status === 'OK' ? 'text-accent-500' : 'text-red-500'"
-                    class="text-2xl shrink-0" 
-                  />
+                <div class="p-2.5 rounded-xl bg-surface-dark border border-surface-border/60 text-slate-300 shrink-0">
+                  <Icon name="ri:terminal-box-line" class="text-xl block text-accent-500" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">Python Virtualenv</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter" :class="healthData?.python_env?.status === 'OK' ? 'bg-accent-500/10 text-accent-500' : 'bg-red-500/10 text-red-500'">
+                    <span class="text-xs font-black uppercase tracking-widest text-slate-300">Python Virtualenv</span>
+                    <span 
+                      class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter flex items-center gap-1" 
+                      :class="healthData?.python_env?.status === 'OK' ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'"
+                    >
+                      <Icon :name="healthData?.python_env?.status === 'OK' ? 'ri:check-line' : 'ri:close-line'" class="text-xs font-bold" />
                       {{ healthData?.python_env?.status || 'Detecting...' }}
                     </span>
                   </div>
@@ -256,17 +256,17 @@
 
               <!-- Gemini API Diagnostics -->
               <div class="p-4 rounded-xl border bg-[#111318] border-surface-border flex items-start gap-3">
-                <div class="p-2 rounded-lg bg-surface-dark">
-                  <Icon 
-                    :name="healthData?.gemini_api?.has_key ? 'ri:checkbox-circle-fill' : 'ri:close-circle-fill'"
-                    :class="healthData?.gemini_api?.has_key ? 'text-accent-500' : 'text-red-500'"
-                    class="text-2xl shrink-0" 
-                  />
+                <div class="p-2.5 rounded-xl bg-surface-dark border border-surface-border/60 text-slate-300 shrink-0">
+                  <Icon name="ri:key-2-line" class="text-xl block text-accent-500" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">Gemini AI Key</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter" :class="healthData?.gemini_api?.has_key ? 'bg-accent-500/10 text-accent-500' : 'bg-red-500/10 text-red-500'">
+                    <span class="text-xs font-black uppercase tracking-widest text-slate-300">Gemini AI Key</span>
+                    <span 
+                      class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter flex items-center gap-1" 
+                      :class="healthData?.gemini_api?.has_key ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'"
+                    >
+                      <Icon :name="healthData?.gemini_api?.has_key ? 'ri:check-line' : 'ri:close-line'" class="text-xs font-bold" />
                       {{ healthData?.gemini_api?.status || 'Detecting...' }}
                     </span>
                   </div>
@@ -278,17 +278,17 @@
 
               <!-- YouTube Cookies Diagnostics -->
               <div class="p-4 rounded-xl border bg-[#111318] border-surface-border flex items-start gap-3 md:col-span-2">
-                <div class="p-2 rounded-lg bg-surface-dark">
-                  <Icon 
-                    :name="healthData?.cookies?.exists ? 'ri:checkbox-circle-fill' : 'ri:error-warning-fill'"
-                    :class="healthData?.cookies?.exists ? 'text-accent-500' : 'text-slate-500'"
-                    class="text-2xl shrink-0" 
-                  />
+                <div class="p-2.5 rounded-xl bg-surface-dark border border-surface-border/60 text-slate-300 shrink-0">
+                  <Icon name="ri:shield-keyhole-line" class="text-xl block text-accent-500" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">YouTube Cookies</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter" :class="healthData?.cookies?.exists ? 'bg-accent-500/10 text-accent-500' : 'bg-surface-dark border border-surface-border text-slate-500'">
+                    <span class="text-xs font-black uppercase tracking-widest text-slate-300">YouTube Cookies</span>
+                    <span 
+                      class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter flex items-center gap-1" 
+                      :class="healthData?.cookies?.exists ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20' : 'bg-surface-dark border border-surface-border text-slate-400'"
+                    >
+                      <Icon :name="healthData?.cookies?.exists ? 'ri:check-line' : 'ri:information-line'" class="text-xs font-bold" />
                       {{ healthData?.cookies?.status || 'Detecting...' }}
                     </span>
                   </div>
@@ -806,7 +806,7 @@ const sections = computed(() => [
     id: 'health' as SettingsTab,
     label: 'System Health',
     desc: 'Prerequisites & tools',
-    icon: 'ri:shield-cross-fill',
+    icon: 'ri:shield-cross-line',
     badgeType: isHealthOk.value ? 'ok' : 'warning',
     badgeText: isHealthOk.value ? 'OK' : 'Missing'
   },
