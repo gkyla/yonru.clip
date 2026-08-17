@@ -452,3 +452,236 @@ def test_run_full_analysis_uses_cached_youtube_transcript(mock_dependencies, tmp
     mock_dependencies["youtube_client"].fetch_transcript.assert_not_called()
 
 
+def test_provision_clip_cached_ready(mock_dependencies, tmp_path):
+    """Verify provision_clip returns status 'ready' immediately if clip and transcript exist on disk."""
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    
+    # Setup mock asset repository clips_dir and output_dir
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    coordinator.asset_repository.clips_dir = str(clips_dir)
+    coordinator.asset_repository.output_dir = str(tmp_path)
+    
+    # Create fake default files in output_dir
+    (tmp_path / "default_style_settings.json").write_text(json.dumps({"fontSize": 48}))
+    (tmp_path / "default_thumbnail_style.json").write_text(json.dumps({"thumbnailDuration": 2.0}))
+    
+    # Setup job
+    job_id = "job_cached_ready"
+    video_path = tmp_path / "sources" / "vid1" / "video.mp4"
+    video_path.parent.mkdir(parents=True)
+    video_path.write_text("dummy video")
+    
+    coordinator.jobs[job_id] = {
+        "status": "pending",
+        "video_info": {
+            "file_path": str(video_path),
+            "fps": 30.0,
+            "duration": 60.0
+        }
+    }
+    
+    # Setup clip directory on disk with valid transcript
+    clip_dir = clips_dir / "vid1" / "10_25_test_theme"
+    clip_dir.mkdir(parents=True)
+    (clip_dir / "video.mp4").write_text("dummy clip")
+    (clip_dir / "transcript.json").write_text(json.dumps([{"text": "hello", "start": 0.0, "duration": 1.0}]))
+    
+    # Mock face tracker on coordinator to avoid mediapipe overhead
+    mock_tracker = MagicMock()
+    mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 960}]
+    coordinator.face_tracker = mock_tracker
+    
+    # Provision clip
+    res = coordinator.provision_clip(
+        job_id=job_id,
+        start_time=10.0,
+        end_time=25.0,
+        theme="test theme",
+        whisper_model="base"
+    )
+    
+    # Verify return value and job state
+    assert res["status"] == "ready"
+    assert res["job_id"] == job_id
+    assert coordinator.jobs[job_id]["status"] == "ready"
+    assert coordinator.jobs[job_id]["clip_path"] == str(clip_dir / "video.mp4")
+    assert coordinator.jobs[job_id]["clip_duration"] == 15.0
+    assert coordinator.jobs[job_id]["clip_start"] == 10.0
+    
+    # Verify default files and crop_map were seeded
+    assert (clip_dir / "style_settings.json").exists()
+    assert (clip_dir / "thumbnail_config.json").exists()
+    assert (clip_dir / "crop_map.json").exists()
+
+
+def test_provision_clip_new_cut_enqueues_background_task(mock_dependencies, tmp_path):
+    """Verify provision_clip sets status to 'cutting' and enqueues background cut when clip does not exist."""
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    coordinator.asset_repository.clips_dir = str(clips_dir)
+    coordinator.asset_repository.output_dir = str(tmp_path)
+    
+    job_id = "job_new_cut"
+    video_path = tmp_path / "sources" / "vid2" / "video.mp4"
+    video_path.parent.mkdir(parents=True)
+    video_path.write_text("dummy video")
+    
+    coordinator.jobs[job_id] = {
+        "status": "pending",
+        "video_info": {
+            "file_path": str(video_path),
+            "fps": 30.0,
+            "duration": 60.0
+        }
+    }
+    
+    mock_bg_tasks = MagicMock()
+    
+    res = coordinator.provision_clip(
+        job_id=job_id,
+        start_time=5.0,
+        end_time=20.0,
+        theme="fresh clip",
+        whisper_model="base",
+        background_tasks=mock_bg_tasks
+    )
+    
+    assert res["status"] == "cutting"
+    assert res["job_id"] == job_id
+    assert coordinator.jobs[job_id]["status"] == "cutting"
+    mock_bg_tasks.add_task.assert_called_once_with(
+        coordinator.run_local_cut,
+        job_id,
+        5.0,
+        20.0,
+        "fresh clip",
+        "base"
+    )
+
+
+def test_provision_clip_corrupt_transcript_cleans_and_schedules(mock_dependencies, tmp_path):
+    """Verify provision_clip deletes corrupt transcript.json and triggers background cut."""
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    coordinator.asset_repository.clips_dir = str(clips_dir)
+    coordinator.asset_repository.output_dir = str(tmp_path)
+    
+    job_id = "job_corrupt"
+    video_path = tmp_path / "sources" / "vid3" / "video.mp4"
+    video_path.parent.mkdir(parents=True)
+    video_path.write_text("dummy video")
+    
+    coordinator.jobs[job_id] = {
+        "status": "pending",
+        "video_info": {
+            "file_path": str(video_path),
+            "fps": 30.0,
+            "duration": 60.0
+        }
+    }
+    
+    # Clip exists but transcript is invalid JSON
+    clip_dir = clips_dir / "vid3" / "0_10"
+    clip_dir.mkdir(parents=True)
+    (clip_dir / "video.mp4").write_text("dummy clip")
+    transcript_file = clip_dir / "transcript.json"
+    transcript_file.write_text("NOT_JSON{{{")
+    
+    mock_bg_tasks = MagicMock()
+    
+    res = coordinator.provision_clip(
+        job_id=job_id,
+        start_time=0.0,
+        end_time=10.0,
+        whisper_model="base",
+        background_tasks=mock_bg_tasks
+    )
+    
+    assert res["status"] == "cutting"
+    assert not transcript_file.exists()
+    mock_bg_tasks.add_task.assert_called_once()
+
+
+def test_load_ready_clip_success(mock_dependencies, tmp_path):
+    """Verify load_ready_clip loads existing clip, seeds defaults and crop map, and returns complete payload."""
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    sources_dir = tmp_path / "sources"
+    sources_dir.mkdir()
+    coordinator.asset_repository.clips_dir = str(clips_dir)
+    coordinator.asset_repository.source_dir = str(sources_dir)
+    coordinator.asset_repository.output_dir = str(tmp_path)
+    
+    # Mock video info
+    mock_dependencies["asset_repository"].get_cached_video_by_folder.return_value = {
+        "folder_name": "vid_folder_1",
+        "video_id": "yt_123",
+        "file_path": str(tmp_path / "full.mp4"),
+        "fps": 30.0,
+        "duration": 120.0
+    }
+    mock_dependencies["asset_repository"].get_video_duration.return_value = 15.0
+    
+    # Create clip on disk
+    clip_dir = clips_dir / "vid_folder_1" / "10_25_awesome_clip"
+    clip_dir.mkdir(parents=True)
+    (clip_dir / "video.mp4").write_text("dummy video")
+    (clip_dir / "transcript.json").write_text(json.dumps([{"text": "Sample clip text", "start": 0.0, "duration": 2.0}]))
+    
+    # Create source hooks
+    source_folder = sources_dir / "vid_folder_1"
+    source_folder.mkdir(parents=True)
+    (source_folder / "hooks.json").write_text(json.dumps([{"start": 10.0, "end": 25.0, "title": "Hook 1"}]))
+    
+    # Mock face tracker
+    mock_tracker = MagicMock()
+    mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 960}]
+    coordinator.face_tracker = mock_tracker
+    
+    res = coordinator.load_ready_clip("vid_folder_1", "10_25_awesome_clip", whisper_model="base")
+    
+    assert res["status"] == "ready"
+    assert "job_id" in res
+    assert res["job"]["clip"]["transcript_quote"] == "Sample clip text"
+    assert res["job"]["clip"]["theme"] == "awesome clip"
+    assert len(res["job"]["hooks"]) == 1
+    assert (clip_dir / "crop_map.json").exists()
+
+
+
+

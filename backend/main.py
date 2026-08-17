@@ -311,137 +311,15 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
     if req.job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    # If clip already exists and is ready, return ready immediately
-    # We can use the logic from run_local_cut Step 1 to check
-    cached_info = jobs[req.job_id].get("video_info")
-    if cached_info and cached_info.get("file_path"):
-        folder_name = os.path.basename(os.path.dirname(cached_info["file_path"]))
-        
-        safe_theme = ""
-        if req.theme:
-            import re
-            safe_theme = re.sub(r'[^\w\s-]', '', req.theme).strip().replace(' ', '_')[:50]
-        
-        clip_id = f"{int(req.start_time)}_{int(req.end_time)}_{safe_theme}" if safe_theme else f"{int(req.start_time)}_{int(req.end_time)}"
-        target_dir = os.path.join(asset_repository.clips_dir, folder_name, clip_id)
-        transcript_path = os.path.join(target_dir, "transcript.json")
-        
-        is_transcript_valid = False
-        if os.path.exists(transcript_path):
-            try:
-                with open(transcript_path, "r", encoding="utf-8") as f:
-                    t_data = json.load(f)
-                    if isinstance(t_data, list) and len(t_data) > 0:
-                        is_transcript_valid = True
-            except:
-                pass
+    return workflow_coordinator.provision_clip(
+        job_id=req.job_id,
+        start_time=req.start_time,
+        end_time=req.end_time,
+        theme=req.theme,
+        whisper_model=req.whisper_model or "base",
+        background_tasks=background_tasks
+    )
 
-        if os.path.exists(os.path.join(target_dir, "video.mp4")) and not is_transcript_valid:
-            if os.path.exists(transcript_path):
-                try:
-                    os.remove(transcript_path)
-                except:
-                    pass
-
-        if os.path.exists(os.path.join(target_dir, "video.mp4")) and is_transcript_valid:
-            print(f"[api] Clip {clip_id} already ready and has valid transcript, skipping cut task")
-            
-            # Check for default style settings
-            clip_style_path = os.path.join(target_dir, "style_settings.json")
-            default_style_path = os.path.join("temp_assets", "default_style_settings.json")
-            if not os.path.exists(clip_style_path) and os.path.exists(default_style_path):
-                import shutil
-                shutil.copy(default_style_path, clip_style_path)
-                print(f"[api] Populated default style settings to {clip_style_path}")
-
-            # Check for default thumbnail config
-            clip_thumb_path = os.path.join(target_dir, "thumbnail_config.json")
-            default_thumb_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
-            if not os.path.exists(clip_thumb_path) and os.path.exists(default_thumb_style_path):
-                try:
-                    with open(default_thumb_style_path, "r", encoding="utf-8") as f:
-                        default_style = json.load(f)
-                    duration = default_style.get("thumbnailDuration", 1.0)
-                    initial_config = {
-                        "enabled": False,
-                        "duration": duration,
-                        "screenshotTime": 0,
-                        "textOverlays": [],
-                        "xOffset": 50
-                    }
-                    os.makedirs(target_dir, exist_ok=True)
-                    with open(clip_thumb_path, "w", encoding="utf-8") as f:
-                        json.dump(initial_config, f, ensure_ascii=False, indent=2)
-                    print(f"[api] Populated default thumbnail config to {clip_thumb_path}")
-                except Exception as e:
-                    print(f"[api] Failed to populate default thumbnail config: {e}")
-
-            # Check for Auto-Reframe crop_map
-            clip_crop_map_path = os.path.join(target_dir, "crop_map.json")
-            if not os.path.exists(clip_crop_map_path):
-                from core.face_tracker import FaceTracker
-                try:
-                    tracker = FaceTracker()
-                    crop_data = tracker.analyze_video(os.path.join(target_dir, "video.mp4"))
-                    if isinstance(crop_data, (int, float)):
-                        crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
-                    elif isinstance(crop_data, list) and len(crop_data) > 0:
-                        crop_map_points = crop_data
-                    else:
-                        crop_map_points = [{"time": 0.0, "x": 960}]
-                except Exception as e:
-                    print(f"[api] Face tracking failed for clip {clip_id}: {e}")
-                    crop_map_points = [{"time": 0.0, "x": 960}]
-                try:
-                    with open(clip_crop_map_path, "w", encoding="utf-8") as f:
-                        json.dump(crop_map_points, f, ensure_ascii=False, indent=2)
-                    print(f"[api] Populated default auto-reframe crop map to {clip_crop_map_path}")
-                except Exception as e:
-                    print(f"[api] Failed to save crop_map.json: {e}")
-
-            # Ensure job object is updated for polling atomically
-            job = jobs[req.job_id]
-            job["status"] = "ready"
-            job["clip_path"] = os.path.join(target_dir, "video.mp4")
-            job["clip_duration"] = req.end_time - req.start_time
-            job["clip_start"] = req.start_time
-            job["clip"] = {
-                "asset_url": f"/assets/clips/{folder_name}/{clip_id}/video.mp4",
-                "duration": req.end_time - req.start_time,
-                "start": req.start_time,
-                "end": req.end_time,
-                "theme": req.theme
-            }
-            jobs[req.job_id] = job
-            save_jobs()
-            return {"job_id": req.job_id, "status": "ready"}
-
-    # Clear previous clip state to prevent UI race conditions atomically
-    job = jobs[req.job_id]
-    job["clip"] = None
-    job["clip_path"] = None
-    job["clip_duration"] = None
-    job["clip_start"] = None
-    job["clip_end"] = None
-    job["clip_theme"] = None
-    
-    # Resolve clip_id in case cached_info check passed, or fall back dynamically
-    resolved_clip_id = None
-    if cached_info and cached_info.get("file_path"):
-        folder_name = os.path.basename(os.path.dirname(cached_info["file_path"]))
-        safe_theme = ""
-        if req.theme:
-            import re
-            safe_theme = re.sub(r'[^\w\s-]', '', req.theme).strip().replace(' ', '_')[:50]
-        resolved_clip_id = f"{int(req.start_time)}_{int(req.end_time)}_{safe_theme}" if safe_theme else f"{int(req.start_time)}_{int(req.end_time)}"
-        
-    job["clip_id"] = resolved_clip_id
-    job["status"] = "cutting"
-    jobs[req.job_id] = job
-
-    background_tasks.add_task(workflow_coordinator.run_local_cut, req.job_id, req.start_time, req.end_time, req.theme, req.whisper_model or "base")
-    save_jobs()
-    return {"job_id": req.job_id, "status": "cutting"}
 
 @app.get("/api/job/{job_id}")
 async def get_job(job_id: str):
@@ -1307,176 +1185,26 @@ async def delete_thumbnail(folder_name: str, clip_id: str):
 @app.post("/api/load-ready-clip")
 async def load_ready_clip(req: LoadReadyClipRequest, background_tasks: BackgroundTasks):
     """Initialize a job state from an existing ready clip."""
-    import uuid
-    
-    # 1. Verify clip exists
-    clip_dir = os.path.join("temp_assets", "clips", req.folder_name, req.clip_id)
-    clip_path = os.path.join(clip_dir, "video.mp4")
-    transcript_path = os.path.join(clip_dir, "transcript.json")
-    
-    if not os.path.exists(clip_path):
-        raise HTTPException(status_code=404, detail="Ready clip assets not found")
-        
-    # 2. Get source video info
-    video_info = asset_repository.get_cached_video_by_folder(req.folder_name)
-    if not video_info:
-        raise HTTPException(status_code=404, detail="Source video folder not found")
-        
-    # 3. Parse clip metadata from ID
-    start_time = 0.0
-    end_time = 0.0
-    theme = ""
-    parts = req.clip_id.split("_")
-    if len(parts) >= 2:
-        try:
-            start_time = float(parts[0])
-            end_time = float(parts[1])
-            if len(parts) >= 3:
-                theme = " ".join(parts[2:]).replace("_", " ")
-        except:
-            pass
-
-    # 4. Verify transcript validity
-    is_transcript_valid = False
-    if os.path.exists(transcript_path):
-        try:
-            with open(transcript_path, "r", encoding="utf-8") as f:
-                t_data = json.load(f)
-                if isinstance(t_data, list) and len(t_data) > 0:
-                    is_transcript_valid = True
-        except Exception:
-            pass
-
-    if not is_transcript_valid and os.path.exists(transcript_path):
-        try:
-            os.remove(transcript_path)
-        except Exception:
-            pass
-
-    # 5. Create a job marked as ready or queued (deterministically derived from folder name and clip ID)
-    import hashlib
-    hash_input = f"{req.folder_name}_{req.clip_id}"
-    job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
-    duration = asset_repository.get_video_duration(clip_path)
-    
-    # 6. Load generated hooks from sources folder
-    ready_hooks = []
-    source_hooks_path = os.path.join("temp_assets", "sources", req.folder_name, "hooks.json")
-    if os.path.exists(source_hooks_path):
-        try:
-            with open(source_hooks_path, "r", encoding="utf-8") as f:
-                ready_hooks = json.load(f)
-                print(f"[debug] Loaded {len(ready_hooks)} hooks from sources/{req.folder_name}/hooks.json")
-        except Exception as e:
-            print(f"[debug] Failed to read source hooks: {e}")
-
-    # 7. Extract transcript quote for the CURRENT active clip so the editor is populated
-    active_quote = "No transcript preview available."
-    if is_transcript_valid:
-        try:
-            with open(transcript_path, "r", encoding="utf-8") as f:
-                t_data = json.load(f)
-                active_quote = " ".join([s.get("text", "") for s in t_data]).strip()
-                if len(active_quote) > 1000: active_quote = active_quote[:997] + "..."
-        except Exception as e:
-            print(f"[debug] Failed to read active transcript: {e}")
-    
-    # Sort hooks so the current one is likely found correctly by index
-    ready_hooks.sort(key=lambda x: x["start"])
-
-    # 8. Snap the active clip's start/end to the closest hook in the list 
-    # to ensure the frontend highlight logic (matching by timestamp) works perfectly.
-    snapped_start, snapped_end = start_time, end_time
-    best_dist = float("inf")
-    for h in ready_hooks:
-        h_start = float(h.get("start", 0.0))
-        h_end = float(h.get("end", 0.0))
-        dist = abs(h_start - start_time) + abs(h_end - end_time)
-        if dist < 5.0 and dist < best_dist:
-            best_dist = dist
-            snapped_start = h_start
-            snapped_end = h_end
-
-    if best_dist < float("inf"):
-        print(f"[debug] Snapped active clip to matching hook: {snapped_start} - {snapped_end} (dist: {best_dist:.2f}s)")
-
-    status = "ready" if is_transcript_valid else "queued"
-    jobs[job_id] = {
-        "status": status,
-        "url": f"https://youtube.com/watch?v={video_info['video_id']}",
-        "video_info": video_info,
-        "full_video_path": video_info["file_path"],
-        "clip_path": clip_path,
-        "clip_duration": duration,
-        "clip": {
-            "asset_url": f"/assets/clips/{req.folder_name}/{req.clip_id}/video.mp4",
-            "duration": duration,
-            "file_path": clip_path,
-            "start": snapped_start,
-            "end": snapped_end,
-            "theme": theme,
-            "transcript_quote": active_quote
-        },
-        "hooks": ready_hooks,
-        "fps": video_info.get("fps", 30.0),
-        "error": None
-    }
-    
-    if not is_transcript_valid:
-        background_tasks.add_task(
-            workflow_coordinator.run_local_cut,
-            job_id,
-            start_time,
-            end_time,
-            theme,
-            req.whisper_model or "base"
+    try:
+        res = workflow_coordinator.load_ready_clip(
+            folder_name=req.folder_name,
+            clip_id=req.clip_id,
+            whisper_model=req.whisper_model or "base",
+            background_tasks=background_tasks
         )
-        print(f"[api] Triggered recovery transcription for ready clip {req.clip_id} in job {job_id}")
+        return {
+            "job_id": res["job_id"], 
+            "status": res["status"],
+            "clip": res["job"]["clip"],
+            "hooks": res["job"]["hooks"],
+            "fps": res["job"]["fps"],
+            "history": res.get("history")
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    # Check for Auto-Reframe crop_map
-    clip_crop_map_path = os.path.join(clip_dir, "crop_map.json")
-    if not os.path.exists(clip_crop_map_path):
-        from core.face_tracker import FaceTracker
-        try:
-            tracker = FaceTracker()
-            crop_data = tracker.analyze_video(clip_path)
-            if isinstance(crop_data, (int, float)):
-                crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
-            elif isinstance(crop_data, list) and len(crop_data) > 0:
-                crop_map_points = crop_data
-            else:
-                crop_map_points = [{"time": 0.0, "x": 960}]
-        except Exception as e:
-            print(f"[api] Face tracking failed for clip {req.clip_id}: {e}")
-            crop_map_points = [{"time": 0.0, "x": 960}]
-        try:
-            with open(clip_crop_map_path, "w", encoding="utf-8") as f:
-                json.dump(crop_map_points, f, ensure_ascii=False, indent=2)
-            print(f"[api] Populated default auto-reframe crop map to {clip_crop_map_path}")
-        except Exception as e:
-            print(f"[api] Failed to save crop_map.json: {e}")
-
-    save_jobs()
-    
-    # Load persisted history if it exists
-    history_data = None
-    history_path = os.path.join(clip_dir, "history.json")
-    if os.path.exists(history_path):
-        try:
-            with open(history_path, "r", encoding="utf-8") as f:
-                history_data = json.load(f)
-            print(f"[api] Loaded persisted history from {history_path}")
-        except Exception as e:
-            print(f"[api] Failed to read history: {e}")
-
-    return {
-        "job_id": job_id, 
-        "status": status,
-        "clip": jobs[job_id]["clip"],
-        "hooks": jobs[job_id]["hooks"],
-        "fps": jobs[job_id]["fps"],
-        "history": history_data
-    }
 
 
 @app.post("/api/clips/{folder_name}/{clip_id}/track-face")

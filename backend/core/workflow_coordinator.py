@@ -20,6 +20,44 @@ class ClipWorkflowCoordinator:
         except:
             pass
 
+    def _ensure_defaults(self, clip_dir: str):
+        """Ensures default style settings and thumbnail config are seeded in clip directory."""
+        output_dir = getattr(self.asset_repository, "output_dir", None)
+        if not isinstance(output_dir, str) or not output_dir:
+            output_dir = "temp_assets"
+
+        # 1. Check for default style settings
+        clip_style_path = os.path.join(clip_dir, "style_settings.json")
+        default_style_path = os.path.join(output_dir, "default_style_settings.json")
+        if not os.path.exists(clip_style_path) and os.path.exists(default_style_path):
+            try:
+                shutil.copy(default_style_path, clip_style_path)
+                print(f"[defaults] Populated default style settings to {clip_style_path}")
+            except Exception as e:
+                print(f"[defaults] Failed to copy default style settings: {e}")
+
+        # 2. Check for default thumbnail config
+        clip_thumb_config_path = os.path.join(clip_dir, "thumbnail_config.json")
+        default_thumb_style_path = os.path.join(output_dir, "default_thumbnail_style.json")
+        if not os.path.exists(clip_thumb_config_path) and os.path.exists(default_thumb_style_path):
+            try:
+                with open(default_thumb_style_path, "r", encoding="utf-8") as f:
+                    default_style = json.load(f)
+                duration = default_style.get("thumbnailDuration", 1.0)
+                initial_config = {
+                    "enabled": False,
+                    "duration": duration,
+                    "screenshotTime": 0,
+                    "textOverlays": [],
+                    "xOffset": 50
+                }
+                os.makedirs(clip_dir, exist_ok=True)
+                with open(clip_thumb_config_path, "w", encoding="utf-8") as f:
+                    json.dump(initial_config, f, ensure_ascii=False, indent=2)
+                print(f"[defaults] Populated default thumbnail config to {clip_thumb_config_path}")
+            except Exception as e:
+                print(f"[defaults] Failed to populate default thumbnail config: {e}")
+
     def _ensure_crop_map(self, clip_path: str):
         """Generates and caches Auto-Reframe crop_map.json for the clip if not already present."""
         clip_dir = os.path.dirname(clip_path)
@@ -51,6 +89,304 @@ class ClipWorkflowCoordinator:
             print(f"[cut] Saved auto-reframe crop map ({len(crop_map_points)} points) to {crop_map_path}")
         except Exception as e:
             print(f"[cut] Failed to write crop_map.json: {e}")
+
+    def provision_clip(
+        self,
+        job_id: str,
+        start_time: float,
+        end_time: float,
+        theme: Optional[str] = None,
+        whisper_model: str = "base",
+        background_tasks: Any = None
+    ) -> Dict[str, Any]:
+        """
+        Idempotent clip provisioning.
+        If ready on disk: populates missing artifacts, updates JobStore, returns {"job_id": job_id, "status": "ready"}.
+        If not ready: schedules background cut & transcribe, returns {"job_id": job_id, "status": "cutting"}.
+        """
+        job = self.jobs.get_job(job_id) if hasattr(self.jobs, "get_job") else self.jobs.get(job_id)
+        if not job:
+            raise KeyError(f"Job {job_id} not found")
+
+        cached_info = job.get("video_info")
+        if cached_info and cached_info.get("file_path"):
+            folder_name = os.path.basename(os.path.dirname(cached_info["file_path"]))
+            safe_theme = re.sub(r'[^\w\s-]', '', theme).strip().replace(' ', '_')[:50] if theme else ""
+            clip_id = f"{int(start_time)}_{int(end_time)}_{safe_theme}" if safe_theme else f"{int(start_time)}_{int(end_time)}"
+            
+            clips_dir = getattr(self.asset_repository, "clips_dir", os.path.join("temp_assets", "clips"))
+            target_dir = os.path.join(clips_dir, folder_name, clip_id)
+            video_file = os.path.join(target_dir, "video.mp4")
+            transcript_path = os.path.join(target_dir, "transcript.json")
+
+            is_transcript_valid = False
+            if os.path.exists(transcript_path):
+                try:
+                    with open(transcript_path, "r", encoding="utf-8") as f:
+                        t_data = json.load(f)
+                        if isinstance(t_data, list) and len(t_data) > 0:
+                            is_transcript_valid = True
+                except Exception:
+                    pass
+
+            if os.path.exists(video_file) and not is_transcript_valid:
+                if os.path.exists(transcript_path):
+                    try:
+                        os.remove(transcript_path)
+                    except Exception:
+                        pass
+
+            if os.path.exists(video_file) and is_transcript_valid:
+                print(f"[provision] Clip {clip_id} already ready on disk. Ensuring defaults and crop map...")
+                self._ensure_defaults(target_dir)
+                self._ensure_crop_map(video_file)
+
+                job["status"] = "ready"
+                job["clip_path"] = video_file
+                job["clip_duration"] = end_time - start_time
+                job["clip_start"] = start_time
+                job["fps"] = cached_info.get("fps", 30.0)
+                job["clip"] = {
+                    "asset_url": f"/assets/clips/{folder_name}/{clip_id}/video.mp4",
+                    "duration": end_time - start_time,
+                    "start": start_time,
+                    "end": end_time,
+                    "theme": theme
+                }
+                self.jobs[job_id] = job
+                self.save_jobs()
+                return {"job_id": job_id, "status": "ready"}
+
+        # Clear previous clip state to prevent UI race conditions atomically
+        job["clip"] = None
+        job["clip_path"] = None
+        job["clip_duration"] = None
+        job["clip_start"] = None
+        job["clip_end"] = None
+        job["clip_theme"] = None
+        
+        resolved_clip_id = None
+        if cached_info and cached_info.get("file_path"):
+            folder_name = os.path.basename(os.path.dirname(cached_info["file_path"]))
+            safe_theme = re.sub(r'[^\w\s-]', '', theme).strip().replace(' ', '_')[:50] if theme else ""
+            resolved_clip_id = f"{int(start_time)}_{int(end_time)}_{safe_theme}" if safe_theme else f"{int(start_time)}_{int(end_time)}"
+        
+        job["clip_id"] = resolved_clip_id
+        job["status"] = "cutting"
+        self.jobs[job_id] = job
+        self.save_jobs()
+
+        if background_tasks is not None:
+            background_tasks.add_task(self.run_local_cut, job_id, start_time, end_time, theme, whisper_model)
+        else:
+            import threading
+            t = threading.Thread(target=self.run_local_cut, args=(job_id, start_time, end_time, theme, whisper_model))
+            t.daemon = True
+            t.start()
+
+        return {"job_id": job_id, "status": "cutting"}
+
+    def load_ready_clip(
+        self,
+        folder_name: str,
+        clip_id: str,
+        whisper_model: str = "base",
+        background_tasks: Any = None
+    ) -> Dict[str, Any]:
+        """
+        Loads and initializes a job state from an existing ready clip on disk.
+        """
+        clips_dir = getattr(self.asset_repository, "clips_dir", os.path.join("temp_assets", "clips"))
+        clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+        clip_path = os.path.join(clip_dir, "video.mp4")
+        transcript_path = os.path.join(clip_dir, "transcript.json")
+
+        if not os.path.exists(clip_path):
+            raise FileNotFoundError("Ready clip assets not found")
+
+        video_info = self.asset_repository.get_cached_video_by_folder(folder_name)
+        if not video_info:
+            raise FileNotFoundError("Source video folder not found")
+
+        # Parse clip metadata from ID
+        start_time = 0.0
+        end_time = 0.0
+        theme = ""
+        parts = clip_id.split("_")
+        if len(parts) >= 2:
+            try:
+                start_time = float(parts[0])
+                end_time = float(parts[1])
+                if len(parts) >= 3:
+                    theme = " ".join(parts[2:]).replace("_", " ")
+            except Exception:
+                pass
+
+        # Verify transcript validity
+        is_transcript_valid = False
+        if os.path.exists(transcript_path):
+            try:
+                with open(transcript_path, "r", encoding="utf-8") as f:
+                    t_data = json.load(f)
+                    if isinstance(t_data, list) and len(t_data) > 0:
+                        is_transcript_valid = True
+            except Exception:
+                pass
+
+        if not is_transcript_valid and os.path.exists(transcript_path):
+            try:
+                os.remove(transcript_path)
+            except Exception:
+                pass
+
+        # Deterministic job_id
+        import hashlib
+        hash_input = f"{folder_name}_{clip_id}"
+        job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
+        
+        duration = end_time - start_time
+        if hasattr(self.asset_repository, "get_video_duration"):
+            try:
+                dur = self.asset_repository.get_video_duration(clip_path)
+                if dur and dur > 0:
+                    duration = dur
+            except Exception:
+                pass
+
+        # Load generated hooks from sources folder if present
+        ready_hooks = []
+        sources_dir = getattr(self.asset_repository, "source_dir", os.path.join("temp_assets", "sources"))
+        source_hooks_path = os.path.join(sources_dir, folder_name, "hooks.json")
+        if os.path.exists(source_hooks_path):
+            try:
+                with open(source_hooks_path, "r", encoding="utf-8") as f:
+                    ready_hooks = json.load(f)
+            except Exception as e:
+                print(f"[load-ready-clip] Failed to read source hooks: {e}")
+
+        # Extract transcript quote
+        active_quote = "No transcript preview available."
+        if is_transcript_valid:
+            try:
+                with open(transcript_path, "r", encoding="utf-8") as f:
+                    t_data = json.load(f)
+                    active_quote = " ".join([s.get("text", "") for s in t_data]).strip()
+                    if len(active_quote) > 1000:
+                        active_quote = active_quote[:997] + "..."
+            except Exception as e:
+                print(f"[load-ready-clip] Failed to read active transcript: {e}")
+
+        ready_hooks.sort(key=lambda x: x.get("start", 0.0))
+
+        # Snap start/end to closest matching hook
+        snapped_start, snapped_end = start_time, end_time
+        best_dist = float("inf")
+        for h in ready_hooks:
+            h_start = float(h.get("start", 0.0))
+            h_end = float(h.get("end", 0.0))
+            dist = abs(h_start - start_time) + abs(h_end - end_time)
+            if dist < 5.0 and dist < best_dist:
+                best_dist = dist
+                snapped_start = h_start
+                snapped_end = h_end
+
+        # Ensure defaults and crop map
+        self._ensure_defaults(clip_dir)
+        self._ensure_crop_map(clip_path)
+
+        status = "ready" if is_transcript_valid else "queued"
+        job_data = {
+            "job_id": job_id,
+            "status": status,
+            "url": f"https://youtube.com/watch?v={video_info.get('video_id', '')}",
+            "video_info": video_info,
+            "full_video_path": video_info.get("file_path"),
+            "clip_path": clip_path,
+            "clip_duration": duration,
+            "clip": {
+                "asset_url": f"/assets/clips/{folder_name}/{clip_id}/video.mp4",
+                "duration": duration,
+                "file_path": clip_path,
+                "start": snapped_start,
+                "end": snapped_end,
+                "theme": theme,
+                "transcript_quote": active_quote
+            },
+            "hooks": ready_hooks,
+            "fps": video_info.get("fps", 30.0),
+            "error": None
+        }
+
+        self.jobs[job_id] = job_data
+        self.save_jobs()
+
+        if not is_transcript_valid:
+            if background_tasks is not None:
+                background_tasks.add_task(
+                    self.run_local_cut,
+                    job_id,
+                    start_time,
+                    end_time,
+                    theme,
+                    whisper_model
+                )
+            else:
+                import threading
+                t = threading.Thread(target=self.run_local_cut, args=(job_id, start_time, end_time, theme, whisper_model))
+                t.daemon = True
+                t.start()
+
+        # Load persisted history if present
+        history_data = None
+        history_path = os.path.join(clip_dir, "history.json")
+        if os.path.exists(history_path):
+            try:
+                with open(history_path, "r", encoding="utf-8") as f:
+                    history_data = json.load(f)
+            except Exception as e:
+                print(f"[load-ready-clip] Failed to read history: {e}")
+
+        # Load persisted style settings if present
+        style_data = None
+        style_path = os.path.join(clip_dir, "style_settings.json")
+        if os.path.exists(style_path):
+            try:
+                with open(style_path, "r", encoding="utf-8") as f:
+                    style_data = json.load(f)
+            except Exception as e:
+                print(f"[load-ready-clip] Failed to read style settings: {e}")
+
+        # Load persisted crop map
+        crop_map_data = None
+        crop_map_path = os.path.join(clip_dir, "crop_map.json")
+        if os.path.exists(crop_map_path):
+            try:
+                with open(crop_map_path, "r", encoding="utf-8") as f:
+                    crop_map_data = json.load(f)
+            except Exception as e:
+                print(f"[load-ready-clip] Failed to read crop map: {e}")
+
+        # Load thumbnail config
+        thumbnail_config_data = None
+        thumb_config_path = os.path.join(clip_dir, "thumbnail_config.json")
+        if os.path.exists(thumb_config_path):
+            try:
+                with open(thumb_config_path, "r", encoding="utf-8") as f:
+                    thumbnail_config_data = json.load(f)
+            except Exception as e:
+                print(f"[load-ready-clip] Failed to read thumbnail config: {e}")
+
+        return {
+            "job_id": job_id,
+            "status": status,
+            "job": job_data,
+            "style_settings": style_data,
+            "history": history_data,
+            "crop_map": crop_map_data,
+            "thumbnail_config": thumbnail_config_data
+        }
+
+
 
     def run_full_analysis(
         self,
@@ -355,36 +691,8 @@ class ClipWorkflowCoordinator:
             if is_transcript_valid:
                 print(f"[transcribe] Reuse existing transcript at {transcript_path}")
                 
-                # Check for default style settings
-                clip_style_path = os.path.join(os.path.dirname(clip["file_path"]), "style_settings.json")
-                default_style_path = os.path.join("temp_assets", "default_style_settings.json")
-                if not os.path.exists(clip_style_path) and os.path.exists(default_style_path):
-                    import shutil
-                    shutil.copy(default_style_path, clip_style_path)
-                    print(f"[transcribe] Populated default style settings to {clip_style_path}")
-
-                # Check for default thumbnail config
-                clip_thumb_config_path = os.path.join(os.path.dirname(clip["file_path"]), "thumbnail_config.json")
-                default_thumb_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
-                if not os.path.exists(clip_thumb_config_path) and os.path.exists(default_thumb_style_path):
-                    try:
-                        with open(default_thumb_style_path, "r", encoding="utf-8") as f:
-                            default_style = json.load(f)
-                        duration = default_style.get("thumbnailDuration", 1.0)
-                        initial_config = {
-                            "enabled": False,
-                            "duration": duration,
-                            "screenshotTime": 0,
-                            "textOverlays": [],
-                            "xOffset": 50
-                        }
-                        with open(clip_thumb_config_path, "w", encoding="utf-8") as f:
-                            json.dump(initial_config, f, ensure_ascii=False, indent=2)
-                        print(f"[transcribe] Populated default thumbnail config to {clip_thumb_config_path}")
-                    except Exception as e:
-                        print(f"[transcribe] Failed to populate default thumbnail config: {e}")
-
-                # Ensure Auto-Reframe crop_map.json is generated/cached
+                clip_dir = os.path.dirname(clip["file_path"])
+                self._ensure_defaults(clip_dir)
                 self._ensure_crop_map(clip["file_path"])
 
                 job = self.jobs[job_id]
@@ -436,36 +744,8 @@ class ClipWorkflowCoordinator:
                     except Exception as fe:
                         print(f"[transcribe] Failed to write fallback empty transcript: {fe}")
 
-            # Check for default style settings
-            clip_style_path = os.path.join(os.path.dirname(clip["file_path"]), "style_settings.json")
-            default_style_path = os.path.join("temp_assets", "default_style_settings.json")
-            if not os.path.exists(clip_style_path) and os.path.exists(default_style_path):
-                import shutil
-                shutil.copy(default_style_path, clip_style_path)
-                print(f"[transcribe] Populated default style settings to {clip_style_path}")
-
-            # Check for default thumbnail config
-            clip_thumb_config_path = os.path.join(os.path.dirname(clip["file_path"]), "thumbnail_config.json")
-            default_thumb_style_path = os.path.join("temp_assets", "default_thumbnail_style.json")
-            if not os.path.exists(clip_thumb_config_path) and os.path.exists(default_thumb_style_path):
-                try:
-                    with open(default_thumb_style_path, "r", encoding="utf-8") as f:
-                        default_style = json.load(f)
-                    duration = default_style.get("thumbnailDuration", 1.0)
-                    initial_config = {
-                        "enabled": False,
-                        "duration": duration,
-                        "screenshotTime": 0,
-                        "textOverlays": [],
-                        "xOffset": 50
-                    }
-                    with open(clip_thumb_config_path, "w", encoding="utf-8") as f:
-                        json.dump(initial_config, f, ensure_ascii=False, indent=2)
-                    print(f"[transcribe] Populated default thumbnail config to {clip_thumb_config_path}")
-                except Exception as e:
-                    print(f"[transcribe] Failed to populate default thumbnail config: {e}")
-
-            # Ensure Auto-Reframe crop_map.json is generated/cached
+            clip_dir = os.path.dirname(clip["file_path"])
+            self._ensure_defaults(clip_dir)
             self._ensure_crop_map(clip["file_path"])
 
             # Store full clip metadata
