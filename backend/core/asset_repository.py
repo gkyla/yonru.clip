@@ -35,11 +35,15 @@ class AssetStore(ABC):
         pass
 
     @abstractmethod
-    def list_cached_videos(self) -> list:
+    def list_cached_videos(self, page: Optional[int] = None, limit: int = 6, search: Optional[str] = None, sort_by: str = "date", order: str = "desc") -> Any:
         pass
 
     @abstractmethod
     def list_all_clips(self) -> list:
+        pass
+
+    @abstractmethod
+    def list_ready_clips(self, active_clip_ids: Optional[set] = None) -> list:
         pass
 
     @abstractmethod
@@ -48,6 +52,14 @@ class AssetStore(ABC):
 
     @abstractmethod
     def delete_clip(self, folder_name: str, clip_id: str) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_clip_with_job(self, folder_name: str, clip_id: str, job_store: Any = None) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_cached_video_with_jobs(self, folder_name: str, job_store: Any = None) -> int:
         pass
 
     @abstractmethod
@@ -61,6 +73,7 @@ class AssetStore(ABC):
     @abstractmethod
     def delete_saved_hook(self, folder_name: str, hook_id: str) -> list:
         pass
+
 
     def sanitize_and_prepare_hooks(self, raw_hooks: list, video_info: dict) -> list:
         """Filter, format, and ensure thumbnails exist for a list of hooks."""
@@ -485,11 +498,18 @@ class AssetRepository(AssetStore):
             "theme": theme
         }
 
-    def list_cached_videos(self) -> list:
-        """List titled source folders."""
+    def list_cached_videos(
+        self,
+        page: Optional[int] = None,
+        limit: int = 6,
+        search: Optional[str] = None,
+        sort_by: str = "date",
+        order: str = "desc"
+    ) -> Any:
+        """List, search, sort, and paginate cached source videos."""
         results = []
         if not os.path.exists(self.source_dir):
-            return []
+            return {"videos": [], "total": 0, "has_more": False} if page is not None else []
             
         for entry in os.scandir(self.source_dir):
             if entry.is_dir() and len(entry.name) >= 12 and entry.name[-12] == "_":
@@ -530,7 +550,39 @@ class AssetRepository(AssetStore):
                     "youtube_url": f"https://youtube.com/watch?v={video_id}",
                     "hd_ready": hd_ready
                 })
-        return results
+        
+        # If raw list requested without pagination
+        if page is None:
+            return results
+
+        # 1. Search Filter (case-insensitive)
+        if search:
+            search_lower = search.lower()
+            results = [
+                v for v in results
+                if search_lower in v.get("title", "").lower() or search_lower in v.get("video_id", "").lower()
+            ]
+
+        # 2. Sorting
+        if sort_by == "title":
+            reverse = (order == "desc")
+            results.sort(key=lambda x: x.get("title", "").lower(), reverse=reverse)
+        else:
+            reverse = (order != "asc")
+            results.sort(key=lambda x: x.get("mtime", 0.0), reverse=reverse)
+
+        # 3. Pagination Slicing
+        total = len(results)
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated_videos = results[start_idx:end_idx]
+        has_more = end_idx < total
+
+        return {
+            "videos": paginated_videos,
+            "total": total,
+            "has_more": has_more
+        }
 
     def list_all_clips(self) -> list:
         """Scan all clips subfolders for ready videos (video.mp4 + transcript.json)."""
@@ -595,6 +647,13 @@ class AssetRepository(AssetStore):
         results.sort(key=lambda x: x["mtime"], reverse=True)
         return results
 
+    def list_ready_clips(self, active_clip_ids: Optional[set] = None) -> list:
+        """List all ready clips, filtering out clips currently being processed."""
+        clips = self.list_all_clips()
+        if not active_clip_ids:
+            return clips
+        return [c for c in clips if c.get("clip_id") not in active_clip_ids]
+
     def delete_cached_video(self, folder_name: str) -> int:
         """Delete titled folders in sources and clips securely with validation."""
         if not folder_name or not re.match(r"^[\w\s.-]+$", folder_name) or ".." in folder_name:
@@ -643,6 +702,51 @@ class AssetRepository(AssetStore):
             shutil.rmtree(clip_dir)
             return True
         return False
+
+    def delete_clip_with_job(self, folder_name: str, clip_id: str, job_store: Any = None) -> bool:
+        """Delete a specific clip folder and clean up any associated JobStore session."""
+        success = self.delete_clip(folder_name, clip_id)
+        if success and job_store is not None:
+            import hashlib
+            hash_input = f"{folder_name}_{clip_id}"
+            derived_job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
+            if hasattr(job_store, "delete_job"):
+                job_store.delete_job(derived_job_id)
+            elif isinstance(job_store, dict) and derived_job_id in job_store:
+                del job_store[derived_job_id]
+        return success
+
+    def delete_cached_video_with_jobs(self, folder_name: str, job_store: Any = None) -> int:
+        """Cancel active background jobs matching folder/video_id and purge source & clip assets."""
+        if job_store is not None:
+            target_video_id = None
+            if len(folder_name) >= 12 and folder_name[-12] == "_":
+                target_video_id = folder_name[-11:]
+            
+            jobs_dict = job_store.items() if hasattr(job_store, "items") else []
+            for j_id, j_info in list(jobs_dict):
+                is_match = False
+                if isinstance(j_info, dict):
+                    if j_info.get("video_info") and j_info["video_info"].get("folder_name") == folder_name:
+                        is_match = True
+                    elif target_video_id and j_info.get("url") and target_video_id in j_info["url"]:
+                        is_match = True
+                    
+                    if is_match:
+                        current_status = j_info.get("status")
+                        if current_status in ["queued", "downloading", "processing", "checking_transcript", "extracting_audio", "generating_hooks"]:
+                            print(f"[delete] Cancelling active background job {j_id} for deleted source {folder_name}")
+                            j_info["status"] = "cancelled"
+                            j_info["error"] = "Source video deleted by user."
+                            job_store[j_id] = j_info
+            
+            if hasattr(job_store, "save") or hasattr(job_store, "save_jobs"):
+                save_fn = getattr(job_store, "save", None) or getattr(job_store, "save_jobs", None)
+                if callable(save_fn):
+                    save_fn()
+
+        return self.delete_cached_video(folder_name)
+
 
     # ── Hooks DB/JSON Operations ──────────────────────────────────
 
@@ -866,13 +970,21 @@ class MockAssetStore(AssetStore):
             "theme": theme
         }
 
-    def list_cached_videos(self) -> list:
-        self.calls.append(("list_cached_videos",))
+    def list_cached_videos(self, page: Optional[int] = None, limit: int = 6, search: Optional[str] = None, sort_by: str = "date", order: str = "desc") -> Any:
+        self.calls.append(("list_cached_videos", page, limit, search, sort_by, order))
+        if page is not None:
+            return {"videos": self.cached_videos, "total": len(self.cached_videos), "has_more": False}
         return self.cached_videos
 
     def list_all_clips(self) -> list:
         self.calls.append(("list_all_clips",))
         return self.ready_clips
+
+    def list_ready_clips(self, active_clip_ids: Optional[set] = None) -> list:
+        self.calls.append(("list_ready_clips", active_clip_ids))
+        if not active_clip_ids:
+            return self.ready_clips
+        return [c for c in self.ready_clips if c.get("clip_id") not in active_clip_ids]
 
     def delete_cached_video(self, folder_name: str) -> int:
         self.calls.append(("delete_cached_video", folder_name))
@@ -881,6 +993,14 @@ class MockAssetStore(AssetStore):
     def delete_clip(self, folder_name: str, clip_id: str) -> bool:
         self.calls.append(("delete_clip", folder_name, clip_id))
         return True
+
+    def delete_clip_with_job(self, folder_name: str, clip_id: str, job_store: Any = None) -> bool:
+        self.calls.append(("delete_clip_with_job", folder_name, clip_id, job_store))
+        return self.delete_clip(folder_name, clip_id)
+
+    def delete_cached_video_with_jobs(self, folder_name: str, job_store: Any = None) -> int:
+        self.calls.append(("delete_cached_video_with_jobs", folder_name, job_store))
+        return self.delete_cached_video(folder_name)
 
     def get_saved_hooks(self, folder_name: str) -> list:
         self.calls.append(("get_saved_hooks", folder_name))
@@ -898,3 +1018,4 @@ class MockAssetStore(AssetStore):
         if folder_name in self.saved_hooks:
             self.saved_hooks[folder_name] = [h for h in self.saved_hooks[folder_name] if h.get("_id") != hook_id]
         return self.saved_hooks.get(folder_name, [])
+

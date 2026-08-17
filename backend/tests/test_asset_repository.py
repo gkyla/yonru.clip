@@ -228,4 +228,87 @@ class TestAssetRepository(unittest.TestCase):
         self.assertTrue(self.repo.delete_thumbnail(folder_name, clip_id))
         self.assertFalse(os.path.exists(thumb_img))
 
+    @patch('core.asset_repository.AssetRepository._generate_thumbnail')
+    @patch('core.asset_repository.AssetRepository.get_video_duration')
+    @patch('core.asset_repository.AssetRepository.get_video_resolution')
+    def test_list_cached_videos_search_and_pagination(self, mock_res, mock_dur, mock_thumb):
+        mock_res.return_value = (1920, 1080)
+        mock_dur.return_value = 60.0
+        mock_thumb.return_value = "thumb.jpg"
+
+        # Create two fake source folders
+        for title, vid in [("Alpha Video", "aaaa1111111"), ("Beta Video", "bbbb2222222"), ("Gamma Video", "cccc3333333")]:
+            folder_path = os.path.join(self.output_dir, "sources", f"{title}_{vid}")
+            os.makedirs(folder_path, exist_ok=True)
+            with open(os.path.join(folder_path, "full.mp4"), "w") as f:
+                f.write("content")
+
+        # Test search
+        search_res = self.repo.list_cached_videos(page=1, limit=10, search="beta")
+        self.assertEqual(search_res["total"], 1)
+        self.assertEqual(search_res["videos"][0]["video_id"], "bbbb2222222")
+
+        # Test pagination
+        page1 = self.repo.list_cached_videos(page=1, limit=2, sort_by="title", order="asc")
+        self.assertEqual(len(page1["videos"]), 2)
+        self.assertEqual(page1["total"], 3)
+        self.assertTrue(page1["has_more"])
+        self.assertEqual(page1["videos"][0]["title"], "Alpha Video")
+        self.assertEqual(page1["videos"][1]["title"], "Beta Video")
+
+        page2 = self.repo.list_cached_videos(page=2, limit=2, sort_by="title", order="asc")
+        self.assertEqual(len(page2["videos"]), 1)
+        self.assertFalse(page2["has_more"])
+        self.assertEqual(page2["videos"][0]["title"], "Gamma Video")
+
+    @patch('core.asset_repository.AssetRepository.get_video_duration')
+    def test_list_ready_clips_filters_active(self, mock_dur):
+        mock_dur.return_value = 10.0
+        
+        for clip_id in ["1_10_c1", "10_20_c2"]:
+            clip_dir = os.path.join(self.output_dir, "clips", "src_video", clip_id)
+            os.makedirs(clip_dir, exist_ok=True)
+            with open(os.path.join(clip_dir, "video.mp4"), "w") as f:
+                f.write("data")
+            with open(os.path.join(clip_dir, "transcript.json"), "w") as f:
+                f.write("[]")
+
+        all_clips = self.repo.list_ready_clips()
+        self.assertEqual(len(all_clips), 2)
+
+        filtered = self.repo.list_ready_clips(active_clip_ids={"1_10_c1"})
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered[0]["clip_id"], "10_20_c2")
+
+    def test_delete_clip_with_job(self):
+        clip_dir = os.path.join(self.output_dir, "clips", "test_folder", "1_10")
+        os.makedirs(clip_dir, exist_ok=True)
+        with open(os.path.join(clip_dir, "video.mp4"), "w") as f:
+            f.write("data")
+
+        import hashlib
+        job_id = hashlib.md5("test_folder_1_10".encode('utf-8')).hexdigest()[:8]
+        fake_jobs = {job_id: {"status": "ready"}}
+
+        success = self.repo.delete_clip_with_job("test_folder", "1_10", job_store=fake_jobs)
+        self.assertTrue(success)
+        self.assertFalse(os.path.exists(clip_dir))
+        self.assertNotIn(job_id, fake_jobs)
+
+    def test_delete_cached_video_with_jobs(self):
+        source_dir = os.path.join(self.output_dir, "sources", "Test_Video_12345678901")
+        os.makedirs(source_dir, exist_ok=True)
+
+        fake_jobs = {
+            "job1": {
+                "status": "processing",
+                "video_info": {"folder_name": "Test_Video_12345678901"}
+            }
+        }
+
+        count = self.repo.delete_cached_video_with_jobs("Test_Video_12345678901", job_store=fake_jobs)
+        self.assertEqual(count, 1)
+        self.assertEqual(fake_jobs["job1"]["status"], "cancelled")
+
+
 

@@ -439,45 +439,17 @@ async def list_cached(
     order: str = "desc"
 ):
     """List, search, sort and paginate cached full videos in temp_assets."""
-    videos = asset_repository.list_cached_videos()
-    
-    # 1. Search Filter (case-insensitive)
-    if search:
-        search_lower = search.lower()
-        videos = [
-            v for v in videos
-            if search_lower in v.get("title", "").lower() or search_lower in v.get("video_id", "").lower()
-        ]
-        
-    # 2. Sorting
-    if sort_by == "title":
-        # Alphabetical sort: asc by default unless order is desc
-        reverse = (order == "desc")
-        videos.sort(key=lambda x: x.get("title", "").lower(), reverse=reverse)
-    else:
-        # Date sort (default): desc (newest first) unless order is asc
-        reverse = (order != "asc")
-        videos.sort(key=lambda x: x.get("mtime", 0.0), reverse=reverse)
-        
-    # 3. Pagination Slicing
-    total = len(videos)
-    start_idx = (page - 1) * limit
-    end_idx = start_idx + limit
-    paginated_videos = videos[start_idx:end_idx]
-    has_more = end_idx < total
-    
-    return {
-        "videos": paginated_videos,
-        "total": total,
-        "has_more": has_more
-    }
+    return asset_repository.list_cached_videos(
+        page=page,
+        limit=limit,
+        search=search,
+        sort_by=sort_by,
+        order=order
+    )
 
 @app.get("/api/ready-clips")
 async def list_ready_clips():
     """List all segments that have been cut and transcribed."""
-    clips = asset_repository.list_all_clips()
-    
-    # Filter out clips that are currently being processed in an active job
     active_clip_ids = set()
     try:
         for job_id, job in jobs.items():
@@ -488,21 +460,19 @@ async def list_ready_clips():
     except Exception as e:
         print(f"[api] Error reading active jobs for ready-clips: {e}")
         
-    filtered_clips = [c for c in clips if c["clip_id"] not in active_clip_ids]
+    filtered_clips = asset_repository.list_ready_clips(active_clip_ids=active_clip_ids)
     return {"clips": filtered_clips}
 
 @app.delete("/api/ready-clips/{folder_name}/{clip_id}")
 async def delete_ready_clip(folder_name: str, clip_id: str):
     """Delete a specific clip folder."""
-    success = asset_repository.delete_clip(folder_name, clip_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Clip not found")
-    # Clean up corresponding job session
-    import hashlib
-    hash_input = f"{folder_name}_{clip_id}"
-    job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
-    jobs.delete_job(job_id)
-    return {"status": "deleted", "clip_id": clip_id}
+    try:
+        success = asset_repository.delete_clip_with_job(folder_name, clip_id, job_store=jobs)
+        if not success:
+            raise HTTPException(status_code=404, detail="Clip not found")
+        return {"status": "deleted", "clip_id": clip_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/ready-clips/delete-batch")
 async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
@@ -513,12 +483,7 @@ async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
         clip_id = item.get("clip_id")
         if folder_name and clip_id:
             try:
-                success = asset_repository.delete_clip(folder_name, clip_id)
-                if success:
-                    import hashlib
-                    hash_input = f"{folder_name}_{clip_id}"
-                    job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
-                    jobs.delete_job(job_id)
+                success = asset_repository.delete_clip_with_job(folder_name, clip_id, job_store=jobs)
                 results.append({"clip_id": clip_id, "success": success})
             except ValueError as e:
                 print(f"[delete-batch] Validation failed for {folder_name}/{clip_id}: {e}")
@@ -529,42 +494,15 @@ async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
 async def delete_cached(folder_name: str):
     """Delete titled folders in sources and clips with graceful job cancellation and strict security checks."""
     try:
-        # 1. Terminate or cancel active background jobs for this folder
-        target_video_id = None
-        if len(folder_name) >= 12 and folder_name[-12] == "_":
-            target_video_id = folder_name[-11:]
-            
-        for j_id, j_info in list(jobs.items()):
-            is_match = False
-            # Check direct folder match
-            if j_info.get("video_info") and j_info["video_info"].get("folder_name") == folder_name:
-                is_match = True
-            # Check video_id fallback match
-            elif target_video_id and j_info.get("url") and target_video_id in j_info["url"]:
-                is_match = True
-                
-            if is_match:
-                current_status = j_info.get("status")
-                if current_status in ["queued", "downloading", "processing", "checking_transcript", "extracting_audio", "generating_hooks"]:
-                    print(f"[delete] Cancelling active background job {j_id} for deleted source {folder_name}")
-                    job = jobs[j_id]
-                    job["status"] = "cancelled"
-                    job["error"] = "Source video deleted by user."
-                    jobs[j_id] = job
-        
-        save_jobs()
-        
-        # 2. Perform deletion on disk
-        count = asset_repository.delete_cached_video(folder_name)
+        count = asset_repository.delete_cached_video_with_jobs(folder_name, job_store=jobs)
         if count == 0:
             raise HTTPException(status_code=404, detail="Folder not found or already deleted")
-            
         return {"deleted": count, "folder": folder_name}
-        
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 class AnalyzeCachedRequest(BaseModel):
     prompt_file: Optional[str] = "prompt.json"
