@@ -47,6 +47,9 @@ from core.config_store import DotEnvConfigStore
 config_store = DotEnvConfigStore(os.path.join(backend_dir, ".env"))
 
 cookie_path = os.path.abspath(os.path.join(backend_dir, "cookies.txt"))
+from core.system_repository import SystemRepository
+system_repository = SystemRepository(config_store=config_store, cookies_path=cookie_path)
+
 youtube_client = YouTubeClient(cookie_path=cookie_path)
 asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store)
 render_engine = RemotionRenderEngine(output_dir="static/output", config_store=config_store)
@@ -747,23 +750,18 @@ async def update_default_thumbnail_style(req: DefaultThumbnailStyleRequest):
 
 @app.get("/api/system-settings")
 async def get_system_settings():
-    """Retrieve system settings from config store."""
-    return {"settings": {
-        "GEMINI_API_KEY": config_store.get("GEMINI_API_KEY", ""),
-        "FFMPEG_PATH": config_store.get("FFMPEG_PATH", ""),
-        "NODE_PATH": config_store.get("NODE_PATH", "")
-    }}
+    """Retrieve system settings from system repository."""
+    return {"settings": system_repository.get_settings()}
 
 @app.put("/api/system-settings")
 async def update_system_settings(req: SystemSettingsRequest):
-    """Update system settings in config store."""
+    """Update system settings in system repository."""
     try:
-        if req.GEMINI_API_KEY is not None:
-            config_store.set("GEMINI_API_KEY", req.GEMINI_API_KEY)
-        if req.FFMPEG_PATH is not None:
-            config_store.set("FFMPEG_PATH", req.FFMPEG_PATH)
-        if req.NODE_PATH is not None:
-            config_store.set("NODE_PATH", req.NODE_PATH)
+        system_repository.update_settings(
+            gemini_api_key=req.GEMINI_API_KEY,
+            ffmpeg_path=req.FFMPEG_PATH,
+            node_path=req.NODE_PATH,
+        )
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {e}")
@@ -772,194 +770,40 @@ async def update_system_settings(req: SystemSettingsRequest):
 @app.post("/api/validate-gemini-key")
 async def validate_gemini_key(req: ValidateKeyRequest):
     """Validate if the given Gemini API keys are active and functional."""
-    from google import genai
-    from core.genai_client import GeminiGenAIClient
-    
-    # Instantiate client to reuse its auto-detecting parser
-    temp_client = GeminiGenAIClient(api_key=req.api_key)
-    keys = temp_client.api_keys
-    
-    if not keys:
-        return {"status": "invalid", "error": "No API keys provided.", "results": []}
-        
-    results = []
-    all_valid = True
-    
-    for key in keys:
-        try:
-            client = genai.Client(api_key=key)
-            # Call a tiny content generation request to verify the key
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents="Say 'OK'",
-            )
-            if response.text:
-                GeminiGenAIClient.clear_degradation(key)
-                results.append({"key": key, "status": "valid", "error": None})
-            else:
-                all_valid = False
-                results.append({"key": key, "status": "invalid", "error": "Empty response from Gemini."})
-        except Exception as e:
-            all_valid = False
-            error_msg = str(e)
-            # Clean up standard error messages to be plain and simple (MANDATORY RULE 5)
-            if "API_KEY_INVALID" in error_msg or "400" in error_msg:
-                error_msg = "The API key is invalid. Please check your spelling and try again."
-            elif "quota" in error_msg.lower() or "429" in error_msg:
-                error_msg = "Gemini API Quota exceeded. Please check your Google AI Studio billing/plan."
-            results.append({"key": key, "status": "invalid", "error": error_msg})
-            
-    return {
-        "status": "valid" if all_valid else "invalid",
-        "results": results
-    }
+    return system_repository.validate_gemini_keys(req.api_key)
 
-COOKIES_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "cookies.txt"))
 
 @app.get("/api/cookies-status")
 async def get_cookies_status():
     """Check if cookies.txt exists and return metadata."""
-    exists = os.path.exists(COOKIES_PATH)
-    size_bytes = 0
-    last_modified = None
-    if exists:
-        try:
-            size_bytes = os.path.getsize(COOKIES_PATH)
-            mtime = os.path.getmtime(COOKIES_PATH)
-            import datetime
-            last_modified = datetime.datetime.fromtimestamp(mtime).isoformat()
-        except Exception:
-            pass
-            
-    return {
-        "exists": exists,
-        "size_bytes": size_bytes,
-        "last_modified": last_modified,
-        "path": COOKIES_PATH
-    }
+    return system_repository.get_cookies_status()
 
 @app.post("/api/upload-cookies")
 async def upload_cookies(req: UploadCookiesRequest):
     """Validate and write cookies.txt locally."""
-    content = req.cookies_text.strip()
-    if not content:
-        raise HTTPException(status_code=400, detail="Cookie content cannot be empty.")
-        
-    # Netscape HTTP Cookie File format validation (Option A)
-    # Check if first 150 chars contains "# Netscape" (typical header: "# Netscape HTTP Cookie File")
-    first_chunk = content[:150]
-    if "# Netscape" not in first_chunk:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid cookie format. Please ensure you upload/paste a Netscape format cookies.txt file."
-        )
-        
     try:
-        with open(COOKIES_PATH, "w", encoding="utf-8", newline="\n") as f:
-            f.write(content + "\n")
-        print(f"[system] Saved cookies.txt at {COOKIES_PATH} (size: {len(content)} bytes)")
+        system_repository.save_cookies(req.cookies_text)
         return {"status": "ok", "message": "Cookies saved successfully."}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        print(f"[system] Failed to save cookies.txt: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to write cookie file: {e}")
 
 @app.delete("/api/delete-cookies")
 async def delete_cookies():
     """Safely delete cookies.txt locally."""
-    if os.path.exists(COOKIES_PATH):
-        try:
-            os.remove(COOKIES_PATH)
-            print(f"[system] Deleted cookies.txt at {COOKIES_PATH}")
+    try:
+        deleted = system_repository.delete_cookies()
+        if deleted:
             return {"status": "ok", "message": "Cookies deleted successfully."}
-        except Exception as e:
-            print(f"[system] Failed to delete cookies.txt: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to delete cookie file: {e}")
-    return {"status": "ok", "message": "No cookies file to delete."}
+        return {"status": "ok", "message": "No cookies file to delete."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete cookie file: {e}")
 
 @app.get("/api/system-health")
 async def system_health():
     """Perform a diagnostic check on system dependencies."""
-    import shutil
-    
-    # 1. FFmpeg
-    # Check if a custom path is specified in the config store or if it exists in the standard PATH
-    custom_ffmpeg = config_store.get("FFMPEG_PATH", "")
-    ffmpeg_ok = False
-    ffmpeg_bin = ""
-    
-    if custom_ffmpeg:
-        # Check standard binary names in the custom folder path
-        for name in ["ffmpeg", "ffmpeg.exe"]:
-            test_path = os.path.join(custom_ffmpeg, name)
-            if os.path.exists(test_path) and os.path.isfile(test_path):
-                ffmpeg_ok = True
-                ffmpeg_bin = test_path
-                break
-                
-    if not ffmpeg_ok:
-        found = shutil.which("ffmpeg")
-        if found:
-            ffmpeg_ok = True
-            ffmpeg_bin = found
-            
-    # 2. Node.js
-    custom_node = config_store.get("NODE_PATH", "")
-    node_ok = False
-    node_bin = ""
-    
-    if custom_node:
-        for name in ["node", "node.exe"]:
-            test_path = os.path.join(custom_node, name)
-            if os.path.exists(test_path) and os.path.isfile(test_path):
-                node_ok = True
-                node_bin = test_path
-                break
-                
-    if not node_ok:
-        found = shutil.which("node")
-        if found:
-            node_ok = True
-            node_bin = found
-            
-    # 3. Virtualenv check
-    venv_ok = True
-    try:
-        import fastapi
-        import uvicorn
-        import google.genai
-    except ImportError:
-        venv_ok = False
-        
-    # 4. Check GEMINI_API_KEY
-    gemini_key = config_store.get("GEMINI_API_KEY") or ""
-    has_key = len(gemini_key.strip()) > 0
-    
-    # 5. Check cookies.txt
-    cookies_configured = os.path.exists(COOKIES_PATH)
-
-    
-    return {
-        "ffmpeg": {
-            "status": "OK" if ffmpeg_ok else "Missing",
-            "path": ffmpeg_bin or "Not Found"
-        },
-        "node": {
-            "status": "OK" if node_ok else "Missing",
-            "path": node_bin or "Not Found"
-        },
-        "python_env": {
-            "status": "OK" if venv_ok else "Degraded",
-            "active": True
-        },
-        "gemini_api": {
-            "status": "Configured" if has_key else "Not Configured",
-            "has_key": has_key
-        },
-        "cookies": {
-            "status": "Configured" if cookies_configured else "Not Configured",
-            "exists": cookies_configured
-        }
-    }
+    return system_repository.check_system_health()
 
 # --- Thumbnail Endpoints ---
 
@@ -1083,36 +927,6 @@ async def track_face_for_clip(folder_name: str, clip_id: str):
     if not os.path.exists(video_path):
         raise HTTPException(status_code=404, detail="Clip video not found")
     
-    crop_map_path = os.path.join(clip_dir, "crop_map.json")
-    if os.path.exists(crop_map_path):
-        try:
-            with open(crop_map_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list) and len(data) > 0:
-                    return {"status": "ready", "crop_map": data}
-        except:
-            pass
-    
-    from core.face_tracker import FaceTracker
-    tracker = FaceTracker()
-    try:
-        crop_data = tracker.analyze_video(video_path)
-        if isinstance(crop_data, (int, float)):
-            crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
-        elif isinstance(crop_data, list) and len(crop_data) > 0:
-            crop_map_points = crop_data
-        else:
-            crop_map_points = [{"time": 0.0, "x": 960}]
-    except Exception as e:
-        print(f"[api] Face tracking failed for clip {clip_id}: {e}")
-        crop_map_points = [{"time": 0.0, "x": 960}]
-        
-    try:
-        with open(crop_map_path, "w", encoding="utf-8") as f:
-            json.dump(crop_map_points, f, ensure_ascii=False, indent=2)
-        print(f"[api] Saved auto-reframe crop map ({len(crop_map_points)} points) to {crop_map_path}")
-    except Exception as e:
-        print(f"[api] Failed to save crop_map.json: {e}")
-        
+    crop_map_points = system_repository.get_or_create_crop_map(clip_dir, video_path)
     return {"status": "ready", "crop_map": crop_map_points}
 
