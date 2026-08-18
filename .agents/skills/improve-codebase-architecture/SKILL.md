@@ -79,3 +79,25 @@ Side effects happen inline as decisions crystallize:
 - **Sharpening a fuzzy term during the conversation?** Update `CONTEXT.md` right there.
 - **User rejects the candidate with a load-bearing reason?** Offer an ADR, framed as: _"Want me to record this as an ADR so future architecture reviews don't re-suggest it?"_ Only offer when the reason would actually be needed by a future explorer to avoid re-suggesting the same thing — skip ephemeral reasons ("not worth it right now") and self-evident ones. See [ADR-FORMAT.md](../grill-with-docs/ADR-FORMAT.md).
 - **Want to explore alternative interfaces for the deepened module?** See [INTERFACE-DESIGN.md](INTERFACE-DESIGN.md).
+
+### 4. Implementation & Structured Commit Protocol
+
+When executing approved architectural refactoring candidates:
+1. **Branch Isolation**: Create a dedicated branch per candidate (`feat/<slug>` or `refactor/<slug>`).
+2. **Comprehensive Testing**: Write unit tests against the deepened module's interface (testing leverage and edge cases).
+3. **Structured Conventional Commit Message**: Always structure the Git commit body to document architectural changes, performance gains, and security/reliability hardening:
+
+```text
+refactor(<scope>): <active-verb summary of the deepening>
+
+- <Deepened module name and responsibilities absorbed>
+- <Controller/caller cleanup, lines of leaky logic removed>
+- <Interface and unit test additions>
+
+Performance Impact (Include if runtime, I/O, or memory are affected):
+- <Concrete metrics: single-pass O(N), fast-path cache hits, reduced disk reads/writes>
+
+Security & Reliability Impact (Include if validation, sanitization, or safety are affected):
+- <Path traversal validation, atomic writes, race condition elimination>
+```
+
