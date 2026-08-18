@@ -1,711 +1,95 @@
 <template>
   <div class="h-screen w-full overflow-hidden bg-[#060608] relative">
     <div v-if="state" class="flex h-screen w-full bg-[#060608] overflow-hidden">
-    <!-- Navigation Sidebar -->
-    <!-- Blacklist Settings Modal -->
-    <div v-if="showBlacklistSettings" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
-       <div class="absolute inset-0 bg-black/80 backdrop-blur-xl" @click="showBlacklistSettings = false"></div>
-       <div class="w-full max-w-5xl max-h-[90vh] flex flex-col bg-surface-panel border border-surface-border rounded-3xl shadow-2xl relative overflow-hidden">
+      <!-- Blacklist Settings Modal -->
+      <div v-if="showBlacklistSettings" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-xl" @click="showBlacklistSettings = false"></div>
+        <div class="w-full max-w-5xl max-h-[90vh] flex flex-col bg-surface-panel border border-surface-border rounded-3xl shadow-2xl relative overflow-hidden">
           <BlacklistSettings @close="showBlacklistSettings = false" />
-       </div>
-    </div>
-
-    <HomeSidebar 
-      v-model:activeView="sidebarView"
-      :cached-videos="state.cachedVideos.value"
-      :is-processing="isProcessing"
-      :processing-title="state.videoTitle.value"
-      :processing-status="loadingLabel"
-      :last-video="state.lastAccessedVideo.value"
-      :last-clip="state.lastAccessedClip.value"
-      :API_BASE="API_BASE"
-      :default-collapsed="true"
-      :is-floating="true"
-      @update:activeView="handleSidebarNav"
-    />
-
-    <div class="flex-1 flex flex-col overflow-hidden relative">
-      <div class="flex-1 flex overflow-hidden">
-         <!-- Settings Sidebar -->
-         <SidebarSettings />
-       
-       <!-- Content / Preview Area -->
-    <div class="flex-1 flex flex-col items-stretch bg-surface-dark relative">
-      <!-- Rendering Overlay -->
-      <Transition
-        enter-active-class="transition duration-500 ease-out"
-        enter-from-class="opacity-0 scale-95"
-        enter-to-class="opacity-100 scale-100"
-        leave-active-class="transition duration-300 ease-in"
-        leave-from-class="opacity-100 scale-100"
-        leave-to-class="opacity-0 scale-95"
-      >
-        <div v-show="state?.renderStatus?.value === 'rendering'" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center text-white">
-          <div class="relative mb-8">
-            <div class="w-24 h-24 rounded-full border-4 border-accent-500/20 border-t-accent-500 animate-spin shadow-[0_0_30px_rgba(207,255,80,0.2),0_0_15px_rgba(207,255,80,0.1)_inset]"></div>
-            <Icon name="ri:movie-2-fill" class="absolute inset-0 m-auto text-3xl text-accent-500 animate-pulse" />
-          </div>
-          <h2 class="text-2xl font-black italic tracking-tighter uppercase mb-2">Baking Your Clip</h2>
-          <p class="text-slate-400 text-sm font-medium tracking-wide mb-6">
-            {{ state?.renderStage?.value === 'starting' ? 'Preparing Remotion engine...' : state?.renderStage?.value === 'bundling' ? 'Bundling React components...' : state?.renderStage?.value === 'encoding' ? 'Encoding & muxing final video...' : 'Rendering frames via Remotion...' }}
-          </p>
-          
-          <!-- Progress Bar -->
-          <div class="w-80 max-w-sm">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold uppercase tracking-widest text-accent-500">{{ state?.renderProgress?.value || 0 }}%</span>
-              <span v-if="state?.renderEta?.value > 0" class="text-xs mono text-slate-500">
-                ~{{ state?.renderEta?.value >= 60 ? Math.floor(state?.renderEta?.value / 60) + 'm ' + (state?.renderEta?.value % 60) + 's' : state?.renderEta?.value + 's' }} remaining
-              </span>
-              <span v-else-if="state?.renderStage?.value === 'starting'" class="text-xs mono text-slate-500">estimating...</span>
-            </div>
-            <div class="h-2 bg-white/10 rounded-full overflow-hidden">
-              <div 
-                class="h-full bg-gradient-to-r from-accent-500 to-emerald-400 rounded-full transition-all duration-500 ease-out shadow-[0_0_12px_rgba(207,255,80,0.4)]"
-                :style="{ width: (state?.renderProgress?.value || 0) + '%' }"
-              ></div>
-            </div>
-            <p class="text-[10px] text-slate-600 mt-2 text-center uppercase tracking-widest font-bold">
-              {{ state?.renderStage?.value || 'initializing' }}
-            </p>
-          </div>
         </div>
-      </Transition>
+      </div>
 
-      <div id="previewArea" class="flex-1 flex overflow-hidden min-h-0 relative flex-row w-full">
-           <div class="absolute inset-0 bg-noise opacity-[0.03] pointer-events-none mix-blend-overlay"></div>
-          
-                     <div :class="{ 'select-none': isDragging }" class="flex items-stretch z-10 w-full max-w-full h-full p-0 overflow-hidden relative">
+      <!-- Navigation Sidebar -->
+      <HomeSidebar
+        v-model:activeView="sidebarView"
+        :cached-videos="state.cachedVideos.value"
+        :is-processing="isProcessing"
+        :processing-title="state.videoTitle.value"
+        :processing-status="loadingLabel"
+        :last-video="state.lastAccessedVideo.value"
+        :last-clip="state.lastAccessedClip.value"
+        :API_BASE="API_BASE"
+        :default-collapsed="true"
+        :is-floating="true"
+        @update:activeView="handleSidebarNav"
+      />
+
+      <div class="flex-1 flex flex-col overflow-hidden relative">
+        <div class="flex-1 flex overflow-hidden">
+          <!-- Settings Sidebar -->
+          <SidebarSettings />
+
+          <!-- Content / Preview Area -->
+          <div class="flex-1 flex flex-col items-stretch bg-surface-dark relative">
+            <!-- Remotion Rendering Overlay -->
+            <EditorRenderProgressOverlay />
+
+            <div id="previewArea" class="flex-1 flex overflow-hidden min-h-0 relative flex-row w-full">
+              <div class="absolute inset-0 bg-noise opacity-[0.03] pointer-events-none mix-blend-overlay"></div>
+
+              <div class="flex items-stretch z-10 w-full max-w-full h-full p-0 overflow-hidden relative">
                 <!-- Video Workspace Pane -->
                 <div class="flex-1 flex items-center justify-center p-5 relative overflow-hidden">
-                  <!-- Pipeline Loading Overlay (Bounded strictly to Video Workspace Pane) -->
-                  <Transition
-                    enter-active-class="transition duration-400 ease-out"
-                    enter-from-class="opacity-0"
-                    enter-to-class="opacity-100"
-                    leave-active-class="transition duration-300 ease-in"
-                    leave-from-class="opacity-100"
-                    leave-to-class="opacity-0"
-                  >
-                    <div v-show="isOverlayVisible" class="absolute inset-0 z-[70] bg-[#060608]/95 backdrop-blur-xl flex flex-col items-center justify-center text-center">
-                      <template v-if="state.jobStatus.value === 'error'">
-                        <div class="absolute w-[50vw] h-[50vw] rounded-full blur-[160px] -top-1/3 -right-1/3 mix-blend-screen bg-rose-500/10 pointer-events-none"></div>
-                        <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
-                        
-                        <div class="relative mb-8 z-10 flex items-center justify-center">
-                          <div class="absolute w-40 h-40 bg-rose-500/10 rounded-full blur-[60px]"></div>
-                          <div class="w-24 h-24 rounded-full border-[4px] border-rose-500/20 relative z-10 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.2)_inset,0_0_40px_rgba(239,68,68,0.3)]">
-                            <Icon name="ri:error-warning-fill" class="text-4xl text-rose-500" />
-                          </div>
-                        </div>
-
-                        <h2 class="text-2xl font-black tracking-tight text-white mb-2 z-10 uppercase italic">Extraction Failed</h2>
-                        <p class="text-slate-400 text-sm max-w-md mb-8 px-4 z-10 leading-relaxed font-medium">
-                          {{ state.jobError.value || 'An unexpected error occurred during clip ingestion.' }}
-                        </p>
-
-                        <div class="flex items-center gap-4 z-10">
-                          <button 
-                            @click="handleErrorBack"
-                            class="px-6 py-2.5 rounded-full border border-surface-border text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:bg-white/5 transition-all"
-                          >
-                            Go Back
-                          </button>
-                          <button 
-                            v-if="state.activeHook.value"
-                            @click="handleErrorRetry"
-                            class="px-6 py-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)]"
-                          >
-                            Retry Cut
-                          </button>
-                        </div>
-                      </template>
-                      <template v-else>
-                        <!-- Ambient glow -->
-                        <div class="absolute w-[50vw] h-[50vw] rounded-full blur-[160px] -top-1/3 -right-1/3 mix-blend-screen transition-colors duration-1000"
-                          :class="pipelineStep === 'cutting' ? 'bg-sky-500/8' : pipelineStep === 'transcribing' ? 'bg-violet-500/8' : state.isMediaLoading?.value ? 'bg-accent-500/8' : ''"
-                        ></div>
-                        <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
-
-                        <!-- Main spinner -->
-                        <div class="relative mb-10 z-10 flex items-center justify-center">
-                           <div class="absolute w-40 h-40 bg-accent-500/10 rounded-full blur-[60px] animate-pulse"></div>
-                           <div class="w-28 h-28 rounded-full border-[4px] border-surface-border relative transition-all duration-700 z-10 flex items-center justify-center"
-                             :class="pipelineStep === 'cutting' 
-                               ? 'shadow-[0_0_30px_#38bdf8_inset,0_0_50px_rgba(56,189,248,0.4)]' 
-                               : pipelineStep === 'transcribing' 
-                                 ? 'shadow-[0_0_30px_#a78bfa_inset,0_0_50px_rgba(167,139,250,0.4)]' 
-                                 : 'shadow-[0_0_30px_#CFFF50_inset,0_0_50px_rgba(207,255,80,0.4)]'"
-                           >
-                            <div class="absolute inset-[-4px] rounded-full border-[4px] border-transparent animate-spin transition-colors duration-700"
-                              :class="pipelineStep === 'cutting' 
-                                ? 'border-t-sky-500' 
-                                : pipelineStep === 'transcribing' 
-                                  ? 'border-t-violet-400' 
-                                  : 'border-t-accent-500'"
-                            ></div>
-                            <div class="absolute inset-0 flex items-center justify-center">
-                               <!-- Scissors (Cutting) -->
-                               <Icon 
-                                 name="ri:scissors-cut-fill" 
-                                 class="absolute text-4xl text-sky-400 transition-all duration-300 ease-out transform"
-                                 :class="pipelineStep === 'cutting' && state.jobStatus.value !== 'ready' ? 'opacity-100 scale-100 animate-pulse' : 'opacity-0 scale-75 pointer-events-none'"
-                               />
-
-                               <!-- Microphone (Transcribing) -->
-                               <Icon 
-                                 name="ri:mic-ai-fill" 
-                                 class="absolute text-4xl text-violet-400 transition-all duration-300 ease-out transform"
-                                 :class="pipelineStep === 'transcribing' && state.jobStatus.value !== 'ready' ? 'opacity-100 scale-100 animate-pulse' : 'opacity-0 scale-75 pointer-events-none'"
-                               />
-
-                               <!-- Double Check (Ready) -->
-                               <Icon 
-                                 name="ri:check-double-fill" 
-                                 class="absolute text-4xl text-accent-500 transition-all duration-300 ease-out transform"
-                                 :class="state.jobStatus.value === 'ready' ? 'opacity-100 scale-100 animate-pulse' : 'opacity-0 scale-75 pointer-events-none'"
-                               />
-                             </div></div>
-                        </div>
-
-                        <!-- Title -->
-                         <h2 class="text-2xl font-black tracking-tight text-white mb-2 z-10">
-                           {{ pipelineStep === 'cutting' ? 'Cutting Segment' : pipelineStep === 'transcribing' ? `Transcribing (${(state.whisperModel?.value || '').toUpperCase()})` : state.isMediaLoading?.value ? 'Loading Media...' : 'Ready!' }}
-                         </h2>
-                        <p class="text-slate-500 text-sm max-w-sm mb-10 z-10">
-                          {{ state.isMediaLoading?.value ? 'Synchronizing assets and buffering video stream...' : pipelineStep === 'cutting' ? 'Extracting clip from cached 1080p video via local FFmpeg...' : pipelineStep === 'transcribing' ? `Running Whisper AI ${(state.whisperModel?.value || '').toUpperCase()} for high-precision word-level timestamps...` : 'Finalizing assets and preparing editor...' }}
-                        </p>
-
-                        <!-- Step indicators -->
-                        <div class="flex items-center gap-3 z-10 mb-6">
-                          <!-- Step 1: Cut -->
-                          <div class="flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-bold uppercase tracking-widest transition-all duration-500"
-                            :class="pipelineStep === 'cutting' 
-                              ? 'bg-sky-500/10 border-sky-500/40 text-sky-400' 
-                              : pipelineStepIdx > 0 
-                                ? 'bg-accent-500/10 border-accent-500/30 text-accent-500' 
-                                : 'bg-surface-dark/50 border-surface-border/30 text-slate-600'"
-                          >
-                            <Icon :name="pipelineStepIdx > 0 ? 'ri:check-line' : 'ri:scissors-cut-line'" class="text-sm" />
-                            <span>Cut</span>
-                          </div>
-                          <div class="w-8 h-px transition-colors duration-500" :class="pipelineStepIdx > 0 ? 'bg-accent-500/50' : 'bg-surface-border/30'"></div>
-                          <!-- Step 2: Transcribe -->
-                          <div class="flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-bold uppercase tracking-widest transition-all duration-500"
-                            :class="pipelineStep === 'transcribing' 
-                              ? 'bg-violet-500/10 border-violet-500/40 text-violet-400' 
-                              : pipelineStepIdx > 1 
-                                ? 'bg-accent-500/10 border-accent-500/30 text-accent-500' 
-                                : 'bg-surface-dark/50 border-surface-border/30 text-slate-600'"
-                          >
-                            <Icon :name="pipelineStepIdx > 1 ? 'ri:check-line' : 'ri:mic-ai-line'" class="text-sm" />
-                            <span>Transcribe</span>
-                          </div>
-                          <div class="w-8 h-px transition-colors duration-500" :class="pipelineStepIdx > 1 ? 'bg-accent-500/50' : 'bg-surface-border/30'"></div>
-                          <!-- Step 3: Ready -->
-                          <div class="flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-bold uppercase tracking-widest transition-all duration-500"
-                            :class="pipelineStepIdx > 1 
-                              ? 'bg-accent-500/10 border-accent-500/30 text-accent-500' 
-                              : 'bg-surface-dark/50 border-surface-border/30 text-slate-600'"
-                          >
-                            <Icon name="ri:check-double-line" class="text-sm" />
-                            <span>Ready</span>
-                          </div>
-                        </div>
-
-                        <!-- Hook info -->
-                        <div v-if="state?.activeHook?.value" class="bg-surface-dark/60 border border-surface-border/40 rounded-xl px-5 py-3 z-10 max-w-md">
-                          <p class="text-[10px] uppercase tracking-widest text-slate-600 font-bold mb-1">Processing Hook</p>
-                          <p class="text-white font-bold text-sm truncate">{{ state?.activeHook?.value?.theme || 'Untitled Hook' }}</p>
-                          <p class="text-slate-500 text-[10px] mt-1 font-mono">
-                            {{ state?.formatDuration(state?.activeHook?.value?.start) }} → {{ state?.formatDuration(state?.activeHook?.value?.end) }}
-                          </p>
-                        </div>
-                      </template>
-                    </div>
-                  </Transition>
+                  <!-- Pipeline Loading Overlay -->
+                  <EditorPipelineOverlay
+                    :pipeline-step="pipelineStep"
+                    :pipeline-step-idx="pipelineStepIdx"
+                    @error-back="handleErrorBack"
+                    @error-retry="handleErrorRetry"
+                  />
 
                   <!-- Video Preview + Action Rail Group -->
                   <div class="flex justify-center gap-4 relative h-full">
                     <VideoPreview />
-
-                    <!-- Editor Workspace Action Rail (Positioned directly beside VideoPreview) -->
-                    <div 
-                      v-if="state?.activeHook?.value"
-                      class="flex flex-col items-center gap-3 z-[60] relative"
-                    >
-                      <!-- Subtitles Button -->
-                      <div class="relative group">
-                        <button 
-                          @click="toggleTab('edit')"
-                          class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md"
-                          style="border-radius: 10px;"
-                          :class="isPanelOpen && editorTab === 'edit' 
-                            ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
-                            : 'bg-[#0e0e12]/90 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
-                        >
-                          <Icon name="ri:edit-box-line" class="text-lg" />
-                        </button>
-                        <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2.5 py-1 border border-white/10 shadow-lg pointer-events-none rounded-lg z-[70]">
-                          Subtitles
-                        </div>
-                      </div>
-
-                      <!-- Thumbnail Button -->
-                      <div class="relative group">
-                        <button 
-                          @click="toggleTab('thumbnail')"
-                          class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md"
-                          style="border-radius: 10px;"
-                          :class="isPanelOpen && editorTab === 'thumbnail' 
-                            ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
-                            : 'bg-[#0e0e12]/90 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
-                        >
-                          <Icon name="ri:image-line" class="text-lg" />
-                        </button>
-                        <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2.5 py-1 border border-white/10 shadow-lg pointer-events-none rounded-lg z-[70]">
-                          Thumbnail
-                        </div>
-                      </div>
-
-                      <!-- Raw Quote Button -->
-                      <div class="relative group">
-                        <button 
-                          @click="toggleTab('quote')"
-                          class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md"
-                          style="border-radius: 10px;"
-                          :class="isPanelOpen && editorTab === 'quote' 
-                            ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]' 
-                            : 'bg-[#0e0e12]/90 border-white/10 text-slate-400 hover:text-white hover:border-white/30'"
-                        >
-                          <Icon name="ri:double-quotes-l" class="text-lg" />
-                        </button>
-                        <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 hidden group-hover:block whitespace-nowrap bg-black/90 text-white text-[10px] font-bold px-2.5 py-1 border border-white/10 shadow-lg pointer-events-none rounded-lg z-[70]">
-                          Raw Quote
-                        </div>
-                      </div>
-                    </div>
+                    <EditorActionPanel />
                   </div>
                 </div>
-
-                  <!-- Floating Subtitle Panel (Floating Card Overlay over Hooks Panel) -->
-                  <Transition
-                    enter-active-class="transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] transform"
-                    enter-from-class="translate-x-full opacity-0"
-                    enter-to-class="translate-x-0 opacity-100"
-                    leave-active-class="transition-all duration-200 ease-[cubic-bezier(0.4,0,1,1)] transform"
-                    leave-from-class="translate-x-0 opacity-100"
-                    leave-to-class="translate-x-full opacity-0"
-                  >
-                    <div 
-                      v-if="isPanelOpen && state?.activeHook?.value" 
-                      class="absolute right-0 top-0 bottom-0 w-[500px] z-50 bg-[#0e0e12]/95 backdrop-blur-2xl border border-b-0 border-r-0 border-t-0 border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden rounded-3xl p-6 pt-4 text-white"
-                    >
-                      <Transition name="panel-tab-fade" mode="out-in">
-                        <div v-if="editorTab === 'edit'" key="edit" class="flex flex-col h-full overflow-hidden p-0">
-
-                        <!-- Subtitle Header Bar: Auto-Scroll Toggle, Segment Counter, Live Auto-Save Badge & Close (X) -->
-                        <div class="flex items-center justify-between gap-2 mb-3 shrink-0">
-                          <div class="flex items-center gap-2">
-                            <button 
-                              @click="isAutoScrollEnabled = !isAutoScrollEnabled"
-                              class="h-8 px-2.5 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
-                              :class="isAutoScrollEnabled 
-                                ? 'bg-accent-500/10 text-accent-500 border-accent-500/30 shadow-[0_0_10px_rgba(207,255,80,0.1)]' 
-                                : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'"
-                              :title="isAutoScrollEnabled ? 'Auto-Scroll Active' : 'Auto-Scroll Paused'"
-                            >
-                              <Icon :name="isAutoScrollEnabled ? 'ri:flashlight-fill' : 'ri:flashlight-line'" class="text-xs" />
-                              <span>Auto-Scroll {{ isAutoScrollEnabled ? 'ON' : 'OFF' }}</span>
-                            </button>
-
-                            <div class="h-8 px-2.5 rounded-xl border border-white/10 bg-black/40 text-slate-400 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0">
-                              <Icon name="ri:chat-3-line" class="text-xs text-sky-400" />
-                              <span>{{ visibleSegments.length }} Segments</span>
-                            </div>
-                          </div>
-
-                          <div class="flex items-center gap-2">
-                            <!-- Live Auto-Save Status Badge -->
-                            <div 
-                              class="h-8 px-2.5 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 select-none"
-                              :class="isAutoSaving 
-                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse' 
-                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'"
-                            >
-                              <Icon :name="isAutoSaving ? 'ri:loader-4-line' : 'ri:checkbox-circle-line'" class="text-xs" :class="{ 'animate-spin': isAutoSaving }" />
-                              <span>{{ isAutoSaving ? 'Saving...' : 'Saved' }}</span>
-                            </div>
-
-                            <!-- Close Button (X) -->
-                            <button 
-                              @click="isPanelOpen = false"
-                              class="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
-                              title="Close Panel"
-                            >
-                              <Icon name="ri:close-line" class="text-base" />
-                            </button>
-                          </div>
-                        </div>
-
-                        <!-- Subtitle Segment List (Ultra-Clean, High-Density, Single-Row per Segment) -->
-                        <div class="flex-1 overflow-hidden relative">
-                          <div 
-                            ref="subtitleContainer"
-                            @mouseenter="isHoveringSubtitles = true"
-                            @mouseleave="isHoveringSubtitles = false"
-                            class="h-full overflow-y-auto pr-1.5 space-y-1.5 custom-scrollbar scroll-smooth relative"
-                          >
-                            <div 
-                              v-for="(seg, i) in visibleSegments" :key="i"
-                              :id="`seg-${i}`"
-                              class="bg-[#14141a]/80 border rounded-xl p-2 transition-all duration-200 flex items-center gap-2.5 group relative"
-                              :class="[
-                                activeSegIdx === i 
-                                  ? 'border-accent-500/60 bg-accent-500/[0.1] shadow-[0_2px_16px_rgba(207,255,80,0.12)] ring-1 ring-accent-500/30' 
-                                  : 'border-white/5 hover:border-white/20 hover:bg-[#1a1a24]/90'
-                              ]"
-                            >
-                              <!-- From-To Sec Timing Inputs -->
-                              <div class="flex items-center gap-0.5 shrink-0 bg-black/50 border border-white/5 px-1.5 py-0.5 rounded-lg">
-                                <input 
-                                  :value="seg.start" 
-                                  @input="e => { updateSegmentStart(seg, parseFloat((e.target as HTMLInputElement).value)); triggerDebouncedAutoSave(); }"
-                                  type="number" step="0.01" 
-                                  class="bg-transparent text-[10px] text-slate-200 font-mono w-9 text-center focus:outline-none focus:text-accent-500 font-bold transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  title="Start time (sec)"
-                                />
-                                <span class="text-[9px] text-slate-500 font-mono select-none">–</span>
-                                <input 
-                                  :value="Number((seg.start + seg.duration).toFixed(2))" 
-                                  @input="e => { 
-                                    const newEnd = parseFloat((e.target as HTMLInputElement).value);
-                                    if (!isNaN(newEnd) && newEnd > seg.start) {
-                                      updateSegmentDuration(seg, parseFloat((newEnd - seg.start).toFixed(2)));
-                                      triggerDebouncedAutoSave();
-                                    }
-                                  }"
-                                  type="number" step="0.01" 
-                                  class="bg-transparent text-[10px] text-slate-200 font-mono w-9 text-center focus:outline-none focus:text-accent-500 font-bold transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  title="End time (sec)"
-                                />
-                                <Icon name="ri:time-line" class="text-[11px] text-slate-400 shrink-0 ml-0.5" />
-                              </div>
-
-                              <!-- Inline Subtitle Text Editor -->
-                              <textarea 
-                                :value="seg.text" 
-                                @input="e => { updateSegmentText(seg, (e.target as HTMLTextAreaElement).value); autoGrow(e); triggerDebouncedAutoSave(); }"
-                                rows="1"
-                                class="flex-1 bg-transparent border-none text-white text-xs focus:outline-none resize-none font-semibold leading-snug py-0.5"
-                                placeholder="Enter subtitle text..."
-                              ></textarea>
-
-                              <!-- Jump to Segment Start Button -->
-                              <button 
-                                @click="jumpTo(seg.start)" 
-                                class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-accent-500 hover:bg-white/10 rounded-lg transition-all shrink-0 active:scale-95"
-                                title="Play from this segment start"
-                              >
-                                <Icon name="ri:play-mini-fill" class="text-base" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- Raw Quote Tab (Podcast Speaker Highlight) -->
-                      <div v-else-if="editorTab === 'quote'" key="quote" class="flex flex-col h-full overflow-hidden p-0">
-                        <!-- Header Bar: Title, Quote # Badge, Copy Action & Close (X) -->
-                        <div class="pb-1 mb-3 flex items-center justify-between shrink-0">
-                          <!-- Title & Hook Badge -->
-                          <div class="flex items-center gap-2.5">
-                            <div class="flex items-center gap-1.5">
-                              <Icon name="ri:chat-quote-line" class="text-sky-400 text-base" />
-                              <span class="text-xs font-bold text-white tracking-wide">Raw Quote</span>
-                            </div>
-                            <span class="bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
-                              QUOTE #{{ String((activeHookIndex >= 0 ? activeHookIndex : 0) + 1).padStart(2, '0') }}
-                            </span>
-                          </div>
-
-                          <!-- Actions: Copy Quote & Close Button -->
-                          <div class="flex items-center gap-2">
-                            <button 
-                              @click="copyQuoteToClipboard" 
-                              class="h-8 px-3 flex items-center justify-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shrink-0"
-                              title="Copy full quote text"
-                            >
-                              <Icon :name="copied ? 'ri:check-line' : 'ri:file-copy-line'" class="text-xs" />
-                              <span>{{ copied ? 'Copied' : 'Copy Quote' }}</span>
-                            </button>
-                            <button 
-                              @click="isPanelOpen = false"
-                              class="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
-                              title="Close Panel"
-                            >
-                              <Icon name="ri:close-line" class="text-base" />
-                            </button>
-                          </div>
-                        </div>
-
-                        <!-- Topic / Podcast Speaker Context Banner -->
-                        <div class="bg-[#14141a]/90 border border-white/5 rounded-xl p-3 mb-3 shrink-0 flex items-center gap-2.5">
-                          <div class="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
-                            <Icon name="ri:mic-line" class="text-sky-400 text-sm" />
-                          </div>
-                          <div class="flex-1 min-w-0">
-                            <div class="text-[9px] font-black uppercase tracking-widest text-slate-400">Podcast Speaker Context</div>
-                            <div class="text-xs text-slate-200 font-semibold truncate" :title="state?.activeHook?.value?.theme || 'Untitled Hook'">
-                              {{ state?.activeHook?.value?.theme || 'Untitled Hook' }}
-                            </div>
-                          </div>
-                        </div>
-
-                        <!-- Main Podcast Quote Transcript Container -->
-                        <div class="flex-1 flex flex-col gap-3 overflow-hidden min-h-0">
-                          <!-- Podcast Speaker Transcript Highlight Card -->
-                          <div class="flex-1 bg-[#14141a]/60 border border-white/10 border-l-4 border-l-sky-400 rounded-2xl relative overflow-hidden flex flex-col min-h-0">
-                            <div class="flex items-center justify-between px-4 pt-3 pb-2 border-b border-white/5 shrink-0">
-                              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                                <Icon name="ri:volume-up-line" class="text-sky-400 text-xs" />
-                                Audio Transcript Excerpt
-                              </span>
-                              <span class="text-[10px] font-mono text-slate-500">
-                                {{ quoteWordCount }} words
-                              </span>
-                            </div>
-
-                            <div class="relative z-10 overflow-y-auto p-4 custom-scrollbar flex-1 w-full">
-                              <p class="text-slate-100 text-sm leading-relaxed font-sans select-text whitespace-pre-wrap">
-                                {{ state?.activeHook?.value?.transcript_quote || 'No transcript quote available for this segment.' }}
-                              </p>
-                            </div>
-                          </div>
-
-                          <!-- Metadata Stats Badges Bar -->
-                          <div class="flex items-center gap-2 shrink-0 pt-0.5 pb-1">
-                            <div class="bg-black/40 border border-white/5 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                              <Icon name="ri:text" class="text-sky-400 text-xs" />
-                              <span>{{ quoteWordCount }} Words</span>
-                            </div>
-                            <div class="bg-black/40 border border-white/5 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                              <Icon name="ri:character-recognition-line" class="text-sky-400 text-xs" />
-                              <span>{{ quoteCharCount }} Chars</span>
-                            </div>
-                            <div class="bg-black/40 border border-white/5 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                              <Icon name="ri:time-line" class="text-sky-400 text-xs" />
-                              <span>~{{ quoteReadingTime }}s Audio Read</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- Thumbnail Tab -->
-                      <div v-else-if="editorTab === 'thumbnail'" key="thumbnail" class="flex flex-col h-full overflow-hidden">
-                        <ThumbnailEditor @close="isPanelOpen = false" />
-                      </div>
-                      </Transition>
-
-                    </div>
-                  </Transition>
 
                 <!-- Hooks Panel -->
-       <div class="w-80 border-l border-white/10 bg-[#0e0e12]/90 backdrop-blur-xl flex flex-col overflow-hidden text-white relative">
-          <!-- Content Safety Audit Panel -->
-          <ContentAuditPanel 
-            class="border-b border-surface-border min-h-0 shrink-0" 
-            :expanded="isAuditExpanded"
-            @toggle-expand="isAuditExpanded = !isAuditExpanded"
-            @settings="showBlacklistSettings = true" 
-          />
-
-          <div class="border-b border-surface-border/30 flex flex-col shrink-0">
-            <div class="flex items-center justify-between px-4 h-10">
-               <span class="text-[10px] uppercase text-slate-400 font-bold tracking-widest flex items-center gap-2">
-                 <Icon name="ri:list-settings-line" class="text-sky-500" /> Hooks Panel
-               </span>
-               <button 
-                 v-if="state?.activeHook?.value && !isCurrentHookSaved"
-                 @click="state.saveHook(state.activeHook.value)"
-                 class="flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter transition-all"
-               >
-                 <Icon name="ri:bookmark-line" />
-                 Save Current
-               </button>
-               <button 
-                 v-else-if="state?.activeHook?.value && isCurrentHookSaved"
-                 @click="removeCurrentSavedHook"
-                 class="flex items-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter transition-all"
-               >
-                 <Icon name="ri:delete-bin-line" />
-                 Remove Saved
-               </button>
-            </div>
-            <div class="flex bg-black/40 border border-white/5 rounded-xl p-1 gap-1 mb-4 mx-4 mt-2">
-               <button 
-                 @click="panelTab = 'generated'"
-                 class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
-                 :class="panelTab === 'generated' ? 'bg-white/10 text-amber-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
-               >
-                  Generated ({{ state.hooks.value.length }})
-               </button>
-               <button 
-                 @click="panelTab = 'saved'"
-                 class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
-                 :class="panelTab === 'saved' ? 'bg-white/10 text-amber-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]' : 'text-slate-400 border border-transparent hover:text-white'"
-               >
-                  Saved ({{ state.savedHooks.value.length }})
-               </button>
+                <EditorHooksListPanel
+                  v-model:panel-tab="panelTab"
+                  :is-current-hook-saved="isCurrentHookSaved"
+                  :is-overlay-visible="isOverlayVisible"
+                  :is-hook-rendered="isHookRendered"
+                  :is-active-hook="isActiveHook"
+                  @select-hook="selectSidebarHook"
+                  @save-current-hook="saveCurrentHook"
+                  @remove-current-saved-hook="removeCurrentSavedHook"
+                  @open-blacklist-settings="showBlacklistSettings = true"
+                />
+              </div>
             </div>
           </div>
-
-          <Transition name="panel-tab-fade" mode="out-in">
-            <div v-if="panelTab === 'generated'" key="generated" ref="hooksContainer" class="flex-1 overflow-y-auto px-4 pb-4 pt-1.5 space-y-1.5 custom-scrollbar min-h-0">
-            <div v-if="!state.hooks.value.length" class="text-center text-slate-600 text-xs p-6">
-              No hooks generated yet.
-            </div>
-            <button
-              v-for="(hook, idx) in state.hooks.value"
-              :key="idx"
-              @click="selectSidebarHook(hook)"
-              :disabled="isOverlayVisible || isActiveHook(hook)"
-              class="w-full text-left p-3.5 rounded-2xl border transition-all text-xs group relative hover:z-30 overflow-visible"
-              :class="[
-                isActiveHook(hook)
-                  ? 'bg-amber-500/[0.08] border-amber-500/60 text-amber-200 shadow-[0_4px_20px_rgba(245,158,11,0.08)] hook-item-active cursor-default' 
-                  : 'bg-[#16161c]/60 border-white/10 hover:border-white/20 hover:bg-[#1f1f28]/70 text-slate-300',
-                isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
-              ]"
-            >
-              
-              <div class="flex justify-between items-center mb-1">
-                <div class="flex items-center gap-2">
-                  <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
-                    HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}
-                  </span>
-                  
-                  <!-- Virality Score Badge -->
-                  <div 
-                    v-if="hook.virality_score !== undefined"
-                    class="px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider flex items-center gap-0.5"
-                    :class="{
-                      'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40': hook.virality_score >= 90,
-                      'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40': hook.virality_score >= 75 && hook.virality_score < 90,
-                      'bg-slate-700/40 text-slate-300 border border-slate-600/40': hook.virality_score < 75
-                    }"
-                  >
-                    <Icon :name="hook.virality_score >= 90 ? 'ri:fire-fill' : (hook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-[10px]" />
-                    <span>{{ hook.virality_score }}</span>
-                  </div>
-
-                  <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center z-20">
-                    <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
-                      <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
-                    </div>
-                    <!-- Custom Tooltip -->
-                    <div class="absolute bottom-full ml-10 left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-[999] font-medium normal-case tracking-normal text-center">
-                      This clip has already been cut and transcribed, and is ready for editing!
-                      <!-- Tooltip Arrow -->
-                      <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
-                    </div>
-                  </div>
-                </div>
-                <span class="mono text-[10px]" :class="isActiveHook(hook) ? 'text-sky-400 font-bold' : 'text-slate-300'">
-                  {{ state.formatDuration(hook.start) }} – {{ state.formatDuration(hook.end) }}
-                  <span class="ml-1 text-accent-500 font-bold">({{ Math.floor(hook.end - hook.start) >= 60 ? Math.floor((hook.end - hook.start) / 60) + 'm ' + Math.floor((hook.end - hook.start) % 60) + 's' : Math.floor(hook.end - hook.start) + 's' }})</span>
-                </span>
-              </div>
-              <p class="font-medium truncate" :class="isActiveHook(hook) ? 'text-white' : 'text-slate-300'">{{ hook.theme || 'Untitled' }}</p>
-              <p class="text-[10px] mt-1 line-clamp-2 italic opacity-70">"{{ (hook.transcript_quote || '').length > 80 ? (hook.transcript_quote || '').substring(0, 77) + '...' : (hook.transcript_quote || '') }}"</p>
-            </button>
-            </div>
-
-            <div v-else key="saved" class="flex-1 overflow-y-auto px-4 pb-4 pt-1.5 space-y-1.5 custom-scrollbar min-h-0">
-            <div v-if="!state.savedHooks.value.length" class="text-center text-slate-600 text-xs p-6">
-              No saved hooks for this video yet.
-            </div>
-            <button
-              v-for="(hook, idx) in state.savedHooks.value"
-              :key="hook._id || idx"
-              @click="selectSidebarHook(hook)"
-              :disabled="isOverlayVisible || isActiveHook(hook)"
-              class="w-full text-left p-3.5 rounded-2xl border transition-all text-xs group relative hover:z-30 overflow-visible"
-              :class="[
-                isActiveHook(hook)
-                  ? 'bg-amber-500/[0.08] border-amber-500/60 text-amber-200 shadow-[0_4px_20px_rgba(245,158,11,0.08)] hook-item-active cursor-default' 
-                  : 'bg-[#16161c]/60 border-white/10 hover:border-white/20 hover:bg-[#1f1f28]/70 text-slate-300',
-                isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
-              ]"
-            >
-              
-              <div class="flex justify-between items-center mb-1">
-                <div class="flex items-center gap-2">
-                  <span class="font-bold text-[10px] uppercase tracking-wider" :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'">
-                    SAVED {{ String(Number(idx) + 1).padStart(2, '0') }}
-                  </span>
-                  
-                  <!-- Virality Score Badge -->
-                  <div 
-                    v-if="hook.virality_score !== undefined"
-                    class="px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider flex items-center gap-0.5"
-                    :class="{
-                      'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40': hook.virality_score >= 90,
-                      'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40': hook.virality_score >= 75 && hook.virality_score < 90,
-                      'bg-slate-700/40 text-slate-300 border border-slate-600/40': hook.virality_score < 75
-                    }"
-                  >
-                    <Icon :name="hook.virality_score >= 90 ? 'ri:fire-fill' : (hook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-[10px]" />
-                    <span>{{ hook.virality_score }}</span>
-                  </div>
-                  <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center z-20">
-                    <div class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help">
-                      <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
-                    </div>
-                    <!-- Custom Tooltip -->
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-50 font-medium normal-case tracking-normal text-center">
-                      This clip has already been cut and transcribed, and is ready for editing!
-                      <!-- Tooltip Arrow -->
-                      <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
-                    </div>
-                  </div>
-                </div>
-                <span class="mono text-[10px]" :class="isActiveHook(hook) ? 'text-sky-400 font-bold' : 'text-slate-300'">
-                  {{ state.formatDuration(hook.start) }} – {{ state.formatDuration(hook.end) }}
-                  <span class="ml-1 text-accent-500 font-bold">({{ Math.floor(hook.end - hook.start) >= 60 ? Math.floor((hook.end - hook.start) / 60) + 'm ' + Math.floor((hook.end - hook.start) % 60) + 's' : Math.floor(hook.end - hook.start) + 's' }})</span>
-                 </span>
-              </div>
-              <p class="font-medium truncate" :class="isActiveHook(hook) ? 'text-white' : 'text-slate-300'">{{ hook.theme || 'Untitled' }}</p>
-              <p class="text-[10px] mt-1 line-clamp-2 italic opacity-70">"{{ (hook.transcript_quote || '').length > 80 ? (hook.transcript_quote || '').substring(0, 77) + '...' : (hook.transcript_quote || '') }}"</p>
-            </button>
-          </div>
-        </Transition>
-       </div>
-    </div>
-            </div>
         </div>
-    </div>
-    
-    <!-- Timeline -->
-    <div class="h-64 border-t border-surface-border flex flex-col bg-[#060608] z-40 relative">
-       <TimelineEditor />
-    </div>
 
+        <!-- Bottom Timeline -->
+        <div class="h-64 border-t border-surface-border flex flex-col bg-[#060608] z-40 relative">
+          <TimelineEditor />
+        </div>
+      </div>
     </div>
   </div>
-</div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick, onActivated, onDeactivated, onUnmounted } from 'vue'
-import { groupTranscript, updateSegmentText, updateSegmentStart, updateSegmentDuration, redistributeTranscript } from '../utils/subtitleChunker'
-import type { ChunkerSegment } from '../utils/subtitleChunker'
 import type { Hook, ReadyClip } from '../types/clipper'
 
 definePageMeta({
   layout: false,
   keepalive: true
 })
+
 const state = useClipperState()
 const route = useRoute()
 const router = useRouter()
@@ -713,7 +97,13 @@ const router = useRouter()
 const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false)
 let overlayTimeout: ReturnType<typeof setTimeout> | null = null
 
-const isAuditExpanded = ref(false)
+const showBlacklistSettings = ref(false)
+const panelTab = ref<'generated' | 'saved'>((route.query.tab as any) || 'generated')
+const sidebarView = ref('editor')
+const hasBeenMounted = ref(false)
+
+const readyClips = useState<ReadyClip[]>('readyClips', () => [])
+const API_BASE = 'http://localhost:8000'
 
 const isCurrentHookSaved = computed(() => {
   if (!state?.activeHook?.value || !state?.savedHooks?.value?.length) return false
@@ -742,16 +132,18 @@ const currentSavedHookId = computed(() => {
   return match?._id || null
 })
 
+function saveCurrentHook() {
+  if (state?.activeHook?.value && state.saveHook) {
+    state.saveHook(state.activeHook.value)
+  }
+}
+
 async function removeCurrentSavedHook() {
   const hookId = currentSavedHookId.value
   if (hookId && state.deleteSavedHook) {
     await state.deleteSavedHook(hookId)
   }
 }
-
-// Read shared readyClips from dashboard (populated via useState in index.vue)
-const readyClips = useState<ReadyClip[]>('readyClips', () => [])
-const API_BASE = 'http://localhost:8000'
 
 async function fetchReadyClips() {
   try {
@@ -774,7 +166,6 @@ function findMatchingClip(hook: Hook | null): ReadyClip | undefined {
     const cEnd = parseFloat(part1)
     if (isNaN(cStart) || isNaN(cEnd)) return false
 
-    // Method 1: Proximity check using the active start safety buffer
     const safetyBuffer = state.startSafetyBuffer?.value ?? 2.0
     const expectedStart = Math.max(0, Math.floor(hook.start - safetyBuffer))
     const expectedEnd = Math.ceil(hook.end)
@@ -782,7 +173,6 @@ function findMatchingClip(hook: Hook | null): ReadyClip | undefined {
       return true
     }
 
-    // Method 2: Proximity check with default 2.0s buffer or no buffer (fallbacks)
     const expectedStartDefault = Math.max(0, Math.floor(hook.start - 2.0))
     if (Math.abs(cStart - expectedStartDefault) < 1.5 && Math.abs(cEnd - expectedEnd) < 1.5) {
       return true
@@ -792,7 +182,6 @@ function findMatchingClip(hook: Hook | null): ReadyClip | undefined {
       return true
     }
 
-    // Method 3: Overlap heuristic (handles custom user duration adjustment in editor)
     const hookDuration = hook.end - hook.start
     if (hookDuration <= 0) return false
     const overlapStart = Math.max(cStart, hook.start)
@@ -802,7 +191,6 @@ function findMatchingClip(hook: Hook | null): ReadyClip | undefined {
       return true
     }
 
-    // Method 4: Theme name matching (fallback if times shifted completely but theme matches)
     if (hook.theme && parts.length >= 3) {
       const cleanHookTheme = hook.theme.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, ' ').trim()
       const clipThemeStr = parts.slice(2).join(' ').replace(/_/g, ' ')
@@ -818,7 +206,6 @@ function findMatchingClip(hook: Hook | null): ReadyClip | undefined {
 
 function isHookRendered(hook: Hook | null) {
   if (!hook) return false
-  
   const status = state.jobStatus.value
   if (['cutting', 'transcribing', 'queued'].includes(status)) {
     if (state.activeHook.value) {
@@ -831,25 +218,31 @@ function isHookRendered(hook: Hook | null) {
       }
     }
   }
-  
+
   const matchingClip = findMatchingClip(hook)
   if (!matchingClip) return false
-  
-  // If this clip is currently being processed (cut/transcribed) in the active job, it is not ready/rendered yet
+
   if (['cutting', 'transcribing', 'queued'].includes(status) && state.clipId.value === matchingClip.clip_id) {
     return false
   }
-  
+
   return true
 }
 
-// Sidebar View for Editor page
-const sidebarView = ref('editor')
+function isActiveHook(hook: Hook) {
+  if (!state?.activeHook?.value) return false
+  const active = state.activeHook.value
+  const hStart = typeof hook.start === 'string' ? parseFloat(hook.start) : hook.start
+  const hEnd = typeof hook.end === 'string' ? parseFloat(hook.end) : hook.end
+  const aStart = typeof active.start === 'string' ? parseFloat(active.start) : active.start
+  const aEnd = typeof active.end === 'string' ? parseFloat(active.end) : active.end
+
+  return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
+}
 
 function handleSidebarNav(view: string) {
   if (view !== 'editor') {
     router.push('/')
-    // We could pass a state here to tell index.vue which view to show
   }
 }
 
@@ -884,65 +277,48 @@ const loadingLabel = computed(() => {
   return map[state.jobStatus.value] || 'PROCESSING...'
 })
 
-const hasBeenMounted = ref(false)
+async function handleSave(isSilent = false) {
+  const silent = isSilent === true
+  await Promise.all([
+    state.saveTranscript(silent),
+    state.saveStyleSettings(),
+    state.saveTimelineTracks(),
+    state.saveThumbnailConfig()
+  ])
+}
 
-onMounted(async () => {
-  console.log('[yonru] Editor mounted (first time)')
-  // Clear navigation overlay
-  state.isNavigatingToEditor.value = false
+async function selectSidebarHook(hook: Hook) {
+  if (state.jobStatus.value === 'cutting' || isActiveHook(hook)) return
 
-  // Background fetch for ready clips to ensure it's fresh
-  fetchReadyClips()
-
-  // Ensure library data is loaded for the sidebar dashboard
-  state.fetchCached()
-  state.fetchSavedHooks()
-  
-  if (import.meta.client) {
-    const saved = localStorage.getItem('yonru_last_video')
-    if (saved) state.lastAccessedVideoId.value = saved
+  if (state?.activeHook?.value && state?.clipId?.value) {
+    console.log('[editor] Saving current hook state before switching...')
+    await handleSave(true)
   }
 
-  // Restore state from URL if refreshing
-  restoreStateFromQuery()
-  state.initPersistence()
-  // Defer flag so onActivated (fires same tick) still sees false on first load
-  nextTick(() => {
-    hasBeenMounted.value = true
-  })
-})
+  const hooksList = panelTab.value === 'saved' ? state.savedHooks.value : state.hooks.value
+  const hookIndex = hooksList.indexOf(hook)
+  const matchingClip = findMatchingClip(hook)
 
-onActivated(() => {
-  if (hasBeenMounted.value) {
-    console.log('[yonru] Editor activated (returned from cache)')
-    sidebarView.value = 'editor'
-    // With keepalive, onMounted only fires once.
-    // Clear navigation overlay on subsequent visits.
-    state.isNavigatingToEditor.value = false
-    
-    // Background fetch for ready clips to ensure it's fresh
-    fetchReadyClips()
-
-    // Ensure library data is loaded for the sidebar dashboard
-    state.fetchCached()
-    state.fetchSavedHooks()
-
-    // Restore state from route queries
-    restoreStateFromQuery()
+  const query: Record<string, string | number | (string | null)[] | null> = {
+    ...route.query as Record<string, string | number | (string | null)[]>,
+    hook_index: hookIndex >= 0 ? hookIndex : 0,
+    tab: panelTab.value
   }
-})
-
-onDeactivated(() => {
-  console.log('[yonru] Editor deactivated — stopping background polling')
-  state.stopPolling()
-  if (overlayTimeout) {
-    clearTimeout(overlayTimeout)
-    overlayTimeout = null
+  if (matchingClip) {
+    query.clip_id = matchingClip.clip_id
+  } else {
+    delete query.clip_id
   }
-})
+  router.replace({ query })
 
-const showBlacklistSettings = ref(false)
-const panelTab = ref<'generated' | 'saved'>((route.query.tab as any) || 'generated')
+  if (matchingClip) {
+    console.log('[editor] Hook is already rendered, loading ready clip:', matchingClip.clip_id)
+    state.loadReadyClipIntoEditor(state.folderName.value || '', matchingClip.clip_id)
+  } else {
+    console.log('[editor] Hook is not rendered, starting extraction...')
+    state.extractClip(hook)
+  }
+}
 
 function restoreStateFromQuery() {
   const jobId = route.query.job_id as string
@@ -950,7 +326,7 @@ function restoreStateFromQuery() {
   const clipId = route.query.clip_id as string
   const hookIndex = parseInt(route.query.hook_index as string)
   const tab = (route.query.tab as string) || 'generated'
-  
+
   if (jobId) {
     console.log('[editor] Restoring state from query. JobID:', jobId, 'Folder:', folder, 'ClipID:', clipId, 'HookIndex:', hookIndex, 'Tab:', tab)
     state.jobId.value = jobId
@@ -959,23 +335,20 @@ function restoreStateFromQuery() {
       state.clipId.value = clipId
     }
     panelTab.value = tab as any
-    
-    // We need to wait for hooks to load before we can select the active one
+
     let stopWatcher: (() => void) | null = null
     stopWatcher = watch([() => state?.jobStatus?.value, () => state?.hooks?.value, () => state?.savedHooks?.value], () => {
       const status = state?.jobStatus?.value || 'idle'
       const hooksAvailable = (state?.hooks?.value?.length || 0) > 0 || (state?.savedHooks?.value?.length || 0) > 0
-      
+
       if (status === 'ready' || (status === 'hooks_ready' && hooksAvailable)) {
         const hooksList = tab === 'saved' ? state?.savedHooks?.value : state?.hooks?.value
         const targetIndex = isNaN(hookIndex) ? 0 : hookIndex
         if (hooksList && hooksList[targetIndex]) {
           console.log('[editor] Restoring hook from index:', targetIndex)
-          // Only overwrite activeHook if it is not already populated for a ready clip
           if (state?.activeHook && (!state.activeHook.value || status !== 'ready')) {
             state.activeHook.value = hooksList[targetIndex]
           }
-          // Only trigger extraction if we don't already have a ready clip
           if (status !== 'ready') {
             state?.extractClip?.(hooksList[targetIndex])
           }
@@ -988,195 +361,9 @@ function restoreStateFromQuery() {
   }
 }
 
-async function selectSidebarHook(hook: Hook) {
-  if (state.jobStatus.value === 'cutting' || isActiveHook(hook)) return
-  
-  // Explicitly save the current active hook settings before switching!
-  if (state?.activeHook?.value && state?.clipId?.value) {
-    console.log('[editor] Saving current hook state before switching...')
-    await handleSave(true)
-  }
-  
-  // Find hook index
-  const hooksList = panelTab.value === 'saved' ? state.savedHooks.value : state.hooks.value
-  const hookIndex = hooksList.indexOf(hook)
-  
-  // Check if hook is already rendered/ready
-  const matchingClip = findMatchingClip(hook)
-
-  // Update route query silently so refresh works
-  const query: Record<string, string | number | (string | null)[] | null> = {
-    ...route.query as Record<string, string | number | (string | null)[]>,
-    hook_index: hookIndex >= 0 ? hookIndex : 0,
-    tab: panelTab.value
-  }
-  if (matchingClip) {
-    query.clip_id = matchingClip.clip_id
-  } else {
-    delete query.clip_id
-  }
-  router.replace({ query })
-  
-  if (matchingClip) {
-    console.log('[editor] Hook is already rendered, loading ready clip:', matchingClip.clip_id)
-    state.loadReadyClipIntoEditor(state.folderName.value || '', matchingClip.clip_id)
-  } else {
-    console.log('[editor] Hook is not rendered, starting extraction...')
-    state.extractClip(hook)
-  }
-}
-
-
-const isPanelOpen = ref(false)
-const editorTab = ref<'edit' | 'quote' | 'thumbnail'>('edit')
-const subtitleSubTab = ref<'one' | 'all'>('one')
-
-const toggleTab = (tab: 'edit' | 'quote' | 'thumbnail') => {
-  if (isPanelOpen.value && editorTab.value === tab) {
-    isPanelOpen.value = false
-  } else {
-    editorTab.value = tab
-    isPanelOpen.value = true
-  }
-}
-
-const activeHookIndex = computed(() => {
-  if (!state?.activeHook?.value) return -1
-  const active = state.activeHook.value
-  const aStart = typeof active.start === 'string' ? parseFloat(active.start) : active.start
-  const aEnd = typeof active.end === 'string' ? parseFloat(active.end) : active.end
-  
-  // Search in generated hooks first
-  let idx = state.hooks?.value?.findIndex((h: Hook) => {
-    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
-    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
-    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
-  })
-  
-  if (idx !== -1 && idx !== undefined) return idx
-  
-  // Search in saved hooks
-  idx = state.savedHooks?.value?.findIndex((h: Hook) => {
-    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
-    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
-    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
-  })
-  
-  return idx !== undefined ? idx : -1
-})
-
-const copied = ref(false)
-function copyQuoteToClipboard() {
-  if (!state?.activeHook?.value?.transcript_quote) return
-  navigator.clipboard.writeText(state.activeHook.value.transcript_quote)
-  copied.value = true
-  setTimeout(() => {
-    copied.value = false
-  }, 2000)
-}
-
-const quoteWordCount = computed(() => {
-  const quote = state?.activeHook?.value?.transcript_quote || ''
-  const clean = quote.trim()
-  return clean ? clean.split(/\s+/).length : 0
-})
-
-const quoteCharCount = computed(() => {
-  return (state?.activeHook?.value?.transcript_quote || '').length
-})
-
-const quoteReadingTime = computed(() => {
-  return Math.max(1, Math.round(quoteWordCount.value / 3.3))
-})
-const subtitleContainer = ref<HTMLElement | null>(null)
-const bulkContainer = ref<HTMLElement | null>(null)
-const isHoveringSubtitles = ref(false)
-const isAutoScrollEnabled = ref(true)
-const isAutoSaving = ref(false)
-const isAutoSaved = ref(true)
-let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
-
-function triggerDebouncedAutoSave() {
-  isAutoSaved.value = false
-  isAutoSaving.value = true
-  if (autoSaveTimer) clearTimeout(autoSaveTimer)
-  autoSaveTimer = setTimeout(async () => {
-    try {
-      await state.saveTranscript(true)
-    } catch {
-      // ignore
-    } finally {
-      isAutoSaving.value = false
-      isAutoSaved.value = true
-    }
-  }, 1000)
-}
-
-const absoluteTime = computed(() => state?.currentTime?.value || 0)
-const visibleSegments = computed(() => {
-  const flatWords = state?.fullTranscript?.value || []
-  return groupTranscript(flatWords as unknown as ChunkerSegment[], state.subtitleMode.value)
-})
-
-const activeSegIdx = computed(() => {
-  if (!state?.fullTranscript?.value || !state?.activeHook?.value) return -1
-  
-  const offsetSec = (state?.subtitleSyncOffset?.value || 0) / 1000
-  const firstStart = state?.fullTranscript?.value[0]?.start || 0
-  const isTranscriptZeroBased = firstStart < (state?.activeHook?.value?.start || 0) - 2
-  
-  const thumbSec = state?.thumbnailEnabled?.value ? state?.thumbnailDuration?.value : 0
-  const relativeTime = Math.max(0, absoluteTime.value - thumbSec)
-  
-  const searchTime = isTranscriptZeroBased 
-    ? relativeTime + offsetSec
-    : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec
-    
-  return visibleSegments.value.findIndex((s: ChunkerSegment) => 
-    searchTime >= s.start && 
-    searchTime < (s.end ?? (s.start + s.duration))
-  )
-})
-
-watch(activeSegIdx, (idx) => {
-  if (isAutoScrollEnabled.value && idx !== -1 && subtitleContainer.value && !isHoveringSubtitles.value) {
-    const el = document.getElementById(`seg-${idx}`)
-    if (el) {
-      el.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
-      })
-    }
-  }
-})
-
-
-
-watch(() => state.renderStatus.value, (newStatus) => {
-  if (newStatus === 'done') {
-    fetchReadyClips()
-  }
-})
-
-watch(() => state.jobStatus.value, (newStatus) => {
-  if (newStatus === 'ready') {
-    fetchReadyClips()
-  }
-}, { immediate: true })
-
-watch(() => state.jobId.value, (newJobId) => {
-  if (newJobId && route.query.job_id !== newJobId) {
-    const query = { ...route.query, job_id: newJobId }
-    router.replace({ query })
-  }
-})
-
-// Moved up
-
-// Pipeline loading overlay
+// Pipeline loading overlay calculations
 const pipelineStep = computed(() => {
   const status = state?.jobStatus?.value || 'idle'
-  // Only force 'cutting' if the hook is not already rendered/ready on the server!
   if (state?.activeHook?.value && !isHookRendered(state.activeHook.value) && status !== 'ready') {
     return status === 'transcribing' ? 'transcribing' : 'cutting'
   }
@@ -1219,208 +406,69 @@ watch(
   { immediate: true }
 )
 
-onUnmounted(() => {
+watch(() => state.renderStatus.value, (newStatus) => {
+  if (newStatus === 'done') {
+    fetchReadyClips()
+  }
+})
+
+watch(() => state.jobStatus.value, (newStatus) => {
+  if (newStatus === 'ready') {
+    fetchReadyClips()
+  }
+}, { immediate: true })
+
+watch(() => state.jobId.value, (newJobId) => {
+  if (newJobId && route.query.job_id !== newJobId) {
+    const query = { ...route.query, job_id: newJobId }
+    router.replace({ query })
+  }
+})
+
+onMounted(async () => {
+  console.log('[yonru] Editor mounted (first time)')
+  state.isNavigatingToEditor.value = false
+  fetchReadyClips()
+  state.fetchCached()
+  state.fetchSavedHooks()
+
+  if (import.meta.client) {
+    const saved = localStorage.getItem('yonru_last_video')
+    if (saved) state.lastAccessedVideoId.value = saved
+  }
+
+  restoreStateFromQuery()
+  state.initPersistence()
+  nextTick(() => {
+    hasBeenMounted.value = true
+  })
+})
+
+onActivated(() => {
+  if (hasBeenMounted.value) {
+    console.log('[yonru] Editor activated (returned from cache)')
+    sidebarView.value = 'editor'
+    state.isNavigatingToEditor.value = false
+    fetchReadyClips()
+    state.fetchCached()
+    state.fetchSavedHooks()
+    restoreStateFromQuery()
+  }
+})
+
+onDeactivated(() => {
+  console.log('[yonru] Editor deactivated — stopping background polling')
+  state.stopPolling()
   if (overlayTimeout) {
     clearTimeout(overlayTimeout)
     overlayTimeout = null
   }
 })
 
-// Moved up
-
-// All Words (Flowing Document View) State & Interactivity
-const editingSegIdx = ref(-1)
-const editSegText = ref('')
-const isHoveringBulk = ref(false)
-let autoScrollResumeTimeout: ReturnType<typeof setTimeout> | null = null
-
-function handleBulkMouseEnter() {
-  isHoveringBulk.value = true
-  if (autoScrollResumeTimeout) clearTimeout(autoScrollResumeTimeout)
-}
-
-function handleBulkMouseLeave() {
-  if (autoScrollResumeTimeout) clearTimeout(autoScrollResumeTimeout)
-  autoScrollResumeTimeout = setTimeout(() => {
-    isHoveringBulk.value = false
-  }, 2000)
-}
-
-function startEdit(seg: ChunkerSegment, idx: number) {
-  editingSegIdx.value = idx
-  editSegText.value = seg.text || ''
-}
-
-function commitEdit(seg: ChunkerSegment, idx: number) {
-  if (editingSegIdx.value !== idx) return
-  const trimmed = editSegText.value.trim()
-  seg.text = trimmed
-  updateSegmentText(seg, trimmed)
-  
-  if (state?.fullTranscript?.value) {
-    state.fullTranscript.value = [...state.fullTranscript.value]
-  }
-  editingSegIdx.value = -1
-}
-
-function cancelEdit() {
-  editingSegIdx.value = -1
-}
-
-// Compute the active word index inside the active segment
-const activeWordIdxInSeg = computed(() => {
-  if (activeSegIdx.value === -1) return -1
-  const seg = visibleSegments.value[activeSegIdx.value]
-  if (!seg || !seg.text) return -1
-
-  const offsetSec = (state?.subtitleSyncOffset?.value || 0) / 1000
-  const firstStart = state?.fullTranscript?.value[0]?.start || 0
-  const isTranscriptZeroBased = firstStart < (state?.activeHook?.value?.start || 0) - 2
-  const thumbSec = state?.thumbnailEnabled?.value ? state?.thumbnailDuration?.value : 0
-  const relativeTime = Math.max(0, absoluteTime.value - thumbSec)
-  const searchTime = isTranscriptZeroBased 
-    ? relativeTime + offsetSec
-    : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec
-
-  const words = seg.text.trim().split(/\s+/)
-  if (!words.length || words.length === 1) return 0
-
-  const duration = seg.duration
-  const wordDur = duration / words.length
-
-  const elapsed = searchTime - seg.start
-  const wordIdx = Math.floor(elapsed / wordDur)
-  return Math.max(0, Math.min(wordIdx, words.length - 1))
-})
-
-// Watchers
-
-// Moved up to fix initialization order
-
-function isActiveHook(hook: Hook) {
-  if (!state?.activeHook?.value) return false
-  const active = state.activeHook.value
-  const hStart = typeof hook.start === 'string' ? parseFloat(hook.start) : hook.start
-  const hEnd = typeof hook.end === 'string' ? parseFloat(hook.end) : hook.end
-  const aStart = typeof active.start === 'string' ? parseFloat(active.start) : active.start
-  const aEnd = typeof active.end === 'string' ? parseFloat(active.end) : active.end
-  
-  return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
-}
-
-const hooksContainer = ref<HTMLElement | null>(null)
-
-watch([() => state.activeHook.value, () => state.hooks.value, () => state.savedHooks.value, () => panelTab.value], async () => {
-  if (!state.activeHook.value) return
-  
-  await nextTick()
-  setTimeout(() => {
-    if (typeof document !== 'undefined') {
-      const activeEl = document.querySelector('.hook-item-active')
-      if (activeEl) {
-        activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    }
-  }, 100)
-}, { immediate: true, deep: true })
-
-function jumpTo(segmentStart: number) {
-  if (!state?.currentTime) return
-  
-  const thumbSec = state?.thumbnailEnabled?.value ? (state?.thumbnailDuration?.value || 0) : 0
-  const firstStart = state?.fullTranscript?.value?.[0]?.start || 0
-  const hookStart = state?.activeHook?.value?.start || 0
-  const isTranscriptZeroBased = firstStart < hookStart - 2
-  
-  const relativeSegStart = isTranscriptZeroBased 
-    ? segmentStart 
-    : Math.max(0, segmentStart - hookStart)
-    
-  const targetTime = thumbSec + relativeSegStart
-  state.seekTo(targetTime)
-}
-
-function autoGrow(e: Event) {
-  const target = e.target as HTMLTextAreaElement
-  if (target) {
-    target.style.height = 'auto'
-    target.style.height = target.scrollHeight + 'px'
-  }
-}
-async function handleSave(isSilent = false) {
-  const silent = isSilent === true
-  await Promise.all([
-    state.saveTranscript(silent),
-    state.saveStyleSettings(),
-    state.saveTimelineTracks(),
-    state.saveThumbnailConfig()
-  ])
-}
-
-// Draggable Subtitle Panel Sidebar Resizing State & Event Handlers
-const panelWidth = ref(450)
-const isDragging = ref(false)
-
-function handleGlobalKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && isPanelOpen.value) {
-    isPanelOpen.value = false
-  }
-}
-
-onMounted(() => {
-  window.addEventListener('keydown', handleGlobalKeydown)
-  const saved = localStorage.getItem('yonru-editor-width')
-  if (saved) {
-    const parsed = parseInt(saved)
-    if (!isNaN(parsed)) {
-      panelWidth.value = Math.max(50, Math.min(800, parsed))
-    }
-  }
-})
-
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleGlobalKeydown)
   if (overlayTimeout) {
     clearTimeout(overlayTimeout)
     overlayTimeout = null
   }
 })
-
-function initResize(e: PointerEvent) {
-  e.preventDefault()
-  isDragging.value = true
-  const startWidth = panelWidth.value
-  const startX = e.clientX
-
-  const handlePointerMove = (moveEvent: PointerEvent) => {
-    const deltaX = moveEvent.clientX - startX
-    const newWidth = startWidth - deltaX
-    panelWidth.value = Math.max(50, Math.min(800, newWidth))
-  }
-
-  const handlePointerUp = () => {
-    isDragging.value = false
-    localStorage.setItem('yonru-editor-width', panelWidth.value.toString())
-    document.removeEventListener('pointermove', handlePointerMove)
-    document.removeEventListener('pointerup', handlePointerUp)
-  }
-
-  document.addEventListener('pointermove', handlePointerMove)
-  document.addEventListener('pointerup', handlePointerUp)
-}
 </script>
-
-<style scoped>
-.panel-tab-fade-enter-active,
-.panel-tab-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
-.panel-tab-fade-enter-from {
-  opacity: 0;
-  transform: translateY(4px);
-}
-.panel-tab-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-</style>

@@ -315,8 +315,15 @@ describe('Editor Page', () => {
 
     await wrapper.vm.$nextTick()
 
-    // Open Floating Subtitle Panel
-    ;(wrapper.vm as any).isPanelOpen = true
+    // Open Floating Subtitle Panel via action button
+    const actionBtn = wrapper.findAll('button').find(b => b.html().includes('ri:edit-box-line'))
+    if (actionBtn) {
+      await actionBtn.trigger('click')
+    } else {
+      // Fallback: click first button if Icon stub renders differently
+      const firstBtn = wrapper.find('button')
+      if (firstBtn.exists()) await firstBtn.trigger('click')
+    }
     await wrapper.vm.$nextTick()
 
     // Find Floating Subtitle Panel container
@@ -333,6 +340,6 @@ describe('Editor Page', () => {
     window.dispatchEvent(escEvent)
     await wrapper.vm.$nextTick()
 
-    expect((wrapper.vm as any).isPanelOpen).toBe(false)
+    expect(wrapper.find('.w-\\[500px\\]').exists()).toBe(false)
   })
 })
