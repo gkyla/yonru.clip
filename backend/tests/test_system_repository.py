@@ -154,33 +154,3 @@ def test_system_repository_validate_gemini_keys_quota_error(mock_genai_client, t
     assert len(res["results"]) == 1
     assert res["results"][0]["status"] == "invalid"
     assert "Quota exceeded" in res["results"][0]["error"]
-
-
-def test_system_repository_crop_map_cached_and_computed(temp_workspace):
-    temp_dir, cookies_file = temp_workspace
-    config_store = InMemoryConfigStore()
-    repo = SystemRepository(config_store=config_store, cookies_path=cookies_file)
-
-    clip_dir = os.path.join(temp_dir, "clip_1")
-    os.makedirs(clip_dir, exist_ok=True)
-    video_path = os.path.join(clip_dir, "video.mp4")
-
-    # Mock face tracker
-    mock_tracker = MagicMock()
-    mock_tracker.analyze_video.return_value = [
-        {"time": 0.0, "x": 640},
-        {"time": 2.5, "x": 720}
-    ]
-
-    # First call: computes via tracker and caches to crop_map.json
-    crop_map = repo.get_or_create_crop_map(clip_dir, video_path, tracker=mock_tracker)
-    assert len(crop_map) == 2
-    assert crop_map[0]["x"] == 640
-    assert mock_tracker.analyze_video.call_count == 1
-    assert os.path.exists(os.path.join(clip_dir, "crop_map.json"))
-
-    # Second call: reads from cached crop_map.json without calling tracker again
-    cached_crop_map = repo.get_or_create_crop_map(clip_dir, video_path, tracker=mock_tracker)
-    assert len(cached_crop_map) == 2
-    assert cached_crop_map[0]["x"] == 640
-    assert mock_tracker.analyze_video.call_count == 1

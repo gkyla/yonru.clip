@@ -331,76 +331,11 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
 @app.get("/api/job/{job_id}")
 async def get_job(job_id: str):
     """Poll job status"""
-    if job_id not in jobs:
+    try:
+        return workflow_coordinator.get_job_summary(job_id)
+    except KeyError:
         print(f"[api] Job {job_id} not found — frontend will self-heal if clip context exists")
         raise HTTPException(status_code=404, detail="Job not found")
-    
-    job = jobs[job_id]
-    response = {
-        "job_id": job_id,
-        "status": job["status"],
-        "error": job.get("error"),
-        "download_percent": job.get("download_percent", 0.0),
-    }
-    
-    if job.get("video_info"):
-        _heatmap = job["video_info"].get("heatmap") or []
-        folder_name = os.path.basename(os.path.dirname(job["video_info"].get("file_path", ""))) if job["video_info"].get("file_path") else None
-        print(f"[debug] get_job {job_id} -> folder_name: {folder_name}")
-        response["video"] = {
-            "title": job["video_info"].get("title"),
-            "duration": job["video_info"].get("duration"),
-            "has_heatmap": len(_heatmap) > 0,
-            "heatmap_segments": len(_heatmap),
-            "asset_url": job["video_info"].get("asset_url"),
-            "folder_name": folder_name,
-            "hd_ready": job["video_info"].get("hd_ready", False),
-            "has_preview": job["video_info"].get("has_preview", False)
-        }
-        response["folder_name"] = folder_name
-    elif job.get("clip_path"):
-        # clip_path is clips/<folder>/<clip>/video.mp4
-        folder_name = os.path.basename(os.path.dirname(os.path.dirname(job["clip_path"])))
-        response["folder_name"] = folder_name
-    
-    # If a clip has been cut, expose it
-    if job.get("clip"):
-        clip_data = {
-            "asset_url": job["clip"].get("asset_url"),
-            "duration": job["clip"].get("duration"),
-            "start": job["clip"].get("start"),
-            "end": job["clip"].get("end"),
-            "theme": job["clip"].get("theme"),
-            "transcript_quote": job["clip"].get("transcript_quote", "")
-        }
-        
-        # Load clip-specific transcript if it exists
-        clip_path = job.get("clip_path")
-        if clip_path:
-            transcript_path = os.path.join(os.path.dirname(clip_path), "transcript.json")
-            if os.path.exists(transcript_path):
-                try:
-                    with open(transcript_path, "r", encoding="utf-8") as f:
-                        clip_data["transcript"] = json.load(f)
-                except:
-                    pass
-            
-            # Load clip-specific history if it exists
-            history_path = os.path.join(os.path.dirname(clip_path), "history.json")
-            if os.path.exists(history_path):
-                try:
-                    with open(history_path, "r", encoding="utf-8") as f:
-                        response["history"] = json.load(f)
-                    print(f"[api] Loaded persisted history for job {job_id} from {history_path}")
-                except Exception as e:
-                    print(f"[api] Failed to read history for job {job_id}: {e}")
-        
-        response["clip"] = clip_data
-    
-    if job.get("hooks"):
-        response["hooks"] = job["hooks"]
-    
-    return response
 
 @app.post("/api/generate-hooks")
 async def generate_hooks():
@@ -524,109 +459,24 @@ class AnalyzeCachedRequest(BaseModel):
 @app.post("/api/analyze-cached/{video_id}")
 async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force: bool = False, req: AnalyzeCachedRequest = AnalyzeCachedRequest()):
     """Re-analyze a cached video using the new folder lookup. Supports forcing a re-analysis bypassing hooks.json."""
-    import uuid
-    cached = asset_repository.get_cached_video(f"https://youtube.com/watch?v={video_id}")
-    
-    if not cached:
-        raise HTTPException(status_code=404, detail=f"Cached video for ID {video_id} not found in titled folders")
-    
-    # If force is False, and hooks.json exists, load it immediately and return status ready
-    if not force and cached.get("file_path"):
-        import os
-        import json
-        folder_name = os.path.basename(os.path.dirname(cached["file_path"]))
-        hooks_cache_path = os.path.join(os.path.dirname(cached["file_path"]), "hooks.json")
-        if os.path.exists(hooks_cache_path):
-            try:
-                with open(hooks_cache_path, "r", encoding="utf-8") as f:
-                    hooks_json = f.read()
-                raw_hooks = json.loads(hooks_json)
-                filtered = asset_repository.sanitize_and_prepare_hooks(raw_hooks, cached)
-                job_id = str(uuid.uuid4())[:8]
-                is_hd_ready = cached.get("hd_ready", False)
-                job_status = "ready" if is_hd_ready else "hooks_ready"
-                download_percent = 100.0 if is_hd_ready else 0.0
-                
-                jobs[job_id] = {
-                    "status": job_status,
-                    "url": f"https://youtube.com/watch?v={video_id}",
-                    "video_info": cached,
-                    "full_video_path": cached["file_path"],
-                    "audio_path": None,
-                    "clip_path": None,
-                    "clip_duration": None,
-                    "hooks": filtered,
-                    "fps": cached.get("fps", 30.0),
-                    "download_percent": download_percent,
-                    "error": None
-                }
-                save_jobs()
-                
-                if not is_hd_ready:
-                    import threading
-                    t = threading.Thread(
-                        target=workflow_coordinator.run_source_download,
-                        args=(job_id, f"https://youtube.com/watch?v={video_id}")
-                    )
-                    t.daemon = True
-                    t.start()
-                    print(f"[cache] Triggered background prefetch of HD source for {video_id}")
-                else:
-                    print(f"[cache] Video and hooks loaded instantly from cache for {video_id}")
-                    
-                _heatmap = cached.get("heatmap") or []
-                return {
-                    "job_id": job_id,
-                    "status": job_status,
-                    "hooks": filtered,
-                    "folder_name": folder_name,
-                    "video": {
-                        "title": cached.get("title"),
-                        "duration": cached.get("duration"),
-                        "has_heatmap": len(_heatmap) > 0,
-                        "heatmap_segments": len(_heatmap),
-                        "asset_url": cached.get("asset_url"),
-                        "folder_name": folder_name,
-                        "fps": cached.get("fps", 30.0),
-                        "hd_ready": is_hd_ready,
-                        "has_preview": cached.get("has_preview", False)
-                    },
-                    "cached": True
-                }
-            except Exception as e:
-                print(f"[cache] Failed to load cached hooks for {video_id}: {e}")
-
-    job_id = str(uuid.uuid4())[:8]
-    jobs[job_id] = {
-        "status": "queued",
-        "url": f"https://youtube.com/watch?v={video_id}",
-        "video_info": cached,
-        "full_video_path": cached["file_path"],
-        "audio_path": None,
-        "clip_path": None,
-        "clip_duration": None,
-        "hooks": None,
-        "fps": cached.get("fps", 30.0),
-        "error": None
-    }
-    
-    background_tasks.add_task(
-        workflow_coordinator.run_full_analysis,
-        job_id,
-        f"https://youtube.com/watch?v={video_id}",
-        "id",
-        force,
-        req.prompt_file or "prompt.json",
-        req.num_hooks or 10,
-        req.auto_hooks or False,
-        req.extraction_mode or "preset",
-        req.preset_id or "auto",
-        req.focus_topic,
-        req.min_duration or 30,
-        req.max_duration or 180
-    )
-    save_jobs()
-    return {"job_id": job_id, "status": "queued", "cached": True}
+    try:
+        return workflow_coordinator.replay_cached_analysis(
+            video_id=video_id,
+            background_tasks=background_tasks,
+            force=force,
+            prompt_file=req.prompt_file or "prompt.json",
+            num_hooks=req.num_hooks or 10,
+            auto_hooks=req.auto_hooks or False,
+            extraction_mode=req.extraction_mode or "preset",
+            preset_id=req.preset_id or "auto",
+            focus_topic=req.focus_topic,
+            min_duration=req.min_duration or 30,
+            max_duration=req.max_duration or 180
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 class SaveHookRequest(BaseModel):
     folder_name: str
@@ -810,39 +660,14 @@ async def system_health():
 @app.post("/api/thumbnail/screenshot")
 async def thumbnail_screenshot(req: ThumbnailScreenshotRequest):
     """Extract a single frame from the clip video as thumbnail."""
-    if req.job_id not in jobs:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    job = jobs[req.job_id]
-    clip_path = job.get("clip_path")
-    if not clip_path or not os.path.exists(clip_path):
-        raise HTTPException(status_code=400, detail="No clip available. Extract a clip first.")
-    
-    clip_dir = os.path.dirname(clip_path)
-    clip_duration = job.get("clip_duration", 10.0)
-    
-    # Determine timestamp
-    if req.timestamp is not None:
-        ts = max(0.0, min(req.timestamp, clip_duration - 0.1))
-    else:
-        import random
-        ts = random.uniform(0.5, clip_duration * 0.8)
-    
-    thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
-    success = asset_repository.extract_clip_screenshot(clip_path, ts, thumb_path)
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to extract thumbnail frame")
-    
-    parts = clip_path.replace("\\", "/").split("/")
     try:
-        clips_idx = parts.index("clips")
-        relative = "/".join(parts[clips_idx:])
-        asset_url = f"/assets/{relative.rsplit('/', 1)[0]}/thumbnail.jpg"
-    except Exception:
-        asset_url = "/assets/clips/thumbnail.jpg"
-    
-    print(f"[thumbnail] Captured frame at {ts:.3f}s → {thumb_path}")
-    return {"status": "ok", "timestamp": round(ts, 3), "thumbnail_url": asset_url}
+        return workflow_coordinator.extract_clip_thumbnail(job_id=req.job_id, timestamp=req.timestamp)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Job not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/thumbnail/config")
 async def save_thumbnail_config(req: ThumbnailConfigRequest):
@@ -922,11 +747,12 @@ async def load_ready_clip(req: LoadReadyClipRequest, background_tasks: Backgroun
 @app.post("/api/clips/{folder_name}/{clip_id}/track-face")
 async def track_face_for_clip(folder_name: str, clip_id: str):
     """Generates, saves, and returns Auto-Reframe crop_map.json for a clip."""
-    clip_dir = os.path.join(asset_repository.clips_dir, folder_name, clip_id)
-    video_path = os.path.join(clip_dir, "video.mp4")
-    if not os.path.exists(video_path):
-        raise HTTPException(status_code=404, detail="Clip video not found")
-    
-    crop_map_points = system_repository.get_or_create_crop_map(clip_dir, video_path)
-    return {"status": "ready", "crop_map": crop_map_points}
+    try:
+        return workflow_coordinator.get_or_create_crop_map(folder_name=folder_name, clip_id=clip_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 

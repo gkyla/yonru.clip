@@ -683,5 +683,231 @@ def test_load_ready_clip_success(mock_dependencies, tmp_path):
     assert (clip_dir / "crop_map.json").exists()
 
 
+def test_replay_cached_analysis_instant_ready(mock_dependencies, tmp_path):
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    
+    source_dir = tmp_path / "sources" / "vid_123"
+    source_dir.mkdir(parents=True)
+    video_path = source_dir / "full.mp4"
+    video_path.write_text("dummy video")
+    hooks_path = source_dir / "hooks.json"
+    hooks_path.write_text(json.dumps([{"start": 5.0, "end": 20.0, "title": "Hook 1"}]))
+    
+    mock_dependencies["asset_repository"].get_cached_video.return_value = {
+        "video_id": "vid_123",
+        "title": "Cached Video Title",
+        "duration": 60.0,
+        "file_path": str(video_path),
+        "folder_name": "vid_123",
+        "hd_ready": True,
+        "fps": 30.0,
+        "asset_url": "/assets/sources/vid_123/full.mp4"
+    }
+    
+    res = coordinator.replay_cached_analysis(video_id="vid_123", force=False)
+    assert res["status"] == "ready"
+    assert res["cached"] is True
+    assert len(res["hooks"]) == 1
+    assert res["video"]["title"] == "Cached Video Title"
+    assert res["job_id"] in coordinator.jobs
+    assert coordinator.jobs[res["job_id"]]["status"] == "ready"
+
+
+def test_replay_cached_analysis_prefetch_hd(mock_dependencies, tmp_path):
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    coordinator.run_source_download = MagicMock()
+    
+    source_dir = tmp_path / "sources" / "vid_456"
+    source_dir.mkdir(parents=True)
+    video_path = source_dir / "preview.mp4"
+    video_path.write_text("dummy preview")
+    hooks_path = source_dir / "hooks.json"
+    hooks_path.write_text(json.dumps([{"start": 10.0, "end": 25.0, "title": "Preview Hook"}]))
+    
+    mock_dependencies["asset_repository"].get_cached_video.return_value = {
+        "video_id": "vid_456",
+        "title": "Preview Video",
+        "duration": 60.0,
+        "file_path": str(video_path),
+        "folder_name": "vid_456",
+        "hd_ready": False,
+        "fps": 30.0,
+        "asset_url": "/assets/sources/vid_456/preview.mp4"
+    }
+    
+    background_tasks = MagicMock()
+    res = coordinator.replay_cached_analysis(video_id="vid_456", background_tasks=background_tasks, force=False)
+    assert res["status"] == "hooks_ready"
+    assert res["cached"] is True
+    assert background_tasks.add_task.called
+    assert coordinator.jobs[res["job_id"]]["status"] == "hooks_ready"
+
+
+def test_replay_cached_analysis_not_found_raises(mock_dependencies):
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    mock_dependencies["asset_repository"].get_cached_video.return_value = None
+    
+    with pytest.raises(FileNotFoundError, match="Cached video for ID missing_id not found"):
+        coordinator.replay_cached_analysis(video_id="missing_id")
+
+
+def test_get_job_summary_hydration(mock_dependencies, tmp_path):
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    
+    clip_dir = tmp_path / "clips" / "folder_abc" / "clip_xyz"
+    clip_dir.mkdir(parents=True)
+    clip_video = clip_dir / "video.mp4"
+    clip_video.write_text("clip content")
+    transcript_file = clip_dir / "transcript.json"
+    transcript_file.write_text(json.dumps([{"start": 0.0, "duration": 1.5, "text": "Hydrated word"}]))
+    history_file = clip_dir / "history.json"
+    history_file.write_text(json.dumps({"undo_stack": [{"step": 1}], "redo_stack": []}))
+    
+    job_id = "summary_job_1"
+    coordinator.jobs[job_id] = {
+        "status": "ready",
+        "clip_path": str(clip_video),
+        "clip_duration": 15.0,
+        "clip": {
+            "asset_url": "/assets/clips/folder_abc/clip_xyz/video.mp4",
+            "duration": 15.0,
+            "start": 0.0,
+            "end": 15.0,
+            "theme": "Test Theme"
+        },
+        "hooks": [{"title": "Hook A"}]
+    }
+    
+    summary = coordinator.get_job_summary(job_id)
+    assert summary["job_id"] == job_id
+    assert summary["status"] == "ready"
+    assert summary["folder_name"] == "folder_abc"
+    assert summary["clip"]["transcript"] == [{"start": 0.0, "duration": 1.5, "text": "Hydrated word"}]
+    assert summary["history"] == {"undo_stack": [{"step": 1}], "redo_stack": []}
+    assert summary["hooks"] == [{"title": "Hook A"}]
+
+
+def test_extract_clip_thumbnail_bounds_clamping(mock_dependencies, tmp_path):
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    
+    clip_dir = tmp_path / "clips" / "my_folder" / "clip_1"
+    clip_dir.mkdir(parents=True)
+    clip_path = clip_dir / "video.mp4"
+    clip_path.write_text("dummy")
+    
+    job_id = "thumb_job"
+    coordinator.jobs[job_id] = {
+        "status": "ready",
+        "clip_path": str(clip_path),
+        "clip_duration": 10.0
+    }
+    
+    mock_dependencies["asset_repository"].extract_clip_screenshot.return_value = True
+    
+    # Request timestamp 25.0 beyond duration 10.0 -> clamped to 9.9
+    res = coordinator.extract_clip_thumbnail(job_id, timestamp=25.0)
+    assert res["status"] == "ok"
+    assert res["timestamp"] == 9.9
+    assert "thumbnail.jpg" in res["thumbnail_url"]
+    
+    # Verify mock was called with clamped timestamp
+    mock_dependencies["asset_repository"].extract_clip_screenshot.assert_called_with(
+        str(clip_path), 9.9, str(clip_dir / "thumbnail.jpg")
+    )
+
+
+def test_get_or_create_crop_map_workflow(mock_dependencies, tmp_path):
+    clips_dir = tmp_path / "clips"
+    mock_dependencies["asset_repository"].clips_dir = str(clips_dir)
+    
+    clip_dir = clips_dir / "folder_test" / "clip_test"
+    clip_dir.mkdir(parents=True)
+    video_path = clip_dir / "video.mp4"
+    video_path.write_text("video dummy")
+    
+    mock_tracker = MagicMock()
+    mock_tracker.analyze_video.return_value = [
+        {"time": 0.0, "x": 500},
+        {"time": 1.0, "x": 650}
+    ]
+    
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+        face_tracker=mock_tracker
+    )
+    
+    # 1. First run computes and writes crop_map.json
+    res1 = coordinator.get_or_create_crop_map("folder_test", "clip_test")
+    assert res1["status"] == "ready"
+    assert len(res1["crop_map"]) == 2
+    assert res1["crop_map"][0]["x"] == 500
+    assert (clip_dir / "crop_map.json").exists()
+    assert mock_tracker.analyze_video.call_count == 1
+    
+    # 2. Second run reads from crop_map.json without re-running tracker
+    res2 = coordinator.get_or_create_crop_map("folder_test", "clip_test")
+    assert res2["status"] == "ready"
+    assert len(res2["crop_map"]) == 2
+    assert mock_tracker.analyze_video.call_count == 1
+
+
+def test_get_or_create_crop_map_path_traversal(mock_dependencies, tmp_path):
+    clips_dir = tmp_path / "clips"
+    mock_dependencies["asset_repository"].clips_dir = str(clips_dir)
+    
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    
+    with pytest.raises(ValueError, match="Path traversal detected"):
+        coordinator.get_or_create_crop_map("../../etc", "passwd")
+
+
+
 
 

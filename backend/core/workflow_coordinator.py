@@ -2,7 +2,8 @@ import os
 import json
 import shutil
 import re
-from typing import Optional, Dict, Any
+import uuid
+from typing import Optional, Dict, Any, List
 
 class ClipWorkflowCoordinator:
     def __init__(self, job_store, asset_repository, youtube_client, speech_transcriber, prompt_repository, config_store, face_tracker=None):
@@ -58,21 +59,29 @@ class ClipWorkflowCoordinator:
             except Exception as e:
                 print(f"[defaults] Failed to populate default thumbnail config: {e}")
 
-    def _ensure_crop_map(self, clip_path: str):
-        """Generates and caches Auto-Reframe crop_map.json for the clip if not already present."""
-        clip_dir = os.path.dirname(clip_path)
+    def _compute_and_cache_crop_map(
+        self, clip_dir: str, video_path: str, tracker: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        """Internal helper to load or compute Auto-Reframe crop map keyframes for a clip directory."""
         crop_map_path = os.path.join(clip_dir, "crop_map.json")
         if os.path.exists(crop_map_path):
-            return
-        
-        tracker = getattr(self, "face_tracker", None)
+            try:
+                with open(crop_map_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list) and len(data) > 0:
+                        return data
+            except Exception:
+                pass
+
+        if tracker is None:
+            tracker = getattr(self, "face_tracker", None)
         if not tracker:
             from core.face_tracker import FaceTracker
             tracker = FaceTracker()
-        
+
         crop_map_points = None
         try:
-            crop_data = tracker.analyze_video(clip_path)
+            crop_data = tracker.analyze_video(video_path)
             if isinstance(crop_data, (int, float)):
                 crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
             elif isinstance(crop_data, list) and len(crop_data) > 0:
@@ -80,15 +89,301 @@ class ClipWorkflowCoordinator:
             else:
                 crop_map_points = [{"time": 0.0, "x": 960}]
         except Exception as e:
-            print(f"[cut] Face tracking failed for clip, falling back to center: {e}")
+            print(f"[workflow] Face tracking failed for {video_path}, falling back to center: {e}")
             crop_map_points = [{"time": 0.0, "x": 960}]
-            
+
         try:
             with open(crop_map_path, "w", encoding="utf-8") as f:
                 json.dump(crop_map_points, f, ensure_ascii=False, indent=2)
-            print(f"[cut] Saved auto-reframe crop map ({len(crop_map_points)} points) to {crop_map_path}")
+            print(f"[workflow] Saved auto-reframe crop map ({len(crop_map_points)} points) to {crop_map_path}")
         except Exception as e:
-            print(f"[cut] Failed to write crop_map.json: {e}")
+            print(f"[workflow] Failed to write crop_map.json: {e}")
+
+        return crop_map_points
+
+    def _ensure_crop_map(self, clip_path: str):
+        """Generates and caches Auto-Reframe crop_map.json for the clip if not already present."""
+        clip_dir = os.path.dirname(clip_path)
+        self._compute_and_cache_crop_map(clip_dir, clip_path)
+
+    def get_or_create_crop_map(
+        self, folder_name: str, clip_id: str, tracker: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Generates, caches, and returns Auto-Reframe crop_map.json for a clip.
+        Validates path traversal on folder_name and clip_id.
+        """
+        clips_dir = getattr(self.asset_repository, "clips_dir", os.path.join("temp_assets", "clips"))
+        clip_dir = os.path.abspath(os.path.join(clips_dir, folder_name, clip_id))
+        base_dir = os.path.abspath(clips_dir)
+        if os.path.commonpath([base_dir, clip_dir]) != base_dir:
+            raise ValueError(f"Path traversal detected: {folder_name}/{clip_id}")
+
+        video_path = os.path.join(clip_dir, "video.mp4")
+        if not os.path.exists(video_path):
+            raise FileNotFoundError("Clip video not found")
+
+        points = self._compute_and_cache_crop_map(clip_dir, video_path, tracker=tracker)
+        return {"status": "ready", "crop_map": points}
+
+    def get_job_summary(self, job_id: str) -> Dict[str, Any]:
+        """
+        Retrieves and fully hydrates job status, video metadata, cut clip details, transcript, and persisted history.
+        """
+        job = self.jobs.get_job(job_id) if hasattr(self.jobs, "get_job") else self.jobs.get(job_id)
+        if not job:
+            raise KeyError(f"Job {job_id} not found")
+
+        response = {
+            "job_id": job_id,
+            "status": job.get("status", "unknown"),
+            "error": job.get("error"),
+            "download_percent": job.get("download_percent", 0.0),
+        }
+
+        if job.get("video_info"):
+            _heatmap = job["video_info"].get("heatmap") or []
+            folder_name = (
+                os.path.basename(os.path.dirname(job["video_info"].get("file_path", "")))
+                if job["video_info"].get("file_path")
+                else None
+            )
+            response["video"] = {
+                "title": job["video_info"].get("title"),
+                "duration": job["video_info"].get("duration"),
+                "has_heatmap": len(_heatmap) > 0,
+                "heatmap_segments": len(_heatmap),
+                "asset_url": job["video_info"].get("asset_url"),
+                "folder_name": folder_name,
+                "hd_ready": job["video_info"].get("hd_ready", False),
+                "has_preview": job["video_info"].get("has_preview", False),
+            }
+            response["folder_name"] = folder_name
+        elif job.get("clip_path"):
+            folder_name = os.path.basename(os.path.dirname(os.path.dirname(job["clip_path"])))
+            response["folder_name"] = folder_name
+
+        if job.get("clip"):
+            clip_data = {
+                "asset_url": job["clip"].get("asset_url"),
+                "duration": job["clip"].get("duration"),
+                "start": job["clip"].get("start"),
+                "end": job["clip"].get("end"),
+                "theme": job["clip"].get("theme"),
+                "transcript_quote": job["clip"].get("transcript_quote", ""),
+            }
+
+            clip_path = job.get("clip_path")
+            if clip_path:
+                clip_dir = os.path.dirname(clip_path)
+                transcript_path = os.path.join(clip_dir, "transcript.json")
+                if os.path.exists(transcript_path):
+                    try:
+                        with open(transcript_path, "r", encoding="utf-8") as f:
+                            clip_data["transcript"] = json.load(f)
+                    except Exception:
+                        pass
+
+                history_path = os.path.join(clip_dir, "history.json")
+                if os.path.exists(history_path):
+                    try:
+                        with open(history_path, "r", encoding="utf-8") as f:
+                            response["history"] = json.load(f)
+                    except Exception as e:
+                        print(f"[workflow] Failed to read history for job {job_id}: {e}")
+
+            response["clip"] = clip_data
+
+        if job.get("hooks"):
+            response["hooks"] = job["hooks"]
+
+        return response
+
+    def extract_clip_thumbnail(self, job_id: str, timestamp: Optional[float] = None) -> Dict[str, Any]:
+        """
+        Extracts a single frame from the clip video as a thumbnail with timestamp bounds clamping.
+        """
+        job = self.jobs.get_job(job_id) if hasattr(self.jobs, "get_job") else self.jobs.get(job_id)
+        if not job:
+            raise KeyError(f"Job {job_id} not found")
+
+        clip_path = job.get("clip_path")
+        if not clip_path or not os.path.exists(clip_path):
+            raise ValueError("No clip available. Extract a clip first.")
+
+        clip_dir = os.path.dirname(clip_path)
+        clip_duration = float(job.get("clip_duration") or 10.0)
+
+        if timestamp is not None:
+            ts = max(0.0, min(float(timestamp), max(0.0, clip_duration - 0.1)))
+        else:
+            import random
+            ts = random.uniform(0.5, max(0.6, clip_duration * 0.8))
+
+        thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
+        success = self.asset_repository.extract_clip_screenshot(clip_path, ts, thumb_path)
+        if not success:
+            raise RuntimeError("Failed to extract thumbnail frame")
+
+        parts = clip_path.replace("\\", "/").split("/")
+        try:
+            clips_idx = parts.index("clips")
+            relative = "/".join(parts[clips_idx:])
+            asset_url = f"/assets/{relative.rsplit('/', 1)[0]}/thumbnail.jpg"
+        except Exception:
+            asset_url = "/assets/clips/thumbnail.jpg"
+
+        print(f"[thumbnail] Captured frame at {ts:.3f}s → {thumb_path}")
+        return {"status": "ok", "timestamp": round(ts, 3), "thumbnail_url": asset_url}
+
+    def replay_cached_analysis(
+        self,
+        video_id: str,
+        background_tasks: Any = None,
+        force: bool = False,
+        prompt_file: Optional[str] = "prompt.json",
+        num_hooks: int = 10,
+        auto_hooks: bool = False,
+        extraction_mode: str = "preset",
+        preset_id: str = "auto",
+        focus_topic: Optional[str] = None,
+        min_duration: int = 30,
+        max_duration: int = 180,
+    ) -> Dict[str, Any]:
+        """
+        Re-analyze or instantly replay a cached video using titled folder lookup.
+        If cached hooks exist and force is False, returns instant ready/hooks_ready status and triggers HD prefetch if needed.
+        Otherwise schedules full background analysis.
+        """
+        cached = self.asset_repository.get_cached_video(f"https://youtube.com/watch?v={video_id}")
+        if not cached:
+            raise FileNotFoundError(f"Cached video for ID {video_id} not found in titled folders")
+
+        # If force is False, and hooks.json exists, load it immediately and return status ready/hooks_ready
+        if not force and cached.get("file_path"):
+            folder_name = os.path.basename(os.path.dirname(cached["file_path"]))
+            hooks_cache_path = os.path.join(os.path.dirname(cached["file_path"]), "hooks.json")
+            if os.path.exists(hooks_cache_path):
+                try:
+                    with open(hooks_cache_path, "r", encoding="utf-8") as f:
+                        hooks_json = f.read()
+                    raw_hooks = json.loads(hooks_json)
+                    filtered = self.asset_repository.sanitize_and_prepare_hooks(raw_hooks, cached)
+                    job_id = str(uuid.uuid4())[:8]
+                    is_hd_ready = cached.get("hd_ready", False)
+                    job_status = "ready" if is_hd_ready else "hooks_ready"
+                    download_percent = 100.0 if is_hd_ready else 0.0
+
+                    self.jobs[job_id] = {
+                        "status": job_status,
+                        "url": f"https://youtube.com/watch?v={video_id}",
+                        "video_info": cached,
+                        "full_video_path": cached["file_path"],
+                        "audio_path": None,
+                        "clip_path": None,
+                        "clip_duration": None,
+                        "hooks": filtered,
+                        "fps": cached.get("fps", 30.0),
+                        "download_percent": download_percent,
+                        "error": None
+                    }
+                    self.save_jobs()
+
+                    if not is_hd_ready:
+                        if background_tasks is not None:
+                            background_tasks.add_task(
+                                self.run_source_download,
+                                job_id,
+                                f"https://youtube.com/watch?v={video_id}"
+                            )
+                        else:
+                            import threading
+                            t = threading.Thread(
+                                target=self.run_source_download,
+                                args=(job_id, f"https://youtube.com/watch?v={video_id}")
+                            )
+                            t.daemon = True
+                            t.start()
+                        print(f"[cache] Triggered background prefetch of HD source for {video_id}")
+                    else:
+                        print(f"[cache] Video and hooks loaded instantly from cache for {video_id}")
+
+                    _heatmap = cached.get("heatmap") or []
+                    return {
+                        "job_id": job_id,
+                        "status": job_status,
+                        "hooks": filtered,
+                        "folder_name": folder_name,
+                        "video": {
+                            "title": cached.get("title"),
+                            "duration": cached.get("duration"),
+                            "has_heatmap": len(_heatmap) > 0,
+                            "heatmap_segments": len(_heatmap),
+                            "asset_url": cached.get("asset_url"),
+                            "folder_name": folder_name,
+                            "fps": cached.get("fps", 30.0),
+                            "hd_ready": is_hd_ready,
+                            "has_preview": cached.get("has_preview", False)
+                        },
+                        "cached": True
+                    }
+                except Exception as e:
+                    print(f"[cache] Failed to load cached hooks for {video_id}: {e}")
+
+        job_id = str(uuid.uuid4())[:8]
+        self.jobs[job_id] = {
+            "status": "queued",
+            "url": f"https://youtube.com/watch?v={video_id}",
+            "video_info": cached,
+            "full_video_path": cached["file_path"],
+            "audio_path": None,
+            "clip_path": None,
+            "clip_duration": None,
+            "hooks": None,
+            "fps": cached.get("fps", 30.0),
+            "error": None
+        }
+
+        if background_tasks is not None:
+            background_tasks.add_task(
+                self.run_full_analysis,
+                job_id,
+                f"https://youtube.com/watch?v={video_id}",
+                "id",
+                force,
+                prompt_file or "prompt.json",
+                num_hooks or 10,
+                auto_hooks or False,
+                extraction_mode or "preset",
+                preset_id or "auto",
+                focus_topic,
+                min_duration or 30,
+                max_duration or 180
+            )
+        else:
+            import threading
+            t = threading.Thread(
+                target=self.run_full_analysis,
+                args=(
+                    job_id,
+                    f"https://youtube.com/watch?v={video_id}",
+                    "id",
+                    force,
+                    prompt_file or "prompt.json",
+                    num_hooks or 10,
+                    auto_hooks or False,
+                    extraction_mode or "preset",
+                    preset_id or "auto",
+                    focus_topic,
+                    min_duration or 30,
+                    max_duration or 180
+                )
+            )
+            t.daemon = True
+            t.start()
+
+        self.save_jobs()
+        return {"job_id": job_id, "status": "queued", "cached": True}
 
     def provision_clip(
         self,
