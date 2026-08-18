@@ -357,6 +357,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import {
+  createSubtitleLayoutEngine,
   groupTranscript,
   updateSegmentText,
   updateSegmentStart,
@@ -447,28 +448,22 @@ function triggerDebouncedAutoSave() {
 }
 
 const absoluteTime = computed(() => state?.currentTime?.value || 0)
-const visibleSegments = computed(() => {
-  const flatWords = state?.fullTranscript?.value || []
-  return groupTranscript(flatWords as unknown as ChunkerSegment[], state.subtitleMode.value)
+
+const layoutEngine = computed(() => {
+  return createSubtitleLayoutEngine(
+    (state?.fullTranscript?.value || []) as any,
+    state?.subtitleMode?.value || 'word'
+  )
 })
+
+const visibleSegments = computed(() => layoutEngine.value.chunks)
 
 const activeSegIdx = computed(() => {
   if (!state?.fullTranscript?.value || !state?.activeHook?.value) return -1
-
-  const offsetSec = (state?.subtitleSyncOffset?.value || 0) / 1000
-  const firstStart = state?.fullTranscript?.value[0]?.start || 0
-  const isTranscriptZeroBased = firstStart < (state?.activeHook?.value?.start || 0) - 2
-
-  const thumbSec = state?.thumbnailEnabled?.value ? state?.thumbnailDuration?.value : 0
-  const relativeTime = Math.max(0, absoluteTime.value - thumbSec)
-
-  const searchTime = isTranscriptZeroBased
-    ? relativeTime + offsetSec
-    : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec
-
-  return visibleSegments.value.findIndex((s: ChunkerSegment) => {
-    const end = s.end ?? s.start + s.duration
-    return searchTime >= s.start && searchTime < end
+  return layoutEngine.value.findChunkIndexAt(absoluteTime.value, {
+    syncOffsetMs: state?.subtitleSyncOffset?.value || 0,
+    hookStart: state?.activeHook?.value?.start || 0,
+    thumbnailDuration: state?.thumbnailEnabled?.value ? (state?.thumbnailDuration?.value || 0) : 0
   })
 })
 

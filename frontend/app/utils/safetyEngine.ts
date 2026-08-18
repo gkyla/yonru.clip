@@ -4,11 +4,7 @@
  * and Word-Level Audio Censorship Presets.
  */
 
-export interface TranscriptSegment {
-  text: string
-  start: number
-  duration: number
-}
+import type { TranscriptSegment } from '../types/clipper'
 
 export interface FlaggedSegment {
   start: number

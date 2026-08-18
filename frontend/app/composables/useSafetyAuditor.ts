@@ -13,10 +13,9 @@ import {
   type SafetySensitivity,
   type MaskingStyle,
   type BleepMode,
-  type PlatformSafeZone,
-  type TranscriptSegment
+  type PlatformSafeZone
 } from '../utils/safetyEngine'
-import type { Hook, DeepAuditResult } from '../types/clipper'
+import type { Hook, DeepAuditResult, TranscriptSegment } from '../types/clipper'
 
 export const useSafetyAuditor = () => {
   const API_BASE = 'http://localhost:8000'
