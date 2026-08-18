@@ -1,11 +1,24 @@
-// useClipperJob.ts - Extracted video ingestion and polling lifecycle
+// useClipperJob.ts - Reactive bridge delegating to IngestionJobCoordinator
 import { useTimelineState } from './useTimelineState'
 import { mapThumbnailOverlays } from '../utils/thumbnailHelpers'
-import type { Hook, TranscriptSegment, ThumbnailTextOverlay, SubtitleStyleSettings, ThumbnailConfig, JobApiResponse, TimelineTrack, HookExtractionMode, HookIntentPreset } from '../types/clipper'
+import {
+  IngestionJobCoordinator,
+  type HydratedClipBundle,
+  type JobUpdateCallbacks
+} from '../utils/jobCoordinator'
+import type {
+  Hook,
+  TranscriptSegment,
+  ThumbnailTextOverlay,
+  SubtitleStyleSettings,
+  HookExtractionMode,
+  HookIntentPreset
+} from '../types/clipper'
 
 export const useClipperJob = () => {
   const API_BASE = 'http://localhost:8000'
   const timeline = useTimelineState()
+  const coordinator = new IngestionJobCoordinator(API_BASE, undefined, 2000)
 
   // Ingestion global states (shared via useState keys)
   const jobId = useState<string | null>('jobId', () => null)
@@ -32,7 +45,7 @@ export const useClipperJob = () => {
   const fullTranscript = useState<TranscriptSegment[]>('fullTranscript', () => [])
   const isPlaying = useState<boolean>('isPlaying', () => false)
   const currentTime = useState<number>('currentTime', () => 0)
-  
+
   // Settings/prompts
   const promptsList = useState<{id: string, name: string, suitableFor: string[], prompt?: string, numHooks?: number, autoHooks?: boolean}[]>('promptsList', () => [])
   const selectedPrompt = useState<string>('selectedPrompt', () => 'prompt.json')
@@ -82,36 +95,6 @@ export const useClipperJob = () => {
   const outputUrl = useState<string | null>('outputUrl', () => null)
   const renderStatus = useState<string>('renderStatus', () => 'idle')
 
-  // Polling state
-  let pollInterval: ReturnType<typeof setInterval> | null = null
-
-  // Helpers
-  function resetSubtitleStyles() {
-    videoLayout.value = 'vertical'
-    subtitlePosition.value = 'center'
-    subtitleOffset.value = 50
-    subtitleSyncOffset.value = -500
-    font.value = 'Montserrat'
-    fontSize.value = 50
-    cropMode.value = 'face_tracking'
-    cropMap.value = []
-    cropPercentX.value = 50
-    subtitleMode.value = 'word'
-    subtitleAnimation.value = 'pop'
-    subtitleHighlightMode.value = 'color'
-    subtitleHighlightColor.value = '#CFFF50'
-    subtitleTextColor.value = '#FFFFFF'
-    subtitleStrokeColor.value = '#000000'
-    subtitleStrokeWidth.value = 0
-    subtitleFontWeight.value = 900
-    subtitleTextTransform.value = 'uppercase'
-    subtitleBackground.value = 'none'
-    subtitleBackgroundOpacity.value = 0.7
-    subtitleWordSpacing.value = 0
-    volume.value = 0.5
-    subtitlePreset.value = 'bold-podcast'
-  }
-
   function applySubtitleStyles(styles: Partial<SubtitleStyleSettings>) {
     if (styles.videoLayout) videoLayout.value = styles.videoLayout
     if (styles.subtitlePosition) subtitlePosition.value = styles.subtitlePosition
@@ -138,72 +121,6 @@ export const useClipperJob = () => {
     if (styles.subtitlePreset) subtitlePreset.value = styles.subtitlePreset
   }
 
-  async function loadStyleSettings(baseClipUrl: string) {
-    resetSubtitleStyles()
-
-    // 1. Load global defaults first if they exist
-    try {
-      const defaultStyles = await $fetch<Record<string, unknown>>(`${API_BASE}/assets/default_style_settings.json?t=${Date.now()}`)
-      if (defaultStyles) {
-        const config = (defaultStyles.settings || defaultStyles) as Partial<SubtitleStyleSettings>
-        applySubtitleStyles(config)
-        console.log('[clipper] Loaded global default style settings')
-      }
-    } catch (e) {
-      console.log('[clipper] No global default style settings found, using hardcoded defaults')
-    }
-
-    // 2. Override with custom clip settings if they exist
-    try {
-      const customStyles = await $fetch<Record<string, unknown>>(`${baseClipUrl}/style_settings.json?t=${Date.now()}`)
-      if (customStyles) {
-        const config = (customStyles.settings || customStyles) as Partial<SubtitleStyleSettings>
-        applySubtitleStyles(config)
-        console.log('[clipper] Loaded custom clip style settings')
-      }
-    } catch (e) {
-      console.log('[clipper] No custom style settings for this clip, keeping global defaults')
-    }
-  }
-
-  async function loadCropMap(baseClipUrl: string, folder?: string | null, id?: string | null) {
-    try {
-      const cropMapUrl = baseClipUrl + '/crop_map.json?t=' + Date.now()
-      const fetchedCropMap = await $fetch<Array<{ time: number, x: number }>>(cropMapUrl)
-      if (fetchedCropMap && Array.isArray(fetchedCropMap) && fetchedCropMap.length > 0) {
-        cropMap.value = fetchedCropMap
-        console.log('[clipper] Loaded auto-reframe crop map into state:', fetchedCropMap.length, 'points')
-        return
-      }
-    } catch (cme) {}
-
-    // Fallback: If crop_map.json 404s, trigger on-demand backfill API
-    if (folder && id) {
-      try {
-        const backfillRes = await $fetch<{ status: string, crop_map: Array<{ time: number, x: number }> }>(
-          `${API_BASE}/api/clips/${folder}/${id}/track-face`,
-          { method: 'POST' }
-        )
-        if (backfillRes && backfillRes.crop_map && Array.isArray(backfillRes.crop_map)) {
-          cropMap.value = backfillRes.crop_map
-          console.log('[clipper] Backfilled auto-reframe crop map from API:', backfillRes.crop_map.length, 'points')
-        }
-      } catch (bfe) {
-        console.warn('[clipper] Failed to backfill crop map:', bfe)
-      }
-    }
-  }
-
-  async function fetchSavedHooks() {
-    if (!folderName.value) return
-    try {
-      const res = await $fetch<{ saved_hooks: Hook[] }>(`${API_BASE}/api/cached/${folderName.value}/saved_hooks`)
-      savedHooks.value = res.saved_hooks || []
-    } catch {
-      savedHooks.value = []
-    }
-  }
-
   function resetThumbnailState(keepLocked = false) {
     timeline.isSavingLocked.value = true
     thumbnailEnabled.value = false
@@ -220,26 +137,105 @@ export const useClipperJob = () => {
     }
   }
 
-  async function loadThumbnailConfig() {
-    if (!folderName.value || !clipId.value) return
-    try {
-      const res = await $fetch<{ config: ThumbnailConfig }>(`${API_BASE}/api/thumbnail/config/${folderName.value}/${clipId.value}`)
-      if (res.config) {
-        timeline.isSavingLocked.value = true
-        thumbnailEnabled.value = res.config.enabled ?? false
-        thumbnailDuration.value = res.config.duration ?? 1.0
-        thumbnailScreenshotTime.value = res.config.screenshotTime ?? 0
-        thumbnailXOffset.value = res.config.xOffset ?? 50
-        thumbnailTextOverlays.value = mapThumbnailOverlays(res.config.textOverlays)
-        
-        const baseClipUrl = `${API_BASE}/assets/clips/${folderName.value}/${clipId.value}`
-        try {
-          const thumbUrl = `${baseClipUrl}/thumbnail.jpg?t=${Date.now()}`
-          thumbnailUrl.value = thumbUrl
-        } catch { }
-      }
-    } catch (e) {}
+  function applyHydratedClipBundle(bundle: HydratedClipBundle) {
+    if (bundle.videoFps) videoFps.value = bundle.videoFps
+    if (bundle.videoDuration) videoDuration.value = bundle.videoDuration
+    if (bundle.folderName) folderName.value = bundle.folderName
+    if (bundle.clipId) clipId.value = bundle.clipId
+    if (bundle.assetUrl) videoUrl.value = bundle.assetUrl
+
+    if (bundle.transcript && bundle.transcript.length > 0) {
+      fullTranscript.value = bundle.transcript
+    }
+
+    if (bundle.styleSettings) {
+      applySubtitleStyles(bundle.styleSettings)
+    }
+
+    if (bundle.cropMap && bundle.cropMap.length > 0) {
+      cropMap.value = bundle.cropMap
+    }
+
+    if (bundle.timelineTracks && bundle.timelineTracks.length > 0) {
+      timeline.timelineTracks.value = bundle.timelineTracks
+    }
+
+    if (timeline.timelineTracks.value[0]?.items?.length === 0) {
+      timeline.timelineTracks.value[0].items = [{
+        id: 'main-video',
+        name: 'Main Video',
+        start: 0,
+        mediaStart: 0,
+        duration: bundle.videoDuration || videoDuration.value
+      }]
+    }
+
+    if (bundle.thumbnailConfig) {
+      thumbnailEnabled.value = bundle.thumbnailConfig.enabled ?? false
+      thumbnailDuration.value = bundle.thumbnailConfig.duration ?? 1.0
+      thumbnailScreenshotTime.value = bundle.thumbnailConfig.screenshotTime ?? 0
+      thumbnailXOffset.value = bundle.thumbnailConfig.xOffset ?? 50
+      thumbnailTextOverlays.value = mapThumbnailOverlays(bundle.thumbnailConfig.textOverlays)
+      thumbnailUrl.value = `${API_BASE}/assets/clips/${bundle.folderName}/${bundle.clipId}/thumbnail.jpg?t=${Date.now()}`
+    }
+
+    if (bundle.savedHooks && bundle.savedHooks.length > 0) {
+      savedHooks.value = bundle.savedHooks
+    }
+
+    if (bundle.hooks && bundle.hooks.length > 0) {
+      hooks.value = bundle.hooks
+    }
+
+    if (bundle.activeHook) {
+      activeHook.value = bundle.activeHook
+    }
+
+    if (bundle.history) {
+      timeline.loadHistoryFromResponse(bundle.history)
+    }
   }
+
+  const createJobCallbacks = (): JobUpdateCallbacks => ({
+    onStatusChange: (status) => {
+      jobStatus.value = status
+    },
+    onDownloadProgress: (percent) => {
+      downloadPercent.value = percent
+    },
+    onVideoMetadata: (meta) => {
+      if (meta.title) videoTitle.value = meta.title
+      if (meta.duration) videoDuration.value = meta.duration
+      if (meta.fps) videoFps.value = meta.fps
+      if (meta.hasHeatmap !== undefined) hasHeatmap.value = meta.hasHeatmap
+      if (meta.hasPreview !== undefined) hasPreview.value = meta.hasPreview
+      if (meta.hdReady !== undefined) hdReady.value = meta.hdReady
+      if (meta.videoUrl && !activeHook.value) videoUrl.value = meta.videoUrl
+      if (meta.folderName && (!folderName.value || folderName.value !== meta.folderName)) {
+        folderName.value = meta.folderName
+      }
+    },
+    onHooksDiscovered: (discoveredHooks, firstHook) => {
+      hooks.value = discoveredHooks
+      if (firstHook && !activeHook.value) {
+        activeHook.value = firstHook
+      }
+    },
+    onSavedHooksDiscovered: (saved) => {
+      savedHooks.value = saved
+    },
+    onClipReady: (bundle) => {
+      applyHydratedClipBundle(bundle)
+      isMediaLoading.value = false
+    },
+    onSelfHeal: async (selfHealFolder, selfHealClipId) => {
+      await loadReadyClipIntoEditor(selfHealFolder, selfHealClipId)
+    },
+    onError: (err) => {
+      jobError.value = err
+      isMediaLoading.value = false
+    }
+  })
 
   async function analyzeUrl(force = false) {
     if (!youtubeUrl.value) return
@@ -259,233 +255,45 @@ export const useClipperJob = () => {
 
     try {
       const currentPrompt = promptsList.value.find(p => p.id === selectedPrompt.value)
-      const res = await $fetch<{ job_id: string; status: string }>(`${API_BASE}/api/analyze-url?force=${force}`, {
-        method: 'POST',
-        body: { 
-          url: youtubeUrl.value, 
-          language: language.value, 
-          prompt_file: selectedPrompt.value,
-          num_hooks: currentPrompt?.numHooks ?? 10,
-          auto_hooks: currentPrompt?.autoHooks ?? false,
-          extraction_mode: extractionMode.value,
-          preset_id: selectedPresetId.value,
-          focus_topic: focusTopic.value ? focusTopic.value.trim() : null,
-          min_duration: minDuration.value || 30,
-          max_duration: maxDuration.value || 180
-        }
-      })
-
-      jobId.value = res.job_id
-      jobStatus.value = res.status
-      startPolling()
-    } catch (e) {
+      const newJobId = await coordinator.analyzeUrl(
+        {
+          url: youtubeUrl.value,
+          language: language.value,
+          promptFile: selectedPrompt.value,
+          numHooks: currentPrompt?.numHooks ?? 10,
+          autoHooks: currentPrompt?.autoHooks ?? false,
+          extractionMode: extractionMode.value,
+          presetId: selectedPresetId.value,
+          focusTopic: focusTopic.value ? focusTopic.value.trim() : null,
+          minDuration: minDuration.value || 30,
+          maxDuration: maxDuration.value || 180,
+          force
+        },
+        createJobCallbacks()
+      )
+      jobId.value = newJobId
+    } catch (e: any) {
       jobStatus.value = 'error'
       jobError.value = e instanceof Error ? e.message : 'Failed to start analysis'
     }
   }
 
   function startPolling() {
-    if (pollInterval) clearInterval(pollInterval)
-    pollInterval = setInterval(async () => {
-      if (!jobId.value) return
-      try {
-        const res = await $fetch<JobApiResponse>(`${API_BASE}/api/job/${jobId.value}`).catch((e: any) => {
-          if (e.status === 404) {
-            // Self-heal: if we have clip context, silently restore the session
-            if (folderName.value && clipId.value) {
-              console.log('[polling] Job 404 - self-healing session via loadReadyClipIntoEditor')
-              stopPolling()
-              loadReadyClipIntoEditor(folderName.value, clipId.value)
-            } else {
-              console.warn(`[polling] Job 404 - cannot self-heal because clip context is missing. Folder: ${folderName.value}, ClipId: ${clipId.value}`)
-              jobStatus.value = 'error'
-              jobError.value = 'Job session expired. Please re-analyze the video.'
-              stopPolling()
-            }
-          }
-          return null
-        })
-        if (!res) return
-
-        jobStatus.value = res.status
-        
-        if (res.download_percent !== undefined) {
-          downloadPercent.value = res.download_percent
-        }
-
-        if (res.video) {
-          if (res.video.hd_ready !== undefined) {
-            hdReady.value = res.video.hd_ready
-          }
-          if (res.video.title) videoTitle.value = res.video.title
-          if (res.video.duration) videoDuration.value = res.video.duration
-          if (res.video.fps) videoFps.value = res.video.fps
-          hasHeatmap.value = res.video.has_heatmap || false
-          if (res.video.has_preview !== undefined) {
-            hasPreview.value = res.video.has_preview
-          }
-          
-          const targetUrl = res.video.asset_url ? `${API_BASE}${res.video.asset_url}` : null
-          if (!activeHook.value && targetUrl && videoUrl.value !== targetUrl) {
-            videoUrl.value = targetUrl
-          }
-        }
-
-        const respFolder = res.folder_name || (res.video ? res.video.folder_name : null)
-        if (respFolder) {
-          if (folderName.value !== respFolder || savedHooks.value.length === 0) {
-            folderName.value = respFolder
-            fetchSavedHooks()
-          }
-        }
-
-        if (res.clip && res.clip.asset_url) {
-          if (res.fps) videoFps.value = res.fps
-          const targetUrl = `${API_BASE}${res.clip.asset_url}`
-          const isNewClip = videoUrl.value !== targetUrl
-          if (isNewClip || fullTranscript.value.length === 0) {
-            videoUrl.value = targetUrl
-            if (res.clip.duration) {
-              videoDuration.value = res.clip.duration
-            }
-            
-            if (res.clip.transcript && fullTranscript.value.length === 0) {
-              fullTranscript.value = res.clip.transcript
-            }
-            
-            if (!activeHook.value) {
-              activeHook.value = {
-                theme: res.clip.theme || 'Extracted Clip',
-                start: res.clip.start || 0,
-                end: res.clip.end || res.clip.duration || 0,
-                duration: res.clip.duration || 0,
-                transcript_quote: res.clip.transcript_quote || ''
-              }
-            } else if (res.clip.transcript_quote && !activeHook.value.transcript_quote) {
-              activeHook.value.transcript_quote = res.clip.transcript_quote
-            }
-
-            if (res.hooks && res.hooks.length > 0) {
-              const currentHasQuotes = hooks.value.some(h => h.transcript_quote && h.transcript_quote !== 'No transcript preview available.')
-              const newHasQuotes = res.hooks.some((h: Hook) => h.transcript_quote && h.transcript_quote !== 'No transcript preview available.')
-              
-              if (hooks.value.length === 0 || hooks.value.length !== res.hooks.length || (!currentHasQuotes && newHasQuotes)) {
-                console.log('[polling] Syncing hooks list, count:', res.hooks.length)
-                hooks.value = res.hooks
-              }
-            }
-            
-            if (res.clip && activeHook.value) {
-              if (res.clip.transcript_quote && (!activeHook.value.transcript_quote || activeHook.value.transcript_quote === 'No transcript preview available.')) {
-                console.log('[polling] Syncing active hook quote')
-                activeHook.value.transcript_quote = res.clip.transcript_quote
-              }
-            }
-            
-            const parts = res.clip.asset_url.split('/')
-            const newClipId = parts.length >= 5 ? parts[4] : null
-            
-            const isTimelineEmpty = !timeline.timelineTracks.value || 
-                                    timeline.timelineTracks.value.length === 0 || 
-                                    !timeline.timelineTracks.value[0] ||
-                                    !timeline.timelineTracks.value[0].items ||
-                                    timeline.timelineTracks.value[0].items.length === 0
-
-            if (isNewClip || fullTranscript.value.length === 0 || (newClipId && clipId.value !== newClipId) || isTimelineEmpty) {
-              if (newClipId) clipId.value = newClipId
-              timeline.isSavingLocked.value = true
-              try {
-                const baseClipUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/'))
-                const transcriptUrl = baseClipUrl + '/transcript.json?t=' + Date.now()
-                const styleUrl = baseClipUrl + '/style_settings.json?t=' + Date.now()
-
-                try {
-                  const clipTranscript = await $fetch<TranscriptSegment[]>(transcriptUrl)
-                  if (clipTranscript && clipTranscript.length > 0) {
-                    fullTranscript.value = clipTranscript
-                    console.log('[clipper] Loaded isolated clip transcript')
-                  }
-                } catch (te) {
-                  console.warn('[clipper] Failed to load clip transcript:', te)
-                }
-
-                await loadStyleSettings(baseClipUrl)
-                await loadCropMap(baseClipUrl, respFolder || folderName.value, newClipId || clipId.value)
-
-                let timelineLoaded = false
-                try {
-                  const timelineUrl = baseClipUrl + '/timeline.json?t=' + Date.now()
-                  console.log('[clipper] Fetching timeline from:', timelineUrl)
-                  const tracks = await $fetch<TimelineTrack[]>(timelineUrl)
-                  if (tracks && tracks.length > 0) {
-                    if (!tracks.some(t => t.id === 'subtitle')) {
-                      tracks.push({ id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] })
-                    }
-                    timeline.timelineTracks.value = tracks
-                    timelineLoaded = true
-                    console.log('[clipper] Loaded clip timeline into state')
-                  }
-                } catch (te) {}
-
-                if (!timelineLoaded && (timeline.timelineTracks.value[0]?.items?.length === 0)) {
-                  timeline.timelineTracks.value[0].items = [{
-                    id: 'main-video',
-                    name: 'Main Video',
-                    start: 0,
-                    mediaStart: 0,
-                    duration: res.clip.duration || videoDuration.value
-                  }]
-                }
-
-                // Hydrate persisted history stacks from job status response
-                if (res.history) {
-                  timeline.loadHistoryFromResponse(res.history)
-                }
-
-                loadThumbnailConfig()
-              } catch (e) {
-                console.warn('[clipper] No clip assets yet')
-              } finally {
-                setTimeout(() => {
-                  timeline.isSavingLocked.value = false
-                }, 500)
-              }
-            }
-          }
-        }
-
-        if (res.hooks) {
-          hooks.value = res.hooks
-        }
-
-        if (res.error) {
-          jobError.value = res.error
-        }
-
-        const isHdReady = res.video?.hd_ready || false
-        if (res.status === 'ready' || res.status === 'error' || (res.status === 'hooks_ready' && isHdReady)) {
-          stopPolling()
-        }
-      } catch (e) {
-        console.error('[polling] Exception during status polling:', e)
-        jobStatus.value = 'error'
-        jobError.value = e instanceof Error ? e.message : 'An unexpected polling error occurred'
-        isMediaLoading.value = false
-        stopPolling()
-      }
-    }, 2000)
+    if (!jobId.value) return
+    coordinator.startPolling(
+      jobId.value,
+      { folderName: folderName.value, clipId: clipId.value },
+      createJobCallbacks()
+    )
   }
 
   function stopPolling() {
-    if (pollInterval) {
-      clearInterval(pollInterval)
-      pollInterval = null
-    }
+    coordinator.stopPolling()
   }
 
   async function extractClip(hook: Hook) {
     if (!jobId.value) return
-    
+
     isPlaying.value = false
     currentTime.value = 0
     activeHook.value = hook
@@ -498,24 +306,22 @@ export const useClipperJob = () => {
       timeline.timelineTracks.value[0].items = []
     }
     resetThumbnailState()
-    
+
     isMediaLoading.value = true
     jobStatus.value = 'idle'
-    
+
     try {
-      const res = await $fetch<{ job_id: string; status: string }>(`${API_BASE}/api/extract-clip`, {
-        method: 'POST',
-        body: { 
-            job_id: jobId.value, 
-            start_time: Math.max(0, Math.floor(hook.start - startSafetyBuffer.value)),
-            end_time: Math.ceil(hook.end),
-            theme: hook.theme,
-            whisper_model: whisperModel.value
-        }
-      })
-      jobStatus.value = res.status
-      startPolling()
-    } catch (e) {
+      await coordinator.extractClip(
+        {
+          jobId: jobId.value,
+          startTime: Math.max(0, Math.floor(hook.start - startSafetyBuffer.value)),
+          endTime: Math.ceil(hook.end),
+          theme: hook.theme,
+          whisperModel: whisperModel.value
+        },
+        createJobCallbacks()
+      )
+    } catch (e: any) {
       jobError.value = e instanceof Error ? e.message : 'Failed to start extraction'
     }
   }
@@ -524,7 +330,7 @@ export const useClipperJob = () => {
     jobStatus.value = 'queued'
     jobError.value = null
     hdReady.value = true
-    
+
     let start_time = 0
     let end_time = 0
     let theme = 'Ready Clip'
@@ -551,7 +357,7 @@ export const useClipperJob = () => {
     outputUrl.value = null
     renderStatus.value = 'idle'
     fullTranscript.value = []
-    
+
     // Lock saving immediately during state initialization and fetch
     timeline.isSavingLocked.value = true
 
@@ -562,99 +368,13 @@ export const useClipperJob = () => {
     resetThumbnailState(true)
 
     try {
-      const res = await $fetch<JobApiResponse>(`${API_BASE}/api/load-ready-clip`, {
-        method: 'POST',
-        body: { 
-          folder_name: folder, 
-          clip_id: id,
-          whisper_model: whisperModel.value
-        }
-      })
-      
-      jobId.value = res.job_id ?? null
-      jobStatus.value = res.status
-      
-      if (res.hooks) {
-        hooks.value = res.hooks
-      }
+      const bundle = await coordinator.loadReadyClip(folder, id, whisperModel.value)
+      jobId.value = coordinator.getActiveJobId()
+      jobStatus.value = 'ready'
 
-      if (res.clip && res.clip.asset_url) {
-        if (res.fps) videoFps.value = res.fps
-        videoUrl.value = `${API_BASE}${res.clip.asset_url}`
-        if (res.clip.duration) {
-          videoDuration.value = res.clip.duration
-        }
-        
-        activeHook.value = {
-          ...activeHook.value,
-          ...res.clip
-        }
-      }
-
-      if (!activeHook.value && res.clip) {
-        activeHook.value = {
-          theme: res.clip.theme || 'Ready Clip',
-          start: res.clip.start || 0,
-          end: res.clip.end || res.clip.duration || 0,
-          duration: res.clip.duration || 0
-        }
-      }
-
-      // Synchronously trigger loading transcript & style settings to avoid 2s polling delay
-      if (res.clip && res.clip.asset_url) {
-        const targetUrl = `${API_BASE}${res.clip.asset_url}`
-        const baseClipUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/'))
-        const transcriptUrl = baseClipUrl + '/transcript.json?t=' + Date.now()
-        const styleUrl = baseClipUrl + '/style_settings.json?t=' + Date.now()
-
-        // Load Transcript
-        try {
-          const clipTranscript = await $fetch<TranscriptSegment[]>(transcriptUrl)
-          if (clipTranscript && clipTranscript.length > 0) {
-            fullTranscript.value = clipTranscript
-          }
-        } catch (te) {}
-
-        // Load Style Settings
-        await loadStyleSettings(baseClipUrl)
-
-        // Load Auto-Reframe Crop Map
-        await loadCropMap(baseClipUrl, folder, id)
-
-        // Load Timeline
-        let timelineLoaded = false
-        try {
-          const timelineUrl = baseClipUrl + '/timeline.json?t=' + Date.now()
-          const tracks = await $fetch<TimelineTrack[]>(timelineUrl)
-          if (tracks && tracks.length > 0) {
-            if (!tracks.some(t => t.id === 'subtitle')) {
-              tracks.push({ id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] })
-            }
-            timeline.timelineTracks.value = tracks
-            timelineLoaded = true
-          }
-        } catch (te) {}
-
-        if (!timelineLoaded && (timeline.timelineTracks.value[0]?.items?.length === 0)) {
-          timeline.timelineTracks.value[0].items = [{
-            id: 'main-video',
-            name: 'Main Video',
-            start: 0,
-            mediaStart: 0,
-            duration: res.clip.duration || videoDuration.value
-          }]
-        }
-
-        loadThumbnailConfig()
-      }
-
-      // Hydrate persisted history stacks from API response
-      if (res.history) {
-        timeline.loadHistoryFromResponse(res.history)
-      }
-
+      applyHydratedClipBundle(bundle)
       startPolling()
-    } catch (e) {
+    } catch (e: any) {
       jobStatus.value = 'error'
       jobError.value = e instanceof Error ? e.message : 'Failed to load clip'
     } finally {
@@ -664,7 +384,7 @@ export const useClipperJob = () => {
     }
   }
 
-  // Cleanup polling on composable unmount/deconstruction if desired
+  // Cleanup polling on composable unmount
   if (getCurrentInstance()) {
     onBeforeUnmount(() => {
       stopPolling()

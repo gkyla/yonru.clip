@@ -325,6 +325,14 @@ _Avoid_: Drag override, manual pan switch gesture
 The camera stabilization policy used during face tracking comprising Backfill (applying first detected face position to clip start), Persistence (freezing camera position during tracking loss or scene transitions), and Verification (requiring multi-frame confirmation before snapping to a new speaker).
 _Avoid_: Face smoothing, camera lock policy
 
+**Ingestion Job Coordinator**:
+A domain coordinator responsible for managing video analysis dispatching, periodic polling timers, 404 session self-healing, and parallel asset bundle hydration.
+_Avoid_: Polling manager, job fetcher, download scheduler
+
+**Hydrated Clip Bundle**:
+A consolidated data transfer object containing all synchronized asset payloads (transcript segments, style settings, auto-reframe crop map, timeline tracks, thumbnail configuration, and history stacks) required to initialize an editable workspace clip.
+_Avoid_: Clip data object, clip files payload
+
 ---
 
 ## Flagged Ambiguities
