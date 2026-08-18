@@ -49,9 +49,13 @@
                   />
 
                   <!-- Video Preview + Action Rail Group -->
-                  <div class="flex justify-center gap-4 relative h-full">
+                  <div class="flex justify-center items-start gap-4 relative h-full">
                     <VideoPreview />
-                    <EditorActionPanel />
+                    <EditorActionRail
+                      :is-panel-open="isPanelOpen"
+                      :editor-tab="editorTab"
+                      @toggle-tab="toggleTab"
+                    />
                   </div>
                 </div>
 
@@ -66,6 +70,13 @@
                   @save-current-hook="saveCurrentHook"
                   @remove-current-saved-hook="removeCurrentSavedHook"
                   @open-blacklist-settings="showBlacklistSettings = true"
+                />
+
+                <!-- Floating Subtitle / Thumbnail / Quote Panel Overlay -->
+                <EditorFloatingPanel
+                  :is-panel-open="isPanelOpen"
+                  :editor-tab="editorTab"
+                  @close="isPanelOpen = false"
                 />
               </div>
             </div>
@@ -96,6 +107,24 @@ const router = useRouter()
 
 const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false)
 let overlayTimeout: ReturnType<typeof setTimeout> | null = null
+
+const isPanelOpen = ref(false)
+const editorTab = ref<'edit' | 'quote' | 'thumbnail'>('edit')
+
+const toggleTab = (tab: 'edit' | 'quote' | 'thumbnail') => {
+  if (isPanelOpen.value && editorTab.value === tab) {
+    isPanelOpen.value = false
+  } else {
+    editorTab.value = tab
+    isPanelOpen.value = true
+  }
+}
+
+function handleGlobalKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && isPanelOpen.value) {
+    isPanelOpen.value = false
+  }
+}
 
 const showBlacklistSettings = ref(false)
 const panelTab = ref<'generated' | 'saved'>((route.query.tab as any) || 'generated')
@@ -320,7 +349,14 @@ async function selectSidebarHook(hook: Hook) {
   }
 }
 
+let restoreQueryWatcher: (() => void) | null = null
+
 function restoreStateFromQuery() {
+  if (restoreQueryWatcher) {
+    restoreQueryWatcher()
+    restoreQueryWatcher = null
+  }
+
   const jobId = route.query.job_id as string
   const folder = route.query.folder as string
   const clipId = route.query.clip_id as string
@@ -336,26 +372,34 @@ function restoreStateFromQuery() {
     }
     panelTab.value = tab as any
 
-    let stopWatcher: (() => void) | null = null
-    stopWatcher = watch([() => state?.jobStatus?.value, () => state?.hooks?.value, () => state?.savedHooks?.value], () => {
-      const status = state?.jobStatus?.value || 'idle'
-      const hooksAvailable = (state?.hooks?.value?.length || 0) > 0 || (state?.savedHooks?.value?.length || 0) > 0
+    restoreQueryWatcher = watch(
+      [() => state?.jobStatus?.value, () => state?.hooks?.value, () => state?.savedHooks?.value],
+      () => {
+        const status = state?.jobStatus?.value || 'idle'
+        const hooksAvailable = (state?.hooks?.value?.length || 0) > 0 || (state?.savedHooks?.value?.length || 0) > 0
 
-      if (status === 'ready' || (status === 'hooks_ready' && hooksAvailable)) {
-        const hooksList = tab === 'saved' ? state?.savedHooks?.value : state?.hooks?.value
-        const targetIndex = isNaN(hookIndex) ? 0 : hookIndex
-        if (hooksList && hooksList[targetIndex]) {
-          console.log('[editor] Restoring hook from index:', targetIndex)
-          if (state?.activeHook && (!state.activeHook.value || status !== 'ready')) {
-            state.activeHook.value = hooksList[targetIndex]
+        if (status === 'ready' || (status === 'hooks_ready' && hooksAvailable)) {
+          const hooksList = tab === 'saved' ? state?.savedHooks?.value : state?.hooks?.value
+          const targetIndex = isNaN(hookIndex) ? 0 : hookIndex
+          if (hooksList && hooksList[targetIndex]) {
+            console.log('[editor] Restoring hook from index:', targetIndex)
+            if (state?.activeHook && (!state.activeHook.value || status !== 'ready')) {
+              state.activeHook.value = hooksList[targetIndex]
+            }
+            if (status !== 'ready') {
+              state?.extractClip?.(hooksList[targetIndex])
+            }
           }
-          if (status !== 'ready') {
-            state?.extractClip?.(hooksList[targetIndex])
-          }
+          nextTick(() => {
+            if (restoreQueryWatcher) {
+              restoreQueryWatcher()
+              restoreQueryWatcher = null
+            }
+          })
         }
-        if (stopWatcher) stopWatcher()
-      }
-    }, { immediate: true })
+      },
+      { immediate: true }
+    )
 
     state?.startPolling?.()
   }
@@ -439,6 +483,9 @@ onMounted(async () => {
 
   restoreStateFromQuery()
   state.initPersistence()
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', handleGlobalKeydown)
+  }
   nextTick(() => {
     hasBeenMounted.value = true
   })
@@ -459,6 +506,10 @@ onActivated(() => {
 onDeactivated(() => {
   console.log('[yonru] Editor deactivated — stopping background polling')
   state.stopPolling()
+  if (restoreQueryWatcher) {
+    restoreQueryWatcher()
+    restoreQueryWatcher = null
+  }
   if (overlayTimeout) {
     clearTimeout(overlayTimeout)
     overlayTimeout = null
@@ -466,6 +517,13 @@ onDeactivated(() => {
 })
 
 onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', handleGlobalKeydown)
+  }
+  if (restoreQueryWatcher) {
+    restoreQueryWatcher()
+    restoreQueryWatcher = null
+  }
   if (overlayTimeout) {
     clearTimeout(overlayTimeout)
     overlayTimeout = null

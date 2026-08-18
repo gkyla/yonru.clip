@@ -490,6 +490,77 @@ const remotionIframe = ref<HTMLIFrameElement | null>(null)
 const transformerRef = ref<any>(null)
 const stableVideoBuster = ref<string>(Date.now().toString())
 
+// --- LAYOUT & SIZING LOGIC ---
+const videoAspect = ref(16 / 9)
+const container = ref<HTMLElement | null>(null)
+const containerHeight = ref(640)
+const previewScale = computed(() => containerHeight.value / 1920)
+const displayWidth = computed(() => 1080 * previewScale.value)
+
+// 1080x1920 literal canvas parameters
+const CONTAINER_W = 1080
+const CONTAINER_H = 1920
+const videoDisplayW = computed(() => CONTAINER_H * videoAspect.value)
+const maxOffset = computed(() => Math.max(0, videoDisplayW.value - CONTAINER_W))
+
+const containerStyle = computed(() => ({
+  height: '100%',
+  maxHeight: '90vh',
+  width: `${displayWidth.value}px`,
+  outline: '1px solid rgba(255,255,255,0.1)',
+  outlineOffset: '6px',
+  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+  borderRadius: `${Math.round(36 * previewScale.value)}px`
+}))
+
+const contentStyle = computed(() => ({
+  transform: `translate(-50%, -50%) scale(${previewScale.value})`,
+}))
+
+const videoTransformStyle = computed(() => {
+  const pct = state.cropPercentX.value / 100
+  const offset = -(pct * maxOffset.value)
+  return {
+    width: `${videoDisplayW.value}px`,
+    transform: `translateX(${offset}px)`,
+  }
+})
+
+// Observe height changes
+if (import.meta.client) {
+  const updateSize = () => {
+    if (container.value) {
+      containerHeight.value = container.value.offsetHeight
+    }
+  }
+  const observer = new ResizeObserver(updateSize)
+  onMounted(() => {
+    if (container.value) observer.observe(container.value)
+    updateSize()
+  })
+  onUnmounted(() => observer.disconnect())
+  window.addEventListener('resize', updateSize)
+}
+
+// --- TIMING & THUMBNAIL TIMINGS ---
+const thumbOffset = computed(() => state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0)
+const isInThumbnailWindow = computed(() => state.thumbnailEnabled.value && state.currentTime.value < thumbOffset.value && !state.isCapturingThumbnail.value)
+
+const videoTime = computed(() => {
+  const t = Math.max(0, state.currentTime.value - thumbOffset.value)
+  const videoTrack = state.timelineTracks.value.find((tr: any) => tr.id === 'video')
+  if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) return t
+  
+  const activeItem = videoTrack.items.find((i: any) => t >= i.start && t <= i.start + i.duration)
+    || videoTrack.items[videoTrack.items.length - 1]
+
+  if (activeItem) {
+    const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : activeItem.start
+    return mediaStart + (t - activeItem.start)
+  }
+  return t
+})
+
 // --- SUB-COMPOSABLES INSTANTIATION ---
 const textState = useInteractiveText(transformerRef)
 const {
@@ -546,58 +617,6 @@ const {
   setNativeVideoStarted,
   syncRemotionProps
 } = bridgeState
-
-// --- LAYOUT & SIZING LOGIC ---
-const videoAspect = ref(16 / 9)
-const container = ref<HTMLElement | null>(null)
-const containerHeight = ref(640)
-const previewScale = computed(() => containerHeight.value / 1920)
-const displayWidth = computed(() => 1080 * previewScale.value)
-
-// 1080x1920 literal canvas parameters
-const CONTAINER_W = 1080
-const CONTAINER_H = 1920
-const videoDisplayW = computed(() => CONTAINER_H * videoAspect.value)
-const maxOffset = computed(() => Math.max(0, videoDisplayW.value - CONTAINER_W))
-
-const containerStyle = computed(() => ({
-  height: '100%',
-  maxHeight: '90vh',
-  width: `${displayWidth.value}px`,
-  outline: '1px solid rgba(255,255,255,0.1)',
-  outlineOffset: '6px',
-  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-  borderRadius: `${Math.round(36 * previewScale.value)}px`
-}))
-
-const contentStyle = computed(() => ({
-  transform: `translate(-50%, -50%) scale(${previewScale.value})`,
-}))
-
-const videoTransformStyle = computed(() => {
-  const pct = state.cropPercentX.value / 100
-  const offset = -(pct * maxOffset.value)
-  return {
-    width: `${videoDisplayW.value}px`,
-    transform: `translateX(${offset}px)`,
-  }
-})
-
-// Observe height changes
-if (import.meta.client) {
-  const updateSize = () => {
-    if (container.value) {
-      containerHeight.value = container.value.offsetHeight
-    }
-  }
-  const observer = new ResizeObserver(updateSize)
-  onMounted(() => {
-    if (container.value) observer.observe(container.value)
-    updateSize()
-  })
-  onUnmounted(() => observer.disconnect())
-  window.addEventListener('resize', updateSize)
-}
 
 // --- VIDEO LOADER EVENTS ---
 let readyTimeout: any = null
@@ -689,25 +708,6 @@ watch(() => state.videoUrl.value, (url) => {
     }, 4000)
   }
 }, { immediate: true })
-
-// --- TIMING & THUMBNAIL TIMINGS ---
-const thumbOffset = computed(() => state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0)
-const isInThumbnailWindow = computed(() => state.thumbnailEnabled.value && state.currentTime.value < thumbOffset.value && !state.isCapturingThumbnail.value)
-
-const videoTime = computed(() => {
-  const t = Math.max(0, state.currentTime.value - thumbOffset.value)
-  const videoTrack = state.timelineTracks.value.find((tr: any) => tr.id === 'video')
-  if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) return t
-  
-  const activeItem = videoTrack.items.find((i: any) => t >= i.start && t <= i.start + i.duration)
-    || videoTrack.items[videoTrack.items.length - 1]
-
-  if (activeItem) {
-    const mediaStart = activeItem.mediaStart !== undefined ? activeItem.mediaStart : activeItem.start
-    return mediaStart + (t - activeItem.start)
-  }
-  return t
-})
 
 // --- THUMBNAIL BACKGROUND INTERACTION ---
 const isThumbBgDragging = ref(false)

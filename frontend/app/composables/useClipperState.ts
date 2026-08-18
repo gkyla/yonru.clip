@@ -191,7 +191,6 @@ function createClipperState() {
     if (clip && clip.folder) {
       const vid = cachedVideos.value.find(v => v.folder_name === clip.folder)
       if (vid) {
-        updateStoredVideo(vid)
         return vid
       }
     }
@@ -199,7 +198,6 @@ function createClipperState() {
     if (lastAccessedVideoId.value) {
       const vid = cachedVideos.value.find(v => v.video_id === lastAccessedVideoId.value)
       if (vid) {
-        updateStoredVideo(vid)
         return vid
       }
     }
@@ -214,6 +212,27 @@ function createClipperState() {
     }
     return null
   })
+
+  // Synchronize lastAccessedVideoStored reactively via watcher to avoid computed side-effects
+  watch(
+    [lastAccessedClip, lastAccessedVideoId, cachedVideos],
+    ([clip, vidId, videos]) => {
+      if (clip && clip.folder) {
+        const vid = videos.find(v => v.folder_name === clip.folder)
+        if (vid) {
+          updateStoredVideo(vid)
+          return
+        }
+      }
+      if (vidId) {
+        const vid = videos.find(v => v.video_id === vidId)
+        if (vid) {
+          updateStoredVideo(vid)
+        }
+      }
+    },
+    { immediate: true }
+  )
 
 
   async function fetchCached(reset = false) {

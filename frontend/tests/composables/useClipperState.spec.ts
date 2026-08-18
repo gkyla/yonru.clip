@@ -1,6 +1,6 @@
 // @vitest-environment nuxt
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, watchEffect } from 'vue'
 import { useClipperState } from '../../app/composables/useClipperState'
 import { useState } from '#imports'
 
@@ -237,6 +237,35 @@ describe('useClipperState Composable', () => {
 
     // Video must still be resolved via fallback cache
     expect(state.lastAccessedVideo.value).toEqual(video)
+  })
+
+  it('does not cause recursive update loops when lastAccessedVideo is used in a reactive effect', async () => {
+    const state = useClipperState()
+    state.resetWorkspace()
+    await nextTick()
+
+    const video = { video_id: 'target_vid', title: 'Target Video', duration: 100, folder_name: 'target_folder' }
+    state.cachedVideos.value = [video]
+
+    const warnSpy = vi.spyOn(console, 'warn')
+    const errorSpy = vi.spyOn(console, 'error')
+
+    let evaluations = 0
+    const stop = watchEffect(() => {
+      evaluations++
+      const current = state.lastAccessedVideo.value
+      const stored = state.lastAccessedVideoStored.value
+    })
+
+    // Simulate loading a ready clip
+    state.setLastClip('target_folder', 'clip123', 'My Clip')
+    await nextTick()
+
+    stop()
+
+    const consoleLogs = [...warnSpy.mock.calls, ...errorSpy.mock.calls].map(call => call.join(' ')).join('\n')
+    expect(consoleLogs).not.toContain('Maximum recursive updates exceeded')
+    expect(evaluations).toBeLessThan(10)
   })
 
   it('sets isCachedLoading to true on sort/reset fetch even if cachedVideos has items', async () => {
