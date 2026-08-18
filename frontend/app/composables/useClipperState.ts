@@ -499,114 +499,38 @@ function createClipperState() {
   function initPersistence() {
     if (import.meta.server || isPersistenceInitialized) return
     isPersistenceInitialized = true
-    
-    auditor.loadBlacklistFromStorage()
 
-    const p = localStorage.getItem('yonru_prompt')
-    if (p) selectedPrompt.value = p
-
-    const em = localStorage.getItem('yonru_extraction_mode') as HookExtractionMode | null
-    if (em) extractionMode.value = em
-
-    const sp = localStorage.getItem('yonru_preset_id') as HookIntentPreset | null
-    if (sp) selectedPresetId.value = sp
-
-    const ft = localStorage.getItem('yonru_focus_topic')
-    if (ft) focusTopic.value = ft
-
-    const minD = localStorage.getItem('yonru_min_duration')
-    if (minD) minDuration.value = parseInt(minD, 10) || 30
-
-    const maxD = localStorage.getItem('yonru_max_duration')
-    if (maxD) maxDuration.value = parseInt(maxD, 10) || 180
-    
-    const m = localStorage.getItem('yonru_model')
-    if (m) whisperModel.value = m
-
-    const lang = localStorage.getItem('yonru_language')
-    if (lang) language.value = lang
-
-    const lv = localStorage.getItem('yonru_last_video')
-    if (lv) lastAccessedVideoId.value = lv
-
-    const lvs = localStorage.getItem('yonru_last_video_stored')
-    if (lvs) {
-      try { lastAccessedVideoStored.value = JSON.parse(lvs) } catch {}
-    }
-
-    const lc = localStorage.getItem('yonru_last_clip')
-    if (lc) {
-      try { lastAccessedClip.value = JSON.parse(lc) } catch {}
-    }
-
-    const savedStyle = localStorage.getItem('defaultTimelineTextStyle')
-    if (savedStyle) {
-      try { timeline.defaultTimelineTextStyle.value = JSON.parse(savedStyle) } catch {}
-    }
-
-    loadDefaultThumbnailStyle()
-
-    watch(
-      [folderName, clipId, jobStatus],
-      ([newFolder, newClipId, newStatus]) => {
-        if (newFolder && newClipId && newStatus === 'ready') {
-          setLastClip(newFolder, newClipId, activeHook.value?.theme || activeHook.value?.title || 'Current Clip')
-        }
-      }
-    )
-
-    watch(selectedPrompt, (val) => localStorage.setItem('yonru_prompt', val))
-    watch(extractionMode, (val) => localStorage.setItem('yonru_extraction_mode', val))
-    watch(selectedPresetId, (val) => localStorage.setItem('yonru_preset_id', val))
-    watch(focusTopic, (val) => localStorage.setItem('yonru_focus_topic', val))
-    watch(minDuration, (val) => localStorage.setItem('yonru_min_duration', String(val)))
-    watch(maxDuration, (val) => localStorage.setItem('yonru_max_duration', String(val)))
-    watch(whisperModel, (val) => localStorage.setItem('yonru_model', val))
-    watch(language, (val) => localStorage.setItem('yonru_language', val))
-
-    watch(timeline.timelineTracks, () => {
-      timeline.saveTimelineTracks()
-    }, { deep: true })
-
-    // Debounced persistence for history stacks
-    let historyDebounceTimer: ReturnType<typeof setTimeout> | null = null
-    watch(
-      [() => timeline.timelineUndoStack.value.length, () => timeline.timelineRedoStack.value.length],
-      () => {
-        if (timeline.isHydratingHistory.value) return
-        if (timeline.timelineUndoStack.value.length === 0 && timeline.timelineRedoStack.value.length === 0) return
-
-        timeline.hasUnsavedHistory.value = true
-        if (historyDebounceTimer) clearTimeout(historyDebounceTimer)
-        historyDebounceTimer = setTimeout(() => {
-          timeline.saveHistoryToBackend()
-        }, 1500)
-      }
-    )
-
-    // Beforeunload guard — warn on refresh while saving or with unsaved history
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (timeline.hasUnsavedHistory.value || timeline.isSavingHistory.value) {
-        e.preventDefault()
-      }
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-
-
-
-    watch(
-      [font, fontSize, subtitleFontWeight, subtitleTextTransform, subtitleTextColor,
-       subtitleStrokeColor, subtitleStrokeWidth, subtitleBackground, subtitleBackgroundOpacity, subtitleWordSpacing],
-      () => {
-        const textTrack = timeline.timelineTracks.value.find((t: TimelineTrack) => t.id === 'text')
-        if (!textTrack) return
-        textTrack.items.forEach((item: TimelineTrackItem) => {
-          if (item.linkToGlobal !== false) {
-            timeline.syncGlobalStylesToItem(item)
-          }
-        })
-      }
-    )
+    WorkspacePersistenceCoordinator.bindReactivity({
+      selectedPrompt,
+      extractionMode,
+      selectedPresetId,
+      focusTopic,
+      minDuration,
+      maxDuration,
+      whisperModel,
+      language,
+      lastAccessedVideoId,
+      lastAccessedVideoStored,
+      lastAccessedClip,
+      folderName,
+      clipId,
+      jobStatus,
+      activeHook,
+      setLastClip,
+      auditor,
+      timeline,
+      loadDefaultThumbnailStyle,
+      font,
+      fontSize,
+      subtitleFontWeight,
+      subtitleTextTransform,
+      subtitleTextColor,
+      subtitleStrokeColor,
+      subtitleStrokeWidth,
+      subtitleBackground,
+      subtitleBackgroundOpacity,
+      subtitleWordSpacing
+    })
   }
 
   function resetWorkspace() {
