@@ -39,6 +39,33 @@ class PromptRepository(ABC):
         pass
 
     @abstractmethod
+    def get_prompt(self, id: str) -> Optional[PromptDTO]:
+        """Fetch a specific PromptDTO by its unique identifier."""
+        pass
+
+    def format_prompt(self, prompt_id: str, variables: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """Interpolate runtime variables (e.g. transcript, num_hooks) into prompt template."""
+        raw_text = self.get_prompt_text(prompt_id)
+        if raw_text is None:
+            return None
+        if not variables:
+            return raw_text
+        formatted = raw_text
+        for k, v in variables.items():
+            formatted = formatted.replace(f"{{{k}}}", str(v))
+        return formatted
+
+    def validate_prompt(self, name: str, prompt: str, num_hooks: int = 10) -> bool:
+        """Validate that prompt parameters conform to requirements."""
+        if not name or not str(name).strip():
+            raise ValueError("Prompt name cannot be empty.")
+        if not prompt or not str(prompt).strip():
+            raise ValueError("Prompt template text cannot be empty.")
+        if not isinstance(num_hooks, int) or num_hooks <= 0 or num_hooks > 50:
+            raise ValueError("num_hooks must be between 1 and 50.")
+        return True
+
+    @abstractmethod
     def add_prompt(self, name: str, suitable_for: List[str], prompt: str, num_hooks: int = 10, auto_hooks: bool = False) -> None:
         """Add a new prompt template to the default prompt store file."""
         pass
@@ -59,9 +86,13 @@ class FilePromptRepository(PromptRepository):
         self.base_dir = os.path.abspath(base_dir)
 
     def _get_file_path(self, filename: str) -> str:
-        # Prevent directory traversal attacks
         safe_filename = os.path.basename(filename)
-        return os.path.join(self.base_dir, safe_filename)
+        base = os.path.realpath(self.base_dir)
+        target = os.path.realpath(os.path.join(self.base_dir, safe_filename))
+        if os.path.commonpath([base, target]) != base:
+            raise ValueError(f"Path traversal detected: {filename}")
+        return target
+
 
     def list_prompts(self) -> List[PromptDTO]:
         prompt_list = []
@@ -170,7 +201,15 @@ class FilePromptRepository(PromptRepository):
             print(f"[FilePromptRepository] Failed to read prompt from {filename}: {e}")
             return None
 
+    def get_prompt(self, id: str) -> Optional[PromptDTO]:
+        prompts = self.list_prompts()
+        for p in prompts:
+            if p.id == id:
+                return p
+        return None
+
     def add_prompt(self, name: str, suitable_for: List[str], prompt: str, num_hooks: int = 10, auto_hooks: bool = False) -> None:
+        self.validate_prompt(name=name, prompt=prompt, num_hooks=num_hooks)
         os.makedirs(self.base_dir, exist_ok=True)
         prompt_file = self._get_file_path("prompt.json")
         
@@ -198,6 +237,7 @@ class FilePromptRepository(PromptRepository):
             json.dump(data, f, indent=4, ensure_ascii=False)
 
     def edit_prompt(self, id: str, name: str, suitable_for: List[str], prompt: str, num_hooks: int = 10, auto_hooks: bool = False) -> None:
+        self.validate_prompt(name=name, prompt=prompt, num_hooks=num_hooks)
         found = False
         if os.path.exists(self.base_dir):
             for f in os.listdir(self.base_dir):
@@ -217,6 +257,7 @@ class FilePromptRepository(PromptRepository):
                                     item["numHooks"] = num_hooks
                                     item["autoHooks"] = auto_hooks
                                     modified = True
+
                                     found = True
                                     break
                         elif isinstance(data, dict):
@@ -368,7 +409,11 @@ class InMemoryPromptRepository(PromptRepository):
                 return p_dto.prompt
         return None
 
+    def get_prompt(self, id: str) -> Optional[PromptDTO]:
+        return self.prompts.get(id)
+
     def add_prompt(self, name: str, suitable_for: List[str], prompt: str, num_hooks: int = 10, auto_hooks: bool = False) -> None:
+        self.validate_prompt(name=name, prompt=prompt, num_hooks=num_hooks)
         new_uuid = str(uuid.uuid4())
         self.prompts[new_uuid] = PromptDTO(
             id=new_uuid,
@@ -380,6 +425,7 @@ class InMemoryPromptRepository(PromptRepository):
         )
 
     def edit_prompt(self, id: str, name: str, suitable_for: List[str], prompt: str, num_hooks: int = 10, auto_hooks: bool = False) -> None:
+        self.validate_prompt(name=name, prompt=prompt, num_hooks=num_hooks)
         if id not in self.prompts:
             raise KeyError("Prompt not found")
         self.prompts[id].name = name
@@ -392,3 +438,4 @@ class InMemoryPromptRepository(PromptRepository):
         if id not in self.prompts:
             raise KeyError("Prompt not found")
         del self.prompts[id]
+

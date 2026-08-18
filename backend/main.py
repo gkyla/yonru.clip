@@ -231,14 +231,18 @@ def list_prompts():
 @app.post("/api/prompts/add")
 async def add_prompt(req: AddPromptRequest):
     """Append a new prompt template to prompt.json"""
-    prompt_repository.add_prompt(
-        name=req.promptName,
-        suitable_for=req.suitableFor,
-        prompt=req.prompt,
-        num_hooks=req.numHooks or 10,
-        auto_hooks=req.autoHooks or False
-    )
-    return {"status": "ok"}
+    try:
+        prompt_repository.add_prompt(
+            name=req.promptName,
+            suitable_for=req.suitableFor,
+            prompt=req.prompt,
+            num_hooks=req.numHooks or 10,
+            auto_hooks=req.autoHooks or False
+        )
+        return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @app.put("/api/prompts/edit")
 async def edit_prompt(req: EditPromptRequest):

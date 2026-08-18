@@ -172,3 +172,55 @@ def test_file_prompt_repository():
 
     finally:
         shutil.rmtree(temp_dir)
+
+
+def test_prompt_validation():
+    """Verify validate_prompt rejects invalid prompt parameters."""
+    repo = InMemoryPromptRepository([])
+
+    # Empty name
+    with pytest.raises(ValueError, match="Prompt name cannot be empty"):
+        repo.add_prompt(name="", suitable_for=[], prompt="Valid prompt text")
+
+    # Empty prompt
+    with pytest.raises(ValueError, match="Prompt template text cannot be empty"):
+        repo.add_prompt(name="Valid Name", suitable_for=[], prompt="   ")
+
+    # Invalid hook counts
+    with pytest.raises(ValueError, match="num_hooks must be between 1 and 50"):
+        repo.add_prompt(name="Valid Name", suitable_for=[], prompt="Valid prompt", num_hooks=0)
+
+    with pytest.raises(ValueError, match="num_hooks must be between 1 and 50"):
+        repo.add_prompt(name="Valid Name", suitable_for=[], prompt="Valid prompt", num_hooks=100)
+
+
+def test_get_prompt_and_format_prompt():
+    """Verify get_prompt and format_prompt on InMemory and FilePromptRepository."""
+    temp_dir = tempfile.mkdtemp()
+    try:
+        repo = FilePromptRepository(temp_dir)
+        repo.add_prompt(
+            name="Template Test",
+            suitable_for=["tests"],
+            prompt="Generate {num_hooks} hooks for topic {topic} from: {transcript}",
+            num_hooks=5
+        )
+        prompts = repo.list_prompts()
+        p_id = prompts[0].id
+
+        # get_prompt
+        dto = repo.get_prompt(p_id)
+        assert dto is not None
+        assert dto.name == "Template Test"
+        assert dto.num_hooks == 5
+
+        # format_prompt
+        formatted = repo.format_prompt(p_id, {"num_hooks": 3, "topic": "AI", "transcript": "sample transcript"})
+        assert formatted == "Generate 3 hooks for topic AI from: sample transcript"
+
+        # Non-existent prompt
+        assert repo.get_prompt("non_existent_id") is None
+        assert repo.format_prompt("non_existent_id", {}) is None
+    finally:
+        shutil.rmtree(temp_dir)
+
