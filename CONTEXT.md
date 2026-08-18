@@ -213,6 +213,10 @@ _Avoid_: Remotion iframe bridge, message adapter
 A concrete mock adapter implementation of the Player Bridge that stores calls and simulates events in memory for testing.
 _Avoid_: Test player bridge, fake bridge
 
+**Video Playback Coordinator**:
+A domain coordinator responsible for managing dual-player synchronization, single master player mode enforcement (ADR-0004), mute state deduplication (ADR-0005), audio bleep triggers, and Remotion props generation.
+_Avoid_: Playback manager, video controller, player sync helper
+
 **Pending Search Spinner**:
 A visual loading indicator integrated directly inside the library search input box to indicate keypress debouncing.
 _Avoid_: Debounce spinner, input loader
