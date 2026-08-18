@@ -531,6 +531,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import {
+  calculateRulerTicks,
+  calculateSnapTime,
+  calculateDragBounds,
+  splitTimelineItem,
+  deleteTimelineItemWithRipple
+} from '../utils/timelineHelpers'
 
 const state = useClipperState()
 const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false)
@@ -633,28 +640,7 @@ const centerLinePx = computed(() => 96 + containerW.value / 2) // 96 = track lab
 const playheadPx = computed(() => state.currentTime.value * pxPerSec.value)
 
 // --- Ruler ---
-const rulerTicks = computed(() => {
-  const ticks: { pos: number; major: boolean; label: string | null }[] = []
-  const dur = totalW.value / pxPerSec.value
-  let step: number, labelEvery: number
-
-  if (pxPerSec.value >= 200) { step = 0.1; labelEvery = 1 }
-  else if (pxPerSec.value >= 100) { step = 0.25; labelEvery = 1 }
-  else if (pxPerSec.value >= 50) { step = 0.5; labelEvery = 5 }
-  else { step = 1; labelEvery = 5 }
-
-  for (let t = 0; t <= dur; t = Math.round((t + step) * 1000) / 1000) {
-    const pos = t * pxPerSec.value
-    const isMajor = Math.abs(t % labelEvery) < 0.001 || Math.abs(t % labelEvery - labelEvery) < 0.001
-    const showLabel = isMajor && t > 0
-    const m = Math.floor(t / 60)
-    const s = Math.floor(t % 60)
-    const ms = Math.round((t % 1) * 10)
-    const label = showLabel ? (t >= 60 ? `${m}:${s.toString().padStart(2, '0')}` : (t % 1 === 0 ? `${s}s` : `${s}.${ms}s`)) : null
-    ticks.push({ pos, major: isMajor, label })
-  }
-  return ticks
-})
+const rulerTicks = computed(() => calculateRulerTicks(totalW.value, pxPerSec.value))
 
 // --- Track helpers ---
 function trackIcon(type: string) {
@@ -813,42 +799,16 @@ function handleAudioFile(e: Event) {
 
 // --- Snap logic ---
 function snapValue(val: number, trackId?: string): number {
-  if (!snapEnabled.value) return val
-  const tolerance = 5 / pxPerSec.value // 5px snap tolerance in seconds
-
-  // Snap targets
-  const targets: number[] = []
-
-  // Ruler snap
-  let step = 1
-  if (pxPerSec.value >= 200) step = 0.1
-  else if (pxPerSec.value >= 100) step = 0.25
-  else if (pxPerSec.value >= 50) step = 0.5
-
-  const nearestRuler = Math.round(val / step) * step
-  targets.push(nearestRuler)
-
-  // Playhead snap
-  const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
-  targets.push(state.currentTime.value - offset)
-
-  // Clip edge snap
-  state.timelineTracks.value.forEach((track: any) => {
-    track.items.forEach((item: any) => {
-      if (draggingItem && item.id === draggingItem.id) return
-      targets.push(item.start)
-      targets.push(item.start + item.duration)
-    })
-  })
-
-  // Find closest target
-  let closest = val
-  let minDist = tolerance
-  for (const t of targets) {
-    const dist = Math.abs(val - t)
-    if (dist < minDist) { minDist = dist; closest = t }
-  }
-  return closest
+  return calculateSnapTime(
+    val,
+    snapEnabled.value,
+    pxPerSec.value,
+    state.currentTime.value,
+    state.timelineTracks.value,
+    state.thumbnailEnabled.value,
+    state.thumbnailDuration.value,
+    draggingItem?.id
+  )
 }
 
 // --- Drag/Resize ---
@@ -906,26 +866,15 @@ function startResize(e: MouseEvent, trackId: string, item: any, mode: 'start' | 
 function onDrag(e: MouseEvent) {
   if (!draggingItem) return
   const dx = (e.clientX - dragStartX) / pxPerSec.value
-
-  if (resizeMode === 'start') {
-    let newStart = Math.max(0, dragStartVal + dx)
-    newStart = snapValue(newStart, dragTrackId)
-    const diff = draggingItem.start - newStart
-    if (draggingItem.duration + diff > 0.1) {
-      draggingItem.duration += diff
-      draggingItem.start = newStart
-    }
-  } else if (resizeMode === 'end') {
-    let newDur = Math.max(0.1, dragStartVal + dx)
-    const newEnd = draggingItem.start + newDur
-    const snappedEnd = snapValue(newEnd, dragTrackId)
-    newDur = Math.max(0.1, snappedEnd - draggingItem.start)
-    draggingItem.duration = newDur
-  } else {
-    let newStart = Math.max(0, dragStartVal + dx)
-    newStart = snapValue(newStart, dragTrackId)
-    draggingItem.start = newStart
-  }
+  const bounds = calculateDragBounds(
+    resizeMode || 'move',
+    dragStartVal,
+    dx,
+    draggingItem,
+    (val) => snapValue(val, dragTrackId)
+  )
+  draggingItem.start = bounds.newStart
+  draggingItem.duration = bounds.newDuration
 }
 
 function stopDrag() {
@@ -955,139 +904,42 @@ function deleteSelected() {
   state.commitToHistory()
   const itemToDelete = { ...state.selectedTimelineItem.value }
   const id = itemToDelete.id
-  
-  // Find which track this item belongs to before we delete it
+
   const track = state.timelineTracks.value.find((t: any) => t.items.some((i: any) => i.id === id))
-  const trackId = track?.id
-  
-  // Actually delete the item
-  state.timelineTracks.value.forEach((track: any) => state.deleteTimelineItem(track.id, id))
+  const trackId = track?.id || ''
 
-  // ONLY perform ripple edit if we deleted a video segment!
+  const result = deleteTimelineItemWithRipple(
+    state.timelineTracks.value,
+    state.fullTranscript.value,
+    itemToDelete,
+    trackId,
+    state.currentTime.value,
+    state.thumbnailEnabled.value,
+    state.thumbnailDuration.value
+  )
+
+  state.timelineTracks.value = result.updatedTracks
+  state.currentTime.value = result.updatedCurrentTime
   if (trackId === 'video') {
-    // Perform Ripple Edit: Shift all items that start AT OR AFTER the deleted item to the left
-    state.timelineTracks.value.forEach((track: any) => {
-      track.items.forEach((item: any) => {
-        // Use a tiny epsilon because floating point math
-        if (item.start >= itemToDelete.start - 0.001) {
-          item.start = Math.max(0, item.start - itemToDelete.duration)
-        }
-      })
-    })
-
-    // Update playhead position:
-    const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
-    const relTime = state.currentTime.value - offset
-
-    if (relTime > itemToDelete.start + itemToDelete.duration) {
-      state.currentTime.value = Math.max(0, state.currentTime.value - itemToDelete.duration)
-    } else if (relTime >= itemToDelete.start) {
-      state.currentTime.value = itemToDelete.start + offset
-    }
-
-    // Perform Ripple Edit on subtitles
-    if (state.fullTranscript.value && state.fullTranscript.value.length > 0) {
-      const newTranscript: any[] = []
-      const delStart = itemToDelete.start
-      const delEnd = itemToDelete.start + itemToDelete.duration
-      
-      // Normalize coordinates for comparison: 
-      // Subtitle start is 0-based relative to video start (which is at thumbnailDuration on timeline)
-      const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
-      
-      state.fullTranscript.value.forEach((s: any) => {
-        // Subtitle time in timeline-absolute coordinates
-        const segStart = s.start + offset
-        const segEnd = (s.start + s.duration) + offset
-        
-        // Case 1: Segment is completely before deleted item -> Keep as is
-        if (segEnd <= delStart + 0.001) {
-          newTranscript.push(s)
-        }
-        // Case 2: Segment is completely after deleted item -> Shift left
-        else if (segStart >= delEnd - 0.001) {
-          newTranscript.push({
-            ...s,
-            start: Math.max(0, s.start - itemToDelete.duration)
-          })
-        }
-        // Case 3: Segment overlaps with deleted item
-        else {
-          const rawWords = s.text.trim().split(/\s+/)
-          if (!rawWords.length || !s.text.trim()) return
-          const wordDur = s.duration / rawWords.length
-          
-          let block1Words: string[] = []
-          let block2Words: string[] = []
-          let block2StartIndex = -1
-          
-          rawWords.forEach((w: string, i: number) => {
-            const wordStart = segStart + (i * wordDur)
-            const wordEnd = wordStart + wordDur
-            
-            if (wordEnd <= delStart + 0.001) {
-              block1Words.push(w)
-            } else if (wordStart >= delEnd - 0.001) {
-              block2Words.push(w)
-              if (block2StartIndex === -1) block2StartIndex = i
-            }
-          })
-          
-          if (block1Words.length > 0) {
-            newTranscript.push({
-              ...s,
-              text: block1Words.join(' '),
-              duration: block1Words.length * wordDur
-            })
-          }
-          
-          if (block2Words.length > 0) {
-            const originalStart = (segStart + (block2StartIndex * wordDur)) - offset
-            newTranscript.push({
-              ...s,
-              id: s.id + '_shifted',
-              text: block2Words.join(' '),
-              start: Math.max(0, originalStart - itemToDelete.duration),
-              duration: block2Words.length * wordDur
-            })
-          }
-        }
-      })
-      state.fullTranscript.value = newTranscript
-    }
-    
-    // Auto-save changes immediately to prevent data loss on refresh
+    state.fullTranscript.value = result.updatedTranscript
     state.saveTranscript()
   }
-  
   state.saveTimelineTracks()
 }
 
 function splitSelected() {
   const item = state.selectedTimelineItem.value
   if (!item) return
-  state.commitToHistory()
   const offset = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
   const cut = state.currentTime.value - offset
 
-  if (cut > item.start && cut < item.start + item.duration) {
-    const splitOffset = cut - item.start
-    const originalMediaStart = item.mediaStart !== undefined ? item.mediaStart : 0
-    const newMediaStart = originalMediaStart + splitOffset
-    
-    const dur2 = (item.start + item.duration) - cut
-    item.duration = cut - item.start
-    
+  const splitResult = splitTimelineItem(item, cut)
+  if (splitResult) {
+    state.commitToHistory()
+    item.duration = splitResult.firstItem.duration
     const track = state.timelineTracks.value.find((t: any) => t.items.some((i: any) => i.id === item.id))
     if (track) {
-      state.addTimelineItem(track.id, { 
-        ...item, 
-        id: Math.random().toString(36).substr(2, 9), 
-        start: cut, 
-        duration: dur2,
-        mediaStart: newMediaStart
-      })
-      // Auto-save timeline state
+      state.addTimelineItem(track.id, splitResult.secondItem)
       state.saveTimelineTracks()
     }
   }
