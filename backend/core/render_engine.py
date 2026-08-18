@@ -6,7 +6,8 @@ import json
 import shutil
 import re
 import time
-from typing import Generator, Any, Optional
+from typing import Generator, Any, Optional, Dict, List, Tuple
+
 
 class RenderComposition:
     """A data DTO containing the complete settings of a video composition."""
@@ -27,6 +28,255 @@ class RenderComposition:
         self.thumbnail_config = kwargs.get("thumbnail_config")
         self.source_width = kwargs.get("source_width", 1920)
         self.source_height = kwargs.get("source_height", 1080)
+
+
+class SafeEncoder(json.JSONEncoder):
+    """JSON encoder that safely handles numpy types from MediaPipe/OpenCV."""
+    def default(self, o):
+        try:
+            import numpy as np
+            if isinstance(o, np.integer):
+                return int(o)
+            if isinstance(o, np.floating):
+                return float(o)
+            if isinstance(o, np.ndarray):
+                return o.tolist()
+        except ImportError:
+            pass
+        return super().default(o)
+
+
+class RemotionProgressParser:
+    """
+    Pure stateful parser converting raw Remotion CLI stdout lines into structured SSE event dicts.
+    Handles ANSI stripping, bundling stage, rendering frame/percent parsing, and ETA estimation.
+    """
+    def __init__(self, total_frames: int, start_time: Optional[float] = None):
+        self.total_frames = max(1, total_frames)
+        self.start_time = start_time if start_time is not None else time.time()
+        self.render_start_time: Optional[float] = None
+        self.last_overall: int = 0
+        self.current_stage: str = "bundling"
+        self.frame_re = re.compile(r'\((\d+)/(\d+)\)')
+        self.pct_re = re.compile(r'(\d+)%')
+        self.ansi_re = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+
+    def clean_line(self, line: str) -> str:
+        return self.ansi_re.sub('', line).strip()
+
+    def parse_line(self, raw_line: str) -> Optional[Dict[str, Any]]:
+        clean = self.clean_line(raw_line)
+        if not clean:
+            return None
+
+        line_lower = clean.lower()
+
+        # Stage 1: Bundling
+        if "bundling" in line_lower:
+            self.current_stage = "bundling"
+            m = self.pct_re.search(clean)
+            if m:
+                bpct = int(m.group(1))
+                overall = int(bpct * 0.15)
+                if overall > self.last_overall:
+                    self.last_overall = overall
+                    return {
+                        "stage": "bundling",
+                        "percent": overall,
+                        "frame": 0,
+                        "totalFrames": self.total_frames,
+                        "etaSeconds": 0
+                    }
+            return None
+
+        # Stage transition: Entering rendering
+        if ("rendering" in line_lower or "concurrency" in line_lower) and self.current_stage != "rendering":
+            self.current_stage = "rendering"
+            self.render_start_time = time.time()
+            self.last_overall = max(self.last_overall, 15)
+            return {
+                "stage": "rendering",
+                "percent": 15,
+                "frame": 0,
+                "totalFrames": self.total_frames,
+                "etaSeconds": 0
+            }
+
+        # Stage 2: Rendering
+        if self.current_stage == "rendering":
+            fm = self.frame_re.search(clean)
+            if fm:
+                frame_num = int(fm.group(1))
+                total = int(fm.group(2))
+                render_pct = (frame_num / max(total, 1)) * 100
+                overall = int(15 + (render_pct * 0.80))
+                if overall > self.last_overall:
+                    self.last_overall = overall
+                    elapsed = time.time() - (self.render_start_time or self.start_time)
+                    eta_sec = max(0, int((elapsed / max(render_pct, 0.001)) * (100 - render_pct))) if render_pct > 0 else 0
+                    return {
+                        "stage": "rendering",
+                        "percent": min(overall, 95),
+                        "frame": frame_num,
+                        "totalFrames": total,
+                        "etaSeconds": eta_sec
+                    }
+                return None
+
+            pm = self.pct_re.search(clean)
+            if pm and "bundling" not in line_lower:
+                rpct = int(pm.group(1))
+                overall = int(15 + (rpct * 0.80))
+                if overall > self.last_overall:
+                    self.last_overall = overall
+                    elapsed = time.time() - (self.render_start_time or self.start_time)
+                    eta_sec = max(0, int((elapsed / max(rpct, 1)) * (100 - rpct))) if rpct > 0 else 0
+                    return {
+                        "stage": "rendering",
+                        "percent": min(overall, 95),
+                        "frame": int(self.total_frames * rpct / 100),
+                        "totalFrames": self.total_frames,
+                        "etaSeconds": eta_sec
+                    }
+                return None
+
+        # Stage 3: Encoding / Muxing
+        if "encoding" in line_lower or "muxing" in line_lower or "stitching" in line_lower:
+            self.current_stage = "encoding"
+            if self.last_overall < 96:
+                self.last_overall = 96
+            return {
+                "stage": "encoding",
+                "percent": self.last_overall,
+                "frame": self.total_frames,
+                "totalFrames": self.total_frames,
+                "etaSeconds": 0
+            }
+
+        return None
+
+    def starting_event(self) -> Dict[str, Any]:
+        return {"stage": "starting", "percent": 0, "frame": 0, "totalFrames": self.total_frames}
+
+    def complete_event(self, output_path: str, output_url: str) -> Dict[str, Any]:
+        return {
+            "stage": "done",
+            "percent": 100,
+            "frame": self.total_frames,
+            "totalFrames": self.total_frames,
+            "outputPath": output_path,
+            "outputUrl": output_url
+        }
+
+    def error_event(self, message: str) -> Dict[str, Any]:
+        return {"stage": "error", "message": message}
+
+
+class StagedRenderContext:
+    """
+    Context manager that prepares and cleans up staged video assets and props JSON
+    in remotion_engine/public/ and static/output/ for Remotion rendering.
+    Guarantees cleanup on normal completion, failures, and exceptions.
+    """
+    def __init__(self, comp: RenderComposition, out_filename: str, output_dir: str = "static/output"):
+        self.comp = comp
+        self.out_filename = out_filename
+        self.output_dir = output_dir
+        self.remotion_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../remotion_engine"))
+        self.public_dir = os.path.join(self.remotion_dir, "public")
+        self.public_video_path: Optional[str] = None
+        self.thumbnail_image_path: Optional[str] = None
+        self.props_path: Optional[str] = None
+        self.frames: int = 0
+
+    def __enter__(self):
+        os.makedirs(self.public_dir, exist_ok=True)
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        temp_public_video_name = f"source_{self.out_filename}"
+        self.public_video_path = os.path.join(self.public_dir, temp_public_video_name)
+        shutil.copy2(self.comp.original_video, self.public_video_path)
+
+        thumbnail_image_name = None
+        thumb_duration = 0.0
+        if self.comp.thumbnail_config and self.comp.thumbnail_config.get("enabled"):
+            thumb_src = self.comp.thumbnail_config.get("imagePath")
+            if thumb_src and os.path.exists(thumb_src):
+                thumbnail_image_name = f"thumb_{self.out_filename}.jpg"
+                self.thumbnail_image_path = os.path.join(self.public_dir, thumbnail_image_name)
+                shutil.copy2(thumb_src, self.thumbnail_image_path)
+                thumb_duration = self.comp.thumbnail_config.get("duration", 1.0)
+
+        clip_dur = self.comp.clip_duration
+        if self.comp.timeline_tracks:
+            max_timeline_end = 0.0
+            for track in self.comp.timeline_tracks:
+                for item in track.get("items", []):
+                    end = float(item.get("start") or 0.0) + float(item.get("duration") or 0.0)
+                    if end > max_timeline_end:
+                        max_timeline_end = end
+            if max_timeline_end > 0.0:
+                clip_dur = max_timeline_end
+
+        timeline_video_items = self.comp.timeline_video_items
+        if timeline_video_items is None and self.comp.timeline_tracks:
+            video_track = next((t for t in self.comp.timeline_tracks if t.get('id') == 'video'), None)
+            if video_track:
+                timeline_video_items = video_track.get('items', [])
+            elif len(self.comp.timeline_tracks) > 0:
+                timeline_video_items = self.comp.timeline_tracks[0].get('items', [])
+        timeline_video_items = timeline_video_items or []
+
+        video_frames = max(1, int((clip_dur or 10.0) * self.comp.fps))
+        thumbnail_frames = int(thumb_duration * self.comp.fps)
+        self.frames = video_frames + thumbnail_frames
+
+        props = {
+            "videoPath": temp_public_video_name,
+            "words": self.comp.words_data or [],
+            "cropX": self.comp.crop_center_x if isinstance(self.comp.crop_center_x, (int, float)) else (self.comp.crop_center_x[0]["x"] if isinstance(self.comp.crop_center_x, list) and len(self.comp.crop_center_x) > 0 else 960),
+            "cropMap": self.comp.crop_center_x if isinstance(self.comp.crop_center_x, list) else [],
+            "position": self.comp.position,
+            "videoLayout": self.comp.video_layout,
+            "subtitleOffset": self.comp.subtitle_style.get("subtitleOffset", 50) if self.comp.subtitle_style else 50,
+            "durationInFrames": self.frames,
+            "subtitleStyle": self.comp.subtitle_style or {},
+            "timelineTextItems": self.comp.timeline_text_items or [],
+            "timelineAudioItems": self.comp.timeline_audio_items or [],
+            "timelineVideoItems": timeline_video_items,
+            "volume": self.comp.volume,
+            "fps": self.comp.fps,
+            "thumbnailEnabled": thumbnail_image_name is not None,
+            "thumbnailDuration": thumb_duration,
+            "thumbnailImagePath": thumbnail_image_name,
+            "thumbnailTextOverlays": self.comp.thumbnail_config.get("textOverlays", []) if self.comp.thumbnail_config else [],
+            "thumbnailXOffset": self.comp.thumbnail_config.get("xOffset", 50.0) if self.comp.thumbnail_config else 50.0,
+            "sourceWidth": self.comp.source_width,
+            "sourceHeight": self.comp.source_height,
+        }
+
+        self.props_path = os.path.abspath(os.path.join(self.output_dir, f"props_{self.out_filename}.json"))
+        with open(self.props_path, "w", encoding="utf-8") as f:
+            json.dump(props, f, cls=SafeEncoder)
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.props_path and os.path.exists(self.props_path):
+            try:
+                os.remove(self.props_path)
+            except Exception:
+                pass
+        if self.public_video_path and os.path.exists(self.public_video_path):
+            try:
+                os.remove(self.public_video_path)
+            except Exception:
+                pass
+        if self.thumbnail_image_path and os.path.exists(self.thumbnail_image_path):
+            try:
+                os.remove(self.thumbnail_image_path)
+            except Exception:
+                pass
 
 
 class RenderEngine(ABC):
@@ -68,12 +318,11 @@ class RenderEngine(ABC):
         Unified render entrypoint.
         Can be called with:
           render(comp, out_filename) -> str (legacy DTO path)
-          render(job, req, asset_repository, output_name=...) -> dict {"status": "done", "out_filename": ..., "output_path": ..., "output_url": ...}
+          render(job, req, asset_repository, output_name=...) -> dict
         """
         if isinstance(target, RenderComposition):
             return self._render_comp(target, out_filename_or_req)
-        
-        # Unified call: target is job dict, out_filename_or_req is req
+
         job = target
         req = out_filename_or_req
         job_id = req.job_id if hasattr(req, "job_id") else job.get("job_id", "job")
@@ -110,11 +359,11 @@ class RenderEngine(ABC):
         """
         video_path = job.get("clip_path") or job["video_info"]["file_path"]
         fps = job.get("fps") or job["video_info"].get("fps") or req.fps or 30.0
-        
+
         hook = job["hooks"][req.hook_index] if "hooks" in job and len(job["hooks"]) > req.hook_index else None
-        
+
         if job.get("clip_path"):
-            clip_start = 0 
+            clip_start = 0
             clip_duration = job.get("clip_duration") or 0
             if not clip_duration and job.get("clip"):
                 clip_duration = job["clip"].get("duration") or 0
@@ -164,7 +413,7 @@ class RenderEngine(ABC):
             transcript_path = clip_transcript
         else:
             transcript_path = os.path.join(os.path.dirname(job["video_info"]["file_path"]), "transcript.json")
-        
+
         if req.transcript:
             segments = req.transcript
         elif os.path.exists(transcript_path):
@@ -172,9 +421,9 @@ class RenderEngine(ABC):
                 segments = json.load(f)
         else:
             segments = []
-        
+
         is_relative = "/clips/" in transcript_path.replace("\\", "/") or req.transcript is not None
-        
+
         from core.subtitle_engine import DefaultSubtitleEngine
         subtitle_engine = DefaultSubtitleEngine()
         words_data = subtitle_engine.format_subtitles(
@@ -185,11 +434,11 @@ class RenderEngine(ABC):
             clip_start=clip_start,
             is_relative=is_relative
         )
-                
-        w, h = asset_repository.get_video_resolution(video_path)
+
+        w, h = asset_repository.get_video_resolution(video_path) if asset_repository else (1920, 1080)
         source_width = w if w > 0 else 1920
         source_height = h if h > 0 else 1080
-        
+
         if req.face_tracking:
             clip_dir = os.path.dirname(video_path)
             cached_crop_map_path = os.path.join(clip_dir, "crop_map.json")
@@ -212,7 +461,7 @@ class RenderEngine(ABC):
                 crop_x = tracker.analyze_video(video_path, words_data=words_data)
         else:
             crop_x = int((req.crop_percent_x / 100.0) * source_width)
-            
+
         thumbnail_config = None
         if req.thumbnail_enabled:
             thumbnail_config = {
@@ -227,7 +476,7 @@ class RenderEngine(ABC):
                 thumbnail_config["imagePath"] = thumb_path
             else:
                 thumbnail_config["enabled"] = False
-                
+
         return RenderComposition(
             original_video=video_path,
             crop_center_x=crop_x or 960,
@@ -273,40 +522,30 @@ class RenderEngine(ABC):
         yield from self.render_streaming(comp, out_filename)
 
 
-
-class SafeEncoder(json.JSONEncoder):
-    """JSON encoder that safely handles numpy types from MediaPipe/OpenCV."""
-    def default(self, o):
-        import numpy as np
-        if isinstance(o, np.integer):
-            return int(o)
-        if isinstance(o, np.floating):
-            return float(o)
-        if isinstance(o, np.ndarray):
-            return o.tolist()
-        return super().default(o)
-
-
-class RemotionRenderEngine(RenderEngine):
-    def __init__(self, output_dir="static/output", config_store=None, face_tracker=None):
+class RenderPipelineCoordinator(RenderEngine):
+    """
+    Deep coordinator managing composition compilation, asset staging,
+    Remotion subprocess lifecycle, and SSE progress streaming.
+    """
+    def __init__(self, output_dir: str = "static/output", config_store: Any = None, face_tracker: Any = None):
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
         self.face_tracker = face_tracker
-        
+
         if config_store is None:
             try:
                 main_module = sys.modules.get("main")
                 if main_module and hasattr(main_module, "config_store"):
                     config_store = main_module.config_store
-            except:
+            except Exception:
                 pass
-                
+
         self.config_store = config_store
 
-        
+        # Setup and verify FFmpeg binary path
         env_path = os.environ.get("PATH", "")
         extra_paths = []
-        
+
         custom_ffmpeg = self.config_store.get("FFMPEG_PATH") if self.config_store else os.environ.get("FFMPEG_PATH")
         if custom_ffmpeg:
             if os.path.isdir(custom_ffmpeg):
@@ -318,291 +557,123 @@ class RemotionRenderEngine(RenderEngine):
             extra_paths.extend(["C:\\Program Files\\ffmpeg\\bin", "C:\\ffmpeg\\bin", "C:\\Program Files\\nodejs"])
         else:
             extra_paths.extend(["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"])
-            
+
         sep = ";" if sys.platform.startswith("win") else ":"
         for p in extra_paths:
             if os.path.exists(p) and p not in env_path.split(sep):
                 env_path = f"{p}{sep}{env_path}" if env_path else p
-                
+
         os.environ["PATH"] = env_path
-        
+
         if not shutil.which("ffmpeg"):
             raise RuntimeError("Friendly Alert: FFmpeg was not detected on this machine. Please download/install FFmpeg and map it to your execution variables.")
 
-
     def _prepare_props_and_paths(self, comp: RenderComposition, out_filename: str) -> tuple:
-        remotion_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../remotion_engine"))
-        public_dir = os.path.join(remotion_dir, "public")
-        os.makedirs(public_dir, exist_ok=True)
-        
-        temp_public_video_name = f"source_{out_filename}"
-        public_video_path = os.path.join(public_dir, temp_public_video_name)
-        shutil.copy2(comp.original_video, public_video_path)
-        
-        # Handle thumbnail image
-        thumbnail_image_name = None
-        thumb_duration = 0.0
-        if comp.thumbnail_config and comp.thumbnail_config.get("enabled"):
-            thumb_src = comp.thumbnail_config.get("imagePath")
-            if thumb_src and os.path.exists(thumb_src):
-                thumbnail_image_name = f"thumb_{out_filename}.jpg"
-                shutil.copy2(thumb_src, os.path.join(public_dir, thumbnail_image_name))
-                thumb_duration = comp.thumbnail_config.get("duration", 1.0)
-        
-        # Determine duration (using single pre-calculated clip_duration or fallback calculating from tracks)
-        clip_dur = comp.clip_duration
-        if comp.timeline_tracks:
-            max_timeline_end = 0.0
-            for track in comp.timeline_tracks:
-                for item in track.get("items", []):
-                    end = float(item.get("start") or 0.0) + float(item.get("duration") or 0.0)
-                    if end > max_timeline_end:
-                        max_timeline_end = end
-            if max_timeline_end > 0.0:
-                clip_dur = max_timeline_end
-
-        timeline_video_items = comp.timeline_video_items
-        if timeline_video_items is None and comp.timeline_tracks:
-            video_track = next((t for t in comp.timeline_tracks if t.get('id') == 'video'), None)
-            if video_track:
-                timeline_video_items = video_track.get('items', [])
-            elif len(comp.timeline_tracks) > 0:
-                timeline_video_items = comp.timeline_tracks[0].get('items', [])
-        timeline_video_items = timeline_video_items or []
-
-        video_frames = max(1, int((clip_dur or 10.0) * comp.fps))
-        thumbnail_frames = int(thumb_duration * comp.fps)
-        frames = video_frames + thumbnail_frames
-        
-        # Build props dictionary
-        props = {
-            "videoPath": temp_public_video_name,
-            "words": comp.words_data or [],
-            "cropX": comp.crop_center_x if isinstance(comp.crop_center_x, (int, float)) else (comp.crop_center_x[0]["x"] if isinstance(comp.crop_center_x, list) and len(comp.crop_center_x) > 0 else 960),
-            "cropMap": comp.crop_center_x if isinstance(comp.crop_center_x, list) else [],
-            "position": comp.position,
-            "videoLayout": comp.video_layout,
-            "subtitleOffset": comp.subtitle_style.get("subtitleOffset", 50) if comp.subtitle_style else 50,
-            "durationInFrames": frames,
-            "subtitleStyle": comp.subtitle_style or {},
-            "timelineTextItems": comp.timeline_text_items or [],
-            "timelineAudioItems": comp.timeline_audio_items or [],
-            "timelineVideoItems": timeline_video_items,
-            "volume": comp.volume,
-            "fps": comp.fps,
-            "thumbnailEnabled": thumbnail_image_name is not None,
-            "thumbnailDuration": thumb_duration,
-            "thumbnailImagePath": thumbnail_image_name,
-            "thumbnailTextOverlays": comp.thumbnail_config.get("textOverlays", []) if comp.thumbnail_config else [],
-            "thumbnailXOffset": comp.thumbnail_config.get("xOffset", 50.0) if comp.thumbnail_config else 50.0,
-            "sourceWidth": comp.source_width,
-            "sourceHeight": comp.source_height,
-        }
-        
-        props_path = os.path.abspath(os.path.join(self.output_dir, f"props_{out_filename}.json"))
-        with open(props_path, "w") as f:
-            json.dump(props, f, cls=SafeEncoder)
-            
-        return remotion_dir, public_video_path, props_path, frames
+        """Legacy helper for testing and direct staging inspection."""
+        ctx = StagedRenderContext(comp, out_filename, self.output_dir)
+        ctx.__enter__()
+        return ctx.remotion_dir, ctx.public_video_path, ctx.props_path, ctx.frames
 
     def _render_comp(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
         output_path = os.path.join(self.output_dir, out_filename)
-        remotion_dir, public_video_path, props_path, frames = self._prepare_props_and_paths(comp, out_filename)
-        
-        try:
+
+        with StagedRenderContext(comp, out_filename, self.output_dir) as ctx:
             cmd = [
-                "npx", "remotion", "render", 
-                "src/index.ts", "YonruClip", 
-                "--props", props_path,
+                "npx", "remotion", "render",
+                "src/index.ts", "YonruClip",
+                "--props", ctx.props_path or "",
                 os.path.abspath(output_path),
                 "--force",
                 f"--fps={comp.fps}",
                 "--width=1080",
                 "--height=1920",
-                "--frames", f"0-{frames-1}"
+                "--frames", f"0-{ctx.frames-1}"
             ]
-            
+
             print(f"[render-engine] Executing Remotion: {' '.join(cmd)}")
             result = subprocess.run(
-                cmd, 
-                cwd=remotion_dir,
-                stdout=subprocess.PIPE, 
+                cmd,
+                cwd=ctx.remotion_dir,
+                stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 shell=(sys.platform == "win32"),
                 encoding="utf-8"
             )
-            
+
             if result.returncode != 0:
                 print(f"[render-engine] Remotion failed:\n{result.stderr}")
                 return None
-                
+
             return output_path
-        finally:
-            try:
-                os.remove(props_path)
-                os.remove(public_video_path)
-            except:
-                pass
 
     def render_streaming(self, comp: RenderComposition, out_filename: str) -> Generator[dict, None, None]:
         output_path = os.path.join(self.output_dir, out_filename)
-        remotion_dir, public_video_path, props_path, frames = self._prepare_props_and_paths(comp, out_filename)
-        
-        try:
+
+        with StagedRenderContext(comp, out_filename, self.output_dir) as ctx:
             cmd = [
-                "npx", "remotion", "render", 
-                "src/index.ts", "YonruClip", 
-                "--props", props_path,
+                "npx", "remotion", "render",
+                "src/index.ts", "YonruClip",
+                "--props", ctx.props_path or "",
                 os.path.abspath(output_path),
                 "--force",
                 f"--fps={comp.fps}",
                 "--width=1080",
                 "--height=1920",
-                "--frames", f"0-{frames-1}"
+                "--frames", f"0-{ctx.frames-1}"
             ]
-            
+
             print(f"[render-engine-stream] Executing Remotion: {' '.join(cmd)}")
-            yield {"stage": "starting", "percent": 0, "frame": 0, "totalFrames": frames}
-            
+            parser = RemotionProgressParser(ctx.frames)
+            yield parser.starting_event()
+
             env = os.environ.copy()
             env["FORCE_COLOR"] = "0"
             env["NO_COLOR"] = "1"
-            
-            process = subprocess.Popen(
-                cmd,
-                cwd=remotion_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=0,
-                env=env,
-                shell=(sys.platform == "win32"),
-                encoding="utf-8"
-            )
-            
-            if process.stdout is None:
-                raise RuntimeError("Failed to capture stdout from subprocess")
-                
-            start_time = time.time()
-            render_start_time = None
-            last_overall = 0
-            current_stage = "bundling"
-            
-            frame_re = re.compile(r'\((\d+)/(\d+)\)')
-            pct_re = re.compile(r'(\d+)%')
-            
-            while True:
-                line = process.stdout.readline()
-                if not line and process.poll() is not None:
-                    break
-                if not line:
-                    continue
-                
-                line = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', line).strip()
-                if not line:
-                    continue
-                
-                line_lower = line.lower()
-                print(f"[render-engine-stream] [{current_stage}] {line}")
-                
-                if "bundling" in line_lower:
-                    current_stage = "bundling"
-                    m = pct_re.search(line)
-                    if m:
-                        bpct = int(m.group(1))
-                        overall = int(bpct * 0.15)
-                        if overall > last_overall:
-                            last_overall = overall
-                            yield {
-                                "stage": "bundling",
-                                "percent": overall,
-                                "frame": 0,
-                                "totalFrames": frames,
-                                "etaSeconds": 0
-                            }
-                    continue
-                
-                if ("rendering" in line_lower or "concurrency" in line_lower) and current_stage != "rendering":
-                    current_stage = "rendering"
-                    render_start_time = time.time()
-                    last_overall = max(last_overall, 15)
-                    yield {
-                        "stage": "rendering",
-                        "percent": 15,
-                        "frame": 0,
-                        "totalFrames": frames,
-                        "etaSeconds": 0
-                    }
-                
-                if current_stage == "rendering":
-                    fm = frame_re.search(line)
-                    if fm:
-                        frame_num = int(fm.group(1))
-                        total = int(fm.group(2))
-                        render_pct = (frame_num / max(total, 1)) * 100
-                        overall = int(15 + (render_pct * 0.80))
-                        
-                        if overall > last_overall:
-                            last_overall = overall
-                            elapsed = time.time() - (render_start_time or start_time)
-                            eta_sec = max(0, int((elapsed / render_pct) * (100 - render_pct))) if render_pct > 0 else 0
-                            yield {
-                                "stage": "rendering",
-                                "percent": min(overall, 95),
-                                "frame": frame_num,
-                                "totalFrames": total,
-                                "etaSeconds": eta_sec
-                            }
-                        continue
-                    
-                    pm = pct_re.search(line)
-                    if pm and "bundling" not in line_lower:
-                        rpct = int(pm.group(1))
-                        overall = int(15 + (rpct * 0.80))
-                        if overall > last_overall:
-                            last_overall = overall
-                            elapsed = time.time() - (render_start_time or start_time)
-                            eta_sec = max(0, int((elapsed / max(rpct, 1)) * (100 - rpct))) if rpct > 0 else 0
-                            yield {
-                                "stage": "rendering",
-                                "percent": min(overall, 95),
-                                "frame": int(frames * rpct / 100),
-                                "totalFrames": frames,
-                                "etaSeconds": eta_sec
-                            }
-                        continue
-                
-                if "encoding" in line_lower or "muxing" in line_lower or "stitching" in line_lower:
-                    current_stage = "encoding"
-                    if last_overall < 96:
-                        last_overall = 96
-                    yield {"stage": "encoding", "percent": last_overall, "frame": frames, "totalFrames": frames, "etaSeconds": 0}
-            
-            process.wait()
-            
-            if process.returncode != 0:
-                print(f"[render-engine-stream] Remotion failed with code {process.returncode}")
-                yield {"stage": "error", "message": f"Remotion exited with code {process.returncode}"}
-                return
-            
-            yield {
-                "stage": "done",
-                "percent": 100,
-                "frame": frames,
-                "totalFrames": frames,
-                "outputPath": output_path,
-                "outputUrl": f"/static/output/{out_filename}"
-            }
-        except Exception as e:
-            print(f"[render-engine-stream] Error: {str(e)}")
-            yield {"stage": "error", "message": str(e)}
-        finally:
+
             try:
-                os.remove(props_path)
-                os.remove(public_video_path)
-            except:
-                pass
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=ctx.remotion_dir,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=0,
+                    env=env,
+                    shell=(sys.platform == "win32"),
+                    encoding="utf-8"
+                )
+
+                if process.stdout is None:
+                    raise RuntimeError("Failed to capture stdout from subprocess")
+
+                while True:
+                    line = process.stdout.readline()
+                    if not line and process.poll() is not None:
+                        break
+                    if not line:
+                        continue
+
+                    event = parser.parse_line(line)
+                    if event:
+                        yield event
+
+                process.wait()
+
+                if process.returncode != 0:
+                    print(f"[render-engine-stream] Remotion failed with code {process.returncode}")
+                    yield parser.error_event(f"Remotion exited with code {process.returncode}")
+                    return
+
+                yield parser.complete_event(output_path, f"/static/output/{out_filename}")
+
+            except Exception as e:
+                print(f"[render-engine-stream] Error: {str(e)}")
+                yield parser.error_event(str(e))
+
+
+# Backward-compatible alias
+RemotionRenderEngine = RenderPipelineCoordinator
 
 
 class FakeRenderEngine(RenderEngine):
@@ -619,7 +690,7 @@ class FakeRenderEngine(RenderEngine):
         if self.should_fail:
             yield {"stage": "error", "message": "Simulated Render Failure"}
             return
-        
+
         frames = max(1, int((comp.clip_duration or 10.0) * comp.fps))
         yield {"stage": "starting", "percent": 0, "frame": 0, "totalFrames": frames}
         yield {"stage": "bundling", "percent": 10, "frame": 0, "totalFrames": frames, "etaSeconds": 0}
@@ -633,4 +704,3 @@ class FakeRenderEngine(RenderEngine):
             "outputPath": f"{self.output_dir}/{out_filename}",
             "outputUrl": f"/static/output/{out_filename}"
         }
-

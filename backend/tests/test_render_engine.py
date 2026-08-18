@@ -2,12 +2,20 @@ import unittest
 from unittest.mock import MagicMock, patch, mock_open
 import os
 import json
+import shutil
 import sys
 
 # Path resolution
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from core.render_engine import FakeRenderEngine, RenderComposition
+from core.render_engine import (
+    FakeRenderEngine,
+    RenderComposition,
+    RemotionProgressParser,
+    StagedRenderContext,
+    RenderPipelineCoordinator,
+    RemotionRenderEngine
+)
 
 class TestRenderEngine(unittest.TestCase):
     def test_render_composition_dto_attributes(self):
@@ -323,5 +331,100 @@ class TestRenderEngine(unittest.TestCase):
             events = list(engine.render_stream(mock_job, mock_req, mock_asset_repo, output_name=mock_req.output_name))
             self.assertEqual(events[-1]["stage"], "done")
             self.assertEqual(events[-1]["outputUrl"], "/static/output/Epic_Reel.mp4")
+
+    def test_remotion_progress_parser_lifecycle(self):
+        parser = RemotionProgressParser(total_frames=300)
+
+        # 1. Starting event
+        start_ev = parser.starting_event()
+        self.assertEqual(start_ev["stage"], "starting")
+        self.assertEqual(start_ev["totalFrames"], 300)
+
+        # 2. Bundling progress
+        bundle_ev = parser.parse_line("Bundling 50%...")
+        self.assertIsNotNone(bundle_ev)
+        if bundle_ev:
+            self.assertEqual(bundle_ev["stage"], "bundling")
+            self.assertEqual(bundle_ev["percent"], 7)  # 50 * 0.15 = 7.5 -> 7
+
+        # 3. Transition to rendering
+        rend_trans = parser.parse_line("Rendering frames...")
+        self.assertIsNotNone(rend_trans)
+        if rend_trans:
+            self.assertEqual(rend_trans["stage"], "rendering")
+            self.assertEqual(rend_trans["percent"], 15)
+
+        # 4. Frame progress
+        frame_ev = parser.parse_line("Rendering (150/300)")
+        self.assertIsNotNone(frame_ev)
+        if frame_ev:
+            self.assertEqual(frame_ev["stage"], "rendering")
+            self.assertEqual(frame_ev["frame"], 150)
+            self.assertEqual(frame_ev["totalFrames"], 300)
+            self.assertEqual(frame_ev["percent"], 55)  # 15 + (0.5 * 80) = 55
+
+        # 5. Encoding progress
+        enc_ev = parser.parse_line("Encoding and muxing audio...")
+        self.assertIsNotNone(enc_ev)
+        if enc_ev:
+            self.assertEqual(enc_ev["stage"], "encoding")
+            self.assertEqual(enc_ev["percent"], 96)
+
+        # 6. Complete event
+        done_ev = parser.complete_event("/static/output/clip.mp4", "/static/output/clip.mp4")
+        self.assertEqual(done_ev["stage"], "done")
+        self.assertEqual(done_ev["percent"], 100)
+
+        # 7. Error event
+        err_ev = parser.error_event("Render crashed")
+        self.assertEqual(err_ev["stage"], "error")
+        self.assertEqual(err_ev["message"], "Render crashed")
+
+    def test_remotion_progress_parser_ansi_stripping(self):
+        parser = RemotionProgressParser(total_frames=100)
+        # Line with ANSI color escapes
+        ansi_line = "\x1b[32mRendering\x1b[39m (50/100)"
+        clean = parser.clean_line(ansi_line)
+        self.assertEqual(clean, "Rendering (50/100)")
+
+    def test_staged_render_context_lifecycle_and_cleanup(self):
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+        temp_video = os.path.join(temp_dir, "dummy_video.mp4")
+        with open(temp_video, "w") as f:
+            f.write("dummy video content")
+
+        try:
+            comp = RenderComposition(
+                original_video=temp_video,
+                crop_center_x=960,
+                clip_duration=2.0,
+                fps=30.0
+            )
+
+            props_path_created = None
+            staged_video_created = None
+
+            with StagedRenderContext(comp, "test_out.mp4", output_dir=temp_dir) as ctx:
+                self.assertIsNotNone(ctx.props_path)
+                self.assertIsNotNone(ctx.public_video_path)
+                if ctx.props_path and ctx.public_video_path:
+                    self.assertTrue(os.path.exists(ctx.props_path))
+                    self.assertTrue(os.path.exists(ctx.public_video_path))
+                    props_path_created = ctx.props_path
+                    staged_video_created = ctx.public_video_path
+                self.assertEqual(ctx.frames, 60)
+
+            # Check that files were cleaned up automatically on exit
+            if props_path_created:
+                self.assertFalse(os.path.exists(props_path_created))
+            if staged_video_created:
+                self.assertFalse(os.path.exists(staged_video_created))
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_render_pipeline_coordinator_alias(self):
+        self.assertIs(RemotionRenderEngine, RenderPipelineCoordinator)
+
 
 
