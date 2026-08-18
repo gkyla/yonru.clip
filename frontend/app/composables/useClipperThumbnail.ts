@@ -1,6 +1,9 @@
-// useClipperThumbnail.ts - Extracted thumbnail composition and overlay editing logic
+// useClipperThumbnail.ts - Lean reactive composable delegating to ThumbnailCompositionCoordinator
 import { useTimelineState } from './useTimelineState'
-import { resolveThumbnailTextStyle, calculateNextOverlayPosition, mapThumbnailOverlays } from '../utils/thumbnailHelpers'
+import {
+  ThumbnailCompositionCoordinator,
+  mapThumbnailOverlays
+} from '../utils/thumbnailEngine'
 import type { ThumbnailTextOverlay, ThumbnailConfig, DefaultThumbnailStyle } from '../types/clipper'
 
 export const useClipperThumbnail = () => {
@@ -44,10 +47,12 @@ export const useClipperThumbnail = () => {
   // --- Watch Handlers for Thumbnail side-effects ---
   let prevDuration = thumbnailDuration.value
   watch(thumbnailDuration, (newVal) => {
-    if (thumbnailEnabled.value) {
-      const diff = newVal - prevDuration
-      currentTime.value = Math.max(0, currentTime.value + diff)
-    }
+    currentTime.value = ThumbnailCompositionCoordinator.calculateDurationTimeShift(
+      prevDuration,
+      newVal,
+      currentTime.value,
+      thumbnailEnabled.value
+    )
     prevDuration = newVal
   })
 
@@ -84,12 +89,10 @@ export const useClipperThumbnail = () => {
         await new Promise(resolve => setTimeout(resolve, 500))
       }
 
-      let requestTimestamp = timestamp ?? null
-      if (timestamp !== undefined && timestamp !== null) {
-        const fps = videoFps.value || 30
-        const frameOffset = 3 / fps
-        requestTimestamp = Math.max(0, timestamp - frameOffset)
-      }
+      const requestTimestamp = ThumbnailCompositionCoordinator.calculateScreenshotRequestTimestamp(
+        timestamp,
+        videoFps.value || 30
+      )
 
       const res = await $fetch<{ status: string; timestamp: number; thumbnail_url: string }>(`${API_BASE}/api/thumbnail/screenshot`, {
         method: 'POST',
@@ -103,7 +106,7 @@ export const useClipperThumbnail = () => {
       thumbnailEnabled.value = true
       showToast('Thumbnail captured!', 'success')
       await new Promise(resolve => setTimeout(resolve, 500))
-    } catch (e: any) {
+    } catch {
       showToast('Failed to capture thumbnail', 'error')
     } finally {
       isCapturingThumbnail.value = false
@@ -111,23 +114,11 @@ export const useClipperThumbnail = () => {
   }
 
   function addThumbnailText() {
-    const style = resolveThumbnailTextStyle(
-      thumbnailTextOverlays.value[0],
+    const newOverlay = ThumbnailCompositionCoordinator.createOverlay(
+      thumbnailTextOverlays.value,
       defaultThumbnailStyle.value
     )
-
-    const { x: newX, y: newY } = calculateNextOverlayPosition(thumbnailTextOverlays.value)
-
-    thumbnailTextOverlays.value = [
-      ...thumbnailTextOverlays.value,
-      {
-        id: Math.random().toString(36).substr(2, 9),
-        text: 'YOUR TEXT',
-        x: newX,
-        y: newY,
-        ...style
-      }
-    ]
+    thumbnailTextOverlays.value = [...thumbnailTextOverlays.value, newOverlay]
   }
 
   function removeThumbnailText(id: string) {
@@ -151,7 +142,7 @@ export const useClipperThumbnail = () => {
           }
         }
       })
-    } catch (e) {}
+    } catch {}
   }
 
   async function loadThumbnailConfig() {
@@ -168,20 +159,20 @@ export const useClipperThumbnail = () => {
         thumbnailScreenshotTime.value = res.config.screenshotTime ?? 0
         thumbnailXOffset.value = res.config.xOffset ?? 50
         thumbnailTextOverlays.value = mapThumbnailOverlays(res.config.textOverlays)
-        
+
         const baseClipUrl = `${API_BASE}/assets/clips/${folderName.value}/${clipId.value}`
         try {
           const thumbUrl = `${baseClipUrl}/thumbnail.jpg?t=${Date.now()}`
           thumbnailUrl.value = thumbUrl
         } catch { }
-        
+
         nextTick(() => {
           timeline.isSavingLocked.value = false
         })
       } else {
         resetThumbnailState()
       }
-    } catch (e) {
+    } catch {
       resetThumbnailState()
     }
   }
@@ -192,7 +183,7 @@ export const useClipperThumbnail = () => {
 
     if (!thumbnailEnabled.value) {
       const originalTime = currentTime.value
-      
+
       if (!thumbnailUrl.value) {
         if (!jobId.value) {
           timeline.isTimelineShifting.value = false
@@ -203,14 +194,22 @@ export const useClipperThumbnail = () => {
         await new Promise(resolve => setTimeout(resolve, 350))
       }
 
-      currentTime.value += thumbnailDuration.value
+      currentTime.value = ThumbnailCompositionCoordinator.calculateToggleTimeShift(
+        true,
+        thumbnailDuration.value,
+        currentTime.value
+      )
       thumbnailEnabled.value = true
 
       if (!thumbnailUrl.value) {
         await captureScreenshot(originalTime, true)
       }
     } else {
-      currentTime.value = Math.max(0, currentTime.value - thumbnailDuration.value)
+      currentTime.value = ThumbnailCompositionCoordinator.calculateToggleTimeShift(
+        false,
+        thumbnailDuration.value,
+        currentTime.value
+      )
       thumbnailEnabled.value = false
     }
 
@@ -228,29 +227,29 @@ export const useClipperThumbnail = () => {
       await $fetch(`${API_BASE}/api/thumbnail/${folderName.value}/${clipId.value}`, {
         method: 'DELETE'
       })
-      
+
       timeline.isTimelineShifting.value = true
       timeline.isSavingLocked.value = true
       isDeletingThumbnail.value = true
-      
+
       if (thumbnailEnabled.value) {
         currentTime.value = Math.max(0, currentTime.value - thumbnailDuration.value)
       }
-      
+
       thumbnailUrl.value = null
       thumbnailEnabled.value = false
       thumbnailScreenshotTime.value = 0
       thumbnailTextOverlays.value = []
       thumbnailDuration.value = 1.0
-      
+
       nextTick(() => {
         timeline.isTimelineShifting.value = false
         timeline.isSavingLocked.value = false
         isDeletingThumbnail.value = false
       })
-      
+
       showToast('Thumbnail deleted!', 'success')
-    } catch (e: any) {
+    } catch {
       timeline.isTimelineShifting.value = false
       timeline.isSavingLocked.value = false
       isDeletingThumbnail.value = false
@@ -261,12 +260,8 @@ export const useClipperThumbnail = () => {
   async function loadDefaultThumbnailStyle() {
     try {
       const res = await $fetch<{ style: DefaultThumbnailStyle }>(`${API_BASE}/api/default-thumbnail-style`)
-      if (res.style) {
-        defaultThumbnailStyle.value = res.style
-      } else {
-        defaultThumbnailStyle.value = null
-      }
-    } catch (e) {
+      defaultThumbnailStyle.value = res?.style || null
+    } catch {
       defaultThumbnailStyle.value = null
     }
   }
@@ -278,22 +273,10 @@ export const useClipperThumbnail = () => {
       return
     }
 
-    const style = {
-      thumbnailDuration: thumbnailDuration.value,
-      fontSize: first.fontSize,
-      fontFamily: first.fontFamily,
-      fontWeight: first.fontWeight,
-      color: first.color,
-      strokeColor: first.strokeColor,
-      strokeWidth: first.strokeWidth,
-      showStroke: first.showStroke,
-      textTransform: first.textTransform,
-      rotation: first.rotation,
-      showBackground: first.showBackground,
-      backgroundColor: first.backgroundColor,
-      backgroundOpacity: first.backgroundOpacity,
-      backgroundPadding: first.backgroundPadding
-    }
+    const style = ThumbnailCompositionCoordinator.extractDefaultStyleFromOverlay(
+      first,
+      thumbnailDuration.value
+    )
 
     try {
       await $fetch(`${API_BASE}/api/default-thumbnail-style`, {
@@ -302,7 +285,7 @@ export const useClipperThumbnail = () => {
       })
       defaultThumbnailStyle.value = style
       showToast('Thumbnail style saved as default!', 'success')
-    } catch (e) {
+    } catch {
       showToast('Failed to save default thumbnail style', 'error')
     }
   }
@@ -315,27 +298,15 @@ export const useClipperThumbnail = () => {
     }
 
     timeline.isSavingLocked.value = true
-    
+
     if (style.thumbnailDuration !== undefined) {
       thumbnailDuration.value = style.thumbnailDuration
     }
 
-    thumbnailTextOverlays.value = thumbnailTextOverlays.value.map(o => ({
-      ...o,
-      fontSize: style.fontSize ?? o.fontSize,
-      fontFamily: style.fontFamily ?? o.fontFamily,
-      fontWeight: style.fontWeight ?? o.fontWeight,
-      color: style.color ?? o.color,
-      strokeColor: style.strokeColor ?? o.strokeColor,
-      strokeWidth: style.strokeWidth ?? o.strokeWidth,
-      showStroke: style.showStroke ?? o.showStroke,
-      textTransform: style.textTransform ?? o.textTransform,
-      rotation: style.rotation ?? o.rotation,
-      showBackground: style.showBackground ?? o.showBackground,
-      backgroundColor: style.backgroundColor ?? o.backgroundColor,
-      backgroundOpacity: style.backgroundOpacity ?? o.backgroundOpacity,
-      backgroundPadding: style.backgroundPadding ?? o.backgroundPadding
-    }))
+    thumbnailTextOverlays.value = ThumbnailCompositionCoordinator.applyDefaultStyleToOverlays(
+      thumbnailTextOverlays.value,
+      style
+    )
 
     showToast('Applied default thumbnail style to overlays!', 'success')
 

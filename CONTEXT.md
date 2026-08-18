@@ -153,6 +153,10 @@ _Avoid_: Overlay text, subtitle text overlay
 A reusable template defining layout and styling rules applied automatically to new thumbnail overlays.
 _Avoid_: Preset thumbnail style, default text styling
 
+**Thumbnail Composition Coordinator**:
+A domain coordinator that manages thumbnail overlay creation, typography and stroke style inheritance cascades, collision-free layout positioning, and thumbnail duration time-shift calculations.
+_Avoid_: Thumbnail helper, overlay manager, thumbnail builder
+
 **Library Duplicate Intercept**:
 A client-side warning dialog that triggers when a user submits a video source that already exists in the library.
 _Avoid_: Duplicate URL warning, check dialog
