@@ -1,6 +1,12 @@
 // useSafetyAuditor.ts - Extracted safety and profanity scanning logic
-import { auditTranscript } from '../utils/contentAuditor'
-import { maskText } from '../utils/profanityMasker'
+import {
+  auditTranscript,
+  maskText,
+  auditLayoutCollision,
+  calculateSafeOffset,
+  auditReadability,
+  calculateAdjustedScore
+} from '../utils/safetyEngine'
 import type { Hook, TranscriptSegment, DeepAuditResult } from '../types/clipper'
 
 export const DEFAULT_CATEGORIZED_BLACKLIST = {
@@ -301,13 +307,18 @@ export const useSafetyAuditor = () => {
   const contentAudit = computed(() => {
     const transcript = fullTranscript.value || []
     const mode = subtitleMode.value || 'word'
-
-    // Compile active blacklist based on sensitivity
     const activeBlacklist = compiledBlacklist.value
 
     const rawAudit = auditTranscript(transcript, activeBlacklist, mode, bleepPaddingOffset.value, bleepMode.value)
-    
-    // Adjust score based on safe zone layout collision and readability
+
+    if (isWarningIgnored.value) {
+      return {
+        ...rawAudit,
+        score: 100,
+        flaggedWords: []
+      }
+    }
+
     const currentPlatform = activeSafeZone.value || 'none'
     const isLayoutFilterActive = currentPlatform === 'none' || 
       (currentPlatform === 'tiktok' && activePlatformFilters.value.tiktok) ||
@@ -316,20 +327,13 @@ export const useSafetyAuditor = () => {
 
     const isLayoutSafe = !isLayoutFilterActive || layoutAudit.value.isSafe
     const isReadabilitySafe = readabilityAudit.value.isSafe
-    
-    let adjustedScore = rawAudit.score
-    if (!isLayoutSafe) adjustedScore -= 15
-    if (!isReadabilitySafe) adjustedScore -= 10
-    adjustedScore = Math.max(0, adjustedScore)
 
-    // Override visual scores if warning is ignored
-    if (isWarningIgnored.value) {
-      return {
-        ...rawAudit,
-        score: 100,
-        flaggedWords: []
-      }
-    }
+    const adjustedScore = calculateAdjustedScore(
+      rawAudit.score,
+      isLayoutSafe,
+      isReadabilitySafe,
+      false
+    )
 
     return {
       ...rawAudit,
@@ -339,92 +343,34 @@ export const useSafetyAuditor = () => {
 
   // Pilar 2: Cek Tabrakan Tata Letak dengan Safe Zone Platform aktif
   const layoutAudit = computed(() => {
-    const platform = activeSafeZone.value || 'none'
-    const position = subtitlePosition.value || 'center'
-    const offset = subtitleOffset.value || 0
-
-    // If platform checks are toggled off or warning ignored, treat layout as safe
-    const isFilterActive = platform === 'none' ||
-      (platform === 'tiktok' && activePlatformFilters.value.tiktok) ||
-      (platform === 'reels' && activePlatformFilters.value.reels) ||
-      (platform === 'shorts' && activePlatformFilters.value.shorts)
-
-    if (platform === 'none' || !isFilterActive || isWarningIgnored.value) {
-      return {
-        isSafe: true,
-        reason: 'No safe zone selected or check is disabled.',
-        collisionCount: 0
-      }
-    }
-
-    let isColliding = false
-    let reason = 'Subtitles are placed in a safe layout zone.'
-
-    if (position === 'top') {
-      const topDeadzone = platform === 'tiktok' ? 130 : (platform === 'reels' ? 220 : 160)
-      if (offset < topDeadzone) {
-        isColliding = true
-        reason = `Subtitles collide with top ${platform} header zone (${topDeadzone}px).`
-      }
-    } else if (position === 'bottom') {
-      const bottomDeadzone = platform === 'tiktok' ? 250 : (platform === 'reels' ? 350 : 280)
-      if (offset < bottomDeadzone) {
-        isColliding = true
-        reason = `Subtitles collide with bottom ${platform} controls/caption zone (${bottomDeadzone}px).`
-      }
-    }
-
-    return {
-      isSafe: !isColliding,
-      reason,
-      collisionCount: isColliding ? 1 : 0
-    }
+    return auditLayoutCollision(
+      activeSafeZone.value || 'none',
+      subtitlePosition.value || 'center',
+      subtitleOffset.value || 0,
+      activePlatformFilters.value,
+      isWarningIgnored.value
+    )
   })
 
   // Action to fit subtitle Y coordinate into safe zone
   const fitSubtitlesToSafeZone = () => {
-    const platform = activeSafeZone.value || 'none'
-    const position = subtitlePosition.value || 'center'
-
-    if (platform === 'none') return
-
-    if (position === 'top') {
-      const topDeadzone = platform === 'tiktok' ? 130 : (platform === 'reels' ? 220 : 160)
-      subtitleOffset.value = topDeadzone + 20
-    } else if (position === 'bottom') {
-      const bottomDeadzone = platform === 'tiktok' ? 250 : (platform === 'reels' ? 350 : 280)
-      subtitleOffset.value = bottomDeadzone + 20
+    const safeOffset = calculateSafeOffset(
+      activeSafeZone.value || 'none',
+      subtitlePosition.value || 'center'
+    )
+    if (safeOffset !== null) {
+      subtitleOffset.value = safeOffset
     }
   }
 
   // Pilar 3: Cek Keterbacaan & Kontras Subtitle
   const readabilityAudit = computed(() => {
-    if (isWarningIgnored.value) {
-      return {
-        isSafe: true,
-        reason: 'Subtitle readability warnings ignored.'
-      }
-    }
-
-    const bg = subtitleBackground.value || 'none'
-    const strokeWidth = subtitleStrokeWidth.value || 0
-    const strokeColor = subtitleStrokeColor.value || '#000000'
-
-    const hasBg = bg !== 'none'
-    const hasStroke = strokeWidth >= 2 && strokeColor !== 'transparent' && strokeColor !== 'none'
-
-    let isSafe = true
-    let reason = 'Subtitle readability is secured with active outline or background styles.'
-
-    if (!hasBg && !hasStroke) {
-      isSafe = false
-      reason = 'Low subtitle contrast: Add a text outline or background box to guarantee readability.'
-    }
-
-    return {
-      isSafe,
-      reason
-    }
+    return auditReadability(
+      subtitleBackground.value || 'none',
+      subtitleStrokeWidth.value || 0,
+      subtitleStrokeColor.value || '#000000',
+      isWarningIgnored.value
+    )
   })
 
   // Action to fix readability by applying a high-contrast dark outline

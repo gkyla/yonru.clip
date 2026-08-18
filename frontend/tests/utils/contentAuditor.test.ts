@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { auditTranscript } from '../../app/utils/contentAuditor'
+import { auditTranscript } from '../../app/utils/safetyEngine'
 
 describe('Content Auditor TDD', () => {
   it('empty transcript returns perfect score with no flags', () => {
