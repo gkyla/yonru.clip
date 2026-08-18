@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
+  ContentSafetyAuditor,
+  createContentSafetyAuditor,
   getCompiledPattern,
   compileBlacklist,
   auditTranscript,
@@ -7,7 +9,9 @@ import {
   auditLayoutCollision,
   calculateSafeOffset,
   auditReadability,
-  calculateAdjustedScore
+  calculateAdjustedScore,
+  DEFAULT_BLEEP_PRESET,
+  BUILTIN_BLEEP_PRESETS
 } from '../../app/utils/safetyEngine'
 
 describe('SafetyEngine Unit Tests', () => {
@@ -174,6 +178,116 @@ describe('SafetyEngine Unit Tests', () => {
 
     it('returns 100 when warnings are ignored', () => {
       expect(calculateAdjustedScore(50, false, false, true)).toBe(100)
+    })
+  })
+
+  describe('ContentSafetyAuditor Deep Engine Methods', () => {
+    let auditor: ContentSafetyAuditor
+
+    beforeEach(() => {
+      auditor = createContentSafetyAuditor()
+    })
+
+    it('compiles effective blacklist respecting category toggles and whitelist', () => {
+      auditor.customBlacklist = ['custombadword']
+      auditor.customWhitelist = ['kill']
+
+      const effective = auditor.getEffectiveBlacklist()
+      expect(effective).toContain('custombadword')
+      expect(effective).not.toContain('kill')
+      expect(effective).toContain('murder')
+    })
+
+    it('filters non-severe words when standard sensitivity is active without audio bleeping', () => {
+      auditor.safetySensitivity = 'standard'
+      auditor.audioBleepEnabled = false
+
+      const effective = auditor.getEffectiveBlacklist()
+      expect(effective).toContain('murder') // severe word
+      expect(effective).not.toContain('crash') // mild word in violence category
+    })
+
+    it('uses all category words when strict sensitivity is active', () => {
+      auditor.safetySensitivity = 'strict'
+      const effective = auditor.getEffectiveBlacklist()
+      expect(effective).toContain('crash')
+      expect(effective).toContain('murder')
+    })
+
+    it('evaluates comprehensive 3-pillar audit report in a single call', () => {
+      const report = auditor.audit({
+        transcript: [{ text: 'this is murder', start: 0, duration: 2 }],
+        activeSafeZone: 'tiktok',
+        subtitlePosition: 'bottom',
+        subtitleOffset: 100, // Collides with bottom 250px deadzone
+        subtitleBackground: 'none',
+        subtitleStrokeWidth: 0 // Collides with readability
+      })
+
+      expect(report.score).toBeLessThan(80)
+      expect(report.flaggedWords).toContain('murder')
+      expect(report.isLayoutSafe).toBe(false)
+      expect(report.isReadabilitySafe).toBe(false)
+    })
+
+    it('masks entire transcript array using maskTranscript()', () => {
+      auditor.customBlacklist = ['danger']
+      const masked = auditor.maskTranscript([
+        { text: 'this is danger zone', start: 0, duration: 2 }
+      ])
+      expect(masked[0]?.text).toBe('this is d*nger zone')
+    })
+
+    it('manages bleep audio preset library lifecycle', () => {
+      expect(auditor.bleepLibrary.length).toBeGreaterThanOrEqual(BUILTIN_BLEEP_PRESETS.length)
+      expect(auditor.selectedBleepAudioId).toBe(DEFAULT_BLEEP_PRESET.id)
+
+      // Add custom bleep
+      const custom = auditor.addCustomBleepFile({ name: 'My Bleep', data: 'data:audio/mp3;base64,123' })
+      expect(auditor.selectedBleepAudioId).toBe(custom.id)
+      expect(auditor.customBleepFile?.name).toBe('My Bleep')
+
+      // Select preset
+      expect(auditor.selectBleepAudio('roblox_death')).toBe(true)
+      expect(auditor.selectedBleepAudioId).toBe('roblox_death')
+
+      // Remove custom bleep
+      expect(auditor.removeCustomBleepFile(custom.id)).toBe(true)
+      expect(auditor.bleepLibrary.some(item => item.id === custom.id)).toBe(false)
+    })
+
+    it('exports and hydrates state cleanly', () => {
+      auditor.customBlacklist = ['testword']
+      auditor.bleepPaddingOffset = 80
+      auditor.bleepMode = 'partial_end'
+
+      const exported = auditor.exportState()
+      const freshAuditor = createContentSafetyAuditor()
+      freshAuditor.hydrate(exported)
+
+      expect(freshAuditor.customBlacklist).toEqual(['testword'])
+      expect(freshAuditor.bleepPaddingOffset).toBe(80)
+      expect(freshAuditor.bleepMode).toBe('partial_end')
+    })
+
+    it('serializes and hydrates with mock localStorage', () => {
+      const storageMap = new Map<string, string>()
+      const mockStorage = {
+        getItem: (k: string) => storageMap.get(k) || null,
+        setItem: (k: string, v: string) => { storageMap.set(k, v) },
+        removeItem: (k: string) => { storageMap.delete(k) },
+        clear: () => { storageMap.clear() },
+        key: () => null,
+        length: 0
+      } as Storage
+
+      auditor.customBlacklist = ['persisted_bad_word']
+      auditor.serializeToStorage(mockStorage)
+
+      const reloadedAuditor = createContentSafetyAuditor()
+      reloadedAuditor.hydrateFromStorage(mockStorage)
+
+      expect(reloadedAuditor.customBlacklist).toContain('persisted_bad_word')
     })
   })
 })

@@ -624,7 +624,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
-import { DEFAULT_CATEGORIZED_BLACKLIST, SEVERE_WORDS } from '../composables/useSafetyAuditor'
+import { DEFAULT_CATEGORIZED_BLACKLIST, SEVERE_WORDS } from '../utils/safetyEngine'
 
 const state = useClipperState()
 const newWord = ref('')

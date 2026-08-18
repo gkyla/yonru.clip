@@ -1,6 +1,7 @@
 // Composable for managing the entire clipper state
 import { useSystemDiagnostics } from './useSystemDiagnostics'
-import { useSafetyAuditor, DEFAULT_BLACKLIST, CATEGORIZED_BLACKLIST } from './useSafetyAuditor'
+import { useSafetyAuditor } from './useSafetyAuditor'
+import { DEFAULT_BLACKLIST, CATEGORIZED_BLACKLIST } from '../utils/safetyEngine'
 import { useTimelineState } from './useTimelineState'
 import { useClipperJob } from './useClipperJob'
 import { useClipperThumbnail } from './useClipperThumbnail'
