@@ -1,11 +1,11 @@
 // useTimelineState.ts - Extracted timeline tracks and duration sequencing logic
 import { nextTick } from 'vue'
 import { calculateTimelineDuration, calculateVideoTime } from '../utils/timelineHelpers'
-import { TimelineHistoryManager } from '../utils/timelineHistory'
+import { TimelineTransactionEngine } from '../utils/timelineHistory'
 import type { TimelineTrack, TimelineTrackItem, TranscriptSegment, HistorySnapshot } from '../types/clipper'
 
 export const useTimelineState = () => {
-  const historyManager = new TimelineHistoryManager(50)
+  const historyManager = new TimelineTransactionEngine(50)
   const API_BASE = 'http://localhost:8000'
 
   const timelineTracks = useState<TimelineTrack[]>('timelineTracks', () => [

@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useState } from '#app'
 import { useTimelineState } from '../../app/composables/useTimelineState'
 import { useClipperState } from '../../app/composables/useClipperState'
+import type { TimelineTrack, TranscriptSegment } from '../../app/types/clipper'
 
 // Mock $fetch so the async save-before-clear watcher resolves quickly in tests
 vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ status: 'ok' }))
@@ -357,4 +358,72 @@ describe('useTimelineState History Tracking - Undo/Redo', () => {
     expect(snapshot1.transcript[5].text).toBe('Original 5')
   })
 })
+
+describe('TimelineTransactionEngine - Deepened Standalone Engine', () => {
+  it('encapsulates undo and redo stacks with getters and structural sharing', async () => {
+    const { TimelineTransactionEngine } = await import('../../app/utils/timelineHistory')
+    const engine = new TimelineTransactionEngine(50)
+
+    expect(engine.canUndo).toBe(false)
+    expect(engine.canRedo).toBe(false)
+    expect(engine.undoCount).toBe(0)
+    expect(engine.redoCount).toBe(0)
+
+    const initialTracks: TimelineTrack[] = [
+      { id: 'video', name: 'Main Video', type: 'video', items: [] },
+      { id: 'text', name: 'Text layers', type: 'text', items: [{ id: 'item-1', start: 0, duration: 5, content: 'First' }] }
+    ]
+    const initialTranscript: TranscriptSegment[] = [{ id: 'seg-1', start: 0, duration: 5, text: 'First transcript' }]
+
+    // 1. Commit initial
+    const committed1 = engine.commit(initialTracks, initialTranscript, 'item-1')
+    expect(committed1).toBe(true)
+    expect(engine.canUndo).toBe(true)
+    expect(engine.canRedo).toBe(false)
+    expect(engine.undoCount).toBe(1)
+
+    // 2. Commit without change should return false and not grow stack
+    const committedDuplicate = engine.commit(initialTracks, initialTranscript, 'item-1')
+    expect(committedDuplicate).toBe(false)
+    expect(engine.undoCount).toBe(1)
+
+    // 3. Mutate tracks in UI without committing yet, then undo
+    const mutatedTracks: TimelineTrack[] = [
+      { id: 'video', name: 'Main Video', type: 'video', items: [] },
+      { id: 'text', name: 'Text layers', type: 'text', items: [{ id: 'item-1', start: 0, duration: 5, content: 'Second' }] }
+    ]
+
+    // 4. Undo restores initial state and pushes mutated state to redo stack
+    const poppedUndo = engine.undo(mutatedTracks, initialTranscript, 'item-1')
+    expect(poppedUndo).not.toBeNull()
+    expect(poppedUndo?.tracks[1]?.items[0]?.content).toBe('First')
+    expect(engine.canUndo).toBe(false)
+    expect(engine.canRedo).toBe(true)
+    expect(engine.undoCount).toBe(0)
+    expect(engine.redoCount).toBe(1)
+
+    // 5. Redo restores mutated state and pushes initial state to undo stack
+    const poppedRedo = engine.redo(initialTracks, initialTranscript, 'item-1')
+    expect(poppedRedo).not.toBeNull()
+    expect(poppedRedo?.tracks[1]?.items[0]?.content).toBe('Second')
+    expect(engine.undoCount).toBe(1)
+    expect(engine.redoCount).toBe(0)
+
+    // 6. Export stacks & Hydrate
+    const exported = engine.exportStacks()
+    expect(exported.undo_stack.length).toBe(1)
+    expect(exported.redo_stack.length).toBe(0)
+
+    const freshEngine = new TimelineTransactionEngine(50)
+    freshEngine.hydrate(exported.undo_stack, exported.redo_stack)
+    expect(freshEngine.undoCount).toBe(1)
+    expect(freshEngine.canUndo).toBe(true)
+
+    // 7. Clear
+    freshEngine.clear()
+    expect(freshEngine.undoCount).toBe(0)
+    expect(freshEngine.canUndo).toBe(false)
+  })
+})
+
 

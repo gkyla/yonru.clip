@@ -1,7 +1,8 @@
 /**
- * TimelineHistoryManager — Encapsulates structural sharing logic for the undo/redo stack
- * in the Transcription Editor. Avoids expensive JSON deep-clones by reusing unchanged
- * track items and transcript segments across snapshots.
+ * TimelineTransactionEngine — Encapsulates state snapshots, structural sharing,
+ * and undo/redo stack lifecycles for the Transcription Editor.
+ * Reuses unchanged track items and transcript segments across snapshots to avoid
+ * expensive JSON deep-clones and out-of-sync state drifts.
  */
 
 import type { TimelineTrack, TimelineTrackItem, TranscriptSegment, TranscriptWord } from '../types/clipper'
@@ -61,11 +62,39 @@ function areWordsEqual(wordsA: TranscriptWord[] | undefined, wordsB: TranscriptW
   return true
 }
 
-export class TimelineHistoryManager {
+export class TimelineTransactionEngine {
   private maxStackSize: number
+  private _undoStack: TimelineSnapshot[] = []
+  private _redoStack: TimelineSnapshot[] = []
   
-  constructor(maxStackSize = 50) {
+  constructor(maxStackSize = 50, initialUndo: TimelineSnapshot[] = [], initialRedo: TimelineSnapshot[] = []) {
     this.maxStackSize = maxStackSize
+    this._undoStack = [...initialUndo]
+    this._redoStack = [...initialRedo]
+  }
+
+  public get undoStack(): TimelineSnapshot[] {
+    return this._undoStack
+  }
+
+  public get redoStack(): TimelineSnapshot[] {
+    return this._redoStack
+  }
+
+  public get canUndo(): boolean {
+    return this._undoStack.length > 0
+  }
+
+  public get canRedo(): boolean {
+    return this._redoStack.length > 0
+  }
+
+  public get undoCount(): number {
+    return this._undoStack.length
+  }
+
+  public get redoCount(): number {
+    return this._redoStack.length
   }
   
   private cloneTimelineItem(item: TimelineTrackItem): TimelineTrackItem {
@@ -93,9 +122,31 @@ export class TimelineHistoryManager {
   
   /**
    * Commits the current state to the undo stack, using structural sharing.
-   * Compares current states to the last snapshot on the stack to reuse references where possible.
+   * Supports both clean commit(tracks, transcript, selectedId) and legacy commit(undoStack, redoStack, tracks, transcript, selectedId).
    */
   public commit(
+    arg1: TimelineSnapshot[] | TimelineTrack[],
+    arg2?: TimelineSnapshot[] | TranscriptSegment[],
+    arg3?: TimelineTrack[] | string | null,
+    arg4?: TranscriptSegment[],
+    arg5?: string | null
+  ): boolean {
+    if (Array.isArray(arg3)) {
+      const uStack = arg1 as TimelineSnapshot[]
+      const rStack = (arg2 as TimelineSnapshot[]) || []
+      const tr = arg3 as TimelineTrack[]
+      const tc = (arg4 as TranscriptSegment[]) || []
+      const sid = arg5 || null
+      return this._executeCommit(uStack, rStack, tr, tc, sid)
+    }
+
+    const tr = arg1 as TimelineTrack[]
+    const tc = (arg2 as TranscriptSegment[]) || []
+    const sid = (arg3 as string | null) || null
+    return this._executeCommit(this._undoStack, this._redoStack, tr, tc, sid)
+  }
+
+  private _executeCommit(
     undoStack: TimelineSnapshot[],
     redoStack: TimelineSnapshot[],
     currentTracks: TimelineTrack[],
@@ -187,6 +238,28 @@ export class TimelineHistoryManager {
    * Returns the popped snapshot or null.
    */
   public undo(
+    arg1: TimelineSnapshot[] | TimelineTrack[],
+    arg2?: TimelineSnapshot[] | TranscriptSegment[],
+    arg3?: TimelineTrack[] | string | null,
+    arg4?: TranscriptSegment[],
+    arg5?: string | null
+  ): TimelineSnapshot | null {
+    if (Array.isArray(arg3)) {
+      const uStack = arg1 as TimelineSnapshot[]
+      const rStack = (arg2 as TimelineSnapshot[]) || []
+      const tr = arg3 as TimelineTrack[]
+      const tc = (arg4 as TranscriptSegment[]) || []
+      const sid = arg5 || null
+      return this._executeUndo(uStack, rStack, tr, tc, sid)
+    }
+
+    const tr = arg1 as TimelineTrack[]
+    const tc = (arg2 as TranscriptSegment[]) || []
+    const sid = (arg3 as string | null) || null
+    return this._executeUndo(this._undoStack, this._redoStack, tr, tc, sid)
+  }
+
+  private _executeUndo(
     undoStack: TimelineSnapshot[],
     redoStack: TimelineSnapshot[],
     currentTracks: TimelineTrack[],
@@ -220,6 +293,28 @@ export class TimelineHistoryManager {
    * Returns the popped snapshot or null.
    */
   public redo(
+    arg1: TimelineSnapshot[] | TimelineTrack[],
+    arg2?: TimelineSnapshot[] | TranscriptSegment[],
+    arg3?: TimelineTrack[] | string | null,
+    arg4?: TranscriptSegment[],
+    arg5?: string | null
+  ): TimelineSnapshot | null {
+    if (Array.isArray(arg3)) {
+      const uStack = arg1 as TimelineSnapshot[]
+      const rStack = (arg2 as TimelineSnapshot[]) || []
+      const tr = arg3 as TimelineTrack[]
+      const tc = (arg4 as TranscriptSegment[]) || []
+      const sid = arg5 || null
+      return this._executeRedo(uStack, rStack, tr, tc, sid)
+    }
+
+    const tr = arg1 as TimelineTrack[]
+    const tc = (arg2 as TranscriptSegment[]) || []
+    const sid = (arg3 as string | null) || null
+    return this._executeRedo(this._undoStack, this._redoStack, tr, tc, sid)
+  }
+
+  private _executeRedo(
     undoStack: TimelineSnapshot[],
     redoStack: TimelineSnapshot[],
     currentTracks: TimelineTrack[],
@@ -247,4 +342,24 @@ export class TimelineHistoryManager {
     undoStack.push(currentState)
     return redoStack.pop() || null
   }
+
+  public hydrate(undoStack: TimelineSnapshot[], redoStack: TimelineSnapshot[]): void {
+    this._undoStack = [...undoStack]
+    this._redoStack = [...redoStack]
+  }
+
+  public exportStacks(): { undo_stack: TimelineSnapshot[]; redo_stack: TimelineSnapshot[] } {
+    return {
+      undo_stack: [...this._undoStack],
+      redo_stack: [...this._redoStack]
+    }
+  }
+
+  public clear(): void {
+    this._undoStack.length = 0
+    this._redoStack.length = 0
+  }
 }
+
+// Backward compatibility alias
+export const TimelineHistoryManager = TimelineTransactionEngine
