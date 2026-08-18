@@ -1,7 +1,8 @@
 // @vitest-environment nuxt
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import IndexPage from '../../app/pages/index.vue'
+import UnifiedAnalyzerPanel from '../../app/components/home/UnifiedAnalyzerPanel.vue'
+import HookResultsGallery from '../../app/components/home/HookResultsGallery.vue'
 import { ref } from 'vue'
 
 const mockState = {
@@ -119,7 +120,7 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
   })
 
   it('renders active preset in chip and opens dropdown with all 5 smart intent presets', async () => {
-    const wrapper = mount(IndexPage, {
+    const wrapper = mount(UnifiedAnalyzerPanel, {
       global: {
         stubs: {
           NuxtLayout: { template: '<div><slot /></div>' },
@@ -147,7 +148,7 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
   })
 
   it('switches active preset when user clicks a preset option in dropdown', async () => {
-    const wrapper = mount(IndexPage, {
+    const wrapper = mount(UnifiedAnalyzerPanel, {
       global: {
         stubs: {
           NuxtLayout: { template: '<div><slot /></div>' },
@@ -172,7 +173,7 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
   })
 
   it('switches to custom prompt mode when custom template is selected in dropdown', async () => {
-    const wrapper = mount(IndexPage, {
+    const wrapper = mount(UnifiedAnalyzerPanel, {
       global: {
         stubs: {
           NuxtLayout: { template: '<div><slot /></div>' },
@@ -197,17 +198,6 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
   })
 
   it('renders virality score badges with correct color tiers and scores', async () => {
-    const wrapper = mount(IndexPage, {
-      global: {
-        stubs: {
-          NuxtLayout: { template: '<div><slot /></div>' },
-          Icon: { template: '<span class="icon-stub" :data-icon="$attrs.name"></span>' },
-          NuxtLink: { template: '<a><slot /></a>' },
-          Transition: { template: '<div><slot /></div>' }
-        }
-      }
-    })
-
     mockState.jobStatus.value = 'hooks_ready'
     mockState.hooks.value = [
       {
@@ -236,6 +226,21 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
       }
     ]
 
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: null,
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          Icon: { template: '<span class="icon-stub" :data-icon="$attrs.name"></span>' },
+          NuxtLink: { template: '<a><slot /></a>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    })
+
     await wrapper.vm.$nextTick()
 
     const text = wrapper.text()
@@ -247,7 +252,7 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
   })
 
   it('selects language option from language dropdown chip', async () => {
-    const wrapper = mount(IndexPage, {
+    const wrapper = mount(UnifiedAnalyzerPanel, {
       global: {
         stubs: {
           NuxtLayout: { template: '<div><slot /></div>' },
@@ -275,7 +280,7 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
   })
 
   it('selects target duration preset from duration dropdown chip', async () => {
-    const wrapper = mount(IndexPage, {
+    const wrapper = mount(UnifiedAnalyzerPanel, {
       global: {
         stubs: {
           NuxtLayout: { template: '<div><slot /></div>' },
@@ -304,7 +309,7 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
   })
 
   it('handles topic focus input, clear action, and mobile options modal', async () => {
-    const wrapper = mount(IndexPage, {
+    const wrapper = mount(UnifiedAnalyzerPanel, {
       global: {
         stubs: {
           NuxtLayout: { template: '<div><slot /></div>' },
@@ -319,7 +324,7 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
     mockState.focusTopic.value = 'Mitos Kopi'
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Topic: Mitos Kopi')
+    expect(wrapper.text()).toContain('Mitos Kopi')
     expect(vm.hasActiveAdvancedFilters).toBe(true)
 
     // Open mobile options
@@ -330,7 +335,7 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
 
   it('renders paste button with clipboard icon when url is empty and updates url on click', async () => {
     mockState.youtubeUrl.value = ''
-    const wrapper = mount(IndexPage, {
+    const wrapper = mount(UnifiedAnalyzerPanel, {
       global: {
         stubs: {
           NuxtLayout: { template: '<div><slot /></div>' },

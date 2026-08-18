@@ -2,91 +2,104 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import index from '../../app/pages/index.vue'
+import HookResultsGallery from '../../app/components/home/HookResultsGallery.vue'
+import CachedVideoLibrary from '../../app/components/home/CachedVideoLibrary.vue'
 import { ref } from 'vue'
 import { useState } from '#imports'
+import type { Hook, CachedVideo, PromptTemplate } from '../../app/types/clipper'
+
+const mockState = {
+  youtubeUrl: ref(''),
+  selectedPrompt: ref('prompt.json'),
+  promptsList: ref<PromptTemplate[]>([]),
+  extractionMode: ref('preset'),
+  selectedPresetId: ref('auto'),
+  focusTopic: ref(''),
+  minDuration: ref(30),
+  maxDuration: ref(180),
+  whisperModel: ref('base'),
+  language: ref('auto'),
+  whisperModels: [
+    { id: 'tiny', name: 'Tiny', speed: 'Ultra Fast', acc: 'Basic', desc: 'Minimal accuracy, best for quick testing on weak hardware.' },
+    { id: 'base', name: 'Base', speed: 'Very Fast', acc: 'Good', desc: 'Great balance for clear audio. Default choice.' },
+    { id: 'small', name: 'Small', speed: 'Fast', acc: 'Better', desc: 'Significantly better for non-English or noisy audio.' },
+    { id: 'medium', name: 'Medium', speed: 'Moderate', acc: 'Excellent', desc: 'High precision. Requires decent hardware (~5GB VRAM).' },
+    { id: 'large-v3', name: 'Large-v3', speed: 'Slow', acc: 'State-of-the-Art', desc: 'Highest accuracy possible. Best for complex dialogue.' }
+  ],
+  jobError: ref<string | null>(null),
+  hooks: ref<Hook[]>([]),
+  jobId: ref<string | null>('job-123'),
+  jobStatus: ref('idle'),
+  clipId: ref(''),
+  savedHooks: ref<Hook[]>([]),
+  activeHook: ref<Hook | null>(null),
+  lastAccessedVideoId: ref<string | null>(null),
+  lastAccessedClip: ref<any>(null),
+  videoUrl: ref<string | null>(null),
+  outputUrl: ref<string | null>(null),
+  startSafetyBuffer: ref(2.0),
+  videoDuration: ref(100),
+  folderName: ref<string | null>('test-folder'),
+  isMediaLoading: ref(false),
+  isNavigatingToEditor: ref(false),
+  isCachedAnalysis: ref(false),
+  cachedVideos: ref<CachedVideo[]>([]),
+  isCachedLoading: ref(false),
+  isCachedMoreLoading: ref(false),
+  cachedVideosFetchError: ref(false),
+  cachedVideosTotal: ref(0),
+  cachedVideosPage: ref(1),
+  cachedVideosLimit: ref(6),
+  cachedVideosSearch: ref(''),
+  cachedVideosSortBy: ref('date'),
+  downloadPercent: ref(0),
+  hdReady: ref(false),
+  hasPreview: ref(false),
+  cachedVideosSortOrder: ref('desc'),
+  cachedVideosHasMore: ref(false),
+  formatDuration: (sec: number) => {
+    const m = Math.floor(sec / 60)
+    const s = Math.floor(sec % 60)
+    return `${m}:${s.toString().padStart(2, '0')}`
+  },
+  fetchCached: vi.fn().mockResolvedValue({}),
+  fetchPrompts: vi.fn().mockResolvedValue({}),
+  fetchSavedHooks: vi.fn().mockResolvedValue({}),
+  showToast: vi.fn(),
+  checkSystemHealth: vi.fn().mockResolvedValue({}),
+  systemHealth: ref({}),
+  checkingHealth: ref(false),
+  isAnyPrerequisiteMissing: ref(false),
+  settingsScrollTarget: ref(''),
+  saveTranscript: vi.fn().mockResolvedValue({}),
+  saveStyleSettings: vi.fn().mockResolvedValue({}),
+  saveDefaultStyleSettings: vi.fn().mockResolvedValue({}),
+  updateHooks: vi.fn().mockResolvedValue({}),
+  initPersistence: vi.fn(),
+  resetWorkspace: vi.fn(),
+  analyzeUrl: vi.fn().mockResolvedValue({}),
+  extractClip: vi.fn().mockResolvedValue({}),
+  loadReadyClipIntoEditor: vi.fn().mockResolvedValue({}),
+  renderClip: vi.fn().mockResolvedValue({}),
+  startPolling: vi.fn(),
+  stopPolling: vi.fn()
+}
 
 // Mock useClipperState
 vi.mock('../../app/composables/useClipperState', () => ({
-  useClipperState: () => ({
-    youtubeUrl: ref(''),
-    selectedPrompt: ref('prompt.json'),
-    promptsList: ref([]),
-    extractionMode: ref('preset'),
-    selectedPresetId: ref('auto'),
-    focusTopic: ref(''),
-    minDuration: ref(30),
-    maxDuration: ref(180),
-    whisperModel: ref('base'),
-    language: ref('auto'),
-    whisperModels: [
-      { id: 'tiny', name: 'Tiny', speed: 'Ultra Fast', acc: 'Basic', desc: 'Minimal accuracy, best for quick testing on weak hardware.' },
-      { id: 'base', name: 'Base', speed: 'Very Fast', acc: 'Good', desc: 'Great balance for clear audio. Default choice.' },
-      { id: 'small', name: 'Small', speed: 'Fast', acc: 'Better', desc: 'Significantly better for non-English or noisy audio.' },
-      { id: 'medium', name: 'Medium', speed: 'Moderate', acc: 'Excellent', desc: 'High precision. Requires decent hardware (~5GB VRAM).' },
-      { id: 'large-v3', name: 'Large-v3', speed: 'Slow', acc: 'State-of-the-Art', desc: 'Highest accuracy possible. Best for complex dialogue.' }
-    ],
-    jobError: ref(null),
-    hooks: ref([]),
-    jobId: ref('job-123'),
-    jobStatus: ref('idle'),
-    clipId: ref(''),
-    savedHooks: ref([]),
-    activeHook: ref(null),
-    lastAccessedVideoId: ref(null),
-    lastAccessedClip: ref(null),
-    videoUrl: ref(null),
-    outputUrl: ref(null),
-    startSafetyBuffer: ref(2.0),
-    videoDuration: ref(100),
-    folderName: ref('test-folder'),
-    isMediaLoading: ref(false),
-    isNavigatingToEditor: ref(false),
-    isCachedAnalysis: ref(false),
-    cachedVideos: ref([]),
-    isCachedLoading: ref(false),
-    isCachedMoreLoading: ref(false),
-    cachedVideosFetchError: ref(false),
-    cachedVideosTotal: ref(0),
-    cachedVideosPage: ref(1),
-    cachedVideosLimit: ref(6),
-    cachedVideosSearch: ref(''),
-    cachedVideosSortBy: ref('date'),
-    downloadPercent: ref(0),
-    hdReady: ref(false),
-    hasPreview: ref(false),
-    cachedVideosSortOrder: ref('desc'),
-    cachedVideosHasMore: ref(false),
-    formatDuration: (sec: number) => {
-      const m = Math.floor(sec / 60)
-      const s = Math.floor(sec % 60)
-      return `${m}:${s.toString().padStart(2, '0')}`
-    },
-    fetchCached: vi.fn().mockResolvedValue({}),
-    fetchPrompts: vi.fn().mockResolvedValue({}),
-    fetchSavedHooks: vi.fn().mockResolvedValue({}),
-    showToast: vi.fn(),
-    checkSystemHealth: vi.fn().mockResolvedValue({}),
-    systemHealth: ref({}),
-    checkingHealth: ref(false),
-    isAnyPrerequisiteMissing: ref(false),
-    settingsScrollTarget: ref(''),
-    saveTranscript: vi.fn().mockResolvedValue({}),
-    saveStyleSettings: vi.fn().mockResolvedValue({}),
-    saveDefaultStyleSettings: vi.fn().mockResolvedValue({}),
-    updateHooks: vi.fn().mockResolvedValue({}),
-    initPersistence: vi.fn(),
-    resetWorkspace: vi.fn(),
-    analyzeUrl: vi.fn().mockResolvedValue({}),
-    extractClip: vi.fn().mockResolvedValue({}),
-    loadReadyClipIntoEditor: vi.fn().mockResolvedValue({}),
-    renderClip: vi.fn().mockResolvedValue({}),
-    startPolling: vi.fn(),
-    stopPolling: vi.fn()
-  })
+  useClipperState: () => mockState
 }))
 
-describe('Index Page', () => {
+describe('Index Page & Sub-Modules', () => {
   beforeEach(() => {
+    mockState.jobStatus.value = 'idle'
+    mockState.hooks.value = []
+    mockState.savedHooks.value = []
+    mockState.isCachedAnalysis.value = false
+    mockState.cachedVideos.value = []
+    mockState.cachedVideosHasMore.value = false
+    mockState.fetchCached.mockClear()
+
     vi.stubGlobal('$fetch', vi.fn().mockImplementation((url) => {
       const urlStr = String(url)
       if (urlStr.includes('/api/ready-clips')) {
@@ -111,20 +124,21 @@ describe('Index Page', () => {
     expect(wrapper.exists()).toBe(true)
   })
 
-  it('supports modifying values using arrow keys', async () => {
-    const wrapper = mount(index, {
+  it('supports modifying values using arrow keys in HookResultsGallery', async () => {
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: 'dummy.mp4',
+        readyClips: []
+      },
       global: {
         stubs: {
-          NuxtLayout: {
-            template: '<div><slot /></div>'
-          },
+          NuxtLayout: { template: '<div><slot /></div>' },
           Icon: true,
           NuxtIcon: true
         }
       }
     })
     
-    // Set selectedModalHook on vm
     const vm = wrapper.vm as any
     vm.selectedModalHook = {
       start: 12.0, // subtracted start time display: 12.0 - 2.0 = 10.0 => 00:10
@@ -143,7 +157,7 @@ describe('Index Page', () => {
     await wrapper.vm.$nextTick()
     
     // Find inputs
-    const inputs = wrapper.findAll('input[type=\"text\"]')
+    const inputs = wrapper.findAll('input[type="text"]')
     const startInput = inputs.find(i => (i.element as HTMLInputElement).value === '00:10')
     const endInput = inputs.find(i => (i.element as HTMLInputElement).value === '00:20')
     
@@ -152,8 +166,6 @@ describe('Index Page', () => {
     
     // Trigger arrow up on start input
     await startInput!.trigger('keydown.up')
-    // new start display value is 10.0 + 1 = 11.0. start safety buffer is 2.0.
-    // So raw start is 11.0 + 2.0 = 13.0
     expect(vm.selectedModalHook.start).toBe(13.0)
     expect(vm.startInputStr).toBe('00:11')
     
@@ -173,15 +185,17 @@ describe('Index Page', () => {
     expect(vm.endInputStr).toBe('00:20')
   })
 
-  it('persists and restores volume and muted state', async () => {
+  it('persists and restores volume and muted state in HookResultsGallery', async () => {
     localStorage.clear()
     
-    const wrapper = mount(index, {
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: 'dummy.mp4',
+        readyClips: []
+      },
       global: {
         stubs: {
-          NuxtLayout: {
-            template: '<div><slot /></div>'
-          },
+          NuxtLayout: { template: '<div><slot /></div>' },
           Icon: true,
           NuxtIcon: true
         }
@@ -189,8 +203,6 @@ describe('Index Page', () => {
     })
     
     const vm = wrapper.vm as any
-    vm.state.videoUrl.value = 'dummy.mp4'
-    
     vm.selectedModalHook = {
       start: 12.0,
       end: 20.0,
@@ -225,59 +237,42 @@ describe('Index Page', () => {
     expect(videoEl.muted).toBe(true)
   })
 
-  it('hides the Ready badge for the active hook while a job is cutting/transcribing/queued', async () => {
-    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url) => {
-      const urlStr = String(url)
-      if (urlStr.includes('/api/ready-clips')) {
-        return Promise.resolve({
-          clips: [
-            { folder_name: 'test-folder', clip_id: '8_20_Test_Active_Hook' }
-          ]
-        })
-      }
-      return Promise.resolve({})
-    }))
+  it('hides the Ready badge for the active hook while a job is cutting/transcribing/queued in HookResultsGallery', async () => {
+    mockState.folderName.value = 'test-folder'
+    mockState.jobStatus.value = 'hooks_ready'
+    
+    const hook = { start: 10, end: 20, theme: 'Test Active Hook', transcript_quote: '' }
+    mockState.hooks.value = [hook]
 
-    const wrapper = mount(index, {
+    const readyClips = [
+      { folder_name: 'test-folder', clip_id: '8_20_Test_Active_Hook' }
+    ]
+
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: null,
+        readyClips: readyClips as any
+      },
       global: {
         stubs: {
-          NuxtLayout: {
-            template: '<div><slot /></div>'
-          },
+          NuxtLayout: { template: '<div><slot /></div>' },
           Icon: true,
           NuxtIcon: true
         }
       }
     })
 
-    const vm = wrapper.vm as any
-    // Set active video details to match folderName
-    vm.state.folderName.value = 'test-folder'
-    vm.state.jobStatus.value = 'hooks_ready'
-    
-    // Set up readyClips to contain a matching clip
-    // With hook start 10, safetyBuffer 2.0 (default in index.vue is 2.0)
-    // Clip ID will start at 10 - 2 = 8, end at 20: '8_20_Test_Active_Hook'
-    const hook = { start: 10, end: 20, theme: 'Test Active Hook', transcript_quote: '' }
-    vm.state.hooks.value = [hook]
-
-    // Set state value as well just in case
-    const readyClipsState = useState<any[]>('readyClips', () => [])
-    readyClipsState.value = [
-      { folder_name: 'test-folder', clip_id: '8_20_Test_Active_Hook' }
-    ]
-
     await wrapper.vm.$nextTick()
 
-    // 1. Since status is idle, hook should show "Ready"
+    // 1. Since status is idle/hooks_ready, hook should show "Ready"
     const getHookCard = () => wrapper.findAll('.bg-surface-panel').find(d => d.text().includes('Test Active Hook'))
     expect(getHookCard()).toBeDefined()
     expect(getHookCard()!.text()).toContain('Ready')
 
     // 2. Set jobStatus to cutting and activeHook to our hook
-    vm.state.jobStatus.value = 'cutting'
-    vm.state.activeHook.value = hook
-    vm.state.clipId.value = ''
+    mockState.jobStatus.value = 'cutting'
+    mockState.activeHook.value = hook
+    mockState.clipId.value = ''
 
     await wrapper.vm.$nextTick()
 
@@ -285,18 +280,23 @@ describe('Index Page', () => {
     expect(getHookCard()!.text()).not.toContain('Ready')
 
     // 4. Set jobStatus to ready, badge should reappear
-    vm.state.jobStatus.value = 'ready'
+    mockState.jobStatus.value = 'ready'
     await wrapper.vm.$nextTick()
     expect(getHookCard()!.text()).toContain('Ready')
   })
 
-  it('toggles sort dropdown and triggers fetchCached on selection', async () => {
-    const wrapper = mount(index, {
+  it('toggles sort dropdown and triggers fetchCached on selection in CachedVideoLibrary', async () => {
+    mockState.cachedVideos.value = [{ video_id: 'vid1', title: 'Video 1', duration: 10, folder_name: 'Vid_1' }]
+
+    const wrapper = mount(CachedVideoLibrary, {
+      props: {
+        cachedVideos: mockState.cachedVideos.value,
+        isCachedLoading: false,
+        isProcessing: false
+      },
       global: {
         stubs: {
-          NuxtLayout: {
-            template: '<div><slot /></div>'
-          },
+          NuxtLayout: { template: '<div><slot /></div>' },
           Icon: true,
           NuxtIcon: true
         }
@@ -318,13 +318,13 @@ describe('Index Page', () => {
     await wrapper.vm.$nextTick()
 
     // Assert state update and fetch trigger
-    expect(vm.state.cachedVideosSortBy.value).toBe('title')
-    expect(vm.state.cachedVideosSortOrder.value).toBe('asc')
-    expect(vm.state.fetchCached).toHaveBeenCalledWith(true)
+    expect(mockState.cachedVideosSortBy.value).toBe('title')
+    expect(mockState.cachedVideosSortOrder.value).toBe('asc')
+    expect(mockState.fetchCached).toHaveBeenCalledWith(true)
     expect(vm.isSortDropdownOpen).toBe(false)
   })
 
-  it('triggers loadMoreCached when sentinel intersects', async () => {
+  it('triggers loadMoreCached when sentinel intersects in CachedVideoLibrary', async () => {
     const mockObserver = vi.fn().mockImplementation((callback) => {
       // Expose callback so we can manually trigger intersection
       (globalThis as any)._triggerIntersection = callback
@@ -336,23 +336,24 @@ describe('Index Page', () => {
     })
     vi.stubGlobal('IntersectionObserver', mockObserver)
 
-    const wrapper = mount(index, {
+    mockState.cachedVideosHasMore.value = true
+    mockState.cachedVideos.value = [{ video_id: 'vid1', title: 'Video 1', duration: 10, folder_name: 'Vid_1' }]
+
+    const wrapper = mount(CachedVideoLibrary, {
+      props: {
+        cachedVideos: mockState.cachedVideos.value,
+        isCachedLoading: false,
+        isProcessing: false
+      },
       global: {
         stubs: {
-          NuxtLayout: {
-            template: '<div><slot /></div>'
-          },
+          NuxtLayout: { template: '<div><slot /></div>' },
           Icon: true,
           NuxtIcon: true
         }
       }
     })
 
-    const vm = wrapper.vm as any
-
-    // Mock hasMore videos
-    vm.state.cachedVideosHasMore.value = true
-    vm.state.cachedVideos.value = [{ video_id: 'vid1', title: 'Video 1', duration: 10, folder_name: 'Vid_1' }]
     await wrapper.vm.$nextTick()
 
     // Assert sentinel element is mounted
@@ -365,7 +366,7 @@ describe('Index Page', () => {
     }
     
     // Assert fetchCached is triggered with false (page 2 incremental fetch)
-    expect(vm.state.fetchCached).toHaveBeenCalledWith(false)
+    expect(mockState.fetchCached).toHaveBeenCalledWith(false)
   })
 
   it('does not render the hooks section on the dashboard when jobStatus is idle, even if savedHooks has items', async () => {
@@ -382,8 +383,8 @@ describe('Index Page', () => {
     })
 
     const vm = wrapper.vm as any
-    vm.state.jobStatus.value = 'idle'
-    vm.state.savedHooks.value = [{ theme: 'Saved Hook', start: 10, end: 20 }]
+    mockState.jobStatus.value = 'idle'
+    mockState.savedHooks.value = [{ theme: 'Saved Hook', start: 10, end: 20 }] as Hook[]
     await wrapper.vm.$nextTick()
 
     // Find the Hit List container (it starts with .animate-in and contains generated hooks)
@@ -405,14 +406,14 @@ describe('Index Page', () => {
     })
 
     const vm = wrapper.vm as any
-    vm.state.savedHooks.value = [{ theme: 'Stale Hook', start: 10, end: 20 }]
-    vm.state.folderName.value = 'stale-folder'
+    mockState.savedHooks.value = [{ theme: 'Stale Hook', start: 10, end: 20 }] as Hook[]
+    mockState.folderName.value = 'stale-folder'
     
     // Call analyzeCached
     await vm.analyzeCached('some-video-id', false)
     
-    expect(vm.state.savedHooks.value).toEqual([])
-    expect(vm.state.folderName.value).toBeNull()
+    expect(mockState.savedHooks.value).toEqual([])
+    expect(mockState.folderName.value).toBeNull()
   })
 
   it('does not render the hooks section on the dashboard when jobStatus is queued and savedHooks is empty', async () => {
@@ -428,10 +429,9 @@ describe('Index Page', () => {
       }
     })
 
-    const vm = wrapper.vm as any
-    vm.state.jobStatus.value = 'queued'
-    vm.state.savedHooks.value = []
-    vm.state.hooks.value = []
+    mockState.jobStatus.value = 'queued'
+    mockState.savedHooks.value = []
+    mockState.hooks.value = []
     await wrapper.vm.$nextTick()
 
     // Find the Hit List container (it starts with .animate-in and contains generated hooks)
@@ -439,13 +439,15 @@ describe('Index Page', () => {
     expect(hooksContainer.exists()).toBe(false)
   })
 
-  it('resets activeTab to generated when jobStatus transitions to queued', async () => {
-    const wrapper = mount(index, {
+  it('resets activeTab to generated when jobStatus transitions to queued in HookResultsGallery', async () => {
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: null,
+        readyClips: []
+      },
       global: {
         stubs: {
-          NuxtLayout: {
-            template: '<div><slot /></div>'
-          },
+          NuxtLayout: { template: '<div><slot /></div>' },
           Icon: true,
           NuxtIcon: true
         }
@@ -455,7 +457,7 @@ describe('Index Page', () => {
     const vm = wrapper.vm as any
     vm.activeTab = 'saved'
     
-    vm.state.jobStatus.value = 'queued'
+    mockState.jobStatus.value = 'queued'
     await wrapper.vm.$nextTick()
     
     expect(vm.activeTab).toBe('generated')
@@ -477,7 +479,7 @@ describe('Index Page', () => {
     const vm = wrapper.vm as any
 
     // 1. Test status: queued
-    vm.state.jobStatus.value = 'queued'
+    mockState.jobStatus.value = 'queued'
     await wrapper.vm.$nextTick()
     expect(vm.progressPercent).toBe(12.5)
     expect(vm.stages[0].state).toBe('active')
@@ -486,7 +488,7 @@ describe('Index Page', () => {
     expect(vm.stages[3].state).toBe('pending')
 
     // 2. Test status: transcribing
-    vm.state.jobStatus.value = 'transcribing'
+    mockState.jobStatus.value = 'transcribing'
     await wrapper.vm.$nextTick()
     expect(vm.progressPercent).toBe(75)
     expect(vm.stages[0].state).toBe('completed')
@@ -495,23 +497,23 @@ describe('Index Page', () => {
     expect(vm.stages[3].state).toBe('pending')
 
     // 3. Test status in cached mode (isCachedAnalysis = true, isReanalyzingCached = false - Load Cache Hooks)
-    vm.state.isCachedAnalysis.value = true
+    mockState.isCachedAnalysis.value = true
     vm.isReanalyzingCached = false
-    vm.state.jobStatus.value = 'queued'
+    mockState.jobStatus.value = 'queued'
     await wrapper.vm.$nextTick()
     expect(vm.stages).toHaveLength(1)
     expect(vm.stages[0].id).toBe('cache_lookup')
     expect(vm.stages[0].state).toBe('active')
     expect(vm.progressPercent).toBe(20)
 
-    vm.state.jobStatus.value = 'ready'
+    mockState.jobStatus.value = 'ready'
     await wrapper.vm.$nextTick()
     expect(vm.stages[0].state).toBe('completed')
-    expect(vm.progressPercent).toBe(100)
+    expect(Number(vm.progressPercent)).toBe(100)
 
     // 4. Test status in cached mode with force re-analysis (isCachedAnalysis = true, isReanalyzingCached = true - Reanalyze Hooks)
     vm.isReanalyzingCached = true
-    vm.state.jobStatus.value = 'queued'
+    mockState.jobStatus.value = 'queued'
     await wrapper.vm.$nextTick()
     expect(vm.stages).toHaveLength(2)
     expect(vm.progressPercent).toBe(20)
@@ -519,7 +521,7 @@ describe('Index Page', () => {
     expect(vm.stages[0].state).toBe('active')
     expect(vm.stages[1].state).toBe('pending')
 
-    vm.state.jobStatus.value = 'generating_hooks'
+    mockState.jobStatus.value = 'generating_hooks'
     await wrapper.vm.$nextTick()
     expect(vm.progressPercent).toBe(85)
     expect(vm.stages[0].state).toBe('completed')
@@ -540,8 +542,8 @@ describe('Index Page', () => {
     })
 
     const vm = wrapper.vm as any
-    vm.state.jobStatus.value = 'queued'
-    vm.state.hooks.value = []
+    mockState.jobStatus.value = 'queued'
+    mockState.hooks.value = []
     await wrapper.vm.$nextTick()
 
     // Find the cancel button containing "Cancel & Return to Library"
@@ -549,7 +551,6 @@ describe('Index Page', () => {
     expect(btn).toBeDefined()
     
     await btn!.trigger('click')
-    expect(vm.state.jobStatus.value).toBe('idle')
+    expect(mockState.jobStatus.value).toBe('idle')
   })
 })
-
