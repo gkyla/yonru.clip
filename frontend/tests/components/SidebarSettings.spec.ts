@@ -10,6 +10,7 @@ const safeZoneColor = ref('#000000')
 const mockState = {
   jobStatus: ref('ready'),
   renderStatus: ref('ready'),
+  isOverlayVisible: ref(false),
   subtitlePreset: ref('bold-podcast'),
   subtitleMode: ref('3_words'),
   subtitleAnimation: ref('pop'),

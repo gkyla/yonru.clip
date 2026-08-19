@@ -56,8 +56,10 @@ class RemotionProgressParser:
         self.start_time = start_time if start_time is not None else time.time()
         self.render_start_time: Optional[float] = None
         self.last_overall: int = 0
+        self.last_frame: int = -1
         self.current_stage: str = "bundling"
-        self.frame_re = re.compile(r'\((\d+)/(\d+)\)')
+        self.frame_re = re.compile(r'(?:Rendered\s+)?(?:\()?(\d+)/(\d+)(?:\))?', re.IGNORECASE)
+        self.time_re = re.compile(r'time remaining:\s*(?:(\d+)m\s*)?(\d+)s', re.IGNORECASE)
         self.pct_re = re.compile(r'(\d+)%')
         self.ansi_re = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
 
@@ -89,31 +91,31 @@ class RemotionProgressParser:
                     }
             return None
 
-        # Stage transition: Entering rendering
-        if ("rendering" in line_lower or "concurrency" in line_lower) and self.current_stage != "rendering":
-            self.current_stage = "rendering"
-            self.render_start_time = time.time()
-            self.last_overall = max(self.last_overall, 15)
-            return {
-                "stage": "rendering",
-                "percent": 15,
-                "frame": 0,
-                "totalFrames": self.total_frames,
-                "etaSeconds": 0
-            }
-
-        # Stage 2: Rendering
-        if self.current_stage == "rendering":
+        # Stage transition: Entering rendering or frame lines
+        if "rendered" in line_lower or ("rendering" in line_lower and "encoding" not in line_lower) or "concurrency" in line_lower:
             fm = self.frame_re.search(clean)
             if fm:
+                self.current_stage = "rendering"
+                if not self.render_start_time:
+                    self.render_start_time = time.time()
+
                 frame_num = int(fm.group(1))
                 total = int(fm.group(2))
                 render_pct = (frame_num / max(total, 1)) * 100
                 overall = int(15 + (render_pct * 0.80))
-                if overall > self.last_overall:
-                    self.last_overall = overall
+
+                tm = self.time_re.search(clean)
+                if tm:
+                    mins = int(tm.group(1)) if tm.group(1) else 0
+                    secs = int(tm.group(2)) if tm.group(2) else 0
+                    eta_sec = mins * 60 + secs
+                else:
                     elapsed = time.time() - (self.render_start_time or self.start_time)
                     eta_sec = max(0, int((elapsed / max(render_pct, 0.001)) * (100 - render_pct))) if render_pct > 0 else 0
+
+                if frame_num > self.last_frame or overall > self.last_overall:
+                    self.last_frame = frame_num
+                    self.last_overall = max(self.last_overall, overall)
                     return {
                         "stage": "rendering",
                         "percent": min(overall, 95),
@@ -123,6 +125,20 @@ class RemotionProgressParser:
                     }
                 return None
 
+            if self.current_stage != "rendering":
+                self.current_stage = "rendering"
+                self.render_start_time = time.time()
+                self.last_overall = max(self.last_overall, 15)
+                return {
+                    "stage": "rendering",
+                    "percent": 15,
+                    "frame": 0,
+                    "totalFrames": self.total_frames,
+                    "etaSeconds": 0
+                }
+
+        # Stage 2: Fallback rendering percent without explicit frame match
+        if self.current_stage == "rendering":
             pm = self.pct_re.search(clean)
             if pm and "bundling" not in line_lower:
                 rpct = int(pm.group(1))
@@ -664,6 +680,16 @@ class RenderPipelineCoordinator(RenderEngine):
                     print(f"[render-engine-stream] Remotion failed with code {process.returncode}")
                     yield parser.error_event(f"Remotion exited with code {process.returncode}")
                     return
+
+                # Graceful transition: Emit encoding stage for seamless UX completion gratification
+                yield {
+                    "stage": "encoding",
+                    "percent": 98,
+                    "frame": ctx.frames,
+                    "totalFrames": ctx.frames,
+                    "etaSeconds": 0
+                }
+                time.sleep(1.0)
 
                 yield parser.complete_event(output_path, f"/static/output/{out_filename}")
 

@@ -1,6 +1,6 @@
 <template>
   <div class="flex-1 flex flex-col bg-[#0a0a0c] select-none overflow-hidden h-full transition-all duration-300"
-       :class="{ 'opacity-40 pointer-events-none': isOverlayVisible }">
+       :class="{ 'opacity-40 pointer-events-none': isOverlayVisible || state?.renderStatus?.value === 'rendering' }">
     <!-- Toolbar -->
     <div class="h-10 flex items-center justify-between px-4 bg-[#111113] border-b border-white/5">
       <div class="flex items-center gap-2">

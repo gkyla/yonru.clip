@@ -380,6 +380,35 @@ class TestRenderEngine(unittest.TestCase):
         self.assertEqual(err_ev["stage"], "error")
         self.assertEqual(err_ev["message"], "Render crashed")
 
+    def test_remotion_progress_parser_real_cli_format(self):
+        parser = RemotionProgressParser(total_frames=300)
+        
+        # Line 1: Rendered 0/300
+        ev0 = parser.parse_line("Rendered 0/300")
+        self.assertIsNotNone(ev0)
+        if ev0:
+            self.assertEqual(ev0["stage"], "rendering")
+            self.assertEqual(ev0["frame"], 0)
+            self.assertEqual(ev0["totalFrames"], 300)
+            self.assertEqual(ev0["percent"], 15)
+
+        # Line 2: Rendered 1/300, time remaining: 1m 57s
+        ev1 = parser.parse_line("Rendered 1/300, time remaining: 1m 57s")
+        self.assertIsNotNone(ev1)
+        if ev1:
+            self.assertEqual(ev1["stage"], "rendering")
+            self.assertEqual(ev1["frame"], 1)
+            self.assertEqual(ev1["etaSeconds"], 117)
+
+        # Line 3: Rendered 150/300, time remaining: 25s
+        ev2 = parser.parse_line("Rendered 150/300, time remaining: 25s")
+        self.assertIsNotNone(ev2)
+        if ev2:
+            self.assertEqual(ev2["stage"], "rendering")
+            self.assertEqual(ev2["frame"], 150)
+            self.assertEqual(ev2["etaSeconds"], 25)
+            self.assertEqual(ev2["percent"], 55)
+
     def test_remotion_progress_parser_ansi_stripping(self):
         parser = RemotionProgressParser(total_frames=100)
         # Line with ANSI color escapes

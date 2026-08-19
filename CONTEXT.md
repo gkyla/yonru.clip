@@ -341,7 +341,12 @@ _Avoid_: Polling manager, job fetcher, download scheduler
 A consolidated data transfer object containing all synchronized asset payloads (transcript segments, style settings, auto-reframe crop map, timeline tracks, thumbnail configuration, and history stacks) required to initialize an editable workspace clip.
 _Avoid_: Clip data object, clip files payload
 
+**Multi-Stage Render HUD Overlay**:
+A focused, full-screen glassmorphic overlay displayed during video export that tracks render progression across discrete stages (Asset Staging, Remotion Bundling, Engine Preparation, Frame Rendering, and Encoding) with live status messages and elapsed timing.
+_Avoid_: Loading bar modal, baking overlay, render popup
+
 ---
+
 
 ## Flagged Ambiguities
 

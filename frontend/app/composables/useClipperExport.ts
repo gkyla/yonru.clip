@@ -22,6 +22,9 @@ export const useClipperExport = (deps: ExportDeps) => {
   const renderStage = useState<string>('renderStage', () => '')
   const renderEta = useState<number>('renderEta', () => 0)
   const outputUrl = useState<string | null>('outputUrl', () => null)
+  const renderFrame = useState<number>('renderFrame', () => 0)
+  const renderTotalFrames = useState<number>('renderTotalFrames', () => 0)
+  const renderStartTime = useState<number | null>('renderStartTime', () => null)
 
   // --- Shared states read from other domains (via matching useState keys) ---
   const jobId = useState<string | null>('jobId', () => null)
@@ -77,7 +80,9 @@ export const useClipperExport = (deps: ExportDeps) => {
       status: renderStatus.value,
       outputUrl: outputUrl.value,
       videoUrl: videoUrl.value,
-      jobError: jobError.value
+      jobError: jobError.value,
+      frame: renderFrame.value,
+      totalFrames: renderTotalFrames.value
     }
     const nextState = parseRenderEvent(data, currentState, API_BASE)
     
@@ -88,6 +93,8 @@ export const useClipperExport = (deps: ExportDeps) => {
     outputUrl.value = nextState.outputUrl
     videoUrl.value = nextState.videoUrl
     jobError.value = nextState.jobError
+    if (nextState.frame !== undefined) renderFrame.value = nextState.frame
+    if (nextState.totalFrames !== undefined) renderTotalFrames.value = nextState.totalFrames
   }
 
   // --- Private: build render request body ---
@@ -150,6 +157,9 @@ export const useClipperExport = (deps: ExportDeps) => {
     renderProgress.value = 0
     renderStage.value = 'starting'
     renderEta.value = 0
+    renderFrame.value = 0
+    renderTotalFrames.value = 0
+    renderStartTime.value = Date.now()
     outputUrl.value = null
 
     try {
@@ -215,6 +225,9 @@ export const useClipperExport = (deps: ExportDeps) => {
     renderStage,
     renderEta,
     outputUrl,
+    renderFrame,
+    renderTotalFrames,
+    renderStartTime,
     // Actions
     renderClip
   }

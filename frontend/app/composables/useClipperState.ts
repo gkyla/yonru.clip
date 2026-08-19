@@ -64,7 +64,7 @@ function createClipperState() {
     saveTimelineTracks: () => timeline.saveTimelineTracks(),
     saveThumbnailConfig
   })
-  const { renderStatus, renderProgress, renderStage, renderEta, outputUrl, renderClip } = exportState
+  const { renderStatus, renderProgress, renderStage, renderEta, outputUrl, renderFrame, renderTotalFrames, renderStartTime, renderClip } = exportState
 
 
   // Video info
@@ -82,6 +82,7 @@ function createClipperState() {
   const activeSafeZone = useState<'none' | 'tiktok' | 'reels' | 'shorts'>('activeSafeZone', () => 'none')
   const safeZoneOpacity = useState<number>('safeZoneOpacity', () => 55)
   const safeZoneColor = useState<string>('safeZoneColor', () => '#000000')
+  const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false)
   
   // Toast state
   const toast = useState<{message: string, type: 'success' | 'error' | 'info'} | null>('clipperToast', () => null)
@@ -616,7 +617,7 @@ function createClipperState() {
     isCapturingThumbnail,
     defaultThumbnailStyle,
     // Other State
-    jobId, isMediaLoading, jobStatus, jobError, isCachedAnalysis,
+    jobId, isMediaLoading, jobStatus, jobError, isCachedAnalysis, isOverlayVisible,
     isNavigatingToEditor, downloadPercent, hdReady,
     startSafetyBuffer,
     videoTitle, videoDuration, hasHeatmap, hasPreview, videoUrl, videoFps,
@@ -635,7 +636,7 @@ function createClipperState() {
     subtitleWordSpacing, subtitlePreset, volume,
     isPlaying, currentTime, videoTime: timeline.videoTime,
     isTimelineShifting: timeline.isTimelineShifting,
-    renderStatus, renderProgress, renderStage, renderEta, outputUrl,
+    renderStatus, renderProgress, renderStage, renderEta, outputUrl, renderFrame, renderTotalFrames, renderStartTime,
     cachedVideos, isCachedLoading, isCachedMoreLoading, cachedVideosFetchError, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip, lastAccessedVideoStored,
     cachedVideosTotal, cachedVideosPage, cachedVideosLimit, cachedVideosSearch, cachedVideosSortBy, cachedVideosSortOrder, cachedVideosHasMore,
     timelineTracks: timeline.timelineTracks, timelineDuration: timeline.timelineDuration, selectedTimelineItem: timeline.selectedTimelineItem,

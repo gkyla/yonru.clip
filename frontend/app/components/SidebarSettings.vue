@@ -5,7 +5,7 @@
     class="h-full flex flex-col relative bg-surface-panel/50 border-r border-surface-border shrink-0 select-none overflow-hidden"
     :style="{ width: sidebarWidth + 'px' }"
   >
-    <!-- Segmented Tab Navigation Header -->
+    <!-- Segmented Tab Navigation Header (Always Clear & Interactive) -->
     <div class="px-3 pt-3 pb-2 border-b border-surface-border/50 bg-surface-dark/40 shrink-0">
       <div class="grid grid-cols-3 gap-1 bg-surface-dark/80 p-1 rounded-xl border border-surface-border/60">
         <button
@@ -43,11 +43,11 @@
       </div>
     </div>
 
-    <!-- Scrollable Tab Content View -->
+    <!-- Scrollable Tab Content View (Dimmed during pipeline/render) -->
     <div class="flex-1 overflow-y-auto custom-scrollbar">
       <div 
         class="flex flex-col p-3.5 gap-4.5 transition-all duration-300 min-h-full"
-        :class="{ 'opacity-40 pointer-events-none': state.jobStatus.value !== 'ready' }"
+        :class="{ 'opacity-40 pointer-events-none': state.jobStatus.value !== 'ready' || isOverlayVisible || state.renderStatus.value === 'rendering' }"
       >
         <Transition name="panel-tab-fade" mode="out-in">
           <!-- TAB 1: PRESETS & STYLE -->
@@ -570,8 +570,11 @@
       </div>
     </div>
 
-    <!-- Extremely Compact Ultra-Slim Main Action Footer -->
-    <div class="p-2.5 border-t border-surface-border bg-surface-panel/95 backdrop-blur-md shrink-0 space-y-2">
+    <!-- Extremely Compact Ultra-Slim Main Action Footer (Dimmed during pipeline/render) -->
+    <div 
+      class="p-2.5 border-t border-surface-border bg-surface-panel/95 backdrop-blur-md shrink-0 space-y-2 transition-all duration-300"
+      :class="{ 'opacity-40 pointer-events-none': state.jobStatus.value !== 'ready' || isOverlayVisible || state.renderStatus.value === 'rendering' }"
+    >
       <!-- Render Status Download Alert Banner (Compact) -->
       <div v-if="state.renderStatus.value === 'ready' || state.renderStatus.value === 'done'" class="bg-accent-500/10 border border-accent-500/30 rounded-lg p-2 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
         <Icon name="ri:checkbox-circle-fill" class="text-lg text-accent-500 shrink-0" />
@@ -587,7 +590,7 @@
         <div class="relative group shrink-0">
           <button 
             @click="state.saveDefaultStyleSettings(); if (state.showToast) state.showToast('Default style saved!', 'success')"
-            :disabled="state.jobStatus.value !== 'ready' || state.renderStatus.value === 'rendering'"
+            :disabled="state?.jobStatus?.value !== 'ready' || isOverlayVisible || state?.renderStatus?.value === 'rendering'"
             class="bg-surface-dark/80 border border-surface-border/80 hover:border-accent-500/50 text-slate-300 hover:text-accent-400 p-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 hover:bg-surface-card disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:border-surface-border/80 disabled:hover:text-slate-300 disabled:hover:bg-surface-dark/80"
           >
             <Icon name="ri:save-3-line" class="text-sm text-accent-500" />
@@ -605,11 +608,11 @@
 
         <button 
           @click="prepareRender"
-          :disabled="state.jobStatus.value !== 'ready' || state.renderStatus.value === 'rendering'"
+          :disabled="state?.jobStatus?.value !== 'ready' || isOverlayVisible || state?.renderStatus?.value === 'rendering'"
           class="flex-1 bg-accent-500/80 text-black font-black uppercase tracking-wider rounded-xl py-2.5 px-3 text-xs hover:bg-accent-400 transition-all flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(207,255,80,0.18)] hover:shadow-[0_0_20px_rgba(207,255,80,0.3)] disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
         >
-          <Icon :name="state.renderStatus.value === 'rendering' ? 'ri:loader-4-line' : 'ri:movie-fill'" :class="{ 'animate-spin': state.renderStatus.value === 'rendering' }" class="text-sm" />
-          {{ state.renderStatus.value === 'rendering' ? 'RENDERING...' : 'RENDER CLIP' }}
+          <Icon :name="state?.renderStatus?.value === 'rendering' ? 'ri:loader-4-line' : 'ri:movie-fill'" :class="{ 'animate-spin': state?.renderStatus?.value === 'rendering' }" class="text-sm" />
+          {{ state?.renderStatus?.value === 'rendering' ? 'RENDERING...' : 'RENDER CLIP' }}
         </button>
       </div>
     </div>
@@ -704,7 +707,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { FONT_OPTIONS } from '../composables/useClipperState'
 
 const state = useClipperState()
-const { activeSafeZone, safeZoneOpacity, safeZoneColor } = state
+const { activeSafeZone, safeZoneOpacity, safeZoneColor, isOverlayVisible } = state
 
 // Segmented Navigation Tab State
 const activeTab = ref('style') // 'style' | 'type' | 'layout'

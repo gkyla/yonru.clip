@@ -54,6 +54,8 @@
                     <EditorActionRail
                       :is-panel-open="isPanelOpen"
                       :editor-tab="editorTab"
+                      class="transition-all duration-300"
+                      :class="{ 'opacity-40 pointer-events-none': isEditorLocked }"
                       @toggle-tab="toggleTab"
                     />
                   </div>
@@ -63,7 +65,7 @@
                 <EditorHooksListPanel
                   v-model:panel-tab="panelTab"
                   :is-current-hook-saved="isCurrentHookSaved"
-                  :is-overlay-visible="isOverlayVisible"
+                  :is-overlay-visible="isEditorLocked"
                   :is-hook-rendered="isHookRendered"
                   :is-active-hook="isActiveHook"
                   @select-hook="selectSidebarHook"
@@ -130,6 +132,9 @@ const showBlacklistSettings = ref(false)
 const panelTab = ref<'generated' | 'saved'>((route.query.tab as any) || 'generated')
 const sidebarView = ref('editor')
 const hasBeenMounted = ref(false)
+
+const isRendering = computed(() => state?.renderStatus?.value === 'rendering')
+const isEditorLocked = computed(() => isOverlayVisible.value || isRendering.value)
 
 const readyClips = useState<ReadyClip[]>('readyClips', () => [])
 const API_BASE = 'http://localhost:8000'

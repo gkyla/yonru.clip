@@ -10,6 +10,8 @@ export interface RenderState {
   outputUrl: string | null
   videoUrl: string | null
   jobError: string
+  frame?: number
+  totalFrames?: number
 }
 
 export function parseRenderEvent(
@@ -19,6 +21,13 @@ export function parseRenderEvent(
 ): RenderState {
   const nextState = { ...currentState }
   if (!data) return nextState
+
+  if (data.totalFrames !== undefined) {
+    nextState.totalFrames = data.totalFrames
+  }
+  if (data.frame !== undefined) {
+    nextState.frame = data.frame
+  }
 
   if (data.stage === 'bundling') {
     nextState.progress = data.percent || 0
@@ -31,9 +40,11 @@ export function parseRenderEvent(
   } else if (data.stage === 'encoding') {
     nextState.stage = 'encoding'
     nextState.progress = data.percent || 96
+    nextState.eta = 0
   } else if (data.stage === 'starting') {
     nextState.stage = 'starting'
     nextState.progress = 0
+    nextState.frame = 0
   } else if (data.stage === 'done') {
     nextState.status = 'done'
     nextState.progress = 100
@@ -41,11 +52,15 @@ export function parseRenderEvent(
     nextState.eta = 0
     nextState.outputUrl = `${apiBase}${data.outputUrl || ''}`
     nextState.videoUrl = nextState.outputUrl
+    if (nextState.totalFrames) {
+      nextState.frame = nextState.totalFrames
+    }
   } else if (data.stage === 'error') {
     nextState.status = 'error'
     nextState.jobError = data.message || 'Render failed'
     nextState.progress = 0
     nextState.stage = ''
+    nextState.eta = 0
   }
 
   return nextState

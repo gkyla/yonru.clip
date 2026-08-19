@@ -37,10 +37,18 @@ describe('Render Event Parser TDD', () => {
   })
 
   it('handles rendering stage correctly with percentage and etaSeconds', () => {
-    const result = parseRenderEvent({ stage: 'rendering', percent: 72, etaSeconds: 15 }, initialTestState, 'http://localhost:8000')
+    const result = parseRenderEvent({ stage: 'rendering', percent: 72, etaSeconds: 15, frame: 216, totalFrames: 300 }, initialTestState, 'http://localhost:8000')
     expect(result.progress).toBe(72)
     expect(result.stage).toBe('rendering')
     expect(result.eta).toBe(15)
+    expect(result.frame).toBe(216)
+    expect(result.totalFrames).toBe(300)
+  })
+
+  it('preserves or updates totalFrames from starting event', () => {
+    const result = parseRenderEvent({ stage: 'starting', totalFrames: 300 }, initialTestState, 'http://localhost:8000')
+    expect(result.totalFrames).toBe(300)
+    expect(result.frame).toBe(0)
   })
 
   it('handles encoding stage correctly with fallback to 96 percent', () => {
