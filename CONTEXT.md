@@ -205,6 +205,10 @@ _Avoid_: Model details card, hover information
 Soft, high-blur radial gradient light backdrops positioned behind workspace layouts to provide visual depth.
 _Avoid_: Blur backgrounds, radial accents
 
+**Masked Grid Backdrop**:
+A high-performance, GPU-accelerated background pattern comprising a subtle linear square grid texture masked by an elliptical radial gradient and illuminated by Bi-Chromatic Ambient Aura Glows (Radioactive Green and deep Violet) behind the Hero Header to provide visual depth without CPU overhead.
+_Avoid_: Static grid background, wallpaper image, raw canvas mesh
+
 **Player Bridge**:
 An abstract interface that decouples player controller logic from physical message-passing protocols.
 _Avoid_: Player controller adapter, video player bridge

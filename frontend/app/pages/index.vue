@@ -2,8 +2,18 @@
   <div class="w-full max-w-5xl z-10 flex flex-col">
     <!-- Hero Header Area -->
     <div class="text-center mt-4 mb-10 relative z-30 flex flex-col items-center">
-      <!-- Ambient Aura Glow Behind Header -->
-      <div class="absolute -top-12 left-1/2 -translate-x-1/2 w-96 sm:w-[500px] h-44 bg-accent-500/10 rounded-full blur-[100px] pointer-events-none -z-10 mix-blend-screen"></div>
+      <!-- Masked Grid Backdrop & Bi-Chromatic Ambient Aura Glow -->
+      <div class="absolute -top-24 -bottom-24 -left-12 -right-12 sm:-left-28 sm:-right-28 pointer-events-none -z-10 overflow-hidden select-none flex items-center justify-center">
+        <!-- 1. Ambient Aura Glows (Bi-Chromatic: Lime Central Aura + Soft Violet & Emerald Wings) -->
+        <div class="absolute -top-10 left-1/2 -translate-x-1/2 w-[340px] sm:w-[540px] md:w-[680px] h-56 sm:h-72 bg-accent-500/12 rounded-full blur-[110px] mix-blend-screen pointer-events-none"></div>
+        <div class="absolute top-10 left-1/4 -translate-x-1/2 w-72 sm:w-96 h-48 bg-violet-600/10 rounded-full blur-[90px] mix-blend-screen pointer-events-none"></div>
+        <div class="absolute top-14 right-1/4 translate-x-1/2 w-64 sm:w-80 h-44 bg-emerald-500/10 rounded-full blur-[90px] mix-blend-screen pointer-events-none"></div>
+
+        <!-- 2. Faded / Masked Linear Square Grid (1.5x Baseline Contrast & 48px Spacious Spacing) -->
+        <div 
+          class="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.053)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.053)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_30%,#000_20%,transparent_85%)] [-webkit-mask-image:radial-gradient(ellipse_60%_50%_at_50%_30%,#000_20%,transparent_85%)]"
+        ></div>
+      </div>
 
       <!-- Eyebrow Glassmorphic Badge -->
       <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/10 backdrop-blur-md shadow-[0_0_20px_rgba(207,255,80,0.04)] mb-5 select-none hover:border-accent-500/30 transition-all duration-300">
