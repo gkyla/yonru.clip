@@ -10,7 +10,7 @@
     <div
       v-if="isVisible"
       data-testid="render-overlay"
-      class="absolute inset-0 z-[70] bg-[#060608]/95 backdrop-blur-xl flex flex-col items-center justify-center text-center p-4 sm:p-6 select-none animate-in fade-in duration-300 overflow-y-auto overflow-x-hidden"
+      class="absolute inset-0 z-[70] bg-[#060608]/95 backdrop-blur-xl flex flex-col items-center justify-center text-center p-4 sm:p-6 select-none animate-in fade-in duration-300 overflow-hidden"
     >
       <!-- Ambient Dynamic Stage Glow -->
       <div
