@@ -55,38 +55,6 @@ YOU MUST ALWAYS format your Git commit messages using the Conventional Commits s
 
 Additionally, YOU MUST ALWAYS use plain, straightforward, and simple language in your commit messages, code comments, and explanations. Avoid overly complex, high-brow, or jargon-heavy words (such as 'decommission', 'ameliorate', 'facilitate', etc.). Prefer simple, active verbs (such as 'remove', 'fix', 'help', 'use', etc.) after the Conventional Commit prefix so that all communications, comments, and Git history logs remain clear, direct, and accessible to everyone.
 
-### Structured Commit Body Specification:
-Whenever committing substantial refactoring, architecture deepening, performance optimizations, or new capabilities, YOU MUST format the commit body with clear bullet points and explicit impact sections:
-
-```text
-<type>(<scope>): <concise active-verb summary>
-
-- <Key architectural change / deepened module>
-- <Controller logic moved or simplified>
-- <Implementation details & unit test additions>
-
-Performance Impact (Include whenever runtime, disk I/O, algorithmic passes, or memory are improved):
-- <Metrics / runtime savings, e.g. single-pass O(N), fast-path cache hit, reduced disk I/O>
-
-Security & Reliability Impact (Include whenever validation, path traversal, or stability are improved):
-- <Path traversal checks, input schema validation, atomic file writes, etc.>
-```
-
-Example structured commit message:
-```text
-refactor(assets): consolidate clip artifact persistence and thumbnail capture in AssetRepository
-
-- Deepen AssetRepository to manage transcript, style, timeline, and history persistence
-- Encapsulate thumbnail config loading, screenshot extraction, and asset deletion
-- Eliminate raw file I/O and subprocess execution across 10+ routes in main.py
-- Enforce strict path traversal security checks on all clip and source file operations
-
-Performance & Security Impact:
-- Security: centralized path traversal validation prevents unauthorized file system access
-- Reliability: atomic JSON writing eliminates partial file corruptions during rapid UI timeline edits
-- Maintainability: removed 178 lines of leaked storage logic from backend/main.py
-```
-
 ## MANDATORY RULE 6: GITHUB ISSUE TEMPLATES (CRITICAL)
 
 When programmatically creating or updating GitHub Issues, all agents MUST ALWAYS read the corresponding template file in `.github/ISSUE_TEMPLATE/` (e.g., `feature_request.md` or `bug_report.md`) first, and structure the issue title, label, headings, and descriptions to strictly match that template's required syntax and fields. In particular, the issue title MUST use standard lowercase conventional prefixes followed by a colon (e.g., `feat: `, `fix: `) instead of bracketed uppercase styles (e.g., `[FEAT]`, `[BUG]`).
