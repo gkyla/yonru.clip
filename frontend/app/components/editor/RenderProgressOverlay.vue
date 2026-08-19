@@ -9,7 +9,7 @@
   >
     <div
       v-show="state?.renderStatus?.value === 'rendering'"
-      class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center text-white"
+      class="absolute inset-0 z-[70] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center text-white"
     >
       <div class="relative mb-8">
         <div

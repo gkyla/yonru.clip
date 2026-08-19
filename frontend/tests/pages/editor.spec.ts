@@ -333,7 +333,7 @@ describe('Editor Page', () => {
     expect(panel.classes()).toContain('top-0')
     expect(panel.classes()).toContain('bottom-0')
     expect(panel.classes()).toContain('rounded-3xl')
-    expect(panel.classes()).toContain('z-50')
+    expect(panel.classes()).toContain('z-40')
 
     // Simulate ESC key press to dismiss panel
     const escEvent = new KeyboardEvent('keydown', { key: 'Escape' })
