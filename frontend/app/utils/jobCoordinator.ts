@@ -553,6 +553,10 @@ export class IngestionJobCoordinator {
       }
     })
 
+    if (res?.job_id) {
+      this.activeJobId = res.job_id
+    }
+
     const bundle = await this.loadClipAssets(folderName, clipId)
     bundle.videoFps = res?.fps || 30
     bundle.videoDuration = res?.clip?.duration || 0

@@ -89,6 +89,8 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     const { loadReadyClipIntoEditor } = useClipperJob()
     await loadReadyClipIntoEditor('folder', '10_20_clip')
 
+    const jobId = useState<string | null>('jobId')
+    expect(jobId.value).toBe('job-123')
     expect(font.value).toBe('Arial')
     expect(fontSize.value).toBe(120)
   })

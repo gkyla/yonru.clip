@@ -20,7 +20,7 @@
           class="absolute inset-0 m-auto text-3xl text-accent-500 animate-pulse"
         />
       </div>
-      <h2 class="text-2xl font-black italic tracking-tighter uppercase mb-2">Baking Your Clip</h2>
+      <h2 class="text-2xl font-black tracking-tighter uppercase mb-2">Baking Your Clip</h2>
       <p class="text-slate-400 text-sm font-medium tracking-wide mb-6">
         {{
           state?.renderStage?.value === 'starting'

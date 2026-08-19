@@ -32,6 +32,7 @@ export const useClipperExport = (deps: ExportDeps) => {
   const fullTranscript = useState<any[]>('fullTranscript', () => [])
 
   // Subtitle style states (read via shared useState keys)
+  const videoLayout = useState<string>('videoLayout', () => 'vertical')
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => -500)
@@ -94,6 +95,7 @@ export const useClipperExport = (deps: ExportDeps) => {
     return {
       job_id: jobId.value,
       hook_index: hookIndex,
+      video_layout: videoLayout.value,
       subtitle_position: subtitlePosition.value,
       subtitle_offset: subtitleOffset.value,
       font: font.value,
@@ -139,7 +141,11 @@ export const useClipperExport = (deps: ExportDeps) => {
 
   // --- Public: trigger render ---
   async function renderClip(hookIndex = 0, outputName?: string) {
-    if (!jobId.value) return
+    if (!jobId.value) {
+      renderStatus.value = 'error'
+      jobError.value = 'No active job ID found for render. Please reload the clip.'
+      return
+    }
     renderStatus.value = 'rendering'
     renderProgress.value = 0
     renderStage.value = 'starting'

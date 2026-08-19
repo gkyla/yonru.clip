@@ -16,8 +16,6 @@
 
     <!-- Main Content Area -->
     <div class="flex-1 flex flex-col h-full overflow-hidden relative">
-      <TheTopbar />
-      
       <div class="flex-1 overflow-y-auto custom-scrollbar [scrollbar-gutter:stable] w-full relative flex flex-col items-center p-8">
         <!-- Abstract Background Setup -->
         <div class="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-[#060608]">

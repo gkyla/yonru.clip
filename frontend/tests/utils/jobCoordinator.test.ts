@@ -328,6 +328,7 @@ describe('IngestionJobCoordinator Unit Tests', () => {
       expect(bundle.activeHook?.theme).toBe('Loaded Ready Clip')
       expect(bundle.activeHook?.transcript_quote).toBe('Famous quote')
       expect(bundle.history).toEqual({ undo_stack: [], redo_stack: [] })
+      expect(coordinator.getActiveJobId()).toBe('load-job-1')
     })
   })
 })

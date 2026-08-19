@@ -31,9 +31,6 @@
 
           <!-- Content / Preview Area -->
           <div class="flex-1 flex flex-col items-stretch bg-surface-dark relative">
-            <!-- Remotion Rendering Overlay -->
-            <EditorRenderProgressOverlay />
-
             <div id="previewArea" class="flex-1 flex overflow-hidden min-h-0 relative flex-row w-full">
               <div class="absolute inset-0 bg-noise opacity-[0.03] pointer-events-none mix-blend-overlay"></div>
 
@@ -47,6 +44,9 @@
                     @error-back="handleErrorBack"
                     @error-retry="handleErrorRetry"
                   />
+
+                  <!-- Remotion Rendering Overlay -->
+                  <EditorRenderProgressOverlay />
 
                   <!-- Video Preview + Action Rail Group -->
                   <div class="flex justify-center items-start gap-4 relative h-full">
@@ -402,6 +402,10 @@ function restoreStateFromQuery() {
     )
 
     state?.startPolling?.()
+  } else if (folder && clipId) {
+    console.log('[editor] Restoring ready clip from query without jobId. Folder:', folder, 'ClipID:', clipId)
+    panelTab.value = tab as any
+    state.loadReadyClipIntoEditor(folder, clipId)
   }
 }
 
