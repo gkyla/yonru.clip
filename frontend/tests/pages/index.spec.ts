@@ -657,6 +657,15 @@ describe('Index Page & Sub-Modules', () => {
     await doneBtn!.trigger('click')
 
     expect(vm.showAdjustDuration).toBe(false)
+
+    // Re-open and test click outside
+    await adjustBtn!.trigger('click')
+    expect(vm.showAdjustDuration).toBe(true)
+
+    // Simulate clicking outside on document body
+    window.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await wrapper.vm.$nextTick()
+    expect(vm.showAdjustDuration).toBe(false)
   })
 
   it('loads video as HD by default when available and allows toggling to SD in HookResultsGallery', async () => {

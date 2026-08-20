@@ -285,12 +285,20 @@
      </Transition>
 
      <!-- Cinematic Modal Overlay -->
-     <div v-if="selectedModalHook" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <!-- Backdrop -->
-        <div class="absolute inset-0 bg-black/90 backdrop-blur-xl" @click="selectedModalHook = null"></div>
-        
-        <!-- Modal Content -->
-        <div class="relative w-full max-w-5xl bg-surface-dark border border-surface-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300 max-h-[90vh]">
+     <Transition
+       enter-active-class="transition duration-200 ease-out"
+       enter-from-class="opacity-0 scale-98"
+       enter-to-class="opacity-100 scale-100"
+       leave-active-class="transition duration-150 ease-in"
+       leave-from-class="opacity-100 scale-100"
+       leave-to-class="opacity-0 scale-98"
+     >
+       <div v-if="selectedModalHook" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <!-- Backdrop -->
+          <div class="absolute inset-0 bg-black/90 backdrop-blur-xl" @click="selectedModalHook = null"></div>
+          
+          <!-- Modal Content -->
+          <div class="relative w-full max-w-5xl bg-surface-dark border border-surface-border rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
            <div class="absolute top-4 right-4 z-50">
               <button @click="selectedModalHook = null" class="w-10 h-10 bg-black/50 hover:bg-black/80 text-white rounded-full flex items-center justify-center backdrop-blur-md transition-all border border-white/10 hover:border-white/30 cursor-pointer">
                  <Icon name="ri:close-line" class="text-xl" />
@@ -392,6 +400,7 @@
                        </div>
 
                        <button 
+                          ref="timingTriggerBtnRef"
                           @click="showAdjustDuration = !showAdjustDuration"
                           class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-dark hover:bg-surface-panel border border-surface-border hover:border-accent-500/50 text-slate-300 hover:text-accent-500 text-xs font-bold transition-all cursor-pointer select-none"
                           :class="{ 'border-accent-500/50 text-accent-500 bg-surface-panel': showAdjustDuration }"
@@ -412,6 +421,7 @@
                        leave-to-class="transform -translate-y-2 opacity-0 scale-95"
                     >
                        <div 
+                          ref="timingPanelRef"
                           v-if="showAdjustDuration" 
                           class="absolute left-6 right-6 md:left-8 md:right-8 top-[148px] z-40 bg-[#141822]/98 backdrop-blur-2xl border border-surface-border rounded-2xl p-4 md:p-5 shadow-[0_12px_40px_rgba(0,0,0,0.8)] space-y-4"
                        >
@@ -588,8 +598,9 @@
                 </div>
              </div>
           </div>
-       </div>
-    </div>
+        </div>
+     </div>
+    </Transition>
   </div>
 </template>
 
@@ -625,6 +636,8 @@ const modalVideoUrl = computed(() => {
 })
 
 const showAdjustDuration = ref(false)
+const timingPanelRef = ref<HTMLElement | null>(null)
+const timingTriggerBtnRef = ref<HTMLElement | null>(null)
 const dragMode = ref<'start' | 'end' | null>(null)
 const startInputStr = ref('00:00')
 const endInputStr = ref('00:00')
@@ -997,7 +1010,28 @@ function onSliderClick(e: MouseEvent | TouchEvent) {
   startDrag(mode)
 }
 
+function handleClickOutsideTiming(e: MouseEvent) {
+  if (!showAdjustDuration.value) return
+  const target = e.target as Node
+  if (
+    timingPanelRef.value && !timingPanelRef.value.contains(target) &&
+    timingTriggerBtnRef.value && !timingTriggerBtnRef.value.contains(target)
+  ) {
+    showAdjustDuration.value = false
+  }
+}
 
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('mousedown', handleClickOutsideTiming)
+  }
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('mousedown', handleClickOutsideTiming)
+  }
+})
 </script>
 
 <style scoped>
