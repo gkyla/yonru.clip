@@ -576,4 +576,138 @@ describe('Index Page & Sub-Modules', () => {
     // The modal should now be active/visible
     expect(wrapper.text()).toContain('Reanalyze Video Hooks')
   })
+
+  it('renders Virality Breakdown default tab and switches to Transcript Quote in HookResultsGallery', async () => {
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: 'dummy.mp4',
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.selectedModalHook = {
+      start: 5.0,
+      end: 25.0,
+      theme: 'Viral Mystery',
+      virality_score: 94,
+      virality_reason: 'Strong psychological curiosity gap in opening 3 seconds.',
+      transcript_quote: 'You will never believe what happened next.'
+    }
+    await wrapper.vm.$nextTick()
+
+    expect(vm.activeModalTab).toBe('breakdown')
+    expect(wrapper.text()).toContain('Virality Analysis')
+    expect(wrapper.text()).toContain('Strong psychological curiosity gap in opening 3 seconds.')
+
+    // Switch to Transcript Quote tab
+    const transcriptTabBtn = wrapper.findAll('button').find(b => b.text().includes('Transcript Quote'))
+    expect(transcriptTabBtn).toBeDefined()
+    await transcriptTabBtn!.trigger('click')
+
+    expect(vm.activeModalTab).toBe('transcript')
+    expect(wrapper.text()).toContain('Spoken Dialog')
+    expect(wrapper.text()).toContain('You will never believe what happened next.')
+  })
+
+  it('toggles floating timing adjustment popover in HookResultsGallery', async () => {
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: 'dummy.mp4',
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.selectedModalHook = {
+      start: 5.0,
+      end: 25.0,
+      theme: 'Viral Mystery',
+      virality_score: 94
+    }
+    await wrapper.vm.$nextTick()
+
+    expect(vm.showAdjustDuration).toBe(false)
+
+    // Toggle popover button
+    const adjustBtn = wrapper.findAll('button').find(b => b.text().includes('Adjust Start - End'))
+    expect(adjustBtn).toBeDefined()
+    await adjustBtn!.trigger('click')
+
+    expect(vm.showAdjustDuration).toBe(true)
+    expect(wrapper.text()).toContain('Adjust Clip Timing')
+
+    // Click Done to close popover
+    const doneBtn = wrapper.findAll('button').find(b => b.text().includes('Done'))
+    expect(doneBtn).toBeDefined()
+    await doneBtn!.trigger('click')
+
+    expect(vm.showAdjustDuration).toBe(false)
+  })
+
+  it('loads video as HD by default when available and allows toggling to SD in HookResultsGallery', async () => {
+    mockState.hasPreview.value = true
+    mockState.hdReady.value = true
+    mockState.videoUrl.value = 'http://localhost:8000/assets/sources/sample/full.mp4'
+
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: 'http://localhost:8000/assets/sources/sample/preview.mp4',
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.selectedModalHook = {
+      start: 5.0,
+      end: 25.0,
+      theme: 'Viral Mystery',
+      virality_score: 94
+    }
+    await wrapper.vm.$nextTick()
+
+    // Default resolution should be HD (full.mp4) since hdReady is true
+    const video = wrapper.find('video')
+    expect(video.exists()).toBe(true)
+    expect(video.attributes('src')).toBe('http://localhost:8000/assets/sources/sample/full.mp4')
+
+    // Click SD toggle button
+    const sdBtn = wrapper.findAll('button').find(b => b.text() === 'SD')
+    expect(sdBtn).toBeDefined()
+    await sdBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Video src should switch to SD preview.mp4
+    expect(video.attributes('src')).toBe('http://localhost:8000/assets/sources/sample/preview.mp4')
+
+    // Click HD toggle button to switch back to HD
+    const hdBtn = wrapper.findAll('button').find(b => b.text() === 'HD')
+    expect(hdBtn).toBeDefined()
+    await hdBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Video src should now switch back to HD full.mp4
+    expect(video.attributes('src')).toBe('http://localhost:8000/assets/sources/sample/full.mp4')
+  })
 })

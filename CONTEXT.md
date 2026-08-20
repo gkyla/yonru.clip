@@ -162,7 +162,7 @@ A client-side warning dialog that triggers when a user submits a video source th
 _Avoid_: Duplicate URL warning, check dialog
 
 **Cinematic Preview Modal**:
-A fullscreen modal overlay that provides a dual-pane interface (video preview player and hook details sidebar) for reviewing hooks before entering the subtitle editor.
+A fullscreen modal overlay that provides a dual-pane interface (video preview player and hook details sidebar) for reviewing hooks before entering the subtitle editor, featuring a 2-tab segmented switcher (Virality Breakdown by default and Spoken Transcript Quote) and floating timing controls.
 _Avoid_: Ingestion preview player, hook previewer
 
 **Ready Badge**:
@@ -174,7 +174,7 @@ A fixed time padding subtracted from the AI-generated hook start time to prevent
 _Avoid_: Padding buffer, start time buffer
 
 **Hook Timing Adjustment**:
-A control panel within the Cinematic Preview Modal sidebar that allows the user to fine-tune the start and end times of a specific hook.
+A floating popover control panel within the Cinematic Preview Modal sidebar that allows the user to fine-tune the start and end times of a specific hook without shifting underlying sidebar content.
 _Avoid_: Timeline slider panel, hook cropper
 
 **Timeline History Stack**:

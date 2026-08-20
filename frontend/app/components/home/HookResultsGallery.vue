@@ -294,15 +294,15 @@
            <div class="absolute top-4 right-4 z-50">
               <button @click="selectedModalHook = null" class="w-10 h-10 bg-black/50 hover:bg-black/80 text-white rounded-full flex items-center justify-center backdrop-blur-md transition-all border border-white/10 hover:border-white/30 cursor-pointer">
                  <Icon name="ri:close-line" class="text-xl" />
-              </button>
+               </button>
            </div>
            <div class="flex flex-col md:flex-row h-full overflow-hidden">
               <!-- Video Player (50/50) -->
               <div class="md:w-1/2 bg-black relative aspect-video md:aspect-auto flex-shrink-0 flex items-center justify-center">
                  <video 
                    ref="modalVideoPlayer"
-                   v-if="previewVideoUrl"
-                   :src="previewVideoUrl"
+                   v-if="modalVideoUrl"
+                   :src="modalVideoUrl"
                    controls
                    autoplay
                    class="w-full h-full object-contain max-h-[70vh]"
@@ -310,7 +310,7 @@
                    @loadedmetadata="onModalLoadedMetadata"
                    @volumechange="onVolumeChange"
                  ></video>
-                 <div v-if="state.hasPreview.value && previewVideoUrl" class="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg p-0.5 flex items-center gap-1 select-none group/resolution">
+                 <div v-if="state.hasPreview.value && modalVideoUrl" class="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg p-0.5 flex items-center gap-1 select-none group/resolution">
                     <Icon name="ri:speed-line" class="text-[11px] text-slate-400 ml-1.5 mr-0.5" />
                     
                     <!-- SD Toggle Button -->
@@ -348,19 +348,16 @@
                        <div class="absolute bottom-full left-4 -mb-[5px] border-4 border-transparent border-b-[#171a21]/95"></div>
                     </div>
                  </div>
-                 <div v-else-if="!previewVideoUrl" class="w-full h-full flex flex-col items-center justify-center text-slate-500">
+                 <div v-else-if="!modalVideoUrl" class="w-full h-full flex flex-col items-center justify-center text-slate-500">
                     <Icon name="ri:film-line" class="text-4xl mb-2 opacity-50" />
                     <p class="text-sm font-medium">Video source unavailable</p>
                  </div>
               </div>
               
               <!-- Sidebar Info (50/50) -->
-              <div class="md:w-1/2 p-6 md:p-8 flex flex-col border-t md:border-t-0 md:border-l border-surface-border bg-surface-panel/50 overflow-y-auto custom-scrollbar select-text">
+              <div class="md:w-1/2 p-6 md:p-8 flex flex-col border-t md:border-t-0 md:border-l border-surface-border bg-surface-panel/50 overflow-y-auto custom-scrollbar select-text relative">
                  <div class="flex-1">
                     <div class="flex items-center gap-3 mb-4">
-                       <span class="bg-accent-500/10 text-accent-500 border border-accent-500/20 px-2 py-1 rounded text-[10px] b-mono font-black tracking-widest">
-                         PREVIEW
-                       </span>
 
                        <!-- Virality Score Pill in Modal -->
                        <div 
@@ -381,137 +378,203 @@
                        </button>
                     </div>
 
-                    <!-- Virality Explanation Box -->
-                    <div 
-                      v-if="selectedModalHook.virality_reason"
-                      class="mb-4 p-3.5 bg-[#171a21] border border-surface-border rounded-xl text-left shadow-lg"
-                    >
-                      <div class="text-[10px] font-bold text-accent-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                        <Icon name="ri:sparkling-fill" class="text-xs" />
-                        Virality Breakdown
-                      </div>
-                      <p class="text-xs text-slate-300 leading-relaxed">{{ selectedModalHook.virality_reason }}</p>
-                    </div>
 
                     <h3 class="text-xl md:text-2xl font-bold text-white mb-3 leading-tight">{{ selectedModalHook.theme || 'Untitled Hook' }}</h3>
+
                     
-                    <div class="flex flex-wrap items-center gap-2 mb-6">
+
+                    
+                    <div class="flex flex-wrap items-center gap-2 mb-4">
                        <div class="flex items-center gap-2 bg-surface-dark border border-surface-border/50 px-3 py-2 rounded-lg w-max">
                           <Icon name="ri:time-line" class="text-slate-400" />
                           <span class="text-slate-300 font-mono text-xs">{{ state.formatDuration(Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value)) }} - {{ state.formatDuration(selectedModalHook.end) }}</span>
                           <span class="text-accent-500 font-bold ml-1 text-xs">{{ formatHookDuration(Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value), selectedModalHook.end) }}</span>
                        </div>
+
                        <button 
                           @click="showAdjustDuration = !showAdjustDuration"
-                          class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-dark hover:bg-surface-panel border border-surface-border hover:border-accent-500/50 text-slate-300 hover:text-accent-500 text-xs font-bold transition-all cursor-pointer"
+                          class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-dark hover:bg-surface-panel border border-surface-border hover:border-accent-500/50 text-slate-300 hover:text-accent-500 text-xs font-bold transition-all cursor-pointer select-none"
                           :class="{ 'border-accent-500/50 text-accent-500 bg-surface-panel': showAdjustDuration }"
                        >
                           <Icon name="ri:settings-4-line" />
-                          Adjust Start - End duration
+                          Adjust Start - End
+                          <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-200" :class="{ 'rotate-180': showAdjustDuration }" />
                        </button>
                     </div>
 
-                    <!-- Hook Timing Adjustment Panel -->
-                    <div v-if="showAdjustDuration" class="mb-6 p-4 bg-black/30 border border-surface-border/60 rounded-xl space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                       <div class="flex items-center justify-between">
-                          <span class="text-[10px] font-black tracking-widest text-slate-400 uppercase">Adjust Clip Timing</span>
-                          <button 
-                             v-if="selectedModalHook && (selectedModalHook.start !== selectedModalHook.originalStart || selectedModalHook.end !== selectedModalHook.originalEnd)"
-                             @click="resetToDefaultDuration"
-                             class="text-[9px] text-accent-500 hover:text-accent-400 font-bold uppercase tracking-widest flex items-center gap-1 transition-all cursor-pointer"
-                          >
-                             <Icon name="ri:restart-line" />
-                             Reset to Default
-                          </button>
-                          <span v-else class="text-[9px] text-slate-500 font-mono">Total Video: {{ state.formatDuration(state.videoDuration.value || 0) }}</span>
-                       </div>
+                    <!-- Floating Timing Adjustment Panel Overlay -->
+                    <Transition
+                       enter-active-class="transition duration-150 ease-out"
+                       enter-from-class="transform -translate-y-2 opacity-0 scale-95"
+                       enter-to-class="transform translate-y-0 opacity-100 scale-100"
+                       leave-active-class="transition duration-100 ease-in"
+                       leave-from-class="transform translate-y-0 opacity-100 scale-100"
+                       leave-to-class="transform -translate-y-2 opacity-0 scale-95"
+                    >
+                       <div 
+                          v-if="showAdjustDuration" 
+                          class="absolute left-6 right-6 md:left-8 md:right-8 top-[148px] z-40 bg-[#141822]/98 backdrop-blur-2xl border border-surface-border rounded-2xl p-4 md:p-5 shadow-[0_12px_40px_rgba(0,0,0,0.8)] space-y-4"
+                       >
+                          <div class="flex items-center justify-between">
+                             <span class="text-[10px] font-black tracking-widest text-slate-400 uppercase">Adjust Clip Timing</span>
+                             <button 
+                                v-if="selectedModalHook && (selectedModalHook.start !== selectedModalHook.originalStart || selectedModalHook.end !== selectedModalHook.originalEnd)"
+                                @click="resetToDefaultDuration"
+                                class="text-[9px] text-accent-500 hover:text-accent-400 font-bold uppercase tracking-widest flex items-center gap-1 transition-all cursor-pointer"
+                             >
+                                <Icon name="ri:restart-line" />
+                                Reset to Default
+                             </button>
+                             <span v-else class="text-[9px] text-slate-500 font-mono">Total Video: {{ state.formatDuration(state.videoDuration.value || 0) }}</span>
+                          </div>
 
-                       <div class="grid grid-cols-2 gap-4">
-                           <div>
-                              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Start Time</label>
-                              <div class="relative flex items-center">
-                                 <input 
-                                    type="text" 
-                                    v-model="startInputStr" 
-                                    @change="onTimeInputChange('start')"
-                                    @keydown.up.prevent="onTimeInputStep('start', 1)"
-                                    @keydown.down.prevent="onTimeInputStep('start', -1)"
-                                    placeholder="mm:ss"
-                                    class="w-full bg-surface-dark border border-surface-border rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
-                                 />
-                                 <span class="absolute right-3 text-[10px] text-slate-500 font-bold">mm:ss</span>
-                              </div>
-                              <span class="text-[10px] text-slate-500 block mt-1 font-mono">{{ Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value).toFixed(1) }}s</span>
-                           </div>
-                           <div>
-                              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">End Time</label>
-                              <div class="relative flex items-center">
-                                 <input 
-                                    type="text" 
-                                    v-model="endInputStr" 
-                                    @change="onTimeInputChange('end')"
-                                    @keydown.up.prevent="onTimeInputStep('end', 1)"
-                                    @keydown.down.prevent="onTimeInputStep('end', -1)"
-                                    placeholder="mm:ss"
-                                    class="w-full bg-surface-dark border border-surface-border rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
-                                 />
-                                 <span class="absolute right-3 text-[10px] text-slate-500 font-bold">mm:ss</span>
-                              </div>
-                              <span class="text-[10px] text-slate-500 block mt-1 font-mono">{{ selectedModalHook.end.toFixed(1) }}s</span>
-                           </div>
-                       </div>
-
-                       <!-- Timeline Range Drag Control -->
-                       <div class="space-y-1">
-                          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Drag to adjust</label>
-                           <div class="relative w-full h-8 px-2 flex items-center select-none bg-black/20 border border-white/5 rounded-xl">
-                              <div 
-                                 id="modal-hook-slider"
-                                 class="relative w-full h-full flex items-center cursor-pointer"
-                                 @mousedown="onSliderClick"
-                                 @touchstart="onSliderClick"
-                              >
-                                 <!-- Slider Track -->
-                                 <div class="absolute left-0 right-0 h-2 bg-surface-dark border border-surface-border/50 rounded-full"></div>
-                                 
-                                 <!-- Highlighted Active range -->
-                                 <div 
-                                    class="absolute h-2 bg-accent-500 rounded-full"
-                                    :style="{
-                                       left: ((Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value) / (state.videoDuration.value || 100)) * 100) + '%',
-                                       width: (((selectedModalHook.end - Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value)) / (state.videoDuration.value || 100)) * 100) + '%'
-                                    }"
-                                 ></div>
-
-                                 <!-- Start Handle -->
-                                 <div 
-                                    class="absolute w-4 h-4 rounded-full bg-accent-500 border border-white cursor-ew-resize -translate-x-1/2 flex items-center justify-center shadow-lg hover:scale-125 active:scale-125 transition-transform"
-                                    :style="{ left: ((Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value) / (state.videoDuration.value || 100)) * 100) + '%' }"
-                                    @mousedown.stop="startDrag('start')"
-                                    @touchstart.stop="startDrag('start')"
-                                 >
-                                    <div class="w-1 h-1 bg-black rounded-full"></div>
+                          <div class="grid grid-cols-2 gap-4">
+                              <div>
+                                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Start Time</label>
+                                 <div class="relative flex items-center">
+                                    <input 
+                                       type="text" 
+                                       v-model="startInputStr" 
+                                       @change="onTimeInputChange('start')"
+                                       @keydown.up.prevent="onTimeInputStep('start', 1)"
+                                       @keydown.down.prevent="onTimeInputStep('start', -1)"
+                                       placeholder="mm:ss"
+                                       class="w-full bg-surface-card border border-surface-border rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
+                                    />
+                                    <span class="absolute right-3 text-[10px] text-slate-500 font-bold">mm:ss</span>
                                  </div>
+                                 <span class="text-[10px] text-slate-500 block mt-1 font-mono">{{ Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value).toFixed(1) }}s</span>
+                              </div>
+                              <div>
+                                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">End Time</label>
+                                 <div class="relative flex items-center">
+                                    <input 
+                                       type="text" 
+                                       v-model="endInputStr" 
+                                       @change="onTimeInputChange('end')"
+                                       @keydown.up.prevent="onTimeInputStep('end', 1)"
+                                       @keydown.down.prevent="onTimeInputStep('end', -1)"
+                                       placeholder="mm:ss"
+                                       class="w-full bg-surface-card border border-surface-border rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-accent-500 focus:outline-none focus:border-accent-500"
+                                    />
+                                    <span class="absolute right-3 text-[10px] text-slate-500 font-bold">mm:ss</span>
+                                 </div>
+                                 <span class="text-[10px] text-slate-500 block mt-1 font-mono">{{ selectedModalHook.end.toFixed(1) }}s</span>
+                              </div>
+                          </div>
 
-                                 <!-- End Handle -->
+                          <!-- Timeline Range Drag Control -->
+                          <div class="space-y-1">
+                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Drag to adjust</label>
+                              <div class="relative w-full h-8 px-2 flex items-center select-none bg-black/40 border border-white/5 rounded-xl">
                                  <div 
-                                    class="absolute w-4 h-4 rounded-full bg-accent-500 border border-white cursor-ew-resize -translate-x-1/2 flex items-center justify-center shadow-lg hover:scale-125 active:scale-125 transition-transform"
-                                    :style="{ left: ((selectedModalHook.end / (state.videoDuration.value || 100)) * 100) + '%' }"
-                                    @mousedown.stop="startDrag('end')"
-                                    @touchstart.stop="startDrag('end')"
+                                    id="modal-hook-slider"
+                                    class="relative w-full h-full flex items-center cursor-pointer"
+                                    @mousedown="onSliderClick"
+                                    @touchstart="onSliderClick"
                                  >
-                                    <div class="w-1 h-1 bg-black rounded-full"></div>
+                                    <!-- Slider Track -->
+                                    <div class="absolute left-0 right-0 h-2 bg-surface-dark border border-surface-border/50 rounded-full"></div>
+                                    
+                                    <!-- Highlighted Active range -->
+                                    <div 
+                                       class="absolute h-2 bg-accent-500 rounded-full"
+                                       :style="{
+                                          left: ((Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value) / (state.videoDuration.value || 100)) * 100) + '%',
+                                          width: (((selectedModalHook.end - Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value)) / (state.videoDuration.value || 100)) * 100) + '%'
+                                       }"
+                                    ></div>
+
+                                    <!-- Start Handle -->
+                                    <div 
+                                       class="absolute w-4 h-4 rounded-full bg-accent-500 border border-white cursor-ew-resize -translate-x-1/2 flex items-center justify-center shadow-lg hover:scale-125 active:scale-125 transition-transform"
+                                       :style="{ left: ((Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value) / (state.videoDuration.value || 100)) * 100) + '%' }"
+                                       @mousedown.stop="startDrag('start')"
+                                       @touchstart.stop="startDrag('start')"
+                                    >
+                                       <div class="w-1 h-1 bg-black rounded-full"></div>
+                                    </div>
+
+                                    <!-- End Handle -->
+                                    <div 
+                                       class="absolute w-4 h-4 rounded-full bg-accent-500 border border-white cursor-ew-resize -translate-x-1/2 flex items-center justify-center shadow-lg hover:scale-125 active:scale-125 transition-transform"
+                                       :style="{ left: ((selectedModalHook.end / (state.videoDuration.value || 100)) * 100) + '%' }"
+                                       @mousedown.stop="startDrag('end')"
+                                       @touchstart.stop="startDrag('end')"
+                                    >
+                                       <div class="w-1 h-1 bg-black rounded-full"></div>
+                                    </div>
                                  </div>
                               </div>
-                           </div>
+                          </div>
+
+                          <div class="flex justify-end pt-1">
+                             <button 
+                                @click="showAdjustDuration = false" 
+                                class="px-3 py-1.5 bg-accent-500 text-black text-[10px] font-black uppercase tracking-wider rounded-lg hover:bg-accent-400 transition-colors cursor-pointer"
+                             >
+                                Done
+                             </button>
+                          </div>
+                       </div>
+                    </Transition>
+
+                    <!-- Tabbed Switcher (Virality Breakdown [Tab 1 Default] vs Transcript Quote [Tab 2]) -->
+                    <div class="flex items-center p-1 bg-surface-dark/90 border border-surface-border/60 rounded-xl mb-4 select-none">
+                       <button 
+                          @click="(e) => { activeModalTab = 'breakdown'; (e.currentTarget as HTMLElement)?.blur(); }" 
+                          class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0"
+                          :class="activeModalTab === 'breakdown' ? 'bg-surface-panel text-accent-500 shadow-sm border border-surface-border' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'"
+                       >
+                          <Icon name="ri:sparkling-fill" class="text-xs" />
+                          <span>Virality Breakdown</span>
+                       </button>
+                       <button 
+                          @click="(e) => { activeModalTab = 'transcript'; (e.currentTarget as HTMLElement)?.blur(); }" 
+                          class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0"
+                          :class="activeModalTab === 'transcript' ? 'bg-surface-panel text-accent-500 shadow-sm border border-surface-border' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'"
+                       >
+                          <Icon name="ri:chat-quote-line" class="text-xs" />
+                          <span>Transcript Quote</span>
+                       </button>
+                    </div>
+
+                    <!-- Tab 1: Virality Breakdown (Default) -->
+                    <div v-if="activeModalTab === 'breakdown'" class="animate-in fade-in duration-200">
+                       <div 
+                         v-if="selectedModalHook.virality_reason"
+                         class="h-[210px] p-5 bg-black/40 border border-surface-border/80 rounded-xl text-left shadow-lg relative overflow-hidden group flex flex-col"
+                       >
+                         <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+                            <Icon name="ri:sparkling-fill" class="text-9xl text-accent-500" />
+                         </div>
+                         <div class="text-[10px] font-black text-accent-500 uppercase tracking-widest mb-2.5 flex items-center gap-1.5 shrink-0">
+                           <Icon name="ri:sparkling-fill" class="text-xs" />
+                           Virality Analysis
+                         </div>
+                         <div class="flex-1 overflow-y-auto custom-scrollbar relative z-10 pr-1">
+                           <p class="text-xs md:text-sm text-slate-200 leading-relaxed font-normal">{{ selectedModalHook.virality_reason }}</p>
+                         </div>
+                       </div>
+                       <div v-else class="h-[210px] p-6 bg-black/20 border border-surface-border rounded-xl flex items-center justify-center text-center text-slate-500 text-xs">
+                         No virality breakdown available for this hook.
                        </div>
                     </div>
 
-                    <div class="bg-black/30 p-5 rounded-xl border border-surface-border relative group overflow-y-auto max-h-[250px] custom-scrollbar">
-                       <Icon name="ri:quote-text" class="absolute -top-2 -right-2 text-6xl text-surface-border opacity-30 group-hover:text-accent-500/10 transition-colors" />
-                       <p class="text-slate-300 text-sm italic leading-relaxed relative z-10">"{{ (selectedModalHook.transcript_quote || '').length > 300 ? (selectedModalHook.transcript_quote || '').substring(0, 297) + '...' : (selectedModalHook.transcript_quote || '') }}"</p>
+                    <!-- Tab 2: Transcript Quote -->
+                    <div v-else-if="activeModalTab === 'transcript'" class="animate-in fade-in duration-200">
+                       <div class="h-[210px] p-5 bg-black/40 border border-surface-border/80 rounded-xl relative group overflow-hidden text-left flex flex-col">
+                          <Icon name="ri:quote-text" class="absolute -top-2 -right-2 text-6xl text-surface-border opacity-20 group-hover:text-accent-500/10 transition-colors pointer-events-none" />
+                          <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2.5 flex items-center gap-1.5 shrink-0">
+                            <Icon name="ri:mic-line" class="text-xs text-slate-400" />
+                            Spoken Dialog
+                          </div>
+                          <div class="flex-1 overflow-y-auto custom-scrollbar relative z-10 pr-1">
+                            <p class="text-slate-200 text-sm italic leading-relaxed font-serif">"{{ selectedModalHook.transcript_quote || 'No transcript quote available for this hook.' }}"</p>
+                          </div>
+                       </div>
                     </div>
-                </div>
+                 </div>
 
                 <div class="mt-8 pt-6 border-t border-surface-border/50">
                    <button 
@@ -550,14 +613,22 @@ const activeTab = ref<'generated' | 'saved'>('generated')
 const hoveredHookIndex = ref<number | null>(null)
 const selectedModalHook = ref<Hook | null>(null)
 const modalVideoPlayer = ref<HTMLVideoElement | null>(null)
-const forceHighRes = ref(false)
+const forceHighRes = ref(state.hdReady.value)
 const isTogglingResolution = ref(false)
 const savedPlaybackTime = ref<number | null>(null)
+
+const modalVideoUrl = computed(() => {
+  if (forceHighRes.value && state.hdReady.value && state.videoUrl.value) {
+    return state.videoUrl.value
+  }
+  return props.previewVideoUrl || state.videoUrl.value
+})
 
 const showAdjustDuration = ref(false)
 const dragMode = ref<'start' | 'end' | null>(null)
 const startInputStr = ref('00:00')
 const endInputStr = ref('00:00')
+const activeModalTab = ref<'breakdown' | 'transcript'>('breakdown')
 
 
 
@@ -747,12 +818,14 @@ watch(selectedModalHook, (newHook) => {
     }
     startInputStr.value = formatMMSS(Math.max(0, newHook.start - state.startSafetyBuffer.value))
     endInputStr.value = formatMMSS(newHook.end)
-    forceHighRes.value = false
+    activeModalTab.value = 'breakdown'
+    forceHighRes.value = state.hdReady.value
     isTogglingResolution.value = false
     savedPlaybackTime.value = null
   } else {
     showAdjustDuration.value = false
-    forceHighRes.value = false
+    activeModalTab.value = 'breakdown'
+    forceHighRes.value = state.hdReady.value
     isTogglingResolution.value = false
     savedPlaybackTime.value = null
   }
