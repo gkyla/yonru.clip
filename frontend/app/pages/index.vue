@@ -58,13 +58,11 @@
       <!-- 3. Generated / Saved Hooks Gallery Sub-Module -->
       <HomeHookResultsGallery 
         v-else-if="state.jobStatus.value !== 'idle' && (state.jobStatus.value === 'hooks_ready' || state.hooks.value.length > 0 || state.savedHooks.value.length > 0)" 
-        ref="hookResultsGalleryRef"
         key="hooks"
         :preview-video-url="previewVideoUrl" 
         :ready-clips="readyClips" 
         @select-hook="selectHook" 
         @back-to-library="resetToStart" 
-        @reanalyze="analyzeCached" 
       />
 
       <!-- 4. Default Home Library View: Ready Clips + Cached Library -->
@@ -91,6 +89,12 @@
         />
       </div>
     </Transition>
+
+    <!-- Standalone Reanalyze Settings Modal (Always Accessible) -->
+    <HomeReanalyzeModal
+      ref="reanalyzeModalRef"
+      @reanalyze="analyzeCached"
+    />
   </div>
 </template>
 
@@ -101,7 +105,7 @@ const state = useClipperState()
 const API_BASE = 'http://localhost:8000'
 
 const cachedLibraryRef = ref<{ openDuplicateModal: (videoId: string) => void } | null>(null)
-const hookResultsGalleryRef = ref<{ triggerReanalyze: (videoId: string) => void } | null>(null)
+const reanalyzeModalRef = ref<{ open: (videoId: string) => void; close: () => void } | null>(null)
 
 // Hero Headline Typewriter
 const typewriterPhrases: string[] = [
@@ -386,15 +390,23 @@ function handleAnalyzeClick() {
 }
 
 function triggerReanalyze(videoId: string) {
-  if (hookResultsGalleryRef.value?.triggerReanalyze) {
-    hookResultsGalleryRef.value.triggerReanalyze(videoId)
+  if (reanalyzeModalRef.value?.open) {
+    reanalyzeModalRef.value.open(videoId)
   }
 }
 
 async function analyzeCached(
   videoId: string, 
   force = false, 
-  options?: { promptFile: string; numHooks: number; autoHooks: boolean }
+  options?: { 
+    extractionMode?: 'preset' | 'custom'
+    presetId?: string
+    promptFile?: string
+    focusTopic?: string
+    minDuration?: number
+    maxDuration?: number
+    autoHooks?: boolean 
+  }
 ) {
   state.isCachedAnalysis.value = true
   isReanalyzingCached.value = force
@@ -410,16 +422,24 @@ async function analyzeCached(
   state.clipId.value = null
 
   try {
-    const promptFile = options ? options.promptFile : state.selectedPrompt.value
-    const numHooks = options ? options.numHooks : (state.promptsList.value.find((p: PromptTemplate) => p.id === state.selectedPrompt.value)?.numHooks ?? 10)
-    const autoHooks = options ? options.autoHooks : (state.promptsList.value.find((p: PromptTemplate) => p.id === state.selectedPrompt.value)?.autoHooks ?? false)
+    const extractionMode = options?.extractionMode ?? state.extractionMode.value ?? 'preset'
+    const presetId = options?.presetId ?? state.selectedPresetId.value ?? 'auto'
+    const promptFile = options?.promptFile ?? state.selectedPrompt.value ?? 'prompt.json'
+    const autoHooks = options?.autoHooks ?? true
+    const focusTopic = options?.focusTopic ?? (state.focusTopic.value || undefined)
+    const minDuration = options?.minDuration ?? state.minDuration.value ?? 30
+    const maxDuration = options?.maxDuration ?? state.maxDuration.value ?? 180
 
     const res = await $fetch<{ job_id: string; status: string; hooks?: Hook[]; folder_name?: string; video?: any }>(`${API_BASE}/api/analyze-cached/${videoId}?force=${force}`, { 
       method: 'POST',
       body: { 
+        extraction_mode: extractionMode,
+        preset_id: presetId,
         prompt_file: promptFile,
-        num_hooks: numHooks,
-        auto_hooks: autoHooks
+        auto_hooks: autoHooks,
+        focus_topic: focusTopic,
+        min_duration: minDuration,
+        max_duration: maxDuration
       }
     })
     

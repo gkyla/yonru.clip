@@ -253,6 +253,10 @@ _Avoid_: Arbitrary inner border radius, mismatched corner curvature
 An interactive, high-visibility text element within the home hero header that dynamically cycles through short-form video content phrases using smooth typewriter character pacing and a glowing Radioactive Green cursor.
 _Avoid_: Static technical header, rapid text ticker
 
+**Reanalyze Settings Modal**:
+A standalone glassmorphic configuration dialog allowing the user to select an AI prompt template and customize hook generation parameters (number of hooks, automatic hook detection) when re-evaluating a cached video source.
+_Avoid_: Reanalyze popup, prompt modal, reanalysis options box
+
 
 
 ### Ingestion & Services

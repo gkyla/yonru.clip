@@ -527,181 +527,6 @@
           </div>
        </div>
     </div>
-
-    <!-- Beautiful Glass Reanalyze Settings Modal -->
-    <Transition
-      enter-active-class="transition duration-150 ease-out"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition duration-100 ease-in"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
-    >
-      <div v-if="reanalyzePromptModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-         <div class="absolute inset-0 bg-black/85 backdrop-blur-md" @click="reanalyzePromptModalOpen = false"></div>
-         
-         <div class="relative w-full max-w-lg bg-surface-dark border border-surface-border rounded-3xl p-8 shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
-            <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
-            
-            <div class="w-16 h-16 rounded-2xl bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(207,255,80,0.1)]">
-               <Icon name="ri:magic-line" class="text-3xl" />
-            </div>
-
-            <h3 class="text-2xl font-black text-white tracking-wide mb-3">Reanalyze Video Hooks</h3>
-            <p class="text-slate-400 text-xs mb-6 font-semibold leading-relaxed">
-               Select an AI prompt template and customize hook settings for this reanalysis run. This will not change your global settings.
-            </p>
-
-            <!-- Settings Form -->
-            <div class="flex flex-col gap-5 mb-6">
-                <!-- Prompt Dropdown -->
-                <div class="flex flex-col gap-2 relative">
-                   <div class="flex items-center justify-between">
-                      <label class="text-[10px] font-black uppercase tracking-widest text-slate-400">AI Prompt Template</label>
-                      
-                      <div class="relative group cursor-help shrink-0">
-                         <Icon name="ri:information-line" class="text-slate-500 text-base group-hover:text-accent-500 transition-colors" />
-                         
-                         <div class="absolute bottom-full right-0 mb-2 w-64 bg-surface-panel border border-surface-border rounded-xl shadow-2xl p-3 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-1 group-hover:translate-y-0 z-[70] text-left">
-                            <h4 class="text-accent-500 text-[10px] font-black uppercase tracking-widest mb-2">Suitable For:</h4>
-                            <div v-if="state.promptsList.value.find((p: PromptTemplate) => p.id === reanalyzeSelectedPromptId)?.suitableFor?.length" class="flex flex-col gap-1.5">
-                               <div 
-                                 v-for="(item, i) in state.promptsList.value.find((p: PromptTemplate) => p.id === reanalyzeSelectedPromptId)?.suitableFor" :key="i"
-                                 class="text-[11px] text-slate-300 leading-tight flex items-start gap-1.5"
-                               >
-                                  <span class="text-accent-500 mt-0.5">•</span>
-                                  <span>{{ item }}</span>
-                               </div>
-                            </div>
-                            <div v-else class="text-[11px] text-slate-500 italic">No specific categories defined.</div>
-                            <div class="absolute -bottom-1.5 right-1 w-3 h-3 bg-surface-panel border-b border-r border-surface-border transform rotate-45"></div>
-                         </div>
-                      </div>
-                   </div>
-                   
-                   <button 
-                     @click="isReanalyzePromptDropdownOpen = !isReanalyzePromptDropdownOpen"
-                     class="w-full px-4 py-3 bg-surface-card hover:bg-surface-panel border border-surface-border text-white text-xs font-semibold rounded-xl transition-all flex items-center justify-between text-left active:scale-[0.99] select-none cursor-pointer"
-                   >
-                      <span class="truncate">
-                         {{ state.promptsList.value.find((p: PromptTemplate) => p.id === reanalyzeSelectedPromptId)?.name || 'Select Prompt' }}
-                      </span>
-                      <Icon 
-                        name="ri:arrow-down-s-line" 
-                        class="text-slate-400 text-base transition-transform duration-200" 
-                        :class="{ 'rotate-180': isReanalyzePromptDropdownOpen }" 
-                      />
-                   </button>
-
-                   <Transition
-                     enter-active-class="transition duration-100 ease-out"
-                     enter-from-class="transform scale-95 opacity-0"
-                     enter-to-class="transform scale-100 opacity-100"
-                     leave-active-class="transition duration-75 ease-in"
-                     leave-from-class="transform scale-100 opacity-100"
-                     leave-to-class="transform scale-95 opacity-0"
-                   >
-                      <div 
-                        v-if="isReanalyzePromptDropdownOpen"
-                        class="absolute top-full mt-2 left-0 w-full bg-[#171a21]/95 backdrop-blur-md border border-surface-border rounded-xl shadow-2xl py-1 z-[60] max-h-48 overflow-y-auto custom-scrollbar"
-                      >
-                         <button 
-                           v-for="p in state.promptsList.value" 
-                           :key="p.id"
-                           @click="reanalyzeSelectedPromptId = p.id; isReanalyzePromptDropdownOpen = false"
-                           @mouseenter="hoveredPrompt = p"
-                           @mouseleave="hoveredPrompt = null"
-                           class="w-full px-4 py-2.5 flex items-center justify-between text-left text-xs text-slate-300 hover:bg-accent-500/10 hover:text-accent-500 transition-colors font-semibold cursor-pointer"
-                         >
-                            <span class="truncate" :class="{ 'text-accent-500 font-bold': reanalyzeSelectedPromptId === p.id }">
-                               {{ p.name }}
-                            </span>
-                            <Icon 
-                              v-if="reanalyzeSelectedPromptId === p.id" 
-                              name="ri:checkbox-circle-fill" 
-                              class="text-accent-500 text-sm shrink-0 ml-2" 
-                            />
-                         </button>
-
-                         <div 
-                           v-if="hoveredPrompt && hoveredPrompt.suitableFor && hoveredPrompt.suitableFor.length"
-                           class="absolute left-full top-0 ml-2.5 w-64 bg-[#171a21]/95 backdrop-blur-md border border-accent-500/50 rounded-xl shadow-[0_0_20px_rgba(207,255,80,0.1)] p-3 z-[70] text-left animate-in fade-in duration-150 pointer-events-none"
-                         >
-                           <h5 class="text-accent-500 text-[10px] font-black uppercase tracking-widest mb-2">Suitable For:</h5>
-                           <div class="flex flex-col gap-1.5">
-                             <div 
-                               v-for="(item, i) in hoveredPrompt.suitableFor" :key="i"
-                               class="text-xs text-slate-300 leading-tight flex items-start gap-1.5"
-                             >
-                               <span class="text-accent-500 mt-0.5">•</span>
-                               <span>{{ item }}</span>
-                             </div>
-                           </div>
-                         </div>
-                      </div>
-                   </Transition>
-                </div>
-
-                <!-- Hook Count & Auto Toggle Grid -->
-                <div class="grid grid-cols-2 gap-4">
-                   <div class="flex flex-col gap-2">
-                      <div class="flex items-center justify-between h-5">
-                         <label class="text-[10px] font-black uppercase tracking-widest text-slate-400">Target Hooks</label>
-                      </div>
-                      <div class="relative flex items-center">
-                         <input 
-                           type="number" 
-                           v-model.number="reanalyzeNumHooks"
-                           :disabled="reanalyzeAutoHooks"
-                           min="1"
-                           max="50"
-                           class="w-full h-11 px-4 bg-surface-card border border-surface-border text-white text-xs font-semibold rounded-xl focus:outline-none focus:border-accent-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                         />
-                      </div>
-                   </div>
-
-                   <div class="flex flex-col gap-2">
-                      <div class="flex items-center justify-between h-5">
-                         <label class="text-[10px] font-black uppercase tracking-widest text-slate-400">Auto Hooks Mode</label>
-                      </div>
-                      <button 
-                        @click="reanalyzeAutoHooks = !reanalyzeAutoHooks"
-                        class="w-full h-11 px-4 border text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-200 active:scale-[0.98] select-none flex items-center justify-center gap-2 cursor-pointer"
-                        :class="reanalyzeAutoHooks ? 'bg-accent-500/10 border-accent-500 text-accent-500 hover:bg-accent-500/20' : 'bg-surface-card border-surface-border text-slate-400 hover:text-white hover:bg-surface-panel'"
-                      >
-                         <Icon :name="reanalyzeAutoHooks ? 'ri:toggle-fill' : 'ri:toggle-line'" class="text-base shrink-0" />
-                         {{ reanalyzeAutoHooks ? 'Enabled' : 'Disabled' }}
-                      </button>
-                   </div>
-                </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="flex flex-col gap-3 w-full">
-               <button 
-                 @click="() => { 
-                   reanalyzePromptModalOpen = false; 
-                   $emit('reanalyze', reanalyzeVideoId, true, { 
-                     promptFile: reanalyzeSelectedPromptId, 
-                     numHooks: reanalyzeNumHooks, 
-                     autoHooks: reanalyzeAutoHooks 
-                   }); 
-                 }"
-                 class="w-full py-3 bg-accent-500 text-black hover:bg-accent-400 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 hover:shadow-[0_0_20px_rgba(207,255,80,0.5)] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
-               >
-                  <Icon name="ri:magic-line" class="text-sm" />
-                  Run Reanalysis
-               </button>
-               <button 
-                 @click="reanalyzePromptModalOpen = false"
-                 class="w-full py-3 bg-transparent hover:bg-white/5 text-slate-400 hover:text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center cursor-pointer"
-               >
-                  Cancel
-               </button>
-            </div>
-         </div>
-      </div>
-    </Transition>
   </div>
 </template>
 
@@ -716,7 +541,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'select-hook', hook: Hook): void
   (e: 'back-to-library'): void
-  (e: 'reanalyze', videoId: string, force: boolean, options?: { promptFile: string; numHooks: number; autoHooks: boolean }): void
 }>()
 
 const state = useClipperState()
@@ -735,28 +559,7 @@ const dragMode = ref<'start' | 'end' | null>(null)
 const startInputStr = ref('00:00')
 const endInputStr = ref('00:00')
 
-// Reanalyze modal state
-const reanalyzePromptModalOpen = ref(false)
-const reanalyzeVideoId = ref('')
-const reanalyzeSelectedPromptId = ref('')
-const reanalyzeNumHooks = ref(10)
-const reanalyzeAutoHooks = ref(false)
-const isReanalyzePromptDropdownOpen = ref(false)
-const hoveredPrompt = ref<PromptTemplate | null>(null)
 
-watch(() => state.jobStatus.value, (newStatus) => {
-  if (newStatus === 'queued') {
-    activeTab.value = 'generated'
-  }
-})
-
-watch(reanalyzeSelectedPromptId, (newPromptId) => {
-  const p = state.promptsList.value.find((prompt: PromptTemplate) => prompt.id === newPromptId)
-  if (p) {
-    reanalyzeNumHooks.value = p.numHooks ?? 10
-    reanalyzeAutoHooks.value = p.autoHooks ?? false
-  }
-})
 
 function formatHookDuration(start: number, end: number) {
   const diff = Math.abs(end - start)
@@ -921,6 +724,12 @@ function onVolumeChange() {
     localStorage.setItem('yonru_preview_muted', el.muted.toString())
   }
 }
+
+watch(() => state.jobStatus.value, (newStatus) => {
+  if (newStatus === 'queued') {
+    activeTab.value = 'generated'
+  }
+})
 
 watch(modalVideoPlayer, (el) => {
   if (el) {
@@ -1115,24 +924,7 @@ function onSliderClick(e: MouseEvent | TouchEvent) {
   startDrag(mode)
 }
 
-defineExpose({
-  triggerReanalyze: (videoId: string) => {
-    reanalyzeVideoId.value = videoId
-    reanalyzeSelectedPromptId.value = state.selectedPrompt.value
-    
-    const p = state.promptsList.value.find((prompt: PromptTemplate) => prompt.id === state.selectedPrompt.value)
-    if (p) {
-      reanalyzeNumHooks.value = p.numHooks ?? 10
-      reanalyzeAutoHooks.value = p.autoHooks ?? false
-    } else {
-      reanalyzeNumHooks.value = 10
-      reanalyzeAutoHooks.value = false
-    }
-    
-    isReanalyzePromptDropdownOpen.value = false
-    reanalyzePromptModalOpen.value = true
-  }
-})
+
 </script>
 
 <style scoped>

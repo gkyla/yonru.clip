@@ -553,4 +553,27 @@ describe('Index Page & Sub-Modules', () => {
     await btn!.trigger('click')
     expect(mockState.jobStatus.value).toBe('idle')
   })
+
+  it('triggers ReanalyzeModal.open when triggerReanalyze is invoked', async () => {
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: { template: '<a><slot /></a>' }
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    expect(vm.reanalyzeModalRef).toBeDefined()
+
+    // Trigger reanalyze
+    vm.triggerReanalyze('vid-456')
+    await wrapper.vm.$nextTick()
+
+    // The modal should now be active/visible
+    expect(wrapper.text()).toContain('Reanalyze Video Hooks')
+  })
 })
