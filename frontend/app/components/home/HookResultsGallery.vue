@@ -68,120 +68,121 @@
              <p class="text-slate-400 text-xs max-w-sm normal-case tracking-normal">We couldn't extract any segments from this video. Try adjusting the prompt template or using another URL.</p>
           </div>
           <div 
-             v-for="(hook, idx) in state.hooks.value" 
-             :key="idx"
-             @click="selectedModalHook = hook"
-             @mouseenter="hoveredHookIndex = Number(idx)"
-             @mouseleave="hoveredHookIndex = null"
-             class="bg-surface-panel border border-surface-border hover:border-accent-500/50 rounded-2xl cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col overflow-hidden"
-           >
-             <div class="absolute inset-0 bg-gradient-to-br from-accent-500/0 to-accent-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-0"></div>
-             
-             <!-- Video Preview Area -->
-             <div class="w-full aspect-video bg-black relative overflow-hidden rounded-t-2xl shrink-0 border-b border-surface-border z-10"
-                  style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);">
-                <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
-                <img 
-                  v-if="hook.thumbnail_url"
-                  :src="API_BASE + hook.thumbnail_url"
-                  class="absolute inset-0 w-full h-full object-cover z-10 select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
-                  alt="Hook thumbnail"
-                />
-                <video 
-                  v-else-if="previewVideoUrl"
-                  :src="previewVideoUrl + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
-                  muted
-                  preload="metadata"
-                  class="absolute inset-0 w-full h-full object-cover z-10 focus:outline-none select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
-                  style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);"
-                  @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
-                  @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
-                  @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
-                ></video>
+            v-for="(hook, idx) in state.hooks.value" 
+            :key="idx"
+            @click="selectedModalHook = hook"
+            @mouseenter="hoveredHookIndex = Number(idx)"
+            @mouseleave="hoveredHookIndex = null"
+            class="bg-surface-panel border border-surface-border hover:border-accent-500/50 rounded-2xl cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col overflow-visible hover:z-30"
+          >
+            <div class="absolute inset-0 bg-gradient-to-br from-accent-500/0 to-accent-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-2xl z-0"></div>
+            
+            <!-- Video Preview Area -->
+            <div class="w-full aspect-video bg-black relative rounded-t-2xl shrink-0 border-b border-surface-border z-10">
+               <!-- Video / Media Canvas (Clipped Corners) -->
+               <div class="absolute inset-0 overflow-hidden rounded-t-2xl" style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);">
+                  <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
+                  <img 
+                    v-if="hook.thumbnail_url"
+                    :src="API_BASE + hook.thumbnail_url"
+                    class="absolute inset-0 w-full h-full object-cover z-10 select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
+                    alt="Hook thumbnail"
+                  />
+                  <video 
+                    v-else-if="previewVideoUrl"
+                    :src="previewVideoUrl + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
+                    muted
+                    preload="metadata"
+                    class="absolute inset-0 w-full h-full object-cover z-10 focus:outline-none select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
+                    style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);"
+                    @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
+                    @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
+                    @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
+                  ></video>
 
-                <!-- Centered Play Icon Overlay on Hover -->
-                <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-20 pointer-events-none">
-                  <div class="w-12 h-12 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-accent-500 shadow-2xl scale-90 group-hover:scale-100 transition-transform">
-                    <Icon name="ri:play-circle-fill" class="text-3xl text-accent-500" />
-                  </div>
-                </div>
-
-                <!-- Floating Media Badge Overlay: Top-Left (Unified Hook Score Pill) -->
-                <div class="absolute top-2.5 left-2.5 z-30 flex items-center gap-1.5 pointer-events-auto">
-                  <div class="flex items-center bg-black/75 backdrop-blur-md border border-white/10 rounded-lg p-0.5 shadow-lg select-none">
-                    <span class="px-2 py-0.5 text-[9px] font-mono font-black tracking-widest text-accent-500">
-                      HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}
-                    </span>
-
-                    <!-- Virality Score Sub-Pill -->
-                    <div v-if="hook.virality_score !== undefined" class="relative group/viral flex items-center">
-                      <div 
-                        class="px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider flex items-center gap-1 cursor-help transition-all"
-                        :class="{
-                          'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.2)]': hook.virality_score >= 90,
-                          'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-[0_0_8px_rgba(6,182,212,0.2)]': hook.virality_score >= 75 && hook.virality_score < 90,
-                          'bg-slate-700/50 text-slate-300 border border-slate-600/40': hook.virality_score < 75
-                        }"
-                      >
-                        <Icon :name="hook.virality_score >= 90 ? 'ri:fire-fill' : (hook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-[10px]" />
-                        <span>{{ hook.virality_score }}</span>
-                      </div>
-
-                      <!-- Tooltip with Virality Explanation -->
-                      <div 
-                        v-if="hook.virality_reason"
-                        class="absolute bottom-full left-0 mb-2 w-60 bg-[#171a21]/95 backdrop-blur-md border border-surface-border text-[11px] text-slate-200 p-2.5 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/viral:opacity-100 group-hover/viral:pointer-events-auto transition-all translate-y-1 group-hover/viral:translate-y-0 z-50 font-medium normal-case tracking-normal text-left"
-                      >
-                        <div class="text-[10px] font-bold text-accent-500 uppercase tracking-widest mb-1 flex items-center gap-1">
-                          <Icon name="ri:sparkling-fill" class="text-xs" />
-                          Virality Breakdown ({{ hook.virality_score }}/100)
-                        </div>
-                        <div class="text-slate-300 leading-snug">{{ hook.virality_reason }}</div>
-                        <div class="absolute top-full left-4 -mt-[5px] border-4 border-transparent border-t-[#171a21]"></div>
-                      </div>
+                  <!-- Centered Play Icon Overlay on Hover -->
+                  <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-20 pointer-events-none">
+                    <div class="w-12 h-12 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-accent-500 shadow-2xl scale-90 group-hover:scale-100 transition-transform">
+                      <Icon name="ri:play-circle-fill" class="text-3xl text-accent-500" />
                     </div>
                   </div>
-                </div>
+               </div>
 
-                <!-- Floating Media Badge Overlay: Top-Right (Ready Indicator & Bookmark Action) -->
-                <div class="absolute top-2.5 right-2.5 z-30 flex items-center gap-2 pointer-events-auto">
-                  <!-- Ambient Ready Indicator -->
-                  <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
-                    <div class="px-2 py-1 bg-black/75 backdrop-blur-md border border-emerald-500/30 rounded-lg text-emerald-400 text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 cursor-help shadow-lg">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      <span>Ready</span>
-                    </div>
-                    <!-- Custom Tooltip -->
-                    <div class="absolute bottom-full right-0 mb-2 w-56 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-xl shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-50 font-medium normal-case tracking-normal text-center">
-                      This clip has already been cut and transcribed, ready for editing!
-                      <div class="absolute top-full right-4 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
-                    </div>
-                  </div>
+               <!-- Floating Media Badge Overlay: Top-Left (Unified Hook Score Pill) -->
+               <div class="absolute top-2.5 left-2.5 z-40 flex items-center gap-1.5 pointer-events-auto">
+                 <div class="flex items-center bg-black border border-white/10 rounded-lg p-0.5 shadow-lg select-none">
+                   <span class="px-2 py-0.5 text-[9px] font-mono font-black tracking-widest text-accent-500">
+                     HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}
+                   </span>
 
-                  <!-- Glassmorphic Bookmark Toggle Button -->
-                  <button 
-                    @click.stop="toggleSaveHook(hook)" 
-                    aria-label="Bookmark Hook"
-                    class="w-7 h-7 rounded-lg bg-black/75 backdrop-blur-md border border-white/10 hover:border-amber-400/40 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg cursor-pointer"
-                    :class="isHookSaved(hook) ? 'text-amber-400 border-amber-400/30' : 'text-slate-400 hover:text-amber-300'"
-                  >
-                    <Icon :name="isHookSaved(hook) ? 'ri:bookmark-fill' : 'ri:bookmark-line'" class="text-sm" />
-                  </button>
-                </div>
+                   <!-- Virality Score Sub-Pill -->
+                   <div v-if="hook.virality_score !== undefined" class="relative group/viral flex items-center">
+                     <div 
+                       class="px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider flex items-center gap-1 cursor-help transition-all"
+                       :class="{
+                         'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.2)]': hook.virality_score >= 90,
+                         'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-[0_0_8px_rgba(6,182,212,0.2)]': hook.virality_score >= 75 && hook.virality_score < 90,
+                         'bg-slate-700/50 text-slate-300 border border-slate-600/40': hook.virality_score < 75
+                       }"
+                     >
+                       <Icon :name="hook.virality_score >= 90 ? 'ri:fire-fill' : (hook.virality_score >= 75 ? 'ri:flashlight-fill' : 'ri:bar-chart-2-fill')" class="text-[10px]" />
+                       <span>{{ hook.virality_score }}</span>
+                     </div>
 
-                <!-- Floating Media Badge Overlay: Bottom-Right Duration -->
-                <div class="absolute bottom-2.5 right-2.5 bg-black/80 px-2 py-0.5 rounded-md text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10 shadow-lg">
-                  {{ formatHookDuration(hook.start, hook.end) }}
-                </div>
-             </div>
-             
+                     <!-- Tooltip with Virality Explanation (Opens downward into video canvas) -->
+                     <div 
+                       v-if="hook.virality_reason"
+                       class="absolute top-full left-0 mt-2 w-72 bg-[#171a21] border border-surface-border text-[11px] text-slate-200 p-3.5 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] opacity-0 pointer-events-none group-hover/viral:opacity-100 group-hover/viral:pointer-events-auto transition-all duration-200 -translate-y-1 group-hover/viral:translate-y-0 z-50 font-medium normal-case tracking-normal text-left"
+                     >
+                       <div class="absolute bottom-full left-4 -mb-[1px] border-4 border-transparent border-b-[#171a21]"></div>
+                       <div class="text-[10px] font-bold text-accent-500 uppercase tracking-widest mb-1 flex items-center gap-1">
+                         <Icon name="ri:sparkling-fill" class="text-xs" />
+                         Virality Breakdown ({{ hook.virality_score }}/100)
+                       </div>
+                       <div class="text-slate-300 leading-snug">{{ hook.virality_reason }}</div>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+
+               <!-- Floating Media Badge Overlay: Top-Right (Ready Indicator & Bookmark Action) -->
+               <div class="absolute top-2.5 right-2.5 z-40 flex items-center gap-2 pointer-events-auto">
+                 <!-- Ambient Ready Indicator -->
+                 <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
+                   <div class="px-2 py-1 bg-black border border-emerald-500/30 rounded-lg text-emerald-400 text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 cursor-help shadow-lg">
+                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                     <span>Ready</span>
+                   </div>
+                   <!-- Custom Tooltip (Opens downward) -->
+                   <div class="absolute top-full right-0 mt-2 w-56 bg-slate-900 border border-emerald-500/30 text-[10px] text-slate-200 p-2.5 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all -translate-y-1 group-hover/tooltip:translate-y-0 z-50 font-medium normal-case tracking-normal text-center">
+                     <div class="absolute bottom-full right-4 -mb-[1px] border-4 border-transparent border-b-slate-900"></div>
+                     This clip has already been cut and transcribed, ready for editing!
+                   </div>
+                 </div>
+
+                 <!-- Glassmorphic Bookmark Toggle Button -->
+                 <button 
+                   @click.stop="toggleSaveHook(hook)" 
+                   aria-label="Bookmark Hook"
+                   class="w-7 h-7 rounded-lg bg-black border border-white/10 hover:border-amber-400/40 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg cursor-pointer"
+                   :class="isHookSaved(hook) ? 'text-amber-400 border-amber-400/30' : 'text-slate-400 hover:text-amber-300'"
+                 >
+                   <Icon :name="isHookSaved(hook) ? 'ri:bookmark-fill' : 'ri:bookmark-line'" class="text-sm" />
+                 </button>
+               </div>
+
+               <!-- Floating Media Badge Overlay: Bottom-Right Duration -->
+               <div class="absolute bottom-2.5 right-2.5 bg-black px-2 py-0.5 rounded-md text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10 shadow-lg">
+                 {{ formatHookDuration(hook.start, hook.end) }}
+               </div>
+            </div>
              <!-- Streamlined Editorial Card Body -->
              <div class="p-4 flex-1 flex flex-col relative z-10">
-               <h4 class="text-white font-bold mb-2 text-base leading-snug group-hover:text-accent-500 transition-colors line-clamp-1">
+               <h4 class="text-white font-bold mb-2 text-base leading-snug group-hover:text-accent-500 transition-colors line-clamp-2 min-h-[2.75rem]">
                  {{ hook.theme || 'Untitled Hook' }}
                </h4>
                
-               <div class="border-l-2 border-surface-border group-hover:border-accent-500/30 pl-2.5 py-0.5 my-1 transition-colors flex-1">
+               <div class=" py-0.5 my-1 transition-colors flex-1">
                  <p class="text-slate-400 text-xs line-clamp-2 italic leading-relaxed">
                    "{{ hook.transcript_quote || 'No transcript quote available for this hook.' }}"
                  </p>
@@ -218,42 +219,44 @@
             @click="selectedModalHook = hook"
             @mouseenter="hoveredHookIndex = Number(idx) + 1000"
             @mouseleave="hoveredHookIndex = null"
-            class="bg-surface-panel border border-surface-border hover:border-amber-400/50 rounded-2xl cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col overflow-hidden"
+            class="bg-surface-panel border border-surface-border hover:border-amber-400/50 rounded-2xl cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col overflow-visible hover:z-30"
           >
-            <div class="absolute inset-0 bg-gradient-to-br from-amber-400/0 to-amber-400/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-0"></div>
+            <div class="absolute inset-0 bg-gradient-to-br from-amber-400/0 to-amber-400/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-2xl z-0"></div>
             
             <!-- Video Preview Area -->
-            <div class="w-full aspect-video bg-black relative overflow-hidden rounded-t-2xl shrink-0 border-b border-surface-border z-10"
-                 style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);">
-               <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
-               <img 
-                 v-if="hook.thumbnail_url"
-                 :src="API_BASE + hook.thumbnail_url"
-                 class="absolute inset-0 w-full h-full object-cover z-10 select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
-                 alt="Hook thumbnail"
-               />
-               <video 
-                 v-else-if="previewVideoUrl"
-                 :src="previewVideoUrl + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
-                 muted
-                 preload="metadata"
-                 class="absolute inset-0 w-full h-full object-cover z-10 focus:outline-none select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
-                 style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);"
-                 @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
-                 @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
-                 @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
-               ></video>
+            <div class="w-full aspect-video bg-black relative rounded-t-2xl shrink-0 border-b border-surface-border z-10">
+               <!-- Video / Media Canvas (Clipped Corners) -->
+               <div class="absolute inset-0 overflow-hidden rounded-t-2xl" style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);">
+                  <Icon name="ri:film-line" class="absolute inset-0 m-auto text-slate-700 text-3xl opacity-50 group-hover:opacity-20 transition-opacity" />
+                  <img 
+                    v-if="hook.thumbnail_url"
+                    :src="API_BASE + hook.thumbnail_url"
+                    class="absolute inset-0 w-full h-full object-cover z-10 select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
+                    alt="Hook thumbnail"
+                  />
+                  <video 
+                    v-else-if="previewVideoUrl"
+                    :src="previewVideoUrl + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
+                    muted
+                    preload="metadata"
+                    class="absolute inset-0 w-full h-full object-cover z-10 focus:outline-none select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
+                    style="backface-visibility: hidden; transform: translate3d(0,0,0); -webkit-backface-visibility: hidden; -webkit-transform: translate3d(0,0,0);"
+                    @mouseenter="e => { const p = (e.target as HTMLVideoElement).play(); if (p !== undefined) p.catch(() => {}); }"
+                    @mouseleave="e => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
+                    @timeupdate="e => { if (selectedModalHook === null && (e.target as HTMLVideoElement).currentTime >= hook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, hook.start - state.startSafetyBuffer.value); }"
+                  ></video>
 
-               <!-- Centered Play Icon Overlay on Hover -->
-               <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-20 pointer-events-none">
-                 <div class="w-12 h-12 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-amber-400 shadow-2xl scale-90 group-hover:scale-100 transition-transform">
-                   <Icon name="ri:play-circle-fill" class="text-3xl text-amber-400" />
-                 </div>
+                  <!-- Centered Play Icon Overlay on Hover -->
+                  <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-20 pointer-events-none">
+                    <div class="w-12 h-12 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-amber-400 shadow-2xl scale-90 group-hover:scale-100 transition-transform">
+                      <Icon name="ri:play-circle-fill" class="text-3xl text-amber-400" />
+                    </div>
+                  </div>
                </div>
 
                <!-- Floating Media Badge Overlay: Top-Left (Unified Hook Score Pill - Saved) -->
-               <div class="absolute top-2.5 left-2.5 z-30 flex items-center gap-1.5 pointer-events-auto">
-                 <div class="flex items-center bg-black/75 backdrop-blur-md border border-amber-500/30 rounded-lg p-0.5 shadow-lg select-none">
+               <div class="absolute top-2.5 left-2.5 z-40 flex items-center gap-1.5 pointer-events-auto">
+                 <div class="flex items-center bg-black border border-amber-500/30 rounded-lg p-0.5 shadow-lg select-none">
                    <span class="px-2 py-0.5 text-[9px] font-mono font-black tracking-widest text-amber-400">
                      SAVED {{ String(Number(idx) + 1).padStart(2, '0') }}
                    </span>
@@ -272,34 +275,34 @@
                        <span>{{ hook.virality_score }}</span>
                      </div>
 
-                     <!-- Tooltip with Virality Explanation -->
+                     <!-- Tooltip with Virality Explanation (Opens downward into video canvas) -->
                      <div 
                        v-if="hook.virality_reason"
-                       class="absolute bottom-full left-0 mb-2 w-60 bg-[#171a21]/95 backdrop-blur-md border border-surface-border text-[11px] text-slate-200 p-2.5 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/viral:opacity-100 group-hover/viral:pointer-events-auto transition-all translate-y-1 group-hover/viral:translate-y-0 z-50 font-medium normal-case tracking-normal text-left"
+                       class="absolute top-full left-0 mt-2 w-72 bg-[#171a21] border border-surface-border text-[11px] text-slate-200 p-3.5 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] opacity-0 pointer-events-none group-hover/viral:opacity-100 group-hover/viral:pointer-events-auto transition-all duration-200 -translate-y-1 group-hover/viral:translate-y-0 z-50 font-medium normal-case tracking-normal text-left"
                      >
+                       <div class="absolute bottom-full left-4 -mb-[1px] border-4 border-transparent border-b-[#171a21]"></div>
                        <div class="text-[10px] font-bold text-accent-500 uppercase tracking-widest mb-1 flex items-center gap-1">
                          <Icon name="ri:sparkling-fill" class="text-xs" />
                          Virality Breakdown ({{ hook.virality_score }}/100)
                        </div>
                        <div class="text-slate-300 leading-snug">{{ hook.virality_reason }}</div>
-                       <div class="absolute top-full left-4 -mt-[5px] border-4 border-transparent border-t-[#171a21]"></div>
                      </div>
                    </div>
                  </div>
                </div>
 
                <!-- Floating Media Badge Overlay: Top-Right (Ready Indicator & Active Bookmark) -->
-               <div class="absolute top-2.5 right-2.5 z-30 flex items-center gap-2 pointer-events-auto">
+               <div class="absolute top-2.5 right-2.5 z-40 flex items-center gap-2 pointer-events-auto">
                  <!-- Ambient Ready Indicator -->
                  <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center">
-                   <div class="px-2 py-1 bg-black/75 backdrop-blur-md border border-emerald-500/30 rounded-lg text-emerald-400 text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 cursor-help shadow-lg">
+                   <div class="px-2 py-1 bg-black border border-emerald-500/30 rounded-lg text-emerald-400 text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 cursor-help shadow-lg">
                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                      <span>Ready</span>
                    </div>
-                   <!-- Custom Tooltip -->
-                   <div class="absolute bottom-full right-0 mb-2 w-56 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-xl shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-50 font-medium normal-case tracking-normal text-center">
+                   <!-- Custom Tooltip (Opens downward) -->
+                   <div class="absolute top-full right-0 mt-2 w-56 bg-slate-900 border border-emerald-500/30 text-[10px] text-slate-200 p-2.5 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all -translate-y-1 group-hover/tooltip:translate-y-0 z-50 font-medium normal-case tracking-normal text-center">
+                     <div class="absolute bottom-full right-4 -mb-[1px] border-4 border-transparent border-b-slate-900"></div>
                      This clip has already been cut and transcribed, ready for editing!
-                     <div class="absolute top-full right-4 -mt-[5px] border-4 border-transparent border-t-slate-900"></div>
                    </div>
                  </div>
 
@@ -307,25 +310,24 @@
                  <button 
                    @click.stop="toggleSaveHook(hook)" 
                    aria-label="Bookmark Hook"
-                   class="w-7 h-7 rounded-lg bg-black/75 backdrop-blur-md border border-amber-400/40 text-amber-400 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg cursor-pointer"
+                   class="w-7 h-7 rounded-lg bg-black border border-amber-400/40 text-amber-400 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg cursor-pointer"
                  >
                    <Icon name="ri:bookmark-fill" class="text-sm" />
                  </button>
                </div>
 
                <!-- Floating Media Badge Overlay: Bottom-Right Duration -->
-               <div class="absolute bottom-2.5 right-2.5 bg-black/80 px-2 py-0.5 rounded-md text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10 shadow-lg">
+               <div class="absolute bottom-2.5 right-2.5 bg-black px-2 py-0.5 rounded-md text-[10px] text-white font-mono font-bold tracking-widest backdrop-blur-md z-20 border border-white/10 shadow-lg">
                  {{ formatHookDuration(hook.start, hook.end) }}
                </div>
             </div>
-            
             <!-- Streamlined Editorial Card Body -->
             <div class="p-4 flex-1 flex flex-col relative z-10">
-              <h4 class="text-white font-bold mb-2 text-base leading-snug group-hover:text-amber-400 transition-colors line-clamp-1">
+              <h4 class="text-white font-bold mb-2 text-base leading-snug group-hover:text-amber-400 transition-colors line-clamp-2 min-h-[2.75rem]">
                 {{ hook.theme || 'Untitled Hook' }}
               </h4>
               
-              <div class="border-l-2 border-surface-border group-hover:border-amber-400/30 pl-2.5 py-0.5 my-1 transition-colors flex-1">
+              <div class=" py-0.5 my-1 transition-colors flex-1">
                 <p class="text-slate-400 text-xs line-clamp-2 italic leading-relaxed">
                   "{{ hook.transcript_quote || 'No transcript quote available for this hook.' }}"
                 </p>
@@ -363,7 +365,7 @@
           <!-- Modal Content -->
           <div class="relative w-full max-w-5xl bg-surface-dark border border-surface-border rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
            <div class="absolute top-4 right-4 z-50">
-              <button @click="selectedModalHook = null" class="w-10 h-10 bg-black/50 hover:bg-black/80 text-white rounded-full flex items-center justify-center backdrop-blur-md transition-all border border-white/10 hover:border-white/30 cursor-pointer">
+              <button @click="selectedModalHook = null" class="w-10 h-10 bg-black/50 hover:bg-black text-white rounded-full flex items-center justify-center backdrop-blur-md transition-all border border-white/10 hover:border-white/30 cursor-pointer">
                  <Icon name="ri:close-line" class="text-xl" />
                </button>
            </div>
@@ -409,7 +411,7 @@
                     </button>
     
                     <!-- Custom Tooltip on Hover -->
-                    <div class="absolute top-full left-0 mt-2 w-64 bg-[#171a21]/95 backdrop-blur-md border border-surface-border text-[10px] text-slate-300 p-3 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/resolution:opacity-100 group-hover/resolution:pointer-events-auto transition-all -translate-y-1 group-hover/resolution:translate-y-0 z-30 font-medium normal-case tracking-normal">
+                    <div class="absolute top-full left-0 mt-2 w-64 bg-[#171a21] border border-surface-border text-[10px] text-slate-300 p-3 rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover/resolution:opacity-100 group-hover/resolution:pointer-events-auto transition-all -translate-y-1 group-hover/resolution:translate-y-0 z-30 font-medium normal-case tracking-normal">
                        <h5 class="text-accent-500 font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1">
                           <Icon name="ri:information-line" class="text-xs" />
                           Preview Quality
