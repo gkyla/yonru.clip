@@ -11,13 +11,13 @@ The **yonru.clip** ecosystem operates as a 3-tier architecture coordinated by a 
 
 ```mermaid
 graph TD
-    User["User Browser"] -->|UI / Editor (Port 3000)| Frontend["Frontend (Nuxt 4 / Vue 3.5)"]
-    Frontend -->|REST API / State Polling (Port 8000)| Backend["Backend (FastAPI / Python 3.12)"]
-    Frontend -->|Iframe Realtime Preview (Port 3003)| RemotionPreview["Remotion Studio / Preview Engine"]
-    Backend -->|Media Downloads| YouTube["yt-dlp / Cookies Session"]
-    Backend -->|Transcription| Whisper["Whisper Audio Transcriber"]
-    Backend -->|Hook Analysis| Gemini["Google Gemini GenAI Client"]
-    Backend -->|Export & Rendering| RenderEngine["Render Engine (Remotion CLI / FFmpeg)"]
+    User["User Browser"] -->|"UI / Editor (Port 3000)"| Frontend["Frontend (Nuxt 4 / Vue 3.5)"]
+    Frontend -->|"REST API / State Polling (Port 8000)"| Backend["Backend (FastAPI / Python 3.12)"]
+    Frontend -->|"Iframe Realtime Preview (Port 3003)"| RemotionPreview["Remotion Studio / Preview Engine"]
+    Backend -->|"Media Downloads"| YouTube["yt-dlp / Cookies Session"]
+    Backend -->|"Transcription"| Whisper["Whisper Audio Transcriber"]
+    Backend -->|"Hook Analysis"| Gemini["Google Gemini GenAI Client"]
+    Backend -->|"Export & Rendering"| RenderEngine["Render Engine (Remotion CLI / FFmpeg)"]
 ```
 
 ### Service Responsibilities:
