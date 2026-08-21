@@ -2,7 +2,7 @@
   <div id="hooks-header" class="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full p-8 -mt-8">
      <div class="flex flex-col mb-6">
         <div class="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center mb-4">
-           <div class="flex flex-col gap-1.5 shrink-0">
+           <div class="flex flex-col gap-2 shrink-0">
               <h3 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
                 <Icon name="ri:fire-fill" class="text-accent-500" />
                 <span>Generated Hooks</span>
@@ -10,17 +10,17 @@
                 <Transition name="scale-fade">
                   <span 
                     v-if="!state.hdReady.value && state.downloadPercent.value < 100" 
-                    class="inline-flex items-center gap-1.5 px-2 py-0.5 border border-accent-500/20 bg-accent-500/[0.05] rounded-none text-[9px] font-black uppercase tracking-wider text-accent-500 animate-pulse"
+                    class="inline-flex items-center gap-1.5 px-2 border border-accent-500/20 bg-accent-500/[0.05] rounded-none text-[9px] font-black uppercase tracking-wider text-accent-500 animate-pulse"
                   >
                     <span class="w-1.5 h-1.5 rounded-full bg-accent-500 animate-ping"></span>
                     Caching HD Source... {{ state.downloadPercent.value }}%
                   </span>
                   <span 
                     v-else-if="state.hdReady.value || state.downloadPercent.value === 100" 
-                    class="inline-flex items-center gap-1.5 px-2 py-0.5 border border-emerald-500/20 bg-emerald-500/[0.05] rounded-none text-[9px] font-black uppercase tracking-wider text-emerald-400"
+                    class="inline-flex items-center gap-1.5 px-2 border border-emerald-500/20 bg-emerald-500/[0.05] rounded-none text-[9px] font-black uppercase tracking-wider text-emerald-400"
                   >
                     <Icon name="ri:checkbox-circle-fill" class="text-[10px]" />
-                    HD Local Ready
+                    HD Ready
                   </span>
                 </Transition>
               </h3>
