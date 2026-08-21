@@ -1,6 +1,6 @@
 # Yonru Setup & Deployment Guide
 
-Welcome! This document will help you configure and run the Yonru clipping ecosystem across diverse platforms securely.
+Welcome! This document will help you configure and run the Yonru clipping ecosystem across diverse platforms securely. For internal system architecture and pipeline design, see [Architecture Guidelines](.agents/instructions/architecture.md).
 
 ---
 
