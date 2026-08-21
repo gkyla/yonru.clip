@@ -6,6 +6,24 @@ Welcome to the **yonru.clip** domain glossary. This document serves as the singl
 
 ## Language
 
+### Home & Hook Discovery UI
+
+**Cinematic Hook Gallery Card**:
+A structured card component in the Generated Hooks gallery displaying video preview with floating metadata overlays on top, and a clean content body below displaying only hook theme, transcript quote, and preview trigger.
+_Avoid_: Generated hook card, hook tile
+
+**Floating Media Badge Overlay**:
+A glassmorphic metadata badge cluster positioned directly over the hook thumbnail video preview area (combining Hook Index, Virality Score pill, Ready status dot, and timestamp range) to decouple technical metadata from the textual content body.
+_Avoid_: Video thumbnail badges, media overlay icons
+
+**Unified Hook Score Pill**:
+A composite glassmorphic badge combining the sequential hook index and the color-coded virality score indicator into a single compact pill positioned over the video preview.
+_Avoid_: Split hook badge, double score tag
+
+**Ambient Ready Indicator**:
+A subtle glassmorphic status badge with an emerald glowing dot positioned on the hook thumbnail overlay indicating that the video segment has already been rendered and transcribed.
+_Avoid_: Rendered status box, green check tag
+
 ### Transcript Editor UI
 
 **Flowing Document View**:
