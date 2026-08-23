@@ -8,6 +8,7 @@ import type {
   HookExtractionMode,
   HookIntentPreset,
   CachedVideo,
+  LastAccessedClip,
   TimelineTrack,
   TimelineTrackItem
 } from '../types/clipper'
@@ -23,7 +24,7 @@ export interface WorkspaceSettingsSchema {
   language?: string
   lastVideoId?: string
   lastVideoStored?: CachedVideo | null
-  lastClip?: { folder: string; clip_id: string; title?: string } | null
+  lastClip?: LastAccessedClip | null
   defaultTimelineTextStyle?: Record<string, any> | null
 }
 
@@ -38,13 +39,13 @@ export interface WorkspaceReactivityContext {
   language: Ref<string>
   lastAccessedVideoId: Ref<string | null>
   lastAccessedVideoStored: Ref<CachedVideo | null>
-  lastAccessedClip: Ref<{ folder: string; clip_id: string; title?: string } | null>
+  lastAccessedClip: Ref<LastAccessedClip | null>
 
   folderName: Ref<string | null>
   clipId: Ref<string | null>
   jobStatus: Ref<string>
-  activeHook: Ref<{ theme?: string; title?: string } | null>
-  setLastClip: (folder: string, clipId: string, theme: string) => void
+  activeHook: Ref<{ theme?: string; title?: string; thumbnail_url?: string } | null>
+  setLastClip: (folder: string, clipId: string, theme?: string, thumbnailUrl?: string) => void
 
   auditor: { loadBlacklistFromStorage: () => void }
   timeline: {
@@ -225,7 +226,8 @@ export class WorkspacePersistenceCoordinator {
             ctx.setLastClip(
               newFolder,
               newClipId,
-              ctx.activeHook.value?.theme || ctx.activeHook.value?.title || 'Current Clip'
+              ctx.activeHook.value?.theme || ctx.activeHook.value?.title || 'Current Clip',
+              ctx.activeHook.value?.thumbnail_url
             )
           }
         }

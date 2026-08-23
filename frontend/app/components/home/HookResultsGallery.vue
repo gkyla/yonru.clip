@@ -488,7 +488,7 @@
                        <div 
                           ref="timingPanelRef"
                           v-if="showAdjustDuration" 
-                          class="absolute left-6 right-6 md:left-8 md:right-8 top-[148px] z-40 bg-[#141822]/98 backdrop-blur-2xl border border-surface-border rounded-2xl p-4 md:p-5 shadow-[0_12px_40px_rgba(0,0,0,0.8)] space-y-4"
+                          class="absolute left-6 right-6 md:left-8 md:right-8 top-[148px] z-40 bg-[#141822] backdrop-blur-2xl border border-surface-border rounded-2xl p-4 md:p-5 shadow-[0_12px_40px_rgba(0,0,0,0.8)] space-y-4"
                        >
                           <div class="flex items-center justify-between">
                              <span class="text-[10px] font-black tracking-widest text-slate-400 uppercase">Adjust Clip Timing</span>
