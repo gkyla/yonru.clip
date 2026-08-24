@@ -24,6 +24,15 @@ export interface LastAccessedClip {
   thumbnail_url?: string
 }
 
+export interface NicheProfile {
+  id: string
+  name: string
+  niche: string
+  icon?: string
+  gradient?: string
+  avatarInitial?: string
+}
+
 export interface CachedVideo {
   video_id: string
   title: string

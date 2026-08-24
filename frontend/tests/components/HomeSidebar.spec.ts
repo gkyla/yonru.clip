@@ -167,7 +167,7 @@ describe('HomeSidebar Component', () => {
     expect(profileTrigger.exists()).toBe(true)
 
     await profileTrigger.trigger('click')
-    expect(wrapper.text()).toContain('Switch Niche Profile')
+    expect(wrapper.text()).toContain('Switch Profile')
   })
 
   it('respects sidebar drag boundaries and saves width to localStorage', () => {
@@ -345,5 +345,55 @@ describe('HomeSidebar Component', () => {
     })
 
     expect((wrapper.vm as any).isCollapsed).toBe(true)
+  })
+
+  it('supports creating a new niche profile via inline form and persists to localStorage', async () => {
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: { template: '<a><slot /></a>' }
+        }
+      }
+    })
+
+    // Open popover
+    const profileTrigger = wrapper.find('.profile-popover-container button')
+    await profileTrigger.trigger('click')
+    expect(wrapper.text()).toContain('Switch Profile')
+
+    // Click Create Profile button
+    const createBtn = wrapper.findAll('button').find(b => b.text().includes('Create Profile'))
+    expect(createBtn).toBeDefined()
+    await createBtn!.trigger('click')
+
+    // Form inputs should now be visible
+    expect(wrapper.text()).toContain('New Profile')
+    const nameInput = wrapper.find('input[placeholder*="Podcast Shorts"]')
+    expect(nameInput.exists()).toBe(true)
+    await nameInput.setValue('Crypto Daily')
+
+    const nicheInput = wrapper.find('input[placeholder*="Finance & Crypto"]')
+    expect(nicheInput.exists()).toBe(true)
+    await nicheInput.setValue('Web3 & DeFi')
+
+    // Submit form
+    const saveBtn = wrapper.findAll('button').find(b => b.text() === 'Create')
+    expect(saveBtn).toBeDefined()
+    await saveBtn!.trigger('click')
+
+    // Profile should be created and saved in localStorage
+    const saved = JSON.parse(localStorage.getItem('yonru_niche_profiles') || '[]')
+    expect(saved.some((p: any) => p.name === 'Crypto Daily' && p.niche === 'Web3 & DeFi')).toBe(true)
+    expect((wrapper.vm as any).activeProfile.name).toBe('Crypto Daily')
+    expect((wrapper.vm as any).activeProfile.niche).toBe('Web3 & DeFi')
   })
 })
