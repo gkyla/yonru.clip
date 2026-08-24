@@ -72,13 +72,13 @@
               @click="onSelectPrompt(p)"
               class="w-full text-left rounded-xl p-3 cursor-pointer transition-all flex flex-col gap-1.5 group select-none relative outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-500/50"
               :class="editingId === p.id 
-                ? 'bg-accent-500/10 border border-accent-500/30 text-white shadow-[0_0_15px_rgba(207,255,80,0.08)]' 
+                ? 'bg-accent-500/10 border border-accent-500/30 text-white' 
                 : 'text-slate-400 hover:text-slate-200 hover:bg-surface-dark/70 border border-transparent bg-surface-dark/40'"
             >
-              <!-- Active Neon Indicator Bar -->
+              <!-- Active Indicator Bar -->
               <div 
                 v-if="editingId === p.id"
-                class="absolute left-0 top-2.5 bottom-2.5 w-1 bg-accent-500 rounded-r shadow-[0_0_8px_rgba(207,255,80,0.8)]"
+                class="absolute left-0 top-2.5 bottom-2.5 w-1 bg-accent-500 rounded-r"
               ></div>
 
               <div class="flex justify-between items-center w-full gap-2 pl-0.5">
