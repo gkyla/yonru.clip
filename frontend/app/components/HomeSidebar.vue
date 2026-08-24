@@ -112,7 +112,7 @@
                       </div>
                       <div class="overflow-hidden min-w-0 grid justify-center gap-0.5">
                         <p class="text-[12px] font-semibold text-white truncate leading-tight">{{ activeProfile.name }}</p>
-                        <span class="inline-block text-[9px] text-white/70 bg-white/[0.04] px-1.5 py-0.5 rounded font-medium truncate max-w-[150px] leading-none">{{ activeProfile.niche }}</span>
+                        <span class="inline-block text-[9px] text-white/70 bg-white/[0.04]px-1.5 py-0.5 rounded font-medium truncate max-w-[150px] leading-none">{{ activeProfile.niche }}</span>
                       </div>
                     </div>
                     <Icon 
