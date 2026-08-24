@@ -54,92 +54,75 @@
 
     <!-- Two-Column Settings Layout -->
     <div class="flex flex-col md:flex-row gap-6 items-start w-full">
-      <!-- Left Column / Category Sidebar -->
-      <aside class="w-full md:w-64 lg:w-72 shrink-0 flex flex-col gap-3 md:sticky md:top-2 self-start">
+      <!-- Left Column / Navigation Sidebar -->
+      <aside class="w-full md:w-60 lg:w-64 shrink-0 flex flex-col gap-3 md:sticky md:top-2 self-start">
         <!-- Navigation Panel -->
-        <div class="bg-surface-panel border border-surface-border rounded-2xl p-2 sm:p-2.5 flex flex-row md:flex-col gap-1.5 shadow-xl overflow-x-auto md:overflow-visible custom-scrollbar">
-          <div class="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hidden md:flex items-center justify-between">
-            <span>Categories</span>
-            <span class="text-[9px] text-slate-600 font-mono font-normal">5 sections</span>
+        <div ref="navContainerRef" class="bg-surface-panel border border-surface-border rounded-2xl p-2 flex flex-row md:flex-col gap-1 shadow-xl overflow-x-auto md:overflow-visible custom-scrollbar relative">
+          <!-- Animated Sliding Indicator Line (Desktop) -->
+          <div 
+            class="hidden md:block absolute left-0 w-[2.5px] bg-accent-500 rounded-r-full pointer-events-none transition-all duration-300 ease-out shadow-[0_0_8px_rgba(207,255,80,0.4)]"
+            :style="{
+              top: `${indicatorTop}px`,
+              height: `${indicatorHeight}px`,
+              opacity: indicatorOpacity
+            }"
+          ></div>
+
+          <div class="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden md:block">
+            Preferences
           </div>
 
           <button
             v-for="section in sections"
             :key="section.id"
+            :ref="(el) => setButtonRef(section.id, el)"
             @click="switchTab(section.id)"
-            class="flex items-center justify-between px-3.5 py-3 rounded-xl text-left transition-all group relative shrink-0 cursor-pointer outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-500/50 select-none"
+            class="flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all duration-150 group relative shrink-0 cursor-pointer outline-none select-none min-h-[42px] md:min-h-0"
             :class="activeTab === section.id 
-              ? 'bg-accent-500/10 border border-accent-500/30 text-white' 
-              : 'text-slate-400 hover:text-slate-200 hover:bg-surface-dark/70 border border-transparent'"
+              ? 'text-white font-medium bg-surface-dark/40' 
+              : 'text-slate-400 hover:text-slate-200 hover:bg-surface-dark/30'"
           >
-            <!-- Active Indicator Bar (desktop) -->
-            <div 
-              v-if="activeTab === section.id"
-              class="hidden md:block absolute left-0 top-2.5 bottom-2.5 w-1 bg-accent-500 rounded-r"
-            ></div>
-
-            <div class="flex items-center gap-3 min-w-0">
-              <div 
-                class="p-2 rounded-lg transition-colors shrink-0"
-                :class="activeTab === section.id ? 'bg-accent-500/15 text-accent-500 border border-accent-500/30' : 'bg-surface-dark text-slate-400 group-hover:text-slate-200 border border-surface-border/60'"
-              >
-                <Icon :name="section.icon" class="text-base sm:text-lg block" />
-              </div>
+            <div class="flex items-center gap-2.5 min-w-0">
+              <Icon 
+                :name="section.icon" 
+                class="text-base shrink-0 transition-colors" 
+                :class="activeTab === section.id ? 'text-accent-500' : 'text-slate-500 group-hover:text-slate-300'"
+              />
               <div class="flex flex-col min-w-0">
-                <span class="text-xs font-bold truncate leading-tight" :class="activeTab === section.id ? 'text-white' : 'text-slate-300 group-hover:text-white'">
+                <span class="text-xs truncate font-medium leading-tight" :class="activeTab === section.id ? 'text-white' : 'text-slate-300 group-hover:text-white'">
                   {{ section.label }}
                 </span>
-                <span class="text-[10px] text-slate-500 hidden lg:block truncate mt-0.5">
+                <span class="text-[10px] text-slate-500 hidden md:block truncate mt-1 leading-none">
                   {{ section.desc }}
                 </span>
               </div>
             </div>
 
-            <!-- Status Badges -->
-            <div class="ml-2 shrink-0 flex items-center">
+            <!-- Status Badges (Subtle / Monochromatic) -->
+            <div v-if="section.badgeType !== 'none'" class="ml-2 shrink-0 flex items-center">
               <!-- Warning Pill -->
               <span 
                 v-if="section.badgeType === 'warning'"
-                class="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-tighter bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-1 animate-pulse"
+                class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20"
               >
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                <span class="hidden sm:inline">{{ section.badgeText }}</span>
+                {{ section.badgeText }}
               </span>
 
-              <!-- OK Pill -->
+              <!-- Neutral / Info Pill -->
               <span 
-                v-else-if="section.badgeType === 'ok'"
-                class="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-tighter bg-accent-500/10 text-accent-500 border border-accent-500/20 flex items-center gap-1"
-              >
-                <span class="w-1.5 h-1.5 rounded-full bg-accent-500"></span>
-                <span class="hidden sm:inline">{{ section.badgeText }}</span>
-              </span>
-
-              <!-- Neutral Tag -->
-              <span 
-                v-else-if="section.badgeType === 'neutral'"
-                class="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-tighter bg-surface-dark border border-surface-border text-slate-400 hidden sm:inline"
+                v-else-if="section.badgeText"
+                class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium bg-black/40 border border-white/5 text-slate-400"
               >
                 {{ section.badgeText }}
               </span>
             </div>
           </button>
-        </div>
 
-        <!-- Quick Summary Box (desktop only) -->
-        <div class="hidden md:flex flex-col gap-2 p-3.5 bg-surface-panel/60 border border-surface-border/70 rounded-2xl text-xs text-slate-400">
-          <div class="flex items-center justify-between text-[11px] font-bold text-slate-300">
-            <span class="flex items-center gap-1.5">
-              <Icon name="ri:information-line" class="text-accent-500" />
-              Settings Scope
-            </span>
-            <span class="text-[9px] px-1.5 py-0.5 rounded bg-surface-dark border border-surface-border font-mono text-slate-400">
-              Client & Local
-            </span>
+          <!-- Discreet Footer Notice -->
+          <div class="hidden md:flex items-center gap-1.5 px-3 pt-3 pb-1 mt-1 border-t border-surface-border/40 text-[11px] text-slate-500">
+            <Icon name="ri:lock-line" class="text-slate-400 shrink-0 text-xs" />
+            <span class="truncate">Stored locally in <code class="font-mono text-slate-400 text-[10px]">.env</code></span>
           </div>
-          <p class="text-[11px] text-slate-500 leading-relaxed">
-            All credentials and local paths are stored securely in your project configuration (<code class="text-slate-400">.env</code>).
-          </p>
         </div>
       </aside>
 
@@ -729,12 +712,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 
 const state = useClipperState()
 const route = useRoute()
 const router = useRouter()
 const API_BASE = 'http://localhost:8000'
+
+const navContainerRef = ref<HTMLElement | null>(null)
+const navButtonRefs = ref<Record<string, HTMLElement>>({})
+const indicatorTop = ref(0)
+const indicatorHeight = ref(18)
+const indicatorOpacity = ref(0)
+
+function setButtonRef(id: string, el: any) {
+  if (el) {
+    navButtonRefs.value[id] = (el.$el || el) as HTMLElement
+  }
+}
+
+const updateIndicator = () => {
+  nextTick(() => {
+    const el = navButtonRefs.value[activeTab.value]
+    const container = navContainerRef.value
+    if (el && container) {
+      const containerRect = container.getBoundingClientRect()
+      const elRect = el.getBoundingClientRect()
+      const barHeight = 18
+      indicatorTop.value = (elRect.top - containerRect.top) + (elRect.height - barHeight) / 2
+      indicatorHeight.value = barHeight
+      indicatorOpacity.value = 1
+    }
+  })
+}
 
 export type SettingsTab = 'health' | 'api' | 'whisper' | 'cookies' | 'env'
 const validTabs: SettingsTab[] = ['health', 'api', 'whisper', 'cookies', 'env']
@@ -751,6 +761,10 @@ const normalizeTab = (val: string | null | undefined): SettingsTab => {
 // Active Tab state with URL query synchronization
 const initialTab = typeof route.query.tab === 'string' ? normalizeTab(route.query.tab) : 'health'
 const activeTab = ref<SettingsTab>(initialTab)
+
+watch(activeTab, () => {
+  updateIndicator()
+})
 
 function switchTab(tab: SettingsTab) {
   activeTab.value = tab
@@ -805,7 +819,7 @@ const sections = computed(() => [
   {
     id: 'health' as SettingsTab,
     label: 'System Health',
-    desc: 'Prerequisites & tools',
+    desc: 'Prerequisites & diagnostics',
     icon: 'ri:shield-cross-line',
     badgeType: isHealthOk.value ? 'ok' : 'warning',
     badgeText: isHealthOk.value ? 'OK' : 'Missing'
@@ -813,7 +827,7 @@ const sections = computed(() => [
   {
     id: 'api' as SettingsTab,
     label: 'Gemini API Keys',
-    desc: 'Keys & failover pool',
+    desc: 'Key pool & failover',
     icon: 'ri:key-2-fill',
     badgeType: hasValidApiKey.value ? 'ok' : 'warning',
     badgeText: hasValidApiKey.value ? (validKeysCount.value > 0 ? `${validKeysCount.value} Valid` : 'Configured') : 'Required'
@@ -821,7 +835,7 @@ const sections = computed(() => [
   {
     id: 'whisper' as SettingsTab,
     label: 'Whisper Engine',
-    desc: 'Transcription model',
+    desc: 'Local speech-to-text',
     icon: 'ri:cpu-fill',
     badgeType: 'neutral',
     badgeText: state.whisperModel.value.toUpperCase()
@@ -837,7 +851,7 @@ const sections = computed(() => [
   {
     id: 'env' as SettingsTab,
     label: 'Environment Paths',
-    desc: 'Custom binaries',
+    desc: 'Custom binary locations',
     icon: 'ri:terminal-window-fill',
     badgeType: 'none',
     badgeText: ''
@@ -1319,6 +1333,16 @@ onMounted(() => {
   fetchSettings()
   checkSystemHealth()
   fetchCookiesStatus()
+  updateIndicator()
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', updateIndicator)
+  }
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', updateIndicator)
+  }
 })
 </script>
 
