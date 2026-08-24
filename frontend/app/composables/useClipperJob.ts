@@ -345,11 +345,14 @@ export const useClipperJob = () => {
 
     isPlaying.value = false
     currentTime.value = 0
+    const thumbSec = parseInt(parts[0] || '0')
+    const calculatedThumb = !isNaN(thumbSec) && folder ? `/assets/sources/${folder}/thumb_${thumbSec}.jpg` : undefined
     activeHook.value = {
       theme: theme,
       start: start_time,
       end: end_time,
-      duration: end_time - start_time
+      duration: end_time - start_time,
+      thumbnail_url: calculatedThumb
     }
     clipId.value = id
     folderName.value = folder

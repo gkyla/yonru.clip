@@ -17,6 +17,22 @@ export interface Hook {
   virality_reason?: string
 }
 
+export interface LastAccessedClip {
+  folder: string
+  clip_id: string
+  title?: string
+  thumbnail_url?: string
+}
+
+export interface NicheProfile {
+  id: string
+  name: string
+  niche: string
+  icon?: string
+  gradient?: string
+  avatarInitial?: string
+}
+
 export interface CachedVideo {
   video_id: string
   title: string
@@ -172,6 +188,7 @@ export interface ReadyClip {
   start_time?: number
   end_time?: number
   asset_url?: string
+  thumbnail_url?: string
 }
 
 export interface ThumbnailConfig {

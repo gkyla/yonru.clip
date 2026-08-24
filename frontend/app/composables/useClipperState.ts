@@ -8,7 +8,7 @@ import { useClipperThumbnail } from './useClipperThumbnail'
 import { useClipperExport } from './useClipperExport'
 
 import fontsManifest from '../../../shared/fonts_manifest.json'
-import type { Hook, CachedVideo, TranscriptSegment, PromptTemplate, SubtitleStyleSettings, TimelineTrack, TimelineTrackItem, HookExtractionMode, HookIntentPreset } from '../types/clipper'
+import type { Hook, CachedVideo, LastAccessedClip, TranscriptSegment, PromptTemplate, SubtitleStyleSettings, TimelineTrack, TimelineTrackItem, HookExtractionMode, HookIntentPreset } from '../types/clipper'
 
 export const FONT_OPTIONS = fontsManifest.fonts.map((f: { name: string }) => f.name)
 
@@ -163,7 +163,7 @@ function createClipperState() {
   const isCachedMoreLoading = useState<boolean>('isCachedMoreLoading', () => false)
   const cachedVideosFetchError = useState<boolean>('cachedVideosFetchError', () => false)
   const lastAccessedVideoId = useState<string | null>('lastAccessedVideoId', () => null)
-  const lastAccessedClip = useState<{folder: string, clip_id: string, title?: string} | null>('lastAccessedClip', () => null)
+  const lastAccessedClip = useState<LastAccessedClip | null>('lastAccessedClip', () => null)
   const lastAccessedVideoStored = useState<CachedVideo | null>('lastAccessedVideoStored', () => null)
   
   const cachedVideosTotal = useState<number>('cachedVideosTotal', () => 0)
@@ -305,9 +305,10 @@ function createClipperState() {
     if (import.meta.client) localStorage.setItem('yonru_last_video', vidId)
   }
 
-  function setLastClip(folder: string, clipId: string, title?: string) {
-    lastAccessedClip.value = { folder, clip_id: clipId, title: title || 'Current Clip' }
-    if (import.meta.client) localStorage.setItem('yonru_last_clip', JSON.stringify({ folder, clip_id: clipId, title: title || 'Current Clip' }))
+  function setLastClip(folder: string, clipId: string, title?: string, thumbnailUrl?: string) {
+    const payload: LastAccessedClip = { folder, clip_id: clipId, title: title || 'Current Clip', thumbnail_url: thumbnailUrl }
+    lastAccessedClip.value = payload
+    if (import.meta.client) localStorage.setItem('yonru_last_clip', JSON.stringify(payload))
   }
 
   // --- Actions ---

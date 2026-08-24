@@ -547,7 +547,7 @@ async function loadReadyClip(clip: ReadyClip) {
     const minWait = new Promise(resolve => setTimeout(resolve, 600))
     await state.loadReadyClipIntoEditor(clip.folder_name, clip.clip_id)
     
-    state.setLastClip(clip.folder_name, clip.clip_id, clip.theme || clip.title)
+    state.setLastClip(clip.folder_name, clip.clip_id, clip.theme || clip.title, clip.thumbnail_url)
     
     let hookIndex = 0
     let tab = 'generated'
