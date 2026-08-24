@@ -931,7 +931,7 @@
     </div>
 
         <!-- Unified Sidebar Utility Footer (Pinned at bottom, Constant Height) -->
-        <div class="mt-auto border-t border-white/[0.08] bg-black/20 shrink-0 relative overflow-hidden p-3 min-h-[110px] flex flex-col justify-center">
+        <div class="mt-auto border-t border-white/[0.08] bg-black/20 shrink-0 relative overflow-visible p-3 min-h-[110px] flex flex-col justify-center">
           <!-- Expanded Mode: [1] Cardless Support, [2] Status & Version -->
           <Transition
             enter-active-class="transition-opacity duration-200 ease-out"
@@ -941,7 +941,7 @@
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
           >
-            <div v-if="!isCollapsed" class="flex flex-col gap-2.5 w-full overflow-hidden">
+            <div v-if="!isCollapsed" class="flex flex-col gap-2.5 w-full overflow-visible">
               <!-- Support on Section (Cardless & Borderless) -->
               <div class="flex flex-col gap-1.5">
                 <div class="flex items-center justify-between px-1">
@@ -997,7 +997,7 @@
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
           >
-            <div v-if="isCollapsed" class="w-10 mx-auto flex flex-col items-center gap-1.5 overflow-hidden">
+            <div v-if="isCollapsed" class="w-10 mx-auto flex flex-col items-center gap-1.5 overflow-visible">
               <!-- Direct Saweria Button -->
               <div class="relative group">
                 <a 
