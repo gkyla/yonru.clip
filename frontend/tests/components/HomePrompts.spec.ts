@@ -450,4 +450,21 @@ describe('HomePrompts Component', () => {
     expect((wrapper.vm as any).isCreatingNew).toBe(false)
     expect((wrapper.vm as any).editingId).toBeNull()
   })
+
+  it('automatically selects the first prompt template on mount', async () => {
+    const wrapper = mount(HomePrompts, {
+      global: {
+        stubs: {
+          Icon: true,
+          PromptEditor: true
+        }
+      }
+    })
+
+    await wrapper.vm.$nextTick()
+
+    // The first template should be auto-selected
+    expect((wrapper.vm as any).editingId).toBe('prompt.json::0')
+    expect((wrapper.vm as any).promptName).toBe('Podcast Hooks')
+  })
 })

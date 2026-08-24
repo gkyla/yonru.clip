@@ -756,9 +756,12 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (state.promptsList.value.length === 0) {
-    state.fetchPrompts()
+    await state.fetchPrompts()
+  }
+  if (!editingId.value && !isCreatingNew.value && state.promptsList.value.length > 0) {
+    editExistingPrompt(state.promptsList.value[0])
   }
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('beforeunload', handleBeforeUnload)
