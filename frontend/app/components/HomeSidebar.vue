@@ -600,9 +600,9 @@
                                 >
                                   <Icon :name="profile.icon || 'lucide:sparkles'" class="text-sm text-white" />
                                 </div>
-                                <div class="overflow-hidden min-w-0 flex-1">
+                                <div class="overflow-hidden min-w-0 flex-1 grid gap-0.5">
                                   <p class="text-[11px] font-semibold text-white truncate leading-tight">{{ profile.name }}</p>
-                                  <span class="inline-block text-[9px] text-white/60 bg-white/[0.04] px-1.5 py-0.5 rounded border border-white/[0.06] mt-0.5 truncate max-w-[130px] leading-none">{{ profile.niche }}</span>
+                                  <span class="inline-block text-[9px] text-white/60 py-0.5 rounded mt-0.5 truncate max-w-[130px] leading-none">{{ profile.niche }}</span>
                                 </div>
                               </div>
 
