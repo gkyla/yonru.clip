@@ -13,7 +13,7 @@
       <button 
         @click="checkSystemHealth" 
         :disabled="checkingHealth"
-        class="flex items-center gap-1.5 px-3.5 py-2 bg-surface-dark/80 hover:bg-surface-dark border border-surface-border hover:border-accent-500/30 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 self-start sm:self-auto cursor-pointer shadow-sm"
+        class="flex items-center gap-1.5 px-3.5 py-2 bg-surface-dark/80 hover:bg-surface-dark border border-surface-border hover:border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-medium transition-all disabled:opacity-50 self-start sm:self-auto cursor-pointer shadow-sm"
       >
         <Icon name="ri:refresh-line" :class="{ 'animate-spin': checkingHealth }" class="text-accent-500 text-sm" />
         {{ checkingHealth ? 'Checking Health...' : 'Refresh Health' }}
@@ -31,21 +31,21 @@
     >
       <div 
         v-if="state.isAnyPrerequisiteMissing.value"
-        class="mb-6 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-pulse-subtle"
+        class="p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
         <div class="flex items-start sm:items-center gap-3">
-          <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500 shrink-0">
-            <Icon :name="warningDetails.icon" class="text-xl" />
+          <div class="p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
+            <Icon :name="warningDetails.icon" class="text-lg" />
           </div>
           <div>
             <h4 class="text-sm font-bold text-white leading-snug">{{ warningDetails.title }}</h4>
-            <p class="text-xs text-slate-400 mt-0.5">{{ warningDetails.description }}</p>
+            <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">{{ warningDetails.description }}</p>
           </div>
         </div>
         
         <button 
           @click="switchTab(normalizeTab(firstMissingPrerequisiteSection))"
-          class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all shrink-0 self-start sm:self-center cursor-pointer"
+          class="px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-bold text-xs rounded-lg transition-all shrink-0 self-start sm:self-center cursor-pointer"
         >
           {{ warningDetails.buttonText }}
         </button>
@@ -135,149 +135,187 @@
             <div>
               <div class="flex justify-between items-center mb-2">
                 <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                  <Icon name="ri:shield-cross-line" class="text-accent-500" /> Prerequisite Health & Diagnostics
+                  <Icon name="ri:shield-cross-line" class="text-accent-500" />
+                  <span>Prerequisite Health & Diagnostics</span>
                 </h3>
                 <span 
-                  class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-                  :class="isHealthOk ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'"
+                  class="text-[10px] font-mono font-medium px-2 py-0.5 rounded flex items-center gap-1.5"
+                  :class="isHealthOk ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'"
                 >
-                  {{ isHealthOk ? 'System Healthy' : 'Action Required' }}
+                  <span class="w-1.5 h-1.5 rounded-full" :class="isHealthOk ? 'bg-emerald-400' : 'bg-amber-400'"></span>
+                  {{ isHealthOk ? 'Operational' : 'Action Required' }}
                 </span>
               </div>
               <p class="text-sm text-slate-400">Verify the health and directory paths of local software components and APIs required for rendering and AI generation.</p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               <!-- FFmpeg Diagnostics -->
-              <div class="p-4 rounded-xl border bg-[#111318] border-surface-border flex items-start gap-3">
-                <div class="p-2.5 rounded-xl bg-surface-dark border border-surface-border/60 text-slate-300 shrink-0">
-                  <Icon name="ri:movie-2-line" class="text-xl block text-accent-500" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-300">FFmpeg (Video Engine)</span>
-                    <span 
-                      class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter flex items-center gap-1" 
-                      :class="healthData?.ffmpeg?.status === 'OK' ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'"
-                    >
-                      <Icon :name="healthData?.ffmpeg?.status === 'OK' ? 'ri:check-line' : 'ri:close-line'" class="text-xs font-bold" />
-                      {{ healthData?.ffmpeg?.status || 'Detecting...' }}
-                    </span>
+              <div class="p-3.5 rounded-xl border bg-surface-dark/40 border-surface-border/60 flex flex-col gap-2.5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <Icon name="ri:movie-2-line" class="text-accent-500 text-sm" />
+                    <span class="text-xs font-bold text-slate-200">FFmpeg</span>
                   </div>
-                  <p class="text-[10px] text-slate-500 truncate font-mono mt-1.5" :title="healthData?.ffmpeg?.path">
-                    Path: {{ healthData?.ffmpeg?.path || 'Not checked' }}
-                  </p>
-                  <p v-if="healthData && healthData.ffmpeg?.status !== 'OK'" class="text-[10px] text-amber-500 mt-1 leading-normal">
-                    Missing! Install FFmpeg to extract audio and convert video. 
-                    <span class="block text-slate-400 mt-1">
-                      <strong>macOS:</strong> <code class="bg-black/30 px-1 py-0.5 rounded text-[9px] text-slate-300">brew install ffmpeg</code><br>
-                      <strong>Ubuntu/Debian:</strong> <code class="bg-black/30 px-1 py-0.5 rounded text-[9px] text-slate-300">sudo apt install ffmpeg</code><br>
-                      <strong>Windows:</strong> Download from <a href="https://ffmpeg.org" target="_blank" class="underline hover:text-white">ffmpeg.org</a> and add to system PATH.
-                    </span>
-                  </p>
+                  <span 
+                    class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium flex items-center gap-1"
+                    :class="healthData?.ffmpeg?.status === 'OK' ? 'bg-black/40 border border-white/5 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'"
+                  >
+                    <span class="w-1 h-1 rounded-full" :class="healthData?.ffmpeg?.status === 'OK' ? 'bg-emerald-400' : 'bg-amber-400'"></span>
+                    {{ healthData?.ffmpeg?.status || 'Detecting...' }}
+                  </span>
+                </div>
+                <p class="text-[11px] text-slate-500 truncate font-mono" :title="healthData?.ffmpeg?.path">
+                  {{ healthData?.ffmpeg?.path ? `Path: ${healthData.ffmpeg.path}` : 'Path: Not detected' }}
+                </p>
+                <!-- If missing: 1-click copy install command & docs link -->
+                <div v-if="healthData && healthData.ffmpeg?.status !== 'OK'" class="pt-2 border-t border-surface-border/40 flex flex-col gap-1.5">
+                  <span class="text-[10px] text-amber-400 font-medium">Missing dependency</span>
+                  <div class="flex items-center justify-between gap-2 bg-[#0c0e14] border border-surface-border/60 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-slate-300">
+                    <span class="truncate">brew install ffmpeg</span>
+                    <div class="flex items-center gap-2 shrink-0">
+                      <button 
+                        @click="copyToClipboard('brew install ffmpeg', 'FFmpeg install command')" 
+                        class="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        title="Copy macOS brew command"
+                      >
+                        <Icon name="ri:file-copy-line" class="text-xs" />
+                      </button>
+                      <a href="https://ffmpeg.org" target="_blank" class="text-slate-500 hover:text-slate-300 transition-colors" title="Official Website">
+                        <Icon name="ri:external-link-line" class="text-xs" />
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <!-- Node.js Diagnostics -->
-              <div class="p-4 rounded-xl border bg-[#111318] border-surface-border flex items-start gap-3">
-                <div class="p-2.5 rounded-xl bg-surface-dark border border-surface-border/60 text-slate-300 shrink-0">
-                  <Icon name="ri:nodejs-line" class="text-xl block text-accent-500" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-300">Node.js (Remotion Engine)</span>
-                    <span 
-                      class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter flex items-center gap-1" 
-                      :class="healthData?.node?.status === 'OK' ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'"
-                    >
-                      <Icon :name="healthData?.node?.status === 'OK' ? 'ri:check-line' : 'ri:close-line'" class="text-xs font-bold" />
-                      {{ healthData?.node?.status || 'Detecting...' }}
-                    </span>
+              <div class="p-3.5 rounded-xl border bg-surface-dark/40 border-surface-border/60 flex flex-col gap-2.5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <Icon name="ri:nodejs-line" class="text-accent-500 text-sm" />
+                    <span class="text-xs font-bold text-slate-200">Node.js</span>
                   </div>
-                  <p class="text-[10px] text-slate-500 truncate font-mono mt-1.5" :title="healthData?.node?.path">
-                    Path: {{ healthData?.node?.path || 'Not checked' }}
-                  </p>
-                  <p v-if="healthData && healthData.node?.status !== 'OK'" class="text-[10px] text-amber-500 mt-1 leading-normal">
-                    Missing! Required to compile and render React Remotion video templates.
-                    <span class="block text-slate-400 mt-1">
-                      <strong>macOS:</strong> <code class="bg-black/30 px-1 py-0.5 rounded text-[9px] text-slate-300">brew install node</code><br>
-                      <strong>Ubuntu/Debian:</strong> <code class="bg-black/30 px-1 py-0.5 rounded text-[9px] text-slate-300">curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs</code><br>
-                      <strong>Windows/macOS:</strong> Download from <a href="https://nodejs.org" target="_blank" class="underline hover:text-white">nodejs.org</a>.
-                    </span>
-                  </p>
+                  <span 
+                    class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium flex items-center gap-1"
+                    :class="healthData?.node?.status === 'OK' ? 'bg-black/40 border border-white/5 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'"
+                  >
+                    <span class="w-1 h-1 rounded-full" :class="healthData?.node?.status === 'OK' ? 'bg-emerald-400' : 'bg-amber-400'"></span>
+                    {{ healthData?.node?.status || 'Detecting...' }}
+                  </span>
+                </div>
+                <p class="text-[11px] text-slate-500 truncate font-mono" :title="healthData?.node?.path">
+                  {{ healthData?.node?.path ? `Path: ${healthData.node.path}` : 'Path: Not detected' }}
+                </p>
+                <!-- If missing: 1-click copy install command & docs link -->
+                <div v-if="healthData && healthData.node?.status !== 'OK'" class="pt-2 border-t border-surface-border/40 flex flex-col gap-1.5">
+                  <span class="text-[10px] text-amber-400 font-medium">Missing dependency</span>
+                  <div class="flex items-center justify-between gap-2 bg-[#0c0e14] border border-surface-border/60 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-slate-300">
+                    <span class="truncate">brew install node</span>
+                    <div class="flex items-center gap-2 shrink-0">
+                      <button 
+                        @click="copyToClipboard('brew install node', 'Node.js install command')" 
+                        class="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        title="Copy macOS brew command"
+                      >
+                        <Icon name="ri:file-copy-line" class="text-xs" />
+                      </button>
+                      <a href="https://nodejs.org" target="_blank" class="text-slate-500 hover:text-slate-300 transition-colors" title="Official Website">
+                        <Icon name="ri:external-link-line" class="text-xs" />
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <!-- Python Virtual Environment Diagnostics -->
-              <div class="p-4 rounded-xl border bg-[#111318] border-surface-border flex items-start gap-3">
-                <div class="p-2.5 rounded-xl bg-surface-dark border border-surface-border/60 text-slate-300 shrink-0">
-                  <Icon name="ri:terminal-box-line" class="text-xl block text-accent-500" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-300">Python Virtualenv</span>
-                    <span 
-                      class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter flex items-center gap-1" 
-                      :class="healthData?.python_env?.status === 'OK' ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'"
-                    >
-                      <Icon :name="healthData?.python_env?.status === 'OK' ? 'ri:check-line' : 'ri:close-line'" class="text-xs font-bold" />
-                      {{ healthData?.python_env?.status || 'Detecting...' }}
-                    </span>
+              <div class="p-3.5 rounded-xl border bg-surface-dark/40 border-surface-border/60 flex flex-col gap-2.5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <Icon name="ri:terminal-box-line" class="text-accent-500 text-sm" />
+                    <span class="text-xs font-bold text-slate-200">Python Virtualenv</span>
                   </div>
-                  <p class="text-[10px] text-slate-500 mt-1.5 leading-normal">
-                    Virtual environment packages (FastAPI, google-genai) are loaded.
-                  </p>
-                  <p v-if="healthData && healthData.python_env?.status !== 'OK'" class="text-[10px] text-amber-500 mt-1 leading-normal">
-                    Degraded! Essential virtual environment packages (FastAPI, google-genai) are not fully loaded.
-                    <span class="block text-slate-400 mt-1">
-                      Please run the setup script or install missing dependencies:<br>
-                      <code class="bg-black/30 px-1 py-0.5 rounded text-[9px] text-slate-300">pip install -r requirements.txt</code>
-                    </span>
-                  </p>
+                  <span 
+                    class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium flex items-center gap-1"
+                    :class="healthData?.python_env?.status === 'OK' ? 'bg-black/40 border border-white/5 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'"
+                  >
+                    <span class="w-1 h-1 rounded-full" :class="healthData?.python_env?.status === 'OK' ? 'bg-emerald-400' : 'bg-amber-400'"></span>
+                    {{ healthData?.python_env?.status || 'Detecting...' }}
+                  </span>
+                </div>
+                <p class="text-[11px] text-slate-500 truncate">
+                  FastAPI backend and AI dependencies runtime.
+                </p>
+                <!-- If missing: 1-click copy install command -->
+                <div v-if="healthData && healthData.python_env?.status !== 'OK'" class="pt-2 border-t border-surface-border/40 flex flex-col gap-1.5">
+                  <span class="text-[10px] text-amber-400 font-medium">Missing packages</span>
+                  <div class="flex items-center justify-between gap-2 bg-[#0c0e14] border border-surface-border/60 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-slate-300">
+                    <span class="truncate">pip install -r requirements.txt</span>
+                    <button 
+                      @click="copyToClipboard('pip install -r requirements.txt', 'Pip command')" 
+                      class="text-slate-400 hover:text-white transition-colors cursor-pointer shrink-0"
+                      title="Copy command"
+                    >
+                      <Icon name="ri:file-copy-line" class="text-xs" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <!-- Gemini API Diagnostics -->
-              <div class="p-4 rounded-xl border bg-[#111318] border-surface-border flex items-start gap-3">
-                <div class="p-2.5 rounded-xl bg-surface-dark border border-surface-border/60 text-slate-300 shrink-0">
-                  <Icon name="ri:key-2-line" class="text-xl block text-accent-500" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-300">Gemini AI Key</span>
-                    <span 
-                      class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter flex items-center gap-1" 
-                      :class="healthData?.gemini_api?.has_key ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'"
-                    >
-                      <Icon :name="healthData?.gemini_api?.has_key ? 'ri:check-line' : 'ri:close-line'" class="text-xs font-bold" />
-                      {{ healthData?.gemini_api?.status || 'Detecting...' }}
-                    </span>
+              <!-- Gemini AI Key Card -->
+              <div class="p-3.5 rounded-xl border bg-surface-dark/40 border-surface-border/60 flex flex-col gap-2.5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <Icon name="ri:key-2-line" class="text-accent-500 text-sm" />
+                    <span class="text-xs font-bold text-slate-200">Gemini AI Key</span>
                   </div>
-                  <p class="text-[10px] text-slate-500 mt-1.5 leading-normal">
-                    Used to find viral hooks and generate engaging titles automatically.
-                  </p>
+                  <span 
+                    class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium flex items-center gap-1"
+                    :class="healthData?.gemini_api?.has_key ? 'bg-black/40 border border-white/5 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'"
+                  >
+                    <span class="w-1 h-1 rounded-full" :class="healthData?.gemini_api?.has_key ? 'bg-emerald-400' : 'bg-amber-400'"></span>
+                    {{ healthData?.gemini_api?.has_key ? 'Configured' : 'Missing' }}
+                  </span>
+                </div>
+                <p class="text-[11px] text-slate-500 truncate">
+                  AI transcript analysis and hook title detection.
+                </p>
+                <div v-if="healthData && !healthData.gemini_api?.has_key" class="pt-2 border-t border-surface-border/40 flex items-center justify-between">
+                  <span class="text-[10px] text-amber-400 font-medium">Key not configured</span>
+                  <button 
+                    @click="switchTab('api')" 
+                    class="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                  >
+                    Configure API Key &rarr;
+                  </button>
                 </div>
               </div>
 
               <!-- YouTube Cookies Diagnostics -->
-              <div class="p-4 rounded-xl border bg-[#111318] border-surface-border flex items-start gap-3 md:col-span-2">
-                <div class="p-2.5 rounded-xl bg-surface-dark border border-surface-border/60 text-slate-300 shrink-0">
-                  <Icon name="ri:shield-keyhole-line" class="text-xl block text-accent-500" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-300">YouTube Cookies</span>
-                    <span 
-                      class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter flex items-center gap-1" 
-                      :class="healthData?.cookies?.exists ? 'bg-accent-500/10 text-accent-500 border border-accent-500/20' : 'bg-surface-dark border border-surface-border text-slate-400'"
-                    >
-                      <Icon :name="healthData?.cookies?.exists ? 'ri:check-line' : 'ri:information-line'" class="text-xs font-bold" />
-                      {{ healthData?.cookies?.status || 'Detecting...' }}
-                    </span>
+              <div class="p-3.5 rounded-xl border bg-surface-dark/40 border-surface-border/60 flex flex-col gap-2.5 md:col-span-2">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <Icon name="ri:shield-keyhole-line" class="text-accent-500 text-sm" />
+                    <span class="text-xs font-bold text-slate-200">YouTube Cookies</span>
                   </div>
-                  <p class="text-[10px] text-slate-500 mt-1.5 leading-normal">
-                    Helps bypass YouTube's download rate-limits and bot-detection filters.
+                  <span 
+                    class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium flex items-center gap-1"
+                    :class="healthData?.cookies?.exists ? 'bg-black/40 border border-white/5 text-emerald-400' : 'bg-black/40 border border-white/5 text-slate-500'"
+                  >
+                    <span class="w-1 h-1 rounded-full" :class="healthData?.cookies?.exists ? 'bg-emerald-400' : 'bg-slate-600'"></span>
+                    {{ healthData?.cookies?.exists ? 'Configured' : 'Optional' }}
+                  </span>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[11px] text-slate-500 truncate">
+                    {{ healthData?.cookies?.exists ? 'Active cookies.txt file for yt-dlp authentication.' : 'Optional yt-dlp authorization file to bypass download limits.' }}
                   </p>
+                  <button 
+                    @click="switchTab('cookies')" 
+                    class="text-[10px] text-slate-400 hover:text-white underline cursor-pointer shrink-0"
+                  >
+                    {{ healthData?.cookies?.exists ? 'Manage Cookies &rarr;' : 'Upload Cookies &rarr;' }}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1327,6 +1365,13 @@ function formatDate(isoString: string | null) {
   if (!isoString) return 'Never'
   const date = new Date(isoString)
   return date.toLocaleString()
+}
+
+function copyToClipboard(text: string, label: string = 'Command') {
+  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+    navigator.clipboard.writeText(text)
+    state.showToast(`${label} copied to clipboard!`, 'success')
+  }
 }
 
 onMounted(() => {
