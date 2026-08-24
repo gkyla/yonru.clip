@@ -58,12 +58,12 @@
               <Icon :name="isCollapsed ? 'lucide:panel-left' : 'lucide:panel-left-close'" class="text-lg" />
             </button>
 
-            <!-- Brand Logo & Title (Smooth Opacity Fade, Rock-Solid Coordinates) -->
+            <!-- Brand Logo & Title (Fixed-Width Curtain Mask, Smooth Opacity Fade) -->
             <Transition
-              enter-active-class="transition-opacity duration-200 ease-out delay-100"
+              enter-active-class="transition-opacity duration-250 ease-out delay-75"
               enter-from-class="opacity-0"
               enter-to-class="opacity-100"
-              leave-active-class="transition-opacity duration-75 ease-in"
+              leave-active-class="transition-opacity duration-150 ease-in-out pointer-events-none"
               leave-from-class="opacity-100"
               leave-to-class="opacity-0"
             >
@@ -84,12 +84,12 @@
 
         <!-- Main Content Area with Smooth Crossfade Transition (No Layout Collapse & Zero Vertical Shift) -->
         <div class="flex-1 min-h-0 relative overflow-visible flex flex-col">
-          <!-- Expanded Mode Container (Profile Card + Scrollable Body) -->
+          <!-- Expanded Mode Container (Fixed Virtual Width Curtain Mask) -->
           <Transition
-            enter-active-class="transition-opacity duration-200 ease-out"
+            enter-active-class="transition-opacity duration-250 ease-out delay-75"
             enter-from-class="opacity-0"
             enter-to-class="opacity-100"
-            leave-active-class="transition-opacity duration-100 ease-in absolute inset-0 w-full overflow-hidden pointer-events-none"
+            leave-active-class="transition-opacity duration-180 ease-in-out absolute inset-y-0 left-0 w-[280px] overflow-hidden pointer-events-none"
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
           >
@@ -102,13 +102,13 @@
                     class="w-full flex items-center justify-between p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-white/15 transition-all group cursor-pointer text-left"
                     :class="{ 'border-accent-500/30 bg-accent-500/5': isProfileMenuOpen }"
                   >
-                    <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="flex items-center gap-3 min-w-0">
                       <div 
-                        class="w-8 h-8 rounded-full bg-gradient-to-br border border-white/20 flex items-center justify-center text-white shrink-0 relative shadow-sm"
+                        class="w-10 h-10 rounded-full bg-gradient-to-br border border-white/20 flex items-center justify-center text-white shrink-0 relative shadow-sm"
                         :class="activeProfile.gradient || 'from-lime-400 to-emerald-600'"
                       >
-                        <Icon :name="activeProfile.icon || 'lucide:sparkles'" class="text-sm text-white" />
-                        <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-[#09090b]"></span>
+                        <Icon :name="activeProfile.icon || 'lucide:sparkles'" class="text-base text-white" />
+                        <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#09090b]"></span>
                       </div>
                       <div class="overflow-hidden min-w-0 grid justify-center gap-0.5">
                         <p class="text-[12px] font-semibold text-white truncate leading-tight">{{ activeProfile.name }}</p>
@@ -366,7 +366,7 @@
                   v-if="activeNavIndex >= 0"
                   class="absolute left-0 w-1 rounded-r-full bg-accent-500 shadow-[0_0_8px_rgba(207,255,80,0.6)] transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] pointer-events-none z-10"
                   :style="{
-                    top: `${activeNavIndex * 40 + 8}px`,
+                    top: `${activeNavIndex * 44 + 10}px`,
                     height: '20px'
                   }"
                 ></span>
@@ -374,14 +374,14 @@
                 <!-- Nav: Home -->
                 <button 
                   @click="handleNav('home')"
-                  class="relative h-9 flex items-center gap-3 px-3 rounded-xl transition-colors duration-200 cursor-pointer group overflow-hidden"
+                  class="relative h-10 flex items-center gap-3 px-3 rounded-xl transition-colors duration-200 cursor-pointer group overflow-hidden"
                   :class="activeView === 'home' 
                     ? 'bg-white/[0.06] text-white font-semibold' 
                     : 'text-white/70 hover:text-white hover:bg-white/[0.04]'"
                 >
                   <Icon 
                     name="lucide:layout-grid" 
-                    class="text-base shrink-0 group-hover:scale-105 transition-all" 
+                    class="text-lg shrink-0 group-hover:scale-105 transition-all" 
                     :class="activeView === 'home' ? 'text-accent-500' : 'text-white/70 group-hover:text-white'"
                   />
                   <span class="text-xs font-medium">Home</span>
@@ -390,14 +390,14 @@
                 <!-- Nav: Prompts -->
                 <button 
                   @click="handleNav('prompts')"
-                  class="relative h-9 flex items-center gap-3 px-3 rounded-xl transition-colors duration-200 cursor-pointer group overflow-hidden"
+                  class="relative h-10 flex items-center gap-3 px-3 rounded-xl transition-colors duration-200 cursor-pointer group overflow-hidden"
                   :class="activeView === 'prompts' 
                     ? 'bg-white/[0.06] text-white font-semibold' 
                     : 'text-white/70 hover:text-white hover:bg-white/[0.04]'"
                 >
                   <Icon 
                     name="lucide:sparkles" 
-                    class="text-base shrink-0 group-hover:scale-105 transition-all" 
+                    class="text-lg shrink-0 group-hover:scale-105 transition-all" 
                     :class="activeView === 'prompts' ? 'text-accent-500' : 'text-white/70 group-hover:text-white'"
                   />
                   <span class="text-xs font-medium">Prompts</span>
@@ -406,14 +406,14 @@
                 <!-- Nav: Documentation -->
                 <button 
                   @click="handleNav('docs')"
-                  class="relative h-9 flex items-center gap-3 px-3 rounded-xl transition-colors duration-200 cursor-pointer group overflow-hidden"
+                  class="relative h-10 flex items-center gap-3 px-3 rounded-xl transition-colors duration-200 cursor-pointer group overflow-hidden"
                   :class="activeView === 'docs' 
                     ? 'bg-white/[0.06] text-white font-semibold' 
                     : 'text-white/70 hover:text-white hover:bg-white/[0.04]'"
                 >
                   <Icon 
                     name="lucide:book-open" 
-                    class="text-base shrink-0 group-hover:scale-105 transition-all" 
+                    class="text-lg shrink-0 group-hover:scale-105 transition-all" 
                     :class="activeView === 'docs' ? 'text-accent-500' : 'text-white/70 group-hover:text-white'"
                   />
                   <span class="text-xs font-medium">Documentation</span>
@@ -422,7 +422,7 @@
                 <!-- Nav: Settings -->
                 <button 
                   @click="handleNav('settings')"
-                  class="relative h-9 flex items-center justify-between px-3 rounded-xl transition-colors duration-200 cursor-pointer group overflow-hidden"
+                  class="relative h-10 flex items-center justify-between px-3 rounded-xl transition-colors duration-200 cursor-pointer group overflow-hidden"
                   :class="activeView === 'settings' 
                     ? 'bg-white/[0.06] text-white font-semibold' 
                     : 'text-white/70 hover:text-white hover:bg-white/[0.04]'"
@@ -430,7 +430,7 @@
                   <div class="flex items-center gap-3 min-w-0">
                     <Icon 
                       name="lucide:settings" 
-                      class="text-base shrink-0 group-hover:scale-105 transition-all" 
+                      class="text-lg shrink-0 group-hover:scale-105 transition-all" 
                       :class="activeView === 'settings' ? 'text-accent-500' : 'text-white/70 group-hover:text-white'"
                     />
                     <span class="text-xs font-medium">Settings</span>
@@ -509,19 +509,19 @@
               <div class="mt-auto pt-2">
                 <button 
                   @click="handleNav('docs')"
-                  class="flex items-center gap-3 px-3 py-2 rounded-xl text-white/80 hover:text-white hover:bg-white/[0.04] transition-all cursor-pointer group w-full text-left"
+                  class="h-10 flex items-center gap-3 px-3 rounded-xl text-white/80 hover:text-white hover:bg-white/[0.04] transition-all cursor-pointer group w-full text-left"
                 >
-                  <Icon name="lucide:history" class="text-base shrink-0 group-hover:scale-105 transition-transform" />
-                  <span class="text-sm font-medium">Changelog</span>
+                  <Icon name="lucide:history" class="text-lg shrink-0 group-hover:scale-105 transition-transform" />
+                  <span class="text-xs font-medium">Changelog</span>
                 </button>
               </div>
             </div>
           </div>
         </Transition>
 
-          <!-- Collapsed Mode Column of Icons (Original Design & Spacing with Snappy Transitions) -->
+          <!-- Collapsed Mode Column of Icons (Calibrated Smooth Crossfade) -->
           <Transition
-            enter-active-class="transition-opacity duration-200 ease-out"
+            enter-active-class="transition-opacity duration-200 ease-out delay-75"
             enter-from-class="opacity-0"
             enter-to-class="opacity-100"
             leave-active-class="transition-opacity duration-100 ease-in absolute inset-0 w-16 overflow-hidden pointer-events-none"
@@ -919,7 +919,7 @@
                 class="w-10 h-10 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.04] transition-all cursor-pointer"
                 title="Changelog"
               >
-                <Icon name="lucide:history" class="text-base" />
+                <Icon name="lucide:history" class="text-lg" />
               </button>
               <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-[#121216] border border-white/10 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-[100] whitespace-nowrap">
                 Changelog
@@ -932,12 +932,12 @@
 
         <!-- Unified Sidebar Utility Footer (Pinned at bottom, Constant Height) -->
         <div class="mt-auto border-t border-white/[0.08] bg-black/20 shrink-0 relative overflow-visible p-3 min-h-[110px] flex flex-col justify-center">
-          <!-- Expanded Mode: [1] Cardless Support, [2] Status & Version -->
+          <!-- Expanded Mode: [1] Cardless Support, [2] Status & Version (Curtain Mask) -->
           <Transition
-            enter-active-class="transition-opacity duration-200 ease-out"
+            enter-active-class="transition-opacity duration-250 ease-out delay-75"
             enter-from-class="opacity-0"
             enter-to-class="opacity-100"
-            leave-active-class="transition-opacity duration-100 ease-in absolute inset-0 p-3 w-full overflow-hidden pointer-events-none"
+            leave-active-class="transition-opacity duration-180 ease-in-out absolute inset-y-0 left-0 p-3 w-[280px] overflow-hidden pointer-events-none"
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
           >
@@ -988,9 +988,9 @@
             </div>
           </Transition>
 
-          <!-- Collapsed Mode: Saweria + Trakteer + Status Dot (Pinned & Centered) -->
+          <!-- Collapsed Mode: Saweria + Trakteer + Status Dot (Calibrated Crossfade) -->
           <Transition
-            enter-active-class="transition-opacity duration-200 ease-out"
+            enter-active-class="transition-opacity duration-200 ease-out delay-75"
             enter-from-class="opacity-0"
             enter-to-class="opacity-100"
             leave-active-class="transition-opacity duration-100 ease-in absolute inset-0 w-16 p-2 overflow-hidden pointer-events-none"
