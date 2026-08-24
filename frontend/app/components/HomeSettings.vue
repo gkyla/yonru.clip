@@ -45,7 +45,7 @@
         
         <button 
           @click="switchTab(normalizeTab(firstMissingPrerequisiteSection))"
-          class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold uppercase tracking-wider text-[10px] rounded-lg shadow-[0_0_15px_rgba(245,158,11,0.2)] hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all shrink-0 self-start sm:self-center cursor-pointer"
+          class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all shrink-0 self-start sm:self-center cursor-pointer"
         >
           {{ warningDetails.buttonText }}
         </button>
@@ -69,13 +69,13 @@
             @click="switchTab(section.id)"
             class="flex items-center justify-between px-3.5 py-3 rounded-xl text-left transition-all group relative shrink-0 cursor-pointer outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-500/50 select-none"
             :class="activeTab === section.id 
-              ? 'bg-accent-500/10 border border-accent-500/30 text-white shadow-[0_0_15px_rgba(207,255,80,0.08)]' 
+              ? 'bg-accent-500/10 border border-accent-500/30 text-white' 
               : 'text-slate-400 hover:text-slate-200 hover:bg-surface-dark/70 border border-transparent'"
           >
-            <!-- Active Neon Indicator Bar (desktop) -->
+            <!-- Active Indicator Bar (desktop) -->
             <div 
               v-if="activeTab === section.id"
-              class="hidden md:block absolute left-0 top-2.5 bottom-2.5 w-1 bg-accent-500 rounded-r shadow-[0_0_8px_rgba(207,255,80,0.8)]"
+              class="hidden md:block absolute left-0 top-2.5 bottom-2.5 w-1 bg-accent-500 rounded-r"
             ></div>
 
             <div class="flex items-center gap-3 min-w-0">
@@ -320,7 +320,7 @@
                 @dragend="dragEnd"
                 class="p-4 rounded-xl border bg-[#111318] border-surface-border flex flex-col gap-3 transition-all duration-300"
                 :class="{ 
-                  'border-accent-500 shadow-[0_0_15px_rgba(207,255,80,0.15)]': keyItem.activeFlash,
+                  'border-accent-500': keyItem.activeFlash,
                   'opacity-30 border-dashed border-accent-500/50 bg-accent-500/5 cursor-grabbing': index === draggedIndex
                 }"
               >
@@ -514,7 +514,7 @@
                 @click="state.whisperModel.value = model.id"
                 class="flex flex-col p-4 rounded-xl border text-left transition-all group relative cursor-pointer"
                 :class="state.whisperModel.value === model.id 
-                  ? 'bg-accent-500/10 border-accent-500 shadow-[0_0_15px_rgba(207,255,80,0.1)]' 
+                  ? 'bg-accent-500/10 border-accent-500' 
                   : 'bg-surface-dark/50 border-surface-border hover:border-accent-500/30'"
               >
                 <div class="flex justify-between items-start mb-2">

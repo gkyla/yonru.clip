@@ -30,7 +30,7 @@
               @click="state.safetySensitivity.value = level; state.saveBlacklistToStorage()"
               class="py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all"
               :class="state.safetySensitivity.value === level 
-                ? 'bg-accent-500 text-black shadow-[0_0_12px_rgba(207,255,80,0.3)]' 
+                ? 'bg-accent-500 text-black' 
                 : 'text-slate-400 hover:text-white hover:bg-white/[0.02]'"
             >
               {{ level }}
@@ -344,7 +344,7 @@
                   :class="[
                     val ? 'hover:bg-white/[0.03]' : '',
                     categoriesFlash 
-                      ? 'border-accent-500/20 bg-accent-500/[0.01] shadow-[0_0_20px_rgba(207,255,80,0.1)]' 
+                      ? 'border-accent-500/20 bg-accent-500/[0.01]' 
                       : 'bg-white/[0.01] border-white/5'
                   ]"
                 >
@@ -377,7 +377,7 @@
                     class="p-3 border rounded-xl flex flex-col gap-2 transition-all duration-700"
                     :class="[
                       categoriesFlash 
-                        ? 'border-accent-500/20 bg-accent-500/[0.01] shadow-[0_0_20px_rgba(207,255,80,0.1)]' 
+                        ? 'border-accent-500/20 bg-accent-500/[0.01]' 
                         : 'bg-white/[0.01] border-white/5'
                     ]"
                   >
@@ -495,7 +495,7 @@
                   class="flex items-center justify-between px-3 py-1.5 bg-white/[0.02] border border-white/5 rounded-xl group hover:border-white/10 transition-all"
                 >
                   <div class="flex items-center gap-2">
-                     <div class="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]"></div>
+                     <div class="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
                      <span class="text-xs font-bold text-slate-200">{{ word }}</span>
                   </div>
                   <button 
@@ -575,7 +575,7 @@
                   class="flex items-center justify-between px-3 py-1.5 bg-white/[0.02] border border-white/5 rounded-xl group hover:border-white/10 transition-all"
                 >
                   <div class="flex items-center gap-2">
-                     <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
+                     <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
                      <span class="text-xs font-bold text-slate-200">{{ word }}</span>
                   </div>
                   <button 
