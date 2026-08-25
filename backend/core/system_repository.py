@@ -60,18 +60,30 @@ class SystemRepository:
                 )
                 if response.text:
                     GeminiGenAIClient.clear_degradation(key)
-                    results.append({"key": key, "status": "valid", "error": None})
+                    results.append({"key": key, "status": "valid", "error": None, "raw_error": None})
                 else:
                     all_valid = False
-                    results.append({"key": key, "status": "invalid", "error": "Empty response from Gemini."})
+                    results.append({"key": key, "status": "invalid", "error": "Empty response received from Gemini API.", "raw_error": "Response text is empty."})
             except Exception as e:
                 all_valid = False
-                error_msg = str(e)
-                if "API_KEY_INVALID" in error_msg or "400" in error_msg:
-                    error_msg = "The API key is invalid. Please check your spelling and try again."
-                elif "quota" in error_msg.lower() or "429" in error_msg:
-                    error_msg = "Gemini API Quota exceeded. Please check your Google AI Studio billing/plan."
-                results.append({"key": key, "status": "invalid", "error": error_msg})
+                raw_err = str(e)
+                raw_lower = raw_err.lower()
+                
+                if "403" in raw_err or "permission_denied" in raw_lower:
+                    user_msg = "Permission Denied (403): Project access is denied or Gemini API is not enabled on this Google Cloud / AI Studio account."
+                elif "api_key_invalid" in raw_lower or "400" in raw_err or "invalid_argument" in raw_lower:
+                    user_msg = "Invalid API Key (400): Key characters not recognized. Please copy the key from Google AI Studio."
+                elif "429" in raw_err or "quota" in raw_lower or "resource_exhausted" in raw_lower:
+                    user_msg = "Rate Limit / Quota exceeded (429): Free tier RPM limit reached. Please wait a moment or use a fallback key."
+                elif "404" in raw_err or "not_found" in raw_lower:
+                    user_msg = "Model Not Found (404): The selected model is not available for this API key or region."
+                elif "timeout" in raw_lower or "connect" in raw_lower or "ssl" in raw_lower:
+                    user_msg = "Connection Timeout: Unable to reach Google AI servers. Please check your network connection or proxy."
+                else:
+                    first_line = raw_err.strip().splitlines()[0] if raw_err else "Unknown API error"
+                    user_msg = f"API Error: {first_line[:120]}"
+                
+                results.append({"key": key, "status": "invalid", "error": user_msg, "raw_error": raw_err})
 
         return {
             "status": "valid" if all_valid else "invalid",

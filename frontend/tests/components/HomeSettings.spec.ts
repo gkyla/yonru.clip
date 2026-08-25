@@ -351,4 +351,65 @@ describe('HomeSettings Component', () => {
     expect(vm.activeTab).toBe('api')
     expect(mockSettingsScrollTarget.value).toBeNull()
   })
+
+  it('tests API keys against /api/validate-gemini-key and updates status correctly', async () => {
+    mockEnvConfig = '[{"title":"Main","value":"AIzaSy_valid_key"},{"title":"Alt","value":"AIzaSy_invalid_key"}]'
+    
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url, options) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/api/system-settings')) {
+        return Promise.resolve({
+          settings: {
+            GEMINI_API_KEY: mockEnvConfig,
+            FFMPEG_PATH: '',
+            NODE_PATH: ''
+          }
+        })
+      }
+      if (urlStr.includes('/api/cookies-status')) {
+        return Promise.resolve({ exists: false, size_bytes: 0, last_modified: null })
+      }
+      if (urlStr.includes('/api/validate-gemini-key')) {
+        return Promise.resolve({
+          status: 'invalid',
+          results: [
+            { key: 'AIzaSy_valid_key', status: 'valid', error: null, raw_error: null },
+            { key: 'AIzaSy_invalid_key', status: 'invalid', error: 'Permission Denied (403): Project access is denied.', raw_error: '403 PERMISSION_DENIED: project 123' }
+          ]
+        })
+      }
+      return Promise.resolve({})
+    }))
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.keysList.length).toBe(2)
+    expect(vm.keysList[0].status).toBe('idle')
+    expect(vm.keysList[1].status).toBe('idle')
+
+    await vm.testApiKeys()
+
+    expect(vm.keysList[0].status).toBe('valid')
+    expect(vm.keysList[0].error).toBe('')
+    expect(vm.keysList[1].status).toBe('invalid')
+    expect(vm.keysList[1].error).toContain('Permission Denied')
+    expect(vm.keysList[1].raw_error).toContain('403 PERMISSION_DENIED')
+    expect(vm.keysList[1].showRawError).toBe(false)
+
+    // Toggle details
+    vm.keysList[1].showRawError = true
+    expect(vm.keysList[1].showRawError).toBe(true)
+
+    expect(vm.testResult.status).toBe('invalid')
+  })
 })

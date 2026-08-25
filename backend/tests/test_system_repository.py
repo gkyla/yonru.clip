@@ -154,3 +154,4 @@ def test_system_repository_validate_gemini_keys_quota_error(mock_genai_client, t
     assert len(res["results"]) == 1
     assert res["results"][0]["status"] == "invalid"
     assert "Quota exceeded" in res["results"][0]["error"]
+    assert "429 RESOURCE_EXHAUSTED" in res["results"][0]["raw_error"]
