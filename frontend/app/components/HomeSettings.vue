@@ -419,7 +419,7 @@
                       />
                       <button 
                         @click="keyItem.show = !keyItem.show" 
-                        class="absolute right-2.5 top-2 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors cursor-pointer p-0.5"
                         :title="keyItem.show ? 'Hide key' : 'Reveal key'"
                       >
                         <Icon :name="keyItem.show ? 'ri:eye-off-line' : 'ri:eye-line'" class="text-xs" />
