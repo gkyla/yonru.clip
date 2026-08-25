@@ -629,24 +629,56 @@
 
           <!-- YouTube Cookies Configuration -->
           <div v-else-if="activeTab === 'cookies'" key="cookies" id="settings-cookies" class="scroll-mt-24 flex flex-col gap-6">
-            <div>
-              <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                <Icon name="ri:shield-keyhole-fill" class="text-accent-500" /> YouTube Cookies (yt-dlp)
-              </h3>
-              <p class="text-sm text-slate-400">Import your YouTube cookies to bypass rate limits, captchas, and bot detection when fetching or downloading videos.</p>
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h3 class="text-lg font-bold text-white mb-1 flex items-center gap-2">
+                  <Icon name="ri:shield-keyhole-fill" class="text-accent-500" /> YouTube Cookies (yt-dlp)
+                </h3>
+                <p class="text-sm text-slate-400">Import your YouTube cookies to bypass rate limits, captchas, and bot detection when fetching or downloading videos.</p>
+              </div>
             </div>
             
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <!-- Uploader / Manager Box -->
-              <div class="lg:col-span-7 flex flex-col gap-4">
-                
-                <!-- Upload Drag & Drop Area -->
+            <!-- Section 1: Active Status / Uploader Box -->
+            <div class="flex flex-col gap-4">
+              <!-- Active Cookies Card (When Configured - Flat Surface Monokrom) -->
+              <div v-if="cookiesStatus.exists" class="p-4 sm:p-5 rounded-xl border border-surface-border bg-surface-dark/40 flex flex-col gap-4 shadow-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div class="flex items-start sm:items-center gap-3.5">
+                    <div class="w-10 h-10 rounded-lg bg-[#111318] border border-surface-border flex items-center justify-center text-accent-500 shrink-0">
+                      <Icon name="ri:file-text-fill" class="text-xl" />
+                    </div>
+                    <div class="flex flex-col">
+                      <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-white font-mono">cookies.txt</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          Active
+                        </span>
+                      </div>
+                      <span class="text-xs text-slate-400 font-mono mt-0.5">
+                        Size: {{ formatBytes(cookiesStatus.size_bytes) }} • Updated: {{ formatDate(cookiesStatus.last_modified) }}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-center gap-2 self-end sm:self-center">
+                    <button 
+                      @click="deleteCookies"
+                      :disabled="deletingCookies"
+                      class="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 rounded-lg text-xs font-bold transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+                    >
+                      <Icon name="ri:delete-bin-line" class="text-sm" />
+                      {{ deletingCookies ? 'Deleting...' : 'Delete' }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Integrated Replace Dropzone (Always Open) -->
                 <div 
                   @dragover.prevent="dragOver = true"
                   @dragleave.prevent="dragOver = false"
                   @drop.prevent="handleFileDrop"
-                  :class="dragOver ? 'border-accent-500 bg-accent-500/5' : 'border-surface-border bg-surface-dark/30 hover:border-slate-700'"
-                  class="w-full h-44 rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-6 text-center transition-all cursor-pointer relative"
+                  :class="dragOver ? 'border-accent-500 bg-accent-500/5 ring-2 ring-accent-500/20' : 'border-surface-border/80 bg-[#0e1015]/90 hover:border-slate-600'"
+                  class="py-5 px-4 rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-center transition-all cursor-pointer group"
                   @click="fileInput?.click()"
                 >
                   <input 
@@ -656,125 +688,169 @@
                     class="hidden" 
                     @change="handleFileSelect" 
                   />
-                  
-                  <Icon 
-                    name="ri:file-upload-line" 
-                    class="text-4xl text-slate-500 mb-3 group-hover:text-accent-500 transition-colors"
-                    :class="{ 'text-accent-500 scale-110': dragOver }"
-                  />
-                  <span class="text-sm font-bold text-slate-300">
-                    Drag & drop your <code class="font-mono text-accent-500">cookies.txt</code> here
-                  </span>
-                  <span class="text-xs text-slate-500 mt-1.5">
-                    Or click to browse files from your computer
-                  </span>
-                </div>
-
-                <!-- Cookies Status / Actions -->
-                <div v-if="cookiesStatus.exists" class="flex flex-col p-4 rounded-xl border border-surface-border bg-surface-dark/50">
-                  <div class="flex justify-between items-center">
-                    <div class="flex items-center gap-2">
-                      <Icon name="ri:file-text-fill" class="text-accent-500 text-lg" />
-                      <div class="flex flex-col">
-                        <span class="text-xs font-bold text-white">cookies.txt (Active)</span>
-                        <span class="text-[10px] text-slate-500 font-mono mt-0.5">
-                          Size: {{ formatBytes(cookiesStatus.size_bytes) }} • Updated: {{ formatDate(cookiesStatus.last_modified) }}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <button 
-                      @click="deleteCookies"
-                      :disabled="deletingCookies"
-                      class="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 rounded-lg text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
-                    >
-                      <Icon name="ri:delete-bin-line" />
-                      {{ deletingCookies ? 'Deleting...' : 'Delete' }}
-                    </button>
+                  <div class="w-8 h-8 rounded-lg bg-surface-dark border border-surface-border/80 flex items-center justify-center text-slate-400 group-hover:text-accent-500 group-hover:border-accent-500/30 transition-all mb-1 shadow-inner">
+                    <Icon name="ri:upload-cloud-2-line" class="text-base" :class="{ 'text-accent-500 scale-110': dragOver }" />
                   </div>
+                  <div class="flex items-center gap-1.5 text-xs text-slate-300 group-hover:text-white font-medium">
+                    <span>Drop new <span class="text-accent-400 font-semibold font-mono">cookies.txt</span> here to replace or <span class="text-accent-500 underline underline-offset-2">browse</span></span>
+                  </div>
+                  <span class="text-[11px] text-slate-500 mt-0.5">This will immediately overwrite your active cookies file.</span>
                 </div>
-                
-                <div v-else class="flex items-center gap-2.5 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-500 text-xs leading-relaxed">
-                  <Icon name="ri:alert-fill" class="text-lg shrink-0" />
-                  <p>No cookies active. Downloads may succeed but are highly vulnerable to YouTube's "Sign in to confirm you're not a bot" restriction.</p>
-                </div>
-
               </div>
 
-              <!-- Interactive Guide Accordion -->
-              <div class="lg:col-span-5 flex flex-col gap-3">
-                <h4 class="text-xs font-black uppercase tracking-widest text-slate-500 mb-1 pl-1">How to obtain cookies?</h4>
+              <!-- Unconfigured Notice (When No Cookies) -->
+              <div v-else class="flex items-start gap-3 p-3.5 rounded-xl border border-surface-border bg-surface-dark/40 text-slate-300 text-xs leading-relaxed">
+                <Icon name="ri:alert-fill" class="text-amber-400 text-base shrink-0 mt-0.5" />
+                <div class="flex flex-col gap-0.5">
+                  <span class="font-bold text-white">No cookies configured</span>
+                  <p class="text-slate-400">Video downloads and metadata fetching may work, but remain vulnerable to YouTube's "Sign in to confirm you're not a bot" restriction.</p>
+                </div>
+              </div>
+
+              <!-- Upload Drag & Drop Area (When No Cookies Exist) -->
+              <div 
+                v-if="!cookiesStatus.exists"
+                @dragover.prevent="dragOver = true"
+                @dragleave.prevent="dragOver = false"
+                @drop.prevent="handleFileDrop"
+                :class="dragOver ? 'border-accent-500 bg-accent-500/5 ring-4 ring-accent-500/10' : 'border-surface-border bg-surface-dark/30 hover:border-slate-600 hover:bg-surface-dark/50'"
+                class="w-full min-h-36 rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-6 text-center transition-all duration-200 cursor-pointer relative group"
+                @click="fileInput?.click()"
+              >
+                <input 
+                  ref="fileInput" 
+                  type="file" 
+                  accept=".txt" 
+                  class="hidden" 
+                  @change="handleFileSelect" 
+                />
                 
-                <div class="border border-surface-border rounded-xl overflow-hidden bg-surface-dark/30">
-                  <!-- Step 1 Accordion -->
-                  <div class="border-b border-surface-border">
-                    <button 
-                      @click="activeStep = activeStep === 1 ? 0 : 1"
-                      class="w-full flex justify-between items-center p-3 text-left hover:bg-surface-dark/50 transition-colors cursor-pointer"
-                    >
-                      <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
-                        <span class="w-5 h-5 rounded-full bg-accent-500/10 text-accent-500 flex items-center justify-center text-[10px] font-black">1</span>
-                        Install Browser Extension
-                      </span>
-                      <Icon :name="activeStep === 1 ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-slate-500" />
-                    </button>
-                    <div v-show="activeStep === 1" class="p-3 bg-surface-dark/10 border-t border-surface-border/50 text-[11px] leading-relaxed text-slate-400 flex flex-col gap-2">
-                      <p>Install the trusted, open-source <strong>"Get cookies.txt LOCALLY"</strong> extension in your browser:</p>
-                      <a 
-                        href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/ccloeocionehidjhhicdjiijlkocoodm" 
-                        target="_blank"
-                        class="inline-flex items-center gap-1.5 self-start text-accent-500 font-bold hover:underline"
-                      >
-                        <Icon name="ri:chrome-fill" /> Get extension for Chrome / Brave
-                      </a>
-                      <a 
-                        href="https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/" 
-                        target="_blank"
-                        class="inline-flex items-center gap-1.5 self-start text-accent-500 font-bold hover:underline"
-                      >
-                        <Icon name="ri:firefox-fill" /> Get extension for Firefox
-                      </a>
-                    </div>
-                  </div>
+                <div class="w-10 h-10 rounded-xl bg-surface-dark border border-surface-border flex items-center justify-center text-slate-400 group-hover:text-accent-500 group-hover:border-accent-500/30 group-hover:scale-105 transition-all duration-200 mb-2.5 shadow-inner">
+                  <Icon 
+                    name="ri:upload-cloud-2-line" 
+                    class="text-xl transition-transform"
+                    :class="{ 'text-accent-500 scale-110': dragOver }"
+                  />
+                </div>
+                <span class="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">
+                  Drag & drop your <span class="font-mono text-accent-500">cookies.txt</span> here
+                </span>
+                <span class="text-xs text-slate-500 mt-1.5">
+                  or <span class="text-accent-500 font-semibold underline underline-offset-2">browse file</span> from your computer (Netscape format)
+                </span>
+              </div>
+            </div>
 
-                  <!-- Step 2 Accordion -->
-                  <div class="border-b border-surface-border">
-                    <button 
-                      @click="activeStep = activeStep === 2 ? 0 : 2"
-                      class="w-full flex justify-between items-center p-3 text-left hover:bg-surface-dark/50 transition-colors cursor-pointer"
-                    >
-                      <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
-                        <span class="w-5 h-5 rounded-full bg-accent-500/10 text-accent-500 flex items-center justify-center text-[10px] font-black">2</span>
-                        Navigate & Log In
-                      </span>
-                      <Icon :name="activeStep === 2 ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-slate-500" />
-                    </button>
-                    <div v-show="activeStep === 2" class="p-3 bg-surface-dark/10 border-t border-surface-border/50 text-[11px] leading-relaxed text-slate-400 flex flex-col gap-2">
-                      <p>Go to <a href="https://youtube.com" target="_blank" class="text-accent-500 hover:underline font-bold">youtube.com</a> in a new tab.</p>
-                      <p>For best results, make sure you are logged in to your Google Account. This ensures YouTube treats your request as a real session.</p>
+            <!-- Section 2: Bento Grid 3-Step Guide -->
+            <div class="flex flex-col gap-3">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pl-0.5">
+                <div class="flex items-center gap-2">
+                  <Icon name="ri:compass-3-line" class="text-accent-500 text-sm" />
+                  <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300">How to obtain cookies?</h4>
+                </div>
+                <a 
+                  href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies" 
+                  target="_blank"
+                  class="inline-flex items-center gap-1.5 text-xs text-accent-500 hover:text-accent-400 font-semibold transition-colors"
+                >
+                  <Icon name="ri:github-fill" class="text-sm" /> Official yt-dlp Cookies Wiki
+                  <Icon name="ri:external-link-line" class="text-xs" />
+                </a>
+              </div>
+              
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                <!-- Step 01 Bento Card -->
+                <div class="p-4 rounded-xl border border-surface-border bg-surface-dark/40 flex flex-col justify-between hover:border-slate-700 transition-colors">
+                  <div class="flex flex-col">
+                    <div class="flex items-center justify-between">
+                      <span class="w-6 h-6 rounded-lg bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center text-[11px] font-black">01</span>
+                      <Icon name="ri:puzzle-2-line" class="text-slate-500 text-base" />
                     </div>
+                    <h5 class="text-xs font-bold text-slate-200 mt-3 mb-1">Install Browser Extension</h5>
+                    <p class="text-[11px] leading-relaxed text-slate-400">
+                      Install open-source <strong class="text-slate-300">"Get cookies.txt LOCALLY"</strong> to extract Netscape cookies:
+                    </p>
                   </div>
-
-                  <!-- Step 3 Accordion -->
-                  <div>
-                    <button 
-                      @click="activeStep = activeStep === 3 ? 0 : 3"
-                      class="w-full flex justify-between items-center p-3 text-left hover:bg-surface-dark/50 transition-colors cursor-pointer"
+                  
+                  <div class="flex flex-col gap-1.5 mt-4 pt-3 border-t border-surface-border/40">
+                    <a 
+                      href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/ccloeocionehidjhhicdjiijlkocoodm" 
+                      target="_blank"
+                      class="inline-flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] font-semibold text-slate-300 hover:text-white hover:border-accent-500/40 hover:bg-accent-500/5 transition-all"
                     >
-                      <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
-                        <span class="w-5 h-5 rounded-full bg-accent-500/10 text-accent-500 flex items-center justify-center text-[10px] font-black">3</span>
-                        Export & Upload
+                      <span class="flex items-center gap-1.5">
+                        <Icon name="ri:chrome-fill" class="text-accent-500 text-xs" /> Chrome / Edge / Brave
                       </span>
-                      <Icon :name="activeStep === 3 ? 'ri:arrow-up-s-line' : 'ri:arrow-down-s-line'" class="text-slate-500" />
-                    </button>
-                    <div v-show="activeStep === 3" class="p-3 bg-surface-dark/10 border-t border-surface-border/50 text-[11px] leading-relaxed text-slate-400 flex flex-col gap-2.5">
-                      <p>1. While on the YouTube tab, click the <strong>Get cookies.txt LOCALLY</strong> extension icon in your toolbar.</p>
-                      <p>2. Select the option <strong>"youtube.com"</strong> (under Active Tab) and click the <strong>"Export as Netscape format"</strong> or download icon.</p>
-                      <p>3. Drop the downloaded <code class="font-mono text-accent-500">youtube.com_cookies.txt</code> file directly into the drag box on the left!</p>
+                      <Icon name="ri:external-link-line" class="text-slate-500 text-[10px]" />
+                    </a>
+                    <a 
+                      href="https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/" 
+                      target="_blank"
+                      class="inline-flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] font-semibold text-slate-300 hover:text-white hover:border-accent-500/40 hover:bg-accent-500/5 transition-all"
+                    >
+                      <span class="flex items-center gap-1.5">
+                        <Icon name="ri:firefox-fill" class="text-accent-500 text-xs" /> Firefox
+                      </span>
+                      <Icon name="ri:external-link-line" class="text-slate-500 text-[10px]" />
+                    </a>
+                  </div>
+                </div>
+
+                <!-- Step 02 Bento Card -->
+                <div class="p-4 rounded-xl border border-surface-border bg-surface-dark/40 flex flex-col justify-between hover:border-slate-700 transition-colors">
+                  <div class="flex flex-col">
+                    <div class="flex items-center justify-between">
+                      <span class="w-6 h-6 rounded-lg bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center text-[11px] font-black">02</span>
+                      <Icon name="ri:youtube-line" class="text-slate-500 text-base" />
+                    </div>
+                    <h5 class="text-xs font-bold text-slate-200 mt-3 mb-1">Sign In to YouTube</h5>
+                    <p class="text-[11px] leading-relaxed text-slate-400">
+                      Open YouTube in a new tab and ensure your Google account is logged in for a valid active session.
+                    </p>
+                  </div>
+                  
+                  <div class="flex flex-col gap-1.5 mt-4 pt-3 border-t border-surface-border/40">
+                    <a 
+                      href="https://youtube.com" 
+                      target="_blank"
+                      class="inline-flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] font-semibold text-slate-300 hover:text-white hover:border-accent-500/40 hover:bg-accent-500/5 transition-all"
+                    >
+                      <span class="flex items-center gap-1.5">
+                        <Icon name="ri:youtube-fill" class="text-red-500 text-xs" /> Open youtube.com
+                      </span>
+                      <Icon name="ri:external-link-line" class="text-slate-500 text-[10px]" />
+                    </a>
+                    <div class="flex items-center gap-1 px-1 text-[10px] text-slate-500">
+                      <Icon name="ri:information-line" class="text-xs" />
+                      <span>Google Account required</span>
                     </div>
                   </div>
                 </div>
 
+                <!-- Step 03 Bento Card -->
+                <div class="p-4 rounded-xl border border-surface-border bg-surface-dark/40 flex flex-col justify-between hover:border-slate-700 transition-colors">
+                  <div class="flex flex-col">
+                    <div class="flex items-center justify-between">
+                      <span class="w-6 h-6 rounded-lg bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center text-[11px] font-black">03</span>
+                      <Icon name="ri:file-download-line" class="text-slate-500 text-base" />
+                    </div>
+                    <h5 class="text-xs font-bold text-slate-200 mt-3 mb-1">Export as Netscape & Drop File</h5>
+                    <p class="text-[11px] leading-relaxed text-slate-400">
+                      Click the extension <strong class="text-slate-300">"Get cookies.txt LOCALLY"</strong> icon on the YouTube tab, choose <strong class="text-slate-300">"Export as Netscape format"</strong>, and drop the file above.
+                    </p>
+                  </div>
+                  
+                  <div class="flex flex-col gap-1.5 mt-4 pt-3 border-t border-surface-border/40">
+                    <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] text-accent-400 font-mono">
+                      <Icon name="ri:file-text-line" class="text-xs shrink-0" />
+                      <span class="truncate">youtube.com_cookies.txt</span>
+                    </div>
+                    <div class="flex items-center gap-1 px-1 text-[10px] text-slate-500">
+                      <Icon name="ri:check-line" class="text-xs text-emerald-400" />
+                      <span>Netscape format (.txt)</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1182,7 +1258,6 @@ const warningDetails = computed(() => {
 })
 
 const dragOver = ref(false)
-const activeStep = ref(1)
 const deletingCookies = ref(false)
 const cookiesStatus = ref<{ exists: boolean; size_bytes: number; last_modified: string | null }>({ exists: false, size_bytes: 0, last_modified: null })
 

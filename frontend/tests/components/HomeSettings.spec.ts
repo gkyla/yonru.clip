@@ -412,4 +412,84 @@ describe('HomeSettings Component', () => {
 
     expect(vm.testResult.status).toBe('invalid')
   })
+
+  it('renders YouTube Cookies active card, handles replace toggle and delete action', async () => {
+    let deletedCalled = false
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url, options) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/api/cookies-status')) {
+        return Promise.resolve({
+          exists: true,
+          size_bytes: 5120,
+          last_modified: '2026-08-25T08:00:00Z'
+        })
+      }
+      if (urlStr.includes('/api/delete-cookies')) {
+        deletedCalled = true
+        return Promise.resolve({ status: 'ok', message: 'Cookies deleted' })
+      }
+      return Promise.resolve({ settings: { GEMINI_API_KEY: '[]' } })
+    }))
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.switchTab('cookies')
+    await wrapper.vm.$nextTick()
+
+    expect(vm.cookiesStatus.exists).toBe(true)
+    expect(wrapper.text()).toContain('cookies.txt')
+    expect(wrapper.text()).toContain('Active')
+    expect(wrapper.text()).toContain('Delete')
+    expect(wrapper.text()).toContain('Drop new')
+
+    // Test delete cookies
+    await vm.deleteCookies()
+    expect(deletedCalled).toBe(true)
+  })
+
+  it('renders YouTube Cookies unconfigured notice and 3-Step Bento Guide with direct links', async () => {
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/api/cookies-status')) {
+        return Promise.resolve({ exists: false, size_bytes: 0, last_modified: null })
+      }
+      return Promise.resolve({ settings: { GEMINI_API_KEY: '[]' } })
+    }))
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.switchTab('cookies')
+    await wrapper.vm.$nextTick()
+
+    expect(vm.cookiesStatus.exists).toBe(false)
+    expect(wrapper.text()).toContain('No cookies configured')
+    expect(wrapper.text()).toContain('How to obtain cookies?')
+    expect(wrapper.text()).toContain('Official yt-dlp Cookies Wiki')
+    expect(wrapper.text()).toContain('Install Browser Extension')
+    expect(wrapper.text()).toContain('Sign In to YouTube')
+    expect(wrapper.text()).toContain('Export as Netscape & Drop File')
+    expect(wrapper.text()).toContain('Chrome / Edge / Brave')
+    expect(wrapper.text()).toContain('Firefox')
+    expect(wrapper.text()).toContain('Open youtube.com')
+  })
 })
