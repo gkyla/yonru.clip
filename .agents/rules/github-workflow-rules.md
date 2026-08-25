@@ -9,15 +9,28 @@ trigger: always_on
 YOU MUST ALWAYS explicitly ask the USER for approval before performing any Git commit or pushing any code. Never automatically stage files, create commits, or push changes without first asking:
 "Would you like me to commit these changes now?" or "Do you want to create a commit for this update?" and waiting for their explicit confirmation.
 
-## MANDATORY RULE 2: FLEXIBLE BUG/FEATURE WORKFLOW (CRITICAL)
+## MANDATORY RULE 2: PRE-FLIGHT GATEKEEPER & BRANCH/ISSUE WORKFLOW (CRITICAL)
 
-1. **Standardized Branch Naming**:
-   - For all features, fixes, and improvements, use clear and descriptive branch slugs:
+1. **Pre-Flight Detection & Confirmation**:
+   - When the user requests a new feature (`feat`), functional bugfix (`fix`), or major architecture overhaul (`refactor`):
+     - The agent **MUST NOT** immediately edit files in `main`.
+     - The agent **MUST FIRST** explicitly ask the user: *"This task involves a [new feature / bugfix / refactor]. Would you like me to create a GitHub Issue and a new branch (`feat/<slug>` / `fix/<slug>`) first?"* (The agent must seamlessly understand both English and Indonesian responses, such as 'yes', 'boleh', 'buatkan', 'no', 'langsung di main saja', etc.).
+   - If the user confirms:
+     - Programmatically create the issue using the matching template in `.github/ISSUE_TEMPLATE/`.
+     - Create and switch to the new branch: `rtk git checkout -b feat/<slug>` or `rtk git checkout -b fix/<slug>`.
+   - If the user declines (e.g. wants quick prototyping):
+     - Fallback gracefully and proceed directly on the current branch (`main`).
+
+2. **Direct Commit Allowance (Micro/Cosmetic Tasks)**:
+   - For `style/*` (UI visual tweaks, minor padding/color), `docs/*` (documentation updates), and `chore/*` (dependency bumps, config updates), the agent is **permitted** to work directly on `main` without creating a branch/issue, provided that Rule 1 (Commit Approval) is always followed.
+
+3. **Standardized Branch Naming**:
+   - For all features, fixes, and improvements using branches:
      - `feat/<slug>` (for new features, UI enhancements, or capabilities)
      - `fix/<slug>` (for bug fixes, regressions, or corrections)
-     - *(Optional)* `feat/issue-<ID>-<slug>` or `fix/issue-<ID>-<slug>` only if explicitly tracking a pre-existing GitHub Issue ID.
+     - `feat/issue-<ID>-<slug>` or `fix/issue-<ID>-<slug>` if linked to a GitHub Issue ID.
 
-2. **Pull Request Linking**:
+4. **Pull Request Linking**:
    - When generating Pull Requests, always write descriptions that match the structure of `.github/pull_request_template.md`.
    - If linked to an existing issue, include a closing keyword (e.g., `Closes #<ID>` or `Resolves #<ID>`) at the top of the PR description to automatically link and close the associated issue when merged.
 
