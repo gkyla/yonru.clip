@@ -864,31 +864,201 @@
               <p class="text-sm text-slate-400">If your prerequisite tools are installed in custom locations, provide their absolute paths. Otherwise, leave them blank to use system defaults.</p>
             </div>
             
-            <div class="flex flex-col gap-4">
-              <div class="flex flex-col gap-1.5">
-                 <label class="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">FFmpeg Path (FFMPEG_PATH)</label>
-                 <input 
-                   v-model="ffmpegPath"
-                   type="text" 
-                   placeholder="e.g. C:\ffmpeg\bin" 
-                   class="w-full bg-[#111318] border border-surface-border text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-accent-500/50 transition-all font-mono text-sm"
-                 />
+            <div class="flex flex-col gap-5">
+              <!-- FFmpeg Card -->
+              <div class="p-4 rounded-xl border border-surface-border bg-surface-dark/30 flex flex-col gap-3.5 transition-all" data-testid="ffmpeg-env-card">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                  <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-surface-dark border border-surface-border flex items-center justify-center text-accent-400">
+                      <Icon name="ri:video-fill" class="text-sm text-accent-500" />
+                    </div>
+                    <div>
+                      <h4 class="text-sm font-bold text-white">FFmpeg Binary</h4>
+                      <p class="text-[11px] text-slate-400">Required for video slicing, thumbnail extraction, and 9:16 rendering.</p>
+                    </div>
+                  </div>
+                  <!-- Status Badge -->
+                  <div class="flex items-center gap-2">
+                    <span 
+                      class="text-[10px] px-2 py-0.5 rounded-full font-mono font-medium flex items-center gap-1.5 border"
+                      :class="ffmpegStatusBadge.class"
+                    >
+                      <span class="w-1.5 h-1.5 rounded-full" :class="ffmpegStatusBadge.dotClass"></span>
+                      {{ ffmpegStatusBadge.label }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Active Binary Display -->
+                <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0c0e14] border border-surface-border/60 text-xs">
+                  <span class="text-slate-400 text-[11px] font-semibold uppercase tracking-wider shrink-0">Active Path:</span>
+                  <span class="font-mono text-[11px] text-slate-200 truncate" :title="healthData?.ffmpeg?.path || 'Not detected'">
+                    {{ healthData?.ffmpeg?.path || 'Not detected in system PATH' }}
+                  </span>
+                </div>
+
+                <!-- Input & Test Button -->
+                <div class="flex flex-col gap-1.5">
+                  <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest pl-0.5 flex items-center gap-1.5">
+                      <span>Custom Path Override</span>
+                      <span class="text-[10px] lowercase font-normal px-1.5 py-0.2 rounded bg-surface-dark border border-surface-border text-slate-400">optional</span>
+                    </label>
+                    <button 
+                      v-if="ffmpegPath"
+                      @click="resetEnvPath('ffmpeg')"
+                      type="button"
+                      class="text-[11px] text-slate-400 hover:text-rose-400 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Icon name="ri:close-circle-line" class="text-xs" /> Clear Override
+                    </button>
+                  </div>
+                  
+                  <div class="flex items-center gap-2">
+                    <input 
+                      v-model="ffmpegPath"
+                      type="text" 
+                      placeholder="e.g. C:\ffmpeg\bin or /opt/homebrew/bin/ffmpeg" 
+                      class="w-full bg-[#111318] border border-surface-border text-white px-3.5 py-2 rounded-lg focus:outline-none focus:border-accent-500/50 transition-all font-mono text-xs"
+                      @input="ffmpegValidation.tested = false"
+                    />
+                    <button 
+                      @click="testBinaryPath('ffmpeg')"
+                      :disabled="ffmpegValidation.testing"
+                      type="button"
+                      class="px-4 py-2 bg-surface-card border border-surface-border text-slate-200 hover:text-white hover:border-accent-500/40 text-xs font-semibold rounded-lg shrink-0 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <Icon v-if="ffmpegValidation.testing" name="ri:loader-4-line" class="text-xs animate-spin text-accent-500" />
+                      <Icon v-else name="ri:search-eye-line" class="text-xs text-accent-500" />
+                      <span>Test Path</span>
+                    </button>
+                  </div>
+
+                  <!-- Inline Validation Result Feedback -->
+                  <div v-if="ffmpegValidation.tested" class="mt-1">
+                    <div 
+                      v-if="ffmpegValidation.valid" 
+                      class="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs"
+                    >
+                      <Icon name="ri:checkbox-circle-fill" class="text-emerald-400 text-sm shrink-0" />
+                      <div class="flex flex-col gap-0.5 truncate">
+                        <span class="font-semibold">{{ ffmpegValidation.message }}</span>
+                        <span v-if="ffmpegValidation.detectedPath" class="font-mono text-[10px] text-emerald-400 truncate">{{ ffmpegValidation.detectedPath }}</span>
+                      </div>
+                    </div>
+                    <div 
+                      v-else 
+                      class="flex items-center gap-2 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs"
+                    >
+                      <Icon name="ri:error-warning-fill" class="text-rose-400 text-sm shrink-0" />
+                      <span class="font-medium">{{ ffmpegValidation.message }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="flex flex-col gap-1.5">
-                 <label class="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Node.js Path (NODE_PATH)</label>
-                 <input 
-                   v-model="nodePath"
-                   type="text" 
-                   placeholder="e.g. C:\Program Files\nodejs" 
-                   class="w-full bg-[#111318] border border-surface-border text-white px-4 py-2.5 rounded-lg focus:outline-none focus:border-accent-500/50 transition-all font-mono text-sm"
-                 />
+
+              <!-- Node.js Card -->
+              <div class="p-4 rounded-xl border border-surface-border bg-surface-dark/30 flex flex-col gap-3.5 transition-all" data-testid="node-env-card">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                  <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-surface-dark border border-surface-border flex items-center justify-center text-accent-400">
+                      <Icon name="ri:nodejs-line" class="text-sm text-accent-500" />
+                    </div>
+                    <div>
+                      <h4 class="text-sm font-bold text-white">Node.js Runtime</h4>
+                      <p class="text-[11px] text-slate-400">Optional runtime for extractor JavaScript helpers & extensions.</p>
+                    </div>
+                  </div>
+                  <!-- Status Badge -->
+                  <div class="flex items-center gap-2">
+                    <span 
+                      class="text-[10px] px-2 py-0.5 rounded-full font-mono font-medium flex items-center gap-1.5 border"
+                      :class="nodeStatusBadge.class"
+                    >
+                      <span class="w-1.5 h-1.5 rounded-full" :class="nodeStatusBadge.dotClass"></span>
+                      {{ nodeStatusBadge.label }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Active Binary Display -->
+                <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0c0e14] border border-surface-border/60 text-xs">
+                  <span class="text-slate-400 text-[11px] font-semibold uppercase tracking-wider shrink-0">Active Path:</span>
+                  <span class="font-mono text-[11px] text-slate-200 truncate" :title="healthData?.node?.path || 'Not detected'">
+                    {{ healthData?.node?.path || 'Not detected in system PATH' }}
+                  </span>
+                </div>
+
+                <!-- Input & Test Button -->
+                <div class="flex flex-col gap-1.5">
+                  <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest pl-0.5 flex items-center gap-1.5">
+                      <span>Custom Path Override</span>
+                      <span class="text-[10px] lowercase font-normal px-1.5 py-0.2 rounded bg-surface-dark border border-surface-border text-slate-400">optional</span>
+                    </label>
+                    <button 
+                      v-if="nodePath"
+                      @click="resetEnvPath('node')"
+                      type="button"
+                      class="text-[11px] text-slate-400 hover:text-rose-400 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Icon name="ri:close-circle-line" class="text-xs" /> Clear Override
+                    </button>
+                  </div>
+                  
+                  <div class="flex items-center gap-2">
+                    <input 
+                      v-model="nodePath"
+                      type="text" 
+                      placeholder="e.g. C:\Program Files\nodejs or /usr/local/bin/node" 
+                      class="w-full bg-[#111318] border border-surface-border text-white px-3.5 py-2 rounded-lg focus:outline-none focus:border-accent-500/50 transition-all font-mono text-xs"
+                      @input="nodeValidation.tested = false"
+                    />
+                    <button 
+                      @click="testBinaryPath('node')"
+                      :disabled="nodeValidation.testing"
+                      type="button"
+                      class="px-4 py-2 bg-surface-card border border-surface-border text-slate-200 hover:text-white hover:border-accent-500/40 text-xs font-semibold rounded-lg shrink-0 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <Icon v-if="nodeValidation.testing" name="ri:loader-4-line" class="text-xs animate-spin text-accent-500" />
+                      <Icon v-else name="ri:search-eye-line" class="text-xs text-accent-500" />
+                      <span>Test Path</span>
+                    </button>
+                  </div>
+
+                  <!-- Inline Validation Result Feedback -->
+                  <div v-if="nodeValidation.tested" class="mt-1">
+                    <div 
+                      v-if="nodeValidation.valid" 
+                      class="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs"
+                    >
+                      <Icon name="ri:checkbox-circle-fill" class="text-emerald-400 text-sm shrink-0" />
+                      <div class="flex flex-col gap-0.5 truncate">
+                        <span class="font-semibold">{{ nodeValidation.message }}</span>
+                        <span v-if="nodeValidation.detectedPath" class="font-mono text-[10px] text-emerald-400 truncate">{{ nodeValidation.detectedPath }}</span>
+                      </div>
+                    </div>
+                    <div 
+                      v-else 
+                      class="flex items-center gap-2 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs"
+                    >
+                      <Icon name="ri:error-warning-fill" class="text-rose-400 text-sm shrink-0" />
+                      <span class="font-medium">{{ nodeValidation.message }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="flex justify-end mt-2">
+
+              <!-- Footer Actions -->
+              <div class="flex items-center justify-end gap-3 mt-2">
                 <button 
                   @click="saveEnvPaths"
-                  class="px-6 py-2.5 bg-surface-card border border-surface-border text-white font-bold uppercase tracking-wider text-xs rounded-lg hover:border-accent-500/50 hover:text-accent-500 transition-all cursor-pointer"
+                  :disabled="savingEnvPaths"
+                  class="px-4 py-2 bg-surface-dark hover:bg-surface-card border border-surface-border hover:border-slate-700 text-slate-200 hover:text-white font-medium text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-sm"
                 >
-                  Save Paths
+                  <Icon v-if="savingEnvPaths" name="ri:loader-4-line" class="text-xs animate-spin text-accent-500" />
+                  <Icon v-else name="ri:save-line" class="text-xs text-accent-500" />
+                  <span>{{ savingEnvPaths ? 'Saving Paths...' : 'Save Environment Paths' }}</span>
                 </button>
               </div>
             </div>
@@ -992,6 +1162,14 @@ const isHealthOk = computed(() => {
     const item = (health as any)[key]
     return !item || item.status !== 'OK'
   })
+})
+
+const isEnvOk = computed(() => {
+  const health = state.systemHealth.value
+  if (!health) return true
+  const ffmpegReady = Boolean(ffmpegPath.value.trim() || health.ffmpeg?.status === 'OK')
+  const nodeReady = Boolean(nodePath.value.trim() || health.node?.status === 'OK')
+  return ffmpegReady && nodeReady
 })
 
 const hasValidApiKey = computed(() => {
@@ -1184,6 +1362,33 @@ function dragEnd() {
 }
 const ffmpegPath = ref('')
 const nodePath = ref('')
+const savingEnvPaths = ref(false)
+
+interface PathValidationState {
+  testing: boolean
+  tested: boolean
+  valid: boolean
+  message: string
+  detectedPath: string
+  isSystemDefault?: boolean
+}
+
+const ffmpegValidation = ref<PathValidationState>({
+  testing: false,
+  tested: false,
+  valid: false,
+  message: '',
+  detectedPath: ''
+})
+
+const nodeValidation = ref<PathValidationState>({
+  testing: false,
+  tested: false,
+  valid: false,
+  message: '',
+  detectedPath: ''
+})
+
 const fileInput = ref<HTMLInputElement | null>(null)
 
 // Health & Diagnostics state
@@ -1423,8 +1628,115 @@ async function saveApiKeys() {
   }
 }
 
-async function saveEnvPaths() {
+const ffmpegStatusBadge = computed(() => {
+  if (ffmpegPath.value.trim()) {
+    return {
+      label: 'Custom Override Configured',
+      class: 'bg-accent-500/10 border-accent-500/30 text-accent-400',
+      dotClass: 'bg-accent-400'
+    }
+  }
+  if (healthData.value?.ffmpeg?.status === 'OK') {
+    return {
+      label: 'Auto-Detected (System PATH)',
+      class: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+      dotClass: 'bg-emerald-400'
+    }
+  }
+  return {
+    label: 'Missing from System PATH',
+    class: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+    dotClass: 'bg-amber-400'
+  }
+})
+
+const nodeStatusBadge = computed(() => {
+  if (nodePath.value.trim()) {
+    return {
+      label: 'Custom Override Configured',
+      class: 'bg-accent-500/10 border-accent-500/30 text-accent-400',
+      dotClass: 'bg-accent-400'
+    }
+  }
+  if (healthData.value?.node?.status === 'OK') {
+    return {
+      label: 'Auto-Detected (System PATH)',
+      class: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+      dotClass: 'bg-emerald-400'
+    }
+  }
+  return {
+    label: 'Optional (Not in PATH)',
+    class: 'bg-slate-500/10 border-slate-500/20 text-slate-400',
+    dotClass: 'bg-slate-500'
+  }
+})
+
+async function testBinaryPath(tool: 'ffmpeg' | 'node'): Promise<boolean> {
+  const targetValidation = tool === 'ffmpeg' ? ffmpegValidation : nodeValidation
+  const currentPath = tool === 'ffmpeg' ? ffmpegPath.value : nodePath.value
+
+  targetValidation.value.testing = true
+  targetValidation.value.tested = false
+
   try {
+    const res = await $fetch<{ valid: boolean; detected_path: string; is_system_default?: boolean; message: string }>(`${API_BASE}/api/validate-binary-path`, {
+      method: 'POST',
+      body: {
+        tool,
+        path: currentPath
+      }
+    })
+    targetValidation.value = {
+      testing: false,
+      tested: true,
+      valid: res.valid,
+      message: res.message,
+      detectedPath: res.detected_path,
+      isSystemDefault: res.is_system_default
+    }
+    return res.valid
+  } catch (e: any) {
+    const errMsg = e.data?.detail || e.message || `Failed to validate ${tool} path`
+    targetValidation.value = {
+      testing: false,
+      tested: true,
+      valid: false,
+      message: errMsg,
+      detectedPath: ''
+    }
+    return false
+  }
+}
+
+function resetEnvPath(tool: 'ffmpeg' | 'node') {
+  if (tool === 'ffmpeg') {
+    ffmpegPath.value = ''
+    ffmpegValidation.value = { testing: false, tested: false, valid: false, message: '', detectedPath: '' }
+  } else {
+    nodePath.value = ''
+    nodeValidation.value = { testing: false, tested: false, valid: false, message: '', detectedPath: '' }
+  }
+}
+
+async function saveEnvPaths() {
+  savingEnvPaths.value = true
+  try {
+    // 1. Always validate both tools first before persisting
+    const [ffmpegOk, nodeOk] = await Promise.all([
+      testBinaryPath('ffmpeg'),
+      testBinaryPath('node')
+    ])
+
+    if (!ffmpegOk || !nodeOk) {
+      const failedTools: string[] = []
+      if (!ffmpegOk) failedTools.push('FFmpeg')
+      if (!nodeOk) failedTools.push('Node.js')
+      state.showToast(`Validation failed for ${failedTools.join(' and ')}. Please provide valid executable locations before saving.`, 'error')
+      return
+    }
+
+    // 2. Only save if validation succeeded
     await $fetch(`${API_BASE}/api/system-settings`, {
       method: 'PUT',
       body: {
@@ -1432,11 +1744,13 @@ async function saveEnvPaths() {
         NODE_PATH: nodePath.value
       }
     })
-    state.showToast('Environment paths saved successfully!', 'success')
+    state.showToast('Environment paths validated and saved successfully!', 'success')
     checkSystemHealth()
   } catch (e: any) {
     const errMsg = e.data?.detail || e.message || 'Failed to save environment paths'
     state.showToast(`Failed to save environment paths: ${errMsg}`, 'error')
+  } finally {
+    savingEnvPaths.value = false
   }
 }
 

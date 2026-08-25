@@ -186,6 +186,10 @@ class SystemSettingsRequest(BaseModel):
 class ValidateKeyRequest(BaseModel):
     api_key: str
 
+class ValidateBinaryPathRequest(BaseModel):
+    tool: str
+    path: str
+
 class UploadCookiesRequest(BaseModel):
     cookies_text: str
 
@@ -621,6 +625,13 @@ async def update_system_settings(req: SystemSettingsRequest):
 async def validate_gemini_key(req: ValidateKeyRequest):
     """Validate if the given Gemini API keys are active and functional."""
     return system_repository.validate_gemini_keys(req.api_key)
+
+
+@app.post("/api/validate-binary-path")
+async def validate_binary_path(req: ValidateBinaryPathRequest):
+    """Validate if a specified path contains a usable binary for the tool (ffmpeg or node)."""
+    return system_repository.validate_binary_path(req.tool, req.path)
+
 
 
 @app.get("/api/cookies-status")
