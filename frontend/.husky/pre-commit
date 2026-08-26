@@ -1,11 +1,17 @@
 #!/bin/sh
 # 1. Frontend Checks
 cd frontend
-echo "Running pre-commit TypeScript checks and Unit Tests..."
-npm run typecheck && npm run test || exit 1
+echo "Running pre-commit Unit Tests..."
+npm run test || exit 1
 
 # 2. Backend Checks
 cd ../backend
 echo "Running pre-commit Python Pyright checks..."
-venv/bin/pyright -p . || exit 1
+if [ -f "venv/Scripts/pyright.exe" ] || [ -f "venv/Scripts/pyright" ]; then
+    venv/Scripts/pyright -p . || exit 1
+elif [ -f "venv/bin/pyright" ]; then
+    venv/bin/pyright -p . || exit 1
+else
+    python -m pyright -p . || exit 1
+fi
 

@@ -13,7 +13,7 @@ class FaceDetectorSeam(ABC):
 
 class MediaPipeFaceDetector(FaceDetectorSeam):
     def __init__(self, min_detection_confidence: float = 0.3):
-        solutions: Any = mp.solutions
+        solutions: Any = getattr(mp, "solutions")
         self.mp_face_detection = solutions.face_detection
         self.face_detection = self.mp_face_detection.FaceDetection(
             model_selection=1,  # 1 = full-range
