@@ -599,7 +599,7 @@ describe('HomeSettings Component', () => {
     expect(vm.ffmpegValidation.tested).toBe(true)
     expect(vm.ffmpegValidation.valid).toBe(true)
     expect(vm.ffmpegValidation.detectedPath).toBe('/custom/bin/ffmpeg')
-    expect(vm.ffmpegStatusBadge.label).toBe('Custom Override Configured')
+    expect(vm.ffmpegStatusBadge.label).toBe('Custom Override')
 
     // 2. Enter invalid custom path for Node.js
     vm.nodePath = '/invalid/nonexistent/dir'

@@ -870,7 +870,7 @@
                 <div class="flex items-center justify-between flex-wrap gap-2">
                   <div class="flex items-center gap-2">
                     <div class="w-7 h-7 rounded-lg bg-surface-dark border border-surface-border flex items-center justify-center text-accent-400">
-                      <Icon name="ri:video-fill" class="text-sm text-accent-500" />
+                      <Icon name="ri:movie-2-line" class="text-sm text-accent-500" />
                     </div>
                     <div>
                       <h4 class="text-sm font-bold text-white">FFmpeg Binary</h4>
@@ -880,10 +880,10 @@
                   <!-- Status Badge -->
                   <div class="flex items-center gap-2">
                     <span 
-                      class="text-[10px] px-2 py-0.5 rounded-full font-mono font-medium flex items-center gap-1.5 border"
+                      class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium flex items-center gap-1"
                       :class="ffmpegStatusBadge.class"
                     >
-                      <span class="w-1.5 h-1.5 rounded-full" :class="ffmpegStatusBadge.dotClass"></span>
+                      <span class="w-1 h-1 rounded-full" :class="ffmpegStatusBadge.dotClass"></span>
                       {{ ffmpegStatusBadge.label }}
                     </span>
                   </div>
@@ -972,10 +972,10 @@
                   <!-- Status Badge -->
                   <div class="flex items-center gap-2">
                     <span 
-                      class="text-[10px] px-2 py-0.5 rounded-full font-mono font-medium flex items-center gap-1.5 border"
+                      class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium flex items-center gap-1"
                       :class="nodeStatusBadge.class"
                     >
-                      <span class="w-1.5 h-1.5 rounded-full" :class="nodeStatusBadge.dotClass"></span>
+                      <span class="w-1 h-1 rounded-full" :class="nodeStatusBadge.dotClass"></span>
                       {{ nodeStatusBadge.label }}
                     </span>
                   </div>
@@ -1631,21 +1631,21 @@ async function saveApiKeys() {
 const ffmpegStatusBadge = computed(() => {
   if (ffmpegPath.value.trim()) {
     return {
-      label: 'Custom Override Configured',
-      class: 'bg-accent-500/10 border-accent-500/30 text-accent-400',
+      label: 'Custom Override',
+      class: 'bg-black/40 border border-accent-500/30 text-accent-400',
       dotClass: 'bg-accent-400'
     }
   }
   if (healthData.value?.ffmpeg?.status === 'OK') {
     return {
       label: 'Auto-Detected (System PATH)',
-      class: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+      class: 'bg-black/40 border border-white/5 text-emerald-400',
       dotClass: 'bg-emerald-400'
     }
   }
   return {
-    label: 'Missing from System PATH',
-    class: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+    label: 'Missing from PATH',
+    class: 'bg-amber-500/10 border border-amber-500/20 text-amber-400',
     dotClass: 'bg-amber-400'
   }
 })
@@ -1653,21 +1653,21 @@ const ffmpegStatusBadge = computed(() => {
 const nodeStatusBadge = computed(() => {
   if (nodePath.value.trim()) {
     return {
-      label: 'Custom Override Configured',
-      class: 'bg-accent-500/10 border-accent-500/30 text-accent-400',
+      label: 'Custom Override',
+      class: 'bg-black/40 border border-accent-500/30 text-accent-400',
       dotClass: 'bg-accent-400'
     }
   }
   if (healthData.value?.node?.status === 'OK') {
     return {
       label: 'Auto-Detected (System PATH)',
-      class: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+      class: 'bg-black/40 border border-white/5 text-emerald-400',
       dotClass: 'bg-emerald-400'
     }
   }
   return {
     label: 'Optional (Not in PATH)',
-    class: 'bg-slate-500/10 border-slate-500/20 text-slate-400',
+    class: 'bg-black/40 border border-white/5 text-slate-400',
     dotClass: 'bg-slate-500'
   }
 })
