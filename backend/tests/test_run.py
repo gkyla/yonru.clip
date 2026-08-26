@@ -58,19 +58,23 @@ def test_service_coordinator_spawn_and_shutdown(mocker):
         ready_signal="ready"
     )
     
+    mock_proc = mock_popen.return_value
+    mock_proc.stdout.readline.return_value = ""
+    mock_proc.poll.return_value = None  # Still running
+    mock_proc.pid = 1234
+    
     coordinator.spawn(service)
     assert "Backend" in coordinator._procs
     
     # Verify Popen called correctly
     mock_popen.assert_called_once()
     
-    # Test shutdown triggers termination
-    mock_proc = mock_popen.return_value
-    mock_proc.poll.return_value = None  # Still running
-    mock_proc.pid = 1234
-    
-    mocker.patch("run.os.killpg")
-    mocker.patch("run.os.getpgid", return_value=1234)
+    # Test shutdown triggers termination cleanly on Windows and Unix
+    if run.IS_WIN:
+        mock_sub_run = mocker.patch("run.subprocess.run")
+    else:
+        mocker.patch("run.os.killpg")
+        mocker.patch("run.os.getpgid", return_value=1234)
     
     coordinator.shutdown()
     assert coordinator._shutdown_initiated is True
@@ -90,3 +94,41 @@ def test_service_coordinator_with_mock_sweeper(mocker):
     
     # Assert that all core Yonru ports are captured by the MockPortSweeper
     assert mock_sweeper.swept_ports == [8000, 3000, 3003]
+
+
+def test_backend_cmd_reload_exclude_no_globs(mocker):
+    """
+    Regression Test: Ensure backend_cmd does not pass unquoted glob wildcards
+    to --reload-exclude, preventing Click/MSVC CRT wildcard expansion crashes on Windows.
+    """
+    launcher = run.BootstrappedLauncher(target="backend")
+    launcher.venv_python = "python"
+    
+    # Mock all bootstrapping methods to inspect execution configuration
+    mocker.patch.object(launcher, "_check_dependencies")
+    mocker.patch.object(launcher, "_bootstrap_backend", return_value="python")
+    mocker.patch.object(launcher, "_bootstrap_fonts")
+    mocker.patch.object(launcher, "_bootstrap_node_project")
+    mocker.patch.object(launcher, "_setup_remotion_browser")
+    
+    spawned_services = []
+    mock_coordinator = mocker.MagicMock()
+    mock_coordinator.spawn.side_effect = lambda s: spawned_services.append(s)
+    mock_coordinator.run_loop.side_effect = KeyboardInterrupt
+    mocker.patch("run.ServiceCoordinator", return_value=mock_coordinator)
+    
+    launcher.run()
+    
+    assert len(spawned_services) == 1
+    backend_service = spawned_services[0]
+    cmd = backend_service.cmd
+    
+    # Find all reload-exclude arguments
+    reload_excludes = [
+        cmd[i + 1] for i in range(len(cmd) - 1) if cmd[i] == "--reload-exclude"
+    ]
+    assert len(reload_excludes) >= 2
+    for pattern in reload_excludes:
+        assert "*" not in pattern, f"Pattern {pattern} contains wildcard * which causes Click glob expansion on Windows"
+        assert "?" not in pattern, f"Pattern {pattern} contains wildcard ? which causes Click glob expansion on Windows"
+
