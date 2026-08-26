@@ -492,4 +492,135 @@ describe('HomeSettings Component', () => {
     expect(wrapper.text()).toContain('Firefox')
     expect(wrapper.text()).toContain('Open youtube.com')
   })
+
+  it('renders Environment Paths tab with auto-detected badges and active paths', async () => {
+    mockSystemHealth.value = {
+      ffmpeg: { status: 'OK', path: '/opt/homebrew/bin/ffmpeg' },
+      node: { status: 'OK', path: '/opt/homebrew/bin/node' },
+      python_env: { status: 'OK', active: true },
+      gemini_api: { status: 'Configured', has_key: true },
+      cookies: { status: 'Configured', exists: true }
+    }
+
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/api/system-settings')) {
+        return Promise.resolve({
+          settings: {
+            GEMINI_API_KEY: '[]',
+            FFMPEG_PATH: '',
+            NODE_PATH: ''
+          }
+        })
+      }
+      return Promise.resolve({ exists: false, size_bytes: 0, last_modified: null })
+    }))
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.switchTab('env')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Environment Paths')
+    expect(wrapper.text()).toContain('If your prerequisite tools are installed in custom locations')
+    expect(wrapper.text()).toContain('FFmpeg Binary')
+    expect(wrapper.text()).toContain('Node.js Runtime')
+    expect(wrapper.text()).toContain('Auto-Detected (System PATH)')
+    expect(wrapper.text()).toContain('/opt/homebrew/bin/ffmpeg')
+    expect(wrapper.text()).toContain('/opt/homebrew/bin/node')
+    expect(wrapper.find('[data-testid="ffmpeg-env-card"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="node-env-card"]').exists()).toBe(true)
+  })
+
+  it('validates custom binary paths inline and handles clear override and save', async () => {
+    let savedPayload: any = null
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url, options) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/api/system-settings') && options?.method === 'PUT') {
+        savedPayload = options.body
+        return Promise.resolve({ status: 'ok' })
+      }
+      if (urlStr.includes('/api/system-settings')) {
+        return Promise.resolve({
+          settings: {
+            GEMINI_API_KEY: '[]',
+            FFMPEG_PATH: '',
+            NODE_PATH: ''
+          }
+        })
+      }
+      if (urlStr.includes('/api/validate-binary-path')) {
+        const body = options?.body as any
+        if (body?.path === '/custom/bin/ffmpeg' || (body?.tool === 'node' && body?.path === '')) {
+          return Promise.resolve({
+            valid: true,
+            detected_path: body?.path || '/opt/homebrew/bin/node',
+            message: 'Valid binary location.'
+          })
+        }
+        return Promise.resolve({
+          valid: false,
+          detected_path: '',
+          message: 'Path does not exist on this machine.'
+        })
+      }
+      return Promise.resolve({ exists: false, size_bytes: 0, last_modified: null })
+    }))
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.switchTab('env')
+    await wrapper.vm.$nextTick()
+
+    // 1. Enter valid custom path for FFmpeg and test
+    vm.ffmpegPath = '/custom/bin/ffmpeg'
+    await vm.testBinaryPath('ffmpeg')
+
+    expect(vm.ffmpegValidation.tested).toBe(true)
+    expect(vm.ffmpegValidation.valid).toBe(true)
+    expect(vm.ffmpegValidation.detectedPath).toBe('/custom/bin/ffmpeg')
+    expect(vm.ffmpegStatusBadge.label).toBe('Custom Override')
+
+    // 2. Enter invalid custom path for Node.js
+    vm.nodePath = '/invalid/nonexistent/dir'
+    
+    // Attempt save while nodePath is invalid - should validate first and block save
+    await vm.saveEnvPaths()
+    expect(savedPayload).toBeNull() // save was blocked
+    expect(vm.nodeValidation.tested).toBe(true)
+    expect(vm.nodeValidation.valid).toBe(false)
+
+    // 3. Clear override for nodePath
+    vm.resetEnvPath('node')
+    expect(vm.nodePath).toBe('')
+    expect(vm.nodeValidation.tested).toBe(false)
+
+    // 4. Save environment paths now with valid FFmpeg and empty default Node
+    await vm.saveEnvPaths()
+    expect(savedPayload).toEqual({
+      FFMPEG_PATH: '/custom/bin/ffmpeg',
+      NODE_PATH: ''
+    })
+  })
 })
+

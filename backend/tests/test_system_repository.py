@@ -155,3 +155,69 @@ def test_system_repository_validate_gemini_keys_quota_error(mock_genai_client, t
     assert res["results"][0]["status"] == "invalid"
     assert "Quota exceeded" in res["results"][0]["error"]
     assert "429 RESOURCE_EXHAUSTED" in res["results"][0]["raw_error"]
+
+
+def test_system_repository_validate_binary_path(temp_workspace):
+    temp_dir, cookies_file = temp_workspace
+    config_store = InMemoryConfigStore()
+    repo = SystemRepository(config_store=config_store, cookies_path=cookies_file)
+
+    # 1. Invalid tool name
+    invalid_tool = repo.validate_binary_path("unknown_tool", "/bin")
+    assert invalid_tool["valid"] is False
+    assert "Unsupported tool" in invalid_tool["message"]
+
+    # 2. Empty path (system fallback check)
+    with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
+        empty_res = repo.validate_binary_path("ffmpeg", "")
+        assert empty_res["valid"] is True
+        assert empty_res["detected_path"] == "/usr/bin/ffmpeg"
+        assert empty_res["is_system_default"] is True
+
+    with patch("shutil.which", return_value=None):
+        empty_none = repo.validate_binary_path("ffmpeg", "")
+        assert empty_none["valid"] is False
+        assert empty_none["is_system_default"] is True
+
+        empty_node_none = repo.validate_binary_path("node", "")
+        assert empty_node_none["valid"] is True
+        assert empty_node_none["is_system_default"] is True
+        assert "optional" in empty_node_none["message"]
+
+    # 3. Valid directory containing binary
+    fake_bin_dir = os.path.join(temp_dir, "bin")
+    os.makedirs(fake_bin_dir, exist_ok=True)
+    fake_ffmpeg = os.path.join(fake_bin_dir, "ffmpeg")
+    with open(fake_ffmpeg, "w") as f:
+        f.write("#!/bin/sh\necho ffmpeg")
+
+    dir_res = repo.validate_binary_path("ffmpeg", fake_bin_dir)
+    assert dir_res["valid"] is True
+    assert dir_res["detected_path"] == fake_ffmpeg
+    assert dir_res["is_system_default"] is False
+
+    # 4. Valid direct binary file
+    file_res = repo.validate_binary_path("ffmpeg", fake_ffmpeg)
+    assert file_res["valid"] is True
+    assert file_res["detected_path"] == fake_ffmpeg
+
+    # 5. File exists but name does not match tool
+    wrong_file = os.path.join(fake_bin_dir, "other_tool")
+    with open(wrong_file, "w") as f:
+        f.write("echo other")
+    wrong_res = repo.validate_binary_path("ffmpeg", wrong_file)
+    assert wrong_res["valid"] is False
+    assert "does not match expected 'ffmpeg' binary" in wrong_res["message"]
+
+    # 6. Non-existent path
+    non_existent = repo.validate_binary_path("ffmpeg", "/path/that/does/not/exist/at/all")
+    assert non_existent["valid"] is False
+    assert "does not exist" in non_existent["message"]
+
+    # 7. Directory exists but does not contain the binary
+    empty_dir = os.path.join(temp_dir, "empty_dir")
+    os.makedirs(empty_dir, exist_ok=True)
+    no_bin_res = repo.validate_binary_path("node", empty_dir)
+    assert no_bin_res["valid"] is False
+    assert "no 'node' or 'node.exe' executable was found" in no_bin_res["message"]
+

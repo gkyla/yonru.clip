@@ -144,12 +144,17 @@ class SystemRepository:
         ffmpeg_bin = ""
 
         if custom_ffmpeg:
-            for name in ["ffmpeg", "ffmpeg.exe"]:
-                test_path = os.path.join(custom_ffmpeg, name)
-                if os.path.exists(test_path) and os.path.isfile(test_path):
-                    ffmpeg_ok = True
-                    ffmpeg_bin = test_path
-                    break
+            expanded_ffmpeg = os.path.expanduser(custom_ffmpeg.strip())
+            if os.path.isfile(expanded_ffmpeg) and os.path.basename(expanded_ffmpeg).lower() in ["ffmpeg", "ffmpeg.exe"]:
+                ffmpeg_ok = True
+                ffmpeg_bin = expanded_ffmpeg
+            elif os.path.isdir(expanded_ffmpeg):
+                for name in ["ffmpeg", "ffmpeg.exe"]:
+                    test_path = os.path.join(expanded_ffmpeg, name)
+                    if os.path.exists(test_path) and os.path.isfile(test_path):
+                        ffmpeg_ok = True
+                        ffmpeg_bin = test_path
+                        break
 
         if not ffmpeg_ok:
             found = shutil.which("ffmpeg")
@@ -163,12 +168,17 @@ class SystemRepository:
         node_bin = ""
 
         if custom_node:
-            for name in ["node", "node.exe"]:
-                test_path = os.path.join(custom_node, name)
-                if os.path.exists(test_path) and os.path.isfile(test_path):
-                    node_ok = True
-                    node_bin = test_path
-                    break
+            expanded_node = os.path.expanduser(custom_node.strip())
+            if os.path.isfile(expanded_node) and os.path.basename(expanded_node).lower() in ["node", "node.exe"]:
+                node_ok = True
+                node_bin = expanded_node
+            elif os.path.isdir(expanded_node):
+                for name in ["node", "node.exe"]:
+                    test_path = os.path.join(expanded_node, name)
+                    if os.path.exists(test_path) and os.path.isfile(test_path):
+                        node_ok = True
+                        node_bin = test_path
+                        break
 
         if not node_ok:
             found = shutil.which("node")
@@ -214,3 +224,82 @@ class SystemRepository:
                 "exists": cookies_configured,
             },
         }
+
+    def validate_binary_path(self, tool: str, path: str) -> Dict[str, Any]:
+        """Validate whether a path contains a usable binary for the specified tool ('ffmpeg' or 'node')."""
+        normalized_tool = tool.strip().lower()
+        if normalized_tool not in ["ffmpeg", "node"]:
+            return {
+                "valid": False,
+                "detected_path": "",
+                "message": f"Unsupported tool '{tool}'. Expected 'ffmpeg' or 'node'."
+            }
+
+        clean_path = path.strip()
+        if not clean_path:
+            system_bin = shutil.which(normalized_tool)
+            if system_bin:
+                return {
+                    "valid": True,
+                    "detected_path": system_bin,
+                    "is_system_default": True,
+                    "message": f"Auto-detected system default at {system_bin}."
+                }
+            if normalized_tool == "node":
+                return {
+                    "valid": True,
+                    "detected_path": "",
+                    "is_system_default": True,
+                    "message": "Node.js is optional and currently not detected in system PATH."
+                }
+            return {
+                "valid": False,
+                "detected_path": "",
+                "is_system_default": True,
+                "message": f"No {normalized_tool} executable found in system PATH."
+            }
+
+        expanded_path = os.path.expanduser(clean_path)
+
+        if os.path.isfile(expanded_path):
+            basename = os.path.basename(expanded_path).lower()
+            expected_names = [normalized_tool, f"{normalized_tool}.exe"]
+            if basename in expected_names:
+                return {
+                    "valid": True,
+                    "detected_path": expanded_path,
+                    "is_system_default": False,
+                    "message": f"Valid {normalized_tool} executable found at {expanded_path}."
+                }
+            else:
+                return {
+                    "valid": False,
+                    "detected_path": expanded_path,
+                    "is_system_default": False,
+                    "message": f"File '{basename}' does not match expected '{normalized_tool}' binary."
+                }
+
+        if os.path.isdir(expanded_path):
+            for name in [normalized_tool, f"{normalized_tool}.exe"]:
+                candidate = os.path.join(expanded_path, name)
+                if os.path.exists(candidate) and os.path.isfile(candidate):
+                    return {
+                        "valid": True,
+                        "detected_path": candidate,
+                        "is_system_default": False,
+                        "message": f"Valid {normalized_tool} binary found in directory: {candidate}."
+                    }
+            return {
+                "valid": False,
+                "detected_path": "",
+                "is_system_default": False,
+                "message": f"Directory exists, but no '{normalized_tool}' or '{normalized_tool}.exe' executable was found inside."
+            }
+
+        return {
+            "valid": False,
+            "detected_path": "",
+            "is_system_default": False,
+            "message": f"Path '{clean_path}' does not exist on this machine."
+        }
+
