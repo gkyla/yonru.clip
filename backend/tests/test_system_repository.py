@@ -112,6 +112,43 @@ def test_system_repository_health_check(temp_workspace):
     assert "python_env" in health
 
 
+def test_system_repository_placeholder_key_handling(temp_workspace):
+    temp_dir, cookies_file = temp_workspace
+
+    # 1. Plain template string
+    config_store = InMemoryConfigStore({
+        "GEMINI_API_KEY": "your_gemini_api_key_here",
+        "FFMPEG_PATH": "",
+        "NODE_PATH": ""
+    })
+    repo = SystemRepository(config_store=config_store, cookies_path=cookies_file)
+    assert repo.get_settings()["GEMINI_API_KEY"] == ""
+    health = repo.check_system_health()
+    assert health["gemini_api"]["status"] == "Not Configured"
+    assert health["gemini_api"]["has_key"] is False
+
+    # 2. JSON array with only placeholder
+    config_store.set("GEMINI_API_KEY", '[{"title": "Primary", "value": "your_gemini_api_key_here"}]')
+    assert repo.get_settings()["GEMINI_API_KEY"] == ""
+    health = repo.check_system_health()
+    assert health["gemini_api"]["status"] == "Not Configured"
+    assert health["gemini_api"]["has_key"] is False
+
+    # 3. JSON array with mixed valid and placeholder
+    config_store.set("GEMINI_API_KEY", '[{"title": "Valid", "value": "AIzaSyReal"}, {"title": "Dummy", "value": "your_gemini_api_key_here"}]')
+    assert repo.get_settings()["GEMINI_API_KEY"] == '[{"title": "Valid", "value": "AIzaSyReal"}]'
+    health = repo.check_system_health()
+    assert health["gemini_api"]["status"] == "Configured"
+    assert health["gemini_api"]["has_key"] is True
+
+    # 4. Empty string
+    config_store.set("GEMINI_API_KEY", "")
+    assert repo.get_settings()["GEMINI_API_KEY"] == ""
+    health = repo.check_system_health()
+    assert health["gemini_api"]["status"] == "Not Configured"
+    assert health["gemini_api"]["has_key"] is False
+
+
 def test_system_repository_validate_gemini_keys_empty(temp_workspace):
     temp_dir, cookies_file = temp_workspace
     config_store = InMemoryConfigStore()

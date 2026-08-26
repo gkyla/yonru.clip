@@ -16,9 +16,14 @@ class SystemRepository:
         )
 
     def get_settings(self) -> Dict[str, str]:
-        """Retrieve system settings from config store."""
+        """Retrieve system settings from config store, sanitizing placeholder API keys."""
+        from core.genai_client import sanitize_gemini_api_key_config
+
+        raw_gemini = self.config_store.get("GEMINI_API_KEY", "") or ""
+        sanitized_gemini = sanitize_gemini_api_key_config(raw_gemini)
+
         return {
-            "GEMINI_API_KEY": self.config_store.get("GEMINI_API_KEY", "") or "",
+            "GEMINI_API_KEY": sanitized_gemini,
             "FFMPEG_PATH": self.config_store.get("FFMPEG_PATH", "") or "",
             "NODE_PATH": self.config_store.get("NODE_PATH", "") or "",
         }
@@ -196,8 +201,11 @@ class SystemRepository:
             venv_ok = False
 
         # 4. Check GEMINI_API_KEY
+        from core.genai_client import extract_valid_gemini_keys
+
         gemini_key = self.config_store.get("GEMINI_API_KEY") or ""
-        has_key = len(gemini_key.strip()) > 0
+        valid_keys = extract_valid_gemini_keys(gemini_key)
+        has_key = len(valid_keys) > 0
 
         # 5. Check cookies.txt
         cookies_configured = os.path.exists(self.cookies_path)

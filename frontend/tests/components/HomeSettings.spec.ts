@@ -622,5 +622,47 @@ describe('HomeSettings Component', () => {
       NODE_PATH: ''
     })
   })
+
+  it('filters out default template placeholder your_gemini_api_key_here and shows empty state', async () => {
+    mockEnvConfig = 'your_gemini_api_key_here'
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.keysList).toEqual([])
+    expect(wrapper.text()).toContain('No API keys configured')
+  })
+
+  it('filters out placeholder keys from JSON array config', async () => {
+    mockEnvConfig = JSON.stringify([
+      { title: 'Dummy Key', value: 'your_gemini_api_key_here' },
+      { title: 'Real Key', value: 'AIzaSyValidToken123456789' }
+    ])
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.keysList.length).toBe(1)
+    expect(vm.keysList[0].title).toBe('Real Key')
+    expect(vm.keysList[0].value).toBe('AIzaSyValidToken123456789')
+  })
 })
 

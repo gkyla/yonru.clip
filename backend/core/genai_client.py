@@ -1,7 +1,101 @@
 import time
+import json
+import re
+from typing import Optional, List, Dict, Any
 from abc import ABC, abstractmethod
 from google import genai
 from google.genai import types
+
+PLACEHOLDER_EXACT_MATCHES = {
+    "your_gemini_api_key_here",
+    "your_api_key_here",
+    "your_key_here",
+    "your_api_key",
+    "your_gemini_api_key",
+    "changeme",
+    "placeholder",
+    "dummy",
+    "default",
+    "none",
+    "null",
+}
+
+
+def is_placeholder_api_key(key: Optional[str]) -> bool:
+    """Return True if the key is empty, whitespace, or a common template placeholder."""
+    if not key:
+        return True
+    cleaned = key.strip().strip("\"'")
+    if not cleaned:
+        return True
+    lower = cleaned.lower()
+    if lower in PLACEHOLDER_EXACT_MATCHES:
+        return True
+    # Matches patterns like your_..._here or <your_...>
+    if re.match(r"^your_.*_here$", lower):
+        return True
+    if lower.startswith("<") and lower.endswith(">"):
+        return True
+    return False
+
+
+def extract_valid_gemini_keys(raw_config: Optional[str]) -> List[str]:
+    """Parse raw GEMINI_API_KEY configuration and return only valid, non-placeholder keys."""
+    if not raw_config:
+        return []
+    stripped = raw_config.strip()
+    if not stripped:
+        return []
+
+    valid_keys: List[str] = []
+    if stripped.startswith("[") and stripped.endswith("]"):
+        try:
+            data = json.loads(stripped)
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict) and item.get("value"):
+                        val = str(item["value"]).strip()
+                        if not is_placeholder_api_key(val):
+                            valid_keys.append(val)
+                    elif isinstance(item, str):
+                        val = item.strip()
+                        if not is_placeholder_api_key(val):
+                            valid_keys.append(val)
+                return valid_keys
+        except Exception:
+            pass
+
+    # Comma-separated or single string fallback
+    parts = [k.strip() for k in stripped.split(",") if k.strip()]
+    for part in parts:
+        if not is_placeholder_api_key(part):
+            valid_keys.append(part)
+    return valid_keys
+
+
+def sanitize_gemini_api_key_config(raw_config: Optional[str]) -> str:
+    """Return a sanitized string for GEMINI_API_KEY with all placeholder keys removed."""
+    if not raw_config:
+        return ""
+    stripped = raw_config.strip()
+    if not stripped:
+        return ""
+    if stripped.startswith("[") and stripped.endswith("]"):
+        try:
+            data = json.loads(stripped)
+            if isinstance(data, list):
+                filtered = [
+                    item
+                    for item in data
+                    if isinstance(item, dict) and not is_placeholder_api_key(str(item.get("value", "")))
+                ]
+                return json.dumps(filtered) if filtered else ""
+        except Exception:
+            pass
+
+    parts = [k.strip() for k in stripped.split(",") if k.strip() and not is_placeholder_api_key(k)]
+    return ",".join(parts) if parts else ""
+
 
 class GenAIClient(ABC):
     @abstractmethod
@@ -17,29 +111,30 @@ class GeminiGenAIClient(GenAIClient):
     def __init__(self, api_key: str | None = None):
         self.api_keys = []
         self.key_titles = {}
-        
+
         if api_key:
             api_key_stripped = api_key.strip()
             if api_key_stripped.startswith("[") and api_key_stripped.endswith("]"):
                 try:
-                    import json
                     data = json.loads(api_key_stripped)
                     if isinstance(data, list):
                         for index, item in enumerate(data):
                             if isinstance(item, dict) and item.get("value"):
-                                val = item["value"].strip()
-                                title = item.get("title", "").strip() or f"Key #{index + 1}"
-                                self.api_keys.append(val)
-                                self.key_titles[val] = title
+                                val = str(item["value"]).strip()
+                                if not is_placeholder_api_key(val):
+                                    title = item.get("title", "").strip() or f"Key #{index + 1}"
+                                    self.api_keys.append(val)
+                                    self.key_titles[val] = title
                 except Exception as e:
                     print(f"[gemini] Failed to parse key JSON metadata: {e}")
-            
+
             # Fallback to comma-separated format
             if not self.api_keys:
                 raw_keys = [k.strip() for k in api_key.split(",") if k.strip()]
                 for index, k in enumerate(raw_keys):
-                    self.api_keys.append(k)
-                    self.key_titles[k] = f"Key #{index + 1}"
+                    if not is_placeholder_api_key(k):
+                        self.api_keys.append(k)
+                        self.key_titles[k] = f"Key #{index + 1}"
 
     @classmethod
     def clear_degradation(cls, key: str):

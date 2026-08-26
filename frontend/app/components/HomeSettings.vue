@@ -406,7 +406,7 @@
                         v-model="keyItem.title"
                         type="text"
                         placeholder="Label (e.g. Work Key)" 
-                        class="w-full bg-[#0c0e14] border border-surface-border/60 hover:border-slate-700 focus:border-accent-500/50 text-slate-200 placeholder-slate-600 px-2.5 py-1.5 rounded-lg focus:outline-none transition-all text-xs"
+                        class="w-full bg-[#0c0e14] border border-surface-border/60 hover:border-slate-700 focus:border-accent-500/50 text-slate-200 placeholder-slate-600 px-2.5 py-1.5 rounded-lg focus:outline-none text-xs"
                       />
                     </div>
 
@@ -416,7 +416,7 @@
                         v-model="keyItem.value"
                         :type="keyItem.show ? 'text' : 'password'" 
                         placeholder="AIzaSy..." 
-                        class="w-full bg-[#0c0e14] border border-surface-border/60 hover:border-slate-700 focus:border-accent-500/50 text-white placeholder-slate-600 px-2.5 py-1.5 rounded-lg focus:outline-none transition-all font-mono text-xs pr-8"
+                        class="w-full bg-[#0c0e14] border border-surface-border/60 hover:border-slate-700 focus:border-accent-500/50 text-white placeholder-slate-600 px-2.5 py-1.5 rounded-lg focus:outline-none font-mono text-xs pr-8"
                       />
                       <button 
                         @click="keyItem.show = !keyItem.show" 
@@ -1239,11 +1239,9 @@ interface KeyListItem {
   showRawError?: boolean
   activeFlash: boolean
 }
-const keysList = ref<KeyListItem[]>([
-  { id: Math.random().toString(36).substring(2, 9), title: '', value: '', show: false, status: 'idle', error: '', raw_error: '', showRawError: false, activeFlash: false }
-])
+const keysList = ref<KeyListItem[]>([])
 
-const originalSerializedKeys = ref(JSON.stringify([{ title: '', value: '' }]))
+const originalSerializedKeys = ref(JSON.stringify([]))
 const hasUnsavedChanges = computed(() => {
   const current = JSON.stringify(keysList.value.map(k => ({ title: k.title.trim(), value: k.value.trim() })))
   return current !== originalSerializedKeys.value
@@ -1555,6 +1553,30 @@ async function testApiKeys() {
   }
 }
 
+function isPlaceholderKey(val: string | undefined | null): boolean {
+  if (!val) return true
+  const cleaned = val.trim().replace(/^["']|["']$/g, '')
+  if (!cleaned) return true
+  const lower = cleaned.toLowerCase()
+  const exact = [
+    'your_gemini_api_key_here',
+    'your_api_key_here',
+    'your_key_here',
+    'your_api_key',
+    'your_gemini_api_key',
+    'changeme',
+    'placeholder',
+    'dummy',
+    'default',
+    'none',
+    'null'
+  ]
+  if (exact.includes(lower)) return true
+  if (/^your_.*_here$/.test(lower)) return true
+  if (lower.startsWith('<') && lower.endsWith('>')) return true
+  return false
+}
+
 async function fetchSettings() {
   try {
     const res = await $fetch<{ settings: Record<string, string> }>(`${API_BASE}/api/system-settings`)
@@ -1563,12 +1585,14 @@ async function fetchSettings() {
       nodePath.value = res.settings.NODE_PATH || ''
       
       const rawGemini = res.settings.GEMINI_API_KEY || ''
+      let loadedKeys: KeyListItem[] = []
       
       if (rawGemini.trim().startsWith('[')) {
         try {
           const parsed = JSON.parse(rawGemini)
           if (Array.isArray(parsed) && parsed.length > 0) {
-            keysList.value = parsed.map((item: any) => ({
+            const validItems = parsed.filter((item: any) => item && item.value && !isPlaceholderKey(item.value))
+            loadedKeys = validItems.map((item: any) => ({
               id: Math.random().toString(36).substring(2, 9),
               title: item.title || '',
               value: item.value || '',
@@ -1584,9 +1608,9 @@ async function fetchSettings() {
           console.error('Failed to parse GEMINI_API_KEY as JSON array', e)
         }
       } else if (rawGemini.trim()) {
-        const parts = rawGemini.split(',').map(s => s.trim()).filter(Boolean)
+        const parts = rawGemini.split(',').map(s => s.trim()).filter(s => s && !isPlaceholderKey(s))
         if (parts.length > 0) {
-          keysList.value = parts.map(keyVal => ({
+          loadedKeys = parts.map(keyVal => ({
             id: Math.random().toString(36).substring(2, 9),
             title: '',
             value: keyVal,
@@ -1600,7 +1624,8 @@ async function fetchSettings() {
         }
       }
       
-      originalSerializedKeys.value = JSON.stringify(keysList.value.map(k => ({ title: k.title.trim(), value: k.value.trim() })))
+      keysList.value = loadedKeys
+      originalSerializedKeys.value = JSON.stringify(loadedKeys.map(k => ({ title: k.title.trim(), value: k.value.trim() })))
     }
   } catch (e) {
     console.error('Failed to fetch system settings', e)
