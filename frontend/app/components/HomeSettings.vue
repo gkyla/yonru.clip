@@ -775,7 +775,7 @@
                   
                   <div class="flex flex-col gap-1.5 mt-4 pt-3 border-t border-surface-border/40">
                     <a 
-                      href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/ccloeocionehidjhhicdjiijlkocoodm" 
+                      href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" 
                       target="_blank"
                       class="inline-flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] font-semibold text-slate-300 hover:text-white hover:border-accent-500/40 hover:bg-accent-500/5 transition-all"
                     >
