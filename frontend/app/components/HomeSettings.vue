@@ -322,23 +322,24 @@
           </div>
 
           <!-- API Key Setting -->
-          <div v-else-if="activeTab === 'api'" key="api" id="settings-api" class="scroll-mt-24 flex flex-col gap-5">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 class="text-lg font-bold text-white mb-1 flex items-center gap-2">
-                  <Icon name="ri:key-2-fill" class="text-accent-500" /> API Configuration
+          <div v-else-if="activeTab === 'api'" key="api" id="settings-api" class="scroll-mt-24 flex flex-col gap-6">
+            <div>
+              <div class="flex justify-between items-center mb-2">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                  <Icon name="ri:key-2-fill" class="text-accent-500" />
+                  <span>Gemini API Keys</span>
                 </h3>
-                <p class="text-xs text-slate-400">Configure fallback Gemini API keys to ensure high availability. The first valid key in the list is treated as the Primary key.</p>
-              </div>
 
-              <button 
-                v-if="keysList.length > 0"
-                @click="addKey"
-                class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-dark/80 hover:bg-surface-dark border border-surface-border hover:border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-medium transition-all shrink-0 cursor-pointer self-start sm:self-auto shadow-sm"
-              >
-                <Icon name="ri:add-line" class="text-accent-500 text-sm" />
-                Add Fallback Key
-              </button>
+                <button 
+                  v-if="keysList.length > 0"
+                  @click="addKey"
+                  class="flex items-center gap-1.5 px-3.5 py-1.5 bg-surface-dark hover:bg-surface-card border border-surface-border hover:border-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer shadow-sm"
+                >
+                  <Icon name="ri:add-line" class="text-accent-500 text-sm" />
+                  <span>Add Fallback Key</span>
+                </button>
+              </div>
+              <p class="text-sm text-slate-400">Configure fallback Gemini API keys to ensure high availability. The first valid key in the list is treated as the Primary key.</p>
             </div>
             
             <TransitionGroup name="list-keys" tag="div" class="flex flex-col gap-2.5 relative">
