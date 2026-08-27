@@ -106,7 +106,8 @@ export const useClipperThumbnail = () => {
       thumbnailEnabled.value = true
       showToast('Thumbnail captured!', 'success')
       await new Promise(resolve => setTimeout(resolve, 500))
-    } catch {
+    } catch (e) {
+      console.error('[thumbnail] Failed to capture thumbnail:', e)
       showToast('Failed to capture thumbnail', 'error')
     } finally {
       isCapturingThumbnail.value = false
