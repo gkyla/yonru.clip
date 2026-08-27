@@ -457,13 +457,19 @@ describe('HomeSettings Component', () => {
     expect(deletedCalled).toBe(true)
   })
 
-  it('renders YouTube Cookies unconfigured notice and 3-Step Bento Guide with direct links', async () => {
-    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url) => {
-      const urlStr = String(url)
-      if (urlStr.includes('/api/cookies-status')) {
-        return Promise.resolve({ exists: false, size_bytes: 0, last_modified: null })
-      }
-      return Promise.resolve({ settings: { GEMINI_API_KEY: '[]' } })
+  it('renders YouTube Cookies unconfigured notice and 3-Step Flow Guide with direct links', async () => {
+    mockSystemHealth.value = {
+      ffmpeg: { status: 'OK', path: '/opt/homebrew/bin/ffmpeg' },
+      node: { status: 'OK', path: '/opt/homebrew/bin/node' },
+      python_env: { status: 'OK', active: true },
+      gemini_api: { status: 'Configured', has_key: true },
+      cookies: { status: 'Missing', exists: false }
+    }
+
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
+      exists: false,
+      size_bytes: 0,
+      last_modified: null
     }))
 
     const wrapper = mount(HomeSettings, {
@@ -485,9 +491,9 @@ describe('HomeSettings Component', () => {
     expect(wrapper.text()).toContain('No cookies configured')
     expect(wrapper.text()).toContain('How to obtain cookies?')
     expect(wrapper.text()).toContain('Official yt-dlp Cookies Wiki')
-    expect(wrapper.text()).toContain('Install Browser Extension')
+    expect(wrapper.text()).toContain('Install Extension')
     expect(wrapper.text()).toContain('Sign In to YouTube')
-    expect(wrapper.text()).toContain('Export as Netscape & Drop File')
+    expect(wrapper.text()).toContain('Export Cookies')
     expect(wrapper.text()).toContain('Chrome / Edge / Brave')
     expect(wrapper.text()).toContain('Firefox')
     expect(wrapper.text()).toContain('Open youtube.com')

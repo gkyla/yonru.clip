@@ -742,11 +742,11 @@
               </div>
             </div>
 
-            <!-- Section 2: Bento Grid 3-Step Guide -->
+            <!-- Section 2: Unified Horizontal Flow Track Guide -->
             <div class="flex flex-col gap-3">
               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pl-0.5">
                 <div class="flex items-center gap-2">
-                  <Icon name="ri:compass-3-line" class="text-accent-500 text-sm" />
+                  <Icon name="ri:route-line" class="text-accent-500 text-sm" />
                   <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300">How to obtain cookies?</h4>
                 </div>
                 <a 
@@ -759,96 +759,111 @@
                 </a>
               </div>
               
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                <!-- Step 01 Bento Card -->
-                <div class="p-4 rounded-xl border border-surface-border bg-surface-dark/40 flex flex-col justify-between hover:border-slate-700 transition-colors">
-                  <div class="flex flex-col">
-                    <div class="flex items-center justify-between">
-                      <span class="w-6 h-6 rounded-lg bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center text-[11px] font-black">01</span>
-                      <Icon name="ri:puzzle-2-line" class="text-slate-500 text-base" />
+              <!-- Unified Horizontal Pipeline Track -->
+              <div class="rounded-xl border border-surface-border bg-surface-dark/40 overflow-hidden shadow-sm">
+                <div class="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-surface-border/60">
+                  <!-- Step 01 Segment -->
+                  <div class="p-4 sm:p-5 flex flex-col justify-between h-full relative group hover:bg-surface-dark/60 transition-colors">
+                    <div class="flex flex-col">
+                      <div class="flex items-center justify-between gap-2 min-h-6">
+                        <div class="flex items-center gap-2 min-w-0">
+                          <span class="w-5 h-5 rounded-md bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center text-[10px] font-black shrink-0">01</span>
+                          <h5 class="text-xs font-bold text-slate-200 truncate">Install Extension</h5>
+                        </div>
+                        <Icon name="ri:arrow-right-line" class="hidden lg:block text-slate-600 group-hover:text-accent-500/70 transition-colors text-xs shrink-0" />
+                      </div>
+                      <p class="text-[11px] leading-relaxed text-slate-400 mt-2 min-h-8">
+                        Install open-source browser extension <strong class="text-slate-300">"Get cookies.txt LOCALLY"</strong> to extract cookies:
+                      </p>
                     </div>
-                    <h5 class="text-xs font-bold text-slate-200 mt-3 mb-1">Install Browser Extension</h5>
-                    <p class="text-[11px] leading-relaxed text-slate-400">
-                      Install open-source <strong class="text-slate-300">"Get cookies.txt LOCALLY"</strong> to extract Netscape cookies:
-                    </p>
+                    
+                    <div class="flex flex-col gap-1.5 mt-4 pt-3 border-t border-surface-border/40">
+                      <a 
+                        href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" 
+                        target="_blank"
+                        class="inline-flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] font-semibold text-slate-300 hover:text-white hover:border-accent-500/40 hover:bg-accent-500/5 transition-all group/btn"
+                      >
+                        <span class="flex items-center gap-1.5">
+                          <Icon name="ri:chrome-fill" class="text-accent-500 text-xs shrink-0" />
+                          <span>Chrome / Edge / Brave</span>
+                        </span>
+                        <Icon name="ri:external-link-line" class="text-slate-500 group-hover/btn:text-slate-300 text-[10px] shrink-0" />
+                      </a>
+                      <a 
+                        href="https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/" 
+                        target="_blank"
+                        class="inline-flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] font-semibold text-slate-300 hover:text-white hover:border-accent-500/40 hover:bg-accent-500/5 transition-all group/btn"
+                      >
+                        <span class="flex items-center gap-1.5">
+                          <Icon name="ri:firefox-fill" class="text-accent-500 text-xs shrink-0" />
+                          <span>Firefox</span>
+                        </span>
+                        <Icon name="ri:external-link-line" class="text-slate-500 group-hover/btn:text-slate-300 text-[10px] shrink-0" />
+                      </a>
+                    </div>
                   </div>
-                  
-                  <div class="flex flex-col gap-1.5 mt-4 pt-3 border-t border-surface-border/40">
-                    <a 
-                      href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" 
-                      target="_blank"
-                      class="inline-flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] font-semibold text-slate-300 hover:text-white hover:border-accent-500/40 hover:bg-accent-500/5 transition-all"
-                    >
-                      <span class="flex items-center gap-1.5">
-                        <Icon name="ri:chrome-fill" class="text-accent-500 text-xs" /> Chrome / Edge / Brave
-                      </span>
-                      <Icon name="ri:external-link-line" class="text-slate-500 text-[10px]" />
-                    </a>
-                    <a 
-                      href="https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/" 
-                      target="_blank"
-                      class="inline-flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] font-semibold text-slate-300 hover:text-white hover:border-accent-500/40 hover:bg-accent-500/5 transition-all"
-                    >
-                      <span class="flex items-center gap-1.5">
-                        <Icon name="ri:firefox-fill" class="text-accent-500 text-xs" /> Firefox
-                      </span>
-                      <Icon name="ri:external-link-line" class="text-slate-500 text-[10px]" />
-                    </a>
-                  </div>
-                </div>
 
-                <!-- Step 02 Bento Card -->
-                <div class="p-4 rounded-xl border border-surface-border bg-surface-dark/40 flex flex-col justify-between hover:border-slate-700 transition-colors">
-                  <div class="flex flex-col">
-                    <div class="flex items-center justify-between">
-                      <span class="w-6 h-6 rounded-lg bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center text-[11px] font-black">02</span>
-                      <Icon name="ri:youtube-line" class="text-slate-500 text-base" />
+                  <!-- Step 02 Segment -->
+                  <div class="p-4 sm:p-5 flex flex-col justify-between h-full relative group hover:bg-surface-dark/60 transition-colors">
+                    <div class="flex flex-col">
+                      <div class="flex items-center justify-between gap-2 min-h-6">
+                        <div class="flex items-center gap-2 min-w-0">
+                          <span class="w-5 h-5 rounded-md bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center text-[10px] font-black shrink-0">02</span>
+                          <h5 class="text-xs font-bold text-slate-200 truncate">Sign In to YouTube</h5>
+                        </div>
+                        <Icon name="ri:arrow-right-line" class="hidden lg:block text-slate-600 group-hover:text-accent-500/70 transition-colors text-xs shrink-0" />
+                      </div>
+                      <p class="text-[11px] leading-relaxed text-slate-400 mt-2 min-h-8">
+                        Open YouTube in a new tab and ensure your Google account is logged in for a valid active session.
+                      </p>
                     </div>
-                    <h5 class="text-xs font-bold text-slate-200 mt-3 mb-1">Sign In to YouTube</h5>
-                    <p class="text-[11px] leading-relaxed text-slate-400">
-                      Open YouTube in a new tab and ensure your Google account is logged in for a valid active session.
-                    </p>
-                  </div>
-                  
-                  <div class="flex flex-col gap-1.5 mt-4 pt-3 border-t border-surface-border/40">
-                    <a 
-                      href="https://youtube.com" 
-                      target="_blank"
-                      class="inline-flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] font-semibold text-slate-300 hover:text-white hover:border-accent-500/40 hover:bg-accent-500/5 transition-all"
-                    >
-                      <span class="flex items-center gap-1.5">
-                        <Icon name="ri:youtube-fill" class="text-red-500 text-xs" /> Open youtube.com
-                      </span>
-                      <Icon name="ri:external-link-line" class="text-slate-500 text-[10px]" />
-                    </a>
-                    <div class="flex items-center gap-1 px-1 text-[10px] text-slate-500">
-                      <Icon name="ri:information-line" class="text-xs" />
-                      <span>Google Account required</span>
+                    
+                    <div class="flex flex-col gap-1.5 mt-4 pt-3 border-t border-surface-border/40">
+                      <a 
+                        href="https://youtube.com" 
+                        target="_blank"
+                        class="inline-flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] font-semibold text-slate-300 hover:text-white hover:border-accent-500/40 hover:bg-accent-500/5 transition-all group/btn"
+                      >
+                        <span class="flex items-center gap-1.5">
+                          <Icon name="ri:youtube-fill" class="text-red-500 text-xs shrink-0" />
+                          <span>Open youtube.com</span>
+                        </span>
+                        <Icon name="ri:external-link-line" class="text-slate-500 group-hover/btn:text-slate-300 text-[10px] shrink-0" />
+                      </a>
+                      <div class="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-slate-500">
+                        <Icon name="ri:information-line" class="text-xs text-accent-500 shrink-0" />
+                        <span>Google Account required</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <!-- Step 03 Bento Card -->
-                <div class="p-4 rounded-xl border border-surface-border bg-surface-dark/40 flex flex-col justify-between hover:border-slate-700 transition-colors">
-                  <div class="flex flex-col">
-                    <div class="flex items-center justify-between">
-                      <span class="w-6 h-6 rounded-lg bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center text-[11px] font-black">03</span>
-                      <Icon name="ri:file-download-line" class="text-slate-500 text-base" />
+                  <!-- Step 03 Segment -->
+                  <div class="p-4 sm:p-5 flex flex-col justify-between h-full relative group hover:bg-surface-dark/60 transition-colors">
+                    <div class="flex flex-col">
+                      <div class="flex items-center justify-between gap-2 min-h-6">
+                        <div class="flex items-center gap-2 min-w-0">
+                          <span class="w-5 h-5 rounded-md bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center text-[10px] font-black shrink-0">03</span>
+                          <h5 class="text-xs font-bold text-slate-200 truncate">Export Cookies </h5>
+                        </div>
+                        <Icon name="ri:check-double-line" class="text-emerald-500/70 text-xs shrink-0" />
+                      </div>
+                      <p class="text-[11px] leading-relaxed text-slate-400 mt-2 min-h-8">
+                        Open <strong class="text-slate-300">"Get cookies.txt LOCALLY"</strong> on YouTube, choose <strong class="text-slate-300">"Export as"</strong> with Netscape option, then drop file above.
+                      </p>
                     </div>
-                    <h5 class="text-xs font-bold text-slate-200 mt-3 mb-1">Export as Netscape & Drop File</h5>
-                    <p class="text-[11px] leading-relaxed text-slate-400">
-                      Click the extension <strong class="text-slate-300">"Get cookies.txt LOCALLY"</strong> icon on the YouTube tab, choose <strong class="text-slate-300">"Export as Netscape format"</strong>, and drop the file above.
-                    </p>
-                  </div>
-                  
-                  <div class="flex flex-col gap-1.5 mt-4 pt-3 border-t border-surface-border/40">
-                    <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] text-accent-400 font-mono">
-                      <Icon name="ri:file-text-line" class="text-xs shrink-0" />
-                      <span class="truncate">youtube.com_cookies.txt</span>
-                    </div>
-                    <div class="flex items-center gap-1 px-1 text-[10px] text-slate-500">
-                      <Icon name="ri:check-line" class="text-xs text-emerald-400" />
-                      <span>Netscape format (.txt)</span>
+                    
+                    <div class="flex flex-col gap-1.5 mt-4 pt-3 border-t border-surface-border/40">
+                      <div class="flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg bg-[#111318] border border-surface-border text-[11px] text-accent-400 font-mono">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                          <Icon name="ri:file-text-line" class="text-xs shrink-0 text-accent-500" />
+                          <span class="truncate">youtube.com_cookies.txt</span>
+                        </div>
+                        <span class="text-[9px] font-sans text-slate-500 uppercase tracking-wider font-semibold">Netscape</span>
+                      </div>
+                      <div class="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-emerald-400/90">
+                        <Icon name="ri:check-line" class="text-xs shrink-0 text-emerald-400" />
+                        <span>Drop exported .txt file above</span>
+                      </div>
                     </div>
                   </div>
                 </div>
