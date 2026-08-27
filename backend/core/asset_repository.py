@@ -169,7 +169,10 @@ class AssetRepository(AssetStore):
         return s[:50]
 
     def _run_ffmpeg(self, args: list) -> bool:
-        cmd = ["ffmpeg"] + args
+        clean_args = list(args)
+        if clean_args and clean_args[0] == "ffmpeg":
+            clean_args = clean_args[1:]
+        cmd = ["ffmpeg"] + clean_args
         print(f"[ffmpeg] Running: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, env=self._env, encoding="utf-8")
         if result.returncode != 0:
@@ -889,7 +892,7 @@ class AssetRepository(AssetStore):
             return False
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         cmd = [
-            "ffmpeg", "-y",
+            "-y",
             "-ss", str(timestamp),
             "-i", clip_path,
             "-vframes", "1",

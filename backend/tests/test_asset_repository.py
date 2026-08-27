@@ -310,5 +310,48 @@ class TestAssetRepository(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertEqual(fake_jobs["job1"]["status"], "cancelled")
 
+    def test_extract_clip_screenshot_ffmpeg_command_args(self):
+        clip_dir = os.path.join(self.output_dir, "clips", "test_folder", "1_10")
+        os.makedirs(clip_dir, exist_ok=True)
+        clip_path = os.path.join(clip_dir, "video.mp4")
+        output_path = os.path.join(clip_dir, "thumbnail.jpg")
+        with open(clip_path, "w") as f:
+            f.write("video data")
+
+        with patch.object(self.repo, '_run_ffmpeg') as mock_run_ffmpeg:
+            def side_effect(args):
+                with open(output_path, "w") as f:
+                    f.write("thumb data")
+                return True
+            mock_run_ffmpeg.side_effect = side_effect
+
+            success = self.repo.extract_clip_screenshot(clip_path, 3.5, output_path)
+            self.assertTrue(success)
+            self.assertTrue(os.path.exists(output_path))
+            
+            mock_run_ffmpeg.assert_called_once()
+            called_args = mock_run_ffmpeg.call_args[0][0]
+            self.assertNotEqual(called_args[0], "ffmpeg")
+            self.assertEqual(called_args, [
+                "-y",
+                "-ss", "3.5",
+                "-i", clip_path,
+                "-vframes", "1",
+                "-q:v", "2",
+                output_path
+            ])
+
+    @patch('subprocess.run')
+    def test_run_ffmpeg_strips_leading_ffmpeg_token(self, mock_subprocess):
+        mock_res = MagicMock()
+        mock_res.returncode = 0
+        mock_subprocess.return_value = mock_res
+
+        self.repo._run_ffmpeg(["ffmpeg", "-y", "-version"])
+        self.assertEqual(mock_subprocess.call_args[0][0], ["ffmpeg", "-y", "-version"])
+
+        self.repo._run_ffmpeg(["-y", "-version"])
+        self.assertEqual(mock_subprocess.call_args[0][0], ["ffmpeg", "-y", "-version"])
+
 
 
