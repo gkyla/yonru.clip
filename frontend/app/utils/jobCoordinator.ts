@@ -89,7 +89,7 @@ export const DEFAULT_SUBTITLE_STYLES: Partial<SubtitleStyleSettings> = {
   videoLayout: 'vertical',
   subtitlePosition: 'center',
   subtitleOffset: 50,
-  subtitleSyncOffset: -500,
+  subtitleSyncOffset: 150,
   font: 'Montserrat',
   fontSize: 50,
   cropMode: 'face_tracking',

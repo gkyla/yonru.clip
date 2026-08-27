@@ -122,7 +122,7 @@ function createClipperState() {
   const videoLayout = useState<'vertical' | 'landscape'>('videoLayout', () => 'vertical')
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
-  const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => -500) // Default -500ms offset
+  const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150) // Default 150ms offset
   const font = useState<string>('font', () => 'Montserrat')
   const fontSize = useState<number>('fontSize', () => 50)
   const faceTracking = useState<boolean>('faceTracking', () => false)

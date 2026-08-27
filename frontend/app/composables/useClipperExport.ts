@@ -38,7 +38,7 @@ export const useClipperExport = (deps: ExportDeps) => {
   const videoLayout = useState<string>('videoLayout', () => 'vertical')
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
-  const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => -500)
+  const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150)
   const font = useState<string>('font', () => 'Montserrat')
   const fontSize = useState<number>('fontSize', () => 100)
   const cropMode = useState<string>('cropMode', () => 'manual')

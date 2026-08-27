@@ -26,7 +26,7 @@ vi.mock('../../app/composables/useClipperState', () => ({
     useNativePlayer: { value: false },
     showIframeDebug: { value: false },
     subtitleOffset: { value: 50 },
-    subtitleSyncOffset: { value: -500 },
+    subtitleSyncOffset: { value: 150 },
     subtitlePosition: { value: 'center' },
     subtitleAnimation: { value: 'pop' },
     subtitleHighlightMode: { value: 'color' },
