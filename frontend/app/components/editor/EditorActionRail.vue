@@ -10,15 +10,15 @@
         @click="$emit('toggleTab', 'edit')"
         @mouseenter="showTooltip('edit', $event)"
         @mouseleave="hideTooltip"
-        class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md"
+        class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md group"
         style="border-radius: 10px;"
         :class="
           isPanelOpen && editorTab === 'edit'
-            ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]'
-            : 'bg-[#0e0e12]/90 border-white/10 text-slate-400 hover:text-white hover:border-white/30'
+            ? 'bg-white/15 text-white border-white/40 shadow-[0_0_14px_rgba(255,255,255,0.2)]'
+            : 'bg-[#0e0e12]/90 border-white/10 text-slate-300 hover:text-white hover:border-white/30 hover:bg-[#14141a]'
         "
       >
-        <Icon name="ri:edit-box-line" class="text-lg" />
+        <Icon name="ri:edit-box-line" class="text-lg transition-colors duration-200" />
       </button>
     </div>
 
@@ -28,15 +28,15 @@
         @click="$emit('toggleTab', 'thumbnail')"
         @mouseenter="showTooltip('thumbnail', $event)"
         @mouseleave="hideTooltip"
-        class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md"
+        class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md group"
         style="border-radius: 10px;"
         :class="
           isPanelOpen && editorTab === 'thumbnail'
-            ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]'
-            : 'bg-[#0e0e12]/90 border-white/10 text-slate-400 hover:text-white hover:border-white/30'
+            ? 'bg-white/15 text-white border-white/40 shadow-[0_0_14px_rgba(255,255,255,0.2)]'
+            : 'bg-[#0e0e12]/90 border-white/10 text-slate-300 hover:text-white hover:border-white/30 hover:bg-[#14141a]'
         "
       >
-        <Icon name="ri:image-line" class="text-lg" />
+        <Icon name="ri:image-line" class="text-lg transition-colors duration-200" />
       </button>
     </div>
 
@@ -46,15 +46,15 @@
         @click="$emit('toggleTab', 'quote')"
         @mouseenter="showTooltip('quote', $event)"
         @mouseleave="hideTooltip"
-        class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md"
+        class="w-9 h-9 flex items-center justify-center border transition-all duration-200 shadow-md group"
         style="border-radius: 10px;"
         :class="
           isPanelOpen && editorTab === 'quote'
-            ? 'bg-accent-500/20 text-accent-500 border-accent-500/40 shadow-[0_0_12px_rgba(207,255,80,0.25)]'
-            : 'bg-[#0e0e12]/90 border-white/10 text-slate-400 hover:text-white hover:border-white/30'
+            ? 'bg-white/15 text-white border-white/40 shadow-[0_0_14px_rgba(255,255,255,0.2)]'
+            : 'bg-[#0e0e12]/90 border-white/10 text-slate-300 hover:text-white hover:border-white/30 hover:bg-[#14141a]'
         "
       >
-        <Icon name="ri:double-quotes-l" class="text-lg" />
+        <Icon name="ri:double-quotes-l" class="text-lg transition-colors duration-200" />
       </button>
     </div>
 
