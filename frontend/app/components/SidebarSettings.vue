@@ -394,26 +394,100 @@
               <div class="grid grid-cols-2 gap-1.5 bg-surface-dark/60 border border-surface-border/80 rounded-xl p-1">
                 <button
                   @click="state.videoLayout ? (state.videoLayout.value = 'vertical') : null"
-                  class="py-2 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border"
+                  class="py-2.5 px-1.5 rounded-lg text-[9.5px] font-bold uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-1 border"
                   :class="(state.videoLayout?.value || 'vertical') === 'vertical'
                     ? 'border-accent-500 bg-accent-500/10 text-accent-500 shadow-sm font-black'
                     : 'border-transparent text-slate-400 hover:text-white hover:bg-surface-card/50'"
                 >
-                  <Icon name="ri:smartphone-line" class="text-xs shrink-0" />
-                  <span>Vertical (Crop)</span>
+                  <Icon name="ri:smartphone-line" class="text-base shrink-0" />
+                  <span class="whitespace-nowrap">Vertical (Crop)</span>
                 </button>
                 <button
                   @click="state.videoLayout ? (state.videoLayout.value = 'landscape') : null"
-                  class="py-2 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border"
+                  class="py-2.5 px-1.5 rounded-lg text-[9.5px] font-bold uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-1 border"
                   :class="state.videoLayout?.value === 'landscape'
                     ? 'border-accent-500 bg-accent-500/10 text-accent-500 shadow-sm font-black'
                     : 'border-transparent text-slate-400 hover:text-white hover:bg-surface-card/50'"
                 >
-                  <Icon name="ri:landscape-line" class="text-xs shrink-0" />
-                  <span>Landscape (Fit)</span>
+                  <Icon name="ri:landscape-line" class="text-base shrink-0" />
+                  <span class="whitespace-nowrap">Landscape (Fit)</span>
                 </button>
               </div>
             </div>
+
+            <!-- Crop Mode (Vertical Only) -->
+            <Transition
+              :css="false"
+              @enter="onCropEnter"
+              @after-enter="onCropAfterEnter"
+              @leave="onCropLeave"
+            >
+              <div v-if="(state.videoLayout?.value || 'vertical') === 'vertical'">
+                <hr class="border-surface-border/40 mb-4" />
+                <h2 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 flex items-center justify-between">
+                  <span>Crop Mode</span>
+                  <Icon name="ri:crop-line" class="text-slate-400" />
+                </h2>
+                
+                <div class="flex gap-2 mb-2">
+                  <button 
+                    @click="state.cropMode.value = 'manual'"
+                    class="flex-1 bg-surface-dark/50 border rounded-xl p-2 text-center text-xs font-bold transition-all flex flex-col items-center gap-1 hover:bg-surface-card"
+                    :class="state.cropMode.value === 'manual' 
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
+                      : 'border-surface-border text-slate-400 hover:border-accent-500 hover:text-white'"
+                  >
+                    <Icon name="ri:drag-move-2-line" class="text-base" />
+                    Manual Pan
+                  </button>
+                  <button 
+                    @click="state.cropMode.value = 'face_tracking'"
+                    class="flex-1 bg-surface-dark/50 border rounded-xl p-2 text-center text-xs font-bold transition-all flex flex-col items-center gap-1 hover:bg-surface-card"
+                    :class="state.cropMode.value === 'face_tracking' 
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
+                      : 'border-surface-border text-slate-400 hover:border-accent-500 hover:text-white'"
+                  >
+                    <Icon name="ri:body-scan-line" class="text-base" />
+                    Face Track
+                  </button>
+                </div>
+
+                <Transition
+                  :css="false"
+                  @enter="onSlideEnter"
+                  @after-enter="onSlideAfterEnter"
+                  @leave="onSlideLeave"
+                >
+                  <div v-if="state.cropMode.value === 'manual'" class="overflow-hidden">
+                    <div class="bg-surface-dark/50 border border-surface-border rounded-xl p-2 mt-2">
+                      <label class="text-[9px] text-slate-400 flex justify-between uppercase font-bold tracking-wider mb-1">
+                        <span>Horizontal Position</span>
+                        <span class="mono text-accent-500 font-bold">{{ Math.round(state.cropPercentX.value) }}%</span>
+                      </label>
+                      <input v-model.number="state.cropPercentX.value" type="range" min="0" max="100" step="1" class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer" />
+                      <div class="flex justify-between text-[8px] text-slate-500 mt-0.5 mono font-bold">
+                        <span>LEFT</span>
+                        <span>CENTER</span>
+                        <span>RIGHT</span>
+                      </div>
+                    </div>
+                  </div>
+                </Transition>
+                
+                <Transition
+                  :css="false"
+                  @enter="onFadeEnter"
+                  @leave="onFadeLeave"
+                >
+                  <div v-if="state.cropMode.value === 'face_tracking'" class="overflow-hidden">
+                    <p class="text-[9px] text-slate-400 mt-2 flex items-center gap-1.5">
+                      <Icon name="ri:sparkling-fill" class="text-accent-500 text-xs shrink-0" />
+                      <span>Pre-computed face tracking active. Drag canvas anytime to override.</span>
+                    </p>
+                  </div>
+                </Transition>
+              </div>
+            </Transition>
 
             <hr class="border-surface-border/40" />
 
@@ -514,56 +588,6 @@
                 </div>
                 <input v-model.number="state.subtitleBackgroundOpacity.value" type="range" min="0" max="1" step="0.05" class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer" />
               </div>
-            </div>
-
-            <!-- Crop Mode (Vertical Only) -->
-            <div v-if="(state.videoLayout?.value || 'vertical') === 'vertical'">
-              <hr class="border-surface-border/40 mb-4" />
-              <h2 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 flex items-center justify-between">
-                <span>Crop Mode</span>
-                <Icon name="ri:crop-line" class="text-slate-400" />
-              </h2>
-              
-              <div class="flex gap-2 mb-2">
-                <button 
-                  @click="state.cropMode.value = 'manual'"
-                  class="flex-1 bg-surface-dark/50 border rounded-xl p-2 text-center text-xs font-bold transition-all flex flex-col items-center gap-1 hover:bg-surface-card"
-                  :class="state.cropMode.value === 'manual' 
-                    ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
-                    : 'border-surface-border text-slate-400 hover:border-accent-500 hover:text-white'"
-                >
-                  <Icon name="ri:drag-move-2-line" class="text-base" />
-                  Manual Pan
-                </button>
-                <button 
-                  @click="state.cropMode.value = 'face_tracking'"
-                  class="flex-1 bg-surface-dark/50 border rounded-xl p-2 text-center text-xs font-bold transition-all flex flex-col items-center gap-1 hover:bg-surface-card"
-                  :class="state.cropMode.value === 'face_tracking' 
-                    ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
-                    : 'border-surface-border text-slate-400 hover:border-accent-500 hover:text-white'"
-                >
-                  <Icon name="ri:body-scan-line" class="text-base" />
-                  Face Track
-                </button>
-              </div>
-
-              <div v-if="state.cropMode.value === 'manual'" class="bg-surface-dark/50 border border-surface-border rounded-xl p-2">
-                <label class="text-[9px] text-slate-400 flex justify-between uppercase font-bold tracking-wider mb-1">
-                  <span>Horizontal Position</span>
-                  <span class="mono text-accent-500 font-bold">{{ Math.round(state.cropPercentX.value) }}%</span>
-                </label>
-                <input v-model.number="state.cropPercentX.value" type="range" min="0" max="100" step="1" class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer" />
-                <div class="flex justify-between text-[8px] text-slate-500 mt-0.5 mono font-bold">
-                  <span>LEFT</span>
-                  <span>CENTER</span>
-                  <span>RIGHT</span>
-                </div>
-              </div>
-              
-              <p v-if="state.cropMode.value === 'face_tracking'" class="text-[9px] text-slate-400 mt-1.5 flex items-center gap-1.5">
-                <Icon name="ri:sparkling-fill" class="text-accent-500 text-xs shrink-0" />
-                <span>Pre-computed face tracking active. Drag canvas anytime to override.</span>
-              </p>
             </div>
           </div>
         </Transition>
@@ -764,6 +788,163 @@ onUnmounted(() => {
   document.removeEventListener('mousemove', handleResize)
   document.removeEventListener('mouseup', stopResize)
 })
+
+function onCropEnter(el, done) {
+  el.style.height = '0px'
+  el.style.opacity = '0'
+  el.style.overflow = 'hidden'
+  el.style.marginTop = '0px'
+  void el.offsetHeight // trigger reflow
+
+  const targetHeight = el.scrollHeight
+  el.style.transition = 'height 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.25s ease-out, margin-top 0.3s cubic-bezier(0.32, 0.72, 0, 1)'
+  el.style.height = `${targetHeight}px`
+  el.style.opacity = '1'
+  el.style.marginTop = ''
+
+  let finished = false
+  const handleEnd = (e) => {
+    if (e && e.target !== el) return
+    if (!finished) {
+      finished = true
+      el.removeEventListener('transitionend', handleEnd)
+      done()
+    }
+  }
+  el.addEventListener('transitionend', handleEnd)
+  setTimeout(() => handleEnd(), 350)
+}
+
+function onCropAfterEnter(el) {
+  el.style.height = ''
+  el.style.opacity = ''
+  el.style.overflow = ''
+  el.style.marginTop = ''
+  el.style.transition = ''
+}
+
+function onCropLeave(el, done) {
+  el.style.height = `${el.offsetHeight}px`
+  el.style.opacity = '1'
+  el.style.overflow = 'hidden'
+  void el.offsetHeight // trigger reflow
+
+  el.style.transition = 'height 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease-in, margin-top 0.28s cubic-bezier(0.32, 0.72, 0, 1)'
+  el.style.height = '0px'
+  el.style.opacity = '0'
+  el.style.marginTop = '0px'
+
+  let finished = false
+  const handleEnd = (e) => {
+    if (e && e.target !== el) return
+    if (!finished) {
+      finished = true
+      el.removeEventListener('transitionend', handleEnd)
+      done()
+    }
+  }
+  el.addEventListener('transitionend', handleEnd)
+  setTimeout(() => handleEnd(), 330)
+}
+
+function onSlideEnter(el, done) {
+  el.style.height = '0px'
+  el.style.opacity = '0'
+  el.style.overflow = 'hidden'
+  void el.offsetHeight // trigger reflow
+
+  const targetHeight = el.scrollHeight
+  el.style.transition = 'height 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.25s ease-out'
+  el.style.height = `${targetHeight}px`
+  el.style.opacity = '1'
+
+  let finished = false
+  const handleEnd = (e) => {
+    if (e && e.target !== el) return
+    if (!finished) {
+      finished = true
+      el.removeEventListener('transitionend', handleEnd)
+      done()
+    }
+  }
+  el.addEventListener('transitionend', handleEnd)
+  setTimeout(() => handleEnd(), 350)
+}
+
+function onSlideAfterEnter(el) {
+  el.style.height = ''
+  el.style.opacity = ''
+  el.style.overflow = ''
+  el.style.transition = ''
+}
+
+function onSlideLeave(el, done) {
+  el.style.height = `${el.offsetHeight}px`
+  el.style.opacity = '1'
+  el.style.overflow = 'hidden'
+  void el.offsetHeight // trigger reflow
+
+  el.style.transition = 'height 0.25s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease-in'
+  el.style.height = '0px'
+  el.style.opacity = '0'
+
+  let finished = false
+  const handleEnd = (e) => {
+    if (e && e.target !== el) return
+    if (!finished) {
+      finished = true
+      el.removeEventListener('transitionend', handleEnd)
+      done()
+    }
+  }
+  el.addEventListener('transitionend', handleEnd)
+  setTimeout(() => handleEnd(), 300)
+}
+
+function onFadeEnter(el, done) {
+  el.style.height = '0px'
+  el.style.opacity = '0'
+  el.style.overflow = 'hidden'
+  void el.offsetHeight
+
+  const targetHeight = el.scrollHeight
+  el.style.transition = 'height 0.25s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease-out'
+  el.style.height = `${targetHeight}px`
+  el.style.opacity = '1'
+
+  let finished = false
+  const handleEnd = () => {
+    if (!finished) {
+      finished = true
+      el.removeEventListener('transitionend', handleEnd)
+      done()
+    }
+  }
+  el.addEventListener('transitionend', handleEnd)
+  setTimeout(handleEnd, 300)
+}
+
+function onFadeLeave(el, done) {
+  el.style.height = `${el.offsetHeight}px`
+  el.style.opacity = '1'
+  el.style.overflow = 'hidden'
+  void el.offsetHeight
+
+  el.style.transition = 'height 0.2s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.15s ease-in'
+  el.style.height = '0px'
+  el.style.opacity = '0'
+
+  let finished = false
+  const handleEnd = () => {
+    if (!finished) {
+      finished = true
+      el.removeEventListener('transitionend', handleEnd)
+      done()
+    }
+  }
+  el.addEventListener('transitionend', handleEnd)
+  setTimeout(handleEnd, 250)
+}
 
 function prepareRender() {
   if (state.activeHook.value) {
