@@ -7,6 +7,7 @@ npm run test || exit 1
 # 2. Backend Checks
 cd ../backend
 echo "Running pre-commit Python Pyright checks..."
+export PYRIGHT_PYTHON_FORCE_SYSTEM_NODE=1
 if [ -f "venv/Scripts/pyright.exe" ] || [ -f "venv/Scripts/pyright" ]; then
     venv/Scripts/pyright -p . || exit 1
 elif [ -f "venv/bin/pyright" ]; then

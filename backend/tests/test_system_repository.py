@@ -258,3 +258,106 @@ def test_system_repository_validate_binary_path(temp_workspace):
     assert no_bin_res["valid"] is False
     assert "no 'node' or 'node.exe' executable was found" in no_bin_res["message"]
 
+
+def test_system_repository_detect_hardware_profile_real(temp_workspace):
+    """Test detect_hardware_profile on real host system."""
+    temp_dir, cookies_file = temp_workspace
+    config_store = InMemoryConfigStore()
+    repo = SystemRepository(config_store=config_store, cookies_path=cookies_file)
+
+    profile = repo.detect_hardware_profile()
+    assert "cpu" in profile
+    assert "memory" in profile
+    assert "gpu" in profile
+    assert "recommended_model" in profile
+    assert profile["recommended_model"] in ["tiny", "base", "small", "medium", "large-v3"]
+    assert "recommendation_reason" in profile
+    assert "top_intents" in profile
+    assert "fastest" in profile["top_intents"]
+    assert "balanced" in profile["top_intents"]
+    assert "accurate" in profile["top_intents"]
+    assert "model_estimates" in profile
+    assert "model_capacities" in profile
+    for m in ["tiny", "base", "small", "medium", "large-v3"]:
+        assert m in profile["model_capacities"]
+        assert profile["model_capacities"][m]["status"] in ["optimal", "supported", "heavy"]
+        assert m in profile["model_estimates"]
+        assert "estimated_seconds" in profile["model_estimates"][m]
+        assert "display_text" in profile["model_estimates"][m]
+
+
+def test_system_repository_detect_hardware_profile_apple_silicon():
+    """Test recommendation heuristics for Apple Silicon 16GB."""
+    config_store = InMemoryConfigStore()
+    repo = SystemRepository(config_store=config_store)
+
+    def mock_subprocess_run(cmd, **kwargs):
+        res = MagicMock()
+        res.returncode = 0
+        if "machdep.cpu.brand_string" in cmd:
+            res.stdout = "Apple M2\n"
+        elif "hw.memsize" in cmd:
+            res.stdout = "17179869184\n"
+        else:
+            res.stdout = ""
+        return res
+
+    with patch("platform.system", return_value="Darwin"), \
+         patch("platform.machine", return_value="arm64"), \
+         patch("platform.processor", return_value="Apple M2"), \
+         patch("os.cpu_count", return_value=8), \
+         patch("subprocess.run", side_effect=mock_subprocess_run):
+
+        profile = repo.detect_hardware_profile()
+        assert profile["gpu"]["type"] == "apple_silicon"
+        assert profile["memory"]["total_gb"] == 16.0
+        assert profile["recommended_model"] == "small"
+        assert profile["model_capacities"]["small"]["status"] == "optimal"
+
+
+def test_system_repository_detect_hardware_profile_low_spec_cpu():
+    """Test recommendation heuristics for low-spec machine (< 8GB RAM)."""
+    config_store = InMemoryConfigStore()
+    repo = SystemRepository(config_store=config_store)
+
+    with patch("platform.system", return_value="Linux"), \
+         patch("platform.machine", return_value="x86_64"), \
+         patch("os.cpu_count", return_value=2), \
+         patch("shutil.which", return_value=None), \
+         patch.object(os, "sysconf", side_effect=[4096, 1048576]): # 4GB RAM
+        
+        profile = repo.detect_hardware_profile()
+        assert profile["gpu"]["type"] == "cpu"
+        assert profile["recommended_model"] == "tiny"
+        assert profile["model_capacities"]["medium"]["status"] == "heavy"
+        assert profile["model_capacities"]["large-v3"]["status"] == "heavy"
+
+
+def test_system_repository_detect_hardware_profile_nvidia_gpu():
+    """Test recommendation heuristics for NVIDIA GPU with 6GB VRAM."""
+    config_store = InMemoryConfigStore()
+    repo = SystemRepository(config_store=config_store)
+
+    def mock_subprocess_run(cmd, **kwargs):
+        res = MagicMock()
+        res.returncode = 0
+        if any("nvidia-smi" in str(c) for c in cmd):
+            res.stdout = "NVIDIA GeForce RTX 3060, 6144\n"
+        else:
+            res.stdout = ""
+        return res
+
+    with patch("platform.system", return_value="Linux"), \
+         patch("platform.machine", return_value="x86_64"), \
+         patch("os.cpu_count", return_value=12), \
+         patch.object(os, "sysconf", side_effect=[4096, 4194304]), \
+         patch("shutil.which", return_value="/usr/bin/nvidia-smi"), \
+         patch("subprocess.run", side_effect=mock_subprocess_run):
+
+        profile = repo.detect_hardware_profile()
+        assert profile["gpu"]["type"] == "cuda"
+        assert profile["gpu"]["name"] == "NVIDIA GeForce RTX 3060"
+        assert profile["gpu"]["vram_gb"] == 6.0
+        assert profile["recommended_model"] == "medium"
+        assert profile["model_capacities"]["medium"]["status"] == "optimal"
+
