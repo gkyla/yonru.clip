@@ -27,6 +27,8 @@ Previous approaches considered:
    Users maintain full agency to select any Whisper model according to their specific accuracy and latency tolerance.
 5. **Memory-Safety Guardrails**:
    Presets that exceed the physical capacity of the detected system are marked with proactive safety warnings (`May be slow on your PC`) to prevent resource exhaustion and application stalls during clip rendering.
+6. **Cross-Surface Metric Visibility in Unified Analyzer**:
+   To ensure creators have continuous awareness of the compute trade-off prior to triggering video analysis without causing toolbar crowdedness, the **Active Transcriber Interactive Pill** on the Unified Analyzer panel displays the active model in a compact duration format with a semantic microphone icon (e.g., `🎙️ BASE (~6s/60s) ›`). The pill unifies model status and direct navigation to transcription settings while exposing a streamlined hover tooltip displaying model description matching `/settings` Whisper Engine, benchmark time estimate, accuracy, and a quick settings shortcut (keeping deep hardware diagnostics and capacity warnings encapsulated within `/settings`).
 
 ## Consequences
 

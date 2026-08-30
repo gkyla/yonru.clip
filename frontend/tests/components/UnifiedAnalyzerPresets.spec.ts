@@ -19,6 +19,7 @@ const mockState = {
   maxDuration: ref(180),
   whisperModel: ref('base'),
   language: ref('auto'),
+  hardwareProfile: ref<any>(null),
   whisperModels: [
     { id: 'base', name: 'Base', speed: 'Very Fast', acc: 'Good', desc: 'Default choice.' }
   ],
@@ -117,6 +118,7 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
     mockState.focusTopic.value = ''
     mockState.minDuration.value = 30
     mockState.maxDuration.value = 180
+    mockState.hardwareProfile.value = null
   })
 
   it('renders active preset in chip and opens dropdown with all 5 smart intent presets', async () => {
@@ -362,5 +364,77 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
     await pasteBtn.trigger('click')
     await wrapper.vm.$nextTick()
     expect(mockState.youtubeUrl.value).toBe('https://youtube.com/watch?v=pasted123')
+  })
+
+  it('renders Active Transcriber Metadata Badge without duration when hardware profile is unscanned', () => {
+    mockState.whisperModel.value = 'base'
+    mockState.hardwareProfile.value = null
+    const wrapper = mount(UnifiedAnalyzerPanel, {
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          Icon: { template: '<span class="icon-stub" :data-icon="$attrs.name"></span>' },
+          NuxtLink: { template: '<a><slot /></a>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('BASE')
+    expect(wrapper.text()).not.toContain('(~6s/60s)')
+  })
+
+  it('renders Active Transcriber Metadata Badge with normalized time estimate when hardware profile is detected', () => {
+    mockState.whisperModel.value = 'base'
+    mockState.hardwareProfile.value = {
+      cpu: { brand: 'Apple M3', arch: 'arm64', cores: 8, os: 'Darwin' },
+      memory: { total_gb: 16.0 },
+      gpu: { type: 'apple_silicon', name: 'Apple M3 (Unified Memory)', vram_gb: 16.0 },
+      model_estimates: {
+        base: { estimated_seconds: 6, display_text: '~6s / 60s clip' }
+      },
+      model_capacities: {
+        base: { status: 'supported' }
+      }
+    }
+
+    const wrapper = mount(UnifiedAnalyzerPanel, {
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          Icon: { template: '<span class="icon-stub" :data-icon="$attrs.name"></span>' },
+          NuxtLink: { template: '<a><slot /></a>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('BASE')
+    expect(wrapper.text()).toContain('(~6s/60s)')
+    expect(wrapper.text()).toContain('Whisper Base')
+    expect(wrapper.text()).toContain('Transcriber')
+    expect(wrapper.text()).toContain('Default choice.') // from model.desc
+    expect(wrapper.text()).toContain('~6s / 60s clip') // verified in tooltip estimate chip
+    expect(wrapper.text()).not.toContain('Apple Silicon')
+    expect(wrapper.text()).toContain('Click to change settings')
+  })
+
+  it('navigates to settings whisper section when transcriber interactive pill is clicked', async () => {
+    mockState.whisperModel.value = 'base'
+    const wrapper = mount(UnifiedAnalyzerPanel, {
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          Icon: { template: '<span class="icon-stub" :data-icon="$attrs.name"></span>' },
+          NuxtLink: { template: '<a><slot /></a>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    })
+
+    const pillButton = wrapper.find('button[aria-label="Speech Transcriber settings and model information"]')
+    expect(pillButton.exists()).toBe(true)
+    await pillButton.trigger('click')
+    expect(mockState.settingsScrollTarget.value).toBe('settings-whisper')
   })
 })
