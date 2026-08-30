@@ -645,10 +645,12 @@ function createClipperState() {
     deepAuditResults: auditor.deepAuditResults, isDeepAuditing: auditor.isDeepAuditing,
     bleepMode: auditor.bleepMode,
     systemHealth: diagnostics.systemHealth, checkingHealth: diagnostics.checkingHealth, isAnyPrerequisiteMissing: diagnostics.isAnyPrerequisiteMissing, settingsScrollTarget: diagnostics.settingsScrollTarget,
+    hardwareProfile: diagnostics.hardwareProfile, detectingHardware: diagnostics.detectingHardware,
     // Actions
     seekTo,
     analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling, stopPolling,
     checkSystemHealth: diagnostics.checkSystemHealth,
+    detectHardwareProfile: diagnostics.detectHardwareProfile,
     formatDuration, fetchPrompts, editPrompt, deletePrompt, fetchSavedHooks, saveHook, deleteSavedHook,
     saveTranscript, saveStyleSettings, saveDefaultStyleSettings, updateHooks,
     runDeepAudit: auditor.runDeepAudit, maskFlaggedWords,

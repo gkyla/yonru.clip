@@ -8,6 +8,10 @@ import { useRouter, useRoute } from '#imports'
 // Mock useClipperState
 const mockSettingsScrollTarget = ref<string | null>(null)
 const mockSystemHealth = ref<any>({})
+const mockHardwareProfile = ref<any>(null)
+const mockDetectingHardware = ref(false)
+const mockDetectHardwareProfile = vi.fn()
+const mockWhisperModel = ref('base')
 
 vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => ({
@@ -15,7 +19,10 @@ vi.mock('../../app/composables/useClipperState', () => ({
     checkingHealth: ref(false),
     isAnyPrerequisiteMissing: ref(false),
     settingsScrollTarget: mockSettingsScrollTarget,
-    whisperModel: ref('base'),
+    hardwareProfile: mockHardwareProfile,
+    detectingHardware: mockDetectingHardware,
+    detectHardwareProfile: mockDetectHardwareProfile,
+    whisperModel: mockWhisperModel,
     language: ref('auto'),
     whisperModels: [
       { id: 'tiny', name: 'Tiny', speed: 'Ultra Fast', acc: 'Basic', desc: 'Minimal accuracy, best for quick testing on weak hardware.' },
@@ -669,6 +676,141 @@ describe('HomeSettings Component', () => {
     expect(vm.keysList.length).toBe(1)
     expect(vm.keysList[0].title).toBe('Real Key')
     expect(vm.keysList[0].value).toBe('AIzaSyValidToken123456789')
+  })
+
+  it('renders hardware capability assistant card on Whisper tab in unscanned state', async () => {
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.switchTab('whisper')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Transcription Engine (Whisper)')
+    expect(wrapper.text()).toContain('Calculate estimated transcription speed')
+    expect(wrapper.text()).toContain('Calculate Speed')
+  })
+
+  it('triggers detectHardwareProfile on button click and renders Bento specs with recommendation and top-3 intent tiers', async () => {
+    const fakeProfile = {
+      cpu: { brand: 'Apple M3', arch: 'arm64', cores: 8, os: 'Darwin' },
+      memory: { total_gb: 16.0 },
+      gpu: { type: 'apple_silicon', name: 'Apple M3 (Unified Memory)', vram_gb: 16.0 },
+      recommended_model: 'small',
+      recommendation_reason: 'Optimal balance for 16GB RAM.',
+      top_intents: {
+        fastest: { model: 'tiny', label: 'Fastest Draft', tag: 'Fastest', estimated_seconds: 3, display_time: '~3s / 60s clip', desc: 'Ultra-fast preview' },
+        balanced: { model: 'small', label: 'Sweet Spot', tag: 'Balanced', estimated_seconds: 16, display_time: '~16s / 60s clip', desc: 'Best balance' },
+        accurate: { model: 'medium', label: 'Best Accuracy', tag: 'Accurate', estimated_seconds: 39, display_time: '~39s / 60s clip', desc: 'High precision' }
+      },
+      model_estimates: {
+        tiny: { estimated_seconds: 3, display_text: '~3s / 60s clip' },
+        base: { estimated_seconds: 6, display_text: '~6s / 60s clip' },
+        small: { estimated_seconds: 16, display_text: '~16s / 60s clip' },
+        medium: { estimated_seconds: 39, display_text: '~39s / 60s clip' },
+        'large-v3': { estimated_seconds: 84, display_text: '~84s / 60s clip' }
+      },
+      model_capacities: {
+        tiny: { status: 'supported' },
+        base: { status: 'supported' },
+        small: { status: 'optimal' },
+        medium: { status: 'supported' },
+        'large-v3': { status: 'heavy', warning: 'Requires ~10 GB free memory.' }
+      }
+    }
+    mockDetectHardwareProfile.mockImplementation(async () => {
+      mockHardwareProfile.value = fakeProfile
+      return fakeProfile
+    })
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.switchTab('whisper')
+    await flushPromises()
+
+    const detectBtn = wrapper.findAll('button').find(b => b.text().includes('Calculate Speed'))
+    expect(detectBtn).toBeDefined()
+    await detectBtn!.trigger('click')
+    await flushPromises()
+
+    expect(mockDetectHardwareProfile).toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Apple M3')
+    expect(wrapper.text()).toContain('16 GB RAM')
+    expect(wrapper.text()).toContain('Re-scan')
+    expect(wrapper.text()).toContain('Tiny')
+    expect(wrapper.text()).toContain('Base')
+    expect(wrapper.text()).toContain('Small')
+    expect(wrapper.text()).toContain('Medium')
+    expect(wrapper.text()).toContain('Large-v3')
+    expect(wrapper.text()).toContain('~3s / 60s clip')
+    expect(wrapper.text()).toContain('~16s / 60s clip')
+    expect(wrapper.text()).toContain('~39s / 60s clip')
+
+    // Click tiny model card to select tiny
+    const tinyCard = wrapper.findAll('button').find(b => b.text().includes('Tiny'))
+    expect(tinyCard).toBeDefined()
+    await tinyCard!.trigger('click')
+    await flushPromises()
+
+    expect(mockWhisperModel.value).toBe('tiny')
+
+    // Click medium model card to select medium
+    const mediumCard = wrapper.findAll('button').find(b => b.text().includes('Medium'))
+    expect(mediumCard).toBeDefined()
+    await mediumCard!.trigger('click')
+    await flushPromises()
+
+    expect(mockWhisperModel.value).toBe('medium')
+  })
+
+  it('displays warning badge on heavy model cards', async () => {
+    mockHardwareProfile.value = {
+      cpu: { brand: 'Intel Core i3', arch: 'x86_64', cores: 2, os: 'Linux' },
+      memory: { total_gb: 4.0 },
+      gpu: { type: 'cpu', name: 'Standard CPU', vram_gb: null },
+      recommended_model: 'tiny',
+      recommendation_reason: 'System has 4GB RAM.',
+      model_capacities: {
+        tiny: { status: 'optimal' },
+        base: { status: 'supported' },
+        small: { status: 'heavy', warning: 'May cause delays on low-RAM systems.' },
+        medium: { status: 'heavy', warning: 'Requires ~5 GB free memory; may be slow or cause lag on your PC.' },
+        'large-v3': { status: 'heavy', warning: 'Requires ~10 GB free memory; likely slow on standard systems.' }
+      }
+    }
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.switchTab('whisper')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Requires ~5 GB free memory; may be slow or cause lag on your PC.')
+    expect(wrapper.text()).toContain('Requires ~10 GB free memory; likely slow on standard systems.')
   })
 })
 

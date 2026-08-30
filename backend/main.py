@@ -666,6 +666,11 @@ async def system_health():
     """Perform a diagnostic check on system dependencies."""
     return system_repository.check_system_health()
 
+@app.get("/api/system/hardware-profile")
+async def hardware_profile():
+    """Detect host machine hardware specs and recommend optimal Whisper transcription model."""
+    return system_repository.detect_hardware_profile()
+
 # --- Thumbnail Endpoints ---
 
 @app.post("/api/thumbnail/screenshot")

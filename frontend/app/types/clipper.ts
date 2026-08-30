@@ -177,6 +177,53 @@ export interface WhisperModelOption {
   desc: string
 }
 
+export interface HardwareModelCapacity {
+  status: 'optimal' | 'supported' | 'heavy'
+  warning?: string | null
+}
+
+export interface HardwareModelEstimate {
+  estimated_seconds: number
+  display_text: string
+}
+
+export interface HardwareIntentTier {
+  model: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3'
+  label: string
+  tag: string
+  estimated_seconds: number
+  display_time: string
+  desc: string
+}
+
+export interface HardwareTopIntents {
+  fastest: HardwareIntentTier
+  balanced: HardwareIntentTier
+  accurate: HardwareIntentTier
+}
+
+export interface HardwareProfile {
+  cpu: {
+    brand: string
+    arch: string
+    cores: number
+    os: string
+  }
+  memory: {
+    total_gb: number
+  }
+  gpu: {
+    type: 'apple_silicon' | 'cuda' | 'cpu'
+    name: string
+    vram_gb?: number | null
+  }
+  recommended_model: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3'
+  recommendation_reason: string
+  top_intents?: HardwareTopIntents
+  model_estimates?: Record<'tiny' | 'base' | 'small' | 'medium' | 'large-v3', HardwareModelEstimate>
+  model_capacities: Record<'tiny' | 'base' | 'small' | 'medium' | 'large-v3', HardwareModelCapacity>
+}
+
 export interface ReadyClip {
   folder_name: string
   clip_id: string

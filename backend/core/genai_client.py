@@ -108,7 +108,7 @@ class GeminiGenAIClient(GenAIClient):
     # Class-level state to track key degradation: key_string -> { "degraded_until": float, "permanent": bool }
     _degradation_cache = {}
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: Optional[str] = None):
         self.api_keys = []
         self.key_titles = {}
 

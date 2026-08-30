@@ -344,35 +344,79 @@
 
         <!-- Right: Whisper Model Status & Settings Shortcut -->
         <div class="flex items-center gap-1.5 shrink-0 justify-end">
-          <!-- Active Transcriber Metadata Badge -->
-          <div class="group relative cursor-help flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 font-mono text-[10px] font-bold tracking-wider uppercase hover:border-slate-600 transition-colors">
-            <span class="w-1.5 h-1.5 rounded-full bg-accent-500"></span>
-            <span>WHISPER: {{ state?.whisperModel?.value || 'BASE' }}</span>
+          <!-- Active Transcriber Interactive Pill Wrapper -->
+          <div class="relative group">
+            <button
+              type="button"
+              @click="state.settingsScrollTarget.value = 'settings-whisper'; navigateTo('/settings')"
+              :disabled="isProcessing"
+              aria-label="Speech Transcriber settings and model information"
+              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 text-[10px] font-bold tracking-wider uppercase hover:border-accent-500/50 hover:text-white hover:shadow-[0_0_12px_rgba(207,255,80,0.1)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Icon name="ri:mic-line" class="text-xs text-accent-500 shrink-0 group-hover:scale-110 transition-transform" />
+              <span>{{ (state?.whisperModel?.value || 'BASE').toUpperCase() }}</span>
+              <span v-if="activeWhisperEstimate" class="text-accent-400 font-bold">
+                (~{{ activeWhisperEstimate.estimated_seconds }}s/60s)
+              </span>
+              <span v-else class="text-slate-500 font-normal font-mono">
+                (?/60s)
+              </span>
+              <Icon name="ri:arrow-right-s-line" class="text-slate-500 text-xs shrink-0 group-hover:text-accent-400 group-hover:translate-x-0.5 transition-all" />
+            </button>
 
-            <!-- Transcription Model Tooltip Card -->
-            <div class="absolute bottom-full right-0 mb-2 w-72 bg-[#0f1117] border border-accent-500/50 rounded-xl p-3.5 shadow-[0_0_20px_rgba(207,255,80,0.15)] opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-y-2 group-hover:translate-y-0 z-50 text-left pointer-events-none">
-              <div class="flex justify-between items-start mb-1.5">
-                <span class="font-black uppercase tracking-widest text-xs text-accent-500">{{ activeWhisperMetadata.name }}</span>
-                <Icon name="ri:checkbox-circle-fill" class="text-accent-500 text-sm shrink-0" />
+            <!-- Transcription Model Tooltip Card (seamless hover bridge via pb-2.5) -->
+            <div class="absolute bottom-full right-0 pb-2.5 w-72 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 translate-y-2 group-hover:translate-y-0 z-50">
+              <div 
+                @click="state.settingsScrollTarget.value = 'settings-whisper'; navigateTo('/settings')"
+                class="bg-[#0f1117] border border-accent-500/40 rounded-xl p-3.5 shadow-[0_0_24px_rgba(0,0,0,0.8),0_0_15px_rgba(207,255,80,0.12)] text-left cursor-pointer hover:border-accent-500/70 transition-all relative"
+              >
+                <!-- Compact Header: Role + Model Name -->
+                <div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-surface-border/60">
+                  <div class="flex items-center gap-1.5 text-xs font-bold text-white">
+                    <Icon name="ri:mic-fill" class="text-accent-500 text-sm" />
+                    <span>Whisper {{ activeWhisperMetadata.name }}</span>
+                  </div>
+                  <span class="text-[9px] text-slate-500 font-mono uppercase tracking-wider">
+                    Transcriber
+                  </span>
+                </div>
+
+                <!-- Clean Description matching /settings -->
+                <p class="text-[11px] leading-relaxed text-slate-300 mb-2.5">
+                  {{ activeWhisperMetadata.desc }}
+                </p>
+
+                <!-- Metric Chips: Estimated Duration & Accuracy -->
+                <div class="flex items-center gap-1.5 mb-2.5 flex-wrap">
+                  <span 
+                    v-if="activeWhisperEstimate" 
+                    class="text-[9px] px-2 py-0.5 rounded-md bg-surface-dark border border-accent-500/30 text-accent-400 font-mono font-bold flex items-center gap-1"
+                  >
+                    <Icon name="ri:timer-line" class="text-[10px]" />
+                    {{ activeWhisperEstimate.display_text }}
+                  </span>
+                  <span v-else class="text-[9px] px-2 py-0.5 rounded-md bg-surface-dark border border-surface-border text-slate-400 font-bold flex items-center gap-1">
+                    <Icon name="ri:timer-line" class="text-[10px] text-slate-500" />
+                    Not benchmarked
+                  </span>
+                  <span class="text-[9px] px-2 py-0.5 rounded-md bg-surface-dark border border-surface-border text-slate-300 font-bold uppercase tracking-tighter flex items-center gap-1">
+                    <span class="text-slate-500 font-normal">Accuracy:</span> {{ activeWhisperMetadata.acc }}
+                  </span>
+                </div>
+
+                <!-- Simple Click Hint Footer -->
+                <div class="pt-2 border-t border-surface-border/50 flex items-center justify-between text-[10px] text-slate-400 normal-case font-sans">
+                  <span class="flex items-center gap-1 text-slate-400 group-hover:text-accent-400 transition-colors">
+                    <Icon :name="activeWhisperEstimate ? 'ri:settings-3-line' : 'ri:timer-flash-line'" class="text-xs" />
+                    <span>{{ activeWhisperEstimate ? 'Click to change settings' : 'Click to calculate speed in settings' }}</span>
+                  </span>
+                  <Icon name="ri:arrow-right-s-line" class="text-xs text-slate-500 group-hover:text-accent-400 transition-colors" />
+                </div>
+
+                <div class="absolute -bottom-1.5 right-6 w-3 h-3 bg-[#0f1117] border-b border-r border-accent-500/40 transform rotate-45 z-40"></div>
               </div>
-              <div class="flex gap-1.5 mb-2">
-                <span class="text-[9px] px-1.5 py-0.5 rounded bg-surface-dark border border-surface-border text-slate-400 font-bold uppercase tracking-tighter">{{ activeWhisperMetadata.speed }}</span>
-                <span class="text-[9px] px-1.5 py-0.5 rounded bg-surface-dark border border-surface-border text-slate-400 font-bold uppercase tracking-tighter">{{ activeWhisperMetadata.acc }}</span>
-              </div>
-              <p class="text-[11px] leading-relaxed text-slate-400 font-sans normal-case tracking-normal">{{ activeWhisperMetadata.desc }}</p>
-              <div class="absolute -bottom-1.5 right-6 w-3 h-3 bg-[#0f1117] border-b border-r border-accent-500/50 transform rotate-45 z-40"></div>
             </div>
           </div>
-
-          <!-- Settings Shortcut Button -->
-          <button 
-            @click="state.settingsScrollTarget.value = 'settings-whisper'; navigateTo('/settings')"
-            class="p-1.5 bg-surface-dark hover:bg-surface-panel border border-surface-border text-slate-400 hover:text-white rounded-lg hover:border-accent-500/50 hover:shadow-[0_0_10px_rgba(207,255,80,0.1)] transition-all duration-200 flex items-center justify-center cursor-pointer"
-            title="Transcriber Settings"
-            :disabled="isProcessing"
-          >
-            <Icon name="ri:settings-4-fill" class="text-sm" />
-          </button>
         </div>
       </div>
     </div>
@@ -534,7 +578,7 @@
 </template>
 
 <script setup lang="ts">
-import type { PromptTemplate, WhisperModelOption, HookIntentPreset } from '../../types/clipper'
+import type { PromptTemplate, WhisperModelOption, HookIntentPreset, HardwareModelEstimate } from '../../types/clipper'
 
 const props = defineProps<{
   isProcessing?: boolean
@@ -646,9 +690,18 @@ const currentLanguageOption = computed<LanguageOption>(() => {
   return languageOptions.find(l => l.id === val) || languageOptions[0]!
 })
 
+const hardwareProfile = computed(() => state.hardwareProfile?.value || null)
+
 const activeWhisperMetadata = computed(() => {
   const modelId = state.whisperModel.value || 'base'
   return state.whisperModels.find((m: WhisperModelOption) => m.id === modelId) || state.whisperModels[1]
+})
+
+const activeWhisperEstimate = computed<HardwareModelEstimate | null>(() => {
+  const estimates = hardwareProfile.value?.model_estimates as Record<string, HardwareModelEstimate> | undefined
+  if (!estimates) return null
+  const modelId = state.whisperModel.value || 'base'
+  return estimates[modelId] || null
 })
 
 async function handlePasteUrl() {

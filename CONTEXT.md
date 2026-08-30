@@ -23,3 +23,15 @@ _Avoid_: Raw file, base video, input asset
 **Niche Profile**:
 A persona or channel configuration preset (e.g. Finance, Gaming, Tech) defining prompt styles, typography, and subtitle aesthetic preferences.
 _Avoid_: Workspace profile, template account
+
+**Hardware Capability Profile**:
+The host computer's hardware metrics (CPU cores, physical RAM, and GPU/VRAM capacity) evaluated to calculate realistic local transcription processing times and memory safety guardrails without prescriptive recommendations.
+_Avoid_: System specs, PC benchmark, machine diagnostics
+
+**Transcription Engine Preset**:
+A local Whisper model tier (`tiny`, `base`, `small`, `medium`, `large-v3`) balancing processing speed, word-level timestamp accuracy, and memory allocation.
+_Avoid_: Audio AI level, speech model size, whisper mode
+
+**Transcription Duration Estimate**:
+The expected speech-to-text processing time for a standard 60-second video clip calculated dynamically from host hardware acceleration metrics.
+_Avoid_: Speed score, processing percentage
