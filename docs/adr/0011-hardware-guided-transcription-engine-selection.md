@@ -20,7 +20,7 @@ Previous approaches considered:
 1. **Lightweight OS-Native Capability Profiling**:
    System hardware capability (CPU model & core count, total physical RAM, and GPU/Unified Memory status) is inspected via standard operating system facilities (`platform`, `os`, `sysctl`/`SC_PHYS_PAGES`, and optional `nvidia-smi` inspection for discrete NVIDIA GPUs).
 2. **On-Demand User Activation**:
-   Profiling executes exclusively when the user interacts with the **"Hitung Estimasi Waktu"** trigger within the Whisper Engine preferences interface, with cached results persisted in browser `localStorage` to ensure instant subsequent rendering and an on-demand **"Re-scan"** action to recalculate when system conditions change.
+   Profiling executes exclusively when the user interacts with the **"Calculate Speed"** trigger within the Whisper Engine preferences interface, with cached results persisted in browser `localStorage` to ensure instant subsequent rendering and an on-demand **"Re-scan"** action to recalculate when system conditions change.
 3. **Objective Duration Estimation per 60-Second Video Clip**:
    Rather than imposing prescriptive "recommendation" labels that restrict user autonomy, the system provides transparent, objective time estimates normalized to a **60-second video clip** (e.g., `~6s per 60s video`, `~41s per 60s video`), dynamically calculated using detected CPU architecture, core count, and hardware acceleration multipliers.
 4. **Autonomous Model Selection**:

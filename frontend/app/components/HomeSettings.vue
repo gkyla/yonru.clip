@@ -609,7 +609,7 @@
             <!-- Case A: Scanning in progress -->
             <div v-if="detectingHardware" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-dark/60 border border-surface-border text-xs text-slate-300">
               <Icon name="ri:loader-4-line" class="animate-spin text-accent-500 text-base shrink-0" />
-              <span class="font-medium">Menganalisis CPU, RAM, dan kemampuan akselerasi komputer Anda...</span>
+              <span class="font-medium">Analyzing CPU, RAM, and hardware acceleration capabilities...</span>
             </div>
 
             <!-- Case B: Detected Profile Available (Slim Unified Bar) -->
@@ -649,7 +649,7 @@
             <div v-else class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-surface-dark/50 border border-surface-border text-xs">
               <div class="flex items-center gap-2.5 text-slate-300">
                 <Icon name="ri:time-line" class="text-accent-500 text-base shrink-0" />
-                <span class="leading-relaxed">Hitung estimasi durasi transkripsi berdasarkan kemampuan hardware komputer Anda.</span>
+                <span class="leading-relaxed">Calculate estimated transcription speed based on your computer hardware.</span>
               </div>
               <button
                 @click="handleDetectHardware"
@@ -657,7 +657,7 @@
                 class="flex items-center gap-1.5 px-3 py-1.5 bg-accent-500 hover:bg-accent-400 text-black font-bold text-xs rounded-lg transition-all shadow-sm shrink-0 cursor-pointer self-start sm:self-center"
               >
                 <Icon name="ri:timer-flash-line" class="text-xs" />
-                <span>Hitung Estimasi Waktu</span>
+                <span>Calculate Speed</span>
               </button>
             </div>
 
@@ -708,10 +708,10 @@
                 <!-- Heavy Resource Warning -->
                 <div 
                   v-if="hardwareProfile?.model_capacities?.[model.id]?.status === 'heavy'"
-                  class="mt-3 pt-2 border-t border-surface-border/40 flex items-center gap-1.5 text-[10px] text-amber-400/90 font-medium"
+                  class="mt-3 pt-2 border-t border-surface-border/40 flex items-start gap-1.5 text-[10px] text-amber-400/90 font-medium leading-normal"
                 >
-                  <Icon name="ri:error-warning-line" class="text-xs shrink-0 text-amber-400" />
-                  <span class="truncate" :title="hardwareProfile.model_capacities[model.id].warning || 'May be slow on your PC'">
+                  <Icon name="ri:error-warning-line" class="text-xs shrink-0 text-amber-400 mt-0.5" />
+                  <span>
                     {{ hardwareProfile.model_capacities[model.id].warning || 'May be slow on your PC' }}
                   </span>
                 </div>

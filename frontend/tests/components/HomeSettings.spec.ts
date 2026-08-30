@@ -694,8 +694,8 @@ describe('HomeSettings Component', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Transcription Engine (Whisper)')
-    expect(wrapper.text()).toContain('Hitung estimasi durasi transkripsi')
-    expect(wrapper.text()).toContain('Hitung Estimasi Waktu')
+    expect(wrapper.text()).toContain('Calculate estimated transcription speed')
+    expect(wrapper.text()).toContain('Calculate Speed')
   })
 
   it('triggers detectHardwareProfile on button click and renders Bento specs with recommendation and top-3 intent tiers', async () => {
@@ -744,7 +744,7 @@ describe('HomeSettings Component', () => {
     vm.switchTab('whisper')
     await flushPromises()
 
-    const detectBtn = wrapper.findAll('button').find(b => b.text().includes('Hitung Estimasi Waktu'))
+    const detectBtn = wrapper.findAll('button').find(b => b.text().includes('Calculate Speed'))
     expect(detectBtn).toBeDefined()
     await detectBtn!.trigger('click')
     await flushPromises()
