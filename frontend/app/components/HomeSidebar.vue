@@ -380,7 +380,7 @@
                     : 'text-white/70 hover:text-white hover:bg-white/[0.04]'"
                 >
                   <Icon 
-                    name="lucide:layout-grid" 
+                    name="lucide:home" 
                     class="text-lg shrink-0 group-hover:scale-105 transition-all" 
                     :class="activeView === 'home' ? 'text-accent-500' : 'text-white/70 group-hover:text-white'"
                   />
@@ -797,7 +797,7 @@
                     ? 'bg-white/[0.06] text-accent-500' 
                     : 'text-white/70 hover:text-white hover:bg-white/[0.04]'"
                 >
-                  <Icon name="lucide:layout-grid" class="text-lg" />
+                  <Icon name="lucide:home" class="text-lg" />
                 </button>
                 <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-[#121216] border border-white/10 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-[100] whitespace-nowrap">
                   Home
