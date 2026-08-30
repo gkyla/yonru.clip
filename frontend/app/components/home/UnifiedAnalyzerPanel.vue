@@ -358,6 +358,9 @@
               <span v-if="activeWhisperEstimate" class="text-accent-400 font-bold">
                 (~{{ activeWhisperEstimate.estimated_seconds }}s/60s)
               </span>
+              <span v-else class="text-slate-500 font-normal font-mono">
+                (?/60s)
+              </span>
               <Icon name="ri:arrow-right-s-line" class="text-slate-500 text-xs shrink-0 group-hover:text-accent-400 group-hover:translate-x-0.5 transition-all" />
             </button>
 
@@ -392,8 +395,9 @@
                     <Icon name="ri:timer-line" class="text-[10px]" />
                     {{ activeWhisperEstimate.display_text }}
                   </span>
-                  <span v-else class="text-[9px] px-2 py-0.5 rounded-md bg-surface-dark border border-surface-border text-slate-400 font-bold uppercase tracking-tighter">
-                    {{ activeWhisperMetadata.speed }}
+                  <span v-else class="text-[9px] px-2 py-0.5 rounded-md bg-surface-dark border border-surface-border text-slate-400 font-bold flex items-center gap-1">
+                    <Icon name="ri:timer-line" class="text-[10px] text-slate-500" />
+                    Not benchmarked
                   </span>
                   <span class="text-[9px] px-2 py-0.5 rounded-md bg-surface-dark border border-surface-border text-slate-300 font-bold uppercase tracking-tighter flex items-center gap-1">
                     <span class="text-slate-500 font-normal">Accuracy:</span> {{ activeWhisperMetadata.acc }}
@@ -403,8 +407,8 @@
                 <!-- Simple Click Hint Footer -->
                 <div class="pt-2 border-t border-surface-border/50 flex items-center justify-between text-[10px] text-slate-400 normal-case font-sans">
                   <span class="flex items-center gap-1 text-slate-400 group-hover:text-accent-400 transition-colors">
-                    <Icon name="ri:settings-3-line" class="text-xs" />
-                    <span>Click to change settings</span>
+                    <Icon :name="activeWhisperEstimate ? 'ri:settings-3-line' : 'ri:timer-flash-line'" class="text-xs" />
+                    <span>{{ activeWhisperEstimate ? 'Click to change settings' : 'Click to calculate speed in settings' }}</span>
                   </span>
                   <Icon name="ri:arrow-right-s-line" class="text-xs text-slate-500 group-hover:text-accent-400 transition-colors" />
                 </div>

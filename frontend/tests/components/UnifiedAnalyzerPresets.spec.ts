@@ -366,7 +366,7 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
     expect(mockState.youtubeUrl.value).toBe('https://youtube.com/watch?v=pasted123')
   })
 
-  it('renders Active Transcriber Metadata Badge without duration when hardware profile is unscanned', () => {
+  it('renders Active Transcriber Metadata Badge with (?/60s) and Not benchmarked chip when hardware profile is unscanned', () => {
     mockState.whisperModel.value = 'base'
     mockState.hardwareProfile.value = null
     const wrapper = mount(UnifiedAnalyzerPanel, {
@@ -381,7 +381,9 @@ describe('Unified Analyzer Panel - Modular Presets & Virality Score', () => {
     })
 
     expect(wrapper.text()).toContain('BASE')
-    expect(wrapper.text()).not.toContain('(~6s/60s)')
+    expect(wrapper.text()).toContain('(?/60s)')
+    expect(wrapper.text()).toContain('Not benchmarked')
+    expect(wrapper.text()).toContain('Click to calculate speed in settings')
   })
 
   it('renders Active Transcriber Metadata Badge with normalized time estimate when hardware profile is detected', () => {
