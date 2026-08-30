@@ -143,7 +143,7 @@
                   :class="isHealthOk ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'"
                 >
                   <span class="w-1.5 h-1.5 rounded-full" :class="isHealthOk ? 'bg-emerald-400' : 'bg-amber-400'"></span>
-                  {{ isHealthOk ? 'Operational' : 'Action Required' }}
+                  {{ isHealthOk ? 'Ready' : 'Action Required' }}
                 </span>
               </div>
               <p class="text-sm text-slate-400">Verify the health and directory paths of local software components and APIs required for rendering and AI generation.</p>
