@@ -20,9 +20,9 @@ _Avoid_: Recent project, draft, active session
 A downloaded or imported full-length source video stored locally with associated transcripts, heatmaps, and hook candidates.
 _Avoid_: Raw file, base video, input asset
 
-**Niche Profile**:
-A persona or channel configuration preset (e.g. Finance, Gaming, Tech) defining prompt styles, typography, and subtitle aesthetic preferences.
-_Avoid_: Workspace profile, template account
+**Command Palette**:
+A global modal overlay triggered via `⌘K` / `Ctrl+K` or the sidebar search bar providing fuzzy search, quick actions, and deep navigation across cached videos, ready clips, prompt templates, settings sections, and core views.
+_Avoid_: Search modal, quick finder, spotlight bar
 
 **Hardware Capability Profile**:
 The host computer's hardware metrics (CPU cores, physical RAM, and GPU/VRAM capacity) evaluated to calculate realistic local transcription processing times and memory safety guardrails without prescriptive recommendations.

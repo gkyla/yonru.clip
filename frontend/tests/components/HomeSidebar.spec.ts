@@ -80,7 +80,8 @@ describe('HomeSidebar Component', () => {
       }
     })
 
-    expect(wrapper.text()).toContain('Personal Shorts')
+    expect(wrapper.text()).toContain('Search or jump to...')
+    expect(wrapper.text()).toContain('⌘K')
     expect(wrapper.text()).toContain('Home')
     expect(wrapper.text()).toContain('Prompts')
     expect(wrapper.text()).toContain('Documentation')
@@ -145,7 +146,7 @@ describe('HomeSidebar Component', () => {
     expect((wrapper.vm as any).isCollapsed).toBe(false)
   })
 
-  it('toggles profile switcher popover menu', async () => {
+  it('opens Command Palette when search trigger button is clicked in expanded mode', async () => {
     const wrapper = mount(HomeSidebar, {
       props: {
         activeView: 'home',
@@ -163,11 +164,16 @@ describe('HomeSidebar Component', () => {
       }
     })
 
-    const profileTrigger = wrapper.find('.profile-popover-container button')
-    expect(profileTrigger.exists()).toBe(true)
+    const searchBtn = wrapper.find('button[title*="Command Palette"]')
+    expect(searchBtn.exists()).toBe(true)
 
-    await profileTrigger.trigger('click')
-    expect(wrapper.text()).toContain('Switch Profile')
+    const { useCommandPalette } = await import('~/composables/useCommandPalette')
+    const palette = useCommandPalette()
+    palette.close()
+    expect(palette.isOpen.value).toBe(false)
+
+    await searchBtn.trigger('click')
+    expect(palette.isOpen.value).toBe(true)
   })
 
   it('respects sidebar drag boundaries and saves width to localStorage', () => {
@@ -347,7 +353,7 @@ describe('HomeSidebar Component', () => {
     expect((wrapper.vm as any).isCollapsed).toBe(true)
   })
 
-  it('supports creating a new niche profile via inline form and persists to localStorage', async () => {
+  it('triggers Command Palette modal on search button click in expanded and collapsed modes', async () => {
     const wrapper = mount(HomeSidebar, {
       props: {
         activeView: 'home',
@@ -365,35 +371,26 @@ describe('HomeSidebar Component', () => {
       }
     })
 
-    // Open popover
-    const profileTrigger = wrapper.find('.profile-popover-container button')
-    await profileTrigger.trigger('click')
-    expect(wrapper.text()).toContain('Switch Profile')
+    // Click Spotlight search trigger in expanded mode
+    const searchTrigger = wrapper.find('button[title*="Command Palette"]')
+    expect(searchTrigger.exists()).toBe(true)
+    await searchTrigger.trigger('click')
 
-    // Click Create Profile button
-    const createBtn = wrapper.findAll('button').find(b => b.text().includes('Create Profile'))
-    expect(createBtn).toBeDefined()
-    await createBtn!.trigger('click')
+    const { useCommandPalette } = await import('~/composables/useCommandPalette')
+    const palette = useCommandPalette()
+    expect(palette.isOpen.value).toBe(true)
 
-    // Form inputs should now be visible
-    expect(wrapper.text()).toContain('New Profile')
-    const nameInput = wrapper.find('input[placeholder*="Podcast Shorts"]')
-    expect(nameInput.exists()).toBe(true)
-    await nameInput.setValue('Crypto Daily')
+    // Collapse sidebar and verify circular button trigger
+    const collapseBtn = wrapper.find('button[title*="Collapse Sidebar"]')
+    await collapseBtn.trigger('click')
 
-    const nicheInput = wrapper.find('input[placeholder*="Finance & Crypto"]')
-    expect(nicheInput.exists()).toBe(true)
-    await nicheInput.setValue('Web3 & DeFi')
+    palette.close()
+    expect(palette.isOpen.value).toBe(false)
 
-    // Submit form
-    const saveBtn = wrapper.findAll('button').find(b => b.text() === 'Create')
-    expect(saveBtn).toBeDefined()
-    await saveBtn!.trigger('click')
-
-    // Profile should be created and saved in localStorage
-    const saved = JSON.parse(localStorage.getItem('yonru_niche_profiles') || '[]')
-    expect(saved.some((p: any) => p.name === 'Crypto Daily' && p.niche === 'Web3 & DeFi')).toBe(true)
-    expect((wrapper.vm as any).activeProfile.name).toBe('Crypto Daily')
-    expect((wrapper.vm as any).activeProfile.niche).toBe('Web3 & DeFi')
+    const collapsedTrigger = wrapper.find('button[title*="Command Palette"]')
+    expect(collapsedTrigger.exists()).toBe(true)
+    await collapsedTrigger.trigger('click')
+    expect(palette.isOpen.value).toBe(true)
   })
 })
+

@@ -24,13 +24,18 @@ export interface LastAccessedClip {
   thumbnail_url?: string
 }
 
-export interface NicheProfile {
+export type CommandPaletteCategory = 'actions' | 'navigation' | 'videos' | 'clips' | 'settings' | 'prompts'
+
+export interface CommandPaletteItem {
   id: string
-  name: string
-  niche: string
-  icon?: string
-  gradient?: string
-  avatarInitial?: string
+  title: string
+  subtitle?: string
+  category: CommandPaletteCategory
+  icon: string
+  badge?: string
+  actionLabel?: string
+  keywords?: string[]
+  handler: () => void | Promise<void>
 }
 
 export interface CachedVideo {
