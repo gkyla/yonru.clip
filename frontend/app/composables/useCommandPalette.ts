@@ -70,68 +70,7 @@ function createCommandPaletteState() {
   const allItems = computed<CommandPaletteItem[]>(() => {
     const items: CommandPaletteItem[] = []
 
-    // 1. QUICK ACTIONS
-    items.push({
-      id: 'action-new-clip',
-      title: 'New Clip Analysis',
-      subtitle: 'Analyze a new YouTube video URL for viral moments',
-      category: 'actions',
-      icon: 'lucide:plus-circle',
-      badge: 'Action',
-      actionLabel: 'Analyze',
-      keywords: ['youtube', 'url', 'input', 'download', 'analyze', 'new', 'clip', 'paste'],
-      handler: () => {
-        close()
-        router.push('/').then(() => {
-          if (import.meta.client) {
-            setTimeout(() => {
-              const input = document.querySelector('input[type="url"]') as HTMLInputElement | null
-              if (input) {
-                input.focus()
-                input.select()
-              }
-            }, 100)
-          }
-        })
-      }
-    })
-
-    items.push({
-      id: 'action-toggle-safe-zone',
-      title: 'Toggle Safe Zone Overlay',
-      subtitle: `Current: ${state.activeSafeZone.value.toUpperCase()} (TikTok, Reels, Shorts)`,
-      category: 'actions',
-      icon: 'lucide:smartphone',
-      badge: 'Toggle',
-      actionLabel: 'Cycle',
-      keywords: ['safe', 'zone', 'overlay', 'tiktok', 'reels', 'shorts', 'crop', 'guide', 'screen'],
-      handler: () => {
-        const order: Array<'none' | 'tiktok' | 'reels' | 'shorts'> = ['none', 'tiktok', 'reels', 'shorts']
-        const currentIdx = order.indexOf(state.activeSafeZone.value)
-        const next = order[(currentIdx + 1) % order.length] || 'none'
-        state.activeSafeZone.value = next
-        state.showToast(`Safe zone changed to: ${next.toUpperCase()}`, 'info')
-        close()
-      }
-    })
-
-    items.push({
-      id: 'action-toggle-overlay-visibility',
-      title: 'Toggle Canvas Overlay Visibility',
-      subtitle: state.isOverlayVisible.value ? 'Hide preview overlay guide' : 'Show preview overlay guide',
-      category: 'actions',
-      icon: 'lucide:eye',
-      badge: 'Toggle',
-      actionLabel: 'Switch',
-      keywords: ['overlay', 'canvas', 'grid', 'guide', 'visibility', 'toggle'],
-      handler: () => {
-        state.isOverlayVisible.value = !state.isOverlayVisible.value
-        state.showToast(state.isOverlayVisible.value ? 'Overlay enabled' : 'Overlay disabled', 'info')
-        close()
-      }
-    })
-
-    // 2. NAVIGATION
+    // 1. NAVIGATION
     items.push({
       id: 'nav-home',
       title: 'Home & Video Analyzer',
@@ -440,12 +379,11 @@ function createCommandPaletteState() {
 
     if (!q) {
       const categoryOrder: Record<CommandPaletteCategory, number> = {
-        actions: 1,
-        navigation: 2,
-        settings: 3,
-        prompts: 4,
-        videos: 5,
-        clips: 6
+        navigation: 1,
+        settings: 2,
+        prompts: 3,
+        videos: 4,
+        clips: 5
       }
       return [...list].sort((a, b) => (categoryOrder[a.category] || 99) - (categoryOrder[b.category] || 99))
     }
@@ -463,7 +401,6 @@ function createCommandPaletteState() {
   // Grouped results for categorized view
   const groupedItems = computed(() => {
     const groups: { category: CommandPaletteCategory; label: string; items: CommandPaletteItem[] }[] = [
-      { category: 'actions', label: 'Quick Actions', items: [] },
       { category: 'navigation', label: 'Navigation', items: [] },
       { category: 'settings', label: 'Settings', items: [] },
       { category: 'prompts', label: 'Prompt Templates', items: [] },

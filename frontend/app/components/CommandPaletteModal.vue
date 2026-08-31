@@ -62,7 +62,7 @@
               @click="palette.activeCategoryFilter.value = cat.id"
               class="px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 cursor-pointer"
               :class="palette.activeCategoryFilter.value === cat.id 
-                ? 'bg-accent-500 text-black font-bold shadow-sm shadow-accent-500/20' 
+                ? 'bg-accent-500 text-black font-bold' 
                 : 'text-white/60 hover:text-white hover:bg-white/[0.05]'"
             >
               <Icon v-if="cat.icon" :name="cat.icon" class="text-xs" />
@@ -111,13 +111,13 @@
                   @mouseenter="handleMouseEnter(item)"
                   class="group flex items-center justify-between px-3 py-2 rounded-xl transition-all duration-100 cursor-pointer border relative overflow-hidden"
                   :class="getItemIndex(item) === palette.selectedIndex.value
-                    ? 'bg-white/[0.08] border-accent-500/40 text-white shadow-sm ring-1 ring-accent-500/20' 
+                    ? 'bg-white/[0.08] border-white/15 text-white' 
                     : 'border-transparent text-white/70 hover:bg-white/[0.04] hover:text-white'"
                 >
                   <!-- Active Left Accent Indicator Pill -->
                   <div 
                     v-if="getItemIndex(item) === palette.selectedIndex.value"
-                    class="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-accent-500 shadow-[0_0_8px_rgba(207,255,80,0.8)]"
+                    class="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-accent-500"
                   ></div>
 
                   <!-- Left: Icon & Title & Subtitle -->
@@ -211,7 +211,6 @@ const resultsContainerRef = ref<HTMLElement | null>(null)
 
 const CATEGORY_FILTERS: { id: CommandPaletteCategory | 'all'; label: string; icon?: string }[] = [
   { id: 'all', label: 'All' },
-  { id: 'actions', label: 'Actions', icon: 'lucide:zap' },
   { id: 'navigation', label: 'Navigation', icon: 'lucide:compass' },
   { id: 'settings', label: 'Settings', icon: 'lucide:settings' },
   { id: 'prompts', label: 'Prompts', icon: 'lucide:sparkles' },
@@ -232,8 +231,6 @@ function handleMouseEnter(item: CommandPaletteItem) {
 
 function getCategoryIconBg(category: CommandPaletteCategory): string {
   switch (category) {
-    case 'actions':
-      return 'bg-lime-500/10 text-lime-400 border-lime-500/20'
     case 'navigation':
       return 'bg-sky-500/10 text-sky-400 border-sky-500/20'
     case 'settings':
@@ -251,8 +248,6 @@ function getCategoryIconBg(category: CommandPaletteCategory): string {
 
 function getBadgeClass(category: CommandPaletteCategory): string {
   switch (category) {
-    case 'actions':
-      return 'bg-lime-500/10 text-lime-400 border-lime-500/30'
     case 'navigation':
       return 'bg-sky-500/10 text-sky-400 border-sky-500/30'
     case 'settings':

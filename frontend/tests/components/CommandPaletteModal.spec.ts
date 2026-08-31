@@ -83,9 +83,9 @@ describe('CommandPaletteModal Component', () => {
 
     const input = wrapper.find('input[type="text"]')
     expect(input.exists()).toBe(true)
-    expect(wrapper.text()).toContain('Quick Actions')
     expect(wrapper.text()).toContain('Navigation')
     expect(wrapper.text()).toContain('Settings')
+    expect(wrapper.text()).toContain('Prompt Templates')
   })
 
   it('filters results interactively on typing', async () => {

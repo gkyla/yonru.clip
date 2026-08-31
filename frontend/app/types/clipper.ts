@@ -24,7 +24,7 @@ export interface LastAccessedClip {
   thumbnail_url?: string
 }
 
-export type CommandPaletteCategory = 'actions' | 'navigation' | 'videos' | 'clips' | 'settings' | 'prompts'
+export type CommandPaletteCategory = 'navigation' | 'settings' | 'prompts' | 'videos' | 'clips'
 
 export interface CommandPaletteItem {
   id: string
