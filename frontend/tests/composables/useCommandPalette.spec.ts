@@ -80,6 +80,34 @@ describe('useCommandPalette Composable', () => {
     expect(items.some(i => i.id === 'prompt-preset-auto')).toBe(true)
   })
 
+  it('groups prompts under Prompt Template parent category with Preset Prompt and Custom Prompt subgroups in groupedItems', () => {
+    mockPromptsList.value = [
+      { id: 'custom_tech.json', name: 'Tech Deep Dive', suitableFor: ['podcasts'] }
+    ]
+
+    const palette = useCommandPalette()
+    palette.open()
+
+    const groups = palette.groupedItems.value
+    const promptGroup = groups.find(g => g.key === 'prompts')
+
+    expect(promptGroup).toBeDefined()
+    expect(promptGroup?.label).toBe('Prompt Template')
+    expect(promptGroup?.subgroups).toBeDefined()
+    expect(promptGroup?.subgroups?.length).toBe(2)
+
+    const presetSubgroup = promptGroup?.subgroups?.find(sg => sg.key === 'presets')
+    const customSubgroup = promptGroup?.subgroups?.find(sg => sg.key === 'custom')
+
+    expect(presetSubgroup).toBeDefined()
+    expect(presetSubgroup?.label).toBe('Preset Prompt')
+    expect(presetSubgroup?.items.some(i => i.id === 'prompt-preset-auto')).toBe(true)
+
+    expect(customSubgroup).toBeDefined()
+    expect(customSubgroup?.label).toBe('Custom Prompt')
+    expect(customSubgroup?.items.some(i => i.id === 'custom-prompt-custom_tech.json')).toBe(true)
+  })
+
   it('filters items correctly on search query matching title and keywords', () => {
     const palette = useCommandPalette()
     palette.open()

@@ -5,6 +5,10 @@ import UnifiedAnalyzerPanel from '../../app/components/home/UnifiedAnalyzerPanel
 import HookResultsGallery from '../../app/components/home/HookResultsGallery.vue'
 import { ref } from 'vue'
 
+if (typeof global.requestAnimationFrame === 'undefined') {
+  global.requestAnimationFrame = (cb: any) => setTimeout(cb, 0)
+}
+
 const mockState = {
   youtubeUrl: ref('https://youtube.com/watch?v=dQw4w9WgXcQ'),
   selectedPrompt: ref('prompt.json'),

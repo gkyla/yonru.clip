@@ -31,11 +31,27 @@ export interface CommandPaletteItem {
   title: string
   subtitle?: string
   category: CommandPaletteCategory
+  subcategory?: string
+  groupLabel?: string
   icon: string
   badge?: string
   actionLabel?: string
   keywords?: string[]
   handler: () => void | Promise<void>
+}
+
+export interface CommandPaletteSubGroup {
+  key: string
+  label: string
+  items: CommandPaletteItem[]
+}
+
+export interface CommandPaletteGroup {
+  key: string
+  category: CommandPaletteCategory
+  label: string
+  items: CommandPaletteItem[]
+  subgroups?: CommandPaletteSubGroup[]
 }
 
 export interface CachedVideo {

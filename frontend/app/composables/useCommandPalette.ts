@@ -267,6 +267,8 @@ function createCommandPaletteState() {
         title: p.name,
         subtitle: p.desc,
         category: 'prompts',
+        subcategory: 'preset',
+        groupLabel: 'Preset Prompt',
         icon: p.icon,
         badge: 'Preset',
         actionLabel: 'Apply',
@@ -291,6 +293,8 @@ function createCommandPaletteState() {
             title: customP.name,
             subtitle: `Custom prompt template (${customP.id})`,
             category: 'prompts',
+            subcategory: 'custom',
+            groupLabel: 'Custom Prompt',
             icon: 'lucide:file-text',
             badge: 'Custom',
             actionLabel: 'Apply',
@@ -339,44 +343,41 @@ function createCommandPaletteState() {
     ]
     const seenHookIds = new Set<string>()
 
-    for (const h of allHooks) {
-      const hookId = h.id || h._id || `${h.start}-${h.end}`
-      if (seenHookIds.has(hookId)) continue
-      seenHookIds.add(hookId)
-
-      const title = h.theme || h.title || 'Untitled Clip'
-      const duration = (h.end && h.start) ? Math.max(0, h.end - h.start) : 0
-      const score = h.virality_score ? `${h.virality_score}/100` : 'Ready'
-
-      items.push({
-        id: `hook-${hookId}`,
-        title,
-        subtitle: `Score: ${score} • ${formatTime(duration)} duration`,
-        category: 'clips',
-        icon: 'lucide:clapperboard',
-        badge: 'Clip',
-        actionLabel: 'Edit',
-        keywords: ['clip', 'hook', 'viral', 'moment', ...title.toLowerCase().split(' ')],
-        handler: () => {
-          state.activeHook.value = h
-          close()
-          router.push('/editor')
-        }
-      })
+    for (const hook of allHooks) {
+      const hookId = hook.id || `${hook.start}-${hook.end}-${hook.theme}`
+      if (!seenHookIds.has(hookId) && hook.theme) {
+        seenHookIds.add(hookId)
+        items.push({
+          id: `hook-clip-${hookId}`,
+          title: hook.theme,
+          subtitle: `${formatTime(hook.start)} - ${formatTime(hook.end)} (${Math.round(hook.end - hook.start)}s) • Score: ${hook.score || 85}%`,
+          category: 'clips',
+          icon: 'lucide:scissors',
+          badge: hook.saved ? 'Saved' : 'Hook',
+          actionLabel: 'Edit Clip',
+          keywords: ['clip', 'hook', 'ready', 'saved', 'segment', ...(hook.theme || '').toLowerCase().split(' ')],
+          handler: () => {
+            state.activeHook.value = hook
+            close()
+            router.push('/editor')
+          }
+        })
+      }
     }
 
     return items
   })
 
-  // Filtered items based on query & category filter
-  const filteredItems = computed<CommandPaletteItem[]>(() => {
-    const q = searchQuery.value.trim().toLowerCase()
+  // Filtered list based on active category tab & search query
+  const filteredItems = computed(() => {
     let list = allItems.value
 
+    // Apply category tab filter
     if (activeCategoryFilter.value !== 'all') {
-      list = list.filter(i => i.category === activeCategoryFilter.value)
+      list = list.filter(item => item.category === activeCategoryFilter.value)
     }
 
+    const q = searchQuery.value.trim().toLowerCase()
     if (!q) {
       const categoryOrder: Record<CommandPaletteCategory, number> = {
         navigation: 1,
@@ -398,24 +399,53 @@ function createCommandPaletteState() {
     })
   })
 
-  // Grouped results for categorized view
-  const groupedItems = computed(() => {
-    const groups: { category: CommandPaletteCategory; label: string; items: CommandPaletteItem[] }[] = [
-      { category: 'navigation', label: 'Navigation', items: [] },
-      { category: 'settings', label: 'Settings', items: [] },
-      { category: 'prompts', label: 'Prompt Templates', items: [] },
-      { category: 'videos', label: 'Cached Videos', items: [] },
-      { category: 'clips', label: 'Ready Clips', items: [] }
+  // Grouped results for categorized view (with nested sub-groups for Preset Prompt & Custom Prompt)
+  const groupedItems = computed<CommandPaletteGroup[]>(() => {
+    const groups: CommandPaletteGroup[] = [
+      { key: 'navigation', category: 'navigation', label: 'Navigation', items: [] },
+      { key: 'settings', category: 'settings', label: 'Settings', items: [] },
+      { 
+        key: 'prompts', 
+        category: 'prompts', 
+        label: 'Prompt Template', 
+        items: [],
+        subgroups: [
+          { key: 'presets', label: 'Preset Prompt', items: [] },
+          { key: 'custom', label: 'Custom Prompt', items: [] }
+        ]
+      },
+      { key: 'videos', category: 'videos', label: 'Cached Videos', items: [] },
+      { key: 'clips', category: 'clips', label: 'Ready Clips', items: [] }
     ]
 
     for (const item of filteredItems.value) {
-      const group = groups.find(g => g.category === item.category)
-      if (group) {
-        group.items.push(item)
+      if (item.category === 'prompts') {
+        const promptsGroup = groups.find(g => g.key === 'prompts')!
+        promptsGroup.items.push(item)
+        if (item.subcategory === 'custom') {
+          promptsGroup.subgroups![1].items.push(item)
+        } else {
+          promptsGroup.subgroups![0].items.push(item)
+        }
+      } else {
+        const group = groups.find(g => g.category === item.category)
+        if (group) {
+          group.items.push(item)
+        }
       }
     }
 
-    return groups.filter(g => g.items.length > 0)
+    return groups
+      .map(g => {
+        if (g.subgroups) {
+          return {
+            ...g,
+            subgroups: g.subgroups.filter(sg => sg.items.length > 0)
+          }
+        }
+        return g
+      })
+      .filter(g => g.items.length > 0)
   })
 
   function selectNext() {

@@ -93,7 +93,7 @@
             <template v-else>
               <div 
                 v-for="group in palette.groupedItems.value" 
-                :key="group.category"
+                :key="group.key || group.label"
                 class="space-y-1"
               >
                 <!-- Group Category Header -->
@@ -102,67 +102,149 @@
                   <span class="text-[9px] font-mono text-white/30">{{ group.items.length }}</span>
                 </div>
 
-                <!-- Group Items -->
-                <div 
-                  v-for="item in group.items" 
-                  :key="item.id"
-                  :data-item-id="item.id"
-                  @click="palette.executeItem(item)"
-                  @mouseenter="handleMouseEnter(item)"
-                  class="group flex items-center justify-between px-3 py-2 rounded-xl transition-all duration-100 cursor-pointer border relative overflow-hidden"
-                  :class="getItemIndex(item) === palette.selectedIndex.value
-                    ? 'bg-white/[0.08] border-white/15 text-white' 
-                    : 'border-transparent text-white/70 hover:bg-white/[0.04] hover:text-white'"
-                >
-                  <!-- Active Left Accent Indicator Pill -->
+                <!-- Hierarchical Nested Subgroups (e.g. Prompt Template -> Preset Prompt & Custom Prompt) -->
+                <template v-if="group.subgroups && group.subgroups.length > 0">
                   <div 
-                    v-if="getItemIndex(item) === palette.selectedIndex.value"
-                    class="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-accent-500"
-                  ></div>
-
-                  <!-- Left: Icon & Title & Subtitle -->
-                  <div class="flex items-center gap-3 min-w-0 flex-1">
-                    <div 
-                      class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/10 transition-transform duration-150 group-hover:scale-105"
-                      :class="getCategoryIconBg(item.category)"
-                    >
-                      <Icon :name="item.icon" class="text-sm" />
+                    v-for="subgroup in group.subgroups" 
+                    :key="subgroup.key"
+                    class="space-y-1 pl-2 border-l border-white/[0.08] ml-2 mt-1 mb-2.5"
+                  >
+                    <!-- Sub-Group Header -->
+                    <div class="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent-400/90 flex items-center justify-between">
+                      <div class="flex items-center gap-1.5">
+                        <span class="w-1 h-1 rounded-full bg-accent-500"></span>
+                        <span>{{ subgroup.label }}</span>
+                      </div>
+                      <span class="text-[9px] font-mono text-white/30">{{ subgroup.items.length }}</span>
                     </div>
 
-                    <div class="overflow-hidden min-w-0 flex-1 grid gap-0.5">
-                      <div class="flex items-center gap-2">
-                        <span class="text-xs sm:text-sm font-semibold truncate text-white leading-tight">
-                          {{ item.title }}
-                        </span>
-                        <span 
-                          v-if="item.badge" 
-                          class="px-1.5 py-0.2 rounded text-[9px] font-bold font-mono uppercase tracking-wider border shrink-0"
-                          :class="getBadgeClass(item.category)"
+                    <!-- Sub-Group Items -->
+                    <div 
+                      v-for="item in subgroup.items" 
+                      :key="item.id"
+                      :data-item-id="item.id"
+                      @click="palette.executeItem(item)"
+                      @mouseenter="handleMouseEnter(item)"
+                      class="group flex items-center justify-between px-3 py-2 rounded-xl transition-all duration-100 cursor-pointer border relative overflow-hidden"
+                      :class="getItemIndex(item) === palette.selectedIndex.value
+                        ? 'bg-white/[0.08] border-white/15 text-white' 
+                        : 'border-transparent text-white/70 hover:bg-white/[0.04] hover:text-white'"
+                    >
+                      <!-- Active Left Accent Indicator Pill -->
+                      <div 
+                        v-if="getItemIndex(item) === palette.selectedIndex.value"
+                        class="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-accent-500"
+                      ></div>
+
+                      <!-- Left: Icon & Title & Subtitle -->
+                      <div class="flex items-center gap-3 min-w-0 flex-1">
+                        <div 
+                          class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/10 transition-transform duration-150 group-hover:scale-105"
+                          :class="getCategoryIconBg(item.category)"
                         >
-                          {{ item.badge }}
+                          <Icon :name="item.icon" class="text-sm" />
+                        </div>
+
+                        <div class="overflow-hidden min-w-0 flex-1 grid gap-0.5">
+                          <div class="flex items-center gap-2">
+                            <span class="text-xs sm:text-sm font-semibold truncate text-white leading-tight">
+                              {{ item.title }}
+                            </span>
+                            <span 
+                              v-if="item.badge" 
+                              class="px-1.5 py-0.2 rounded text-[9px] font-bold font-mono uppercase tracking-wider border shrink-0"
+                              :class="getBadgeClass(item.category)"
+                            >
+                              {{ item.badge }}
+                            </span>
+                          </div>
+                          <p 
+                            v-if="item.subtitle" 
+                            class="text-[11px] text-white/50 truncate leading-none"
+                          >
+                            {{ item.subtitle }}
+                          </p>
+                        </div>
+                      </div>
+
+                      <!-- Right: Action Hint Button -->
+                      <div class="flex items-center gap-1.5 shrink-0 ml-3">
+                        <span 
+                          class="text-[10px] font-semibold text-white/40 group-hover:text-accent-400 transition-colors uppercase tracking-wider font-mono flex items-center gap-1"
+                        >
+                          <span>{{ item.actionLabel || 'Apply' }}</span>
+                          <kbd class="px-1 py-0.5 text-[9px] bg-white/[0.06] border border-white/10 rounded font-mono text-white/60">
+                            ↵
+                          </kbd>
                         </span>
                       </div>
-                      <p 
-                        v-if="item.subtitle" 
-                        class="text-[11px] text-white/50 truncate leading-none"
-                      >
-                        {{ item.subtitle }}
-                      </p>
                     </div>
                   </div>
+                </template>
 
-                  <!-- Right: Action Hint Button -->
-                  <div class="flex items-center gap-1.5 shrink-0 ml-3">
-                    <span 
-                      class="text-[10px] font-semibold text-white/40 group-hover:text-accent-400 transition-colors uppercase tracking-wider font-mono flex items-center gap-1"
-                    >
-                      <span>{{ item.actionLabel || 'Open' }}</span>
-                      <kbd class="px-1 py-0.5 text-[9px] bg-white/[0.06] border border-white/10 rounded font-mono text-white/60">
-                        ↵
-                      </kbd>
-                    </span>
+                <!-- Standard Flat Group Items -->
+                <template v-else>
+                  <div 
+                    v-for="item in group.items" 
+                    :key="item.id"
+                    :data-item-id="item.id"
+                    @click="palette.executeItem(item)"
+                    @mouseenter="handleMouseEnter(item)"
+                    class="group flex items-center justify-between px-3 py-2 rounded-xl transition-all duration-100 cursor-pointer border relative overflow-hidden"
+                    :class="getItemIndex(item) === palette.selectedIndex.value
+                      ? 'bg-white/[0.08] border-white/15 text-white' 
+                      : 'border-transparent text-white/70 hover:bg-white/[0.04] hover:text-white'"
+                  >
+                    <!-- Active Left Accent Indicator Pill -->
+                    <div 
+                      v-if="getItemIndex(item) === palette.selectedIndex.value"
+                      class="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-accent-500"
+                    ></div>
+
+                    <!-- Left: Icon & Title & Subtitle -->
+                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                      <div 
+                        class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/10 transition-transform duration-150 group-hover:scale-105"
+                        :class="getCategoryIconBg(item.category)"
+                      >
+                        <Icon :name="item.icon" class="text-sm" />
+                      </div>
+
+                      <div class="overflow-hidden min-w-0 flex-1 grid gap-0.5">
+                        <div class="flex items-center gap-2">
+                          <span class="text-xs sm:text-sm font-semibold truncate text-white leading-tight">
+                            {{ item.title }}
+                          </span>
+                          <span 
+                            v-if="item.badge" 
+                            class="px-1.5 py-0.2 rounded text-[9px] font-bold font-mono uppercase tracking-wider border shrink-0"
+                            :class="getBadgeClass(item.category)"
+                          >
+                            {{ item.badge }}
+                          </span>
+                        </div>
+                        <p 
+                          v-if="item.subtitle" 
+                          class="text-[11px] text-white/50 truncate leading-none"
+                        >
+                          {{ item.subtitle }}
+                        </p>
+                      </div>
+                    </div>
+
+                    <!-- Right: Action Hint Button -->
+                    <div class="flex items-center gap-1.5 shrink-0 ml-3">
+                      <span 
+                        class="text-[10px] font-semibold text-white/40 group-hover:text-accent-400 transition-colors uppercase tracking-wider font-mono flex items-center gap-1"
+                      >
+                        <span>{{ item.actionLabel || 'Open' }}</span>
+                        <kbd class="px-1 py-0.5 text-[9px] bg-white/[0.06] border border-white/10 rounded font-mono text-white/60">
+                          ↵
+                        </kbd>
+                      </span>
+                    </div>
                   </div>
-                </div>
+                </template>
               </div>
             </template>
           </div>
