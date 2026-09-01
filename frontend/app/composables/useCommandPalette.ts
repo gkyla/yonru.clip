@@ -424,7 +424,7 @@ function createCommandPaletteState() {
           subtitle: `${formatTime(vid.duration || 0)} • Cached Source Video`,
           category: 'videos',
           icon: 'lucide:film',
-          badge: 'Source',
+          badge: 'Video',
           actionLabel: 'Load Hooks',
           keywords: ['video', 'cached', 'source', 'download', 'hooks', ...(vid.title || '').toLowerCase().split(' ')],
           handler: async () => {

@@ -294,15 +294,14 @@
             <div v-if="isCollapsed" class="h-full w-16 flex flex-col items-center py-3 justify-between bg-black/20 select-none overflow-visible">
           <!-- Top Stack: Command Palette & Navigation Icons -->
           <div class="flex flex-col items-center gap-3.5 w-full px-2">
-            <!-- Collapsed Command Palette Trigger Button (Prominent Glowing Circular Button) -->
+            <!-- Collapsed Command Palette Trigger Button (Minimalist Sleek Circular Button) -->
             <div class="relative group">
               <button 
                 @click="palette.open"
-                class="w-10 h-10 rounded-full bg-gradient-to-br from-lime-400/20 via-emerald-500/10 to-teal-700/20 border border-accent-500/40 hover:border-accent-500 hover:scale-105 flex items-center justify-center text-accent-500 hover:text-white cursor-pointer relative transition-all shadow-[0_0_15px_rgba(207,255,80,0.15)] group-hover:shadow-[0_0_20px_rgba(207,255,80,0.3)]"
+                class="w-10 h-10 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 hover:border-white/30 text-white/70 hover:text-white hover:scale-105 flex items-center justify-center cursor-pointer relative transition-all"
                 title="Search (Cmd+K)"
               >
                 <Icon name="lucide:search" class="text-base" />
-                <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent-500 border-2 border-[#09090b]"></span>
               </button>
 
               <!-- Flyout Tooltip to the Right -->
