@@ -105,7 +105,7 @@ describe('CommandPaletteModal Component', () => {
     const input = wrapper.find('input[type="text"]')
     await input.setValue('Whisper')
 
-    expect(wrapper.text()).toContain('Whisper Transcription Engine')
+    expect(wrapper.text()).toContain('Whisper Engine')
     expect(wrapper.text()).not.toContain('AI Prompts Library')
   })
 

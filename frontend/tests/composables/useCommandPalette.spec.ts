@@ -66,14 +66,17 @@ describe('useCommandPalette Composable', () => {
     expect(palette.isOpen.value).toBe(true)
   })
 
-  it('aggregates navigation, settings, and prompt presets', () => {
+  it('aggregates navigation, settings (5 preferences tabs), and prompt presets', () => {
     const palette = useCommandPalette()
     const items = palette.allItems.value
 
     expect(items.some(i => i.id === 'nav-home')).toBe(true)
     expect(items.some(i => i.id === 'nav-settings')).toBe(true)
-    expect(items.some(i => i.id === 'setting-whisper')).toBe(true)
+    expect(items.some(i => i.id === 'setting-health')).toBe(true)
     expect(items.some(i => i.id === 'setting-api')).toBe(true)
+    expect(items.some(i => i.id === 'setting-whisper')).toBe(true)
+    expect(items.some(i => i.id === 'setting-cookies')).toBe(true)
+    expect(items.some(i => i.id === 'setting-env')).toBe(true)
     expect(items.some(i => i.id === 'prompt-preset-auto')).toBe(true)
   })
 
@@ -89,8 +92,11 @@ describe('useCommandPalette Composable', () => {
       i.keywords?.some(k => k.toLowerCase().includes('whisper'))
     )).toBe(true)
 
+    palette.searchQuery.value = 'cookies'
+    expect(palette.filteredItems.value.some(i => i.id === 'setting-cookies')).toBe(true)
+
     palette.searchQuery.value = 'settings'
-    expect(palette.filteredItems.value.some(i => i.id === 'nav-settings' || i.id === 'setting-diagnostics')).toBe(true)
+    expect(palette.filteredItems.value.some(i => i.id === 'nav-settings' || i.id === 'setting-health')).toBe(true)
   })
 
   it('navigates selected index up and down with wrapping', () => {
@@ -118,6 +124,18 @@ describe('useCommandPalette Composable', () => {
 
     palette.executeItem(navSettings!)
     expect(pushSpy).toHaveBeenCalledWith('/settings')
+    expect(palette.isOpen.value).toBe(false)
+  })
+
+  it('routes to the matching tab when selecting a settings preference item', () => {
+    const palette = useCommandPalette()
+    palette.open()
+
+    const cookiesItem = palette.allItems.value.find(i => i.id === 'setting-cookies')
+    expect(cookiesItem).toBeDefined()
+
+    palette.executeItem(cookiesItem!)
+    expect(pushSpy).toHaveBeenCalledWith({ path: '/settings', query: { tab: 'cookies' } })
     expect(palette.isOpen.value).toBe(false)
   })
 

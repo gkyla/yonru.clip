@@ -146,31 +146,31 @@ function createCommandPaletteState() {
       }
     })
 
-    // 3. SETTINGS SECTIONS
+    // 3. SETTINGS PREFERENCES SECTIONS (1:1 with /settings tabs)
     items.push({
-      id: 'setting-whisper',
-      title: 'Whisper Transcription Engine',
-      subtitle: 'Switch Whisper model tiers (tiny, base, small, medium, large-v3)',
+      id: 'setting-health',
+      title: 'System Health & Diagnostics',
+      subtitle: 'Verify FFmpeg, Node.js, Python, and Gemini API prerequisites',
       category: 'settings',
-      icon: 'lucide:mic',
+      icon: 'lucide:activity',
       badge: 'Setting',
-      actionLabel: 'Configure',
-      keywords: ['whisper', 'transcription', 'engine', 'model', 'audio', 'speech', 'subtitles', 'stt'],
+      actionLabel: 'Inspect',
+      keywords: ['health', 'diagnostics', 'system', 'ffmpeg', 'node', 'python', 'prerequisites', 'status', 'hardware'],
       handler: () => {
         close()
-        router.push({ path: '/settings', query: { tab: 'engine' } })
+        router.push({ path: '/settings', query: { tab: 'health' } })
       }
     })
 
     items.push({
       id: 'setting-api',
-      title: 'AI Provider & API Keys',
-      subtitle: 'Manage Google Gemini, Groq, and Local Ollama connection',
+      title: 'Gemini API Keys',
+      subtitle: 'Key pool & failover management for AI transcript analysis',
       category: 'settings',
       icon: 'lucide:key',
       badge: 'Setting',
       actionLabel: 'Configure',
-      keywords: ['api', 'keys', 'gemini', 'groq', 'ollama', 'provider', 'token', 'llm'],
+      keywords: ['api', 'keys', 'gemini', 'google', 'key pool', 'failover', 'token', 'ai'],
       handler: () => {
         close()
         router.push({ path: '/settings', query: { tab: 'api' } })
@@ -178,47 +178,47 @@ function createCommandPaletteState() {
     })
 
     items.push({
-      id: 'setting-diagnostics',
-      title: 'Hardware Acceleration & Diagnostics',
-      subtitle: 'Inspect CPU cores, RAM, VRAM, and GPU acceleration status',
+      id: 'setting-whisper',
+      title: 'Whisper Engine',
+      subtitle: 'Configure local speech-to-text model tier (tiny, base, small, medium, large-v3)',
       category: 'settings',
       icon: 'lucide:cpu',
       badge: 'Setting',
-      actionLabel: 'Inspect',
-      keywords: ['hardware', 'gpu', 'vram', 'ram', 'cpu', 'acceleration', 'specs', 'diagnostics', 'benchmark'],
+      actionLabel: 'Configure',
+      keywords: ['whisper', 'transcription', 'engine', 'speech', 'audio', 'stt', 'model', 'subtitles'],
       handler: () => {
         close()
-        router.push({ path: '/settings', query: { tab: 'diagnostics' } })
+        router.push({ path: '/settings', query: { tab: 'whisper' } })
       }
     })
 
     items.push({
-      id: 'setting-style',
-      title: 'Safe Zone & Subtitle Defaults',
-      subtitle: 'Adjust safe zone opacity, color, and global typography defaults',
+      id: 'setting-cookies',
+      title: 'YouTube Cookies',
+      subtitle: 'Upload yt-dlp authorization file to bypass download limits & bot verification',
       category: 'settings',
-      icon: 'lucide:palette',
+      icon: 'lucide:cookie',
       badge: 'Setting',
       actionLabel: 'Configure',
-      keywords: ['safe zone', 'subtitle', 'font', 'style', 'presets', 'color', 'opacity', 'typography'],
+      keywords: ['cookies', 'youtube', 'yt-dlp', 'authorization', 'cookies.txt', 'download', 'bypass', 'rate limit'],
       handler: () => {
         close()
-        router.push({ path: '/settings', query: { tab: 'style' } })
+        router.push({ path: '/settings', query: { tab: 'cookies' } })
       }
     })
 
     items.push({
-      id: 'setting-blacklist',
-      title: 'Blacklist & Audio Censorship',
-      subtitle: 'Manage banned words, automatic mute intervals, and bleep sounds',
+      id: 'setting-env',
+      title: 'Environment Paths',
+      subtitle: 'Custom binary and executable directory paths stored locally in .env',
       category: 'settings',
-      icon: 'lucide:shield-alert',
+      icon: 'lucide:terminal',
       badge: 'Setting',
       actionLabel: 'Configure',
-      keywords: ['blacklist', 'censorship', 'profanity', 'bleep', 'mute', 'filter', 'safety', 'words'],
+      keywords: ['env', 'paths', 'binaries', 'environment', 'ffmpeg path', 'node path', 'configuration'],
       handler: () => {
         close()
-        router.push({ path: '/settings', query: { tab: 'blacklist' } })
+        router.push({ path: '/settings', query: { tab: 'env' } })
       }
     })
 
