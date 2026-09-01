@@ -156,7 +156,7 @@
                             </span>
                             <span 
                               v-if="item.badge" 
-                              class="px-1.5 py-0.2 rounded text-[9px] font-bold font-mono uppercase tracking-wider border shrink-0"
+                              class="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider border shrink-0"
                               :class="getBadgeClass(item.category)"
                             >
                               {{ item.badge }}
@@ -220,7 +220,7 @@
                           </span>
                           <span 
                             v-if="item.badge" 
-                            class="px-1.5 py-0.2 rounded text-[9px] font-bold font-mono uppercase tracking-wider border shrink-0"
+                            class="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider border shrink-0"
                             :class="getBadgeClass(item.category)"
                           >
                             {{ item.badge }}

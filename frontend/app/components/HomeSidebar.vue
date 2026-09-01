@@ -271,7 +271,7 @@
               <!-- Changelog Navigation Action (Inside scroll body, pushed to bottom) -->
               <div class="mt-auto pt-2">
                 <button 
-                  @click="handleNav('docs')"
+                  @click="handleNav('changelog')"
                   class="h-10 flex items-center gap-3 px-3 rounded-xl text-white/80 hover:text-white hover:bg-white/[0.04] transition-all cursor-pointer group w-full text-left"
                 >
                   <Icon name="lucide:history" class="text-lg shrink-0 group-hover:scale-105 transition-transform" />
@@ -454,7 +454,7 @@
             <!-- Changelog -->
             <div class="relative group">
               <button 
-                @click="handleNav('docs')"
+                @click="handleNav('changelog')"
                 class="w-10 h-10 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.04] transition-all cursor-pointer"
                 title="Changelog"
               >
@@ -764,9 +764,11 @@ function handleNav(view: string) {
     router.push('/prompts')
   } else if (view === 'docs') {
     router.push('/docs')
+  } else if (view === 'changelog') {
+    router.push('/changelog')
   } else if (view === 'home') {
     router.push('/')
-  }
+  } 
   if (props.isFloating) {
     isCollapsed.value = true
   }

@@ -185,16 +185,31 @@ function createCommandPaletteState() {
 
     items.push({
       id: 'nav-docs',
-      title: 'Documentation & Changelog',
-      subtitle: 'System architecture, ADR records, and release history',
+      title: 'Documentation',
+      subtitle: 'User guide, system architecture, and tutorials',
       category: 'navigation',
       icon: 'lucide:book-open',
       badge: 'Page',
       actionLabel: 'Jump',
-      keywords: ['docs', 'documentation', 'changelog', 'release', 'notes', 'help', 'history'],
+      keywords: ['docs', 'documentation', 'guide', 'help', 'tutorial', 'manual'],
       handler: () => {
         close()
         router.push('/docs')
+      }
+    })
+
+    items.push({
+      id: 'nav-changelog',
+      title: 'Changelog',
+      subtitle: 'Version history, release notes, and latest updates',
+      category: 'navigation',
+      icon: 'lucide:history',
+      badge: 'Page',
+      actionLabel: 'Jump',
+      keywords: ['changelog', 'release', 'notes', 'updates', 'history', 'version', 'whatsnew'],
+      handler: () => {
+        close()
+        router.push('/changelog')
       }
     })
 

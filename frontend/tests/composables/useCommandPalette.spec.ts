@@ -71,6 +71,9 @@ describe('useCommandPalette Composable', () => {
     const items = palette.allItems.value
 
     expect(items.some(i => i.id === 'nav-home')).toBe(true)
+    expect(items.some(i => i.id === 'nav-prompts')).toBe(true)
+    expect(items.some(i => i.id === 'nav-docs')).toBe(true)
+    expect(items.some(i => i.id === 'nav-changelog')).toBe(true)
     expect(items.some(i => i.id === 'nav-settings')).toBe(true)
     expect(items.some(i => i.id === 'setting-health')).toBe(true)
     expect(items.some(i => i.id === 'setting-api')).toBe(true)
