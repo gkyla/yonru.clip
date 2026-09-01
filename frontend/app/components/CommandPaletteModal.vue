@@ -65,7 +65,12 @@
                 ? 'bg-accent-500 text-black font-bold' 
                 : 'text-white/60 hover:text-white hover:bg-white/[0.05]'"
             >
-              <Icon v-if="cat.icon" :name="cat.icon" class="text-xs" />
+              <Icon 
+                v-if="cat.icon" 
+                :name="cat.icon" 
+                class="text-xs" 
+                :class="palette.activeCategoryFilter.value === cat.id ? 'text-black' : (cat.id !== 'all' ? getCategoryIconColor(cat.id as CommandPaletteCategory) : '')" 
+              />
               <span>{{ cat.label }}</span>
             </button>
           </div>
@@ -139,10 +144,9 @@
                       <!-- Left: Icon & Title & Subtitle -->
                       <div class="flex items-center gap-3 min-w-0 flex-1">
                         <div 
-                          class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/10 transition-transform duration-150 group-hover:scale-105"
-                          :class="getCategoryIconBg(item.category)"
+                          class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/[0.08] bg-[#121216] transition-transform duration-150 group-hover:scale-105 shadow-inner"
                         >
-                          <Icon :name="item.icon" class="text-sm" />
+                          <Icon :name="item.icon" class="text-sm" :class="getCategoryIconColor(item.category)" />
                         </div>
 
                         <div class="overflow-hidden min-w-0 flex-1 grid gap-0.5">
@@ -204,10 +208,9 @@
                     <!-- Left: Icon & Title & Subtitle -->
                     <div class="flex items-center gap-3 min-w-0 flex-1">
                       <div 
-                        class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/10 transition-transform duration-150 group-hover:scale-105"
-                        :class="getCategoryIconBg(item.category)"
+                        class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/[0.08] bg-[#121216] transition-transform duration-150 group-hover:scale-105 shadow-inner"
                       >
-                        <Icon :name="item.icon" class="text-sm" />
+                        <Icon :name="item.icon" class="text-sm" :class="getCategoryIconColor(item.category)" />
                       </div>
 
                       <div class="overflow-hidden min-w-0 flex-1 grid gap-0.5">
@@ -311,20 +314,20 @@ function handleMouseEnter(item: CommandPaletteItem) {
   }
 }
 
-function getCategoryIconBg(category: CommandPaletteCategory): string {
+function getCategoryIconColor(category: CommandPaletteCategory): string {
   switch (category) {
     case 'navigation':
-      return 'bg-sky-500/10 text-sky-400 border-sky-500/20'
+      return 'text-sky-400'
     case 'settings':
-      return 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+      return 'text-amber-400'
     case 'prompts':
-      return 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+      return 'text-purple-400'
     case 'videos':
-      return 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+      return 'text-blue-400'
     case 'clips':
-      return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+      return 'text-emerald-400'
     default:
-      return 'bg-white/10 text-white border-white/20'
+      return 'text-white/80'
   }
 }
 

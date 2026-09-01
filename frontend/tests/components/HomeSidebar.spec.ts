@@ -164,7 +164,7 @@ describe('HomeSidebar Component', () => {
       }
     })
 
-    const searchBtn = wrapper.find('button[title*="Command Palette"]')
+    const searchBtn = wrapper.find('button[title*="Search"]')
     expect(searchBtn.exists()).toBe(true)
 
     const { useCommandPalette } = await import('~/composables/useCommandPalette')
@@ -372,7 +372,7 @@ describe('HomeSidebar Component', () => {
     })
 
     // Click Spotlight search trigger in expanded mode
-    const searchTrigger = wrapper.find('button[title*="Command Palette"]')
+    const searchTrigger = wrapper.find('button[title*="Search"]')
     expect(searchTrigger.exists()).toBe(true)
     await searchTrigger.trigger('click')
 
@@ -387,7 +387,7 @@ describe('HomeSidebar Component', () => {
     palette.close()
     expect(palette.isOpen.value).toBe(false)
 
-    const collapsedTrigger = wrapper.find('button[title*="Command Palette"]')
+    const collapsedTrigger = wrapper.find('button[title*="Search"]')
     expect(collapsedTrigger.exists()).toBe(true)
     await collapsedTrigger.trigger('click')
     expect(palette.isOpen.value).toBe(true)

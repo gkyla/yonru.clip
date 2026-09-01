@@ -99,7 +99,7 @@
                 <button 
                   @click="palette.open"
                   class="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-accent-500/40 hover:shadow-[0_0_15px_rgba(207,255,80,0.06)] transition-all group cursor-pointer text-left"
-                  title="Open Command Palette (Cmd+K)"
+                  title="Search (Cmd+K)"
                 >
                   <div class="flex items-center gap-2.5 min-w-0">
                     <Icon 
@@ -299,7 +299,7 @@
               <button 
                 @click="palette.open"
                 class="w-10 h-10 rounded-full bg-gradient-to-br from-lime-400/20 via-emerald-500/10 to-teal-700/20 border border-accent-500/40 hover:border-accent-500 hover:scale-105 flex items-center justify-center text-accent-500 hover:text-white cursor-pointer relative transition-all shadow-[0_0_15px_rgba(207,255,80,0.15)] group-hover:shadow-[0_0_20px_rgba(207,255,80,0.3)]"
-                title="Command Palette (Cmd+K)"
+                title="Search (Cmd+K)"
               >
                 <Icon name="lucide:search" class="text-base" />
                 <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent-500 border-2 border-[#09090b]"></span>
@@ -307,7 +307,7 @@
 
               <!-- Flyout Tooltip to the Right -->
               <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-[#121216]/95 border border-white/15 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-[100] whitespace-nowrap flex items-center gap-1.5">
-                <span>Command Palette</span>
+                <span>Search</span>
                 <kbd class="px-1 py-0.2 bg-white/[0.08] border border-white/10 rounded font-mono text-[9px] text-white/60">⌘K</kbd>
               </div>
             </div>
