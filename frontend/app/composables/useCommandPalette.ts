@@ -1,5 +1,5 @@
-import { ref, computed } from 'vue'
-import type { CommandPaletteItem, CommandPaletteCategory, Hook } from '../types/clipper'
+import { ref, computed, watch } from 'vue'
+import type { CommandPaletteItem, CommandPaletteCategory, CommandPaletteGroup, Hook, CachedVideo } from '../types/clipper'
 import { useClipperState } from './useClipperState'
 
 let cachedCommandPalette: ReturnType<typeof createCommandPaletteState> | null = null
@@ -20,8 +20,75 @@ function createCommandPaletteState() {
   const searchQuery = ref('')
   const selectedIndex = ref(0)
   const activeCategoryFilter = ref<CommandPaletteCategory | 'all'>('all')
+  const paletteCachedVideos = ref<CachedVideo[]>([])
+  const isPaletteCachedLoading = ref(false)
 
   const state = useClipperState()
+  let searchDebounceTimer: any = null
+  let activeRequestId = 0
+
+  async function safeFetch<T>(url: string, opts?: any): Promise<T> {
+    try {
+      if (typeof $fetch === 'function') {
+        return await $fetch<T>(url, opts)
+      }
+    } catch {}
+    try {
+      if (typeof (globalThis as any).$fetch === 'function') {
+        return await (globalThis as any).$fetch(url, opts)
+      }
+    } catch {}
+    return { videos: [], total: 0 } as any
+  }
+
+  async function fetchPaletteCachedVideos(searchQueryParam?: string) {
+    const reqId = ++activeRequestId
+    isPaletteCachedLoading.value = true
+    try {
+      const q = (searchQueryParam ?? '').trim()
+      const queryParams: Record<string, any> = {
+        limit: q ? 30 : 100,
+        sort_by: 'date',
+        order: 'desc'
+      }
+      if (q) {
+        queryParams.search = q
+      }
+
+      const res = await safeFetch<{ videos: CachedVideo[], total: number }>(
+        'http://localhost:8000/api/cached',
+        { params: queryParams }
+      )
+
+      if (reqId !== activeRequestId) return
+
+      if (res && Array.isArray(res.videos)) {
+        const existingMap = new Map<string, CachedVideo>()
+        for (const v of paletteCachedVideos.value) {
+          const id = v.video_id || v.folder_name
+          if (id) existingMap.set(id, v)
+        }
+        if (state.cachedVideos && state.cachedVideos.value) {
+          for (const v of state.cachedVideos.value) {
+            const id = v.video_id || v.folder_name
+            if (id && !existingMap.has(id)) existingMap.set(id, v)
+          }
+        }
+        for (const v of res.videos) {
+          const id = v.video_id || v.folder_name
+          if (id) existingMap.set(id, v)
+        }
+
+        paletteCachedVideos.value = Array.from(existingMap.values())
+      }
+    } catch (e) {
+      // safe fallback
+    } finally {
+      if (reqId === activeRequestId) {
+        isPaletteCachedLoading.value = false
+      }
+    }
+  }
 
   function useSafeRouter() {
     try {
@@ -43,6 +110,11 @@ function createCommandPaletteState() {
     searchQuery.value = ''
     selectedIndex.value = 0
     activeCategoryFilter.value = 'all'
+
+    if (paletteCachedVideos.value.length === 0 && state.cachedVideos && state.cachedVideos.value) {
+      paletteCachedVideos.value = [...state.cachedVideos.value]
+    }
+    fetchPaletteCachedVideos()
   }
 
   function close() {
@@ -58,6 +130,16 @@ function createCommandPaletteState() {
       open()
     }
   }
+
+  watch(searchQuery, (newVal) => {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+    const q = (newVal || '').trim()
+    if (q.length >= 2) {
+      searchDebounceTimer = setTimeout(() => {
+        fetchPaletteCachedVideos(q)
+      }, 250)
+    }
+  })
 
   function formatTime(seconds: number): string {
     if (!seconds || isNaN(seconds) || seconds < 0) return '0:00'
@@ -312,27 +394,31 @@ function createCommandPaletteState() {
     }
 
     // 5. CACHED VIDEOS
-    if (state.cachedVideos.value && Array.isArray(state.cachedVideos.value)) {
-      for (const vid of state.cachedVideos.value) {
-        if (vid.video_id || vid.folder_name) {
-          const videoId = vid.video_id || vid.folder_name
-          items.push({
-            id: `cached-video-${videoId}`,
-            title: vid.title || 'Untitled Source Video',
-            subtitle: `${formatTime(vid.duration || 0)} • Cached Source Video`,
-            category: 'videos',
-            icon: 'lucide:film',
-            badge: 'Source',
-            actionLabel: 'Load Hooks',
-            keywords: ['video', 'cached', 'source', 'download', 'hooks', ...(vid.title || '').toLowerCase().split(' ')],
-            handler: async () => {
-              close()
-              await router.push('/')
-              state.showToast(`Loading cached hooks for "${vid.title || 'Source Video'}"...`, 'info')
-              await state.analyzeCached(videoId, false)
-            }
-          })
-        }
+    const sourceVideosList = paletteCachedVideos.value.length > 0
+      ? paletteCachedVideos.value
+      : (state.cachedVideos?.value || [])
+
+    const seenVideoIds = new Set<string>()
+    for (const vid of sourceVideosList) {
+      const videoId = vid.video_id || vid.folder_name
+      if (videoId && !seenVideoIds.has(videoId)) {
+        seenVideoIds.add(videoId)
+        items.push({
+          id: `cached-video-${videoId}`,
+          title: vid.title || 'Untitled Source Video',
+          subtitle: `${formatTime(vid.duration || 0)} • Cached Source Video`,
+          category: 'videos',
+          icon: 'lucide:film',
+          badge: 'Source',
+          actionLabel: 'Load Hooks',
+          keywords: ['video', 'cached', 'source', 'download', 'hooks', ...(vid.title || '').toLowerCase().split(' ')],
+          handler: async () => {
+            close()
+            await router.push('/')
+            state.showToast(`Loading cached hooks for "${vid.title || 'Source Video'}"...`, 'info')
+            await state.analyzeCached(videoId, false)
+          }
+        })
       }
     }
 
@@ -481,6 +567,9 @@ function createCommandPaletteState() {
     allItems,
     filteredItems,
     groupedItems,
+    paletteCachedVideos,
+    isPaletteCachedLoading,
+    fetchPaletteCachedVideos,
     open,
     close,
     toggle,

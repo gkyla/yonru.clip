@@ -185,4 +185,48 @@ describe('useCommandPalette Composable', () => {
     expect(mockShowToast).toHaveBeenCalledWith('Loading cached hooks for "Tech Talk Episode 1"...', 'info')
     expect(palette.isOpen.value).toBe(false)
   })
+
+  it('prefetches larger batch of cached videos when open() is called', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      videos: [
+        { video_id: 'vid-batch-1', title: 'Batch Video 1', duration: 120, folder_name: 'vid-batch-1' },
+        { video_id: 'vid-batch-2', title: 'Batch Video 2', duration: 240, folder_name: 'vid-batch-2' }
+      ],
+      total: 2
+    })
+    vi.stubGlobal('$fetch', mockFetch)
+
+    const palette = useCommandPalette()
+    palette.open()
+
+    await palette.fetchPaletteCachedVideos()
+
+    expect(palette.paletteCachedVideos.value.length).toBeGreaterThanOrEqual(2)
+    expect(palette.allItems.value.some(i => i.id === 'cached-video-vid-batch-1')).toBe(true)
+    expect(palette.allItems.value.some(i => i.id === 'cached-video-vid-batch-2')).toBe(true)
+  })
+
+  it('fetches remote search results when user searches for an un-cached video', async () => {
+    const mockFetch = vi.fn().mockImplementation((url, opts) => {
+      if (opts?.params?.search === 'quantum') {
+        return Promise.resolve({
+          videos: [
+            { video_id: 'vid-quantum-99', title: 'Quantum Computing Explained', duration: 450, folder_name: 'vid-quantum-99' }
+          ],
+          total: 1
+        })
+      }
+      return Promise.resolve({ videos: [], total: 0 })
+    })
+    vi.stubGlobal('$fetch', mockFetch)
+
+    const palette = useCommandPalette()
+    palette.open()
+
+    await palette.fetchPaletteCachedVideos('quantum')
+
+    expect(palette.allItems.value.some(i => i.id === 'cached-video-vid-quantum-99')).toBe(true)
+    palette.searchQuery.value = 'quantum'
+    expect(palette.filteredItems.value.some(i => i.id === 'cached-video-vid-quantum-99')).toBe(true)
+  })
 })
