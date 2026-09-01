@@ -11,7 +11,7 @@
   >
     <div 
       v-if="!isCollapsed" 
-      @click="isCollapsed = true; isProfileMenuOpen = false"
+      @click="isCollapsed = true"
       class="fixed inset-0 bg-black/60 backdrop-blur-[2px] z-[55]"
     ></div>
   </Transition>
@@ -51,7 +51,7 @@
           <div class="flex items-center gap-2.5 min-w-0">
             <!-- Sidebar Toggle Button (Positioned at stable top-left origin, perfect 40px width matching rail) -->
             <button 
-              @click="isCollapsed = !isCollapsed; isProfileMenuOpen = false"
+              @click="isCollapsed = !isCollapsed"
               class="w-10 h-10 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer shrink-0"
               :title="isCollapsed ? 'Expand Sidebar (Cmd+B)' : 'Collapse Sidebar (Cmd+B)'"
             >
@@ -94,263 +94,26 @@
             leave-to-class="opacity-0"
           >
             <div v-if="!isCollapsed" class="h-full w-full flex flex-col min-h-0 overflow-visible">
-              <!-- Top Section: Niche Profile Switcher Card -->
+              <!-- Top Section: Spotlight Command Palette Trigger -->
               <div class="p-3 pb-0 shrink-0 relative overflow-visible z-50">
-                <div class="relative profile-popover-container" ref="profileContainerRef">
-                  <button 
-                    @click.stop="toggleProfileMenu"
-                    class="w-full flex items-center justify-between p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-white/15 transition-all group cursor-pointer text-left"
-                    :class="{ 'border-accent-500/30 bg-accent-500/5': isProfileMenuOpen }"
-                  >
-                    <div class="flex items-center gap-3 min-w-0">
-                      <div 
-                        class="w-10 h-10 rounded-full bg-gradient-to-br border border-white/20 flex items-center justify-center text-white shrink-0 relative shadow-sm"
-                        :class="activeProfile.gradient || 'from-lime-400 to-emerald-600'"
-                      >
-                        <Icon :name="activeProfile.icon || 'lucide:sparkles'" class="text-base text-white" />
-                        <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#09090b]"></span>
-                      </div>
-                      <div class="overflow-hidden min-w-0 grid justify-center gap-0.5">
-                        <p class="text-[12px] font-semibold text-white truncate leading-tight">{{ activeProfile.name }}</p>
-                        <span class="inline-block text-[9px] text-white/70 bg-white/[0.04]px-1.5 py-0.5 rounded font-medium truncate max-w-[150px] leading-none">{{ activeProfile.niche }}</span>
-                      </div>
-                    </div>
+                <button 
+                  @click="palette.open"
+                  class="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-accent-500/40 hover:shadow-[0_0_15px_rgba(207,255,80,0.06)] transition-all group cursor-pointer text-left"
+                  title="Search (Cmd+K)"
+                >
+                  <div class="flex items-center gap-2.5 min-w-0">
                     <Icon 
-                      name="lucide:chevrons-up-down" 
-                      class="text-white/60 group-hover:text-white text-xs shrink-0 transition-transform duration-200"
-                      :class="{ 'rotate-180 text-accent-500': isProfileMenuOpen }" 
+                      name="lucide:search" 
+                      class="text-sm text-white/50 group-hover:text-accent-500 transition-colors shrink-0" 
                     />
-                  </button>
-
-                  <!-- Floating Niche Profile Popover Menu (Flyout to the RIGHT) -->
-                  <Transition
-                    enter-active-class="transition duration-150 ease-out"
-                    enter-from-class="opacity-0 translate-x-2 scale-95"
-                    enter-to-class="opacity-100 translate-x-0 scale-100"
-                    leave-active-class="transition duration-100 ease-in"
-                    leave-from-class="opacity-100 translate-x-0 scale-100"
-                    leave-to-class="opacity-0 translate-x-2 scale-95"
-                  >
-                    <div 
-                      v-if="isProfileMenuOpen" 
-                      @click.stop
-                      class="absolute left-full top-0 ml-3 w-72 bg-[#121216] border border-white/10 rounded-2xl shadow-2xl p-3 z-[9999] flex flex-col gap-2.5 backdrop-blur-xl"
-                    >
-                      <Transition
-                        mode="out-in"
-                        :enter-active-class="navigationDirection === 'forward' ? 'transition-all duration-150 ease-out' : 'transition-all duration-150 ease-out'"
-                        :enter-from-class="navigationDirection === 'forward' ? 'opacity-0 translate-x-3' : 'opacity-0 -translate-x-3'"
-                        :enter-to-class="'opacity-100 translate-x-0'"
-                        :leave-active-class="navigationDirection === 'forward' ? 'transition-all duration-100 ease-in' : 'transition-all duration-100 ease-in'"
-                        :leave-from-class="'opacity-100 translate-x-0'"
-                        :leave-to-class="navigationDirection === 'forward' ? 'opacity-0 -translate-x-3' : 'opacity-0 translate-x-3'"
-                      >
-                        <!-- MODE 1: Profile List -->
-                        <div v-if="!isCreatingProfile" key="profile-list" class="flex flex-col gap-2">
-                          <div class="px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white/50 border-b border-white/[0.06] flex items-center justify-between">
-                            <span>Switch Profile</span>
-                            <span class="text-[8px] text-accent-500 font-mono">{{ profiles.length }} PROFILES</span>
-                          </div>
-
-                          <!-- Profile Items List with TransitionGroup -->
-                          <TransitionGroup 
-                            tag="div" 
-                            class="flex flex-col gap-1 max-h-56 overflow-y-auto custom-scrollbar pr-0.5"
-                            enter-active-class="transition-all duration-200 ease-out"
-                            enter-from-class="opacity-0 -translate-y-1.5 scale-95"
-                            enter-to-class="opacity-100 translate-y-0 scale-100"
-                            leave-active-class="transition-all duration-150 ease-in"
-                            leave-from-class="opacity-100 translate-y-0 scale-100"
-                            leave-to-class="opacity-0 -translate-y-1.5 scale-95"
-                            move-class="transition-all duration-200 ease-out"
-                          >
-                            <div 
-                              v-for="profile in profiles" 
-                              :key="profile.id"
-                              @click="selectProfile(profile)"
-                              class="flex items-center justify-between p-2 rounded-xl transition-all cursor-pointer group relative hover:bg-white/[0.04]"
-                              :class="activeProfile.id === profile.id ? 'bg-white/[0.06] border border-white/15' : 'border border-transparent'"
-                            >
-                              <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                                <!-- Dynamic Gradient Avatar (Circle) -->
-                                <div 
-                                  class="w-8 h-8 rounded-full bg-gradient-to-br flex items-center justify-center text-white shrink-0 border border-white/15 shadow-sm transition-transform duration-200 group-hover:scale-105"
-                                  :class="profile.gradient || 'from-lime-400 to-emerald-600'"
-                                >
-                                  <Icon :name="profile.icon || 'lucide:sparkles'" class="text-sm text-white" />
-                                </div>
-                                <div class="overflow-hidden min-w-0 flex-1 grid gap-0.5">
-                                  <p class="text-[11px] font-semibold text-white truncate leading-tight">{{ profile.name }}</p>
-                                  <span class="inline-block text-[9px] text-white/60 py-0.5 rounded truncate max-w-[130px] leading-none">{{ profile.niche }}</span>
-                                </div>
-                              </div>
-
-                              <div class="flex items-center gap-1 shrink-0 ml-2">
-                                <!-- Active Checkmark -->
-                                <Icon v-if="activeProfile.id === profile.id" name="lucide:check" class="text-xs text-accent-500 mr-0.5" />
-                                
-                                <!-- Edit button -->
-                                <button 
-                                  @click.stop="startEditProfile(profile, $event)"
-                                  class="w-6 h-6 rounded-md hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 cursor-pointer"
-                                  title="Edit Profile"
-                                >
-                                  <Icon name="lucide:pencil" class="text-[10px]" />
-                                </button>
-
-                                <!-- Delete button (if > 1) -->
-                                <button 
-                                  v-if="profiles.length > 1"
-                                  @click.stop="deleteProfile(profile.id, $event)"
-                                  class="w-6 h-6 rounded-md hover:bg-red-500/20 flex items-center justify-center text-white/40 hover:text-red-400 opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 cursor-pointer"
-                                  title="Delete Profile"
-                                >
-                                  <Icon name="lucide:trash-2" class="text-[10px]" />
-                                </button>
-                              </div>
-                            </div>
-                          </TransitionGroup>
-
-                          <!-- Add New Profile Action -->
-                          <div class="pt-1 border-t border-white/[0.06]">
-                            <button 
-                              @click="startCreateProfile"
-                              class="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-xl text-white/80 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/15 text-[11px] font-medium transition-all active:scale-[0.98] cursor-pointer shadow-sm"
-                            >
-                              <Icon name="lucide:plus" class="text-xs text-accent-500" />
-                              <span>Create Profile</span>
-                            </button>
-                          </div>
-                        </div>
-
-                        <!-- MODE 2: Inline Creation / Edit Form -->
-                        <div v-else key="profile-form" class="flex flex-col gap-2.5">
-                          <div class="flex items-center justify-between border-b border-white/[0.06] pb-1.5">
-                            <button 
-                              @click="cancelProfileForm" 
-                              class="flex items-center gap-1 text-[10px] font-medium text-white/60 hover:text-white cursor-pointer transition-all active:scale-95"
-                            >
-                              <Icon name="lucide:arrow-left" class="text-xs" />
-                              <span>Back</span>
-                            </button>
-                            <span class="text-[9px] font-bold uppercase tracking-wider text-accent-500 font-mono">
-                              {{ editingProfileId ? 'Edit Profile' : 'New Profile' }}
-                            </span>
-                          </div>
-
-                          <!-- Live Avatar & Preview Banner -->
-                          <div class="flex items-center gap-3 p-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                            <div 
-                              class="w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center text-white shrink-0 border border-white/20 shadow-sm transition-all duration-200 ease-out"
-                              :class="profileForm.gradient"
-                            >
-                              <Icon :name="profileForm.icon" class="text-lg text-white" />
-                            </div>
-                            <div class="overflow-hidden min-w-0 flex-1">
-                              <p class="text-xs font-semibold text-white truncate">{{ profileForm.name || 'Untitled Profile' }}</p>
-                              <p class="text-[10px] text-white/60 truncate mt-0.5">{{ profileForm.niche || 'General' }}</p>
-                            </div>
-                          </div>
-
-                          <!-- Input 1: Profile Name -->
-                          <div class="flex flex-col gap-1">
-                            <label class="text-[9px] font-bold uppercase tracking-wider text-white/50">Profile Name</label>
-                            <input 
-                              v-model="profileForm.name" 
-                              type="text" 
-                              placeholder="e.g. Podcast Shorts"
-                              maxlength="30"
-                              class="w-full bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-white/30 focus:border-accent-500/60 focus:bg-white/[0.06] focus:outline-none transition-all"
-                            />
-                          </div>
-
-                          <!-- Input 2: Category (Manual Input + Quick Presets) -->
-                          <div class="flex flex-col gap-1">
-                            <div class="flex items-center justify-between">
-                              <label class="text-[9px] font-bold uppercase tracking-wider text-white/50">Category</label>
-                              <span class="text-[8px] text-white/40">Manual or Preset</span>
-                            </div>
-                            <input 
-                              v-model="profileForm.niche" 
-                              type="text" 
-                              placeholder="e.g. Finance & Crypto, Cooking, Vlog"
-                              maxlength="35"
-                              class="w-full bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-white/30 focus:border-accent-500/60 focus:bg-white/[0.06] focus:outline-none transition-all"
-                            />
-                            <div class="flex flex-wrap gap-1 mt-0.5">
-                              <button 
-                                v-for="cat in CATEGORY_TAG_PRESETS" 
-                                :key="cat.niche"
-                                type="button"
-                                @click="applyQuickCategory(cat)"
-                                class="px-2 py-0.5 rounded-md text-[9px] font-medium transition-all active:scale-95 hover:scale-105 border cursor-pointer"
-                                :class="profileForm.niche === cat.niche ? 'bg-white/15 border-accent-500/60 text-white font-bold' : 'bg-white/[0.03] border-white/[0.06] text-white/60 hover:text-white hover:bg-white/[0.06]'"
-                              >
-                                {{ cat.niche.split(' ')[0] }}
-                              </button>
-                            </div>
-                          </div>
-
-                          <!-- Icon Grid Selector -->
-                          <div class="flex flex-col gap-1">
-                            <label class="text-[9px] font-bold uppercase tracking-wider text-white/50">Icon</label>
-                            <div class="grid grid-cols-5 gap-1.5">
-                              <button 
-                                v-for="item in ICON_PRESETS" 
-                                :key="item.icon"
-                                type="button"
-                                @click="profileForm.icon = item.icon"
-                                class="h-7 rounded-lg flex items-center justify-center transition-all active:scale-90 hover:scale-105 border cursor-pointer"
-                                :class="profileForm.icon === item.icon ? 'bg-accent-500/20 border-accent-500 text-accent-500' : 'bg-white/[0.03] border-white/[0.06] text-white/60 hover:text-white hover:bg-white/[0.06]'"
-                                :title="item.label"
-                              >
-                                <Icon :name="item.icon" class="text-xs" />
-                              </button>
-                            </div>
-                          </div>
-
-                          <!-- Color Gradient Selector -->
-                          <div class="flex flex-col gap-1">
-                            <label class="text-[9px] font-bold uppercase tracking-wider text-white/50">Color Palette</label>
-                            <div class="grid grid-cols-8 gap-1.5">
-                              <button 
-                                v-for="grad in GRADIENT_PRESETS" 
-                                :key="grad.gradient"
-                                type="button"
-                                @click="profileForm.gradient = grad.gradient"
-                                class="w-6 h-6 rounded-full bg-gradient-to-br transition-all active:scale-90 hover:scale-110 border cursor-pointer mx-auto"
-                                :class="[
-                                  grad.gradient,
-                                  profileForm.gradient === grad.gradient ? 'border-white scale-110 shadow-sm' : 'border-white/10 hover:scale-105 opacity-80 hover:opacity-100'
-                                ]"
-                                :title="grad.name"
-                              ></button>
-                            </div>
-                          </div>
-
-                          <!-- Action Buttons -->
-                          <div class="flex items-center gap-1.5 pt-1 border-t border-white/[0.06]">
-                            <button 
-                              type="button"
-                              @click="cancelProfileForm"
-                              class="flex-1 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.06] border border-white/[0.06] text-[10px] font-medium transition-all active:scale-95 cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                            <button 
-                              type="button"
-                              :disabled="!profileForm.name.trim()"
-                              @click="saveProfileForm"
-                              class="flex-1 py-1.5 rounded-lg bg-accent-500 hover:bg-accent-400 text-black text-[10px] font-bold transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer shadow-sm"
-                            >
-                              {{ editingProfileId ? 'Save' : 'Create' }}
-                            </button>
-                          </div>
-                        </div>
-                      </Transition>
-                    </div>
-                  </Transition>
-                </div>
+                    <span class="text-xs text-white/50 group-hover:text-white/80 font-medium truncate transition-colors">
+                      Search or jump to...
+                    </span>
+                  </div>
+                  <kbd class="px-1.5 py-0.5 text-[9px] font-mono font-bold text-white/50 bg-white/[0.06] border border-white/10 rounded group-hover:border-white/20 group-hover:text-white/70 transition-all shrink-0">
+                    ⌘K
+                  </kbd>
+                </button>
               </div>
 
               <!-- Scrollable Content (Nav & Workspace & Changelog) -->
@@ -508,7 +271,7 @@
               <!-- Changelog Navigation Action (Inside scroll body, pushed to bottom) -->
               <div class="mt-auto pt-2">
                 <button 
-                  @click="handleNav('docs')"
+                  @click="handleNav('changelog')"
                   class="h-10 flex items-center gap-3 px-3 rounded-xl text-white/80 hover:text-white hover:bg-white/[0.04] transition-all cursor-pointer group w-full text-left"
                 >
                   <Icon name="lucide:history" class="text-lg shrink-0 group-hover:scale-105 transition-transform" />
@@ -529,248 +292,23 @@
             leave-to-class="opacity-0"
           >
             <div v-if="isCollapsed" class="h-full w-16 flex flex-col items-center py-3 justify-between bg-black/20 select-none overflow-visible">
-          <!-- Top Stack: Profile & Navigation Icons -->
+          <!-- Top Stack: Command Palette & Navigation Icons -->
           <div class="flex flex-col items-center gap-3.5 w-full px-2">
-            <!-- Collapsed Profile Avatar Trigger (Dynamic Gradient Avatar - Circle) -->
-            <div class="relative profile-popover-container">
+            <!-- Collapsed Command Palette Trigger Button (Minimalist Sleek Circular Button) -->
+            <div class="relative group">
               <button 
-                @click.stop="toggleProfileMenu"
-                class="w-10 h-10 rounded-full bg-gradient-to-br border border-white/20 flex items-center justify-center text-white cursor-pointer relative hover:scale-105 transition-all shadow-sm"
-                :class="activeProfile.gradient || 'from-lime-400 to-emerald-600'"
-                title="Switch Profile"
+                @click="palette.open"
+                class="w-10 h-10 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 hover:border-white/30 text-white/70 hover:text-white hover:scale-105 flex items-center justify-center cursor-pointer relative transition-all"
+                title="Search (Cmd+K)"
               >
-                <Icon :name="activeProfile.icon || 'lucide:sparkles'" class="text-base text-white" />
-                <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#09090b]"></span>
+                <Icon name="lucide:search" class="text-base" />
               </button>
-              
-              <!-- Floating Profile Popover Menu in Collapsed Mode (Flyout to the RIGHT) -->
-              <Transition
-                enter-active-class="transition duration-150 ease-out"
-                enter-from-class="opacity-0 translate-x-2 scale-95"
-                enter-to-class="opacity-100 translate-x-0 scale-100"
-                leave-active-class="transition duration-100 ease-in"
-                leave-from-class="opacity-100 translate-x-0 scale-100"
-                leave-to-class="opacity-0 translate-x-2 scale-95"
-              >
-                <div 
-                  v-if="isProfileMenuOpen" 
-                  @click.stop
-                  class="absolute left-full top-0 ml-3 w-72 bg-[#121216] border border-white/10 rounded-2xl shadow-2xl p-3 z-[9999] flex flex-col gap-2.5 backdrop-blur-xl"
-                >
-                      <Transition
-                        mode="out-in"
-                        :enter-active-class="navigationDirection === 'forward' ? 'transition-all duration-150 ease-out' : 'transition-all duration-150 ease-out'"
-                        :enter-from-class="navigationDirection === 'forward' ? 'opacity-0 translate-x-3' : 'opacity-0 -translate-x-3'"
-                        :enter-to-class="'opacity-100 translate-x-0'"
-                        :leave-active-class="navigationDirection === 'forward' ? 'transition-all duration-100 ease-in' : 'transition-all duration-100 ease-in'"
-                        :leave-from-class="'opacity-100 translate-x-0'"
-                        :leave-to-class="navigationDirection === 'forward' ? 'opacity-0 -translate-x-3' : 'opacity-0 translate-x-3'"
-                      >
-                        <!-- MODE 1: Profile List -->
-                        <div v-if="!isCreatingProfile" key="profile-list" class="flex flex-col gap-2">
-                          <div class="px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white/50 border-b border-white/[0.06] flex items-center justify-between">
-                            <span>Switch Profile</span>
-                            <span class="text-[8px] text-accent-500 font-mono">{{ profiles.length }} PROFILES</span>
-                          </div>
 
-                          <!-- Profile Items List with TransitionGroup -->
-                          <TransitionGroup 
-                            tag="div" 
-                            class="flex flex-col gap-1 max-h-56 overflow-y-auto custom-scrollbar pr-0.5"
-                            enter-active-class="transition-all duration-200 ease-out"
-                            enter-from-class="opacity-0 -translate-y-1.5 scale-95"
-                            enter-to-class="opacity-100 translate-y-0 scale-100"
-                            leave-active-class="transition-all duration-150 ease-in"
-                            leave-from-class="opacity-100 translate-y-0 scale-100"
-                            leave-to-class="opacity-0 -translate-y-1.5 scale-95"
-                            move-class="transition-all duration-200 ease-out"
-                          >
-                            <div 
-                              v-for="profile in profiles" 
-                              :key="profile.id"
-                              @click="selectProfile(profile)"
-                              class="flex items-center justify-between p-2 rounded-xl transition-all cursor-pointer group relative hover:bg-white/[0.04]"
-                              :class="activeProfile.id === profile.id ? 'bg-white/[0.06] border border-white/15' : 'border border-transparent'"
-                            >
-                              <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                                <!-- Dynamic Gradient Avatar (Circle) -->
-                                <div 
-                                  class="w-8 h-8 rounded-full bg-gradient-to-br flex items-center justify-center text-white shrink-0 border border-white/15 shadow-sm transition-transform duration-200 group-hover:scale-105"
-                                  :class="profile.gradient || 'from-lime-400 to-emerald-600'"
-                                >
-                                  <Icon :name="profile.icon || 'lucide:sparkles'" class="text-sm text-white" />
-                                </div>
-                                <div class="overflow-hidden min-w-0 flex-1 grid gap-0.5">
-                                  <p class="text-[11px] font-semibold text-white truncate leading-tight">{{ profile.name }}</p>
-                                  <span class="inline-block text-[9px] text-white/60 py-0.5 rounded mt-0.5 truncate max-w-[130px] leading-none">{{ profile.niche }}</span>
-                                </div>
-                              </div>
-
-                              <div class="flex items-center gap-1 shrink-0 ml-2">
-                                <!-- Active Checkmark -->
-                                <Icon v-if="activeProfile.id === profile.id" name="lucide:check" class="text-xs text-accent-500 mr-0.5" />
-                                
-                                <!-- Edit button -->
-                                <button 
-                                  @click.stop="startEditProfile(profile, $event)"
-                                  class="w-6 h-6 rounded-md hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 cursor-pointer"
-                                  title="Edit Profile"
-                                >
-                                  <Icon name="lucide:pencil" class="text-[10px]" />
-                                </button>
-
-                                <!-- Delete button (if > 1) -->
-                                <button 
-                                  v-if="profiles.length > 1"
-                                  @click.stop="deleteProfile(profile.id, $event)"
-                                  class="w-6 h-6 rounded-md hover:bg-red-500/20 flex items-center justify-center text-white/40 hover:text-red-400 opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 cursor-pointer"
-                                  title="Delete Profile"
-                                >
-                                  <Icon name="lucide:trash-2" class="text-[10px]" />
-                                </button>
-                              </div>
-                            </div>
-                          </TransitionGroup>
-
-                          <!-- Add New Profile Action -->
-                          <div class="pt-1 border-t border-white/[0.06]">
-                            <button 
-                              @click="startCreateProfile"
-                              class="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-xl text-white/80 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/15 text-[11px] font-medium transition-all active:scale-[0.98] cursor-pointer shadow-sm"
-                            >
-                              <Icon name="lucide:plus" class="text-xs text-accent-500" />
-                              <span>Create Profile</span>
-                            </button>
-                          </div>
-                        </div>
-
-                        <!-- MODE 2: Inline Creation / Edit Form -->
-                        <div v-else key="profile-form" class="flex flex-col gap-2.5">
-                          <div class="flex items-center justify-between border-b border-white/[0.06] pb-1.5">
-                            <button 
-                              @click="cancelProfileForm" 
-                              class="flex items-center gap-1 text-[10px] font-medium text-white/60 hover:text-white cursor-pointer transition-all active:scale-95"
-                            >
-                              <Icon name="lucide:arrow-left" class="text-xs" />
-                              <span>Back</span>
-                            </button>
-                            <span class="text-[9px] font-bold uppercase tracking-wider text-accent-500 font-mono">
-                              {{ editingProfileId ? 'Edit Profile' : 'New Profile' }}
-                            </span>
-                          </div>
-
-                          <!-- Live Avatar & Preview Banner -->
-                          <div class="flex items-center gap-3 p-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                            <div 
-                              class="w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center text-white shrink-0 border border-white/20 shadow-sm transition-all duration-200 ease-out"
-                              :class="profileForm.gradient"
-                            >
-                              <Icon :name="profileForm.icon" class="text-lg text-white" />
-                            </div>
-                            <div class="overflow-hidden min-w-0 flex-1">
-                              <p class="text-xs font-semibold text-white truncate">{{ profileForm.name || 'Untitled Profile' }}</p>
-                              <p class="text-[10px] text-white/60 truncate mt-0.5">{{ profileForm.niche || 'General' }}</p>
-                            </div>
-                          </div>
-
-                          <!-- Input 1: Profile Name -->
-                          <div class="flex flex-col gap-1">
-                            <label class="text-[9px] font-bold uppercase tracking-wider text-white/50">Profile Name</label>
-                            <input 
-                              v-model="profileForm.name" 
-                              type="text" 
-                              placeholder="e.g. Podcast Shorts"
-                              maxlength="30"
-                              class="w-full bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-white/30 focus:border-accent-500/60 focus:bg-white/[0.06] focus:outline-none transition-all"
-                            />
-                          </div>
-
-                          <!-- Input 2: Category (Manual Input + Quick Presets) -->
-                          <div class="flex flex-col gap-1">
-                            <div class="flex items-center justify-between">
-                              <label class="text-[9px] font-bold uppercase tracking-wider text-white/50">Category</label>
-                              <span class="text-[8px] text-white/40">Manual or Preset</span>
-                            </div>
-                            <input 
-                              v-model="profileForm.niche" 
-                              type="text" 
-                              placeholder="e.g. Finance & Crypto, Cooking, Vlog"
-                              maxlength="35"
-                              class="w-full bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-white/30 focus:border-accent-500/60 focus:bg-white/[0.06] focus:outline-none transition-all"
-                            />
-                            <div class="flex flex-wrap gap-1 mt-0.5">
-                              <button 
-                                v-for="cat in CATEGORY_TAG_PRESETS" 
-                                :key="cat.niche"
-                                type="button"
-                                @click="applyQuickCategory(cat)"
-                                class="px-2 py-0.5 rounded-md text-[9px] font-medium transition-all active:scale-95 hover:scale-105 border cursor-pointer"
-                                :class="profileForm.niche === cat.niche ? 'bg-white/15 border-accent-500/60 text-white font-bold' : 'bg-white/[0.03] border-white/[0.06] text-white/60 hover:text-white hover:bg-white/[0.06]'"
-                              >
-                                {{ cat.niche.split(' ')[0] }}
-                              </button>
-                            </div>
-                          </div>
-
-                          <!-- Icon Grid Selector -->
-                          <div class="flex flex-col gap-1">
-                            <label class="text-[9px] font-bold uppercase tracking-wider text-white/50">Icon</label>
-                            <div class="grid grid-cols-5 gap-1.5">
-                              <button 
-                                v-for="item in ICON_PRESETS" 
-                                :key="item.icon"
-                                type="button"
-                                @click="profileForm.icon = item.icon"
-                                class="h-7 rounded-lg flex items-center justify-center transition-all active:scale-90 hover:scale-105 border cursor-pointer"
-                                :class="profileForm.icon === item.icon ? 'bg-accent-500/20 border-accent-500 text-accent-500' : 'bg-white/[0.03] border-white/[0.06] text-white/60 hover:text-white hover:bg-white/[0.06]'"
-                                :title="item.label"
-                              >
-                                <Icon :name="item.icon" class="text-xs" />
-                              </button>
-                            </div>
-                          </div>
-
-                          <!-- Color Gradient Selector -->
-                          <div class="flex flex-col gap-1">
-                            <label class="text-[9px] font-bold uppercase tracking-wider text-white/50">Color Palette</label>
-                            <div class="grid grid-cols-8 gap-1.5">
-                              <button 
-                                v-for="grad in GRADIENT_PRESETS" 
-                                :key="grad.gradient"
-                                type="button"
-                                @click="profileForm.gradient = grad.gradient"
-                                class="w-6 h-6 rounded-full bg-gradient-to-br transition-all active:scale-90 hover:scale-110 border cursor-pointer mx-auto"
-                                :class="[
-                                  grad.gradient,
-                                  profileForm.gradient === grad.gradient ? 'border-white scale-110 shadow-sm' : 'border-white/10 hover:scale-105 opacity-80 hover:opacity-100'
-                                ]"
-                                :title="grad.name"
-                              ></button>
-                            </div>
-                          </div>
-
-                          <!-- Action Buttons -->
-                          <div class="flex items-center gap-1.5 pt-1 border-t border-white/[0.06]">
-                            <button 
-                              type="button"
-                              @click="cancelProfileForm"
-                              class="flex-1 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.06] border border-white/[0.06] text-[10px] font-medium transition-all active:scale-95 cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                            <button 
-                              type="button"
-                              :disabled="!profileForm.name.trim()"
-                              @click="saveProfileForm"
-                              class="flex-1 py-1.5 rounded-lg bg-accent-500 hover:bg-accent-400 text-black text-[10px] font-bold transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer shadow-sm"
-                            >
-                              {{ editingProfileId ? 'Save' : 'Create' }}
-                            </button>
-                          </div>
-                        </div>
-                      </Transition>
-                </div>
-              </Transition>
+              <!-- Flyout Tooltip to the Right -->
+              <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-[#121216]/95 border border-white/15 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-[100] whitespace-nowrap flex items-center gap-1.5">
+                <span>Search</span>
+                <kbd class="px-1 py-0.2 bg-white/[0.08] border border-white/10 rounded font-mono text-[9px] text-white/60">⌘K</kbd>
+              </div>
             </div>
 
             <!-- Divider -->
@@ -915,7 +453,7 @@
             <!-- Changelog -->
             <div class="relative group">
               <button 
-                @click="handleNav('docs')"
+                @click="handleNav('changelog')"
                 class="w-10 h-10 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.04] transition-all cursor-pointer"
                 title="Changelog"
               >
@@ -1057,221 +595,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { SAWERIA_LOGO, TRAKTEER_LOGO } from '~/utils/donationLogos'
+import { useCommandPalette } from '~/composables/useCommandPalette'
 
 const state = useClipperState()
-
-// Niche Profile Definitions & Presets
-export interface NicheProfile {
-  id: string
-  name: string
-  niche: string
-  icon?: string
-  gradient?: string
-  avatarInitial?: string
-}
-
-const ICON_PRESETS = [
-  { icon: 'lucide:sparkles', label: 'AI / General' },
-  { icon: 'lucide:gamepad-2', label: 'Gaming' },
-  { icon: 'lucide:trending-up', label: 'Finance' },
-  { icon: 'lucide:mic', label: 'Podcast' },
-  { icon: 'lucide:cpu', label: 'Tech' },
-  { icon: 'lucide:film', label: 'Cinema' },
-  { icon: 'lucide:dumbbell', label: 'Fitness' },
-  { icon: 'lucide:graduation-cap', label: 'Education' },
-  { icon: 'lucide:music', label: 'Music' },
-  { icon: 'lucide:newspaper', label: 'News' }
-]
-
-const GRADIENT_PRESETS = [
-  { gradient: 'from-lime-400 to-emerald-600', name: 'Cyber Lime' },
-  { gradient: 'from-violet-500 to-purple-800', name: 'Neon Violet' },
-  { gradient: 'from-emerald-500 to-teal-700', name: 'Emerald Finance' },
-  { gradient: 'from-amber-500 to-orange-600', name: 'Amber Gold' },
-  { gradient: 'from-sky-400 to-blue-600', name: 'Electric Sky' },
-  { gradient: 'from-rose-500 to-pink-600', name: 'Rose Bloom' },
-  { gradient: 'from-fuchsia-500 to-rose-700', name: 'Fuchsia Magic' },
-  { gradient: 'from-zinc-600 to-zinc-800', name: 'Dark Stealth' }
-]
-
-const CATEGORY_TAG_PRESETS = [
-  { name: 'Gaming Highlights', niche: 'Gaming & Streams', icon: 'lucide:gamepad-2', gradient: 'from-violet-500 to-purple-800' },
-  { name: 'FinTrack Shorts', niche: 'Finance & Tech', icon: 'lucide:trending-up', gradient: 'from-emerald-500 to-teal-700' },
-  { name: 'Podcast Clips', niche: 'Podcasts & Talk', icon: 'lucide:mic', gradient: 'from-sky-400 to-blue-600' },
-  { name: 'Tech Insights', niche: 'Tech & AI', icon: 'lucide:cpu', gradient: 'from-amber-500 to-orange-600' },
-  { name: 'Movie Recaps', niche: 'Cinema & Stories', icon: 'lucide:film', gradient: 'from-rose-500 to-pink-600' },
-  { name: 'Fitness Tips', niche: 'Health & Fitness', icon: 'lucide:dumbbell', gradient: 'from-lime-400 to-emerald-600' }
-]
-
-function sanitizeProfile(p: any): NicheProfile {
-  const icon = p.icon || (
-    p.niche?.toLowerCase().includes('game') ? 'lucide:gamepad-2' :
-    p.niche?.toLowerCase().includes('finance') || p.niche?.toLowerCase().includes('crypto') ? 'lucide:trending-up' :
-    p.niche?.toLowerCase().includes('podcast') || p.niche?.toLowerCase().includes('talk') ? 'lucide:mic' :
-    p.niche?.toLowerCase().includes('tech') || p.niche?.toLowerCase().includes('ai') ? 'lucide:cpu' :
-    p.niche?.toLowerCase().includes('movie') || p.niche?.toLowerCase().includes('film') ? 'lucide:film' :
-    p.niche?.toLowerCase().includes('fit') || p.niche?.toLowerCase().includes('health') ? 'lucide:dumbbell' :
-    'lucide:sparkles'
-  )
-  const gradient = p.gradient || (
-    p.niche?.toLowerCase().includes('game') ? 'from-violet-500 to-purple-800' :
-    p.niche?.toLowerCase().includes('finance') || p.niche?.toLowerCase().includes('crypto') ? 'from-emerald-500 to-teal-700' :
-    p.niche?.toLowerCase().includes('podcast') || p.niche?.toLowerCase().includes('talk') ? 'from-sky-400 to-blue-600' :
-    p.niche?.toLowerCase().includes('tech') || p.niche?.toLowerCase().includes('ai') ? 'from-amber-500 to-orange-600' :
-    p.niche?.toLowerCase().includes('movie') || p.niche?.toLowerCase().includes('film') ? 'from-rose-500 to-pink-600' :
-    'from-lime-400 to-emerald-600'
-  )
-  return {
-    id: p.id || `niche-${Date.now()}`,
-    name: p.name || 'Personal Shorts',
-    niche: p.niche || 'General',
-    icon,
-    gradient,
-    avatarInitial: p.avatarInitial || p.name?.charAt(0)?.toUpperCase() || 'P'
-  }
-}
-
-const defaultFallbackProfile: NicheProfile = { 
-  id: 'default', 
-  name: 'Personal Shorts', 
-  niche: 'General', 
-  icon: 'lucide:sparkles',
-  gradient: 'from-lime-400 to-emerald-600',
-  avatarInitial: 'P' 
-}
-
-const profiles = ref<NicheProfile[]>([
-  { id: 'default', name: 'Personal Shorts', niche: 'General', icon: 'lucide:sparkles', gradient: 'from-lime-400 to-emerald-600', avatarInitial: 'P' },
-  { id: 'finance', name: 'FinTrack Shorts', niche: 'Finance & Tech', icon: 'lucide:trending-up', gradient: 'from-emerald-500 to-teal-700', avatarInitial: 'F' },
-  { id: 'gaming', name: 'Gaming Highlights', niche: 'Gaming & Streams', icon: 'lucide:gamepad-2', gradient: 'from-violet-500 to-purple-800', avatarInitial: 'G' }
-])
-
-const activeProfileId = ref('default')
-const isProfileMenuOpen = ref(false)
-const isCreatingProfile = ref(false)
-const editingProfileId = ref<string | null>(null)
-const navigationDirection = ref<'forward' | 'backward'>('forward')
-const profileForm = reactive({
-  name: '',
-  niche: '',
-  icon: 'lucide:sparkles',
-  gradient: 'from-lime-400 to-emerald-600'
-})
-
-const activeProfile = computed<NicheProfile>(() => {
-  const found = profiles.value.find(p => p.id === activeProfileId.value)
-  return found ? sanitizeProfile(found) : defaultFallbackProfile
-})
-
-function toggleProfileMenu() {
-  isProfileMenuOpen.value = !isProfileMenuOpen.value
-  if (!isProfileMenuOpen.value) {
-    isCreatingProfile.value = false
-    editingProfileId.value = null
-    navigationDirection.value = 'forward'
-  }
-}
-
-function selectProfile(profile: NicheProfile) {
-  activeProfileId.value = profile.id
-  isProfileMenuOpen.value = false
-  isCreatingProfile.value = false
-  editingProfileId.value = null
-  navigationDirection.value = 'forward'
-  if (import.meta.client) {
-    localStorage.setItem('yonru_active_niche_profile', profile.id)
-  }
-}
-
-function startCreateProfile() {
-  editingProfileId.value = null
-  profileForm.name = ''
-  profileForm.niche = ''
-  profileForm.icon = 'lucide:sparkles'
-  profileForm.gradient = 'from-lime-400 to-emerald-600'
-  navigationDirection.value = 'forward'
-  isCreatingProfile.value = true
-}
-
-function startEditProfile(profile: NicheProfile, e?: Event) {
-  if (e) e.stopPropagation()
-  const sanitized = sanitizeProfile(profile)
-  editingProfileId.value = sanitized.id
-  profileForm.name = sanitized.name
-  profileForm.niche = sanitized.niche
-  profileForm.icon = sanitized.icon || 'lucide:sparkles'
-  profileForm.gradient = sanitized.gradient || 'from-lime-400 to-emerald-600'
-  navigationDirection.value = 'forward'
-  isCreatingProfile.value = true
-}
-
-function applyQuickCategory(preset: typeof CATEGORY_TAG_PRESETS[0]) {
-  if (!profileForm.name || profileForm.name === 'Personal Shorts') {
-    profileForm.name = preset.name
-  }
-  profileForm.niche = preset.niche
-  profileForm.icon = preset.icon
-  profileForm.gradient = preset.gradient
-}
-
-function saveProfileForm() {
-  if (!profileForm.name.trim()) return
-  const cleanName = profileForm.name.trim()
-  const cleanNiche = profileForm.niche.trim() || 'General'
-
-  if (editingProfileId.value) {
-    const idx = profiles.value.findIndex(p => p.id === editingProfileId.value)
-    if (idx >= 0 && profiles.value[idx]) {
-      profiles.value[idx] = {
-        ...profiles.value[idx],
-        name: cleanName,
-        niche: cleanNiche,
-        icon: profileForm.icon,
-        gradient: profileForm.gradient,
-        avatarInitial: cleanName.charAt(0).toUpperCase()
-      }
-    }
-  } else {
-    const newProfile: NicheProfile = {
-      id: `niche-${Date.now()}`,
-      name: cleanName,
-      niche: cleanNiche,
-      icon: profileForm.icon,
-      gradient: profileForm.gradient,
-      avatarInitial: cleanName.charAt(0).toUpperCase()
-    }
-    profiles.value.push(newProfile)
-    activeProfileId.value = newProfile.id
-  }
-
-  if (import.meta.client) {
-    localStorage.setItem('yonru_niche_profiles', JSON.stringify(profiles.value))
-    localStorage.setItem('yonru_active_niche_profile', activeProfileId.value)
-  }
-
-  navigationDirection.value = 'backward'
-  isCreatingProfile.value = false
-  editingProfileId.value = null
-}
-
-function deleteProfile(id: string, e?: Event) {
-  if (e) e.stopPropagation()
-  if (profiles.value.length <= 1) return
-  profiles.value = profiles.value.filter(p => p.id !== id)
-  if (activeProfileId.value === id) {
-    activeProfileId.value = profiles.value[0]?.id || 'default'
-  }
-  if (import.meta.client) {
-    localStorage.setItem('yonru_niche_profiles', JSON.stringify(profiles.value))
-    localStorage.setItem('yonru_active_niche_profile', activeProfileId.value)
-  }
-}
-
-function cancelProfileForm() {
-  navigationDirection.value = 'backward'
-  isCreatingProfile.value = false
-  editingProfileId.value = null
-}
+const palette = useCommandPalette()
 
 const isCurrentClipActive = computed(() => {
   return props.activeView === 'editor'
@@ -1422,7 +749,6 @@ function useSafeRouter() {
 }
 
 function handleNav(view: string) {
-  isProfileMenuOpen.value = false
   if (props.activeView === view) {
     if (props.isFloating) {
       isCollapsed.value = true
@@ -1437,9 +763,11 @@ function handleNav(view: string) {
     router.push('/prompts')
   } else if (view === 'docs') {
     router.push('/docs')
+  } else if (view === 'changelog') {
+    router.push('/changelog')
   } else if (view === 'home') {
     router.push('/')
-  }
+  } 
   if (props.isFloating) {
     isCollapsed.value = true
   }
@@ -1544,14 +872,6 @@ function handleKeydown(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
     e.preventDefault()
     isCollapsed.value = !isCollapsed.value
-    isProfileMenuOpen.value = false
-  }
-}
-
-function handleClickOutside(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  if (isProfileMenuOpen.value && target && !target.closest('.profile-popover-container')) {
-    isProfileMenuOpen.value = false
   }
 }
 
@@ -1569,23 +889,6 @@ onMounted(() => {
     if (savedWidth) {
       sidebarWidth.value = parseInt(savedWidth)
     }
-    const savedProfiles = localStorage.getItem('yonru_niche_profiles')
-    if (savedProfiles) {
-      try {
-        const parsed = JSON.parse(savedProfiles)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          profiles.value = parsed.map(sanitizeProfile)
-        }
-      } catch (err) {
-        console.error('Failed to parse saved profiles', err)
-      }
-    }
-    const savedActiveProfile = localStorage.getItem('yonru_active_niche_profile')
-    if (savedActiveProfile && profiles.value.some(p => p.id === savedActiveProfile)) {
-      activeProfileId.value = savedActiveProfile
-    }
-    
-    window.addEventListener('click', handleClickOutside)
   }
   window.addEventListener('mousemove', onDrag)
   window.addEventListener('mouseup', stopDrag)
@@ -1597,9 +900,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (import.meta.client) {
-    window.removeEventListener('click', handleClickOutside)
-  }
   window.removeEventListener('mousemove', onDrag)
   window.removeEventListener('mouseup', stopDrag)
   window.removeEventListener('keydown', handleKeydown)

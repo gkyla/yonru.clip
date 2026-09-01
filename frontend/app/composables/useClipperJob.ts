@@ -278,6 +278,66 @@ export const useClipperJob = () => {
     }
   }
 
+  async function analyzeCached(
+    videoId: string, 
+    force = false, 
+    options?: { 
+      extractionMode?: HookExtractionMode
+      presetId?: HookIntentPreset
+      promptFile?: string
+      focusTopic?: string
+      minDuration?: number
+      maxDuration?: number
+      autoHooks?: boolean 
+    }
+  ) {
+    if (!videoId) return
+
+    isCachedAnalysis.value = true
+    downloadPercent.value = 0
+    hdReady.value = false
+    jobStatus.value = 'queued'
+    jobError.value = null
+    hooks.value = []
+    savedHooks.value = []
+    folderName.value = null
+    videoUrl.value = null
+    outputUrl.value = null
+    activeHook.value = null
+    clipId.value = null
+    timeline.isSavingLocked.value = true
+    if (timeline.timelineTracks.value[0]) {
+      timeline.timelineTracks.value[0].items = []
+    }
+    resetThumbnailState()
+
+    try {
+      const currentPrompt = promptsList.value.find(p => p.id === (options?.promptFile ?? selectedPrompt.value))
+      const newJobId = await coordinator.analyzeCached(
+        {
+          videoId,
+          force,
+          extractionMode: options?.extractionMode ?? extractionMode.value ?? 'preset',
+          presetId: options?.presetId ?? selectedPresetId.value ?? 'auto',
+          promptFile: options?.promptFile ?? selectedPrompt.value ?? 'prompt.json',
+          focusTopic: options?.focusTopic ?? (focusTopic.value ? focusTopic.value.trim() : null),
+          minDuration: options?.minDuration ?? minDuration.value ?? 30,
+          maxDuration: options?.maxDuration ?? maxDuration.value ?? 180,
+          autoHooks: options?.autoHooks ?? currentPrompt?.autoHooks ?? true
+        },
+        createJobCallbacks()
+      )
+      jobId.value = newJobId
+    } catch (e: any) {
+      jobStatus.value = 'error'
+      jobError.value = e instanceof Error ? e.message : 'Failed to analyze cached video'
+    } finally {
+      setTimeout(() => {
+        timeline.isSavingLocked.value = false
+      }, 500)
+    }
+  }
+
   function startPolling() {
     if (!jobId.value) return
     coordinator.startPolling(
@@ -401,6 +461,7 @@ export const useClipperJob = () => {
     jobError,
     isNavigatingToEditor,
     analyzeUrl,
+    analyzeCached,
     startPolling,
     stopPolling,
     extractClip,

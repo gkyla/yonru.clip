@@ -398,85 +398,10 @@ function triggerReanalyze(videoId: string) {
 async function analyzeCached(
   videoId: string, 
   force = false, 
-  options?: { 
-    extractionMode?: 'preset' | 'custom'
-    presetId?: string
-    promptFile?: string
-    focusTopic?: string
-    minDuration?: number
-    maxDuration?: number
-    autoHooks?: boolean 
-  }
+  options?: any
 ) {
-  state.isCachedAnalysis.value = true
   isReanalyzingCached.value = force
-  state.downloadPercent.value = 0
-  state.hdReady.value = false
-  state.jobStatus.value = 'queued'
-  state.jobError.value = null
-  state.hooks.value = []
-  state.savedHooks.value = []
-  state.folderName.value = null
-  state.outputUrl.value = null
-  state.activeHook.value = null
-  state.clipId.value = null
-
-  try {
-    const extractionMode = options?.extractionMode ?? state.extractionMode.value ?? 'preset'
-    const presetId = options?.presetId ?? state.selectedPresetId.value ?? 'auto'
-    const promptFile = options?.promptFile ?? state.selectedPrompt.value ?? 'prompt.json'
-    const autoHooks = options?.autoHooks ?? true
-    const focusTopic = options?.focusTopic ?? (state.focusTopic.value || undefined)
-    const minDuration = options?.minDuration ?? state.minDuration.value ?? 30
-    const maxDuration = options?.maxDuration ?? state.maxDuration.value ?? 180
-
-    const res = await $fetch<{ job_id: string; status: string; hooks?: Hook[]; folder_name?: string; video?: any }>(`${API_BASE}/api/analyze-cached/${videoId}?force=${force}`, { 
-      method: 'POST',
-      body: { 
-        extraction_mode: extractionMode,
-        preset_id: presetId,
-        prompt_file: promptFile,
-        auto_hooks: autoHooks,
-        focus_topic: focusTopic,
-        min_duration: minDuration,
-        max_duration: maxDuration
-      }
-    })
-    
-    state.jobId.value = res.job_id
-    state.jobStatus.value = res.status
-    
-    if (res.hooks) {
-      state.hooks.value = res.hooks
-    }
-    if (res.folder_name) {
-      state.folderName.value = res.folder_name
-    }
-    if (res.video) {
-      if (res.video.title) state.videoTitle.value = res.video.title
-      if (res.video.duration) state.videoDuration.value = res.video.duration
-      if (res.video.fps) state.videoFps.value = res.video.fps
-      state.hasHeatmap.value = res.video.has_heatmap || false
-      if (res.video.has_preview !== undefined) {
-        state.hasPreview.value = res.video.has_preview
-      }
-      if (res.video.hd_ready !== undefined) {
-        state.hdReady.value = res.video.hd_ready
-      }
-      if (res.video.asset_url) {
-        state.videoUrl.value = `${API_BASE}${res.video.asset_url}`
-      }
-    }
-    
-    await state.fetchSavedHooks()
-    
-    if (res.status !== 'ready') {
-      state.startPolling()
-    }
-  } catch (e: unknown) {
-    state.jobStatus.value = 'error'
-    state.jobError.value = e instanceof Error ? e.message : String(e)
-  }
+  await state.analyzeCached(videoId, force, options)
 }
 
 function confirmRedownload(vid: CachedVideo) {
@@ -514,14 +439,13 @@ async function deleteVideo(folderName: string) {
   }
 }
 
-function resetToStart() {
-  state.hooks.value = []
-  state.jobStatus.value = 'idle'
-  state.jobId.value = null
-  state.jobError.value = null
+async function resetToStart() {
+  state.stopPolling()
+  state.resetWorkspace()
   state.youtubeUrl.value = ''
-  state.isCachedAnalysis.value = false
   isReanalyzingCached.value = false
+  await state.fetchCached(true)
+  await fetchReadyClips()
 }
 
 async function fetchReadyClips() {

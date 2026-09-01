@@ -5,6 +5,22 @@ import UnifiedAnalyzerPanel from '../../app/components/home/UnifiedAnalyzerPanel
 import HookResultsGallery from '../../app/components/home/HookResultsGallery.vue'
 import { ref } from 'vue'
 
+if (typeof global.requestAnimationFrame === 'undefined') {
+  global.requestAnimationFrame = (cb: any) => setTimeout(cb, 0)
+}
+
+if (typeof global.history === 'undefined') {
+  global.history = {
+    pushState: vi.fn(),
+    replaceState: vi.fn(),
+    go: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    length: 1,
+    state: null
+  } as any
+}
+
 const mockState = {
   youtubeUrl: ref('https://youtube.com/watch?v=dQw4w9WgXcQ'),
   selectedPrompt: ref('prompt.json'),

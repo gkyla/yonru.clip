@@ -312,7 +312,7 @@ function createClipperState() {
   }
 
   // --- Actions ---
-  const { analyzeUrl, startPolling, stopPolling, extractClip, loadReadyClipIntoEditor } = job
+  const { analyzeUrl, analyzeCached, startPolling, stopPolling, extractClip, loadReadyClipIntoEditor } = job
 
 
 
@@ -555,6 +555,7 @@ function createClipperState() {
   }
 
   function resetWorkspace() {
+    stopPolling()
     folderName.value = null
     clipId.value = null
     jobId.value = null
@@ -648,7 +649,7 @@ function createClipperState() {
     hardwareProfile: diagnostics.hardwareProfile, detectingHardware: diagnostics.detectingHardware,
     // Actions
     seekTo,
-    analyzeUrl, extractClip, loadReadyClipIntoEditor, renderClip, startPolling, stopPolling,
+    analyzeUrl, analyzeCached, extractClip, loadReadyClipIntoEditor, renderClip, startPolling, stopPolling,
     checkSystemHealth: diagnostics.checkSystemHealth,
     detectHardwareProfile: diagnostics.detectHardwareProfile,
     formatDuration, fetchPrompts, editPrompt, deletePrompt, fetchSavedHooks, saveHook, deleteSavedHook,

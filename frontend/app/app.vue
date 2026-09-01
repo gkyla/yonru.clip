@@ -76,6 +76,9 @@
       </Transition>
     </div>
 
+    <!-- Global Spotlight Command Palette -->
+    <CommandPaletteModal />
+
     <!-- Hidden Font Preloader -->
     <div class="font-preloader" aria-hidden="true">
       <span class="font-p-montserrat">a</span>
