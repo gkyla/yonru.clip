@@ -78,6 +78,10 @@ const mockState = {
   initPersistence: vi.fn(),
   resetWorkspace: vi.fn(),
   analyzeUrl: vi.fn().mockResolvedValue({}),
+  analyzeCached: vi.fn().mockImplementation(async () => {
+    mockState.savedHooks.value = []
+    mockState.folderName.value = null
+  }),
   extractClip: vi.fn().mockResolvedValue({}),
   loadReadyClipIntoEditor: vi.fn().mockResolvedValue({}),
   renderClip: vi.fn().mockResolvedValue({}),
@@ -551,7 +555,28 @@ describe('Index Page & Sub-Modules', () => {
     expect(btn).toBeDefined()
     
     await btn!.trigger('click')
-    expect(mockState.jobStatus.value).toBe('idle')
+    expect(mockState.stopPolling).toHaveBeenCalled()
+    expect(mockState.resetWorkspace).toHaveBeenCalled()
+  })
+
+  it('stops polling and resets workspace when back-to-library event is received from HookResultsGallery', async () => {
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    await vm.resetToStart()
+
+    expect(mockState.stopPolling).toHaveBeenCalled()
+    expect(mockState.resetWorkspace).toHaveBeenCalled()
+    expect(mockState.fetchCached).toHaveBeenCalledWith(true)
+    expect(mockState.youtubeUrl.value).toBe('')
   })
 
   it('triggers ReanalyzeModal.open when triggerReanalyze is invoked', async () => {

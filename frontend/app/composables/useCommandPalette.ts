@@ -311,21 +311,21 @@ function createCommandPaletteState() {
     if (state.cachedVideos.value && Array.isArray(state.cachedVideos.value)) {
       for (const vid of state.cachedVideos.value) {
         if (vid.video_id || vid.folder_name) {
+          const videoId = vid.video_id || vid.folder_name
           items.push({
-            id: `cached-video-${vid.video_id || vid.folder_name}`,
+            id: `cached-video-${videoId}`,
             title: vid.title || 'Untitled Source Video',
             subtitle: `${formatTime(vid.duration || 0)} • Cached Source Video`,
             category: 'videos',
             icon: 'lucide:film',
             badge: 'Source',
-            actionLabel: 'Open',
-            keywords: ['video', 'cached', 'source', 'download', ...(vid.title || '').toLowerCase().split(' ')],
-            handler: () => {
-              state.folderName.value = vid.folder_name || vid.video_id
-              state.videoTitle.value = vid.title || ''
-              state.videoDuration.value = vid.duration || 0
+            actionLabel: 'Load Hooks',
+            keywords: ['video', 'cached', 'source', 'download', 'hooks', ...(vid.title || '').toLowerCase().split(' ')],
+            handler: async () => {
               close()
-              router.push('/')
+              await router.push('/')
+              state.showToast(`Loading cached hooks for "${vid.title || 'Source Video'}"...`, 'info')
+              await state.analyzeCached(videoId, false)
             }
           })
         }

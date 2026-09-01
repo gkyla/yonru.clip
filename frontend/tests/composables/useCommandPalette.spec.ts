@@ -10,6 +10,7 @@ vi.stubGlobal('useRouter', () => ({
 const mockActiveSafeZone = ref<'none' | 'tiktok' | 'reels' | 'shorts'>('none')
 const mockIsOverlayVisible = ref(false)
 const mockShowToast = vi.fn()
+const mockAnalyzeCached = vi.fn().mockResolvedValue(true)
 const mockCachedVideos = ref<any[]>([])
 const mockSavedHooks = ref<any[]>([])
 const mockHooks = ref<any[]>([])
@@ -24,6 +25,7 @@ vi.mock('~/composables/useClipperState', () => ({
     activeSafeZone: mockActiveSafeZone,
     isOverlayVisible: mockIsOverlayVisible,
     showToast: mockShowToast,
+    analyzeCached: mockAnalyzeCached,
     cachedVideos: mockCachedVideos,
     savedHooks: mockSavedHooks,
     hooks: mockHooks,
@@ -116,6 +118,25 @@ describe('useCommandPalette Composable', () => {
 
     palette.executeItem(navSettings!)
     expect(pushSpy).toHaveBeenCalledWith('/settings')
+    expect(palette.isOpen.value).toBe(false)
+  })
+
+  it('triggers analyzeCached and routes to home when selecting a cached source video', async () => {
+    mockCachedVideos.value = [
+      { video_id: 'vid-tech-101', title: 'Tech Talk Episode 1', duration: 300, folder_name: 'vid-tech-101' }
+    ]
+
+    const palette = useCommandPalette()
+    palette.open()
+
+    const cachedVideoItem = palette.allItems.value.find(i => i.id === 'cached-video-vid-tech-101')
+    expect(cachedVideoItem).toBeDefined()
+    expect(cachedVideoItem?.actionLabel).toBe('Load Hooks')
+
+    await palette.executeItem(cachedVideoItem!)
+    expect(pushSpy).toHaveBeenCalledWith('/')
+    expect(mockAnalyzeCached).toHaveBeenCalledWith('vid-tech-101', false)
+    expect(mockShowToast).toHaveBeenCalledWith('Loading cached hooks for "Tech Talk Episode 1"...', 'info')
     expect(palette.isOpen.value).toBe(false)
   })
 })
