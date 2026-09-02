@@ -121,15 +121,15 @@
 
             <!-- Section 1: Main Navigation -->
             <div class="flex flex-col gap-1">
-              <span class="px-2 text-[10px] font-bold uppercase tracking-wider text-white/50">Main Navigation</span>
+              <span class="px-2 text-[10px] font-bold uppercase tracking-wider text-white/50 mt-1">Main Navigation</span>
               
-              <div class="relative flex flex-col gap-1 mt-1">
+              <div class="relative flex flex-col gap-2 mt-1">
                 <!-- Sliding Active Pill Indicator in Expanded Mode -->
                 <span 
                   v-if="activeNavIndex >= 0"
-                  class="absolute left-0 w-1 rounded-r-full bg-accent-500 shadow-[0_0_8px_rgba(207,255,80,0.6)] transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] pointer-events-none z-10"
+                  class="absolute -left-3 w-1 rounded-r-full bg-accent-500 shadow-[0_0_8px_rgba(207,255,80,0.6)] transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] pointer-events-none z-10"
                   :style="{
-                    top: `${activeNavIndex * 44 + 10}px`,
+                    top: `${activeNavIndex * 48 + 10}px`,
                     height: '20px'
                   }"
                 ></span>
@@ -147,7 +147,7 @@
                     class="text-lg shrink-0 group-hover:scale-105 transition-all" 
                     :class="activeView === 'home' ? 'text-accent-500' : 'text-white/70 group-hover:text-white'"
                   />
-                  <span class="text-xs font-medium">Home</span>
+                  <span class="text-sm font-medium">Home</span>
                 </button>
 
                 <!-- Nav: Prompts -->
@@ -163,7 +163,7 @@
                     class="text-lg shrink-0 group-hover:scale-105 transition-all" 
                     :class="activeView === 'prompts' ? 'text-accent-500' : 'text-white/70 group-hover:text-white'"
                   />
-                  <span class="text-xs font-medium">Prompts</span>
+                  <span class="text-sm font-medium">Prompts</span>
                 </button>
 
                 <!-- Nav: Documentation -->
@@ -179,7 +179,7 @@
                     class="text-lg shrink-0 group-hover:scale-105 transition-all" 
                     :class="activeView === 'docs' ? 'text-accent-500' : 'text-white/70 group-hover:text-white'"
                   />
-                  <span class="text-xs font-medium">Documentation</span>
+                  <span class="text-sm font-medium">Documentation</span>
                 </button>
 
                 <!-- Nav: Settings -->
@@ -196,7 +196,7 @@
                       class="text-lg shrink-0 group-hover:scale-105 transition-all" 
                       :class="activeView === 'settings' ? 'text-accent-500' : 'text-white/70 group-hover:text-white'"
                     />
-                    <span class="text-xs font-medium">Settings</span>
+                    <span class="text-sm font-medium">Settings</span>
                   </div>
                   <!-- Warning Dot if Prerequisites Missing -->
                   <div 
@@ -275,7 +275,7 @@
                   class="h-10 flex items-center gap-3 px-3 rounded-xl text-white/80 hover:text-white hover:bg-white/[0.04] transition-all cursor-pointer group w-full text-left"
                 >
                   <Icon name="lucide:history" class="text-lg shrink-0 group-hover:scale-105 transition-transform" />
-                  <span class="text-xs font-medium">Changelog</span>
+                  <span class="text-sm font-medium">Changelog</span>
                 </button>
               </div>
             </div>
@@ -315,13 +315,13 @@
             <div class="w-7 border-t border-white/[0.08] my-0.5"></div>
 
             <!-- Navigation Icons Stack with Sliding Indicator Pill -->
-            <div class="relative flex flex-col items-center gap-3.5 w-full">
+            <div class="relative flex flex-col items-center gap-2 w-full">
               <!-- Sliding Active Pill for Collapsed Rail -->
               <span 
                 v-if="activeNavIndex >= 0" 
                 class="absolute -left-2 w-1 rounded-r-full bg-accent-500 shadow-[0_0_8px_rgba(207,255,80,0.6)] transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] pointer-events-none z-10"
                 :style="{
-                  top: `${activeNavIndex * 54 + 10}px`,
+                  top: `${activeNavIndex * 48 + 10}px`,
                   height: '20px'
                 }"
               ></span>
@@ -395,9 +395,10 @@
                 </div>
               </div>
             </div>
+            <div class="w-7 border-t border-white/[0.08] my-1"></div>
 
             <!-- Workspace / Movie icon in collapsed mode -->
-            <div class="relative group">
+            <div class="relative group mt-1">
               <button 
                 :disabled="isCurrentClipActive"
                 @click="isCurrentClipActive ? null : handleContinueEditingClick()"

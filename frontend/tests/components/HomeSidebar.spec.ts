@@ -422,5 +422,70 @@ describe('HomeSidebar Component', () => {
     await collapsedTrigger.trigger('click')
     expect(palette.isOpen.value).toBe(true)
   })
+
+  it('positions the sliding active pill indicator correctly for each nav item in expanded mode', async () => {
+    const navItems = [
+      { view: 'home', expectedTop: '10px' },
+      { view: 'prompts', expectedTop: '58px' },
+      { view: 'docs', expectedTop: '106px' },
+      { view: 'settings', expectedTop: '154px' }
+    ]
+
+    for (const item of navItems) {
+      const wrapper = mount(HomeSidebar, {
+        props: {
+          activeView: item.view,
+          cachedVideos: [],
+          isProcessing: false,
+          API_BASE: 'http://localhost:8000',
+          defaultCollapsed: false
+        },
+        global: {
+          stubs: {
+            Icon: true,
+            NuxtIcon: true,
+            NuxtLink: { template: '<a><slot /></a>' }
+          }
+        }
+      })
+
+      const pill = wrapper.find('.bg-accent-500.shadow-\\[0_0_8px_rgba\\(207\\,255\\,80\\,0\\.6\\)\\]')
+      expect(pill.exists()).toBe(true)
+      expect(pill.attributes('style')).toContain(`top: ${item.expectedTop}`)
+    }
+  })
+
+  it('positions the sliding active pill indicator correctly for each nav item in collapsed mode', async () => {
+    const navItems = [
+      { view: 'home', expectedTop: '10px' },
+      { view: 'prompts', expectedTop: '58px' },
+      { view: 'docs', expectedTop: '106px' },
+      { view: 'settings', expectedTop: '154px' }
+    ]
+
+    for (const item of navItems) {
+      const wrapper = mount(HomeSidebar, {
+        props: {
+          activeView: item.view,
+          cachedVideos: [],
+          isProcessing: false,
+          API_BASE: 'http://localhost:8000',
+          defaultCollapsed: true
+        },
+        global: {
+          stubs: {
+            Icon: true,
+            NuxtIcon: true,
+            NuxtLink: { template: '<a><slot /></a>' }
+          }
+        }
+      })
+
+      const pill = wrapper.find('.bg-accent-500.shadow-\\[0_0_8px_rgba\\(207\\,255\\,80\\,0\\.6\\)\\]')
+      expect(pill.exists()).toBe(true)
+      expect(pill.attributes('style')).toContain(`top: ${item.expectedTop}`)
+    }
+  })
 })
+
 
