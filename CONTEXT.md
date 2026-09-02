@@ -35,3 +35,7 @@ _Avoid_: Audio AI level, speech model size, whisper mode
 **Transcription Duration Estimate**:
 The expected speech-to-text processing time for a standard 60-second video clip calculated dynamically from host hardware acceleration metrics.
 _Avoid_: Speed score, processing percentage
+
+**Navigation Sidebar**:
+The primary collapsible navigation panel on the left rail containing global views (Home, Prompts, Docs, Settings), quick video access, and hardware health indicator. Defaults to a collapsed rail (64px) for maximum workspace focus and expands on demand or via `⌘B` / `Ctrl+B`.
+_Avoid_: Navbar, menu drawer, left bar

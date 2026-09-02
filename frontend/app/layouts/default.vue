@@ -10,7 +10,7 @@
       :last-video="lastAccessedVideo"
       :last-clip="lastAccessedClip"
       :API_BASE="API_BASE"
-      :default-collapsed="false"
+      :default-collapsed="true"
       :is-floating="false"
     />
 

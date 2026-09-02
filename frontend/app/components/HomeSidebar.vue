@@ -625,7 +625,7 @@ const statusLabel = computed(() => {
   return state?.jobStatus?.value?.toUpperCase()?.replace('_', ' ') || 'IDLE'
 })
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   activeView: string
   cachedVideos: any[]
   isProcessing: boolean
@@ -636,7 +636,10 @@ const props = defineProps<{
   API_BASE: string
   defaultCollapsed?: boolean
   isFloating?: boolean
-}>()
+}>(), {
+  defaultCollapsed: true,
+  isFloating: false
+})
 
 const lastVideo = computed(() => {
   return props.lastVideo !== undefined ? props.lastVideo : state?.lastAccessedVideo?.value
@@ -723,7 +726,7 @@ function useSafeState<T>(key: string, init: () => T) {
 
 const isCollapsed = props.isFloating 
   ? ref(props.defaultCollapsed ?? true)
-  : useSafeState<boolean>('yonru_sidebar_collapsed', () => props.defaultCollapsed ?? false)
+  : useSafeState<boolean>('yonru_sidebar_collapsed', () => props.defaultCollapsed ?? true)
 
 watch(isCollapsed, (newVal) => {
   if (!props.isFloating) {
@@ -876,13 +879,15 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
-  if (import.meta.client) {
+  if (typeof window !== 'undefined') {
     if (!props.isFloating) {
       const saved = localStorage.getItem('yonru_sidebar_collapsed')
       if (saved !== null) {
         isCollapsed.value = saved === 'true'
       } else if (props.defaultCollapsed !== undefined) {
         isCollapsed.value = props.defaultCollapsed
+      } else {
+        isCollapsed.value = true
       }
     }
     const savedWidth = localStorage.getItem('yonru_sidebar_width')
@@ -894,7 +899,7 @@ onMounted(() => {
   window.addEventListener('mouseup', stopDrag)
   window.addEventListener('keydown', handleKeydown)
   
-  if (import.meta.client && !state?.systemHealth?.value && !state?.checkingHealth?.value) {
+  if (typeof window !== 'undefined' && !state?.systemHealth?.value && !state?.checkingHealth?.value) {
     state.checkSystemHealth()
   }
 })

@@ -59,6 +59,15 @@ describe('HomeSidebar Component', () => {
     mockLastAccessedClip.value = null
     mockIsNavigatingToEditor.value = false
     Object.keys(stateStore).forEach(k => delete stateStore[k])
+    try {
+      const nuxt = (globalThis as any).useNuxtApp?.()
+      if (nuxt?.payload?.state) {
+        nuxt.payload.state = {}
+      }
+    } catch {}
+    try {
+      (globalThis as any).clearNuxtState?.()
+    } catch {}
     localStorage.clear()
   })
 
@@ -327,6 +336,27 @@ describe('HomeSidebar Component', () => {
     })
 
     expect((wrapper.vm as any).isCollapsed).toBe(true)
+  })
+
+  it('defaults to collapsed mode when defaultCollapsed prop is omitted and localStorage is empty', () => {
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000'
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: { template: '<a><slot /></a>' }
+        }
+      }
+    })
+
+    expect((wrapper.vm as any).isCollapsed).toBe(true)
+    expect(wrapper.find('button[title*="Expand Sidebar"]').exists()).toBe(true)
   })
 
   it('does not persist or load collapsed state from localStorage when isFloating is true', () => {
