@@ -70,7 +70,7 @@
           <div 
             v-for="(hook, idx) in state.hooks.value" 
             :key="idx"
-            @click="selectedModalHook = hook"
+            @click="onHookCardClick(hook)"
             @mouseenter="hoveredHookIndex = Number(idx)"
             @mouseleave="hoveredHookIndex = null"
             class="bg-surface-panel border border-surface-border hover:border-accent-500/50 rounded-2xl cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col overflow-visible hover:z-30"
@@ -178,12 +178,12 @@
             </div>
              <!-- Streamlined Editorial Card Body -->
              <div class="p-4 flex-1 flex flex-col relative z-10">
-               <h4 class="text-white font-bold mb-2 text-base leading-snug group-hover:text-accent-500 transition-colors line-clamp-2 min-h-[2.75rem]">
+               <h4 class="text-white font-bold mb-2 text-base leading-snug group-hover:text-accent-500 transition-colors line-clamp-2 min-h-[2.75rem] cursor-text select-text">
                  {{ hook.theme || 'Untitled Hook' }}
                </h4>
                
                <div class=" py-0.5 my-1 transition-colors flex-1">
-                 <p class="text-slate-400 text-xs line-clamp-2 italic leading-relaxed">
+                 <p class="text-slate-400 text-xs line-clamp-2 italic leading-relaxed cursor-text select-text">
                    "{{ hook.transcript_quote || 'No transcript quote available for this hook.' }}"
                  </p>
                </div>
@@ -216,7 +216,7 @@
             v-else
             v-for="(hook, idx) in state.savedHooks.value" 
             :key="hook._id || idx"
-            @click="selectedModalHook = hook"
+            @click="onHookCardClick(hook)"
             @mouseenter="hoveredHookIndex = Number(idx) + 1000"
             @mouseleave="hoveredHookIndex = null"
             class="bg-surface-panel border border-surface-border hover:border-amber-400/50 rounded-2xl cursor-pointer group transition-all hover:bg-surface-card relative shadow-xl flex flex-col overflow-visible hover:z-30"
@@ -323,12 +323,12 @@
             </div>
             <!-- Streamlined Editorial Card Body -->
             <div class="p-4 flex-1 flex flex-col relative z-10">
-              <h4 class="text-white font-bold mb-2 text-base leading-snug group-hover:text-amber-400 transition-colors line-clamp-2 min-h-[2.75rem]">
+              <h4 class="text-white font-bold mb-2 text-base leading-snug group-hover:text-amber-400 transition-colors line-clamp-2 min-h-[2.75rem] cursor-text select-text">
                 {{ hook.theme || 'Untitled Hook' }}
               </h4>
               
               <div class=" py-0.5 my-1 transition-colors flex-1">
-                <p class="text-slate-400 text-xs line-clamp-2 italic leading-relaxed">
+                <p class="text-slate-400 text-xs line-clamp-2 italic leading-relaxed cursor-text select-text">
                   "{{ hook.transcript_quote || 'No transcript quote available for this hook.' }}"
                 </p>
               </div>
@@ -709,6 +709,16 @@ const endInputStr = ref('00:00')
 const activeModalTab = ref<'breakdown' | 'transcript'>('breakdown')
 
 
+
+function onHookCardClick(hook: Hook) {
+  if (typeof window !== 'undefined') {
+    const sel = window.getSelection()
+    if (sel && sel.toString().trim().length > 0) {
+      return
+    }
+  }
+  selectedModalHook.value = hook
+}
 
 function formatHookDuration(start: number, end: number) {
   const diff = Math.abs(end - start)

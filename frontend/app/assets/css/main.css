@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-[#0D0D0E] text-slate-300 font-sans antialiased overflow-hidden select-none;
+    @apply bg-[#0D0D0E] text-slate-300 font-sans antialiased overflow-hidden;
   }
   
   /* Custom scrollbar for timeline */
