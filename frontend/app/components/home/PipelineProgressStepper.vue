@@ -13,7 +13,7 @@
          </div>
 
          <!-- Bento Stepper Grid -->
-         <div class="grid gap-4 w-full z-10 mb-8 select-none" :class="[stages.length === 1 ? 'max-w-md mx-auto grid-cols-1' : stages.length === 2 ? 'grid-cols-1 sm:grid-cols-2 max-w-2xl mx-auto w-full' : 'grid-cols-1 sm:grid-cols-4 w-full']">
+         <div class="grid gap-4 w-full z-10 mb-8" :class="[stages.length === 1 ? 'max-w-md mx-auto grid-cols-1' : stages.length === 2 ? 'grid-cols-1 sm:grid-cols-2 max-w-2xl mx-auto w-full' : 'grid-cols-1 sm:grid-cols-4 w-full']">
            <div 
              v-for="(stg, idx) in stages" 
              :key="stg.id"

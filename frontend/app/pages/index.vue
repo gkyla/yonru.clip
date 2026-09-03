@@ -22,7 +22,7 @@
       </div>
 
       <!-- Dynamic Typewriter Headline (Zero Layout Shift) -->
-      <h1 class="text-3xl sm:text-5xl font-bold tracking-tight text-white mb-4 max-w-3xl flex flex-col items-center gap-1 sm:gap-1.5 select-none">
+      <h1 class="text-3xl sm:text-5xl font-bold tracking-tight text-white mb-4 max-w-3xl flex flex-col items-center gap-1 sm:gap-1.5">
         <span class="block text-white leading-tight">Turn Long Videos into</span>
         <span class="inline-flex items-center justify-center min-h-[1.25em] text-transparent bg-clip-text bg-gradient-to-r from-accent-500 via-lime-300 to-accent-500 font-extrabold text-center">
           <span>{{ currentTypewriterText || '\u00A0' }}</span>

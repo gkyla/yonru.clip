@@ -1,5 +1,5 @@
 <template>
-  <div class="flex-1 flex flex-col bg-[#0a0a0c] select-none overflow-hidden h-full transition-all duration-300"
+  <div class="flex-1 flex flex-col bg-[#0a0a0c] overflow-hidden h-full transition-all duration-300"
        :class="{ 'opacity-40 pointer-events-none': isOverlayVisible || state?.renderStatus?.value === 'rendering' }">
     <!-- Toolbar -->
     <div class="h-10 flex items-center justify-between px-4 bg-[#111113] border-b border-white/5">
@@ -79,7 +79,7 @@
     </div>
 
     <!-- Timeline Body -->
-    <div class="flex-1 flex overflow-hidden relative">
+    <div class="flex-1 flex overflow-hidden relative select-none">
       <!-- Track Labels -->
       <div class="w-24 bg-[#111113] border-r border-white/5 flex flex-col shrink-0 z-40">
         <div class="h-5 border-b border-white/5"></div>
@@ -205,7 +205,7 @@
         </div>
       </div>
       
-      <div class="flex-1 overflow-y-auto p-4 space-y-3 select-none">
+      <div class="flex-1 overflow-y-auto p-4 space-y-3">
         
         <!-- SECTION 1: TIMING & SPACING -->
         <div class="border rounded-xl bg-black/20 overflow-hidden transition-all duration-300"
