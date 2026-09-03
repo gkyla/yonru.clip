@@ -1,5 +1,5 @@
 // @vitest-environment nuxt
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TimelineEditor from '../../app/components/TimelineEditor.vue'
 import { ref } from 'vue'
@@ -62,6 +62,10 @@ describe('TimelineEditor Component', () => {
     mockIsPlaying.value = false
     mockSeekTo.mockClear()
     mockState.selectedTimelineItem.value = null
+  })
+
+  afterEach(() => {
+    mockIsPlaying.value = false
   })
 
   it('renders timeline tracks and playhead at initial position 0', () => {
@@ -186,5 +190,119 @@ describe('TimelineEditor Component', () => {
 
     expect(element.scrollLeft).toBe(1200)
     vi.useRealTimers()
+  })
+
+  it('smoothly scrolls viewport to center playhead on discrete ruler click', async () => {
+    const wrapper = mount(TimelineEditor, {
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+          Transition: true
+        }
+      }
+    })
+
+    const scrollEl = wrapper.find('.tl-scroll')
+    const element = scrollEl.element as HTMLElement
+    element.scrollTo = vi.fn()
+    Object.defineProperty(element, 'clientWidth', { value: 800, writable: true })
+
+    const rulerContainer = wrapper.find('.ruler-container')
+    vi.spyOn(rulerContainer.element, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 3000,
+      height: 20,
+      right: 3000,
+      bottom: 20,
+      x: 0,
+      y: 0,
+      toJSON: () => {}
+    })
+
+    // Discrete click on ruler at clientX = 1500 (second 30 at 50px/sec)
+    await wrapper.find('.timeline-ruler').trigger('mousedown', {
+      button: 0,
+      clientX: 1500
+    })
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    await wrapper.vm.$nextTick()
+
+    expect(element.scrollTo).toHaveBeenCalledWith({
+      left: expect.any(Number),
+      behavior: 'smooth'
+    })
+  })
+
+  it('does not set isUserScrolling during active playback scroll events', async () => {
+    const wrapper = mount(TimelineEditor, {
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+          Transition: true
+        }
+      }
+    })
+
+    const scrollEl = wrapper.find('.tl-scroll')
+    mockIsPlaying.value = true
+    await wrapper.vm.$nextTick()
+
+    // Trigger scroll event during active playback (as dispatched by startRaf)
+    await scrollEl.trigger('scroll')
+
+    const vm = wrapper.vm as any
+    expect(vm.isUserScrolling).toBe(false)
+  })
+
+  it('smoothly centers playhead after drag scrub release', async () => {
+    const wrapper = mount(TimelineEditor, {
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+          Transition: true
+        }
+      }
+    })
+
+    const scrollEl = wrapper.find('.tl-scroll')
+    const element = scrollEl.element as HTMLElement
+    element.scrollTo = vi.fn()
+    Object.defineProperty(element, 'clientWidth', { value: 800, writable: true })
+
+    const rulerContainer = wrapper.find('.ruler-container')
+    vi.spyOn(rulerContainer.element, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 3000,
+      height: 20,
+      right: 3000,
+      bottom: 20,
+      x: 0,
+      y: 0,
+      toJSON: () => {}
+    })
+
+    // Start scrub at clientX = 500
+    await wrapper.find('.timeline-ruler').trigger('mousedown', {
+      button: 0,
+      clientX: 500
+    })
+
+    // Drag to clientX = 1200
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 1200 }))
+    await wrapper.vm.$nextTick()
+
+    // Release mouse
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    await wrapper.vm.$nextTick()
+
+    expect(element.scrollTo).toHaveBeenCalledWith({
+      left: expect.any(Number),
+      behavior: 'smooth'
+    })
   })
 })

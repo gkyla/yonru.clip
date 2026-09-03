@@ -690,6 +690,17 @@ function onWheel(e: WheelEvent) {
   } else {
     // Horizontal scroll = pan timeline viewport
     if (scrollEl.value) {
+      if (state.isPlaying.value) {
+        isUserScrolling.value = true
+        if (scrollTimeout) clearTimeout(scrollTimeout)
+        scrollTimeout = setTimeout(() => {
+          // Smooth glide back to playhead, then resume 60fps auto-follow
+          smoothCenterPlayhead()
+          setTimeout(() => {
+            isUserScrolling.value = false
+          }, 400)
+        }, 1200)
+      }
       scrollEl.value.scrollLeft += e.deltaY + e.deltaX
     }
   }
@@ -698,7 +709,7 @@ function onWheel(e: WheelEvent) {
 // --- Scroll (Timeline Viewport Panning) ---
 function onScroll() {
   if (!scrollEl.value) return
-  if (isProgrammaticScroll) return
+  if (isProgrammaticScroll || state.isPlaying.value) return
   isUserScrolling.value = true
   if (scrollTimeout) clearTimeout(scrollTimeout)
   scrollTimeout = setTimeout(() => { isUserScrolling.value = false }, 150)
@@ -718,21 +729,92 @@ function seekFromRulerEvent(e: MouseEvent) {
   state.seekTo(targetTime)
 }
 
+function smoothCenterPlayhead(targetTime?: number) {
+  if (!scrollEl.value) return
+  const time = typeof targetTime === 'number' ? targetTime : state.currentTime.value
+  const targetPx = time * pxPerSec.value
+  const targetScroll = Math.max(0, targetPx - containerW.value / 2)
+
+  isProgrammaticScroll = true
+  scrollEl.value.scrollTo({
+    left: targetScroll,
+    behavior: 'smooth'
+  })
+  setTimeout(() => {
+    isProgrammaticScroll = false
+  }, 400)
+}
+
+let edgeScrollRafId: number | null = null
+let latestScrubEvent: MouseEvent | null = null
+
+function stopEdgeScroll() {
+  if (edgeScrollRafId) {
+    cancelAnimationFrame(edgeScrollRafId)
+    edgeScrollRafId = null
+  }
+}
+
+function checkEdgeScroll(clientX: number) {
+  if (!scrollEl.value) return
+  const rect = scrollEl.value.getBoundingClientRect()
+  const edgeZone = 60
+  const leftDist = clientX - rect.left
+  const rightDist = rect.right - clientX
+
+  let speed = 0
+
+  if (leftDist < edgeZone) {
+    const factor = Math.max(0, 1 - leftDist / edgeZone)
+    speed = -Math.min(25, 4 + factor * 21)
+  } else if (rightDist < edgeZone) {
+    const factor = Math.max(0, 1 - rightDist / edgeZone)
+    speed = Math.min(25, 4 + factor * 21)
+  }
+
+  if (speed !== 0) {
+    if (!edgeScrollRafId) {
+      const step = () => {
+        if (!isRulerDragging.value || !scrollEl.value) {
+          stopEdgeScroll()
+          return
+        }
+        scrollEl.value.scrollLeft += speed
+        if (latestScrubEvent) {
+          seekFromRulerEvent(latestScrubEvent)
+        }
+        edgeScrollRafId = requestAnimationFrame(step)
+      }
+      edgeScrollRafId = requestAnimationFrame(step)
+    }
+  } else {
+    stopEdgeScroll()
+  }
+}
+
 function startRulerScrub(e: MouseEvent) {
   if (e.button !== 0) return
   isRulerDragging.value = true
   state.selectedTimelineItem.value = null
+  latestScrubEvent = e
+
   seekFromRulerEvent(e)
 
   const onMouseMove = (moveEvent: MouseEvent) => {
     if (!isRulerDragging.value) return
+    latestScrubEvent = moveEvent
     seekFromRulerEvent(moveEvent)
+    checkEdgeScroll(moveEvent.clientX)
   }
 
   const onMouseUp = () => {
     isRulerDragging.value = false
+    stopEdgeScroll()
     window.removeEventListener('mousemove', onMouseMove)
     window.removeEventListener('mouseup', onMouseUp)
+
+    // Smooth glide to center playhead on release (Option A)
+    smoothCenterPlayhead()
   }
 
   window.addEventListener('mousemove', onMouseMove)
@@ -745,6 +827,10 @@ let rafId: number | null = null
 function startRaf() {
   if (rafId) return
   const loop = () => {
+    if (!state.isPlaying.value || typeof document === 'undefined') {
+      stopRaf()
+      return
+    }
     const video = document.getElementById('preview-video-element') as HTMLVideoElement
     const thumbSec = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
     
@@ -764,8 +850,10 @@ function startRaf() {
     }
     // Auto-scroll to center playhead
     if (scrollEl.value && !isUserScrolling.value) {
-      const targetScroll = playheadPx.value - containerW.value / 2
-      scrollEl.value.scrollLeft = Math.max(0, targetScroll)
+      const targetScroll = Math.max(0, playheadPx.value - containerW.value / 2)
+      if (Math.abs(scrollEl.value.scrollLeft - targetScroll) >= 0.5) {
+        scrollEl.value.scrollLeft = targetScroll
+      }
     }
     rafId = requestAnimationFrame(loop)
   }
@@ -809,8 +897,10 @@ function onTrackBgClick(e: MouseEvent) {
   if (e.target !== e.currentTarget) return
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   const x = e.clientX - rect.left
-  state.seekTo(Math.max(0, x / pxPerSec.value))
+  const targetTime = Math.max(0, x / pxPerSec.value)
+  state.seekTo(targetTime)
   state.selectedTimelineItem.value = null
+  smoothCenterPlayhead(targetTime)
 }
 
 // --- Add items ---
@@ -1004,7 +1094,7 @@ function onKeyDown(e: KeyboardEvent) {
 }
 
 onMounted(() => { window.addEventListener('keydown', onKeyDown) })
-onUnmounted(() => { window.removeEventListener('keydown', onKeyDown); stopRaf() })
+onUnmounted(() => { window.removeEventListener('keydown', onKeyDown); stopRaf(); stopEdgeScroll() })
 </script>
 
 <style scoped>

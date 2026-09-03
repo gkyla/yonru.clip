@@ -19,6 +19,9 @@ When the playhead was at 0s (before playback started or after video finished), s
 3. **Playback Auto-Follow**: Maintain automatic smooth scrolling (`startRaf`) during active playback (`state.isPlaying.value === true`) to keep the moving playhead visible on screen.
 4. **Direct Ruler Drag-to-Scrub**: Implement direct drag-to-scrub interactions on the timeline ruler (`mousedown` + `mousemove` + `mouseup`), allowing users to scrub playback time continuously without hijacking the viewport scrollbar.
 5. **Clean Visual Hierarchy**: Remove the vestigial center line indicator (`centerLinePx`), establishing the playhead as the sole unambiguous time marker.
+6. **Animated Smooth Centering on Discrete Seek**: When performing discrete seek operations (e.g. single-clicking ruler or track background), smoothly animate the viewport (`scrollEl.scrollTo({ left: targetScroll, behavior: 'smooth' })`) to bring the playhead into the center. During continuous mouse scrubbing or manual scrolling, bypass animations for instant zero-latency tracking.
+7. **Unimpeded 60 FPS Auto-Follow with Gesture-Driven Intervention**: To eliminate stutter caused by programmatic scroll events tripping user-scroll timeout locks during playback, `onScroll` delegates playback-time user scrolling exclusively to physical gesture handlers (`onWheel`). Programmatic RAF updates execute at an uninterrupted 60 FPS. If the user scrolls manually during playback, auto-follow pauses for 1.2s and resumes via a smooth glide catch-up.
+8. **Proportional Velocity Edge Auto-Scroll & Smooth Centering on Drag Release**: During ruler drag-to-scrub (`startRulerScrub`), approaching within 60px of the viewport boundaries activates proportional edge auto-scrolling, enabling continuous scrubbing across long clips without releasing the mouse. Releasing the drag (`mouseup`) always initiates `smoothCenterPlayhead()` to glide the newly selected playhead position to the viewport center.
 
 ## Consequences
 
