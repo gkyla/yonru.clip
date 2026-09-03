@@ -40,6 +40,7 @@
           @canplay="onVideoReady"
           @canplaythrough="onVideoReady"
           @timeupdate="onNativeTimeUpdate"
+          @ended="onNativeVideoEnded"
           @error="(e) => onNativeVideoError(e)"
           playsinline
           crossorigin="anonymous"
@@ -691,6 +692,10 @@ function onNativeTimeUpdate(e: Event) {
 function onNativeVideoError(e: Event) {
   console.error('[VideoPreview] Native video error:', e)
   state.isMediaLoading.value = false
+}
+
+function onNativeVideoEnded() {
+  state.isPlaying.value = false
 }
 
 let safetyTimeout: any = null
