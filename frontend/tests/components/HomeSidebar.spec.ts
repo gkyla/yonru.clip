@@ -535,6 +535,78 @@ describe('HomeSidebar Component', () => {
     expect(footer.exists()).toBe(true)
     expect(footer.classes()).not.toContain('mt-auto')
   })
+
+  it('renders Workspace card as h-[68px] horizontal media object in expanded mode and h-10 in collapsed mode', async () => {
+    const mockClip = {
+      clip_id: '0_30',
+      folder_name: 'test_folder',
+      theme: 'Viral Hook 1'
+    }
+    const mockVideo = {
+      folder_name: 'test_folder',
+      title: 'Awesome Source Video',
+      clips: [mockClip]
+    }
+
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [mockVideo],
+        lastVideo: mockVideo,
+        lastClip: mockClip,
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: { template: '<a><slot /></a>' }
+        }
+      }
+    })
+
+    // In expanded mode, card has h-[68px] and p-2 padding
+    const continueBtn = wrapper.findAll('button').find(b => b.text().includes('CONTINUE EDITING'))
+    expect(continueBtn).toBeDefined()
+    expect(continueBtn!.classes()).toContain('h-[68px]')
+    expect(continueBtn!.classes()).toContain('p-2')
+
+    // Collapse the sidebar
+    const toggleBtn = wrapper.find('button[title*="Sidebar"]')
+    await toggleBtn.trigger('click')
+    expect((wrapper.vm as any).isCollapsed).toBe(true)
+
+    // In collapsed mode, card switches to h-10 and p-0
+    expect(continueBtn!.classes()).toContain('h-10')
+    expect(continueBtn!.classes()).toContain('p-0')
+  })
+
+  it('renders canonical glossary empty state ("No recent clip") when no clip is present in expanded mode', () => {
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        lastVideo: null,
+        lastClip: null,
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: { template: '<a><slot /></a>' }
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('Last Accessed Clip')
+    expect(wrapper.text()).toContain('No recent clip')
+    expect(wrapper.text()).not.toContain('No active projects')
+  })
 })
 
 
