@@ -340,7 +340,8 @@ export class VideoPlaybackCoordinator {
     let newCurrentTime = remotionTime
     let needsDriftSync = false
 
-    if (remotionTime >= snapshot.timelineDuration && snapshot.isPlaying) {
+    const isAtOrNearEnd = remotionTime >= (snapshot.timelineDuration - 0.05)
+    if (isAtOrNearEnd && snapshot.isPlaying) {
       newCurrentTime = snapshot.timelineDuration
       shouldPause = true
       this.bridge.pause()

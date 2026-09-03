@@ -650,6 +650,8 @@ describe('HomeSettings Component', () => {
 
     await flushPromises()
     const vm = wrapper.vm as any
+    vm.switchTab('api')
+    await wrapper.vm.$nextTick()
 
     expect(vm.keysList).toEqual([])
     expect(wrapper.text()).toContain('No API keys configured')

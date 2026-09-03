@@ -114,6 +114,10 @@ export const useRemotionBridge = (
       }
 
       nextTick(() => { isInternalTimeUpdate.value = false })
+    } else if (data.type === 'REMOTION_ENDED') {
+      state.isPlaying.value = false
+    } else if (data.type === 'REMOTION_PAUSED') {
+      state.isPlaying.value = false
     } else if (data.type === 'IFRAME_READY') {
       console.log('[VideoPreview] Remotion Iframe Ready. Syncing...')
       syncRemotionProps()

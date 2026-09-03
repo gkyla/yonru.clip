@@ -39,3 +39,12 @@ _Avoid_: Speed score, processing percentage
 **Navigation Sidebar**:
 The primary collapsible navigation panel on the left rail containing global views (Home, Prompts, Docs, Settings), quick video access, and hardware health indicator. Defaults to a collapsed rail (64px) for maximum workspace focus and expands on demand or via `⌘B` / `Ctrl+B`.
 _Avoid_: Navbar, menu drawer, left bar
+
+**Timeline Viewport**:
+The scrollable horizontal canvas displaying multi-track media segments (video, audio, subtitle, text) across time, enabling independent navigation and panning without mutating the current playback time.
+_Avoid_: Scroll track, timeline window, seek pane
+
+**Playhead**:
+The visual marker and time-tracking line indicating the exact frame/second currently displayed in the video preview workspace.
+_Avoid_: Time bar, scrub line, cursor indicator
+

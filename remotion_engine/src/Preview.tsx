@@ -65,13 +65,26 @@ const App = () => {
     }, '*');
   }, [activeFps]);
 
-  // --- Attach/detach the frame listener ---
+  // --- Attach/detach player listeners ---
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
+    
+    const onEnded = () => {
+      window.parent.postMessage({ type: 'REMOTION_ENDED' }, '*');
+    };
+    const onPause = () => {
+      window.parent.postMessage({ type: 'REMOTION_PAUSED' }, '*');
+    };
+
     player.addEventListener('frameupdate', onFrameUpdate);
+    player.addEventListener('ended', onEnded);
+    player.addEventListener('pause', onPause);
+
     return () => {
       player.removeEventListener('frameupdate', onFrameUpdate);
+      player.removeEventListener('ended', onEnded);
+      player.removeEventListener('pause', onPause);
     };
   }, [onFrameUpdate]);
 

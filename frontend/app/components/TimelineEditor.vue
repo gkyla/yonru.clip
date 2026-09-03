@@ -96,13 +96,13 @@
       <div class="flex-1 overflow-x-auto overflow-y-hidden relative tl-scroll" ref="scrollEl"
            @scroll="onScroll" @wheel.prevent="onWheel">
         <!-- Ruler -->
-        <div class="sticky top-0 z-30 bg-[#0d0d0f] border-b border-white/5 cursor-pointer"
-             :style="{ height: '20px' }" @mousedown="onRulerClick">
-          <div class="relative h-full" :style="{ width: totalW + 'px' }">
+        <div class="sticky top-0 z-30 bg-[#0d0d0f] border-b border-white/5 cursor-pointer select-none timeline-ruler"
+             :style="{ height: '20px' }" @mousedown="startRulerScrub">
+          <div class="relative h-full ruler-container" :style="{ width: totalW + 'px' }">
             <template v-for="tick in rulerTicks" :key="tick.pos">
               <div class="absolute bottom-0 border-l" :class="tick.major ? 'border-white/20 h-[10px]' : 'border-white/8 h-[5px]'"
                    :style="{ left: tick.pos + 'px' }">
-                <span v-if="tick.label" class="absolute -top-[12px] left-[3px] text-[8px] mono text-slate-600 whitespace-nowrap">{{ tick.label }}</span>
+                <span v-if="tick.label" class="absolute -top-[12px] left-[3px] text-[8px] mono text-slate-600 whitespace-nowrap select-none">{{ tick.label }}</span>
               </div>
             </template>
           </div>
@@ -150,16 +150,14 @@
           </div>
         </div>
 
-        <!-- Fixed-center Playhead (positioned relative to scroll) -->
+        <!-- Playhead (positioned in canvas coordinates) -->
         <div class="absolute top-0 bottom-0 z-50 pointer-events-none" :style="{ left: playheadPx + 'px', width: '2px' }">
-          <div class="w-0 h-0 absolute -left-[5px] top-0" style="border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #ff3b30;"></div>
+          <div class="w-0 h-0 absolute -left-[5px] top-0 cursor-ew-resize pointer-events-auto"
+               style="border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #ff3b30;"
+               @mousedown.stop="startRulerScrub"></div>
           <div class="absolute top-[8px] bottom-0 left-0 w-[2px] bg-[#ff3b30]"></div>
         </div>
       </div>
-
-      <!-- Center line indicator (visual guide showing center) -->
-      <div class="absolute top-10 bottom-0 w-[2px] bg-red-500/10 pointer-events-none z-[45]"
-           :style="{ left: centerLinePx + 'px' }"></div>
     </div>
 
     <!-- Edit Panel (Fixed Floating) -->
@@ -634,7 +632,6 @@ const totalW = computed(() => {
 })
 
 const containerW = computed(() => scrollEl.value?.clientWidth || 800)
-const centerLinePx = computed(() => 96 + containerW.value / 2) // 96 = track label width
 
 // Playhead position in content coordinates
 const playheadPx = computed(() => state.currentTime.value * pxPerSec.value)
@@ -691,26 +688,137 @@ function onWheel(e: WheelEvent) {
     if (e.deltaY < 0) zoomIn()
     else zoomOut()
   } else {
-    // Horizontal scroll = scrub
+    // Horizontal scroll = pan timeline viewport
     if (scrollEl.value) {
+      if (state.isPlaying.value) {
+        isUserScrolling.value = true
+        if (scrollTimeout) clearTimeout(scrollTimeout)
+        scrollTimeout = setTimeout(() => {
+          // Smooth glide back to playhead, then resume 60fps auto-follow
+          smoothCenterPlayhead()
+          setTimeout(() => {
+            isUserScrolling.value = false
+          }, 400)
+        }, 1200)
+      }
       scrollEl.value.scrollLeft += e.deltaY + e.deltaX
     }
   }
 }
 
-// --- Scroll ↔ Time sync ---
+// --- Scroll (Timeline Viewport Panning) ---
 function onScroll() {
   if (!scrollEl.value) return
-  if (isProgrammaticScroll) return
+  if (isProgrammaticScroll || state.isPlaying.value) return
   isUserScrolling.value = true
   if (scrollTimeout) clearTimeout(scrollTimeout)
   scrollTimeout = setTimeout(() => { isUserScrolling.value = false }, 150)
+}
 
-  if (!state.isPlaying.value) {
-    // Scroll = scrub: center of viewport = currentTime
-    const centerX = scrollEl.value.scrollLeft + containerW.value / 2
-    state.currentTime.value = Math.max(0, centerX / pxPerSec.value)
+// --- Ruler Drag-to-Scrub ---
+const isRulerDragging = ref(false)
+
+function seekFromRulerEvent(e: MouseEvent) {
+  if (!scrollEl.value) return
+  const rulerContainer = scrollEl.value.querySelector('.ruler-container') as HTMLElement
+  if (!rulerContainer) return
+  const rect = rulerContainer.getBoundingClientRect()
+  const x = Math.max(0, e.clientX - rect.left)
+  const maxTime = state.timelineDuration.value || 0
+  const targetTime = Math.min(maxTime, Math.max(0, x / pxPerSec.value))
+  state.seekTo(targetTime)
+}
+
+function smoothCenterPlayhead(targetTime?: number) {
+  if (!scrollEl.value) return
+  const time = typeof targetTime === 'number' ? targetTime : state.currentTime.value
+  const targetPx = time * pxPerSec.value
+  const targetScroll = Math.max(0, targetPx - containerW.value / 2)
+
+  isProgrammaticScroll = true
+  scrollEl.value.scrollTo({
+    left: targetScroll,
+    behavior: 'smooth'
+  })
+  setTimeout(() => {
+    isProgrammaticScroll = false
+  }, 400)
+}
+
+let edgeScrollRafId: number | null = null
+let latestScrubEvent: MouseEvent | null = null
+
+function stopEdgeScroll() {
+  if (edgeScrollRafId) {
+    cancelAnimationFrame(edgeScrollRafId)
+    edgeScrollRafId = null
   }
+}
+
+function checkEdgeScroll(clientX: number) {
+  if (!scrollEl.value) return
+  const rect = scrollEl.value.getBoundingClientRect()
+  const edgeZone = 60
+  const leftDist = clientX - rect.left
+  const rightDist = rect.right - clientX
+
+  let speed = 0
+
+  if (leftDist < edgeZone) {
+    const factor = Math.max(0, 1 - leftDist / edgeZone)
+    speed = -Math.min(25, 4 + factor * 21)
+  } else if (rightDist < edgeZone) {
+    const factor = Math.max(0, 1 - rightDist / edgeZone)
+    speed = Math.min(25, 4 + factor * 21)
+  }
+
+  if (speed !== 0) {
+    if (!edgeScrollRafId) {
+      const step = () => {
+        if (!isRulerDragging.value || !scrollEl.value) {
+          stopEdgeScroll()
+          return
+        }
+        scrollEl.value.scrollLeft += speed
+        if (latestScrubEvent) {
+          seekFromRulerEvent(latestScrubEvent)
+        }
+        edgeScrollRafId = requestAnimationFrame(step)
+      }
+      edgeScrollRafId = requestAnimationFrame(step)
+    }
+  } else {
+    stopEdgeScroll()
+  }
+}
+
+function startRulerScrub(e: MouseEvent) {
+  if (e.button !== 0) return
+  isRulerDragging.value = true
+  state.selectedTimelineItem.value = null
+  latestScrubEvent = e
+
+  seekFromRulerEvent(e)
+
+  const onMouseMove = (moveEvent: MouseEvent) => {
+    if (!isRulerDragging.value) return
+    latestScrubEvent = moveEvent
+    seekFromRulerEvent(moveEvent)
+    checkEdgeScroll(moveEvent.clientX)
+  }
+
+  const onMouseUp = () => {
+    isRulerDragging.value = false
+    stopEdgeScroll()
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('mouseup', onMouseUp)
+
+    // Smooth glide to center playhead on release (Option A)
+    smoothCenterPlayhead()
+  }
+
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
 }
 
 // During playback, auto-scroll to keep playhead centered
@@ -719,9 +827,20 @@ let rafId: number | null = null
 function startRaf() {
   if (rafId) return
   const loop = () => {
+    if (!state.isPlaying.value || typeof document === 'undefined') {
+      stopRaf()
+      return
+    }
     const video = document.getElementById('preview-video-element') as HTMLVideoElement
     const thumbSec = state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
     
+    // Stop playback if end of timeline reached
+    if (state.currentTime.value >= state.timelineDuration.value) {
+      state.isPlaying.value = false
+      stopRaf()
+      return
+    }
+
     // Use native video to drive timeline AFTER the thumbnail window.
     // During thumbnail, Remotion is the sole clock (via REMOTION_TIMEUPDATE messages).
     // In Remotion mode, REMOTION_TIMEUPDATE overrides this, so this only matters
@@ -731,8 +850,10 @@ function startRaf() {
     }
     // Auto-scroll to center playhead
     if (scrollEl.value && !isUserScrolling.value) {
-      const targetScroll = playheadPx.value - containerW.value / 2
-      scrollEl.value.scrollLeft = Math.max(0, targetScroll)
+      const targetScroll = Math.max(0, playheadPx.value - containerW.value / 2)
+      if (Math.abs(scrollEl.value.scrollLeft - targetScroll) >= 0.5) {
+        scrollEl.value.scrollLeft = targetScroll
+      }
     }
     rafId = requestAnimationFrame(loop)
   }
@@ -743,41 +864,43 @@ function stopRaf() {
   if (rafId) { cancelAnimationFrame(rafId); rafId = null }
 }
 
-watch(() => state.isPlaying.value, (playing) => {
-  if (playing) startRaf()
-  else stopRaf()
-}, { immediate: true })
+// Bring playhead into visible viewport if it moves outside visible area
+function ensurePlayheadInView() {
+  if (!scrollEl.value) return
+  const currentScroll = scrollEl.value.scrollLeft
+  const visibleWidth = containerW.value
+  const playhead = playheadPx.value
 
-// When time changes externally (not from scroll), auto-scroll to center
-watch(() => state.currentTime.value, () => {
-  if (!state.isPlaying.value && !isUserScrolling.value && scrollEl.value) {
-    const targetScroll = playheadPx.value - containerW.value / 2
+  if (playhead < currentScroll || playhead > currentScroll + visibleWidth) {
+    const targetScroll = Math.max(0, playhead - visibleWidth / 2)
     isProgrammaticScroll = true
-    scrollEl.value.scrollLeft = Math.max(0, targetScroll)
+    scrollEl.value.scrollLeft = targetScroll
     setTimeout(() => {
       isProgrammaticScroll = false
     }, 50)
   }
-})
+}
+
+watch(() => state.isPlaying.value, (playing) => {
+  if (playing) {
+    ensurePlayheadInView()
+    startRaf()
+  } else {
+    stopRaf()
+  }
+}, { immediate: true })
 
 // --- Play ---
 function togglePlay() { state.isPlaying.value = !state.isPlaying.value }
-
-// --- Click handlers ---
-function onRulerClick(e: MouseEvent) {
-  const rect = (e.currentTarget as HTMLElement).querySelector('.relative')?.getBoundingClientRect()
-  if (!rect) return
-  const x = e.clientX - rect.left
-  state.seekTo(Math.max(0, x / pxPerSec.value))
-  state.selectedTimelineItem.value = null
-}
 
 function onTrackBgClick(e: MouseEvent) {
   if (e.target !== e.currentTarget) return
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   const x = e.clientX - rect.left
-  state.seekTo(Math.max(0, x / pxPerSec.value))
+  const targetTime = Math.max(0, x / pxPerSec.value)
+  state.seekTo(targetTime)
   state.selectedTimelineItem.value = null
+  smoothCenterPlayhead(targetTime)
 }
 
 // --- Add items ---
@@ -971,7 +1094,7 @@ function onKeyDown(e: KeyboardEvent) {
 }
 
 onMounted(() => { window.addEventListener('keydown', onKeyDown) })
-onUnmounted(() => { window.removeEventListener('keydown', onKeyDown); stopRaf() })
+onUnmounted(() => { window.removeEventListener('keydown', onKeyDown); stopRaf(); stopEdgeScroll() })
 </script>
 
 <style scoped>
