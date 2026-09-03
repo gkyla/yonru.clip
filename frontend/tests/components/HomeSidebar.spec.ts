@@ -486,6 +486,55 @@ describe('HomeSidebar Component', () => {
       expect(pill.attributes('style')).toContain(`top: ${item.expectedTop}`)
     }
   })
+
+  it('renders stationary 40px anchors with circular search and non-scrollable rail in collapsed mode', async () => {
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: true
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: { template: '<a><slot /></a>' }
+        }
+      }
+    })
+
+    // Search button in collapsed mode has rounded-full
+    const circularSearch = wrapper.find('button.rounded-full')
+    expect(circularSearch.exists()).toBe(true)
+
+    // Collapsed rail has overflow-visible select-none (non-scrollable)
+    const contentBody = wrapper.find('.flex-1.min-h-0')
+    expect(contentBody.classes()).toContain('overflow-visible')
+    expect(contentBody.classes()).toContain('select-none')
+    expect(contentBody.classes()).not.toContain('overflow-y-auto')
+
+    // Single active pill is present
+    const pill = wrapper.find('.bg-accent-500.shadow-\\[0_0_8px_rgba\\(207\\,255\\,80\\,0\\.6\\)\\]')
+    expect(pill.exists()).toBe(true)
+
+    // Toggle to expanded
+    const toggleBtn = wrapper.find('button[title*="Sidebar"]')
+    await toggleBtn.trigger('click')
+
+    expect((wrapper.vm as any).isCollapsed).toBe(false)
+    // In expanded mode, content body becomes scrollable
+    expect(contentBody.classes()).toContain('overflow-y-auto')
+
+    // Changelog is pinned to bottom via mt-auto, footer has fixed height and no mt-auto
+    const changelogContainer = wrapper.find('.relative.group.w-full.mt-auto')
+    expect(changelogContainer.exists()).toBe(true)
+
+    const footer = wrapper.find('.h-\\[116px\\]')
+    expect(footer.exists()).toBe(true)
+    expect(footer.classes()).not.toContain('mt-auto')
+  })
 })
 
 
