@@ -88,7 +88,7 @@
           <div class="relative w-full h-10 flex items-center shrink-0">
             <!-- Collapsed Circular Search Button Layer -->
             <div 
-              class="absolute left-0 top-0 w-10 h-10 flex items-center justify-center transition-all ease-in-out"
+              class="absolute left-0 top-2 w-10 h-10 flex items-center justify-center transition-all ease-in-out"
               :class="isCollapsed 
                 ? 'opacity-100 duration-150 delay-100 pointer-events-auto' 
                 : 'opacity-0 duration-80 pointer-events-none'"
@@ -110,7 +110,7 @@
 
             <!-- Expanded Wide Search Bar Layer -->
             <div 
-              class="w-full h-10 transition-all ease-in-out overflow-hidden"
+              class="w-full h-10 transition-all ease-in-out overflow-hidden mt-4"
               :class="isCollapsed 
                 ? 'opacity-0 duration-80 pointer-events-none max-w-0' 
                 : 'opacity-100 duration-200 delay-100 pointer-events-auto max-w-full'"
@@ -139,7 +139,7 @@
           <!-- Divider (Collapsed Only) -->
           <div 
             class="border-t border-white/[0.08] transition-all duration-300 shrink-0"
-            :class="isCollapsed ? 'w-7 mx-auto my-0.5' : 'hidden'"
+            :class="isCollapsed ? 'w-7 mx-auto my-0.5 relative top-2' : 'hidden'"
           ></div>
 
           <!-- Section 2: Main Navigation Items & Persistent Single Active Pill -->
@@ -155,7 +155,7 @@
             </div>
 
             <!-- Navigation Buttons Stack -->
-            <div class="relative flex flex-col gap-2 w-full mt-0.5">
+            <div class="relative flex flex-col gap-2 w-full mt-0.5 ">
               <!-- Persistent Single Sliding Active Pill Indicator -->
               <span 
                 v-if="activeNavIndex >= 0"
