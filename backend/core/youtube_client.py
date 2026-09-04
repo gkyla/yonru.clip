@@ -54,13 +54,15 @@ class YouTubeClient(AbstractYouTubeClient):
         with yt_dlp.YoutubeDL(opts) as ydl:
             try:
                 info = ydl.extract_info(url, download=False)
+                channel = info.get("channel") or info.get("uploader") or "Unknown Channel"
                 return {
                     "title": info.get("title", "Unknown"),
-                    "id": info.get("id", self.extract_video_id(url))
+                    "id": info.get("id", self.extract_video_id(url)),
+                    "channel": channel
                 }
             except Exception as e:
                 print(f"[youtube-client] Info Extraction Error: {e}")
-                return {"title": "Unknown", "id": self.extract_video_id(url)}
+                return {"title": "Unknown", "id": self.extract_video_id(url), "channel": "Unknown Channel"}
 
     def fetch_transcript(self, video_id: str) -> list:
         """Fetch transcript and segment into snappy word-level structure."""
@@ -175,7 +177,7 @@ class YouTubeClient(AbstractYouTubeClient):
 
 class MockYouTubeClient(AbstractYouTubeClient):
     def __init__(self, mock_info: Optional[dict] = None, mock_transcript: Optional[list] = None):
-        self.mock_info = mock_info or {"title": "Mock Video", "id": "mock_id_123"}
+        self.mock_info = mock_info or {"title": "Mock Video", "id": "mock_id_123", "channel": "Mock Channel"}
         self.mock_transcript = mock_transcript or []
         self.downloaded_urls = []
         self.downloaded_dirs = []
@@ -190,7 +192,8 @@ class MockYouTubeClient(AbstractYouTubeClient):
     def get_video_info_fast(self, url: str) -> dict:
         return {
             "title": self.mock_info.get("title", "Mock Video"),
-            "id": self.mock_info.get("id", self.extract_video_id(url))
+            "id": self.mock_info.get("id", self.extract_video_id(url)),
+            "channel": self.mock_info.get("channel", "Mock Channel")
         }
 
     def fetch_transcript(self, video_id: str) -> list:

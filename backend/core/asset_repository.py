@@ -5,6 +5,7 @@ import subprocess
 import json
 import uuid
 import shutil
+import time
 from typing import Optional, Dict, Any, List
 from abc import ABC, abstractmethod
 from core.youtube_client import YouTubeClient
@@ -379,10 +380,26 @@ class AssetRepository(AssetStore):
             filename = "preview.mp4" if quality == "360p" else "full.mp4"
             file_path = os.path.join(target_dir, filename)
             w, h = self.get_video_resolution(file_path)
+
+            channel = info.get("channel", "Unknown Channel")
+            added_at = time.time()
+            try:
+                meta_path = os.path.join(target_dir, "metadata.json")
+                with open(meta_path, "w", encoding="utf-8") as mf:
+                    json.dump({
+                        "video_id": video_id,
+                        "title": info["title"],
+                        "channel": channel,
+                        "added_at": added_at
+                    }, mf, indent=2, ensure_ascii=False)
+            except Exception as me:
+                print(f"[asset_repository] Failed to write metadata.json: {me}")
             
             return {
                 "video_id": video_id,
                 "title": info["title"],
+                "channel": channel,
+                "added_at": added_at,
                 "duration": self.get_video_duration(file_path),
                 "fps": self._get_video_fps(file_path),
                 "file_path": file_path,
@@ -541,10 +558,28 @@ class AssetRepository(AssetStore):
                 except Exception:
                     mtime = 0.0
                 
+                channel = "Unknown Channel"
+                added_at = mtime
+                meta_path = os.path.join(entry.path, "metadata.json")
+                if os.path.exists(meta_path):
+                    try:
+                        with open(meta_path, "r", encoding="utf-8") as mf:
+                            meta = json.load(mf)
+                            if meta.get("channel"):
+                                channel = meta.get("channel")
+                            elif meta.get("uploader"):
+                                channel = meta.get("uploader")
+                            if meta.get("added_at"):
+                                added_at = float(meta.get("added_at"))
+                    except Exception:
+                        pass
+
                 results.append({
                     "video_id": video_id,
                     "title": entry.name.replace(f"_{video_id}", "").replace("_", " "),
                     "folder_name": entry.name,
+                    "channel": channel,
+                    "added_at": added_at,
                     "resolution": f"{w}x{h}",
                     "duration": self.get_video_duration(target_path),
                     "mtime": mtime,
@@ -563,7 +598,9 @@ class AssetRepository(AssetStore):
             search_lower = search.lower()
             results = [
                 v for v in results
-                if search_lower in v.get("title", "").lower() or search_lower in v.get("video_id", "").lower()
+                if search_lower in v.get("title", "").lower()
+                or search_lower in v.get("video_id", "").lower()
+                or search_lower in v.get("channel", "").lower()
             ]
 
         # 2. Sorting
@@ -572,7 +609,7 @@ class AssetRepository(AssetStore):
             results.sort(key=lambda x: x.get("title", "").lower(), reverse=reverse)
         else:
             reverse = (order != "asc")
-            results.sort(key=lambda x: x.get("mtime", 0.0), reverse=reverse)
+            results.sort(key=lambda x: x.get("added_at", x.get("mtime", 0.0)), reverse=reverse)
 
         # 3. Pagination Slicing
         total = len(results)
@@ -937,6 +974,8 @@ class MockAssetStore(AssetStore):
         mock_source = {
             "video_id": "mock_id",
             "title": "Mock Video",
+            "channel": "Mock Channel",
+            "added_at": 1600000000.0,
             "duration": 60.0,
             "fps": 30.0,
             "file_path": f"mock_path/{filename}",

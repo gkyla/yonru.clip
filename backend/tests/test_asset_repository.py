@@ -236,17 +236,33 @@ class TestAssetRepository(unittest.TestCase):
         mock_dur.return_value = 60.0
         mock_thumb.return_value = "thumb.jpg"
 
-        # Create two fake source folders
+        # Create three fake source folders
         for title, vid in [("Alpha Video", "aaaa1111111"), ("Beta Video", "bbbb2222222"), ("Gamma Video", "cccc3333333")]:
             folder_path = os.path.join(self.output_dir, "sources", f"{title}_{vid}")
             os.makedirs(folder_path, exist_ok=True)
             with open(os.path.join(folder_path, "full.mp4"), "w") as f:
                 f.write("content")
 
-        # Test search
+        # Give Alpha Video a metadata.json with custom channel and added_at
+        alpha_meta = os.path.join(self.output_dir, "sources", "Alpha Video_aaaa1111111", "metadata.json")
+        with open(alpha_meta, "w") as f:
+            json.dump({"channel": "Fireship", "added_at": 1720000000.0, "title": "Alpha Video", "video_id": "aaaa1111111"}, f)
+
+        # Test search by title
         search_res = self.repo.list_cached_videos(page=1, limit=10, search="beta")
         self.assertEqual(search_res["total"], 1)
         self.assertEqual(search_res["videos"][0]["video_id"], "bbbb2222222")
+
+        # Test search by channel name
+        channel_search = self.repo.list_cached_videos(page=1, limit=10, search="fireship")
+        self.assertEqual(channel_search["total"], 1)
+        self.assertEqual(channel_search["videos"][0]["channel"], "Fireship")
+        self.assertEqual(channel_search["videos"][0]["added_at"], 1720000000.0)
+
+        # Test fallback for video without metadata.json
+        beta_search = self.repo.list_cached_videos(page=1, limit=10, search="bbbb2222222")
+        self.assertEqual(beta_search["videos"][0]["channel"], "Unknown Channel")
+        self.assertIsNotNone(beta_search["videos"][0]["added_at"])
 
         # Test pagination
         page1 = self.repo.list_cached_videos(page=1, limit=2, sort_by="title", order="asc")

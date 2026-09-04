@@ -116,8 +116,12 @@
                <div class="w-6 h-6 border-2 border-accent-500/10 border-t-accent-500/30 rounded-full animate-spin"></div>
             </div>
             <div class="p-5">
-               <div class="w-full h-4 bg-surface-dark rounded mb-3"></div>
-               <div class="w-1/3 h-2.5 bg-surface-dark/50 rounded"></div>
+               <div class="w-full h-4 bg-surface-dark rounded mb-2"></div>
+               <div class="w-1/2 h-3 bg-surface-dark/70 rounded mb-4"></div>
+               <div class="flex justify-between items-center pt-2 border-t border-surface-border/30">
+                 <div class="w-1/4 h-2.5 bg-surface-dark/50 rounded"></div>
+                 <div class="w-1/4 h-2.5 bg-surface-dark/50 rounded"></div>
+               </div>
             </div>
          </div>
       </div>
@@ -148,9 +152,19 @@
             </div>
           </div>
           
-          <div class="flex-1 p-5 relative">
-            <h4 class="text-white font-bold text-sm line-clamp-2 leading-snug group-hover:text-accent-500 transition-colors">{{ vid.title }}</h4>
-            <p class="text-[10px] text-slate-500 font-mono mt-3">ID: {{ vid.video_id }}</p>
+          <div class="flex-1 p-5 relative flex flex-col justify-between">
+            <div>
+              <h4 class="text-white font-bold text-sm line-clamp-2 leading-snug group-hover:text-accent-500 transition-colors">{{ vid.title }}</h4>
+              <div class="flex items-center gap-1.5 mt-2 text-slate-300 font-semibold text-xs truncate" :title="vid.channel || 'Unknown Channel'">
+                <span class="truncate">{{ vid.channel || 'Unknown Channel' }}</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] text-slate-500 font-mono mt-4 pt-2 border-t border-surface-border/30">
+              <span class="flex items-center gap-1 cursor-default" :title="formatFullDateTime(vid.added_at ?? vid.mtime)">
+                {{ formatRelativeTime(vid.added_at ?? vid.mtime) }}
+              </span>
+              <span>ID: {{ vid.video_id }}</span>
+            </div>
           </div>
 
           <!-- Full Card Action Overlay -->
@@ -220,9 +234,19 @@
             </div>
           </div>
           
-          <div class="flex-1 min-w-0 py-2">
+          <div class="flex-1 min-w-0 py-2 flex flex-col justify-center">
             <h4 class="text-white font-bold text-sm truncate group-hover:text-accent-500 transition-colors">{{ vid.title }}</h4>
-            <p class="text-[10px] text-slate-500 font-mono mt-2">ID: {{ vid.video_id }}</p>
+            <div class="flex items-center gap-3 mt-1.5 text-[11px]">
+              <div class="flex items-center text-slate-300 font-semibold truncate max-w-[200px]" :title="vid.channel || 'Unknown Channel'">
+                <span class="truncate">{{ vid.channel || 'Unknown Channel' }}</span>
+              </div>
+              <span class="text-slate-600 select-none">•</span>
+              <span class="text-[10px] text-slate-500 font-mono shrink-0 cursor-default" :title="formatFullDateTime(vid.added_at ?? vid.mtime)">
+                {{ formatRelativeTime(vid.added_at ?? vid.mtime) }}
+              </span>
+              <span class="text-slate-600 select-none">•</span>
+              <span class="text-[10px] text-slate-500 font-mono shrink-0">ID: {{ vid.video_id }}</span>
+            </div>
           </div>
 
           <!-- Full Card Action Overlay -->
@@ -470,6 +494,39 @@ function formatSec(sec: number) {
   const m = Math.floor(sec / 60)
   const s = Math.floor(sec % 60)
   return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function formatRelativeTime(timestamp?: number): string {
+  if (!timestamp) return 'Recently'
+  const ms = timestamp < 1e11 ? timestamp * 1000 : timestamp
+  const now = Date.now()
+  const diffSec = Math.floor((now - ms) / 1000)
+
+  if (diffSec < 60) return 'Just now'
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour}h ago`
+  const diffDay = Math.floor(diffHour / 24)
+  if (diffDay === 1) return 'Yesterday'
+  if (diffDay < 7) return `${diffDay}d ago`
+
+  const date = new Date(ms)
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function formatFullDateTime(timestamp?: number): string {
+  if (!timestamp) return 'Added timestamp unavailable'
+  const ms = timestamp < 1e11 ? timestamp * 1000 : timestamp
+  const date = new Date(ms)
+  return `Added on ${date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })}`
 }
 
 function confirmDelete(vid: CachedVideo) {
