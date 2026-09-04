@@ -18,7 +18,8 @@ class DummyYouTubeClient(YouTubeClient):
     def get_video_info_fast(self, url: str) -> dict:
         return {
             "title": "Test Video Title",
-            "id": "abc12345678"
+            "id": "abc12345678",
+            "channel": "Test Channel"
         }
 
     def fetch_transcript(self, video_id: str) -> list:
@@ -62,9 +63,16 @@ class TestAssetRepository(unittest.TestCase):
         self.assertEqual(source["duration"], 60.0)
         self.assertEqual(source["fps"], 30.0)
 
-        # Check files were created in local output directory structure
-        source_dir = os.path.join(self.output_dir, "sources", "Test_Video_Title_abc12345678")
+        # Check files were created in local output directory structure with bracket format
+        source_dir = os.path.join(self.output_dir, "sources", "[Test Channel] Test_Video_Title_abc12345678")
         self.assertTrue(os.path.exists(os.path.join(source_dir, "full.mp4")))
+        meta_file = os.path.join(source_dir, "metadata.json")
+        self.assertTrue(os.path.exists(meta_file))
+        with open(meta_file, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+        self.assertEqual(meta["channel"], "Test Channel")
+        self.assertEqual(meta["title"], "Test Video Title")
+        self.assertEqual(meta["raw_title"], "Test Video Title")
 
     def test_invalid_path_traversal_throws_error(self):
         with self.assertRaises(ValueError):
@@ -368,6 +376,74 @@ class TestAssetRepository(unittest.TestCase):
 
         self.repo._run_ffmpeg(["-y", "-version"])
         self.assertEqual(mock_subprocess.call_args[0][0], ["ffmpeg", "-y", "-version"])
+
+    def test_sanitize_channel_and_filename(self):
+        # Channel name sanitization
+        self.assertEqual(self.repo._sanitize_channel_name("Raditya Dika"), "Raditya Dika")
+        self.assertEqual(self.repo._sanitize_channel_name("Channel [Official] / 100%"), "Channel Official 100")
+        self.assertEqual(self.repo._sanitize_channel_name(""), "Unknown Channel")
+        self.assertEqual(self.repo._sanitize_channel_name(None), "Unknown Channel")
+        self.assertEqual(self.repo._sanitize_channel_name("   🔥✨   "), "Unknown Channel")
+
+        # Filename sanitization
+        self.assertEqual(self.repo._sanitize_filename("Yang Merasa Sehat?!"), "Yang_Merasa_Sehat")
+        self.assertEqual(self.repo._sanitize_filename("Video / Part 1 : Intro"), "Video_Part_1_Intro")
+        self.assertEqual(self.repo._sanitize_filename("   🔥✨   "), "Video")
+
+    @patch('core.asset_repository.AssetRepository._generate_thumbnail')
+    @patch('core.asset_repository.AssetRepository.get_video_duration')
+    @patch('core.asset_repository.AssetRepository.get_video_resolution')
+    def test_list_cached_videos_with_bracket_format_and_raw_title(self, mock_res, mock_dur, mock_thumb):
+        mock_res.return_value = (1920, 1080)
+        mock_dur.return_value = 120.0
+        mock_thumb.return_value = "thumb.jpg"
+
+        # 1. Folder with brackets and metadata.json (with raw title containing special characters)
+        folder_1 = "[Raditya Dika] Yang_merasa_sehat_lihat_ini_abc12345678"
+        p1 = os.path.join(self.output_dir, "sources", folder_1)
+        os.makedirs(p1, exist_ok=True)
+        with open(os.path.join(p1, "full.mp4"), "w") as f:
+            f.write("content")
+        with open(os.path.join(p1, "metadata.json"), "w", encoding="utf-8") as f:
+            json.dump({
+                "video_id": "abc12345678",
+                "title": "Yang Merasa Sehat Coba Nonton Ini?! #shorts",
+                "raw_title": "Yang Merasa Sehat Coba Nonton Ini?! #shorts",
+                "channel": "Raditya Dika",
+                "added_at": 1725000000.0
+            }, f)
+
+        # 2. Folder with brackets but NO metadata.json (fallback title stripping channel)
+        folder_2 = "[Fireship] 100_Seconds_of_Code_xyz98765432"
+        p2 = os.path.join(self.output_dir, "sources", folder_2)
+        os.makedirs(p2, exist_ok=True)
+        with open(os.path.join(p2, "full.mp4"), "w") as f:
+            f.write("content")
+
+        videos = self.repo.list_cached_videos()
+        v1 = next(v for v in videos if v["video_id"] == "abc12345678")
+        self.assertEqual(v1["channel"], "Raditya Dika")
+        self.assertEqual(v1["title"], "Yang Merasa Sehat Coba Nonton Ini?! #shorts")
+        self.assertEqual(v1["folder_name"], folder_1)
+
+        v2 = next(v for v in videos if v["video_id"] == "xyz98765432")
+        self.assertEqual(v2["channel"], "Unknown Channel")
+        self.assertEqual(v2["title"], "100 Seconds of Code")
+        self.assertEqual(v2["folder_name"], folder_2)
+
+        # Test get_cached_video finds it by URL and reads metadata.json
+        cached_res = self.repo.get_cached_video("https://youtube.com/watch?v=abc12345678")
+        self.assertIsNotNone(cached_res)
+        assert cached_res is not None
+        self.assertEqual(cached_res["title"], "Yang Merasa Sehat Coba Nonton Ini?! #shorts")
+        self.assertEqual(cached_res["channel"], "Raditya Dika")
+
+        # Test get_cached_video_by_folder
+        folder_res = self.repo.get_cached_video_by_folder(folder_1)
+        self.assertIsNotNone(folder_res)
+        assert folder_res is not None
+        self.assertEqual(folder_res["title"], "Yang Merasa Sehat Coba Nonton Ini?! #shorts")
+        self.assertEqual(folder_res["channel"], "Raditya Dika")
 
 
 
