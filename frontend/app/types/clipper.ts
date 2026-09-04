@@ -59,6 +59,9 @@ export interface CachedVideo {
   title: string
   duration: number
   folder_name: string
+  channel?: string
+  added_at?: number
+  mtime?: number
   has_heatmap?: boolean
   fps?: number
   asset_url?: string

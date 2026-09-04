@@ -116,8 +116,12 @@
                <div class="w-6 h-6 border-2 border-accent-500/10 border-t-accent-500/30 rounded-full animate-spin"></div>
             </div>
             <div class="p-5">
-               <div class="w-full h-4 bg-surface-dark rounded mb-3"></div>
-               <div class="w-1/3 h-2.5 bg-surface-dark/50 rounded"></div>
+               <div class="w-full h-4 bg-surface-dark rounded mb-2"></div>
+               <div class="w-1/2 h-3 bg-surface-dark/70 rounded mb-4"></div>
+               <div class="flex justify-between items-center pt-2 border-t border-surface-border/30">
+                 <div class="w-1/4 h-2.5 bg-surface-dark/50 rounded"></div>
+                 <div class="w-1/4 h-2.5 bg-surface-dark/50 rounded"></div>
+               </div>
             </div>
          </div>
       </div>
@@ -148,9 +152,19 @@
             </div>
           </div>
           
-          <div class="flex-1 p-5 relative">
-            <h4 class="text-white font-bold text-sm line-clamp-2 leading-snug group-hover:text-accent-500 transition-colors">{{ vid.title }}</h4>
-            <p class="text-[10px] text-slate-500 font-mono mt-3">ID: {{ vid.video_id }}</p>
+          <div class="flex-1 p-5 relative flex flex-col justify-between">
+            <div>
+              <h4 class="text-white font-bold text-sm line-clamp-2 leading-snug group-hover:text-accent-500 transition-colors">{{ vid.title }}</h4>
+              <div class="flex items-center gap-1.5 mt-2 text-slate-300 font-semibold text-xs truncate" :title="vid.channel || 'Unknown Channel'">
+                <span class="truncate">{{ vid.channel || 'Unknown Channel' }}</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] text-slate-500 font-mono mt-4 pt-2 border-t border-surface-border/30">
+              <span class="flex items-center gap-1 cursor-default" :title="formatFullDateTime(vid.added_at ?? vid.mtime)">
+                {{ formatRelativeTime(vid.added_at ?? vid.mtime) }}
+              </span>
+              <span>ID: {{ vid.video_id }}</span>
+            </div>
           </div>
 
           <!-- Full Card Action Overlay -->
@@ -180,20 +194,13 @@
                 target="_blank" 
                 @click.stop 
                 title="Watch on YouTube"
-                class="py-2.5 px-3 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
+                class="py-2.5 px-4 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
               >
                 <Icon name="ri:youtube-fill" class="text-sm" />
               </a>
               <button 
-                @click.stop="$emit('redownload', vid)"
-                class="py-2.5 px-3 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-white rounded-xl border border-sky-500/20 transition-colors shadow-xl cursor-pointer"
-                title="Refresh"
-              >
-                <Icon name="ri:download-cloud-2-line" class="text-sm" />
-              </button>
-              <button 
                 @click.stop="confirmDelete(vid)"
-                class="py-2.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl cursor-pointer"
+                class="py-2.5 px-4 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl cursor-pointer"
                 title="Delete"
               >
                 <Icon name="ri:delete-bin-line" class="text-sm" />
@@ -220,24 +227,34 @@
             </div>
           </div>
           
-          <div class="flex-1 min-w-0 py-2">
+          <div class="flex-1 min-w-0 py-2 flex flex-col justify-center">
             <h4 class="text-white font-bold text-sm truncate group-hover:text-accent-500 transition-colors">{{ vid.title }}</h4>
-            <p class="text-[10px] text-slate-500 font-mono mt-2">ID: {{ vid.video_id }}</p>
+            <div class="flex items-center gap-3 mt-1.5 text-[11px]">
+              <div class="flex items-center text-slate-300 font-semibold truncate max-w-[200px]" :title="vid.channel || 'Unknown Channel'">
+                <span class="truncate">{{ vid.channel || 'Unknown Channel' }}</span>
+              </div>
+              <span class="text-slate-600 select-none">•</span>
+              <span class="text-[10px] text-slate-500 font-mono shrink-0 cursor-default" :title="formatFullDateTime(vid.added_at ?? vid.mtime)">
+                {{ formatRelativeTime(vid.added_at ?? vid.mtime) }}
+              </span>
+              <span class="text-slate-600 select-none">•</span>
+              <span class="text-[10px] text-slate-500 font-mono shrink-0">ID: {{ vid.video_id }}</span>
+            </div>
           </div>
 
           <!-- Full Card Action Overlay -->
           <div class="absolute inset-0 bg-surface-dark/80 backdrop-blur-md opacity-0 group-hover:opacity-100 flex items-center justify-center gap-6 transition-all duration-300 z-20 pointer-events-none">
             <button 
               @click.stop="$emit('analyze-cached', vid.video_id, false)"
-              class="px-5 py-2.5 bg-surface-card hover:bg-surface-panel border border-surface-border text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100 cursor-pointer"
+              class="px-5 py-3.5 bg-surface-card hover:bg-surface-panel border border-surface-border text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100 cursor-pointer"
             >
-              <Icon name="ri:folder-open-line" class="text-base" /> Load Cache
+              <Icon name="ri:folder-open-line" class="text-base" /> Load Cache Hooks
             </button>
             <button 
               @click.stop="$emit('reanalyze', vid.video_id)"
-              class="px-5 py-2.5 bg-accent-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-accent-400 transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100 cursor-pointer"
+              class="px-5 py-3.5 bg-accent-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-accent-400 transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100 cursor-pointer"
             >
-              <Icon name="ri:magic-line" class="text-base" /> Reanalyze
+              <Icon name="ri:magic-line" class="text-base" /> Reanalyze Hooks
             </button>
 
             <div class="flex items-center gap-3 pointer-events-auto">
@@ -245,21 +262,14 @@
                 :href="`https://youtube.com/watch?v=${vid.video_id}`" 
                 target="_blank" 
                 @click.stop 
-                class="p-2.5 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
+                class="py-2.5 px-3 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
                 title="Watch on YouTube"
               >
                 <Icon name="ri:youtube-fill" class="text-base" />
               </a>
               <button 
-                @click.stop="$emit('redownload', vid)"
-                class="p-2.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-white rounded-xl border border-sky-500/20 transition-colors shadow-xl cursor-pointer"
-                title="Refresh"
-              >
-                <Icon name="ri:download-cloud-2-line" class="text-base" />
-              </button>
-              <button 
                 @click.stop="confirmDelete(vid)"
-                class="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl cursor-pointer"
+                class="py-2.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl cursor-pointer"
                 title="Delete"
               >
                 <Icon name="ri:delete-bin-line" class="text-base" />
@@ -410,7 +420,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'analyze-cached', videoId: string, force?: boolean): void
   (e: 'reanalyze', videoId: string): void
-  (e: 'redownload', vid: CachedVideo): void
   (e: 'delete-video', folderName: string): void
   (e: 'refresh-cached'): void
 }>()
@@ -470,6 +479,39 @@ function formatSec(sec: number) {
   const m = Math.floor(sec / 60)
   const s = Math.floor(sec % 60)
   return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function formatRelativeTime(timestamp?: number): string {
+  if (!timestamp) return 'Recently'
+  const ms = timestamp < 1e11 ? timestamp * 1000 : timestamp
+  const now = Date.now()
+  const diffSec = Math.floor((now - ms) / 1000)
+
+  if (diffSec < 60) return 'Just now'
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour}h ago`
+  const diffDay = Math.floor(diffHour / 24)
+  if (diffDay === 1) return 'Yesterday'
+  if (diffDay < 7) return `${diffDay}d ago`
+
+  const date = new Date(ms)
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function formatFullDateTime(timestamp?: number): string {
+  if (!timestamp) return 'Added timestamp unavailable'
+  const ms = timestamp < 1e11 ? timestamp * 1000 : timestamp
+  const date = new Date(ms)
+  return `Added on ${date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })}`
 }
 
 function confirmDelete(vid: CachedVideo) {
