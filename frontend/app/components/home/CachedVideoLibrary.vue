@@ -194,20 +194,13 @@
                 target="_blank" 
                 @click.stop 
                 title="Watch on YouTube"
-                class="py-2.5 px-3 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
+                class="py-2.5 px-4 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
               >
                 <Icon name="ri:youtube-fill" class="text-sm" />
               </a>
               <button 
-                @click.stop="$emit('redownload', vid)"
-                class="py-2.5 px-3 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-white rounded-xl border border-sky-500/20 transition-colors shadow-xl cursor-pointer"
-                title="Refresh"
-              >
-                <Icon name="ri:download-cloud-2-line" class="text-sm" />
-              </button>
-              <button 
                 @click.stop="confirmDelete(vid)"
-                class="py-2.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl cursor-pointer"
+                class="py-2.5 px-4 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl cursor-pointer"
                 title="Delete"
               >
                 <Icon name="ri:delete-bin-line" class="text-sm" />
@@ -253,15 +246,15 @@
           <div class="absolute inset-0 bg-surface-dark/80 backdrop-blur-md opacity-0 group-hover:opacity-100 flex items-center justify-center gap-6 transition-all duration-300 z-20 pointer-events-none">
             <button 
               @click.stop="$emit('analyze-cached', vid.video_id, false)"
-              class="px-5 py-2.5 bg-surface-card hover:bg-surface-panel border border-surface-border text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100 cursor-pointer"
+              class="px-5 py-3.5 bg-surface-card hover:bg-surface-panel border border-surface-border text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100 cursor-pointer"
             >
-              <Icon name="ri:folder-open-line" class="text-base" /> Load Cache
+              <Icon name="ri:folder-open-line" class="text-base" /> Load Cache Hooks
             </button>
             <button 
               @click.stop="$emit('reanalyze', vid.video_id)"
-              class="px-5 py-2.5 bg-accent-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-accent-400 transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100 cursor-pointer"
+              class="px-5 py-3.5 bg-accent-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-accent-400 transition-all shadow-xl active:scale-95 flex items-center gap-2 pointer-events-auto scale-95 group-hover:scale-100 cursor-pointer"
             >
-              <Icon name="ri:magic-line" class="text-base" /> Reanalyze
+              <Icon name="ri:magic-line" class="text-base" /> Reanalyze Hooks
             </button>
 
             <div class="flex items-center gap-3 pointer-events-auto">
@@ -269,21 +262,14 @@
                 :href="`https://youtube.com/watch?v=${vid.video_id}`" 
                 target="_blank" 
                 @click.stop 
-                class="p-2.5 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
+                class="py-2.5 px-3 bg-white/5 hover:bg-white/10 text-white hover:text-red-500 rounded-xl border border-white/10 transition-colors shadow-xl"
                 title="Watch on YouTube"
               >
                 <Icon name="ri:youtube-fill" class="text-base" />
               </a>
               <button 
-                @click.stop="$emit('redownload', vid)"
-                class="p-2.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-white rounded-xl border border-sky-500/20 transition-colors shadow-xl cursor-pointer"
-                title="Refresh"
-              >
-                <Icon name="ri:download-cloud-2-line" class="text-base" />
-              </button>
-              <button 
                 @click.stop="confirmDelete(vid)"
-                class="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl cursor-pointer"
+                class="py-2.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-colors shadow-xl cursor-pointer"
                 title="Delete"
               >
                 <Icon name="ri:delete-bin-line" class="text-base" />
@@ -434,7 +420,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'analyze-cached', videoId: string, force?: boolean): void
   (e: 'reanalyze', videoId: string): void
-  (e: 'redownload', vid: CachedVideo): void
   (e: 'delete-video', folderName: string): void
   (e: 'refresh-cached'): void
 }>()
