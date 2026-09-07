@@ -15,11 +15,18 @@
         ></div>
       </div>
 
-      <!-- Eyebrow Glassmorphic Badge -->
-      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/10 backdrop-blur-md shadow-[0_0_20px_rgba(207,255,80,0.04)] mb-5 select-none hover:border-accent-500/30 transition-all duration-300">
-        <Icon name="ri:sparkling-2-fill" class="text-accent-500 text-xs sm:text-sm shrink-0" />
-        <span class="text-[11px] sm:text-xs font-semibold text-slate-300 tracking-wide">Next-Gen Short Video Clipper</span>
-      </div>
+      <!-- Eyebrow Glassmorphic Badge (GitHub Star Callout) -->
+      <a 
+        href="https://github.com/gkyla/yonru.clip" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        aria-label="Star yonru.clip on GitHub"
+        class="group inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/10 backdrop-blur-md shadow-[0_0_20px_rgba(207,255,80,0.04)] mb-5 select-none hover:bg-white/[0.06] hover:border-accent-500/40 hover:shadow-[0_0_25px_rgba(207,255,80,0.1)] transition-all duration-300 cursor-pointer"
+      >
+        <Icon name="ri:github-fill" class="text-slate-300 group-hover:text-white text-xs sm:text-sm shrink-0 transition-colors" />
+        <span class="text-[11px] sm:text-xs font-semibold text-slate-300 group-hover:text-white tracking-wide transition-colors">Show some love on GitHub</span>
+        <Icon name="ri:arrow-right-up-line" class="text-slate-500 group-hover:text-accent-500 text-xs sm:text-sm shrink-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+      </a>
 
       <!-- Dynamic Typewriter Headline (Zero Layout Shift) -->
       <h1 class="text-3xl sm:text-5xl font-bold tracking-tight text-white mb-4 max-w-3xl flex flex-col items-center gap-1 sm:gap-1.5">
