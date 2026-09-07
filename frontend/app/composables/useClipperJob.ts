@@ -12,7 +12,8 @@ import type {
   ThumbnailTextOverlay,
   SubtitleStyleSettings,
   HookExtractionMode,
-  HookIntentPreset
+  HookIntentPreset,
+  CachedVideo
 } from '../types/clipper'
 
 export const useClipperJob = () => {
@@ -310,6 +311,16 @@ export const useClipperJob = () => {
       timeline.timelineTracks.value[0].items = []
     }
     resetThumbnailState()
+
+    const cachedVideos = useState<CachedVideo[]>('cachedVideos', () => [])
+    const cached = cachedVideos.value.find(v => v.video_id === videoId)
+    if (cached) {
+      if (cached.title) videoTitle.value = cached.title
+      if (cached.duration) videoDuration.value = cached.duration
+      if (cached.fps) videoFps.value = cached.fps
+      if (cached.folder_name) folderName.value = cached.folder_name
+      if (cached.has_heatmap !== undefined) hasHeatmap.value = cached.has_heatmap
+    }
 
     try {
       const currentPrompt = promptsList.value.find(p => p.id === (options?.promptFile ?? selectedPrompt.value))
