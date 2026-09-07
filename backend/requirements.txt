@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-yt-dlp
+yt-dlp>=2026.8.19
 faster-whisper
 google-genai
 opencv-python-headless
