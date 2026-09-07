@@ -74,31 +74,98 @@
          <div class="w-full bg-black/40 border border-surface-border/50 h-2.5 overflow-hidden mb-8 relative z-10 p-[2px]">
             <div 
               class="h-full bg-gradient-to-r from-accent-500 to-violet-500 relative shadow-[0_0_12px_rgba(207,255,80,0.5)]" 
-              :class="state.isCachedAnalysis.value && !isReanalyzingCached ? 'animate-progress-sweep' : 'transition-all duration-700 ease-out'"
-              :style="state.isCachedAnalysis.value && !isReanalyzingCached ? {} : { width: `${progressPercent}%` }"
+              :class="state.isCachedAnalysis?.value && !isReanalyzingCached ? 'animate-progress-sweep' : 'transition-all duration-700 ease-out'"
+              :style="state.isCachedAnalysis?.value && !isReanalyzingCached ? {} : { width: `${progressPercent}%` }"
             >
               <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.3)_50%,transparent_100%)] animate-shimmer-fast bg-[length:200%_100%]"></div>
             </div>
          </div>
 
-         <!-- Cyber-deck Status Details Card -->
-         <div class="w-full bg-black/30 border border-surface-border/50 p-5 font-mono text-xs text-slate-300 text-left z-10 shadow-inner flex flex-col md:flex-row justify-between gap-5 relative">
-           <div class="flex-1 flex flex-col gap-1.5">
-              <div class="flex items-center gap-2 border-b border-surface-border/50 pb-2 mb-1.5">
-                 <span class="text-accent-500 font-bold tracking-wider">PIPELINE STAGE</span>
-                 <span class="text-slate-200 font-bold uppercase tracking-wider animate-pulse-subtle">» {{ state.jobStatus.value.replace('_', ' ') }}</span>
-              </div>
-              <p class="leading-relaxed"><span class="text-slate-400 font-bold mr-1">Active Task:</span> <span class="text-slate-200">{{ loadingLabel }}</span></p>
-              <p class="leading-relaxed"><span class="text-slate-400 font-bold mr-1">Engine Stack:</span> <span class="text-slate-200">yt-dlp + FFmpeg + Whisper + Gemini Flash 2.5</span></p>
-           </div>
-           <div class="flex-1 md:border-l border-surface-border/50 md:pl-5 flex flex-col gap-1.5">
-              <div class="flex justify-between border-b border-surface-border/50 pb-2 mb-1.5">
-                 <span class="text-slate-400 font-bold">SYSTEM METADATA</span>
-                 <span class="text-slate-200 font-bold">{{ state.jobId.value || '—' }}</span>
-              </div>
-              <p class="leading-relaxed"><span class="text-slate-400 font-bold mr-1">Model Configuration:</span> <span class="text-slate-200">Whisper {{ (state.whisperModel.value || 'base').toUpperCase() }}</span></p>
-              <p class="leading-relaxed truncate"><span class="text-slate-400 font-bold mr-1">Prompt Guidelines:</span> <span class="text-slate-200">{{ state.selectedPrompt.value }}</span></p>
-           </div>
+         <!-- 2-Column Unified Video & Parameters Card -->
+         <div class="w-full bg-[#0e1015]/90 border border-surface-border/60 p-5 text-xs text-slate-300 text-left z-10 shadow-2xl relative">
+            <div v-if="hasVideoMetadata" class="flex flex-col md:flex-row justify-between gap-6">
+               <!-- Left Column: Video Identity -->
+               <div class="flex-1 flex items-start gap-4 min-w-0">
+                  <!-- 16:9 Mini Thumbnail -->
+                  <div class="w-28 sm:w-36 aspect-video bg-surface-dark border border-surface-border/70 shrink-0 overflow-hidden relative group">
+                     <img 
+                        v-if="displayThumbnail && !thumbnailLoadError" 
+                        :src="displayThumbnail" 
+                        :alt="displayTitle" 
+                        class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        @error="thumbnailLoadError = true"
+                     />
+                     <div v-else class="w-full h-full flex items-center justify-center text-slate-600 bg-surface-dark">
+                        <Icon name="ri:movie-2-line" class="text-2xl" />
+                     </div>
+                     <!-- Duration Overlay Badge -->
+                     <div v-if="displayDuration > 0" class="absolute bottom-1 right-1 bg-black/85 px-1.5 py-0.5 text-[9px] text-white font-mono font-bold tracking-wider border border-white/10">
+                        {{ formatDuration(displayDuration) }}
+                     </div>
+                  </div>
+
+                  <!-- Details: Title, Channel, Added Date -->
+                  <div class="flex-1 min-w-0 flex flex-col justify-center gap-1.5">
+                     <div class="flex items-center gap-1.5 min-w-0">
+                        <h4 class="font-bold text-white text-sm truncate" :title="displayTitle">
+                           {{ displayTitle }}
+                        </h4>
+                        <a 
+                           v-if="sourceVideoLink" 
+                           :href="sourceVideoLink" 
+                           target="_blank" 
+                           rel="noopener noreferrer" 
+                           class="text-slate-400 hover:text-accent-500 transition-colors shrink-0 cursor-pointer p-0.5"
+                           title="Open original video"
+                        >
+                           <Icon name="ri:external-link-line" class="text-xs" />
+                        </a>
+                     </div>
+                     <p v-if="displayChannel" class="text-[11px] text-slate-400 flex items-center gap-1.5 truncate">
+                        <Icon name="ri:user-3-line" class="text-xs text-slate-500 shrink-0" />
+                        <span class="truncate">{{ displayChannel }}</span>
+                     </p>
+                     <p class="text-[11px] text-slate-500 flex items-center gap-1.5 font-mono">
+                        <Icon name="ri:calendar-line" class="text-xs text-slate-500 shrink-0" />
+                        <span>Added: {{ displayAddedDate }}</span>
+                     </p>
+                  </div>
+               </div>
+
+               <!-- Right Column: Model Whisper & Prompt Template -->
+               <div class="flex-1 md:border-l border-surface-border/50 md:pl-6 flex flex-col justify-center gap-3 min-w-0">
+                  <div class="flex items-center justify-between gap-2 border-b border-surface-border/40 pb-2.5">
+                     <span class="text-slate-400 font-medium">Whisper Model</span>
+                     <span class="font-mono text-slate-200 font-bold uppercase px-2 py-0.5 bg-surface-dark border border-surface-border/60">
+                        {{ (state.whisperModel?.value || 'base').toUpperCase() }}
+                     </span>
+                  </div>
+                  <div class="flex items-center justify-between gap-2">
+                     <span class="text-slate-400 font-medium">Prompt Template</span>
+                     <span class="text-accent-400 font-bold truncate max-w-[240px]" :title="displayPromptTemplate">
+                        {{ displayPromptTemplate }}
+                     </span>
+                  </div>
+               </div>
+            </div>
+
+            <!-- Shimmer Skeleton Placeholder (URL Ingestion Pre-Metadata) -->
+            <div v-else class="flex flex-col md:flex-row justify-between gap-6 animate-pulse">
+               <div class="flex-1 flex items-start gap-4">
+                  <div class="w-28 sm:w-36 aspect-video bg-surface-border/20 border border-surface-border/40 shrink-0 flex items-center justify-center">
+                     <Icon name="ri:loader-4-line" class="text-slate-500 text-xl animate-spin" />
+                  </div>
+                  <div class="flex-1 flex flex-col justify-center gap-2 pt-1">
+                     <div class="h-4 bg-surface-border/30 rounded-none w-3/4"></div>
+                     <div class="h-3 bg-surface-border/20 rounded-none w-1/2"></div>
+                     <div class="h-3 bg-surface-border/20 rounded-none w-1/3"></div>
+                  </div>
+               </div>
+               <div class="flex-1 md:border-l border-surface-border/50 md:pl-6 flex flex-col justify-center gap-3">
+                  <div class="h-4 bg-surface-border/20 rounded-none w-full"></div>
+                  <div class="h-4 bg-surface-border/20 rounded-none w-3/4"></div>
+               </div>
+            </div>
          </div>
 
          <!-- Cancel Escape Route -->
@@ -114,6 +181,8 @@
 </template>
 
 <script setup lang="ts">
+import type { CachedVideo } from '../../types/clipper'
+
 interface StageItem {
   id: string
   name: string
@@ -134,6 +203,125 @@ defineEmits<{
 }>()
 
 const state = useClipperState()
+const API_BASE = 'http://localhost:8000'
+const thumbnailLoadError = ref(false)
+
+function extractYoutubeId(url: string): string | null {
+  if (!url) return null
+  const reg = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i
+  const match = url.match(reg)
+  return match ? (match[1] ?? null) : null
+}
+
+function formatDuration(seconds: number): string {
+  if (!seconds || isNaN(seconds)) return '0:00'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = Math.floor(seconds % 60)
+  if (h > 0) {
+    return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`
+  }
+  return `${m}:${s < 10 ? '0' : ''}${s}`
+}
+
+function formatIntentPreset(preset?: string): string {
+  if (!preset) return 'Auto Virality'
+  const map: Record<string, string> = {
+    auto: 'Auto Virality',
+    humor: 'Funny & Relatable',
+    educational: 'Edukasi & Debunk',
+    storytelling: 'Story & Deep Talk',
+    debate: 'Hot Takes'
+  }
+  return map[preset] || (preset.charAt(0).toUpperCase() + preset.slice(1))
+}
+
+const displayPromptTemplate = computed(() => {
+  if (state.extractionMode?.value === 'custom' || (state.selectedPrompt?.value && state.selectedPrompt.value !== 'prompt.json')) {
+    const found = state.promptsList?.value?.find((p: any) => p.id === state.selectedPrompt?.value)
+    if (found?.name) return found.name
+    if (state.selectedPrompt?.value) {
+      return state.selectedPrompt.value.replace(/\.json$/i, '')
+    }
+  }
+
+  return formatIntentPreset(state.selectedPresetId?.value)
+})
+
+const activeCachedVideo = computed<CachedVideo | null>(() => {
+  const cached = state.cachedVideos?.value
+  if (!cached || !cached.length) return null
+  
+  if (state.folderName?.value) {
+    const byFolder = cached.find((v: CachedVideo) => v.folder_name === state.folderName.value)
+    if (byFolder) return byFolder
+  }
+  
+  const ytId = extractYoutubeId(state.youtubeUrl?.value || '')
+  if (ytId) {
+    const byId = cached.find((v: CachedVideo) => v.video_id === ytId)
+    if (byId) return byId
+  }
+  
+  if (state.videoTitle?.value) {
+    const byTitle = cached.find((v: CachedVideo) => v.title === state.videoTitle?.value)
+    if (byTitle) return byTitle
+  }
+  
+  return null
+})
+
+const displayTitle = computed(() => {
+  return state.videoTitle?.value || activeCachedVideo.value?.title || ''
+})
+
+const displayDuration = computed(() => {
+  return state.videoDuration?.value || activeCachedVideo.value?.duration || 0
+})
+
+const displayChannel = computed(() => {
+  return activeCachedVideo.value?.channel || ''
+})
+
+const displayAddedDate = computed(() => {
+  const ts = activeCachedVideo.value?.added_at ?? activeCachedVideo.value?.mtime
+  if (ts) {
+    const ms = ts < 1e11 ? ts * 1000 : ts
+    const d = new Date(ms)
+    return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+  const now = new Date()
+  return now.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+})
+
+const displayThumbnail = computed(() => {
+  if (activeCachedVideo.value?.thumbnail_url) {
+    return `${API_BASE}${activeCachedVideo.value.thumbnail_url}`
+  }
+  if (activeCachedVideo.value?.thumbnail) {
+    return activeCachedVideo.value.thumbnail
+  }
+  const ytId = extractYoutubeId(state.youtubeUrl?.value || '') || activeCachedVideo.value?.video_id
+  if (ytId) {
+    return `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
+  }
+  return null
+})
+
+watch(displayThumbnail, () => {
+  thumbnailLoadError.value = false
+})
+
+const sourceVideoLink = computed(() => {
+  if (state.youtubeUrl?.value) return state.youtubeUrl.value
+  const ytId = activeCachedVideo.value?.video_id || extractYoutubeId(state.videoUrl?.value || '')
+  if (ytId) return `https://youtube.com/watch?v=${ytId}`
+  return null
+})
+
+const hasVideoMetadata = computed(() => {
+  return !!displayTitle.value
+})
 </script>
 
 <style scoped>
