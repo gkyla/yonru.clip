@@ -2,14 +2,10 @@
 
 # yonru.clip
 
-**AI-Powered Short Video Clipping, Hook Discovery & Auto-Reframing Studio**
-
 Transform long-form podcasts, interviews, and streams into high-virality 9:16 vertical clips in seconds. Powered by local Whisper transcription, Google Gemini AI hook curation, and Remotion.
 
 <br />
 
-[![Nuxt 4](https://img.shields.io/badge/Frontend-Nuxt%204.4%20%2B%20Vue%203.5-00DC82?style=flat-square&logo=nuxtdotjs&logoColor=white)](https://nuxt.com/)
-[![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%2B%20Python%203.12-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Remotion](https://img.shields.io/badge/Rendering-Remotion-0B84F3?style=flat-square&logo=react&logoColor=white)](https://www.remotion.dev/)
 [![Gemini](https://img.shields.io/badge/AI-Gemini%20Flash-4285F4?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev/)
 [![Whisper](https://img.shields.io/badge/Audio-Faster--Whisper-orange?style=flat-square)](https://github.com/SYSTRAN/faster-whisper)
@@ -17,34 +13,31 @@ Transform long-form podcasts, interviews, and streams into high-virality 9:16 ve
 
 <br />
 
----
-
 ### A Quick Look at Yonru
 
 <p align="center">
-  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/2504e181-b6ff-42bf-924f-a785ce894e90">
-    <source src="https://github.com/user-attachments/assets/2504e181-b6ff-42bf-924f-a785ce894e90" type="video/mp4">
+  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/3c161875-3456-45d1-87d4-742f699ec204">
+    <source src="https://github.com/user-attachments/assets/3c161875-3456-45d1-87d4-742f699ec204" type="video/mp4">
   </video>
 </p>
 
 *Paste a video link, and let Yonru handle the rest: transcribe speech, spot the best hooks, and extract ready clips.*
-
----
+<br />
 
 </div>
 
 ## Key Capabilities at a Glance
 
-| Feature | Description | Status |
-| :--- | :--- | :--- |
-| **🎯 AI Hook Discovery** | Scans multi-hour audio transcripts with Gemini AI to identify high-retention moments with start/end timestamps and virality scores (0-100). | **Active** |
-| **🖼️ Instant Thumbnail Extraction** | Automatically captures sharp, high-res static thumbnail snapshots (`thumb_{start}.jpg`) for every detected hook interval. | **Active** |
-| **⚡ Local Hardware Transcription** | Runs faster-whisper locally with GPU/VRAM capability profiling for fast, private, zero-cloud speech-to-text. | **Active** |
-| **📐 Face Tracking & Auto-Reframe** | Precomputed computer vision face-tracking that dynamically centers active speakers from 16:9 widescreen into 9:16 vertical format. | **Active** |
-| **✂️ Precision Studio Editor** | Non-destructive multi-track Timeline Viewport with frame-accurate scrubbing, audio bleep presets, and subtitle styling. | **Active** |
-| **💬 Word-Level Animated Subtitles** | Karaoke-style animated captions synchronized to exact spoken word boundaries with bundled offline typography. | **Active** |
-| **🔇 Word-Level Audio Censorship** | Millisecond-accurate profanity muting or bleep sound replacement without cutting video timeline frames. | **Active** |
-| **🧠 Modular Prompt Editor** | Custom prompt templates with category tagging to steer AI hook detection toward specific styles and genres. | **Active** |
+| <sub>Feature</sub> | <sub>Description</sub> |
+| :--- | :--- |
+| <sub>**AI Hook Discovery**</sub> | <sub>Identifies high-retention moments with virality scores (0-100) using Gemini AI.</sub> |
+| <sub>**Thumbnail Extraction**</sub> | <sub>Automatically captures sharp static thumbnail snapshots (`thumb_{start}.jpg`).</sub> |
+| <sub>**Local Transcription**</sub> | <sub>Runs faster-whisper locally with GPU profiling for fast, private speech-to-text.</sub> |
+| <sub>**Face Tracking & Auto-Reframe**</sub> | <sub>Keeps speakers centered when adapting 16:9 widescreen into 9:16 vertical.</sub> |
+| <sub>**Studio Editor**</sub> | <sub>Non-destructive multi-track Timeline Viewport with frame-accurate scrubbing.</sub> |
+| <sub>**Animated Subtitles**</sub> | <sub>Karaoke-style captions synced to spoken words with bundled typography.</sub> |
+| <sub>**Audio Censorship**</sub> | <sub>Millisecond-accurate word muting or bleep audio presets without video cuts.</sub> |
+| <sub>**Prompt Editor**</sub> | <sub>Custom prompt templates with tagging to steer AI detection toward specific genres.</sub> |
 
 ---
 
@@ -53,8 +46,8 @@ Transform long-form podcasts, interviews, and streams into high-virality 9:16 ve
 Once Yonru discovers viral Hooks from your Source Video, you can open any clip in the **Studio Editor** for granular frame-by-frame customization:
 
 <p align="center">
-  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/d3cd0ee8-53ec-4877-96b1-9a880b23889a">
-    <source src="https://github.com/user-attachments/assets/d3cd0ee8-53ec-4877-96b1-9a880b23889a" type="video/mp4">
+  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/5a974aa0-4742-4b58-b01a-d25f878d0291">
+    <source src="https://github.com/user-attachments/assets/5a974aa0-4742-4b58-b01a-d25f878d0291" type="video/mp4">
   </video>
 </p>
 
