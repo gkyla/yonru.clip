@@ -76,4 +76,14 @@ _Avoid_: Audio bleep, profanity filter, censor cut, voice mute
 The dedicated template workspace in Yonru Clip for composing, testing, and managing modular natural language AI hook detection prompts and extraction directives.
 _Avoid_: Prompt settings, AI config, template screen
 
+**Hook Results Gallery**:
+The responsive grid workspace displaying AI-curated Hook cards sorted by virality score, with category filters, thumbnail previews, and transcript quotes.
+_Avoid_: Hook list, results screen, card grid, clip browser
 
+**Cinematic Hook Preview Modal**:
+The focused inspection dialog providing synchronized video playback, start/end timestamp adjustments, transcript excerpts, and the AI Virality Rationale breakdown before opening a clip in the Studio Editor.
+_Avoid_: Video preview popup, hook detail modal, player dialog
+
+**Cached Video Library**:
+The local storage repository and grid interface showcasing previously ingested and processed source videos for instant re-analysis, hook replay, or offline management without re-downloading.
+_Avoid_: Download history, video cache list, saved files

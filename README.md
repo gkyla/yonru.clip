@@ -41,6 +41,23 @@ Transform long-form podcasts, interviews, and streams into high-virality 9:16 ve
 
 ---
 
+## Hook Selection & Preview
+
+Browse AI-curated moments from your **Cached Video Library** or recent analysis jobs, inspect virality rationale breakdowns, and preview synchronized audio before moving into the editor:
+
+<p align="center">
+  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/ca72a735-640b-4498-9840-e06de7341c44">
+    <source src="https://github.com/user-attachments/assets/ca72a735-640b-4498-9840-e06de7341c44" type="video/mp4">
+  </video>
+</p>
+
+### What You Can Do in Hook Selection:
+- **Instant Cache Loading**: Revisit previously analyzed videos and restore generated hooks instantly without re-downloading source media.
+- **Virality Score & Rationale Breakdown**: Review retention scores (0-100) alongside Gemini AI narrative explanations for why each moment captures attention.
+- **Cinematic In-Sync Preview**: Playback candidate clips with SD/HD toggles and fine-tune start and end timestamps before entering the Studio.
+
+---
+
 ## Deep Dive: Precision Multi-Track Studio
 
 Once Yonru discovers viral Hooks from your Source Video, you can open any clip in the **Studio Editor** for granular frame-by-frame customization:
