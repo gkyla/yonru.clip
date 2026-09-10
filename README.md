@@ -16,8 +16,8 @@ Transform long-form podcasts, interviews, and streams into high-virality 9:16 ve
 ### A Quick Look at Yonru
 
 <p align="center">
-  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/258b08ea-1b12-4ce6-a7e0-0d5610972ee5">
-    <source src="https://github.com/user-attachments/assets/258b08ea-1b12-4ce6-a7e0-0d5610972ee5" type="video/mp4">
+  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/bd472290-81de-43c0-a85e-e6e3ffb9c7e7">
+    <source src="https://github.com/user-attachments/assets/bd472290-81de-43c0-a85e-e6e3ffb9c7e7" type="video/mp4">
   </video>
 </p>
 
@@ -28,16 +28,16 @@ Transform long-form podcasts, interviews, and streams into high-virality 9:16 ve
 
 ## Key Capabilities at a Glance
 
-| <sub>Feature</sub> | <sub>Description</sub> |
+| Feature | Description |
 | :--- | :--- |
-| <sub>**AI Hook Discovery**</sub> | <sub>Identifies high-retention moments with virality scores (0-100) using Gemini AI.</sub> |
-| <sub>**Thumbnail Extraction**</sub> | <sub>Automatically captures sharp static thumbnail snapshots (`thumb_{start}.jpg`).</sub> |
-| <sub>**Local Transcription**</sub> | <sub>Runs faster-whisper locally with GPU profiling for fast, private speech-to-text.</sub> |
-| <sub>**Face Tracking & Auto-Reframe**</sub> | <sub>Keeps speakers centered when adapting 16:9 widescreen into 9:16 vertical.</sub> |
-| <sub>**Studio Editor**</sub> | <sub>Non-destructive multi-track Timeline Viewport with frame-accurate scrubbing.</sub> |
-| <sub>**Animated Subtitles**</sub> | <sub>Karaoke-style captions synced to spoken words with bundled typography.</sub> |
-| <sub>**Audio Censorship**</sub> | <sub>Millisecond-accurate word muting or bleep audio presets without video cuts.</sub> |
-| <sub>**Prompt Editor**</sub> | <sub>Custom prompt templates with tagging to steer AI detection toward specific genres.</sub> |
+| **AI Hook Discovery** | Identifies high-retention moments with virality scores (0-100) using Gemini AI. |
+| **Thumbnail Extraction** | Automatically captures sharp static thumbnail snapshots (`thumb_{start}.jpg`). |
+| **Local Transcription** | Runs faster-whisper locally with GPU profiling for fast, private speech-to-text. |
+| **Face Tracking & Auto-Reframe** | Keeps speakers centered when adapting 16:9 widescreen into 9:16 vertical. |
+| **Studio Editor** | Non-destructive multi-track Timeline Viewport with frame-accurate scrubbing. |
+| **Animated Subtitles** | Karaoke-style captions synced to spoken words with bundled typography. |
+| **Audio Censorship** | Millisecond-accurate word muting or bleep audio presets without video cuts. |
+| **Prompt Editor** | Custom prompt templates with tagging to steer AI detection toward specific genres. |
 
 ---
 
@@ -46,8 +46,8 @@ Transform long-form podcasts, interviews, and streams into high-virality 9:16 ve
 Once Yonru discovers viral Hooks from your Source Video, you can open any clip in the **Studio Editor** for granular frame-by-frame customization:
 
 <p align="center">
-  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/e3e6f369-ece2-45ab-9f07-cc291a5d796d">
-    <source src="https://github.com/user-attachments/assets/e3e6f369-ece2-45ab-9f07-cc291a5d796d" type="video/mp4">
+  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/cefe4339-bd5c-4ebb-9017-534347b2d70e">
+    <source src="https://github.com/user-attachments/assets/cefe4339-bd5c-4ebb-9017-534347b2d70e" type="video/mp4">
   </video>
 </p>
 
