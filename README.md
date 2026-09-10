@@ -4,12 +4,15 @@
 
 Transform long-form podcasts, interviews, and streams into high-virality 9:16 vertical clips in seconds. Powered by local Whisper transcription, Google Gemini AI hook curation, and Remotion.
 
-<br />
 
 [![Remotion](https://img.shields.io/badge/Rendering-Remotion-0B84F3?style=flat-square&logo=react&logoColor=white)](https://www.remotion.dev/)
 [![Gemini](https://img.shields.io/badge/AI-Gemini%20Flash-4285F4?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev/)
 [![Whisper](https://img.shields.io/badge/Audio-Faster--Whisper-orange?style=flat-square)](https://github.com/SYSTRAN/faster-whisper)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
+
+<br />
+
+[Overview](#a-quick-look-at-yonru) • [Quick Start](#quick-start)
 
 <br />
 
@@ -29,15 +32,15 @@ Transform long-form podcasts, interviews, and streams into high-virality 9:16 ve
 ## Key Capabilities at a Glance
 
 | Feature | Description |
-| :--- | :--- |
-| **AI Hook Discovery** | Identifies high-retention moments with virality scores (0-100) using Gemini AI. |
-| **Thumbnail Extraction** | Automatically captures sharp static thumbnail snapshots (`thumb_{start}.jpg`). |
-| **Local Transcription** | Runs faster-whisper locally with GPU profiling for fast, private speech-to-text. |
-| **Face Tracking & Auto-Reframe** | Keeps speakers centered when adapting 16:9 widescreen into 9:16 vertical. |
-| **Studio Editor** | Non-destructive multi-track Timeline Viewport with frame-accurate scrubbing. |
-| **Animated Subtitles** | Karaoke-style captions synced to spoken words with bundled typography. |
-| **Audio Censorship** | Millisecond-accurate word muting or bleep audio presets without video cuts. |
-| **Prompt Editor** | Custom prompt templates with tagging to steer AI detection toward specific genres. |
+|---|---|
+| `AI Hook Discovery` | Spots high-retention moments with virality scores (0-100) via Gemini AI |
+| `Thumbnail Extraction` | Captures sharp static thumbnail snapshots (`thumb_{start}.jpg`) automatically |
+| `Local Transcription` | Runs faster-whisper locally with GPU profiling for private speech-to-text |
+| `Face Tracking` | Dynamically centers speakers when reframing 16:9 widescreen into vertical 9:16 |
+| `Studio Editor` | Multi-track Timeline Viewport with frame-accurate scrubbing and canvas drag |
+| `Animated Subtitles` | Karaoke-style captions synced to spoken words with bundled viral typography |
+| `Audio Censorship` | Word-level muting or bleep audio overlay presets without video cuts |
+| `Prompt Editor` | Custom prompt templates with tagging to steer AI detection toward genres |
 
 ---
 
@@ -84,10 +87,10 @@ Once Yonru discovers viral Hooks from your Source Video, you can open any clip i
 #### 3. Typography & 3-Channel Color System
 - **Curated Creator Font Library**: Bundled offline viral fonts (TheBoldFont, Bebas Neue, Montserrat, Impact, Inter) with guaranteed zero layout shifts.
 - **Deep Text Geometry**: Granular sliders for font size (40-140px), font weights (400-900), text case (UPPERCASE/Normal), word spacing, and stroke outlines.
-- **3-Channel Color Engine**: Dedicated color swatches for base text, active spoken word highlight, and stroke/border outlines.
+- **3-Channel Color**: Dedicated color swatches for base text, active spoken word highlight, and stroke/border outlines.
 - **Text Backdrop Treatments**: Enhance readability against busy backgrounds with solid boxes, glassmorphism blur, soft gradients, or clean transparent styles.
 
----
+<br />
 
 ## Modular Prompt Editor & Custom Templates
 
@@ -137,108 +140,41 @@ For complete architectural patterns, state management rules, and ADRs:
 
 ---
 
-## Prerequisites
+## Quick Start
 
-Before running the stack, verify that your host machine possesses the following core binary environments:
+Get Yonru Clip running locally in 3 simple steps:
 
-1. **Node.js**: (Version 18.0.0 or greater).
-   - **macOS**: `brew install node`
-   - **Ubuntu/Debian**: `curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs`
-   - **Windows**: Download installer from [nodejs.org](https://nodejs.org/) or run `winget install OpenJS.NodeJS`.
-2. **Python**: (Version 3.10 through 3.12).
-   - **macOS**: `brew install python`
-   - **Ubuntu/Debian**: `sudo apt install python3 python3-pip python3-venv`
-   - **Windows**: Download from [python.org](https://www.python.org/).
-3. **FFmpeg**: Required for overlay and video processing tasks.
-   - **macOS**: `brew install ffmpeg`
-   - **Ubuntu/Debian**: `sudo apt update && sudo apt install -y ffmpeg`
-   - **Windows**: Use Chocolatey (`choco install ffmpeg`), Scoop (`scoop install ffmpeg`), or download pre-compiled static builds manually and append to system PATH.
+### 1. Install Core Prerequisites
+Ensure your computer has these 3 tools installed:
+- [Python (3.10 - 3.12)](https://www.python.org/downloads/)
+  *(Important for Windows: make sure to check **"Add Python to PATH"** during installation).*
+- [Node.js (18+)](https://nodejs.org/)
+- [FFmpeg](https://ffmpeg.org/download.html)
+  *(macOS: `brew install ffmpeg` | Windows: `winget install Gyan.FFmpeg` | Linux: `sudo apt install ffmpeg`).*
 
----
-
-## Quick Start (Recommended)
-
-Yonru features a unified, self-healing cross-platform launcher script (`run.py`) that handles dependency checks, creates virtual environments, installs packages (both Python and Node), downloads offline fonts, and runs all services concurrently.
-
-### 1. Set Gemini API Key
-Create a `.env` file inside the `backend/` folder and insert your Gemini API Key:
+### 2. Clone & Launch
+Open your terminal and run:
 ```bash
-# Inside backend/.env
-GEMINI_API_KEY="your_api_key_here"
-```
-*(If you run the launcher, it will automatically copy the example file for you if missing!)*
-
-### 2. Bootstrap & Launch
-From the root directory, simply run:
-```bash
+git clone https://github.com/gitkyla/yonru.clip.git
+cd yonru.clip
 python run.py
 ```
+> [!TIP]
+> The unified `run.py` launcher handles all heavy lifting automatically: creating virtual environments, installing dependencies, syncing offline creator fonts, and starting all services.
 
-This single command will:
-1. Verify Node, Python, and FFmpeg installations.
-2. Automatically create the Python virtual environment and run `pip install`.
-3. Automatically download offline fonts and compile stylesheets.
-4. Run `npm install` inside `/frontend` and `/remotion_engine` if needed.
-5. Concurrently boot the **Backend (Port 8000)**, **Nuxt Frontend (Port 3000)**, and **Remotion Preview (Port 3003)** with color-coded terminal log multiplexing.
-
-To exit, press `Ctrl+C`. All child processes will be terminated cleanly.
-
----
-
-## YouTube Download Restrictions & cookies.txt
-
-YouTube aggressively blocks automated scrapers and CLI tools. To avoid downloads failing with "Sign in to confirm you are not a bot" or other captcha restrictions, you should import your YouTube browser session cookies:
-
-1. **Get a Cookie Extractor Extension**: Install the open-source [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/ccloeocionehidjhhicdjiijlkocoodm) extension in Google Chrome / Brave or Firefox.
-2. **Export YouTube Cookies**: Navigate to [YouTube](https://youtube.com), make sure you are logged in, click the extension icon, and export/download the cookies for `youtube.com` in Netscape format.
-3. **Upload in Settings**: Open the **Settings** panel inside the Yonru web interface, and drag and drop your downloaded `.txt` file directly onto the upload card.
-
-The application will validate the file format and save it locally as `backend/cookies.txt` to keep all video downloading operations functional and robust.
+### 3. Open Yonru & Add Gemini API Key
+1. Open your browser and navigate to **`http://localhost:3000`**.
+2. Go to **Settings** (`http://localhost:3000/settings`) from the navigation sidebar.
+3. Paste your free [Gemini API Key from Google AI Studio](https://aistudio.google.com/apikey).
+*(Alternatively, you can add `GEMINI_API_KEY="your_api_key_here"` directly inside `backend/.env`).*
 
 ---
 
-## Advanced CLI Controls
+## (Optional) Bypass YouTube Download Limits with cookies.txt
 
-The launcher supports selective service starting via command-line targets:
+YouTube can restrict video downloads with bot verification or rate limits. Importing your browser session cookies keeps all video downloading operations fast and reliable:
 
-```bash
-# Start all services (default)
-python run.py all
+1. **Install Browser Extension**: Add the open-source "Get cookies.txt LOCALLY" extension for [Chrome / Brave](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) or [Firefox](https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/).
+2. **Export YouTube Cookies**: Open [YouTube](https://youtube.com) while signed in, click the extension icon, and choose **Export** (Netscape format) to save a `.txt` file.
+3. **Upload in Settings**: In Yonru Clip, go to **Settings > YouTube Cookies** (`http://localhost:3000/settings`) and drag-and-drop your `.txt` file onto the upload card.
 
-# Start only the FastAPI backend (Port 8000)
-python run.py backend
-
-# Start only the Nuxt frontend (Port 3000)
-python run.py frontend
-
-# Start only the Remotion Preview Studio (Port 3003)
-python run.py remotion
-```
-
----
-
-## Legacy Execution (Manual)
-
-If you prefer manual control, you can still initialize and execute services individually:
-
-```bash
-# Configure & Run Backend
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn main:app --env-file .env --reload
-
-# Download fonts manually
-python download_fonts.py
-
-# Run Frontend
-cd frontend
-npm install
-npm run dev
-
-# Run Remotion Preview
-cd remotion_engine
-npm install
-npm run preview
-```
