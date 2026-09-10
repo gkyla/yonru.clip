@@ -16,8 +16,8 @@ Transform long-form podcasts, interviews, and streams into high-virality 9:16 ve
 ### A Quick Look at Yonru
 
 <p align="center">
-  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/3c161875-3456-45d1-87d4-742f699ec204">
-    <source src="https://github.com/user-attachments/assets/3c161875-3456-45d1-87d4-742f699ec204" type="video/mp4">
+  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/258b08ea-1b12-4ce6-a7e0-0d5610972ee5">
+    <source src="https://github.com/user-attachments/assets/258b08ea-1b12-4ce6-a7e0-0d5610972ee5" type="video/mp4">
   </video>
 </p>
 
@@ -46,8 +46,8 @@ Transform long-form podcasts, interviews, and streams into high-virality 9:16 ve
 Once Yonru discovers viral Hooks from your Source Video, you can open any clip in the **Studio Editor** for granular frame-by-frame customization:
 
 <p align="center">
-  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/5a974aa0-4742-4b58-b01a-d25f878d0291">
-    <source src="https://github.com/user-attachments/assets/5a974aa0-4742-4b58-b01a-d25f878d0291" type="video/mp4">
+  <video controls autoplay loop muted playsinline width="100%" src="https://github.com/user-attachments/assets/e3e6f369-ece2-45ab-9f07-cc291a5d796d">
+    <source src="https://github.com/user-attachments/assets/e3e6f369-ece2-45ab-9f07-cc291a5d796d" type="video/mp4">
   </video>
 </p>
 
