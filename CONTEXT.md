@@ -60,3 +60,20 @@ _Avoid_: Loading spinner, progress modal, analysis bar
 The clean media preview card within the Pipeline Progress Stepper displaying the active source video thumbnail, title, channel, duration, and preset configuration.
 _Avoid_: Tech card, details box, status panel, debugger console
 
+**Virality Rationale**:
+The AI-generated contextual explanation justifying why a Hook has viral potential, highlighting narrative tension, emotional peaks, or audience hook moments.
+_Avoid_: Hook reasoning, virality explanation, description, AI comment
+
+**Face Tracking & Auto-Reframe**:
+The intelligent visual tracking pipeline that dynamically crops and follows active speakers or salient subjects from horizontal 16:9 source footage into vertical 9:16 aspect ratio suitable for short-form video.
+_Avoid_: Vertical crop, auto pan, smart crop, aspect reframing
+
+**Word-Level Audio Censorship**:
+The surgical audio alteration feature that mutes or replaces specific spoken words with bleep audio presets at millisecond precision without cutting or shifting video timeline frames.
+_Avoid_: Audio bleep, profanity filter, censor cut, voice mute
+
+**Prompt Editor**:
+The dedicated template workspace in Yonru Clip for composing, testing, and managing modular natural language AI hook detection prompts and extraction directives.
+_Avoid_: Prompt settings, AI config, template screen
+
+
