@@ -14,7 +14,10 @@ export default defineNuxtConfig({
     pageTransition: { name: 'page', mode: 'out-in' },
     head: {
       title: 'Yonru',
-      link: []
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'alternate icon', type: 'image/x-icon', href: '/favicon.ico' }
+      ]
     }
   },
   compatibilityDate: '2024-04-03',

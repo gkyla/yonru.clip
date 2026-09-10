@@ -65,14 +65,14 @@
                 : 'max-w-[200px] opacity-100 duration-200 delay-100 pointer-events-auto'"
             >
               <NuxtLink to="/" class="flex items-center gap-2 min-w-0 group cursor-pointer overflow-hidden whitespace-nowrap">
-                <div class="w-6 h-6 rounded-md bg-accent-500 flex items-center justify-center text-black font-black text-xs shadow-[0_0_12px_rgba(207,255,80,0.35)] group-hover:scale-105 transition-all shrink-0">
+                <div class="w-6 h-6 rounded-[5.5px] bg-accent-500 flex items-center justify-center text-black font-black text-xs shadow-[0_0_12px_rgba(207,255,80,0.35)] group-hover:scale-105 transition-all shrink-0">
                   Y
                 </div>
                 <div class="overflow-hidden min-w-0">
                   <div class="flex items-center gap-1.5">
                     <span class="font-bold text-white tracking-wide text-xs">YONRU</span>
                   </div>
-                  <p class="text-[9px] text-accent-500 font-semibold font-mono whitespace-nowrap truncate">Short Video Clipper</p>
+                  <p class="text-[9px] text-accent-500 font-semibold tracking-wider whitespace-nowrap truncate">Short Video Clipper</p>
                 </div>
               </NuxtLink>
             </div>

@@ -40,6 +40,10 @@ _Avoid_: Speed score, processing percentage
 The primary collapsible navigation panel on the left rail containing global views (Home, Prompts, Docs, Settings), quick video access, and hardware health indicator. Defaults to a collapsed rail (64px) for maximum workspace focus and expands on demand or via `⌘B` / `Ctrl+B`.
 _Avoid_: Navbar, menu drawer, left bar
 
+**Brand Mark**:
+The signature visual mark of Yonru Clip consisting of an acid-green rounded badge bearing a bold black capital letter "Y", displayed in the Navigation Sidebar header and as the browser tab favicon.
+_Avoid_: App icon, site logo, avatar, monogram, logo badge
+
 **Timeline Viewport**:
 The scrollable horizontal canvas displaying multi-track media segments (video, audio, subtitle, text) across time, enabling independent navigation and panning without mutating the current playback time.
 _Avoid_: Scroll track, timeline window, seek pane
