@@ -309,22 +309,24 @@ class ClipWorkflowCoordinator:
                         print(f"[cache] Video and hooks loaded instantly from cache for {video_id}")
 
                     _heatmap = cached.get("heatmap") or []
+                    video_dict = {
+                        "title": cached.get("title"),
+                        "duration": cached.get("duration"),
+                        "has_heatmap": len(_heatmap) > 0,
+                        "heatmap_segments": len(_heatmap),
+                        "asset_url": cached.get("asset_url"),
+                        "folder_name": folder_name,
+                        "fps": cached.get("fps", 30.0),
+                        "hd_ready": is_hd_ready,
+                        "has_preview": cached.get("has_preview", False)
+                    }
                     return {
                         "job_id": job_id,
                         "status": job_status,
                         "hooks": filtered,
                         "folder_name": folder_name,
-                        "video": {
-                            "title": cached.get("title"),
-                            "duration": cached.get("duration"),
-                            "has_heatmap": len(_heatmap) > 0,
-                            "heatmap_segments": len(_heatmap),
-                            "asset_url": cached.get("asset_url"),
-                            "folder_name": folder_name,
-                            "fps": cached.get("fps", 30.0),
-                            "hd_ready": is_hd_ready,
-                            "has_preview": cached.get("has_preview", False)
-                        },
+                        "video": video_dict,
+                        "video_info": video_dict,
                         "cached": True
                     }
                 except Exception as e:

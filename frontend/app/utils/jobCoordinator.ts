@@ -264,16 +264,17 @@ export class IngestionJobCoordinator {
       callbacks.onStatusChange?.(res.status)
 
       if (res.status === 'ready' || res.status === 'hooks_ready') {
-        if (res.video_info) {
+        const videoData = res.video || res.video_info
+        if (videoData) {
           callbacks.onVideoMetadata?.({
-            title: res.video_info.title,
-            duration: res.video_info.duration,
-            fps: res.video_info.fps || res.fps || 30,
-            hasHeatmap: (res.video_info.heatmap || []).length > 0,
-            hasPreview: res.video_info.has_preview ?? false,
-            hdReady: res.video_info.hd_ready ?? false,
-            videoUrl: res.video_info.asset_url ? `${this.apiBase}${res.video_info.asset_url}` : null,
-            folderName: res.video_info.folder_name
+            title: videoData.title,
+            duration: videoData.duration,
+            fps: videoData.fps || res.fps || 30,
+            hasHeatmap: Array.isArray(videoData.heatmap) ? videoData.heatmap.length > 0 : Boolean(videoData.has_heatmap),
+            hasPreview: videoData.has_preview ?? false,
+            hdReady: videoData.hd_ready ?? false,
+            videoUrl: videoData.asset_url ? `${this.apiBase}${videoData.asset_url}` : null,
+            folderName: videoData.folder_name || res.folder_name
           })
         }
         if (res.hooks && Array.isArray(res.hooks)) {

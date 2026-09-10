@@ -211,7 +211,7 @@ export const useClipperJob = () => {
       if (meta.hasHeatmap !== undefined) hasHeatmap.value = meta.hasHeatmap
       if (meta.hasPreview !== undefined) hasPreview.value = meta.hasPreview
       if (meta.hdReady !== undefined) hdReady.value = meta.hdReady
-      if (meta.videoUrl && !activeHook.value) videoUrl.value = meta.videoUrl
+      if (meta.videoUrl && (!clipId.value || !videoUrl.value)) videoUrl.value = meta.videoUrl
       if (meta.folderName && (!folderName.value || folderName.value !== meta.folderName)) {
         folderName.value = meta.folderName
       }

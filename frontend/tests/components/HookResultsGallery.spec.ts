@@ -222,4 +222,64 @@ describe('HookResultsGallery Component (Cinematic Hook Cards)', () => {
     expect(text).toContain('SAVED 01')
     expect(text).toContain('How AI Automation Works')
   })
+
+  it('resolves fallback source url from folderName when videoUrl and previewVideoUrl are null', async () => {
+    mockState.videoUrl.value = null
+    mockState.folderName.value = 'fallback_folder'
+    mockState.hasPreview.value = true
+
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: null,
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          Icon: { template: '<span class="icon-stub"></span>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.selectedModalHook = mockState.hooks.value[0]
+    await wrapper.vm.$nextTick()
+
+    expect(vm.modalVideoUrl).toBe('http://localhost:8000/assets/sources/fallback_folder/preview.mp4')
+    const modalVideo = wrapper.find('video[controls]')
+    expect(modalVideo.exists()).toBe(true)
+    expect(modalVideo.attributes('src')).toBe('http://localhost:8000/assets/sources/fallback_folder/preview.mp4')
+  })
+
+  it('displays fallback message gracefully when video triggers an error event', async () => {
+    mockState.videoUrl.value = 'http://localhost:8000/assets/sources/broken/full.mp4'
+
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: 'http://localhost:8000/assets/sources/broken/full.mp4',
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          Icon: { template: '<span class="icon-stub"></span>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.selectedModalHook = mockState.hooks.value[0]
+    await wrapper.vm.$nextTick()
+
+    const modalVideo = wrapper.find('video[controls]')
+    expect(modalVideo.exists()).toBe(true)
+
+    // Trigger video error on modal video
+    await modalVideo.trigger('error')
+    await wrapper.vm.$nextTick()
+
+    // Modal video should unmount and fallback message should be visible
+    expect(wrapper.find('video[controls]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Video source unavailable')
+  })
 })

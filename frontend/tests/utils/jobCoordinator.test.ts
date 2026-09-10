@@ -138,6 +138,52 @@ describe('IngestionJobCoordinator Unit Tests', () => {
         expect.objectContaining({ theme: 'Hook 1' })
       )
     })
+
+    it('handles cached videos with real backend schema returning res.video', async () => {
+      mockFetcher.mockResolvedValueOnce({
+        job_id: 'cached-job-real',
+        status: 'hooks_ready',
+        video: {
+          title: 'Real Backend Video',
+          duration: 180,
+          fps: 30,
+          has_heatmap: true,
+          asset_url: '/assets/sources/real_folder/preview.mp4',
+          folder_name: 'real_folder',
+          hd_ready: false,
+          has_preview: true
+        },
+        hooks: [
+          { theme: 'Hook 2', start: 20, end: 50, duration: 30 }
+        ]
+      })
+
+      const metaSpy = vi.fn()
+      const hooksSpy = vi.fn()
+
+      const spec: CachedAnalysisSpec = { videoId: 'video-real' }
+      const jobId = await coordinator.analyzeCached(spec, {
+        onVideoMetadata: metaSpy,
+        onHooksDiscovered: hooksSpy
+      })
+
+      expect(jobId).toBe('cached-job-real')
+      expect(metaSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Real Backend Video',
+          duration: 180,
+          hasHeatmap: true,
+          hasPreview: true,
+          hdReady: false,
+          videoUrl: 'http://localhost:8000/assets/sources/real_folder/preview.mp4',
+          folderName: 'real_folder'
+        })
+      )
+      expect(hooksSpy).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ theme: 'Hook 2' })]),
+        expect.objectContaining({ theme: 'Hook 2' })
+      )
+    })
   })
 
   describe('extractClip', () => {

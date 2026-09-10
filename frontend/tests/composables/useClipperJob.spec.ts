@@ -317,6 +317,44 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     )
     expect(cropMap.value).toEqual(mockBackfillCropMap)
   })
+
+  it('populates videoUrl during analyzeCached even when activeHook is populated', async () => {
+    const videoUrl = useState<string | null>('videoUrl', () => null)
+    const activeHook = useState<any>('activeHook', () => null)
+    const clipId = useState<string>('clipId', () => '')
+    videoUrl.value = null
+    activeHook.value = { theme: 'Existing Active Hook', start: 0, end: 10 }
+    clipId.value = ''
+
+    vi.stubGlobal('$fetch', vi.fn().mockImplementation((url) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/api/analyze-cached/cached-123')) {
+        return Promise.resolve({
+          job_id: 'job-cached-123',
+          status: 'hooks_ready',
+          video: {
+            title: 'Sample Video',
+            duration: 120,
+            fps: 30,
+            has_heatmap: false,
+            asset_url: '/assets/sources/sample_folder/full.mp4',
+            folder_name: 'sample_folder',
+            hd_ready: true,
+            has_preview: true
+          },
+          hooks: [
+            { theme: 'First Hook', start: 5, end: 25, duration: 20 }
+          ]
+        })
+      }
+      return Promise.resolve({})
+    }))
+
+    const { analyzeCached } = useClipperJob()
+    await analyzeCached('cached-123')
+
+    expect(videoUrl.value).toBe('http://localhost:8000/assets/sources/sample_folder/full.mp4')
+  })
 })
 
 

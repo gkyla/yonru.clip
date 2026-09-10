@@ -89,8 +89,8 @@
                     alt="Hook thumbnail"
                   />
                   <video 
-                    v-else-if="previewVideoUrl"
-                    :src="previewVideoUrl + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
+                    v-else-if="cardPreviewVideoUrl"
+                    :src="cardPreviewVideoUrl + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
                     muted
                     preload="metadata"
                     class="absolute inset-0 w-full h-full object-cover z-10 focus:outline-none select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
@@ -235,8 +235,8 @@
                     alt="Hook thumbnail"
                   />
                   <video 
-                    v-else-if="previewVideoUrl"
-                    :src="previewVideoUrl + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
+                    v-else-if="cardPreviewVideoUrl"
+                    :src="cardPreviewVideoUrl + '#t=' + Math.max(0, hook.start - state.startSafetyBuffer.value)"
                     muted
                     preload="metadata"
                     class="absolute inset-0 w-full h-full object-cover z-10 focus:outline-none select-none pointer-events-none transition-transform duration-500 group-hover:scale-105"
@@ -374,7 +374,7 @@
               <div class="md:w-1/2 bg-black relative aspect-video md:aspect-auto flex-shrink-0 flex items-center justify-center">
                  <video 
                    ref="modalVideoPlayer"
-                   v-if="modalVideoUrl"
+                   v-if="modalVideoUrl && !hasVideoError"
                    :src="modalVideoUrl"
                    controls
                    autoplay
@@ -382,8 +382,9 @@
                    @timeupdate="e => { if (selectedModalHook && (e.target as HTMLVideoElement).currentTime >= selectedModalHook.end) (e.target as HTMLVideoElement).currentTime = Math.max(0, selectedModalHook.start - state.startSafetyBuffer.value); }"
                    @loadedmetadata="onModalLoadedMetadata"
                    @volumechange="onVolumeChange"
+                   @error="onVideoError"
                  ></video>
-                 <div v-if="state.hasPreview.value && modalVideoUrl" class="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg p-0.5 flex items-center gap-1 select-none group/resolution">
+                 <div v-if="state.hasPreview.value && modalVideoUrl && !hasVideoError" class="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg p-0.5 flex items-center gap-1 select-none group/resolution">
                     <Icon name="ri:speed-line" class="text-[11px] text-slate-400 ml-1.5 mr-0.5" />
                     
                     <!-- SD Toggle Button -->
@@ -421,7 +422,7 @@
                        <div class="absolute bottom-full left-4 -mb-[5px] border-4 border-transparent border-b-[#171a21]/95"></div>
                     </div>
                  </div>
-                 <div v-else-if="!modalVideoUrl" class="w-full h-full flex flex-col items-center justify-center text-slate-500">
+                 <div v-else-if="!modalVideoUrl || hasVideoError" class="w-full h-full flex flex-col items-center justify-center text-slate-500">
                     <Icon name="ri:film-line" class="text-4xl mb-2 opacity-50" />
                     <p class="text-sm font-medium">Video source unavailable</p>
                  </div>
@@ -693,11 +694,42 @@ const forceHighRes = ref(state.hdReady.value)
 const isTogglingResolution = ref(false)
 const savedPlaybackTime = ref<number | null>(null)
 
+const hasVideoError = ref(false)
+
+function onVideoError() {
+  hasVideoError.value = true
+}
+
+const cardPreviewVideoUrl = computed(() => {
+  if (props.previewVideoUrl) return props.previewVideoUrl
+  if (state.videoUrl.value) {
+    if (state.hasPreview.value && state.videoUrl.value.includes('/assets/sources/') && state.videoUrl.value.endsWith('/full.mp4')) {
+      return state.videoUrl.value.replace('/full.mp4', '/preview.mp4')
+    }
+    return state.videoUrl.value
+  }
+  if (state.folderName.value) {
+    const filename = state.hasPreview.value ? 'preview.mp4' : 'full.mp4'
+    return `${API_BASE}/assets/sources/${state.folderName.value}/${filename}`
+  }
+  return null
+})
+
 const modalVideoUrl = computed(() => {
   if (forceHighRes.value && state.hdReady.value && state.videoUrl.value) {
     return state.videoUrl.value
   }
-  return props.previewVideoUrl || state.videoUrl.value
+  if (props.previewVideoUrl) {
+    return props.previewVideoUrl
+  }
+  if (state.videoUrl.value) {
+    return state.videoUrl.value
+  }
+  if (state.folderName.value) {
+    const filename = (forceHighRes.value && state.hdReady.value) ? 'full.mp4' : (state.hasPreview.value ? 'preview.mp4' : 'full.mp4')
+    return `${API_BASE}/assets/sources/${state.folderName.value}/${filename}`
+  }
+  return null
 })
 
 const showAdjustDuration = ref(false)
@@ -842,6 +874,7 @@ async function toggleSaveHook(hook: Hook) {
 
 function toggleResolution(highRes: boolean) {
   if (forceHighRes.value === highRes) return
+  hasVideoError.value = false
   
   if (modalVideoPlayer.value) {
     savedPlaybackTime.value = modalVideoPlayer.value.currentTime
@@ -897,6 +930,7 @@ watch(modalVideoPlayer, (el) => {
 })
 
 watch(selectedModalHook, (newHook) => {
+  hasVideoError.value = false
   if (newHook) {
     if (newHook.originalStart === undefined) {
       newHook.originalStart = newHook.start
