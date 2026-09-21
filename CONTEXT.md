@@ -87,3 +87,7 @@ _Avoid_: Video preview popup, hook detail modal, player dialog
 **Cached Video Library**:
 The local storage repository and grid interface showcasing previously ingested and processed source videos for instant re-analysis, hook replay, or offline management without re-downloading.
 _Avoid_: Download history, video cache list, saved files
+
+**Editor Transition Overlay**:
+The transient full-screen loading state displayed while preparing media assets, timeline tracks, and studio components when transitioning from the Home workspace to the Studio Editor.
+_Avoid_: Loading screen, wait modal, editor spinner, cinematic loading overlay

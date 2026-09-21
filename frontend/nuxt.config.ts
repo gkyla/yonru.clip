@@ -6,6 +6,12 @@ export default defineNuxtConfig({
     '@nuxt/icon',
     '@nuxt/eslint'
   ],
+  eslint: {
+    config: {
+      standalone: true,
+      typescript: true
+    }
+  },
   css: [
     '~/assets/css/fonts.css',
     '~/assets/css/main.css'
