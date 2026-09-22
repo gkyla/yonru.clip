@@ -47,6 +47,9 @@ export const useCropDrag = (
     if (state.videoLayout?.value === 'landscape') return
     // Don't start pan drag if a timeline text overlay is selected
     if (state.selectedTimelineItem.value?.type === 'text' && hasActiveTextItems.value) return
+    // Lock canvas drag while in face tracking mode to protect AI camera tracking
+    if (state.cropMode.value === 'face_tracking') return
+
     isDragging.value = true
     dragStartX.value = e.clientX
     dragTargetHalf.value = determineTargetHalf(e.clientY)
@@ -63,12 +66,6 @@ export const useCropDrag = (
   function onDrag(e: MouseEvent) {
     if (!isDragging.value || maxOffset.value === 0) return
     const dx = e.clientX - dragStartX.value
-
-    // Auto-Reframe Override: If in face tracking mode and dragged beyond 5px, switch to manual pan
-    if (state.cropMode.value === 'face_tracking' && Math.abs(dx) > 5) {
-      state.cropMode.value = 'manual'
-      notifyOverride()
-    }
 
     if (state.cropMode.value === 'manual') {
       const newPercent = calculateCropPercent(
@@ -94,6 +91,8 @@ export const useCropDrag = (
   function startDragTouch(e: TouchEvent) {
     if (state.videoLayout?.value === 'landscape') return
     if (state.selectedTimelineItem.value?.type === 'text' && hasActiveTextItems.value) return
+    if (state.cropMode.value === 'face_tracking') return
+
     const touch = e.touches[0]
     if (touch) {
       isDragging.value = true
@@ -115,11 +114,6 @@ export const useCropDrag = (
     const touch = e.touches[0]
     if (touch) {
       const dx = touch.clientX - dragStartX.value
-
-      if (state.cropMode.value === 'face_tracking' && Math.abs(dx) > 5) {
-        state.cropMode.value = 'manual'
-        notifyOverride()
-      }
 
       if (state.cropMode.value === 'manual') {
         const newPercent = calculateCropPercent(

@@ -132,6 +132,8 @@ function createClipperState() {
   const cropPercentX = useState<number>('cropPercentX', () => 50) // 0=left, 50=center, 100=right
   const cropPercentXTop = useState<number>('cropPercentXTop', () => 50)
   const cropPercentXBottom = useState<number>('cropPercentXBottom', () => 50)
+  const splitZoomTop = useState<number>('splitZoomTop', () => 1.0)
+  const splitZoomBottom = useState<number>('splitZoomBottom', () => 1.0)
   const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
   const whisperModel = useState<string>('whisperModel', () => 'base')
   const useNativePlayer = useState<boolean>('useNativePlayer', () => false)
@@ -468,6 +470,8 @@ function createClipperState() {
       cropPercentX: cropPercentX.value,
       cropPercentXTop: cropPercentXTop.value,
       cropPercentXBottom: cropPercentXBottom.value,
+      splitZoomTop: splitZoomTop.value,
+      splitZoomBottom: splitZoomBottom.value,
       subtitleMode: subtitleMode.value,
       subtitleAnimation: subtitleAnimation.value,
       subtitleHighlightMode: subtitleHighlightMode.value,
@@ -502,6 +506,8 @@ function createClipperState() {
       fontSize: fontSize.value,
       cropMode: cropMode.value,
       cropPercentX: cropPercentX.value,
+      splitZoomTop: splitZoomTop.value,
+      splitZoomBottom: splitZoomBottom.value,
       subtitleMode: subtitleMode.value,
       subtitleAnimation: subtitleAnimation.value,
       subtitleHighlightMode: subtitleHighlightMode.value,
@@ -634,7 +640,7 @@ function createClipperState() {
     promptsList, selectedPrompt,
     extractionMode, selectedPresetId, focusTopic, minDuration, maxDuration,
     youtubeUrl, language, videoLayout, subtitlePosition, subtitleOffset, subtitleSyncOffset, autoAdaptiveSubtitles,
-    font, fontSize, faceTracking, cropMode, cropMap, cropPercentX, cropPercentXTop, cropPercentXBottom, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
+    font, fontSize, faceTracking, cropMode, cropMap, cropPercentX, cropPercentXTop, cropPercentXBottom, splitZoomTop, splitZoomBottom, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
     whisperModels: WHISPER_MODELS,
     activeSafeZone,
     safeZoneOpacity,

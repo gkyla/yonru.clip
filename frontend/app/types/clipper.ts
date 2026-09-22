@@ -188,6 +188,8 @@ export interface SubtitleStyleSettings {
   cropPercentX?: number
   cropPercentXTop?: number
   cropPercentXBottom?: number
+  splitZoomTop?: number
+  splitZoomBottom?: number
 
   subtitleMode?: 'word' | '3_words' | '4_words'
   subtitleAnimation?: string

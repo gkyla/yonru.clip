@@ -13,13 +13,13 @@ describe('useCropDrag Composable - Canvas Auto-Reframe Override', () => {
     state.selectedTimelineItem.value = null
   })
 
-  it('automatically transitions from face_tracking to manual when dragging beyond threshold', () => {
+  it('locks canvas drag when in face_tracking mode to prevent accidental overrides', () => {
     const previewScale = ref(1.0)
     const maxOffset = ref(1000)
     const hasActiveTextItems = ref(false)
 
     const state = useClipperState()
-    const { startDrag, onDrag, stopDrag, showOverrideToast } = useCropDrag(
+    const { startDrag, onDrag, stopDrag, isDragging } = useCropDrag(
       previewScale,
       maxOffset,
       hasActiveTextItems
@@ -27,17 +27,14 @@ describe('useCropDrag Composable - Canvas Auto-Reframe Override', () => {
 
     expect(state.cropMode.value).toBe('face_tracking')
 
-    // Start drag at x = 100
+    // Attempt drag while in face_tracking
     startDrag({ clientX: 100 } as MouseEvent)
+    expect(isDragging.value).toBe(false)
 
-    // Minor movement below threshold (4px)
-    onDrag({ clientX: 104 } as MouseEvent)
-    expect(state.cropMode.value).toBe('face_tracking')
-
-    // Movement exceeding threshold (20px)
+    // Movement does not change mode or start drag
     onDrag({ clientX: 120 } as MouseEvent)
-    expect(state.cropMode.value).toBe('manual')
-    expect(showOverrideToast.value).toBe(true)
+    expect(state.cropMode.value).toBe('face_tracking')
+    expect(isDragging.value).toBe(false)
 
     stopDrag()
   })

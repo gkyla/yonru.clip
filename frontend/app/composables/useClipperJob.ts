@@ -70,6 +70,8 @@ export const useClipperJob = () => {
   const cropMode = useState<string>('cropMode', () => 'face_tracking')
   const cropMap = useState<Array<{ time: number, x: number }>>('cropMap', () => [])
   const cropPercentX = useState<number>('cropPercentX', () => 50)
+  const splitZoomTop = useState<number>('splitZoomTop', () => 1.0)
+  const splitZoomBottom = useState<number>('splitZoomBottom', () => 1.0)
   const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
   const subtitleAnimation = useState<string>('subtitleAnimation', () => 'pop')
   const subtitleHighlightMode = useState<string>('subtitleHighlightMode', () => 'color')
@@ -106,6 +108,8 @@ export const useClipperJob = () => {
     if (styles.cropMode) cropMode.value = styles.cropMode
     if (styles.cropMap) cropMap.value = styles.cropMap
     if (styles.cropPercentX !== undefined) cropPercentX.value = styles.cropPercentX
+    if (styles.splitZoomTop !== undefined) splitZoomTop.value = styles.splitZoomTop
+    if (styles.splitZoomBottom !== undefined) splitZoomBottom.value = styles.splitZoomBottom
     if (styles.subtitleMode) subtitleMode.value = styles.subtitleMode
     if (styles.subtitleAnimation) subtitleAnimation.value = styles.subtitleAnimation
     if (styles.subtitleHighlightMode) subtitleHighlightMode.value = styles.subtitleHighlightMode

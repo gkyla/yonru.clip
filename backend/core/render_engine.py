@@ -28,6 +28,8 @@ class RenderComposition:
         self.thumbnail_config = kwargs.get("thumbnail_config")
         self.source_width = kwargs.get("source_width", 1920)
         self.source_height = kwargs.get("source_height", 1080)
+        self.split_zoom_top = kwargs.get("split_zoom_top", 1.0)
+        self.split_zoom_bottom = kwargs.get("split_zoom_bottom", 1.0)
 
 
 class SafeEncoder(json.JSONEncoder):
@@ -269,6 +271,8 @@ class StagedRenderContext:
             "thumbnailXOffset": self.comp.thumbnail_config.get("xOffset", 50.0) if self.comp.thumbnail_config else 50.0,
             "sourceWidth": self.comp.source_width,
             "sourceHeight": self.comp.source_height,
+            "splitZoomTop": getattr(self.comp, "split_zoom_top", 1.0) or 1.0,
+            "splitZoomBottom": getattr(self.comp, "split_zoom_bottom", 1.0) or 1.0,
         }
 
         self.props_path = os.path.abspath(os.path.join(self.output_dir, f"props_{self.out_filename}.json"))
@@ -524,7 +528,9 @@ class RenderEngine(ABC):
             fps=fps,
             thumbnail_config=thumbnail_config,
             source_width=source_width,
-            source_height=source_height
+            source_height=source_height,
+            split_zoom_top=getattr(req, "split_zoom_top", 1.0) or 1.0,
+            split_zoom_bottom=getattr(req, "split_zoom_bottom", 1.0) or 1.0,
         )
 
     def compile_and_render(self, job: dict, req: Any, asset_repository: Any, out_filename: str) -> Optional[str]:

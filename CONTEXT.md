@@ -72,9 +72,14 @@ _Avoid_: Vertical crop, auto pan, smart crop, aspect reframing
 The dynamic layout mode within the Face Tracking & Auto-Reframe pipeline that splits the vertical 9:16 canvas into stacked top and bottom viewports when two speakers are simultaneously visible in wide footage, framing the left speaker on top and the right speaker on bottom, and automatically reverting to single-speaker framing during solo shots.
 _Avoid_: Split screen video, double crop, 2 face mode, dual vertical
 
+**Face-Anchored Viewport Zoom**:
+The scaling mechanism within Stacked Multi-Speaker Reframe that magnifies the video centered on each detected speaker's face coordinates, isolating tight single-speaker closeups and cropping out adjacent subjects in crowded or wide-angle footage.
+_Avoid_: Digital zoom, scale slider, crop zoom, camera zoom
+
 **Auto-Adaptive Subtitle Placement**:
 The dynamic positioning mechanism that automatically anchors subtitles over the center dividing seam in Stacked Multi-Speaker Reframe to prevent speaker occlusion, while returning to standard lower-third positioning in single-speaker framing, with manual override available in settings.
 _Avoid_: Dynamic subtitles, floating text jump, split captions
+
 
 
 **Word-Level Audio Censorship**:

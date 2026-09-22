@@ -21,6 +21,8 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   cropX,
   cropPercentXTop,
   cropPercentXBottom,
+  splitZoomTop = 1.0,
+  splitZoomBottom = 1.0,
   cropMap = [],
   position,
   videoLayout = 'vertical',
@@ -175,17 +177,34 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   const translateX = isLandscape ? 0 : Math.max(-maxOffset, Math.min(0, targetTranslateX));
   const translateY = isLandscape ? (CONTAINER_H - videoDisplayH) / 2 : 0;
 
-  // Split Viewport Display (1080x960 each viewport)
+  // Split Viewport Display (1080x960 each viewport) with Face-Anchored Viewport Framing Zoom
   const PANEL_H = CONTAINER_H / 2;
-  const splitVideoDisplayW = PANEL_H * videoAspect;
-  const splitMaxOffset = Math.max(0, splitVideoDisplayW - CONTAINER_W);
-  const splitScale = splitVideoDisplayW / (sourceWidth || 1920);
+  const baseSplitDisplayW = PANEL_H * videoAspect;
+  const baseSplitScale = baseSplitDisplayW / (sourceWidth || 1920);
 
-  const targetTopTranslateX = (CONTAINER_W / 2) - (activeFraming.top_x * splitScale);
-  const topTranslateX = Math.max(-splitMaxOffset, Math.min(0, targetTopTranslateX));
+  // Top Speaker Viewport Zoom & Transform
+  const effectiveZoomTop = Math.max(1.0, Math.min(2.5, splitZoomTop || 1.0));
+  const topDisplayW = baseSplitDisplayW * effectiveZoomTop;
+  const topDisplayH = PANEL_H * effectiveZoomTop;
+  const topScale = baseSplitScale * effectiveZoomTop;
+  const topMaxOffset = Math.max(0, topDisplayW - CONTAINER_W);
 
-  const targetBottomTranslateX = (CONTAINER_W / 2) - (activeFraming.bottom_x * splitScale);
-  const bottomTranslateX = Math.max(-splitMaxOffset, Math.min(0, targetBottomTranslateX));
+  const targetTopTranslateX = (CONTAINER_W / 2) - (activeFraming.top_x * topScale);
+  const topTranslateX = Math.max(-topMaxOffset, Math.min(0, targetTopTranslateX));
+  // Natural headroom bias: 25% top crop, 75% bottom crop
+  const topTranslateY = -(topDisplayH - PANEL_H) * 0.25;
+
+  // Bottom Speaker Viewport Zoom & Transform
+  const effectiveZoomBottom = Math.max(1.0, Math.min(2.5, splitZoomBottom || 1.0));
+  const bottomDisplayW = baseSplitDisplayW * effectiveZoomBottom;
+  const bottomDisplayH = PANEL_H * effectiveZoomBottom;
+  const bottomScale = baseSplitScale * effectiveZoomBottom;
+  const bottomMaxOffset = Math.max(0, bottomDisplayW - CONTAINER_W);
+
+  const targetBottomTranslateX = (CONTAINER_W / 2) - (activeFraming.bottom_x * bottomScale);
+  const bottomTranslateX = Math.max(-bottomMaxOffset, Math.min(0, targetBottomTranslateX));
+  // Natural headroom bias: 25% top crop, 75% bottom crop
+  const bottomTranslateY = -(bottomDisplayH - PANEL_H) * 0.25;
 
 
   return (
@@ -268,11 +287,11 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   startFrom={mediaStartFrame}
                   endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
                   style={{ 
-                    height: isSplit ? `${PANEL_H}px` : `${videoDisplayH}px`, 
-                    width: isSplit ? `${splitVideoDisplayW}px` : `${videoDisplayW}px`, 
+                    height: isSplit ? `${topDisplayH}px` : `${videoDisplayH}px`, 
+                    width: isSplit ? `${topDisplayW}px` : `${videoDisplayW}px`, 
                     maxWidth: 'none',
                     transform: isSplit 
-                      ? `translateX(${topTranslateX}px)` 
+                      ? `translate(${topTranslateX}px, ${topTranslateY}px)` 
                       : `translate(${translateX}px, ${translateY}px)`,
                     objectFit: 'cover'
                   }} 
@@ -301,10 +320,10 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                     startFrom={mediaStartFrame}
                     endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
                     style={{ 
-                      height: `${PANEL_H}px`, 
-                      width: `${splitVideoDisplayW}px`, 
+                      height: `${bottomDisplayH}px`, 
+                      width: `${bottomDisplayW}px`, 
                       maxWidth: 'none',
-                      transform: `translateX(${bottomTranslateX}px)`,
+                      transform: `translate(${bottomTranslateX}px, ${bottomTranslateY}px)`,
                       objectFit: 'cover'
                     }} 
                   />

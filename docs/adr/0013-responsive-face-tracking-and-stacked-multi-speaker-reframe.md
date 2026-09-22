@@ -39,9 +39,10 @@ In `yonru.clip`, face tracking was previously governed by [ADR 0008](./0008-prec
      - In Single-Speaker framing, subtitles anchor at the user's selected position (default lower-third).
      - In Stacked Multi-Speaker framing, subtitles automatically adapt to float over the center dividing seam ($Y = 960\text{px}$), guaranteeing that neither speaker's face or chest is occluded.
    - **User Override Settings**: Provide a toggle in `SidebarSettings.vue` allowing creators to choose between *Auto-Adaptive* (dynamic seam float) and *Custom/Fixed* (strict adherence to manual presets).
-7. **Independent Viewport Manual Overrides & Dual Settings Sliders**:
-   - Allow creators to drag the top and bottom viewports independently on the editor canvas to fine-tune framing.
-   - Expose dual slider controls in `SidebarSettings.vue` for manual X-offset adjustments of both top and bottom speakers.
+7. **Face-Anchored Viewport Framing Zoom & Dual Split Sliders**:
+   - In `face_tracking` mode, expose dual zoom sliders (`Top Speaker Zoom` and `Bottom Speaker Zoom`, $1.0\times$–$2.5\times$) in `SidebarSettings.vue` during Stacked Multi-Speaker segments.
+   - Each slider scales the viewport centered around the active speaker's detected face coordinates (`top_x`, `bottom_x`) with natural headroom bias, isolating tight single-speaker closeups and cropping out adjacent subjects in wide-angle footage.
+   - Lock canvas dragging during active `face_tracking` mode to prevent accidental overrides to manual mode, requiring explicit navigation to `[ Manual Pan ]`.
 8. **Backward-Compatible Crop Map Schema**:
    - Extend `crop_map.json` keyframes with `mode: 'single' | 'split'`, providing `top_x` and `bottom_x` while preserving legacy `x` fallback.
 

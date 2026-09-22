@@ -43,6 +43,8 @@ export const useClipperExport = (deps: ExportDeps) => {
   const fontSize = useState<number>('fontSize', () => 100)
   const cropMode = useState<string>('cropMode', () => 'manual')
   const cropPercentX = useState<number>('cropPercentX', () => 50)
+  const splitZoomTop = useState<number>('splitZoomTop', () => 1.0)
+  const splitZoomBottom = useState<number>('splitZoomBottom', () => 1.0)
   const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
   const subtitleAnimation = useState<string>('subtitleAnimation', () => 'pop')
   const subtitleHighlightMode = useState<string>('subtitleHighlightMode', () => 'color')
@@ -109,6 +111,8 @@ export const useClipperExport = (deps: ExportDeps) => {
       font_size: fontSize.value,
       face_tracking: cropMode.value === 'face_tracking',
       crop_percent_x: cropPercentX.value,
+      split_zoom_top: splitZoomTop.value,
+      split_zoom_bottom: splitZoomBottom.value,
       subtitle_sync_offset: subtitleSyncOffset.value,
       subtitle_mode: subtitleMode.value,
       timeline_tracks: timeline.timelineTracks.value,

@@ -18,7 +18,7 @@
       <!-- Draggable crop preview -->
       <div v-if="state?.videoUrl?.value && !state?.outputUrl?.value" 
            class="absolute inset-0 z-30 bg-black select-none"
-           :class="state?.videoLayout?.value === 'landscape' ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'"
+           :class="(state?.videoLayout?.value === 'landscape' || state?.cropMode?.value === 'face_tracking') ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'"
            @mousedown="startDrag"
            @mousemove="onDrag"
            @mouseup="stopDrag"

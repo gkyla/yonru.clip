@@ -105,6 +105,8 @@ class RenderRequest(BaseModel):
     font_size: int = 24
     face_tracking: bool = False
     crop_percent_x: float = 50.0  # 0=left, 50=center, 100=right
+    split_zoom_top: Optional[float] = 1.0
+    split_zoom_bottom: Optional[float] = 1.0
     subtitle_sync_offset: float = 0.0  # Timing adjustment in MS
     subtitle_mode: str = "word"
     timeline_tracks: Optional[list] = None

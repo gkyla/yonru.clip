@@ -32,6 +32,12 @@ const mockState = {
   subtitleBackgroundOpacity: ref(0.8),
   cropMode: ref('manual'),
   cropPercentX: ref(50),
+  cropPercentXTop: ref(50),
+  cropPercentXBottom: ref(50),
+  splitZoomTop: ref(1.0),
+  splitZoomBottom: ref(1.0),
+  cropMap: ref([]),
+  currentTime: ref(0),
   activeSafeZone,
   safeZoneOpacity,
   safeZoneColor,
@@ -181,5 +187,25 @@ describe('SidebarSettings Component', () => {
 
     expect(saveBtn?.attributes('disabled')).toBeDefined()
     expect(renderBtn?.attributes('disabled')).toBeDefined()
+  })
+
+  it('renders stacked speaker zoom sliders in face_tracking mode when split mode is active', async () => {
+    mockState.cropMode.value = 'face_tracking'
+    mockState.cropMap.value = [{ time: 0, x: 500, mode: 'split', top_x: 300, bottom_x: 700 }]
+    mockState.currentTime.value = 0
+
+    const wrapper = mount(SidebarSettings, {
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, BlacklistSettings: true }
+      }
+    })
+
+    // Click Layout tab
+    const tabs = wrapper.findAll('button.tab-btn')
+    await tabs[2]!.trigger('click')
+
+    expect(wrapper.text()).toContain('Stacked Speaker Zoom')
+    expect(wrapper.text()).toContain('Top Speaker Zoom')
+    expect(wrapper.text()).toContain('Bottom Speaker Zoom')
   })
 })

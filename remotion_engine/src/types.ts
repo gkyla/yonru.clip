@@ -60,6 +60,8 @@ export interface YonruClipProps {
   cropX: number;
   cropPercentXTop?: number;
   cropPercentXBottom?: number;
+  splitZoomTop?: number;
+  splitZoomBottom?: number;
   cropMap?: CropMapEntry[];
   position: 'top' | 'center' | 'bottom';
   videoLayout?: 'vertical' | 'landscape';

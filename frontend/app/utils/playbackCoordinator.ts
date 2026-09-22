@@ -38,6 +38,8 @@ export interface PlaybackStateSnapshot {
   cropPercentX: number
   cropPercentXTop?: number
   cropPercentXBottom?: number
+  splitZoomTop?: number
+  splitZoomBottom?: number
 
 
   // Typography & Styling
@@ -161,6 +163,8 @@ export class VideoPlaybackCoordinator {
       cropX: isNaN(cropXPixel) ? 960 : cropXPixel,
       cropPercentXTop: snapshot.cropMode === 'manual' ? snapshot.cropPercentXTop : undefined,
       cropPercentXBottom: snapshot.cropMode === 'manual' ? snapshot.cropPercentXBottom : undefined,
+      splitZoomTop: snapshot.splitZoomTop ?? 1.0,
+      splitZoomBottom: snapshot.splitZoomBottom ?? 1.0,
       cropMap: snapshot.cropMode === 'face_tracking' ? JSON.parse(JSON.stringify(snapshot.cropMap || [])) : [],
       sourceWidth: sourceDimensions.width,
       sourceHeight: sourceDimensions.height,

@@ -508,14 +508,83 @@
                   @enter="onFadeEnter"
                   @leave="onFadeLeave"
                 >
-                  <div v-if="state.cropMode.value === 'face_tracking'" class="overflow-hidden space-y-1.5 mt-2">
+                  <div v-if="state.cropMode.value === 'face_tracking'" class="overflow-hidden space-y-2 mt-2">
                     <p class="text-[9px] text-slate-400 flex items-center gap-1.5">
                       <Icon name="ri:sparkling-fill" class="text-accent-500 text-xs shrink-0" />
                       <span>Responsive dynamic tracking active.</span>
                     </p>
-                    <div v-if="isCurrentSplit" class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-accent-500/10 border border-accent-500/20 text-[9px] text-accent-500 font-bold">
-                      <Icon name="ri:layout-row-fill" class="text-xs shrink-0" />
-                      <span>Stacked Multi-Speaker (Split) Active</span>
+
+                    <!-- Stacked Multi-Speaker Framing Zoom Controls -->
+                    <div v-if="isCurrentSplit || hasAnySplit" class="bg-surface-dark/50 border border-accent-500/30 rounded-xl p-2.5 space-y-2.5">
+                      <div class="flex items-center justify-between">
+                        <span class="text-[10px] text-accent-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <Icon name="ri:zoom-in-line" class="text-xs" />
+                          Stacked Speaker Zoom
+                        </span>
+                        <div class="flex items-center gap-1.5">
+                          <span v-if="isCurrentSplit" class="text-[8px] uppercase px-1.5 py-0.5 rounded bg-accent-500/20 text-accent-500 font-bold">Split Active</span>
+                          <button
+                            v-if="(state.splitZoomTop?.value ?? 1.0) !== 1.0 || (state.splitZoomBottom?.value ?? 1.0) !== 1.0"
+                            @click="resetSplitZoom"
+                            class="text-[8px] uppercase px-1.5 py-0.5 rounded bg-surface-border text-slate-300 hover:text-white transition-colors"
+                            title="Reset Zoom"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+
+                      <p class="text-[8px] text-slate-400 leading-tight">
+                        Adjust face zoom to isolate closeups and crop adjacent speakers in wide-angle shots.
+                      </p>
+
+                      <!-- Top Speaker Zoom -->
+                      <div>
+                        <div class="flex justify-between items-center text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">
+                          <span class="flex items-center gap-1">
+                            <Icon name="ri:layout-top-line" class="text-slate-400" />
+                            Top Speaker Zoom
+                          </span>
+                          <span class="mono text-accent-500 font-bold">{{ (state.splitZoomTop?.value ?? 1.0).toFixed(2) }}x</span>
+                        </div>
+                        <input
+                          v-model.number="state.splitZoomTop.value"
+                          type="range"
+                          min="1"
+                          max="2.5"
+                          step="0.05"
+                          class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                        />
+                        <div class="flex justify-between text-[7px] text-slate-500 mt-0.5 mono">
+                          <span>1.0x (Fit)</span>
+                          <span>1.75x</span>
+                          <span>2.5x (Close)</span>
+                        </div>
+                      </div>
+
+                      <!-- Bottom Speaker Zoom -->
+                      <div>
+                        <div class="flex justify-between items-center text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1">
+                          <span class="flex items-center gap-1">
+                            <Icon name="ri:layout-bottom-line" class="text-slate-400" />
+                            Bottom Speaker Zoom
+                          </span>
+                          <span class="mono text-accent-500 font-bold">{{ (state.splitZoomBottom?.value ?? 1.0).toFixed(2) }}x</span>
+                        </div>
+                        <input
+                          v-model.number="state.splitZoomBottom.value"
+                          type="range"
+                          min="1"
+                          max="2.5"
+                          step="0.05"
+                          class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                        />
+                        <div class="flex justify-between text-[7px] text-slate-500 mt-0.5 mono">
+                          <span>1.0x (Fit)</span>
+                          <span>1.75x</span>
+                          <span>2.5x (Close)</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </Transition>
@@ -812,6 +881,11 @@ function toggleAutoAdaptiveSubtitles() {
   if (state.autoAdaptiveSubtitles) {
     state.autoAdaptiveSubtitles.value = !state.autoAdaptiveSubtitles.value
   }
+}
+
+function resetSplitZoom() {
+  if (state.splitZoomTop) state.splitZoomTop.value = 1.0
+  if (state.splitZoomBottom) state.splitZoomBottom.value = 1.0
 }
 
 // Segmented Navigation Tab State
