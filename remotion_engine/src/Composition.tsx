@@ -194,6 +194,43 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   // Natural headroom bias: 25% top crop, 75% bottom crop
   const topTranslateY = -(topDisplayH - PANEL_H) * 0.25;
 
+  // Split-to-Single Handoff Buffer (0.15s window to prevent compositor flicker / texture resize drop)
+  const handoffInfo = useMemo(() => {
+    if (!cropMap || cropMap.length === 0 || isLandscape) {
+      return { inHandoff: false, lastSplitBottomX: undefined, handoffProgress: 1 };
+    }
+
+    let lastSplitIdx = -1;
+    let splitExitTime = -1;
+
+    for (let i = 0; i < cropMap.length; i++) {
+      if (cropMap[i].time > currentTime) break;
+
+      if (cropMap[i].mode === 'split') {
+        lastSplitIdx = i;
+        splitExitTime = -1; // Reset since we are back in split mode
+      } else if (lastSplitIdx !== -1 && splitExitTime === -1) {
+        splitExitTime = cropMap[i].time; // Mark exit point into single mode
+      }
+    }
+
+    if (splitExitTime !== -1 && currentTime >= splitExitTime) {
+      const elapsed = currentTime - splitExitTime;
+      const HANDOFF_DURATION = 0.15; // ~4-5 frames at 30fps
+      if (elapsed >= 0 && elapsed < HANDOFF_DURATION) {
+        const lastSplit = cropMap[lastSplitIdx];
+        const lastSplitBottomX = lastSplit?.bottom_x ?? lastSplit?.x;
+        return {
+          inHandoff: true,
+          lastSplitBottomX,
+          handoffProgress: elapsed / HANDOFF_DURATION
+        };
+      }
+    }
+
+    return { inHandoff: false, lastSplitBottomX: undefined, handoffProgress: 1 };
+  }, [cropMap, currentTime, isLandscape]);
+
   // Bottom Speaker Viewport Zoom & Transform
   const effectiveZoomBottom = Math.max(1.0, Math.min(2.5, splitZoomBottom || 1.0));
   const bottomDisplayW = baseSplitDisplayW * effectiveZoomBottom;
@@ -201,7 +238,11 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   const bottomScale = baseSplitScale * effectiveZoomBottom;
   const bottomMaxOffset = Math.max(0, bottomDisplayW - CONTAINER_W);
 
-  const targetBottomTranslateX = (CONTAINER_W / 2) - (activeFraming.bottom_x * bottomScale);
+  const effectiveBottomX = (handoffInfo.inHandoff && handoffInfo.lastSplitBottomX !== undefined)
+    ? handoffInfo.lastSplitBottomX
+    : activeFraming.bottom_x;
+
+  const targetBottomTranslateX = (CONTAINER_W / 2) - (effectiveBottomX * bottomScale);
   const bottomTranslateX = Math.max(-bottomMaxOffset, Math.min(0, targetBottomTranslateX));
   // Natural headroom bias: 25% top crop, 75% bottom crop
   const bottomTranslateY = -(bottomDisplayH - PANEL_H) * 0.25;
@@ -277,7 +318,8 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   left: 0, 
                   width: CONTAINER_W, 
                   height: isSplit ? `${PANEL_H}px` : `${CONTAINER_H}px`, 
-                  overflow: 'hidden' 
+                  overflow: 'hidden',
+                  zIndex: 2
                 }}
               >
                 <Video 
@@ -298,7 +340,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                 />
               </div>
 
-              {/* Secondary Viewport (Bottom Speaker in Split) */}
+              {/* Secondary Viewport (Bottom Speaker in Split with Underlay Handoff Buffer) */}
               {!isLandscape && (
                 <div 
                   style={{ 
@@ -308,9 +350,10 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                     width: CONTAINER_W, 
                     height: `${PANEL_H}px`, 
                     overflow: 'hidden',
-                    opacity: isSplit ? 1 : 0,
+                    zIndex: 1,
+                    opacity: isSplit ? 1 : (handoffInfo.inHandoff ? Math.max(0, 1 - handoffInfo.handoffProgress) : 0),
                     pointerEvents: 'none',
-                    visibility: isSplit ? 'visible' : 'hidden'
+                    visibility: (isSplit || handoffInfo.inHandoff) ? 'visible' : 'hidden'
                   }}
                 >
                   <Video 
@@ -343,8 +386,8 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                     boxShadow: '0 0 10px 2px rgba(0, 0, 0, 0.75)',
                     zIndex: 15,
                     pointerEvents: 'none',
-                    opacity: isSplit ? 1 : 0,
-                    visibility: isSplit ? 'visible' : 'hidden'
+                    opacity: isSplit ? 1 : (handoffInfo.inHandoff ? Math.max(0, 1 - (handoffInfo.handoffProgress * 2)) : 0),
+                    visibility: (isSplit || (handoffInfo.inHandoff && handoffInfo.handoffProgress < 0.5)) ? 'visible' : 'hidden'
                   }} 
                 />
               )}

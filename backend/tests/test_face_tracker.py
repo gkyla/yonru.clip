@@ -112,6 +112,33 @@ class TestFaceTracker(unittest.TestCase):
         # Because 1 frame < STABLE_HOLD_SAMPLES (5), hysteresis should keep it in split mode!
         self.assertEqual(crop_map[-1]["mode"], "split")
 
+    def test_fast_revert_to_single_on_scene_cut_without_ghost_panning(self):
+        # 20 frames at 10 fps -> 10 samples (0.2s each)
+        source = InMemoryFrameSource(total_frames=20, width=1000, height=1000, fps=10.0)
+        
+        # 6 samples of dual faces [200.0, 800.0] (enters split after 5 samples)
+        # followed by camera cut to single face in center 500.0 for 4 samples (0.8s)
+        mock_coordinates = [
+            [200.0, 800.0], [200.0, 800.0], [200.0, 800.0], 
+            [200.0, 800.0], [200.0, 800.0], [200.0, 800.0],
+            500.0, 500.0, 500.0, 500.0
+        ]
+        detector = MockFaceDetector(mock_coordinates)
+        tracker = FaceTracker(frame_source=source, face_detector=detector)
+        crop_map = tracker.analyze_video("dummy_path")
+
+        # 1. No ghost tracking: while in split mode, top_x must NOT drift towards 500.0
+        split_points = [p for p in crop_map if p.get("mode") == "split"]
+        self.assertTrue(len(split_points) > 0, "Split mode should have been activated")
+        for sp in split_points:
+            self.assertLess(sp.get("top_x", 0), 250, f"top_x ghost-tracked towards center during split: {sp}")
+
+        # 2. Fast revert on cut: by 0.4s after cut (time >= 1.6s), mode MUST be single (not hold 1.0s)
+        late_points = [p for p in crop_map if p["time"] >= 1.6]
+        self.assertTrue(len(late_points) > 0)
+        for lp in late_points:
+            self.assertEqual(lp.get("mode"), "single", f"Expected single mode after cut at time {lp['time']}, got {lp.get('mode')}")
+
 if __name__ == '__main__':
     unittest.main()
 

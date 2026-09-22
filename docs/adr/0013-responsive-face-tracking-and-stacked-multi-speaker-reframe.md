@@ -25,9 +25,10 @@ In `yonru.clip`, face tracking was previously governed by [ADR 0008](./0008-prec
      - **Top Viewport**: Crops and centers the left-hand speaker.
      - **Bottom Viewport**: Crops and centers the right-hand speaker.
    - When footage transitions to a solo close-up, automatically revert to single vertical 9:16 framing.
-4. **Hysteresis Anti-Flicker Guardrail & Zero-Face Fallback**:
-   - Require a minimum stability window of 1.0 second (consecutive detection) before switching between single and stacked multi-speaker layouts.
-   - Maintain a 1.0 second persistence hold when a face temporarily drops out, preventing jarring layout flickering.
+4. **Hysteresis Anti-Flicker Guardrail & Fast Cut Bypass**:
+   - Require a stability window of 0.8 seconds (consecutive positive detection) before switching from single into stacked multi-speaker layout.
+   - For reverting from split back to single on regular dropout, accelerate the hold window to 0.3 seconds (fast revert) while freezing viewport positions to prevent ghost camera panning.
+   - On camera scene cuts (where the solo face position jumps $>15\%$ frame width from existing viewports), bypass hysteresis and execute an immediate jump cut after 2 confirmation frames.
    - When no faces are detected (e.g. B-roll, presentation slides, or scenery footage), automatically revert to Single-Speaker framing with center crop ($X = 50\%$) after the stability hold.
    - Use instant jump cuts (1-frame snap cuts) for layout switches without animated whip-pan or slide-morph.
 5. **Prominence Filtering for Background Noise**:
@@ -45,6 +46,9 @@ In `yonru.clip`, face tracking was previously governed by [ADR 0008](./0008-prec
    - Lock canvas dragging during active `face_tracking` mode to prevent accidental overrides to manual mode, requiring explicit navigation to `[ Manual Pan ]`.
 8. **Backward-Compatible Crop Map Schema**:
    - Extend `crop_map.json` keyframes with `mode: 'single' | 'split'`, providing `top_x` and `bottom_x` while preserving legacy `x` fallback.
+9. **Seamless Split-to-Single Layer Handoff Buffer**:
+   - In `Composition.tsx`, eliminate 1-frame compositor texture resize drops by enforcing deterministic DOM layering: Primary Viewport (`zIndex: 2`), Secondary Viewport (`zIndex: 1`), and Center Seam Divider (`zIndex: 15`).
+   - When reverting from split to single layout, maintain an active underlay handoff buffer of 0.15s (~4–5 frames) holding the last detected bottom speaker position (`lastSplitBottomX`) with linear fade-out. This guarantees that during GPU video surface re-allocation in the expanded primary viewport, the underlying canvas never exposes the bare black background.
 
 ## Consequences
 

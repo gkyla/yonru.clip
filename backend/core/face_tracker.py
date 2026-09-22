@@ -39,9 +39,12 @@ class FaceTracker(AbstractFaceTracker):
         MIN_SWITCH_DIST = width * 0.15
         SMOOTHING_FACTOR = 0.3
         
-        # Stability / Hysteresis threshold (1.0s minimum hold)
+        # Stability / Hysteresis thresholds
+        # Entering split mode requires 0.8s of stable dual faces
+        # Reverting to single mode on regular dropout requires 0.3s (fast revert)
         samples_per_sec = max(1.0, fps / 2.0)
-        STABLE_HOLD_SAMPLES = max(2, int(1.0 * samples_per_sec))
+        SPLIT_ENTER_HOLD_SAMPLES = max(2, int(0.8 * samples_per_sec))
+        SPLIT_REVERT_HOLD_SAMPLES = max(2, int(0.3 * samples_per_sec))
 
         frame_idx = 0
         crop_map = []
@@ -57,6 +60,8 @@ class FaceTracker(AbstractFaceTracker):
         is_split_mode = False
         consecutive_split_samples = 0
         consecutive_single_samples = 0
+        pending_split_cut_x = None
+        split_cut_frames_count = 0
         
         while True:
             ret, frame = source.read()
@@ -69,25 +74,51 @@ class FaceTracker(AbstractFaceTracker):
                 # Locate face positions using deep seam
                 detected_faces = detector.locate_faces(frame, width, height)
                 
-                # Update split hysteresis counters
+                # Update split hysteresis counters and cut detection
+                is_cut_to_single = False
                 if len(detected_faces) >= 2:
                     consecutive_split_samples += 1
                     consecutive_single_samples = 0
+                    pending_split_cut_x = None
+                    split_cut_frames_count = 0
                 else:
                     consecutive_single_samples += 1
                     consecutive_split_samples = 0
 
-                # Evaluate layout mode transitions with 1.0s hysteresis
+                    # Scene Cut Detection: if single face jumps far from BOTH viewports, it is a camera cut
+                    if is_split_mode and len(detected_faces) == 1 and actual_top_x is not None and actual_bottom_x is not None:
+                        cand_x = detected_faces[0]
+                        d_top = abs(cand_x - actual_top_x)
+                        d_bot = abs(cand_x - actual_bottom_x)
+                        if d_top >= MIN_SWITCH_DIST and d_bot >= MIN_SWITCH_DIST:
+                            if pending_split_cut_x is not None and abs(cand_x - pending_split_cut_x) < DEADZONE:
+                                split_cut_frames_count += 1
+                            else:
+                                pending_split_cut_x = cand_x
+                                split_cut_frames_count = 1
+
+                            if split_cut_frames_count >= 2:
+                                is_cut_to_single = True
+                        else:
+                            pending_split_cut_x = None
+                            split_cut_frames_count = 0
+                    else:
+                        pending_split_cut_x = None
+                        split_cut_frames_count = 0
+
+                # Evaluate layout mode transitions
                 just_entered_split = False
                 just_entered_single = False
-                if not is_split_mode and consecutive_split_samples >= STABLE_HOLD_SAMPLES:
+                if not is_split_mode and consecutive_split_samples >= SPLIT_ENTER_HOLD_SAMPLES:
                     is_split_mode = True
                     just_entered_split = True
                     print(f"[face-track] [{t_sec:.2f}s] Switched to STACKED MULTI-SPEAKER (Split) mode.")
-                elif is_split_mode and consecutive_single_samples >= STABLE_HOLD_SAMPLES:
+                elif is_split_mode and (is_cut_to_single or consecutive_single_samples >= SPLIT_REVERT_HOLD_SAMPLES):
                     is_split_mode = False
                     just_entered_single = True
-                    print(f"[face-track] [{t_sec:.2f}s] Reverted to SINGLE-SPEAKER mode.")
+                    pending_split_cut_x = None
+                    split_cut_frames_count = 0
+                    print(f"[face-track] [{t_sec:.2f}s] Reverted to SINGLE-SPEAKER mode (cut={is_cut_to_single}).")
 
                 if is_split_mode:
                     # ── STACKED MULTI-SPEAKER TRACKING ──
@@ -95,21 +126,25 @@ class FaceTracker(AbstractFaceTracker):
                         target_top = detected_faces[0]
                         target_bottom = detected_faces[1]
                     elif len(detected_faces) == 1:
-                        # Temporary partial dropout: assign to closest existing viewport
-                        if actual_top_x is not None and actual_bottom_x is not None:
-                            d_top = abs(detected_faces[0] - actual_top_x)
-                            d_bot = abs(detected_faces[0] - actual_bottom_x)
-                            if d_top < d_bot:
-                                target_top = detected_faces[0]
-                                target_bottom = actual_bottom_x
-                            else:
-                                target_top = actual_top_x
-                                target_bottom = detected_faces[0]
+                        # Partial dropout: check if the single face matches one of the existing speakers
+                        cand_x = detected_faces[0]
+                        d_top = abs(cand_x - actual_top_x) if actual_top_x is not None else 0
+                        d_bot = abs(cand_x - actual_bottom_x) if actual_bottom_x is not None else 0
+
+                        if d_top < MIN_SWITCH_DIST and d_top <= d_bot:
+                            # Matches top speaker: gently track top, freeze bottom
+                            target_top = cand_x
+                            target_bottom = actual_bottom_x
+                        elif d_bot < MIN_SWITCH_DIST:
+                            # Matches bottom speaker: freeze top, gently track bottom
+                            target_top = actual_top_x
+                            target_bottom = cand_x
                         else:
-                            target_top = detected_faces[0]
-                            target_bottom = width * 0.75
+                            # Far from both (cut candidate): FREEZE BOTH viewports (no ghost tracking)
+                            target_top = actual_top_x
+                            target_bottom = actual_bottom_x
                     else:
-                        # Full temporary dropout: persist previous
+                        # Full temporary dropout: freeze both
                         target_top = actual_top_x
                         target_bottom = actual_bottom_x
 
