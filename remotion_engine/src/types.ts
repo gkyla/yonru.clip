@@ -7,6 +7,9 @@ export interface SubtitleWord {
 export interface CropMapEntry {
   time: number;
   x: number;
+  mode?: 'single' | 'split';
+  top_x?: number;
+  bottom_x?: number;
 }
 
 export type AnimationType = 'pop' | 'slide-up' | 'fade' | 'bounce' | 'typewriter' | 'karaoke' | 'none';
@@ -55,10 +58,13 @@ export interface YonruClipProps {
   // For karaoke: individual word timings within each chunk
   wordTimings?: SubtitleWord[];
   cropX: number;
+  cropPercentXTop?: number;
+  cropPercentXBottom?: number;
   cropMap?: CropMapEntry[];
   position: 'top' | 'center' | 'bottom';
   videoLayout?: 'vertical' | 'landscape';
   subtitleOffset?: number;
+  autoAdaptiveSubtitles?: boolean;
   durationInFrames?: number;
   showDebug?: boolean;
   subtitleStyle?: SubtitleStyle;

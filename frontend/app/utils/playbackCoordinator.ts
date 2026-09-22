@@ -32,9 +32,13 @@ export interface PlaybackStateSnapshot {
   videoLayout: 'vertical' | 'landscape'
   subtitlePosition: string
   subtitleOffset: number
+  autoAdaptiveSubtitles?: boolean
   cropMode: string
-  cropMap: Array<{ time: number; x: number }>
+  cropMap: Array<{ time: number; x: number; mode?: 'single' | 'split'; top_x?: number; bottom_x?: number }>
   cropPercentX: number
+  cropPercentXTop?: number
+  cropPercentXBottom?: number
+
 
   // Typography & Styling
   font: string
@@ -155,12 +159,15 @@ export class VideoPlaybackCoordinator {
       words: wordsData,
       wordTimings: allWordTimings,
       cropX: isNaN(cropXPixel) ? 960 : cropXPixel,
+      cropPercentXTop: snapshot.cropMode === 'manual' ? snapshot.cropPercentXTop : undefined,
+      cropPercentXBottom: snapshot.cropMode === 'manual' ? snapshot.cropPercentXBottom : undefined,
       cropMap: snapshot.cropMode === 'face_tracking' ? JSON.parse(JSON.stringify(snapshot.cropMap || [])) : [],
       sourceWidth: sourceDimensions.width,
       sourceHeight: sourceDimensions.height,
       position: snapshot.subtitlePosition,
       videoLayout: snapshot.videoLayout || 'vertical',
       subtitleOffset: snapshot.subtitleOffset,
+      autoAdaptiveSubtitles: snapshot.autoAdaptiveSubtitles ?? true,
       durationInFrames: Math.floor(snapshot.timelineDuration * (snapshot.videoFps || 30)),
       fps: snapshot.videoFps || 30,
       hideSubtitles: !!snapshot.outputUrl && snapshot.videoUrl === snapshot.outputUrl,

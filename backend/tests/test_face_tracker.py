@@ -65,5 +65,53 @@ class TestFaceTracker(unittest.TestCase):
         aborted_points = [p for p in crop_map if p["x"] == 200]
         self.assertEqual(len(aborted_points), 0)
 
+    def test_responsive_smoothing_faster_convergence(self):
+        # 10 frames at 10 fps (5 samples: 0, 2, 4, 6, 8)
+        # Start at 500, then target moves to 600
+        source = InMemoryFrameSource(total_frames=10, width=1000, height=1000, fps=10.0)
+        mock_coordinates = [500.0, 600.0, 600.0, 600.0, 600.0]
+        detector = MockFaceDetector(mock_coordinates)
+        tracker = FaceTracker(frame_source=source, face_detector=detector)
+        crop_map = tracker.analyze_video("dummy_path")
+
+        # With 0.3 factor (move_amt - DEADZONE(25)) * 0.3:
+        # Step 1: 500
+        # Step 2: move_amt = 100 - 25 = 75 * 0.3 = 22.5 -> 522
+        # After 4 steps, x should be well above 550 (much faster than 0.1 which would be ~515)
+        last_point = crop_map[-1]
+        self.assertGreater(last_point["x"], 540)
+        self.assertEqual(last_point["mode"], "single")
+
+    def test_dual_speaker_split_and_hysteresis_hold(self):
+        # 24 frames at 10 fps -> 12 samples (0.2s each)
+        # STABLE_HOLD_SAMPLES for 10fps = max(2, int(1.0 * 5)) = 5 samples
+        source = InMemoryFrameSource(total_frames=24, width=1000, height=1000, fps=10.0)
+        
+        # 5 samples of single face, then 6 samples of dual faces, then 1 sample single face (transient drop)
+        mock_coordinates = [
+            500.0, 500.0, 500.0, 500.0, 500.0,          # 5 single
+            [250.0, 750.0], [250.0, 750.0], [250.0, 750.0], # 3 dual
+            [250.0, 750.0], [250.0, 750.0], [250.0, 750.0], # 3 dual (total 6 dual >= 5 hold)
+            500.0                                            # 1 transient single
+        ]
+        detector = MockFaceDetector(mock_coordinates)
+        tracker = FaceTracker(frame_source=source, face_detector=detector)
+        crop_map = tracker.analyze_video("dummy_path")
+
+        # Verify that split mode was triggered
+        split_points = [p for p in crop_map if p.get("mode") == "split"]
+        self.assertTrue(len(split_points) > 0)
+        
+        # Verify top_x and bottom_x are populated
+        first_split = split_points[0]
+        self.assertEqual(first_split["mode"], "split")
+        self.assertEqual(first_split["top_x"], 250)
+        self.assertEqual(first_split["bottom_x"], 750)
+
+        # The last sample was a 1-frame transient single drop.
+        # Because 1 frame < STABLE_HOLD_SAMPLES (5), hysteresis should keep it in split mode!
+        self.assertEqual(crop_map[-1]["mode"], "split")
+
 if __name__ == '__main__':
     unittest.main()
+

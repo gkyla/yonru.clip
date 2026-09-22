@@ -592,7 +592,8 @@ const isProcessing = computed(() => {
 const cropState = useCropDrag(
   computed(() => previewScale.value),
   computed(() => maxOffset.value),
-  computed(() => activeTextItems.value.length > 0)
+  computed(() => activeTextItems.value.length > 0),
+  container
 )
 const {
   isDragging,
@@ -956,7 +957,22 @@ const progressWidth = computed(() => {
   return map[state.jobStatus.value] || '0%'
 })
 
+const isSplitActive = computed(() => {
+  if (!state.cropMap?.value || state.cropMap.value.length === 0) return false
+  const t = state.currentTime?.value || 0
+  let active = state.cropMap.value[0]
+  for (const entry of state.cropMap.value) {
+    if (entry.time <= t) active = entry
+    else break
+  }
+  return active?.mode === 'split'
+})
+
 const subtitleIndicatorStyle = computed(() => {
+  const isSplit = isSplitActive.value && (state.autoAdaptiveSubtitles?.value ?? true)
+  if (isSplit) {
+    return { top: '50%', transform: `translate(-50%, calc(-50% + ${state.subtitleOffset.value}px))` }
+  }
   const pos = state.subtitlePosition.value
   const offset = state.subtitleOffset.value
   if (pos === 'top') return { top: `${offset}px` }

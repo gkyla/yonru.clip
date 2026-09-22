@@ -458,10 +458,10 @@
                   @after-enter="onSlideAfterEnter"
                   @leave="onSlideLeave"
                 >
-                  <div v-if="state.cropMode.value === 'manual'" class="overflow-hidden">
+                  <div v-if="state.cropMode.value === 'manual'" class="overflow-hidden space-y-2">
                     <div class="bg-surface-dark/50 border border-surface-border rounded-xl p-2 mt-2">
                       <label class="text-[9px] text-slate-400 flex justify-between uppercase font-bold tracking-wider mb-1">
-                        <span>Horizontal Position</span>
+                        <span>Horizontal Position (Solo)</span>
                         <span class="mono text-accent-500 font-bold">{{ Math.round(state.cropPercentX.value) }}%</span>
                       </label>
                       <input v-model.number="state.cropPercentX.value" type="range" min="0" max="100" step="1" class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer" />
@@ -469,6 +469,35 @@
                         <span>LEFT</span>
                         <span>CENTER</span>
                         <span>RIGHT</span>
+                      </div>
+                    </div>
+
+                    <!-- Dual Split Sliders (When split mode is detected or active) -->
+                    <div v-if="isCurrentSplit || hasAnySplit" class="bg-surface-dark/50 border border-accent-500/30 rounded-xl p-2.5 space-y-2.5">
+                      <div class="flex items-center justify-between">
+                        <span class="text-[10px] text-accent-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <Icon name="ri:layout-row-line" />
+                          Stacked Dual Speakers
+                        </span>
+                        <span v-if="isCurrentSplit" class="text-[8px] uppercase px-1.5 py-0.5 rounded bg-accent-500/20 text-accent-500 font-bold">Active Now</span>
+                      </div>
+
+                      <!-- Top Speaker -->
+                      <div>
+                        <label class="text-[9px] text-slate-400 flex justify-between uppercase font-bold tracking-wider mb-1">
+                          <span>Top Speaker (Left)</span>
+                          <span class="mono text-accent-500 font-bold">{{ Math.round(state.cropPercentXTop?.value ?? 50) }}%</span>
+                        </label>
+                        <input v-model.number="state.cropPercentXTop.value" type="range" min="0" max="100" step="1" class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer" />
+                      </div>
+
+                      <!-- Bottom Speaker -->
+                      <div>
+                        <label class="text-[9px] text-slate-400 flex justify-between uppercase font-bold tracking-wider mb-1">
+                          <span>Bottom Speaker (Right)</span>
+                          <span class="mono text-accent-500 font-bold">{{ Math.round(state.cropPercentXBottom?.value ?? 50) }}%</span>
+                        </label>
+                        <input v-model.number="state.cropPercentXBottom.value" type="range" min="0" max="100" step="1" class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer" />
                       </div>
                     </div>
                   </div>
@@ -479,13 +508,18 @@
                   @enter="onFadeEnter"
                   @leave="onFadeLeave"
                 >
-                  <div v-if="state.cropMode.value === 'face_tracking'" class="overflow-hidden">
-                    <p class="text-[9px] text-slate-400 mt-2 flex items-center gap-1.5">
+                  <div v-if="state.cropMode.value === 'face_tracking'" class="overflow-hidden space-y-1.5 mt-2">
+                    <p class="text-[9px] text-slate-400 flex items-center gap-1.5">
                       <Icon name="ri:sparkling-fill" class="text-accent-500 text-xs shrink-0" />
-                      <span>Pre-computed face tracking active. Drag canvas anytime to override.</span>
+                      <span>Responsive dynamic tracking active.</span>
                     </p>
+                    <div v-if="isCurrentSplit" class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-accent-500/10 border border-accent-500/20 text-[9px] text-accent-500 font-bold">
+                      <Icon name="ri:layout-row-fill" class="text-xs shrink-0" />
+                      <span>Stacked Multi-Speaker (Split) Active</span>
+                    </div>
                   </div>
                 </Transition>
+
               </div>
             </Transition>
 
@@ -571,6 +605,32 @@
                     ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]' 
                     : 'text-slate-400 hover:border-accent-500 hover:text-white'"
                 >{{ pos }}</button>
+              </div>
+
+              <!-- Auto-Adaptive Subtitle Placement Toggle -->
+              <div class="bg-surface-dark/40 border border-surface-border/80 rounded-xl p-2.5 space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1.5">
+                    <Icon name="ri:magic-line" class="text-accent-500 text-xs" />
+                    <span class="text-[10px] text-slate-300 font-bold">Auto-Adaptive Subtitle</span>
+                  </div>
+                  <button 
+                    @click="toggleAutoAdaptiveSubtitles"
+                    type="button"
+                    class="w-8 h-4 rounded-full transition-colors relative flex items-center p-0.5"
+                    :class="(state.autoAdaptiveSubtitles?.value ?? true) ? 'bg-accent-500' : 'bg-surface-border'"
+                  >
+                    <div 
+                      class="w-3 h-3 rounded-full bg-black shadow-md transition-transform transform"
+                      :class="(state.autoAdaptiveSubtitles?.value ?? true) ? 'translate-x-4' : 'translate-x-0'"
+                    />
+                  </button>
+                </div>
+                <p class="text-[8px] text-slate-400 leading-tight">
+                  {{ (state.autoAdaptiveSubtitles?.value ?? true)
+                    ? 'Automatically floats over dividing seam during multi-speaker split.' 
+                    : 'Fixed to custom position presets regardless of video framing.' }}
+                </p>
               </div>
 
               <div class="bg-surface-dark/40 border border-surface-border/80 rounded-xl p-2 space-y-1">
@@ -727,13 +787,35 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { FONT_OPTIONS } from '../composables/useClipperState'
 
 const state = useClipperState()
 const { activeSafeZone, safeZoneOpacity, safeZoneColor, isOverlayVisible } = state
 
+const isCurrentSplit = computed(() => {
+  if (!state.cropMap?.value || state.cropMap.value.length === 0) return false
+  const t = state.currentTime?.value || 0
+  let active = state.cropMap.value[0]
+  for (const entry of state.cropMap.value) {
+    if (entry.time <= t) active = entry
+    else break
+  }
+  return active?.mode === 'split'
+})
+
+const hasAnySplit = computed(() => {
+  return state.cropMap?.value?.some(entry => entry.mode === 'split') ?? false
+})
+
+function toggleAutoAdaptiveSubtitles() {
+  if (state.autoAdaptiveSubtitles) {
+    state.autoAdaptiveSubtitles.value = !state.autoAdaptiveSubtitles.value
+  }
+}
+
 // Segmented Navigation Tab State
+
 const activeTab = ref('style') // 'style' | 'type' | 'layout'
 const activeColorPicker = ref(null) // null | 'text' | 'highlight' | 'stroke'
 

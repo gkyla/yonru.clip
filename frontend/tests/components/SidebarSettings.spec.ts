@@ -28,6 +28,7 @@ const mockState = {
   subtitleStrokeColor: ref('#000000'),
   subtitleOffset: ref(50),
   subtitleSyncOffset: ref(0),
+  autoAdaptiveSubtitles: ref(true),
   subtitleBackgroundOpacity: ref(0.8),
   cropMode: ref('manual'),
   cropPercentX: ref(50),

@@ -19,10 +19,13 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   words,
   wordTimings,
   cropX,
+  cropPercentXTop,
+  cropPercentXBottom,
   cropMap = [],
   position,
   videoLayout = 'vertical',
   subtitleOffset = 50,
+  autoAdaptiveSubtitles = true,
   showDebug,
   subtitleStyle,
   timelineTextItems = [],
@@ -57,42 +60,133 @@ export const YonruClip: React.FC<YonruClipProps> = ({
     currentTime >= item.start && currentTime <= (item.start + item.duration)
   );
 
-  // Determine active cropX
-  const activeCropX = useMemo(() => {
-    if (!cropMap || cropMap.length === 0) return cropX;
-    
-    // Find the latest entry that is <= currentTime (the "Hold" logic)
-    // Since cropMap is sorted by time, we look for the last one that has passed.
-    let lastValid = cropMap[0];
-    for (const entry of cropMap) {
-      if (entry.time <= currentTime) {
-        lastValid = entry;
+  // Determine active framing with Continuous Sub-Frame LERP and Instant Snap Cuts
+  const activeFraming = useMemo(() => {
+    const rawSourceW = sourceWidth || 1920;
+    const defaultTop = cropPercentXTop !== undefined ? (cropPercentXTop / 100) * rawSourceW : (cropX || rawSourceW / 2);
+    const defaultBottom = cropPercentXBottom !== undefined ? (cropPercentXBottom / 100) * rawSourceW : (cropX || rawSourceW / 2);
+
+    if (!cropMap || cropMap.length === 0) {
+      return {
+        mode: 'single' as const,
+        x: cropX ?? rawSourceW / 2,
+        top_x: defaultTop,
+        bottom_x: defaultBottom,
+      };
+    }
+
+    const CUT_THRESHOLD = rawSourceW * 0.15;
+
+
+    // Scan for adjacent keyframes
+    let prevIdx = 0;
+    for (let i = 0; i < cropMap.length; i++) {
+      if (cropMap[i].time <= currentTime) {
+        prevIdx = i;
       } else {
-        break; // We found a future point, stop searching
+        break;
       }
     }
-    
-    return lastValid.x;
-  }, [cropMap, currentTime, cropX]);
-  
-    if (frame % 30 === 0) {
-      console.log(`[Remotion] frame=${frame} time=${currentTime.toFixed(2)} activeCropX=${activeCropX}`);
+
+    const prevEntry = cropMap[prevIdx];
+    const nextEntry = prevIdx < cropMap.length - 1 ? cropMap[prevIdx + 1] : null;
+
+    // If only one entry or at/after the last keyframe, use prevEntry
+    if (!nextEntry || prevEntry.time === nextEntry.time) {
+      const mode = prevEntry.mode || 'single';
+      return {
+        mode,
+        x: prevEntry.x,
+        top_x: prevEntry.top_x ?? prevEntry.x,
+        bottom_x: prevEntry.bottom_x ?? prevEntry.x,
+      };
     }
+
+    // Layout mode change -> Instant Jump Cut
+    if ((prevEntry.mode || 'single') !== (nextEntry.mode || 'single')) {
+      const mode = prevEntry.mode || 'single';
+      return {
+        mode,
+        x: prevEntry.x,
+        top_x: prevEntry.top_x ?? prevEntry.x,
+        bottom_x: prevEntry.bottom_x ?? prevEntry.x,
+      };
+    }
+
+    const mode = prevEntry.mode || 'single';
+    const duration = nextEntry.time - prevEntry.time;
+    const progress = Math.max(0, Math.min(1, (currentTime - prevEntry.time) / duration));
+    // Smoothstep ease-in-out: 3t^2 - 2t^3
+    const smoothT = progress * progress * (3 - 2 * progress);
+
+    if (mode === 'split') {
+      const prevTop = prevEntry.top_x ?? prevEntry.x;
+      const nextTop = nextEntry.top_x ?? nextEntry.x;
+      const prevBot = prevEntry.bottom_x ?? prevEntry.x;
+      const nextBot = nextEntry.bottom_x ?? nextEntry.x;
+
+      const top_x = Math.abs(nextTop - prevTop) > CUT_THRESHOLD
+        ? prevTop
+        : prevTop + (nextTop - prevTop) * smoothT;
+
+      const bottom_x = Math.abs(nextBot - prevBot) > CUT_THRESHOLD
+        ? prevBot
+        : prevBot + (nextBot - prevBot) * smoothT;
+
+      return {
+        mode: 'split' as const,
+        x: top_x,
+        top_x: cropPercentXTop !== undefined ? (cropPercentXTop / 100) * rawSourceW : top_x,
+        bottom_x: cropPercentXBottom !== undefined ? (cropPercentXBottom / 100) * rawSourceW : bottom_x,
+      };
+    } else {
+      const delta = Math.abs(nextEntry.x - prevEntry.x);
+      const x = delta > CUT_THRESHOLD
+        ? prevEntry.x
+        : prevEntry.x + (nextEntry.x - prevEntry.x) * smoothT;
+
+      return {
+        mode: 'single' as const,
+        x,
+        top_x: x,
+        bottom_x: x,
+      };
+    }
+  }, [cropMap, currentTime, cropX, cropPercentXTop, cropPercentXBottom, sourceWidth]);
+  
+  if (frame % 30 === 0) {
+    console.log(`[Remotion] frame=${frame} time=${currentTime.toFixed(2)} mode=${activeFraming.mode} activeX=${activeFraming.x.toFixed(0)}`);
+  }
 
   // Exact math from VideoPreview.vue to guarantee 1:1 match
   const isLandscape = videoLayout === 'landscape';
+  const isSplit = !isLandscape && activeFraming.mode === 'split';
   const videoAspect = (sourceWidth && sourceHeight) ? (sourceWidth / sourceHeight) : (16 / 9);
   const CONTAINER_W = 1080;
   const CONTAINER_H = 1920;
   
+  // Single / Landscape Display
   const videoDisplayW = isLandscape ? CONTAINER_W : CONTAINER_H * videoAspect;
   const videoDisplayH = isLandscape ? (CONTAINER_W / videoAspect) : CONTAINER_H;
   const maxOffset = Math.max(0, videoDisplayW - CONTAINER_W);
   
   const scale = videoDisplayW / (sourceWidth || (isLandscape ? 1080 : 1920));
-  const targetTranslateX = isLandscape ? 0 : (CONTAINER_W / 2) - (activeCropX * scale);
+  const targetTranslateX = isLandscape ? 0 : (CONTAINER_W / 2) - (activeFraming.x * scale);
   const translateX = isLandscape ? 0 : Math.max(-maxOffset, Math.min(0, targetTranslateX));
   const translateY = isLandscape ? (CONTAINER_H - videoDisplayH) / 2 : 0;
+
+  // Split Viewport Display (1080x960 each viewport)
+  const PANEL_H = CONTAINER_H / 2;
+  const splitVideoDisplayW = PANEL_H * videoAspect;
+  const splitMaxOffset = Math.max(0, splitVideoDisplayW - CONTAINER_W);
+  const splitScale = splitVideoDisplayW / (sourceWidth || 1920);
+
+  const targetTopTranslateX = (CONTAINER_W / 2) - (activeFraming.top_x * splitScale);
+  const topTranslateX = Math.max(-splitMaxOffset, Math.min(0, targetTopTranslateX));
+
+  const targetBottomTranslateX = (CONTAINER_W / 2) - (activeFraming.bottom_x * splitScale);
+  const bottomTranslateX = Math.max(-splitMaxOffset, Math.min(0, targetBottomTranslateX));
+
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'black', overflow: 'hidden' }}>
@@ -153,68 +247,128 @@ export const YonruClip: React.FC<YonruClipProps> = ({
 
       {/* ===== MAIN VIDEO ===== */}
       <Sequence from={thumbnailFrames} name="MainVideo">
-        {/* Video layer */}
-        {videoPath && timelineVideoItems && timelineVideoItems.length > 0 ? (
-          timelineVideoItems.map(item => {
-            const startFrame = Math.round(item.start * fps);
-            const durationFrames = Math.round(item.duration * fps);
-            const mediaStartFrame = Math.round((item.mediaStart ?? 0) * fps);
-            
-            return (
-              <Sequence key={item.id} from={startFrame} durationInFrames={durationFrames} name={`VideoSegment-${item.id}`}>
-                <AbsoluteFill>
+        {(() => {
+          const renderMediaViewports = (mediaStartFrame?: number, durationFrames?: number) => (
+            <AbsoluteFill style={{ overflow: 'hidden' }}>
+              {/* Primary Viewport (Top Speaker in Split, or Full Framing in Single/Landscape) */}
+              <div 
+                style={{ 
+                  position: 'absolute', 
+                  top: 0, 
+                  left: 0, 
+                  width: CONTAINER_W, 
+                  height: isSplit ? `${PANEL_H}px` : `${CONTAINER_H}px`, 
+                  overflow: 'hidden' 
+                }}
+              >
+                <Video 
+                  src={videoSrc} 
+                  volume={volume}
+                  crossOrigin="anonymous"
+                  startFrom={mediaStartFrame}
+                  endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
+                  style={{ 
+                    height: isSplit ? `${PANEL_H}px` : `${videoDisplayH}px`, 
+                    width: isSplit ? `${splitVideoDisplayW}px` : `${videoDisplayW}px`, 
+                    maxWidth: 'none',
+                    transform: isSplit 
+                      ? `translateX(${topTranslateX}px)` 
+                      : `translate(${translateX}px, ${translateY}px)`,
+                    objectFit: 'cover'
+                  }} 
+                />
+              </div>
+
+              {/* Secondary Viewport (Bottom Speaker in Split) */}
+              {!isLandscape && (
+                <div 
+                  style={{ 
+                    position: 'absolute', 
+                    top: `${PANEL_H}px`, 
+                    left: 0, 
+                    width: CONTAINER_W, 
+                    height: `${PANEL_H}px`, 
+                    overflow: 'hidden',
+                    opacity: isSplit ? 1 : 0,
+                    pointerEvents: 'none',
+                    visibility: isSplit ? 'visible' : 'hidden'
+                  }}
+                >
                   <Video 
                     src={videoSrc} 
-                    volume={volume}
+                    volume={0}
                     crossOrigin="anonymous"
                     startFrom={mediaStartFrame}
-                    endAt={mediaStartFrame + durationFrames}
+                    endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
                     style={{ 
-                      height: `${videoDisplayH}px`, 
-                      width: `${videoDisplayW}px`, 
+                      height: `${PANEL_H}px`, 
+                      width: `${splitVideoDisplayW}px`, 
                       maxWidth: 'none',
-                      transform: `translate(${translateX}px, ${translateY}px)`,
+                      transform: `translateX(${bottomTranslateX}px)`,
                       objectFit: 'cover'
                     }} 
                   />
-                </AbsoluteFill>
-              </Sequence>
-            );
-          })
-        ) : videoPath && (
-          <AbsoluteFill>
-            <Video 
-              src={videoSrc} 
-              volume={volume}
-              crossOrigin="anonymous"
-              style={{ 
-                height: `${videoDisplayH}px`, 
-                width: `${videoDisplayW}px`, 
-                maxWidth: 'none',
-                transform: `translate(${translateX}px, ${translateY}px)`,
-                objectFit: 'cover'
-              }} 
-            />
-          </AbsoluteFill>
-        )}
+                </div>
+              )}
+
+              {/* Center Seam Divider (2px dark line with subtle shadow) */}
+              {!isLandscape && (
+                <div 
+                  style={{ 
+                    position: 'absolute', 
+                    top: `${PANEL_H - 1}px`, 
+                    left: 0, 
+                    width: '100%', 
+                    height: '2px', 
+                    backgroundColor: 'rgba(0, 0, 0, 0.85)', 
+                    boxShadow: '0 0 10px 2px rgba(0, 0, 0, 0.75)',
+                    zIndex: 15,
+                    pointerEvents: 'none',
+                    opacity: isSplit ? 1 : 0,
+                    visibility: isSplit ? 'visible' : 'hidden'
+                  }} 
+                />
+              )}
+            </AbsoluteFill>
+          );
+
+          if (videoPath && timelineVideoItems && timelineVideoItems.length > 0) {
+            return timelineVideoItems.map(item => {
+              const startFrame = Math.round(item.start * fps);
+              const durationFrames = Math.round(item.duration * fps);
+              const mediaStartFrame = Math.round((item.mediaStart ?? 0) * fps);
+              return (
+                <Sequence key={item.id} from={startFrame} durationInFrames={durationFrames} name={`VideoSegment-${item.id}`}>
+                  {renderMediaViewports(mediaStartFrame, durationFrames)}
+                </Sequence>
+              );
+            });
+          }
+
+          return videoPath ? renderMediaViewports() : null;
+        })()}
 
         {/* Subtitles layer */}
-        {!hideSubtitles && (
-          <AbsoluteFill style={{
-            justifyContent: position === 'top' ? 'flex-start' : position === 'center' ? 'center' : 'flex-end',
-            alignItems: 'center',
-            paddingTop: position === 'top' ? `${subtitleOffset}px` : 0,
-            paddingBottom: position === 'bottom' ? `${subtitleOffset}px` : 0,
-            zIndex: 10
-          }}>
-            <AnimatedSubtitles
-              words={words}
-              wordTimings={wordTimings}
-              showDebug={showDebug}
-              style={subtitleStyle}
-            />
-          </AbsoluteFill>
-        )}
+        {!hideSubtitles && (() => {
+          const useCenterSeam = isSplit && autoAdaptiveSubtitles;
+          return (
+            <AbsoluteFill style={{
+              justifyContent: useCenterSeam ? 'center' : (position === 'top' ? 'flex-start' : position === 'center' ? 'center' : 'flex-end'),
+              alignItems: 'center',
+              paddingTop: !useCenterSeam && position === 'top' ? `${subtitleOffset}px` : 0,
+              paddingBottom: !useCenterSeam && position === 'bottom' ? `${subtitleOffset}px` : 0,
+              transform: useCenterSeam ? `translateY(${subtitleOffset}px)` : undefined,
+              zIndex: 20
+            }}>
+              <AnimatedSubtitles
+                words={words}
+                wordTimings={wordTimings}
+                showDebug={showDebug}
+                style={subtitleStyle}
+              />
+            </AbsoluteFill>
+          );
+        })()}
 
         {/* Timeline Text layers */}
         {activeTextItems.map((item) => {

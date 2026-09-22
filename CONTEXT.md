@@ -68,6 +68,15 @@ _Avoid_: Hook reasoning, virality explanation, description, AI comment
 The intelligent visual tracking pipeline that dynamically crops and follows active speakers or salient subjects from horizontal 16:9 source footage into vertical 9:16 aspect ratio suitable for short-form video.
 _Avoid_: Vertical crop, auto pan, smart crop, aspect reframing
 
+**Stacked Multi-Speaker Reframe**:
+The dynamic layout mode within the Face Tracking & Auto-Reframe pipeline that splits the vertical 9:16 canvas into stacked top and bottom viewports when two speakers are simultaneously visible in wide footage, framing the left speaker on top and the right speaker on bottom, and automatically reverting to single-speaker framing during solo shots.
+_Avoid_: Split screen video, double crop, 2 face mode, dual vertical
+
+**Auto-Adaptive Subtitle Placement**:
+The dynamic positioning mechanism that automatically anchors subtitles over the center dividing seam in Stacked Multi-Speaker Reframe to prevent speaker occlusion, while returning to standard lower-third positioning in single-speaker framing, with manual override available in settings.
+_Avoid_: Dynamic subtitles, floating text jump, split captions
+
+
 **Word-Level Audio Censorship**:
 The surgical audio alteration feature that mutes or replaces specific spoken words with bleep audio presets at millisecond precision without cutting or shifting video timeline frames.
 _Avoid_: Audio bleep, profanity filter, censor cut, voice mute

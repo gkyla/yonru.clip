@@ -37,14 +37,26 @@ class FaceTracker(AbstractFaceTracker):
         # Thresholds
         DEADZONE = width * 0.025
         MIN_SWITCH_DIST = width * 0.15
+        SMOOTHING_FACTOR = 0.3
         
+        # Stability / Hysteresis threshold (1.0s minimum hold)
+        samples_per_sec = max(1.0, fps / 2.0)
+        STABLE_HOLD_SAMPLES = max(2, int(1.0 * samples_per_sec))
+
         frame_idx = 0
         crop_map = []
-        actual_x = None      # Current camera position
+        actual_x = None             # Current camera position (single speaker)
+        actual_top_x = None         # Current top speaker position (split mode)
+        actual_bottom_x = None      # Current bottom speaker position (split mode)
         
-        # Stability State
+        # Single-mode snap stability state
         pending_snap_x = None
         snap_frames_count = 0
+
+        # Multi-speaker hysteresis state
+        is_split_mode = False
+        consecutive_split_samples = 0
+        consecutive_single_samples = 0
         
         while True:
             ret, frame = source.read()
@@ -54,64 +66,170 @@ class FaceTracker(AbstractFaceTracker):
             if frame_idx % 2 == 0:
                 t_sec = frame_idx / fps
                 
-                # Locate face position using deep seam
-                detected_target = detector.locate_face(frame, width)
+                # Locate face positions using deep seam
+                detected_faces = detector.locate_faces(frame, width, height)
                 
-                # ── APPLY Triple-B STABILITY ──
-                if detected_target is not None:
-                    if actual_x is None:
-                        # ── FIRST FACE EVER ──
-                        actual_x = detected_target
-                        # Backfill: Ensure the video starts at this position
-                        crop_map.append({"time": 0.0, "x": int(actual_x)})
-                        print(f"[face-track] [{t_sec:.2f}s] First face! Initializing & Backfilling to X: {actual_x:.0f}")
-                    else:
-                        dist = abs(detected_target - actual_x)
-                        
-                        if dist >= MIN_SWITCH_DIST:
-                            # ── POTENTIAL HARD CUT (VERIFICATION) ──
-                            if pending_snap_x is not None and abs(detected_target - pending_snap_x) < DEADZONE:
-                                snap_frames_count += 1
+                # Update split hysteresis counters
+                if len(detected_faces) >= 2:
+                    consecutive_split_samples += 1
+                    consecutive_single_samples = 0
+                else:
+                    consecutive_single_samples += 1
+                    consecutive_split_samples = 0
+
+                # Evaluate layout mode transitions with 1.0s hysteresis
+                just_entered_split = False
+                just_entered_single = False
+                if not is_split_mode and consecutive_split_samples >= STABLE_HOLD_SAMPLES:
+                    is_split_mode = True
+                    just_entered_split = True
+                    print(f"[face-track] [{t_sec:.2f}s] Switched to STACKED MULTI-SPEAKER (Split) mode.")
+                elif is_split_mode and consecutive_single_samples >= STABLE_HOLD_SAMPLES:
+                    is_split_mode = False
+                    just_entered_single = True
+                    print(f"[face-track] [{t_sec:.2f}s] Reverted to SINGLE-SPEAKER mode.")
+
+                if is_split_mode:
+                    # ── STACKED MULTI-SPEAKER TRACKING ──
+                    if len(detected_faces) >= 2:
+                        target_top = detected_faces[0]
+                        target_bottom = detected_faces[1]
+                    elif len(detected_faces) == 1:
+                        # Temporary partial dropout: assign to closest existing viewport
+                        if actual_top_x is not None and actual_bottom_x is not None:
+                            d_top = abs(detected_faces[0] - actual_top_x)
+                            d_bot = abs(detected_faces[0] - actual_bottom_x)
+                            if d_top < d_bot:
+                                target_top = detected_faces[0]
+                                target_bottom = actual_bottom_x
                             else:
-                                pending_snap_x = detected_target
-                                snap_frames_count = 1
-                            
-                            if snap_frames_count >= 2:
-                                # Confirmed for 2 frames → commit the snap
-                                actual_x = detected_target
-                                pending_snap_x = None
-                                snap_frames_count = 0
-                                print(f"[face-track] [{t_sec:.2f}s] SNAP CONFIRMED to X: {actual_x:.0f}")
-                            else:
-                                # Not confirmed yet → stay put (Persistence)
-                                print(f"[face-track] [{t_sec:.2f}s] Potential snap to {detected_target:.0f}, waiting for verification...")
+                                target_top = actual_top_x
+                                target_bottom = detected_faces[0]
                         else:
-                            # ── DRIFT (SAME SPEAKER) ──
+                            target_top = detected_faces[0]
+                            target_bottom = width * 0.75
+                    else:
+                        # Full temporary dropout: persist previous
+                        target_top = actual_top_x
+                        target_bottom = actual_bottom_x
+
+                    if target_top is not None and target_bottom is not None:
+                        if actual_top_x is None or actual_bottom_x is None or just_entered_split:
+                            actual_top_x = float(target_top)
+                            actual_bottom_x = float(target_bottom)
+                            if not crop_map:
+                                crop_map.append({
+                                    "time": 0.0,
+                                    "mode": "split",
+                                    "x": int(actual_top_x),
+                                    "top_x": int(actual_top_x),
+                                    "bottom_x": int(actual_bottom_x)
+                                })
+                        else:
+                            # Smooth tracking for top
+                            d_top = abs(target_top - actual_top_x)
+                            if d_top > DEADZONE:
+                                move_top = target_top - actual_top_x
+                                move_top = (move_top - DEADZONE) if move_top > 0 else (move_top + DEADZONE)
+                                actual_top_x += move_top * SMOOTHING_FACTOR
+
+                            # Smooth tracking for bottom
+                            d_bot = abs(target_bottom - actual_bottom_x)
+                            if d_bot > DEADZONE:
+                                move_bot = target_bottom - actual_bottom_x
+                                move_bot = (move_bot - DEADZONE) if move_bot > 0 else (move_bot + DEADZONE)
+                                actual_bottom_x += move_bot * SMOOTHING_FACTOR
+
+                        # Decimate: record keyframe if moved or mode changed
+                        prev_entry = crop_map[-1] if crop_map else None
+                        should_append = (
+                            not prev_entry
+                            or prev_entry.get("mode") != "split"
+                            or abs(actual_top_x - prev_entry.get("top_x", 0)) >= 1.0
+                            or abs(actual_bottom_x - prev_entry.get("bottom_x", 0)) >= 1.0
+                        )
+                        if should_append:
+                            crop_map.append({
+                                "time": round(t_sec, 3),
+                                "mode": "split",
+                                "x": int(actual_top_x),
+                                "top_x": int(actual_top_x),
+                                "bottom_x": int(actual_bottom_x)
+                            })
+                            actual_x = actual_top_x  # Keep sync for single-mode fallback
+
+                else:
+                    # ── SINGLE-SPEAKER TRACKING ──
+                    detected_target = detected_faces[0] if detected_faces else None
+
+                    if detected_target is not None:
+                        if actual_x is None:
+                            # ── FIRST FACE EVER ──
+                            actual_x = detected_target
+                            actual_top_x = actual_x
+                            actual_bottom_x = min(width - 1, actual_x + width * 0.3)
+                            # Backfill: Ensure the video starts at this position
+                            crop_map.append({
+                                "time": 0.0,
+                                "mode": "single",
+                                "x": int(actual_x)
+                            })
+                            print(f"[face-track] [{t_sec:.2f}s] First face! Initializing & Backfilling to X: {actual_x:.0f}")
+                        elif just_entered_single:
+                            # Instant snap cut when reverting from split to single
+                            actual_x = detected_target
                             pending_snap_x = None
                             snap_frames_count = 0
+                            print(f"[face-track] [{t_sec:.2f}s] Reverted to single: snapped to {actual_x:.0f}")
+                        else:
+                            dist = abs(detected_target - actual_x)
                             
-                            if dist > DEADZONE:
-                                move_amt = detected_target - actual_x
-                                move_amt = (move_amt - DEADZONE) if move_amt > 0 else (move_amt + DEADZONE)
-                                actual_x = actual_x + move_amt * 0.1
-                                # No print here to keep logs clean
-                else:
-                    # ── NO FACE DETECTED (PERSISTENCE) ──
-                    # If we have a position, keep it (Freeze). If not, do nothing.
-                    pending_snap_x = None
-                    snap_frames_count = 0
+                            if dist >= MIN_SWITCH_DIST:
+                                # ── POTENTIAL HARD CUT (VERIFICATION) ──
+                                if pending_snap_x is not None and abs(detected_target - pending_snap_x) < DEADZONE:
+                                    snap_frames_count += 1
+                                else:
+                                    pending_snap_x = detected_target
+                                    snap_frames_count = 1
+                                
+                                if snap_frames_count >= 2:
+                                    # Confirmed for 2 frames → commit the snap
+                                    actual_x = detected_target
+                                    pending_snap_x = None
+                                    snap_frames_count = 0
+                                    print(f"[face-track] [{t_sec:.2f}s] SNAP CONFIRMED to X: {actual_x:.0f}")
+                                else:
+                                    # Not confirmed yet → stay put (Persistence)
+                                    print(f"[face-track] [{t_sec:.2f}s] Potential snap to {detected_target:.0f}, waiting for verification...")
+                            else:
+                                # ── DRIFT (SAME SPEAKER) ──
+                                pending_snap_x = None
+                                snap_frames_count = 0
+                                
+                                if dist > DEADZONE:
+                                    move_amt = detected_target - actual_x
+                                    move_amt = (move_amt - DEADZONE) if move_amt > 0 else (move_amt + DEADZONE)
+                                    actual_x = actual_x + move_amt * SMOOTHING_FACTOR
+                    else:
+                        # ── NO FACE DETECTED (PERSISTENCE) ──
+                        pending_snap_x = None
+                        snap_frames_count = 0
+
+                    # Decimate: only append to crop_map if moved by >= 1 pixel or mode changed
                     if actual_x is not None:
-                        # We don't change actual_x, effectively freezing the camera
-                        pass
-                
-                # Decimate: only append to crop_map if moved by >= 1 pixel and we have a valid position
-                if actual_x is not None:
-                    if not crop_map or abs(actual_x - crop_map[-1]["x"]) >= 1.0:
-                        crop_map.append({
-                            "time": round(t_sec, 3),
-                            "x": int(actual_x)
-                        })
-            
+                        prev_entry = crop_map[-1] if crop_map else None
+                        should_append = (
+                            not prev_entry
+                            or prev_entry.get("mode") != "single"
+                            or abs(actual_x - prev_entry.get("x", 0)) >= 1.0
+                        )
+                        if should_append:
+                            crop_map.append({
+                                "time": round(t_sec, 3),
+                                "mode": "single",
+                                "x": int(actual_x)
+                            })
+
             frame_idx += 1
         
         source.close()
@@ -123,10 +241,13 @@ class FaceTracker(AbstractFaceTracker):
         # Add final keyframe for timeline coverage
         last_t = (frame_idx - 1) / fps
         if crop_map[-1]["time"] < last_t:
-            crop_map.append({"time": round(last_t, 3), "x": crop_map[-1]["x"]})
+            final_entry = dict(crop_map[-1])
+            final_entry["time"] = round(last_t, 3)
+            crop_map.append(final_entry)
 
         print(f"[face-track] Finished: {len(crop_map)} points generated.")
         return crop_map
+
 
 
 class MockFaceTracker(AbstractFaceTracker):

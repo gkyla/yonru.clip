@@ -6,12 +6,14 @@ import { calculateCropPercent } from '../utils/cropHelpers'
 export const useCropDrag = (
   previewScale: { value: number },
   maxOffset: { value: number },
-  hasActiveTextItems: { value: boolean }
+  hasActiveTextItems: { value: boolean },
+  container?: { value: HTMLElement | null }
 ) => {
   const state = useClipperState()
   const isDragging = ref(false)
   const dragStartX = ref(0)
   const dragStartPercent = ref(50)
+  const dragTargetHalf = ref<'single' | 'top' | 'bottom'>('single')
   const showOverrideToast = ref(false)
   let toastTimer: any = null
 
@@ -23,13 +25,39 @@ export const useCropDrag = (
     }, 2500)
   }
 
+  function getActiveMode(): 'single' | 'split' {
+    if (!state.cropMap.value || state.cropMap.value.length === 0) return 'single'
+    const t = state.currentTime.value
+    let active = state.cropMap.value[0]
+    for (const entry of state.cropMap.value) {
+      if (entry.time <= t) active = entry
+      else break
+    }
+    return active?.mode === 'split' ? 'split' : 'single'
+  }
+
+  function determineTargetHalf(clientY: number): 'single' | 'top' | 'bottom' {
+    if (getActiveMode() !== 'split' || !container?.value) return 'single'
+    const rect = container.value.getBoundingClientRect()
+    const midY = rect.top + rect.height / 2
+    return clientY < midY ? 'top' : 'bottom'
+  }
+
   function startDrag(e: MouseEvent) {
     if (state.videoLayout?.value === 'landscape') return
     // Don't start pan drag if a timeline text overlay is selected
     if (state.selectedTimelineItem.value?.type === 'text' && hasActiveTextItems.value) return
     isDragging.value = true
     dragStartX.value = e.clientX
-    dragStartPercent.value = state.cropPercentX.value
+    dragTargetHalf.value = determineTargetHalf(e.clientY)
+
+    if (dragTargetHalf.value === 'top') {
+      dragStartPercent.value = state.cropPercentXTop.value ?? 50
+    } else if (dragTargetHalf.value === 'bottom') {
+      dragStartPercent.value = state.cropPercentXBottom.value ?? 50
+    } else {
+      dragStartPercent.value = state.cropPercentX.value ?? 50
+    }
   }
 
   function onDrag(e: MouseEvent) {
@@ -43,12 +71,19 @@ export const useCropDrag = (
     }
 
     if (state.cropMode.value === 'manual') {
-      state.cropPercentX.value = calculateCropPercent(
+      const newPercent = calculateCropPercent(
         dx,
         dragStartPercent.value,
         previewScale.value,
         maxOffset.value
       )
+      if (dragTargetHalf.value === 'top') {
+        state.cropPercentXTop.value = newPercent
+      } else if (dragTargetHalf.value === 'bottom') {
+        state.cropPercentXBottom.value = newPercent
+      } else {
+        state.cropPercentX.value = newPercent
+      }
     }
   }
 
@@ -63,7 +98,15 @@ export const useCropDrag = (
     if (touch) {
       isDragging.value = true
       dragStartX.value = touch.clientX
-      dragStartPercent.value = state.cropPercentX.value
+      dragTargetHalf.value = determineTargetHalf(touch.clientY)
+
+      if (dragTargetHalf.value === 'top') {
+        dragStartPercent.value = state.cropPercentXTop.value ?? 50
+      } else if (dragTargetHalf.value === 'bottom') {
+        dragStartPercent.value = state.cropPercentXBottom.value ?? 50
+      } else {
+        dragStartPercent.value = state.cropPercentX.value ?? 50
+      }
     }
   }
 
@@ -79,15 +122,23 @@ export const useCropDrag = (
       }
 
       if (state.cropMode.value === 'manual') {
-        state.cropPercentX.value = calculateCropPercent(
+        const newPercent = calculateCropPercent(
           dx,
           dragStartPercent.value,
           previewScale.value,
           maxOffset.value
         )
+        if (dragTargetHalf.value === 'top') {
+          state.cropPercentXTop.value = newPercent
+        } else if (dragTargetHalf.value === 'bottom') {
+          state.cropPercentXBottom.value = newPercent
+        } else {
+          state.cropPercentX.value = newPercent
+        }
       }
     }
   }
+
 
   return {
     isDragging,
