@@ -23,6 +23,10 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   cropPercentXBottom,
   splitZoomTop = 1.0,
   splitZoomBottom = 1.0,
+  splitOffsetXTop = 0,
+  splitOffsetYTop = 0,
+  splitOffsetXBottom = 0,
+  splitOffsetYBottom = 0,
   cropMap = [],
   position,
   videoLayout = 'vertical',
@@ -167,85 +171,57 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   const CONTAINER_W = 1080;
   const CONTAINER_H = 1920;
   
-  // Single / Landscape Display
+  // Single / Landscape Display - Constant Video Dimensions
   const videoDisplayW = isLandscape ? CONTAINER_W : CONTAINER_H * videoAspect;
   const videoDisplayH = isLandscape ? (CONTAINER_W / videoAspect) : CONTAINER_H;
   const maxOffset = Math.max(0, videoDisplayW - CONTAINER_W);
   
-  const scale = videoDisplayW / (sourceWidth || (isLandscape ? 1080 : 1920));
-  const targetTranslateX = isLandscape ? 0 : (CONTAINER_W / 2) - (activeFraming.x * scale);
+  const rawSourceW = sourceWidth || (isLandscape ? 1080 : 1920);
+  const singleScale = videoDisplayW / rawSourceW;
+  const targetTranslateX = isLandscape ? 0 : (CONTAINER_W / 2) - (activeFraming.x * singleScale);
   const translateX = isLandscape ? 0 : Math.max(-maxOffset, Math.min(0, targetTranslateX));
   const translateY = isLandscape ? (CONTAINER_H - videoDisplayH) / 2 : 0;
 
-  // Split Viewport Display (1080x960 each viewport) with Face-Anchored Viewport Framing Zoom
+  // Split Viewport Display (1080x960 each viewport) with Constant Video Dimensions & Pure GPU Transforms
   const PANEL_H = CONTAINER_H / 2;
-  const baseSplitDisplayW = PANEL_H * videoAspect;
-  const baseSplitScale = baseSplitDisplayW / (sourceWidth || 1920);
 
-  // Top Speaker Viewport Zoom & Transform
+  // Top Speaker Viewport Zoom & Transform with Zoom-Relative Framing Offset
   const effectiveZoomTop = Math.max(1.0, Math.min(2.5, splitZoomTop || 1.0));
-  const topDisplayW = baseSplitDisplayW * effectiveZoomTop;
-  const topDisplayH = PANEL_H * effectiveZoomTop;
-  const topScale = baseSplitScale * effectiveZoomTop;
+  const currentScaleTop = 0.5 * effectiveZoomTop;
+  const topDisplayW = videoDisplayW * currentScaleTop;
+  const topDisplayH = videoDisplayH * currentScaleTop;
   const topMaxOffset = Math.max(0, topDisplayW - CONTAINER_W);
+  const topExtraH = Math.max(0, topDisplayH - PANEL_H);
 
-  const targetTopTranslateX = (CONTAINER_W / 2) - (activeFraming.top_x * topScale);
+  // Horizontal Framing Nudge (bounded by CONTAINER_W * 0.35, strictly clamped to video bounds)
+  const topNudgeX = ((splitOffsetXTop || 0) / 100) * (CONTAINER_W * 0.35);
+  const targetTopTranslateX = (CONTAINER_W / 2) - ((activeFraming.top_x / rawSourceW) * topDisplayW) + topNudgeX;
   const topTranslateX = Math.max(-topMaxOffset, Math.min(0, targetTopTranslateX));
-  // Natural headroom bias: 25% top crop, 75% bottom crop
-  const topTranslateY = -(topDisplayH - PANEL_H) * 0.25;
 
-  // Split-to-Single Handoff Buffer (0.15s window to prevent compositor flicker / texture resize drop)
-  const handoffInfo = useMemo(() => {
-    if (!cropMap || cropMap.length === 0 || isLandscape) {
-      return { inHandoff: false, lastSplitBottomX: undefined, handoffProgress: 1 };
-    }
+  // Vertical Headroom Shift (base 25% natural headroom + user offset, strictly clamped to [ -topExtraH, 0 ])
+  const baseTopTranslateY = -topExtraH * 0.25;
+  const topNudgeY = ((splitOffsetYTop || 0) / 100) * (topExtraH * 0.5);
+  const topTranslateY = Math.max(-topExtraH, Math.min(0, baseTopTranslateY + topNudgeY));
 
-    let lastSplitIdx = -1;
-    let splitExitTime = -1;
-
-    for (let i = 0; i < cropMap.length; i++) {
-      if (cropMap[i].time > currentTime) break;
-
-      if (cropMap[i].mode === 'split') {
-        lastSplitIdx = i;
-        splitExitTime = -1; // Reset since we are back in split mode
-      } else if (lastSplitIdx !== -1 && splitExitTime === -1) {
-        splitExitTime = cropMap[i].time; // Mark exit point into single mode
-      }
-    }
-
-    if (splitExitTime !== -1 && currentTime >= splitExitTime) {
-      const elapsed = currentTime - splitExitTime;
-      const HANDOFF_DURATION = 0.15; // ~4-5 frames at 30fps
-      if (elapsed >= 0 && elapsed < HANDOFF_DURATION) {
-        const lastSplit = cropMap[lastSplitIdx];
-        const lastSplitBottomX = lastSplit?.bottom_x ?? lastSplit?.x;
-        return {
-          inHandoff: true,
-          lastSplitBottomX,
-          handoffProgress: elapsed / HANDOFF_DURATION
-        };
-      }
-    }
-
-    return { inHandoff: false, lastSplitBottomX: undefined, handoffProgress: 1 };
-  }, [cropMap, currentTime, isLandscape]);
-
-  // Bottom Speaker Viewport Zoom & Transform
+  // Bottom Speaker Viewport Zoom & Transform with Constant Video Dimensions & Pure GPU Transforms
   const effectiveZoomBottom = Math.max(1.0, Math.min(2.5, splitZoomBottom || 1.0));
-  const bottomDisplayW = baseSplitDisplayW * effectiveZoomBottom;
-  const bottomDisplayH = PANEL_H * effectiveZoomBottom;
-  const bottomScale = baseSplitScale * effectiveZoomBottom;
+  const currentScaleBottom = 0.5 * effectiveZoomBottom;
+  const bottomDisplayW = videoDisplayW * currentScaleBottom;
+  const bottomDisplayH = videoDisplayH * currentScaleBottom;
   const bottomMaxOffset = Math.max(0, bottomDisplayW - CONTAINER_W);
+  const bottomExtraH = Math.max(0, bottomDisplayH - PANEL_H);
 
-  const effectiveBottomX = (handoffInfo.inHandoff && handoffInfo.lastSplitBottomX !== undefined)
-    ? handoffInfo.lastSplitBottomX
-    : activeFraming.bottom_x;
+  const effectiveBottomX = activeFraming.bottom_x;
 
-  const targetBottomTranslateX = (CONTAINER_W / 2) - (effectiveBottomX * bottomScale);
+  // Horizontal Framing Nudge (bounded by CONTAINER_W * 0.35, strictly clamped to video bounds)
+  const bottomNudgeX = ((splitOffsetXBottom || 0) / 100) * (CONTAINER_W * 0.35);
+  const targetBottomTranslateX = (CONTAINER_W / 2) - ((effectiveBottomX / rawSourceW) * bottomDisplayW) + bottomNudgeX;
   const bottomTranslateX = Math.max(-bottomMaxOffset, Math.min(0, targetBottomTranslateX));
-  // Natural headroom bias: 25% top crop, 75% bottom crop
-  const bottomTranslateY = -(bottomDisplayH - PANEL_H) * 0.25;
+
+  // Vertical Headroom Shift (base 25% natural headroom + user offset, strictly clamped to [ -bottomExtraH, 0 ])
+  const baseBottomTranslateY = -bottomExtraH * 0.25;
+  const bottomNudgeY = ((splitOffsetYBottom || 0) / 100) * (bottomExtraH * 0.5);
+  const bottomTranslateY = Math.max(-bottomExtraH, Math.min(0, baseBottomTranslateY + bottomNudgeY));
 
 
   return (
@@ -319,7 +295,9 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   width: CONTAINER_W, 
                   height: isSplit ? `${PANEL_H}px` : `${CONTAINER_H}px`, 
                   overflow: 'hidden',
-                  zIndex: 2
+                  zIndex: 1,
+                  willChange: 'height',
+                  backfaceVisibility: 'hidden'
                 }}
               >
                 <Video 
@@ -329,18 +307,21 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   startFrom={mediaStartFrame}
                   endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
                   style={{ 
-                    height: isSplit ? `${topDisplayH}px` : `${videoDisplayH}px`, 
-                    width: isSplit ? `${topDisplayW}px` : `${videoDisplayW}px`, 
+                    height: `${videoDisplayH}px`, 
+                    width: `${videoDisplayW}px`, 
                     maxWidth: 'none',
+                    transformOrigin: '0 0',
                     transform: isSplit 
-                      ? `translate(${topTranslateX}px, ${topTranslateY}px)` 
-                      : `translate(${translateX}px, ${translateY}px)`,
-                    objectFit: 'cover'
+                      ? `translate3d(${topTranslateX}px, ${topTranslateY}px, 0) scale(${currentScaleTop})` 
+                      : `translate3d(${translateX}px, ${translateY}px, 0) scale(1)`,
+                    objectFit: 'cover',
+                    willChange: 'transform',
+                    backfaceVisibility: 'hidden'
                   }} 
                 />
               </div>
 
-              {/* Secondary Viewport (Bottom Speaker in Split with Underlay Handoff Buffer) */}
+              {/* Secondary Viewport (Bottom Speaker in Split - Instant Snap Cut) */}
               {!isLandscape && (
                 <div 
                   style={{ 
@@ -350,10 +331,12 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                     width: CONTAINER_W, 
                     height: `${PANEL_H}px`, 
                     overflow: 'hidden',
-                    zIndex: 1,
-                    opacity: isSplit ? 1 : (handoffInfo.inHandoff ? Math.max(0, 1 - handoffInfo.handoffProgress) : 0),
+                    zIndex: 3,
+                    opacity: isSplit ? 1 : 0,
                     pointerEvents: 'none',
-                    visibility: (isSplit || handoffInfo.inHandoff) ? 'visible' : 'hidden'
+                    visibility: isSplit ? 'visible' : 'hidden',
+                    willChange: 'opacity, visibility',
+                    backfaceVisibility: 'hidden'
                   }}
                 >
                   <Video 
@@ -363,11 +346,14 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                     startFrom={mediaStartFrame}
                     endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
                     style={{ 
-                      height: `${bottomDisplayH}px`, 
-                      width: `${bottomDisplayW}px`, 
+                      height: `${videoDisplayH}px`, 
+                      width: `${videoDisplayW}px`, 
                       maxWidth: 'none',
-                      transform: `translate(${bottomTranslateX}px, ${bottomTranslateY}px)`,
-                      objectFit: 'cover'
+                      transformOrigin: '0 0',
+                      transform: `translate3d(${bottomTranslateX}px, ${bottomTranslateY}px, 0) scale(${currentScaleBottom})`,
+                      objectFit: 'cover',
+                      willChange: 'transform',
+                      backfaceVisibility: 'hidden'
                     }} 
                   />
                 </div>
@@ -386,8 +372,8 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                     boxShadow: '0 0 10px 2px rgba(0, 0, 0, 0.75)',
                     zIndex: 15,
                     pointerEvents: 'none',
-                    opacity: isSplit ? 1 : (handoffInfo.inHandoff ? Math.max(0, 1 - (handoffInfo.handoffProgress * 2)) : 0),
-                    visibility: (isSplit || (handoffInfo.inHandoff && handoffInfo.handoffProgress < 0.5)) ? 'visible' : 'hidden'
+                    opacity: isSplit ? 1 : 0,
+                    visibility: isSplit ? 'visible' : 'hidden'
                   }} 
                 />
               )}

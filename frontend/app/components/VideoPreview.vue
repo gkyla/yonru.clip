@@ -18,7 +18,7 @@
       <!-- Draggable crop preview -->
       <div v-if="state?.videoUrl?.value && !state?.outputUrl?.value" 
            class="absolute inset-0 z-30 bg-black select-none"
-           :class="(state?.videoLayout?.value === 'landscape' || state?.cropMode?.value === 'face_tracking') ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'"
+           :class="canDragCanvas ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'"
            @mousedown="startDrag"
            @mousemove="onDrag"
            @mouseup="stopDrag"
@@ -966,6 +966,15 @@ const isSplitActive = computed(() => {
     else break
   }
   return active?.mode === 'split'
+})
+
+const canDragCanvas = computed(() => {
+  if (state?.videoLayout?.value === 'landscape') return false
+  if (state?.cropMode?.value === 'manual') return true
+  if (state?.cropMode?.value === 'face_tracking' && isSplitActive.value) {
+    return (state.splitZoomTop?.value ?? 1.0) > 1.0 || (state.splitZoomBottom?.value ?? 1.0) > 1.0
+  }
+  return false
 })
 
 const subtitleIndicatorStyle = computed(() => {

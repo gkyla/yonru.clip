@@ -30,6 +30,10 @@ class RenderComposition:
         self.source_height = kwargs.get("source_height", 1080)
         self.split_zoom_top = kwargs.get("split_zoom_top", 1.0)
         self.split_zoom_bottom = kwargs.get("split_zoom_bottom", 1.0)
+        self.split_offset_x_top = kwargs.get("split_offset_x_top", 0.0)
+        self.split_offset_y_top = kwargs.get("split_offset_y_top", 0.0)
+        self.split_offset_x_bottom = kwargs.get("split_offset_x_bottom", 0.0)
+        self.split_offset_y_bottom = kwargs.get("split_offset_y_bottom", 0.0)
 
 
 class SafeEncoder(json.JSONEncoder):
@@ -273,6 +277,10 @@ class StagedRenderContext:
             "sourceHeight": self.comp.source_height,
             "splitZoomTop": getattr(self.comp, "split_zoom_top", 1.0) or 1.0,
             "splitZoomBottom": getattr(self.comp, "split_zoom_bottom", 1.0) or 1.0,
+            "splitOffsetXTop": getattr(self.comp, "split_offset_x_top", 0.0) or 0.0,
+            "splitOffsetYTop": getattr(self.comp, "split_offset_y_top", 0.0) or 0.0,
+            "splitOffsetXBottom": getattr(self.comp, "split_offset_x_bottom", 0.0) or 0.0,
+            "splitOffsetYBottom": getattr(self.comp, "split_offset_y_bottom", 0.0) or 0.0,
         }
 
         self.props_path = os.path.abspath(os.path.join(self.output_dir, f"props_{self.out_filename}.json"))
@@ -531,6 +539,10 @@ class RenderEngine(ABC):
             source_height=source_height,
             split_zoom_top=getattr(req, "split_zoom_top", 1.0) or 1.0,
             split_zoom_bottom=getattr(req, "split_zoom_bottom", 1.0) or 1.0,
+            split_offset_x_top=getattr(req, "split_offset_x_top", 0.0) or 0.0,
+            split_offset_y_top=getattr(req, "split_offset_y_top", 0.0) or 0.0,
+            split_offset_x_bottom=getattr(req, "split_offset_x_bottom", 0.0) or 0.0,
+            split_offset_y_bottom=getattr(req, "split_offset_y_bottom", 0.0) or 0.0,
         )
 
     def compile_and_render(self, job: dict, req: Any, asset_repository: Any, out_filename: str) -> Optional[str]:

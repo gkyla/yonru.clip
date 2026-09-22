@@ -27,7 +27,7 @@ In `yonru.clip`, face tracking was previously governed by [ADR 0008](./0008-prec
    - When footage transitions to a solo close-up, automatically revert to single vertical 9:16 framing.
 4. **Hysteresis Anti-Flicker Guardrail & Fast Cut Bypass**:
    - Require a stability window of 0.8 seconds (consecutive positive detection) before switching from single into stacked multi-speaker layout.
-   - For reverting from split back to single on regular dropout, accelerate the hold window to 0.3 seconds (fast revert) while freezing viewport positions to prevent ghost camera panning.
+   - For reverting from split back to single on regular dropout, accelerate the hold window to 0.12 seconds (~2 confirmation samples / 4 frames) while freezing viewport positions to prevent ghost camera panning and eliminate lingering panel delay.
    - On camera scene cuts (where the solo face position jumps $>15\%$ frame width from existing viewports), bypass hysteresis and execute an immediate jump cut after 2 confirmation frames.
    - When no faces are detected (e.g. B-roll, presentation slides, or scenery footage), automatically revert to Single-Speaker framing with center crop ($X = 50\%$) after the stability hold.
    - Use instant jump cuts (1-frame snap cuts) for layout switches without animated whip-pan or slide-morph.
@@ -46,9 +46,16 @@ In `yonru.clip`, face tracking was previously governed by [ADR 0008](./0008-prec
    - Lock canvas dragging during active `face_tracking` mode to prevent accidental overrides to manual mode, requiring explicit navigation to `[ Manual Pan ]`.
 8. **Backward-Compatible Crop Map Schema**:
    - Extend `crop_map.json` keyframes with `mode: 'single' | 'split'`, providing `top_x` and `bottom_x` while preserving legacy `x` fallback.
-9. **Seamless Split-to-Single Layer Handoff Buffer**:
-   - In `Composition.tsx`, eliminate 1-frame compositor texture resize drops by enforcing deterministic DOM layering: Primary Viewport (`zIndex: 2`), Secondary Viewport (`zIndex: 1`), and Center Seam Divider (`zIndex: 15`).
-   - When reverting from split to single layout, maintain an active underlay handoff buffer of 0.15s (~4–5 frames) holding the last detected bottom speaker position (`lastSplitBottomX`) with linear fade-out. This guarantees that during GPU video surface re-allocation in the expanded primary viewport, the underlying canvas never exposes the bare black background.
+9. **Constant Native Video Dimensions and Instant Synchronous Snap Cut**:
+   - In `Composition.tsx`, eliminate 1-frame compositor texture drops and black flashes by enforcing **constant native CSS dimensions** on all `<Video>` elements (`width: videoDisplayW`, `height: videoDisplayH`, e.g. $3413\text{px} \times 1920\text{px}$). Neither `<Video>` element ever alters its DOM pixel dimensions across mode transitions, eliminating Chromium GPU texture surface reallocation.
+   - All viewport framing, dual zoom scales, and 2D headroom/pan offsets are executed $100\%$ via GPU hardware-accelerated transforms (`transform: translate3d(...) scale(...)`) with `overflow: hidden` container clipping.
+   - Execute an **Instant Synchronous Snap Cut (0s handoff delay)** on layout reversion: the instant `isSplit` becomes `false`, Secondary Viewport and Center Seam Divider cut to `visibility: 'hidden'` and `opacity: 0` on the exact cut frame. This prevents lingering secondary panels from rendering over single-speaker footage (which previously caused duplicate host face glitches).
+   - Viewport containers and video elements maintain GPU hardware layer promotion via `willChange` and `backfaceVisibility: 'hidden'`.
+10. **Zoom-Relative Framing Offset & 2D Canvas Dragging Guardrails**:
+   - When zoom $> 1.0\times$ in `face_tracking` mode, enable direct 2D canvas dragging and sidebar offset sliders (`splitOffsetXTop`, `splitOffsetYTop`, `splitOffsetXBottom`, `splitOffsetYBottom`) normalized between $[-50\%, +50\%]$.
+   - Rather than dropping out of face tracking into manual pan, framing offsets act as a persistent relative bias on top of the dynamic face tracking anchor. The camera continues to dynamically follow the speaker's movement while preserving custom headroom and horizontal framing.
+   - Enforce mathematical edge guardrails: translations are strictly clamped within physical source dimensions ($[- \text{extraH}, 0]$ vertically, $[- \text{maxOffset}, 0]$ horizontally), guaranteeing that black bars or background voids are physically impossible.
+   - At $1.0\times$ zoom, vertical headroom adjustment is locked to 0 (no vertical margin exists) and canvas dragging is disabled to avoid accidental mode disruption.
 
 ## Consequences
 

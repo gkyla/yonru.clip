@@ -134,6 +134,10 @@ function createClipperState() {
   const cropPercentXBottom = useState<number>('cropPercentXBottom', () => 50)
   const splitZoomTop = useState<number>('splitZoomTop', () => 1.0)
   const splitZoomBottom = useState<number>('splitZoomBottom', () => 1.0)
+  const splitOffsetXTop = useState<number>('splitOffsetXTop', () => 0)
+  const splitOffsetYTop = useState<number>('splitOffsetYTop', () => 0)
+  const splitOffsetXBottom = useState<number>('splitOffsetXBottom', () => 0)
+  const splitOffsetYBottom = useState<number>('splitOffsetYBottom', () => 0)
   const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
   const whisperModel = useState<string>('whisperModel', () => 'base')
   const useNativePlayer = useState<boolean>('useNativePlayer', () => false)
@@ -472,6 +476,10 @@ function createClipperState() {
       cropPercentXBottom: cropPercentXBottom.value,
       splitZoomTop: splitZoomTop.value,
       splitZoomBottom: splitZoomBottom.value,
+      splitOffsetXTop: splitOffsetXTop.value,
+      splitOffsetYTop: splitOffsetYTop.value,
+      splitOffsetXBottom: splitOffsetXBottom.value,
+      splitOffsetYBottom: splitOffsetYBottom.value,
       subtitleMode: subtitleMode.value,
       subtitleAnimation: subtitleAnimation.value,
       subtitleHighlightMode: subtitleHighlightMode.value,
@@ -508,6 +516,10 @@ function createClipperState() {
       cropPercentX: cropPercentX.value,
       splitZoomTop: splitZoomTop.value,
       splitZoomBottom: splitZoomBottom.value,
+      splitOffsetXTop: splitOffsetXTop.value,
+      splitOffsetYTop: splitOffsetYTop.value,
+      splitOffsetXBottom: splitOffsetXBottom.value,
+      splitOffsetYBottom: splitOffsetYBottom.value,
       subtitleMode: subtitleMode.value,
       subtitleAnimation: subtitleAnimation.value,
       subtitleHighlightMode: subtitleHighlightMode.value,
@@ -640,7 +652,7 @@ function createClipperState() {
     promptsList, selectedPrompt,
     extractionMode, selectedPresetId, focusTopic, minDuration, maxDuration,
     youtubeUrl, language, videoLayout, subtitlePosition, subtitleOffset, subtitleSyncOffset, autoAdaptiveSubtitles,
-    font, fontSize, faceTracking, cropMode, cropMap, cropPercentX, cropPercentXTop, cropPercentXBottom, splitZoomTop, splitZoomBottom, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
+    font, fontSize, faceTracking, cropMode, cropMap, cropPercentX, cropPercentXTop, cropPercentXBottom, splitZoomTop, splitZoomBottom, splitOffsetXTop, splitOffsetYTop, splitOffsetXBottom, splitOffsetYBottom, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
     whisperModels: WHISPER_MODELS,
     activeSafeZone,
     safeZoneOpacity,

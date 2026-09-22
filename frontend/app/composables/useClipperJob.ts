@@ -72,6 +72,10 @@ export const useClipperJob = () => {
   const cropPercentX = useState<number>('cropPercentX', () => 50)
   const splitZoomTop = useState<number>('splitZoomTop', () => 1.0)
   const splitZoomBottom = useState<number>('splitZoomBottom', () => 1.0)
+  const splitOffsetXTop = useState<number>('splitOffsetXTop', () => 0)
+  const splitOffsetYTop = useState<number>('splitOffsetYTop', () => 0)
+  const splitOffsetXBottom = useState<number>('splitOffsetXBottom', () => 0)
+  const splitOffsetYBottom = useState<number>('splitOffsetYBottom', () => 0)
   const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
   const subtitleAnimation = useState<string>('subtitleAnimation', () => 'pop')
   const subtitleHighlightMode = useState<string>('subtitleHighlightMode', () => 'color')
@@ -110,6 +114,10 @@ export const useClipperJob = () => {
     if (styles.cropPercentX !== undefined) cropPercentX.value = styles.cropPercentX
     if (styles.splitZoomTop !== undefined) splitZoomTop.value = styles.splitZoomTop
     if (styles.splitZoomBottom !== undefined) splitZoomBottom.value = styles.splitZoomBottom
+    if (styles.splitOffsetXTop !== undefined) splitOffsetXTop.value = styles.splitOffsetXTop
+    if (styles.splitOffsetYTop !== undefined) splitOffsetYTop.value = styles.splitOffsetYTop
+    if (styles.splitOffsetXBottom !== undefined) splitOffsetXBottom.value = styles.splitOffsetXBottom
+    if (styles.splitOffsetYBottom !== undefined) splitOffsetYBottom.value = styles.splitOffsetYBottom
     if (styles.subtitleMode) subtitleMode.value = styles.subtitleMode
     if (styles.subtitleAnimation) subtitleAnimation.value = styles.subtitleAnimation
     if (styles.subtitleHighlightMode) subtitleHighlightMode.value = styles.subtitleHighlightMode

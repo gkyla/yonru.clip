@@ -127,5 +127,62 @@ describe('useCropDrag Composable - Canvas Auto-Reframe Override', () => {
     expect(state.cropPercentXTop.value).toBe(prevTop)
     stopDrag()
   })
+
+  it('allows 2D canvas dragging in face_tracking mode when zoom > 1.0x and clamps offsets within [-50, +50]', () => {
+    const previewScale = ref(1.0)
+    const maxOffset = ref(1000)
+    const hasActiveTextItems = ref(false)
+
+    const mockContainer = ref<HTMLElement>({
+      getBoundingClientRect: () => ({
+        top: 0,
+        height: 1000,
+        left: 0,
+        width: 500,
+        bottom: 1000,
+        right: 500
+      })
+    } as any)
+
+    const state = useClipperState()
+    state.cropMode.value = 'face_tracking'
+    state.cropMap.value = [
+      { time: 0, x: 500, mode: 'split', top_x: 300, bottom_x: 700 }
+    ]
+    state.currentTime.value = 0
+    state.splitZoomTop.value = 1.4
+    state.splitOffsetXTop.value = 0
+    state.splitOffsetYTop.value = 0
+
+    const { startDrag, onDrag, stopDrag, isDragging } = useCropDrag(
+      previewScale,
+      maxOffset,
+      hasActiveTextItems,
+      mockContainer
+    )
+
+    // Drag top half (clientY = 200 < 500)
+    startDrag({ clientX: 100, clientY: 200 } as MouseEvent)
+    expect(isDragging.value).toBe(true)
+
+    // Drag right by 50px, down by 30px
+    onDrag({ clientX: 150, clientY: 230 } as MouseEvent)
+    // dx = 50 -> splitOffsetXTop > 0
+    // dy = 30 -> splitOffsetYTop > 0
+    expect(state.splitOffsetXTop.value).toBeGreaterThan(0)
+    expect(state.splitOffsetYTop.value).toBeGreaterThan(0)
+
+    // Extreme drag to test boundary clamping to +50%
+    onDrag({ clientX: 5000, clientY: 5000 } as MouseEvent)
+    expect(state.splitOffsetXTop.value).toBe(50)
+    expect(state.splitOffsetYTop.value).toBe(50)
+
+    // Extreme negative drag to test boundary clamping to -50%
+    onDrag({ clientX: -5000, clientY: -5000 } as MouseEvent)
+    expect(state.splitOffsetXTop.value).toBe(-50)
+    expect(state.splitOffsetYTop.value).toBe(-50)
+
+    stopDrag()
+  })
 })
 

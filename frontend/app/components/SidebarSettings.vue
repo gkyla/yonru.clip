@@ -560,6 +560,65 @@
                           <span>1.75x</span>
                           <span>2.5x (Close)</span>
                         </div>
+
+                        <!-- Top Speaker Framing Adjustments (Disclosed when zoom > 1.0) -->
+                        <div v-if="(state.splitZoomTop?.value ?? 1.0) > 1.0" class="mt-2.5 p-2 rounded-lg bg-surface-dark/70 border border-white/5 space-y-2">
+                          <div class="flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                            <span class="flex items-center gap-1">
+                              <Icon name="ri:focus-3-line" class="text-accent-500 text-[10px]" />
+                              Top Framing Offset
+                            </span>
+                            <button
+                              v-if="(state.splitOffsetXTop?.value ?? 0) !== 0 || (state.splitOffsetYTop?.value ?? 0) !== 0"
+                              @click="resetTopFraming"
+                              class="text-[7px] uppercase px-1 py-0.2 rounded bg-surface-border text-slate-300 hover:text-white transition-colors"
+                            >
+                              Reset
+                            </button>
+                          </div>
+
+                          <!-- Vertical Headroom -->
+                          <div>
+                            <div class="flex justify-between items-center text-[8px] text-slate-400 mb-0.5">
+                              <span>Vertical Headroom</span>
+                              <span class="mono text-accent-500 font-bold">{{ Math.round(state.splitOffsetYTop?.value ?? 0) }}%</span>
+                            </div>
+                            <input
+                              v-model.number="state.splitOffsetYTop.value"
+                              type="range"
+                              min="-50"
+                              max="50"
+                              step="1"
+                              class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                            />
+                            <div class="flex justify-between text-[7px] text-slate-500 mono">
+                              <span>More Chest</span>
+                              <span>Center</span>
+                              <span>More Headroom</span>
+                            </div>
+                          </div>
+
+                          <!-- Horizontal Nudge -->
+                          <div>
+                            <div class="flex justify-between items-center text-[8px] text-slate-400 mb-0.5">
+                              <span>Horizontal Nudge</span>
+                              <span class="mono text-accent-500 font-bold">{{ Math.round(state.splitOffsetXTop?.value ?? 0) }}%</span>
+                            </div>
+                            <input
+                              v-model.number="state.splitOffsetXTop.value"
+                              type="range"
+                              min="-50"
+                              max="50"
+                              step="1"
+                              class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                            />
+                            <div class="flex justify-between text-[7px] text-slate-500 mono">
+                              <span>Left</span>
+                              <span>Center</span>
+                              <span>Right</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       <!-- Bottom Speaker Zoom -->
@@ -583,6 +642,65 @@
                           <span>1.0x (Fit)</span>
                           <span>1.75x</span>
                           <span>2.5x (Close)</span>
+                        </div>
+
+                        <!-- Bottom Speaker Framing Adjustments (Disclosed when zoom > 1.0) -->
+                        <div v-if="(state.splitZoomBottom?.value ?? 1.0) > 1.0" class="mt-2.5 p-2 rounded-lg bg-surface-dark/70 border border-white/5 space-y-2">
+                          <div class="flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                            <span class="flex items-center gap-1">
+                              <Icon name="ri:focus-3-line" class="text-accent-500 text-[10px]" />
+                              Bottom Framing Offset
+                            </span>
+                            <button
+                              v-if="(state.splitOffsetXBottom?.value ?? 0) !== 0 || (state.splitOffsetYBottom?.value ?? 0) !== 0"
+                              @click="resetBottomFraming"
+                              class="text-[7px] uppercase px-1 py-0.2 rounded bg-surface-border text-slate-300 hover:text-white transition-colors"
+                            >
+                              Reset
+                            </button>
+                          </div>
+
+                          <!-- Vertical Headroom -->
+                          <div>
+                            <div class="flex justify-between items-center text-[8px] text-slate-400 mb-0.5">
+                              <span>Vertical Headroom</span>
+                              <span class="mono text-accent-500 font-bold">{{ Math.round(state.splitOffsetYBottom?.value ?? 0) }}%</span>
+                            </div>
+                            <input
+                              v-model.number="state.splitOffsetYBottom.value"
+                              type="range"
+                              min="-50"
+                              max="50"
+                              step="1"
+                              class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                            />
+                            <div class="flex justify-between text-[7px] text-slate-500 mono">
+                              <span>More Chest</span>
+                              <span>Center</span>
+                              <span>More Headroom</span>
+                            </div>
+                          </div>
+
+                          <!-- Horizontal Nudge -->
+                          <div>
+                            <div class="flex justify-between items-center text-[8px] text-slate-400 mb-0.5">
+                              <span>Horizontal Nudge</span>
+                              <span class="mono text-accent-500 font-bold">{{ Math.round(state.splitOffsetXBottom?.value ?? 0) }}%</span>
+                            </div>
+                            <input
+                              v-model.number="state.splitOffsetXBottom.value"
+                              type="range"
+                              min="-50"
+                              max="50"
+                              step="1"
+                              class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                            />
+                            <div class="flex justify-between text-[7px] text-slate-500 mono">
+                              <span>Left</span>
+                              <span>Center</span>
+                              <span>Right</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -886,6 +1004,20 @@ function toggleAutoAdaptiveSubtitles() {
 function resetSplitZoom() {
   if (state.splitZoomTop) state.splitZoomTop.value = 1.0
   if (state.splitZoomBottom) state.splitZoomBottom.value = 1.0
+  if (state.splitOffsetXTop) state.splitOffsetXTop.value = 0
+  if (state.splitOffsetYTop) state.splitOffsetYTop.value = 0
+  if (state.splitOffsetXBottom) state.splitOffsetXBottom.value = 0
+  if (state.splitOffsetYBottom) state.splitOffsetYBottom.value = 0
+}
+
+function resetTopFraming() {
+  if (state.splitOffsetXTop) state.splitOffsetXTop.value = 0
+  if (state.splitOffsetYTop) state.splitOffsetYTop.value = 0
+}
+
+function resetBottomFraming() {
+  if (state.splitOffsetXBottom) state.splitOffsetXBottom.value = 0
+  if (state.splitOffsetYBottom) state.splitOffsetYBottom.value = 0
 }
 
 // Segmented Navigation Tab State

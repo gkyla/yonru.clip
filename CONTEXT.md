@@ -76,6 +76,10 @@ _Avoid_: Split screen video, double crop, 2 face mode, dual vertical
 The scaling mechanism within Stacked Multi-Speaker Reframe that magnifies the video centered on each detected speaker's face coordinates, isolating tight single-speaker closeups and cropping out adjacent subjects in crowded or wide-angle footage.
 _Avoid_: Digital zoom, scale slider, crop zoom, camera zoom
 
+**Zoom-Relative Framing Offset**:
+The dual-axis (horizontal and vertical) micro-adjustment mechanism within Face-Anchored Viewport Zoom that enables creators to fine-tune headroom and horizontal composition relative to detected faces while preserving active dynamic AI face tracking and enforcing strict edge clamping to prevent black voids.
+_Avoid_: Manual pan override, static crop position, pixel nudge, split camera drag
+
 **Auto-Adaptive Subtitle Placement**:
 The dynamic positioning mechanism that automatically anchors subtitles over the center dividing seam in Stacked Multi-Speaker Reframe to prevent speaker occlusion, while returning to standard lower-third positioning in single-speaker framing, with manual override available in settings.
 _Avoid_: Dynamic subtitles, floating text jump, split captions

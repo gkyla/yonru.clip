@@ -107,6 +107,10 @@ class RenderRequest(BaseModel):
     crop_percent_x: float = 50.0  # 0=left, 50=center, 100=right
     split_zoom_top: Optional[float] = 1.0
     split_zoom_bottom: Optional[float] = 1.0
+    split_offset_x_top: Optional[float] = 0.0
+    split_offset_y_top: Optional[float] = 0.0
+    split_offset_x_bottom: Optional[float] = 0.0
+    split_offset_y_bottom: Optional[float] = 0.0
     subtitle_sync_offset: float = 0.0  # Timing adjustment in MS
     subtitle_mode: str = "word"
     timeline_tracks: Optional[list] = None

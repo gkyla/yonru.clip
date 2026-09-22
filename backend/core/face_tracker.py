@@ -41,10 +41,10 @@ class FaceTracker(AbstractFaceTracker):
         
         # Stability / Hysteresis thresholds
         # Entering split mode requires 0.8s of stable dual faces
-        # Reverting to single mode on regular dropout requires 0.3s (fast revert)
+        # Reverting to single mode on regular dropout requires fast confirmation (~0.12s / 2 samples)
         samples_per_sec = max(1.0, fps / 2.0)
         SPLIT_ENTER_HOLD_SAMPLES = max(2, int(0.8 * samples_per_sec))
-        SPLIT_REVERT_HOLD_SAMPLES = max(2, int(0.3 * samples_per_sec))
+        SPLIT_REVERT_HOLD_SAMPLES = max(2, int(0.12 * samples_per_sec))
 
         frame_idx = 0
         crop_map = []

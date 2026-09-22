@@ -45,6 +45,10 @@ export const useClipperExport = (deps: ExportDeps) => {
   const cropPercentX = useState<number>('cropPercentX', () => 50)
   const splitZoomTop = useState<number>('splitZoomTop', () => 1.0)
   const splitZoomBottom = useState<number>('splitZoomBottom', () => 1.0)
+  const splitOffsetXTop = useState<number>('splitOffsetXTop', () => 0)
+  const splitOffsetYTop = useState<number>('splitOffsetYTop', () => 0)
+  const splitOffsetXBottom = useState<number>('splitOffsetXBottom', () => 0)
+  const splitOffsetYBottom = useState<number>('splitOffsetYBottom', () => 0)
   const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
   const subtitleAnimation = useState<string>('subtitleAnimation', () => 'pop')
   const subtitleHighlightMode = useState<string>('subtitleHighlightMode', () => 'color')
@@ -113,6 +117,10 @@ export const useClipperExport = (deps: ExportDeps) => {
       crop_percent_x: cropPercentX.value,
       split_zoom_top: splitZoomTop.value,
       split_zoom_bottom: splitZoomBottom.value,
+      split_offset_x_top: splitOffsetXTop.value,
+      split_offset_y_top: splitOffsetYTop.value,
+      split_offset_x_bottom: splitOffsetXBottom.value,
+      split_offset_y_bottom: splitOffsetYBottom.value,
       subtitle_sync_offset: subtitleSyncOffset.value,
       subtitle_mode: subtitleMode.value,
       timeline_tracks: timeline.timelineTracks.value,
