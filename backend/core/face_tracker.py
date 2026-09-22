@@ -37,14 +37,20 @@ class FaceTracker(AbstractFaceTracker):
         # Thresholds
         DEADZONE = width * 0.025
         MIN_SWITCH_DIST = width * 0.15
+        MIN_SPLIT_SEPARATION = width * 0.20
         SMOOTHING_FACTOR = 0.3
         
         # Stability / Hysteresis thresholds
-        # Entering split mode requires 0.8s of stable dual faces
-        # Reverting to single mode on regular dropout requires fast confirmation (~0.12s / 2 samples)
+        # Entering split mode:
+        #   - Fast Cut Bypass: 2 samples (~0.13s) when dual faces are separated by >= 20% width with instant backfill
+        #   - Regular In-Scene Entry: ~0.35s of stable dual faces
+        # Reverting to single mode:
+        #   - Fast Scene Cut: 2 samples (~0.12s via is_cut_to_single) when solo face jumps far from both viewports
+        #   - Partial Dropout / Blink Hold: ~0.8s of sustained single speaker before collapsing layout
+        #   - Full Dropout Hold: ~0.8s when 0 faces are detected
         samples_per_sec = max(1.0, fps / 2.0)
-        SPLIT_ENTER_HOLD_SAMPLES = max(2, int(0.8 * samples_per_sec))
-        SPLIT_REVERT_HOLD_SAMPLES = max(2, int(0.12 * samples_per_sec))
+        SPLIT_ENTER_HOLD_SAMPLES = max(2, int(0.35 * samples_per_sec))
+        SPLIT_REVERT_HOLD_SAMPLES = max(2, int(0.8 * samples_per_sec))
 
         frame_idx = 0
         crop_map = []
@@ -62,6 +68,8 @@ class FaceTracker(AbstractFaceTracker):
         consecutive_single_samples = 0
         pending_split_cut_x = None
         split_cut_frames_count = 0
+        split_enter_cut_samples = 0
+        split_cut_first_t = None
         
         while True:
             ret, frame = source.read()
@@ -76,14 +84,30 @@ class FaceTracker(AbstractFaceTracker):
                 
                 # Update split hysteresis counters and cut detection
                 is_cut_to_single = False
+                is_cut_to_split = False
                 if len(detected_faces) >= 2:
                     consecutive_split_samples += 1
                     consecutive_single_samples = 0
                     pending_split_cut_x = None
                     split_cut_frames_count = 0
+
+                    # Scene Cut Detection into Split: two prominent faces with >= 20% width separation
+                    if not is_split_mode:
+                        d_faces = abs(detected_faces[1] - detected_faces[0])
+                        if d_faces >= MIN_SPLIT_SEPARATION:
+                            split_enter_cut_samples += 1
+                            if split_enter_cut_samples == 1:
+                                split_cut_first_t = t_sec
+                            elif split_enter_cut_samples >= 2:
+                                is_cut_to_split = True
+                        else:
+                            split_enter_cut_samples = 0
+                            split_cut_first_t = None
                 else:
                     consecutive_single_samples += 1
                     consecutive_split_samples = 0
+                    split_enter_cut_samples = 0
+                    split_cut_first_t = None
 
                     # Scene Cut Detection: if single face jumps far from BOTH viewports, it is a camera cut
                     if is_split_mode and len(detected_faces) == 1 and actual_top_x is not None and actual_bottom_x is not None:
@@ -109,10 +133,10 @@ class FaceTracker(AbstractFaceTracker):
                 # Evaluate layout mode transitions
                 just_entered_split = False
                 just_entered_single = False
-                if not is_split_mode and consecutive_split_samples >= SPLIT_ENTER_HOLD_SAMPLES:
+                if not is_split_mode and (is_cut_to_split or consecutive_split_samples >= SPLIT_ENTER_HOLD_SAMPLES):
                     is_split_mode = True
                     just_entered_split = True
-                    print(f"[face-track] [{t_sec:.2f}s] Switched to STACKED MULTI-SPEAKER (Split) mode.")
+                    print(f"[face-track] [{t_sec:.2f}s] Switched to STACKED MULTI-SPEAKER (Split) mode (cut={is_cut_to_split}).")
                 elif is_split_mode and (is_cut_to_single or consecutive_single_samples >= SPLIT_REVERT_HOLD_SAMPLES):
                     is_split_mode = False
                     just_entered_single = True
@@ -152,14 +176,26 @@ class FaceTracker(AbstractFaceTracker):
                         if actual_top_x is None or actual_bottom_x is None or just_entered_split:
                             actual_top_x = float(target_top)
                             actual_bottom_x = float(target_bottom)
-                            if not crop_map:
+
+                            split_time = t_sec
+                            if is_cut_to_split and split_cut_first_t is not None:
+                                split_time = split_cut_first_t
+                                # Backfill: prune any intermediate single-mode entries at or after split_cut_first_t
+                                while crop_map and crop_map[-1]["time"] >= split_time:
+                                    crop_map.pop()
+
+                            split_enter_cut_samples = 0
+                            split_cut_first_t = None
+
+                            if not crop_map or just_entered_split:
                                 crop_map.append({
-                                    "time": 0.0,
+                                    "time": round(split_time, 3),
                                     "mode": "split",
                                     "x": int(actual_top_x),
                                     "top_x": int(actual_top_x),
                                     "bottom_x": int(actual_bottom_x)
                                 })
+                                actual_x = actual_top_x
                         else:
                             # Smooth tracking for top
                             d_top = abs(target_top - actual_top_x)

@@ -34,17 +34,17 @@ class MediaPipeFaceDetector(FaceDetectorSeam):
         if not results.detections:
             return []
 
-        # Prominence Filter: bounding box height >= 10% of frame height (0.10 relative)
+        # Prominence Filter: bounding box height >= 8% of frame height (0.08 relative)
         prominent = []
         for d in results.detections:
             bbox = d.location_data.relative_bounding_box
-            if bbox.height >= 0.10:
+            if bbox.height >= 0.08:
                 area = bbox.width * bbox.height
                 x_center = float(bbox.xmin + bbox.width / 2) * width
                 prominent.append((area, x_center))
 
         if not prominent:
-            # Fallback to largest detected face if none meet 10% height threshold
+            # Fallback to largest detected face if none meet 8% height threshold
             best = max(
                 results.detections, 
                 key=lambda d: d.location_data.relative_bounding_box.width * d.location_data.relative_bounding_box.height

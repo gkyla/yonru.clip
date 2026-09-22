@@ -26,13 +26,14 @@ In `yonru.clip`, face tracking was previously governed by [ADR 0008](./0008-prec
      - **Bottom Viewport**: Crops and centers the right-hand speaker.
    - When footage transitions to a solo close-up, automatically revert to single vertical 9:16 framing.
 4. **Hysteresis Anti-Flicker Guardrail & Fast Cut Bypass**:
-   - Require a stability window of 0.8 seconds (consecutive positive detection) before switching from single into stacked multi-speaker layout.
-   - For reverting from split back to single on regular dropout, accelerate the hold window to 0.12 seconds (~2 confirmation samples / 4 frames) while freezing viewport positions to prevent ghost camera panning and eliminate lingering panel delay.
-   - On camera scene cuts (where the solo face position jumps $>15\%$ frame width from existing viewports), bypass hysteresis and execute an immediate jump cut after 2 confirmation frames.
+   - **Fast Cut Bypass into Split (0-Frame Delay)**: When a camera cut transitions from solo to wide dual-speaker footage (detected dual faces separated by $\ge 20\%$ frame width), execute an instant snap cut after 2 confirmation samples (~0.13s) and **backfill** the keyframe timestamp to sample 1 ($T$), achieving 0-frame delay at the cut boundary.
+   - For regular in-scene entry into split (non-cut / closer proximity $< 20\%$), apply a trimmed stability window of ~0.35 seconds (~5 samples / 10 frames) before switching from single into stacked multi-speaker layout.
+   - For reverting from split back to single on regular/partial dropout (e.g. eye blink, head turn, or temporary face occlusion while the other speaker remains in place), maintain a stability hold window of 0.8 seconds while freezing the missing speaker's viewport coordinates, preventing layout collapse or flicker during conversational pauses.
+   - On camera scene cuts to solo close-ups (where the solo face position jumps $>15\%$ frame width from existing viewports), bypass hysteresis and execute an immediate jump cut after 2 confirmation frames (~0.12s).
    - When no faces are detected (e.g. B-roll, presentation slides, or scenery footage), automatically revert to Single-Speaker framing with center crop ($X = 50\%$) after the stability hold.
    - Use instant jump cuts (1-frame snap cuts) for layout switches without animated whip-pan or slide-morph.
 5. **Prominence Filtering for Background Noise**:
-   - Filter detected faces by requiring a minimum bounding box height of $\ge 10\%$ of frame height, discarding background bystanders and passerby noise.
+   - Filter detected faces by requiring a minimum bounding box height of $\ge 8\%$ of frame height (reduced from 10% to reliably capture deep/wide podcast camera shots while discarding distant bystanders and passerby noise).
    - Sort the two most prominent faces by horizontal position (left $\rightarrow$ top pane, right $\rightarrow$ bottom pane).
 6. **Center-Seam Visual Divider & Auto-Adaptive Subtitle Ergonomics**:
    - Render a sleek 2px dark dividing seam with subtle shadow at $Y = 960\text{px}$ between the top and bottom panels.
