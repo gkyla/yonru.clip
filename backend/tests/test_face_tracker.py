@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from core.frame_source import InMemoryFrameSource
 from core.face_detector_seam import MockFaceDetector
+from core.scene_detector_seam import MockSceneDetector
 from core.face_tracker import FaceTracker
 
 class TestFaceTracker(unittest.TestCase):
@@ -240,6 +241,60 @@ class TestFaceTracker(unittest.TestCase):
         expected_x = (0.2 + 0.06 / 2) * 1000
         self.assertAlmostEqual(faces[0], expected_x)
 
+    def test_shot_anchored_snap_locks_exactly_to_scene_cut(self):
+        # 16 frames at 10 fps -> 8 samples (t = 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4)
+        # Visual cut occurs at t = 0.5s (between sample 2 (0.4s) and sample 3 (0.6s))
+        source = InMemoryFrameSource(total_frames=16, width=1000, height=1000, fps=10.0)
+        
+        # Samples 0, 1, 2 (t = 0.0, 0.2, 0.4): single face 500.0
+        # Samples 3..7 (t = 0.6..1.4): dual faces [200.0, 800.0]
+        mock_coordinates = [
+            500.0, 500.0, 500.0,
+            [200.0, 800.0], [200.0, 800.0], [200.0, 800.0], [200.0, 800.0], [200.0, 800.0]
+        ]
+        detector = MockFaceDetector(mock_coordinates)
+        scene_detector = MockSceneDetector(cut_timestamps=[0.5])
+        tracker = FaceTracker(frame_source=source, face_detector=detector, scene_detector=scene_detector)
+        crop_map = tracker.analyze_video("dummy_path")
+
+        split_points = [p for p in crop_map if p.get("mode") == "split"]
+        self.assertTrue(len(split_points) > 0, "Split mode should have activated via shot-anchored snap")
+
+        # The first split keyframe MUST snap exactly to the visual cut point at 0.5s!
+        # It must NOT be delayed to sample time 0.6s, and MUST NOT be prematurely backfilled to 0.4s.
+        first_split = split_points[0]
+        self.assertEqual(first_split["time"], 0.5, f"Expected split keyframe exactly at cut time 0.5s, got {first_split['time']}")
+        self.assertEqual(first_split["top_x"], 200)
+        self.assertEqual(first_split["bottom_x"], 800)
+
+        # No single-mode keyframe should exist at or after 0.5s
+        for p in crop_map:
+            if p["time"] >= 0.5:
+                self.assertEqual(p.get("mode"), "split", f"Found single mode at or after cut time: {p}")
+
+    def test_shot_anchored_revert_to_single_snaps_instantly_at_cut_point(self):
+        # 16 frames at 10 fps -> 8 samples
+        source = InMemoryFrameSource(total_frames=16, width=1000, height=1000, fps=10.0)
+        
+        # Starts in split mode (4 samples of dual faces)
+        # Visual cut occurs at t = 0.7s to a single face 500.0
+        # Sample at t = 0.8s detects single face 500.0
+        mock_coordinates = [
+            [200.0, 800.0], [200.0, 800.0], [200.0, 800.0], [200.0, 800.0],
+            500.0, 500.0, 500.0, 500.0
+        ]
+        detector = MockFaceDetector(mock_coordinates)
+        scene_detector = MockSceneDetector(cut_timestamps=[0.7])
+        tracker = FaceTracker(frame_source=source, face_detector=detector, scene_detector=scene_detector)
+        crop_map = tracker.analyze_video("dummy_path")
+
+        # Reversion to single mode should snap exactly to 0.7s
+        single_reverts = [p for p in crop_map if p.get("mode") == "single" and p["time"] > 0.0]
+        self.assertTrue(len(single_reverts) > 0, "Single mode should have reverted via shot-anchored snap")
+        self.assertEqual(single_reverts[0]["time"], 0.7, f"Expected single keyframe at 0.7s, got {single_reverts[0]['time']}")
+        self.assertEqual(single_reverts[0]["x"], 500)
+
 if __name__ == '__main__':
     unittest.main()
+
 

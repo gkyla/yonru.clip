@@ -84,6 +84,14 @@ _Avoid_: Manual pan override, static crop position, pixel nudge, split camera dr
 The dynamic positioning mechanism that automatically anchors subtitles over the center dividing seam in Stacked Multi-Speaker Reframe to prevent speaker occlusion, while returning to standard lower-third positioning in single-speaker framing, with manual override available in settings.
 _Avoid_: Dynamic subtitles, floating text jump, split captions
 
+**Visual Cut Point**:
+The exact timestamp or frame where a video camera angle or scene visually cuts between different shots.
+_Avoid_: Scene jump, split boundary, edit splice
+
+**Shot-Anchored Layout Snapping**:
+The synchronization mechanism within Face Tracking & Auto-Reframe that locks layout switches between single-speaker and Stacked Multi-Speaker Reframe strictly to the nearest prior Visual Cut Point, eliminating transition delay and duplicate face artifacts.
+_Avoid_: Cut backfill, frame snap, layout jump
+
 
 
 **Word-Level Audio Censorship**:
