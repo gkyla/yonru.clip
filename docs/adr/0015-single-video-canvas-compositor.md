@@ -25,6 +25,7 @@ We adopt a **Compositor Engine (Hybrid Split-Engine & Native Source Rate Alignme
    - **Single-Speaker Framing**: Extracts the single 9:16 crop window from source video coordinates directly to `(0, 0, 1080, 1920)` with strict edge boundary clamping (`0 <= sx <= vW - sw`).
    - **Stacked Multi-Speaker Reframe**: Extracts the top speaker's zoomed framing to `(0, 0, 1080, 960)` and the bottom speaker's zoomed framing to `(0, 960, 1080, 960)` **from the exact same video frame synchronously in the same render tick**.
    - **Scrubbing / Seeking Guard**: During interactive seeking (`video.seeking === true`), canvas redraw is held until the hardware decoder's `seeked` event fires, preventing the blitting of stale video frames across newly changed layout modes (eliminating duplicate face "muka kembar" artifacts during backwards scrubbing).
+   - **Time-Anchored Dynamic Framing**: Rather than relying on React's render loop props (which can lag by 1–2 ticks behind the browser's hardware video decoder during playback), `CanvasVideoCompositor` dynamically calculates `isSplit` and viewport coordinates directly from `video.currentTime` during `requestVideoFrameCallback`. This completely eliminates layout tearing and transition jitter (such as wide shot footage momentarily rendering with single close-up framing before split layout snaps in).
    - **Center Seam Divider**: A 2px dark dividing seam (`rgba(0, 0, 0, 0.85)`) is drawn directly on the canvas between viewports.
 
 2. **Headless Export: Frame-Accurate Native `<OffthreadVideo>` (`isRendering`)**:

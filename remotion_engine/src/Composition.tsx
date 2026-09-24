@@ -380,6 +380,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   volume={volume}
                   mediaStartFrame={mediaStartFrame}
                   durationFrames={durationFrames}
+                  fps={fps}
                   CONTAINER_W={CONTAINER_W}
                   CONTAINER_H={CONTAINER_H}
                   PANEL_H={PANEL_H}
@@ -397,6 +398,16 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   bottomTranslateX={bottomTranslateX}
                   bottomTranslateY={bottomTranslateY}
                   currentScaleBottom={currentScaleBottom}
+                  cropMap={cropMap}
+                  cropX={cropX}
+                  cropPercentXTop={cropPercentXTop}
+                  cropPercentXBottom={cropPercentXBottom}
+                  splitZoomTop={splitZoomTop}
+                  splitZoomBottom={splitZoomBottom}
+                  splitOffsetXTop={splitOffsetXTop}
+                  splitOffsetYTop={splitOffsetYTop}
+                  splitOffsetXBottom={splitOffsetXBottom}
+                  splitOffsetYBottom={splitOffsetYBottom}
                 />
               </AbsoluteFill>
             );
