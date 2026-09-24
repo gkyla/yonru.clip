@@ -14,7 +14,7 @@ class SceneDetectorSeam(ABC):
 class OpenCVSceneDetector(SceneDetectorSeam):
     def __init__(
         self,
-        threshold: float = 0.75,
+        threshold: float = 0.85,
         min_refractory_sec: float = 0.5,
         target_size: tuple = (160, 90)
     ):

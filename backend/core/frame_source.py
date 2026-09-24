@@ -69,7 +69,11 @@ class OpenCVFrameSource(FrameSource):
     def __init__(self, video_path: str, start_time: Optional[float] = None):
         self.video_path = video_path
         self.cap = cv2.VideoCapture(video_path)
-        self._start_time = start_time if start_time is not None else get_video_start_time(video_path)
+        # HTML5 <video> and Remotion Player always begin playback timeline at 0.0s.
+        # Container presentation timestamps (PTS offsets such as B-frame reordering delay)
+        # are normalized by browser media engines. Anchoring to 0.0s ensures 1:1 mathematical
+        # alignment between backend frame timestamps and frontend video.currentTime.
+        self._start_time = start_time if start_time is not None else 0.0
         
         self._width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self._height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
