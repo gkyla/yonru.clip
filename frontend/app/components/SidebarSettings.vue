@@ -150,7 +150,9 @@
                           currentPreset.textTransform === 'uppercase'
                             ? 'uppercase'
                             : 'none',
-                        textShadow: getOuterStrokeShadow(currentPreset.strokeWidth),
+                        textShadow: getOuterStrokeShadow(
+                          currentPreset.strokeWidth,
+                        ),
                       }"
                       class="px-2 py-1 rounded leading-tight transition-all text-center inline-block truncate max-w-full"
                       :class="{
@@ -210,7 +212,7 @@
                   class="text-[8.5px] uppercase tracking-wider text-slate-500 font-bold mb-1.5 block"
                   >Quick Styles</span
                 >
-                <div class="grid grid-cols-2 gap-1">
+                <div class="grid grid-cols-2 gap-1.5">
                   <button
                     v-for="preset in quickPresets"
                     :key="preset.id"
@@ -751,15 +753,13 @@
                 <span>Video Layout Mode</span>
                 <Icon name="ri:aspect-ratio-line" class="text-slate-400" />
               </h2>
-              <div
-                class="grid grid-cols-2 gap-1 bg-surface-dark/80 p-0.5 rounded-xl border border-surface-border/60"
-              >
+              <div class="grid grid-cols-2 gap-1.5">
                 <button
-                  class="py-1.5 px-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1"
+                  class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card"
                   :class="
                     (state.videoLayout?.value || 'vertical') === 'vertical'
-                      ? 'bg-accent-500 text-black shadow-md shadow-accent-500/20'
-                      : 'text-slate-400 hover:text-white hover:bg-surface-card/50'
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                      : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                   "
                   @click="
                     state.videoLayout
@@ -771,11 +771,11 @@
                   <span>Vertical (9:16)</span>
                 </button>
                 <button
-                  class="py-1.5 px-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1"
+                  class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card"
                   :class="
                     state.videoLayout?.value === 'landscape'
-                      ? 'bg-accent-500 text-black shadow-md shadow-accent-500/20'
-                      : 'text-slate-400 hover:text-white hover:bg-surface-card/50'
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                      : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                   "
                   @click="
                     state.videoLayout
@@ -808,15 +808,13 @@
                     <span>Crop Mode</span>
                     <Icon name="ri:crop-line" class="text-slate-400" />
                   </h2>
-                  <div
-                    class="grid grid-cols-2 gap-1 bg-surface-dark/80 p-0.5 rounded-xl border border-surface-border/60"
-                  >
+                  <div class="grid grid-cols-2 gap-1.5">
                     <button
-                      class="py-1.5 px-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1"
+                      class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card"
                       :class="
                         state.cropMode.value === 'face_tracking'
-                          ? 'bg-accent-500 text-black shadow-md shadow-accent-500/20'
-                          : 'text-slate-400 hover:text-white hover:bg-surface-card/50'
+                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                          : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                       "
                       @click="state.cropMode.value = 'face_tracking'"
                     >
@@ -824,11 +822,11 @@
                       <span>Face Track</span>
                     </button>
                     <button
-                      class="py-1.5 px-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1"
+                      class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card"
                       :class="
                         state.cropMode.value === 'manual'
-                          ? 'bg-accent-500 text-black shadow-md shadow-accent-500/20'
-                          : 'text-slate-400 hover:text-white hover:bg-surface-card/50'
+                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                          : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                       "
                       @click="state.cropMode.value = 'manual'"
                     >
@@ -857,7 +855,7 @@
                       <label
                         class="text-[9px] text-slate-400 flex justify-between uppercase font-bold tracking-wider mb-1"
                       >
-                        <span>Horizontal Position (Solo)</span>
+                        <span>Horizontal Position</span>
                         <span class="mono text-accent-500 font-bold"
                           >{{ Math.round(state.cropPercentX.value) }}%</span
                         >
@@ -878,70 +876,6 @@
                         <span>RIGHT</span>
                       </div>
                     </div>
-
-                    <!-- Dual Split Sliders (When split mode is detected or active) -->
-                    <div
-                      v-if="isCurrentSplit || hasAnySplit"
-                      class="bg-surface-dark/50 border border-accent-500/30 rounded-xl p-2.5 space-y-2.5"
-                    >
-                      <div class="flex items-center justify-between">
-                        <span
-                          class="text-[10px] text-accent-500 font-bold uppercase tracking-wider flex items-center gap-1.5"
-                        >
-                          <Icon name="ri:layout-row-line" />
-                          Stacked Dual Speakers
-                        </span>
-                        <span
-                          v-if="isCurrentSplit"
-                          class="text-[8px] uppercase px-1.5 py-0.5 rounded bg-accent-500/20 text-accent-500 font-bold"
-                          >Active Now</span
-                        >
-                      </div>
-
-                      <!-- Top Speaker -->
-                      <div>
-                        <label
-                          class="text-[9px] text-slate-400 flex justify-between uppercase font-bold tracking-wider mb-1"
-                        >
-                          <span>Top Speaker (Left)</span>
-                          <span class="mono text-accent-500 font-bold"
-                            >{{
-                              Math.round(state.cropPercentXTop?.value ?? 50)
-                            }}%</span
-                          >
-                        </label>
-                        <input
-                          v-model.number="state.cropPercentXTop.value"
-                          type="range"
-                          min="0"
-                          max="100"
-                          step="1"
-                          class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
-                        />
-                      </div>
-
-                      <!-- Bottom Speaker -->
-                      <div>
-                        <label
-                          class="text-[9px] text-slate-400 flex justify-between uppercase font-bold tracking-wider mb-1"
-                        >
-                          <span>Bottom Speaker (Right)</span>
-                          <span class="mono text-accent-500 font-bold"
-                            >{{
-                              Math.round(state.cropPercentXBottom?.value ?? 50)
-                            }}%</span
-                          >
-                        </label>
-                        <input
-                          v-model.number="state.cropPercentXBottom.value"
-                          type="range"
-                          min="0"
-                          max="100"
-                          step="1"
-                          class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
-                        />
-                      </div>
-                    </div>
                   </div>
                 </Transition>
 
@@ -955,32 +889,40 @@
                     class="overflow-hidden space-y-2 mt-2"
                   >
                     <p
-                      class="text-[9px] text-slate-400 flex items-center gap-1.5"
+                      class="text-[10px] text-slate-400 flex items-center gap-1.5"
                     >
                       <Icon
                         name="ri:sparkling-fill"
                         class="text-accent-500 text-xs shrink-0"
                       />
-                      <span>Responsive dynamic tracking active.</span>
+                      <span
+                        >You can zoom in/out speaker whenever screen is
+                        splitted</span
+                      >
                     </p>
 
                     <!-- Stacked Multi-Speaker Framing Zoom Controls (Option 1: Segmented Speaker Switcher) -->
                     <div
                       v-if="isCurrentSplit || hasAnySplit"
-                      class="bg-surface-dark/50 border border-accent-500/30 rounded-xl p-2.5 space-y-2.5"
+                      class="bg-surface-dark/40 border border-surface-border/80 rounded-xl p-2.5 space-y-2.5"
                     >
                       <div class="flex items-center justify-between">
                         <span
                           class="text-[10px] text-accent-500 font-bold uppercase tracking-wider flex items-center gap-1.5"
                         >
                           <Icon name="ri:zoom-in-line" class="text-xs" />
-                          Stacked Speaker Zoom
+                          Split Speaker Zoom
                         </span>
                         <div class="flex items-center gap-1.5">
                           <span
                             v-if="isCurrentSplit"
-                            class="text-[7.5px] uppercase px-1.5 py-0.2 rounded bg-accent-500/20 text-accent-500 font-bold"
-                            >Split Active</span
+                            class="text-[7.5px] uppercase px-1.5 py-0.5 rounded bg-accent-500/20 text-accent-500 font-bold border border-accent-500/30"
+                            >Active</span
+                          >
+                          <span
+                            v-else
+                            class="text-[7.5px] uppercase px-1.5 py-0.5 rounded bg-surface-card text-slate-400 font-bold border border-surface-border"
+                            >Inactive (Solo)</span
                           >
                           <button
                             v-if="
@@ -998,6 +940,32 @@
                             Reset
                           </button>
                         </div>
+                      </div>
+
+                      <!-- Contextual Jump to Split Banner when currently on single-speaker shot -->
+                      <div
+                        v-if="!isCurrentSplit"
+                        class="flex items-center justify-between p-1.5 rounded-lg bg-surface-dark/70 border border-surface-border/60 text-[8.5px]"
+                      >
+                        <div
+                          class="flex items-center gap-1 text-slate-400 truncate min-w-0"
+                        >
+                          <Icon
+                            name="ri:information-line"
+                            class="text-xs text-slate-400 shrink-0"
+                          />
+                          <span class="truncate"
+                            >Currently on single speaker</span
+                          >
+                        </div>
+                        <button
+                          type="button"
+                          class="text-[8px] font-bold text-accent-500 hover:text-accent-400 uppercase tracking-wider flex items-center gap-0.5 shrink-0 hover:underline px-1.5 py-0.5 rounded bg-accent-500/10"
+                          @click="jumpToSplit"
+                        >
+                          <span>Jump to Split</span>
+                          <Icon name="ri:arrow-right-s-line" class="text-xs" />
+                        </button>
                       </div>
 
                       <!-- Segmented Speaker Switcher -->
@@ -1018,7 +986,7 @@
                             name="ri:layout-top-line"
                             class="text-xs shrink-0"
                           />
-                          <span class="truncate">Top Speaker</span>
+                          <span class="truncate">Top</span>
                           <span
                             class="mono text-[7.5px] opacity-80 shrink-0 font-normal"
                             >({{
@@ -1040,7 +1008,7 @@
                             name="ri:layout-bottom-line"
                             class="text-xs shrink-0"
                           />
-                          <span class="truncate">Bottom Speaker</span>
+                          <span class="truncate">Bottom</span>
                           <span
                             class="mono text-[7.5px] opacity-80 shrink-0 font-normal"
                             >({{
@@ -1293,9 +1261,7 @@
               </h2>
               <div class="space-y-2.5">
                 <!-- Platform Selector Grid -->
-                <div
-                  class="grid grid-cols-4 gap-1 bg-surface-dark/80 p-0.5 rounded-xl border border-surface-border/60"
-                >
+                <div class="grid grid-cols-4 gap-1.5">
                   <button
                     v-for="platform in [
                       { id: 'none', label: 'None', icon: 'ri:eye-off-line' },
@@ -1312,15 +1278,15 @@
                       },
                     ]"
                     :key="platform.id"
-                    class="py-1 px-1 rounded-lg text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1"
+                    class="bg-surface-dark/50 border border-surface-border rounded-lg py-1.5 px-1 text-center text-[8.5px] font-bold uppercase tracking-wider transition-all grid place-items-center gap-1 hover:bg-surface-card"
                     :class="
                       activeSafeZone === platform.id
-                        ? 'bg-accent-500 text-black shadow-md shadow-accent-500/20'
-                        : 'text-slate-400 hover:text-white hover:bg-surface-card/50'
+                        ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                        : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                     "
                     @click="activeSafeZone = platform.id"
                   >
-                    <Icon :name="platform.icon" class="text-xs shrink-0" />
+                    <Icon :name="platform.icon" class="text-xs" />
                     <span>{{ platform.label }}</span>
                   </button>
                 </div>
@@ -1402,18 +1368,16 @@
                 <Icon name="ri:align-center" class="text-slate-400" />
               </h2>
 
-              <div
-                class="grid grid-cols-3 gap-1 bg-surface-dark/80 p-0.5 rounded-xl border border-surface-border/60"
-              >
+              <div class="grid grid-cols-3 gap-1.5">
                 <button
                   v-for="pos in ['top', 'center', 'bottom']"
                   :key="pos"
                   :disabled="state.renderStatus.value === 'rendering'"
-                  class="py-1.5 px-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center capitalize"
+                  class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center capitalize hover:bg-surface-card disabled:opacity-50 disabled:cursor-not-allowed"
                   :class="
                     state.subtitlePosition.value === pos
-                      ? 'bg-accent-500 text-black shadow-md shadow-accent-500/20'
-                      : 'text-slate-400 hover:text-white hover:bg-surface-card/50'
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                      : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                   "
                   @click="state.subtitlePosition.value = pos"
                 >
@@ -1787,6 +1751,24 @@ const isCurrentSplit = computed(() => {
 const hasAnySplit = computed(() => {
   return state.cropMap?.value?.some((entry) => entry.mode === "split") ?? false;
 });
+
+function jumpToSplit() {
+  if (!state.cropMap?.value || state.cropMap.value.length === 0) return;
+  const t = state.currentTime?.value || 0;
+  const nextSplit = state.cropMap.value.find(
+    (entry) => entry.time > t && entry.mode === "split",
+  );
+  const targetSplit =
+    nextSplit || state.cropMap.value.find((entry) => entry.mode === "split");
+  if (targetSplit) {
+    const targetTime = targetSplit.time + 0.05;
+    if (state.seekTo) {
+      state.seekTo(targetTime);
+    } else if (state.currentTime) {
+      state.currentTime.value = targetTime;
+    }
+  }
+}
 
 function toggleAutoAdaptiveSubtitles() {
   if (state.autoAdaptiveSubtitles) {

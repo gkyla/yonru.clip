@@ -47,6 +47,7 @@ const mockState = {
   safeZoneColor,
   activeHook: ref({ theme: 'Test Hook' }),
   outputUrl: ref('http://localhost/out.mp4'),
+  seekTo: vi.fn(),
   showToast: vi.fn(),
   saveDefaultStyleSettings: vi.fn(),
   renderClip: vi.fn(),
@@ -211,7 +212,7 @@ describe('SidebarSettings Component', () => {
     const tabs = wrapper.findAll('button.tab-btn')
     await tabs[2]!.trigger('click')
 
-    expect(wrapper.text()).toContain('Stacked Speaker Zoom')
+    expect(wrapper.text()).toContain('Split Speaker Zoom')
     expect(wrapper.text()).toContain('Top Speaker Zoom')
     expect(wrapper.text()).toContain('Bottom Speaker Zoom')
   })
@@ -234,7 +235,7 @@ describe('SidebarSettings Component', () => {
     await tabs[2]!.trigger('click')
 
     // Find the segmented speaker switcher buttons
-    const speakerButtons = wrapper.findAll('button').filter(b => b.text().includes('Speaker'))
+    const speakerButtons = wrapper.findAll('button').filter(b => b.text().includes('Top') || b.text().includes('Bottom'))
     expect(speakerButtons.length).toBeGreaterThanOrEqual(2)
 
     // Verify badges display current zoom
@@ -242,10 +243,41 @@ describe('SidebarSettings Component', () => {
     expect(wrapper.text()).toContain('(1.6x)') // bottom
 
     // Click bottom speaker switcher
-    const bottomBtn = speakerButtons.find(b => b.text().includes('Bottom Speaker'))
+    const bottomBtn = speakerButtons.find(b => b.text().includes('Bottom'))
     await bottomBtn?.trigger('click')
 
     // Verify both sections are present in DOM and bottom speaker is active
     expect(wrapper.text()).toContain('Bottom Speaker Zoom')
   })
+
+  it('displays solo shot status and seeks to split segment when Jump to Split is clicked', async () => {
+    mockState.cropMode.value = 'face_tracking'
+    mockState.cropMap.value = [
+      { time: 0, x: 500, mode: 'single' },
+      { time: 10, x: 500, mode: 'split', top_x: 300, bottom_x: 700 }
+    ]
+    mockState.currentTime.value = 2
+
+    const wrapper = mount(SidebarSettings, {
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, BlacklistSettings: true }
+      }
+    })
+
+    // Click Layout tab
+    const tabs = wrapper.findAll('button.tab-btn')
+    await tabs[2]!.trigger('click')
+
+    // Should indicate Inactive (Solo) and show informational banner
+    expect(wrapper.text()).toContain('Inactive (Solo)')
+    expect(wrapper.text()).toContain('Currently on single speaker')
+
+    // Find and click Jump to Split button
+    const jumpBtn = wrapper.findAll('button').find(b => b.text().includes('Jump to Split'))
+    expect(jumpBtn?.exists()).toBe(true)
+    await jumpBtn?.trigger('click')
+
+    expect(mockState.seekTo).toHaveBeenCalledWith(10.05)
+  })
 })
+
