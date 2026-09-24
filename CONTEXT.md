@@ -92,6 +92,10 @@ _Avoid_: Scene jump, split boundary, edit splice
 The synchronization mechanism within Face Tracking & Auto-Reframe that locks layout switches between single-speaker and Stacked Multi-Speaker Reframe strictly to the nearest prior Visual Cut Point, eliminating transition delay and duplicate face artifacts.
 _Avoid_: Cut backfill, frame snap, layout jump
 
+**Compositor Engine**:
+The hybrid video presentation architecture in Remotion Engine that routes playback rendering through a single-decoder HTML5 `<canvas>` compositor in the editor preview (preventing hardware decoder duplication and backwards scrubbing glitches), while switching to native `<OffthreadVideo>` extraction during headless MP4 rendering for frame-accurate output.
+_Avoid_: Dual player mode, render switch, canvas exporter
+
 
 
 **Word-Level Audio Censorship**:

@@ -160,68 +160,71 @@ export class VideoPlaybackCoordinator {
       videoSrc += (videoSrc.includes('?') ? '&' : '?') + 't=' + snapshot.stableVideoBuster
     }
 
-    return {
-      videoPath: videoSrc,
-      words: wordsData,
-      wordTimings: allWordTimings,
-      cropX: isNaN(cropXPixel) ? 960 : cropXPixel,
-      cropPercentXTop: snapshot.cropMode === 'manual' ? snapshot.cropPercentXTop : undefined,
-      cropPercentXBottom: snapshot.cropMode === 'manual' ? snapshot.cropPercentXBottom : undefined,
-      splitZoomTop: snapshot.splitZoomTop ?? 1.0,
-      splitZoomBottom: snapshot.splitZoomBottom ?? 1.0,
-      splitOffsetXTop: snapshot.splitOffsetXTop ?? 0,
-      splitOffsetYTop: snapshot.splitOffsetYTop ?? 0,
-      splitOffsetXBottom: snapshot.splitOffsetXBottom ?? 0,
-      splitOffsetYBottom: snapshot.splitOffsetYBottom ?? 0,
-      cropMap: snapshot.cropMode === 'face_tracking' ? JSON.parse(JSON.stringify(snapshot.cropMap || [])) : [],
-      sourceWidth: sourceDimensions.width,
-      sourceHeight: sourceDimensions.height,
-      position: snapshot.subtitlePosition,
-      videoLayout: snapshot.videoLayout || 'vertical',
-      subtitleOffset: snapshot.subtitleOffset,
-      autoAdaptiveSubtitles: snapshot.autoAdaptiveSubtitles ?? true,
-      durationInFrames: Math.floor(snapshot.timelineDuration * (snapshot.videoFps || 30)),
-      fps: snapshot.videoFps || 30,
-      hideSubtitles: !!snapshot.outputUrl && snapshot.videoUrl === snapshot.outputUrl,
-      showDebug: snapshot.showIframeDebug,
-      volume: snapshot.volume,
-      timelineTextItems: [],
-      timelineAudioItems: JSON.parse(JSON.stringify(snapshot.timelineTracks?.find(t => t.id === 'audio')?.items || [])),
-      timelineVideoItems: JSON.parse(JSON.stringify(snapshot.timelineTracks?.find(t => t.id === 'video')?.items || [])),
-      thumbnailEnabled: snapshot.thumbnailEnabled,
-      thumbnailDuration: snapshot.thumbnailDuration,
-      thumbnailTextOverlays: JSON.parse(JSON.stringify(snapshot.thumbnailTextOverlays || [])),
-      subtitleStyle: {
-        fontFamily: snapshot.font,
-        fontSize: snapshot.fontSize,
-        fontWeight: snapshot.subtitleFontWeight,
-        color: snapshot.subtitleTextColor,
-        highlightColor: snapshot.subtitleHighlightColor,
-        strokeColor: snapshot.subtitleStrokeColor,
-        strokeWidth: snapshot.subtitleStrokeWidth,
-        textTransform: snapshot.subtitleTextTransform,
-        animation: snapshot.subtitleAnimation,
-        highlightMode: snapshot.subtitleHighlightMode,
-        background: snapshot.subtitleBackground,
-        backgroundOpacity: snapshot.subtitleBackgroundOpacity,
-        wordSpacing: snapshot.subtitleWordSpacing
+      const activeFps = snapshot.videoFps || 30
+
+      return {
+        videoPath: videoSrc,
+        words: wordsData,
+        wordTimings: allWordTimings,
+        cropX: isNaN(cropXPixel) ? 960 : cropXPixel,
+        cropPercentXTop: snapshot.cropMode === 'manual' ? snapshot.cropPercentXTop : undefined,
+        cropPercentXBottom: snapshot.cropMode === 'manual' ? snapshot.cropPercentXBottom : undefined,
+        splitZoomTop: snapshot.splitZoomTop ?? 1.0,
+        splitZoomBottom: snapshot.splitZoomBottom ?? 1.0,
+        splitOffsetXTop: snapshot.splitOffsetXTop ?? 0,
+        splitOffsetYTop: snapshot.splitOffsetYTop ?? 0,
+        splitOffsetXBottom: snapshot.splitOffsetXBottom ?? 0,
+        splitOffsetYBottom: snapshot.splitOffsetYBottom ?? 0,
+        cropMap: snapshot.cropMode === 'face_tracking' ? JSON.parse(JSON.stringify(snapshot.cropMap || [])) : [],
+        sourceWidth: sourceDimensions.width,
+        sourceHeight: sourceDimensions.height,
+        position: snapshot.subtitlePosition,
+        videoLayout: snapshot.videoLayout || 'vertical',
+        subtitleOffset: snapshot.subtitleOffset,
+        autoAdaptiveSubtitles: snapshot.autoAdaptiveSubtitles ?? true,
+        durationInFrames: Math.round(snapshot.timelineDuration * activeFps),
+        fps: activeFps,
+        hideSubtitles: !!snapshot.outputUrl && snapshot.videoUrl === snapshot.outputUrl,
+        showDebug: snapshot.showIframeDebug,
+        volume: snapshot.volume,
+        timelineTextItems: [],
+        timelineAudioItems: JSON.parse(JSON.stringify(snapshot.timelineTracks?.find(t => t.id === 'audio')?.items || [])),
+        timelineVideoItems: JSON.parse(JSON.stringify(snapshot.timelineTracks?.find(t => t.id === 'video')?.items || [])),
+        thumbnailEnabled: snapshot.thumbnailEnabled,
+        thumbnailDuration: snapshot.thumbnailDuration,
+        thumbnailTextOverlays: JSON.parse(JSON.stringify(snapshot.thumbnailTextOverlays || [])),
+        subtitleStyle: {
+          fontFamily: snapshot.font,
+          fontSize: snapshot.fontSize,
+          fontWeight: snapshot.subtitleFontWeight,
+          color: snapshot.subtitleTextColor,
+          highlightColor: snapshot.subtitleHighlightColor,
+          strokeColor: snapshot.subtitleStrokeColor,
+          strokeWidth: snapshot.subtitleStrokeWidth,
+          textTransform: snapshot.subtitleTextTransform,
+          animation: snapshot.subtitleAnimation,
+          highlightMode: snapshot.subtitleHighlightMode,
+          background: snapshot.subtitleBackground,
+          backgroundOpacity: snapshot.subtitleBackgroundOpacity,
+          wordSpacing: snapshot.subtitleWordSpacing
+        }
       }
     }
-  }
 
-  public syncProps(
-    snapshot: PlaybackStateSnapshot,
-    sourceDimensions: { width: number; height: number } = { width: 1920, height: 1080 }
-  ): void {
-    const props = this.assembleRemotionProps(snapshot, sourceDimensions)
-    this.bridge.updateProps(props)
+    public syncProps(
+      snapshot: PlaybackStateSnapshot,
+      sourceDimensions: { width: number; height: number } = { width: 1920, height: 1080 }
+    ): void {
+      const props = this.assembleRemotionProps(snapshot, sourceDimensions)
+      this.bridge.updateProps(props)
 
-    if (!snapshot.isPlaying) {
-      const targetFrame = Math.floor(snapshot.currentTime * (snapshot.videoFps || 30))
-      this.bridge.seek(targetFrame)
-      this.lastSeekFrame = targetFrame
+      if (!snapshot.isPlaying) {
+        const activeFps = snapshot.videoFps || 30
+        const targetFrame = Math.floor(snapshot.currentTime * activeFps)
+        this.bridge.seek(targetFrame)
+        this.lastSeekFrame = targetFrame
+      }
     }
-  }
 
   public handlePlayStateChange(
     playing: boolean,
@@ -263,8 +266,10 @@ export class VideoPlaybackCoordinator {
   ): { targetFrame: number; shouldSeek: boolean; crossedThumbnailBoundary?: boolean } {
     let crossedThumbnailBoundary = false
 
+    const activeFps = snapshot.videoFps || 30
+
     if (snapshot.isTimelineShifting) {
-      return { targetFrame: Math.floor(newTime * (snapshot.videoFps || 30)), shouldSeek: false }
+      return { targetFrame: Math.floor(newTime * activeFps), shouldSeek: false }
     }
 
     // Thumbnail boundary transition handling
@@ -296,7 +301,7 @@ export class VideoPlaybackCoordinator {
       }
     }
 
-    const targetFrame = Math.floor(newTime * (snapshot.videoFps || 30))
+    const targetFrame = Math.floor(newTime * activeFps)
     const shouldSeek = this.lastSeekFrame !== targetFrame
 
     if (shouldSeek) {

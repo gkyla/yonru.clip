@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Video, OffthreadVideo, Audio, Img, Sequence, staticFile, useCurrentFrame, useVideoConfig, useRemotionEnvironment } from 'remotion';
 import { AnimatedSubtitles } from './AnimatedSubtitles';
+import { CanvasVideoCompositor } from './CanvasVideoCompositor';
 import { YonruClipProps, ThumbnailTextOverlay } from './types';
 import { getFont } from './fonts';
 
@@ -85,9 +86,11 @@ export const YonruClip: React.FC<YonruClipProps> = ({
 
 
     // Scan for adjacent keyframes
+    // Use half-frame epsilon (0.5 / fps) to prevent float rounding delay (e.g. 10.867 vs 10.866667)
+    const timeEpsilon = 0.5 / fps;
     let prevIdx = 0;
     for (let i = 0; i < cropMap.length; i++) {
-      if (cropMap[i].time <= currentTime) {
+      if (cropMap[i].time <= currentTime + timeEpsilon) {
         prevIdx = i;
       } else {
         break;
@@ -284,101 +287,120 @@ export const YonruClip: React.FC<YonruClipProps> = ({
       {/* ===== MAIN VIDEO ===== */}
       <Sequence from={thumbnailFrames} name="MainVideo">
         {(() => {
-          const renderMediaViewports = (mediaStartFrame?: number, durationFrames?: number) => (
-            <AbsoluteFill style={{ overflow: 'hidden' }}>
-              {/* Primary Viewport (Top Speaker in Split, or Full Framing in Single/Landscape) */}
-              <div 
-                style={{ 
-                  position: 'absolute', 
-                  top: 0, 
-                  left: 0, 
-                  width: CONTAINER_W, 
-                  height: isSplit ? `${PANEL_H}px` : `${CONTAINER_H}px`, 
-                  overflow: 'hidden',
-                  zIndex: 1,
-                  willChange: 'height',
-                  backfaceVisibility: 'hidden'
-                }}
-              >
-                <Video 
-                  src={videoSrc} 
+          const renderMediaViewports = (mediaStartFrame?: number, durationFrames?: number) => {
+            if (isRendering) {
+              // HEADLESS RENDER: Frame-accurate native Remotion OffthreadVideo
+              return (
+                <AbsoluteFill style={{ overflow: 'hidden' }}>
+                  {/* Top Viewport (Split mode: Top Speaker | Single mode: Full Framing) */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: CONTAINER_W,
+                      height: (!isLandscape && isSplit) ? `${PANEL_H}px` : `${CONTAINER_H}px`,
+                      overflow: 'hidden',
+                      zIndex: 1,
+                    }}
+                  >
+                    <OffthreadVideo
+                      src={videoSrc}
+                      volume={volume}
+                      startFrom={mediaStartFrame}
+                      endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
+                      style={{
+                        height: `${videoDisplayH}px`,
+                        width: `${videoDisplayW}px`,
+                        maxWidth: 'none',
+                        transformOrigin: '0 0',
+                        transform: (!isLandscape && isSplit)
+                          ? `translate3d(${topTranslateX}px, ${topTranslateY}px, 0) scale(${currentScaleTop})`
+                          : `translate3d(${translateX}px, ${translateY}px, 0) scale(1)`,
+                        objectFit: 'cover',
+                      }}
+                    />
+                  </div>
+
+                  {/* Bottom Viewport (Split mode only - Conditional Mount with volume=0) */}
+                  {!isLandscape && isSplit && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: `${PANEL_H}px`,
+                        left: 0,
+                        width: CONTAINER_W,
+                        height: `${PANEL_H}px`,
+                        overflow: 'hidden',
+                        zIndex: 2,
+                      }}
+                    >
+                      <OffthreadVideo
+                        src={videoSrc}
+                        volume={0}
+                        startFrom={mediaStartFrame}
+                        endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
+                        style={{
+                          height: `${videoDisplayH}px`,
+                          width: `${videoDisplayW}px`,
+                          maxWidth: 'none',
+                          transformOrigin: '0 0',
+                          transform: `translate3d(${bottomTranslateX}px, ${bottomTranslateY}px, 0) scale(${currentScaleBottom})`,
+                          objectFit: 'cover',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Center Seam Divider (Split mode only) */}
+                  {!isLandscape && isSplit && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: `${PANEL_H - 1}px`,
+                        left: 0,
+                        width: '100%',
+                        height: '2px',
+                        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                        boxShadow: '0 0 10px 2px rgba(0, 0, 0, 0.75)',
+                        zIndex: 15,
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  )}
+                </AbsoluteFill>
+              );
+            }
+
+            // EDITOR PREVIEW: Single-decoder HTML5 Canvas Compositor (Zero "muka kembar", fast scrubbing)
+            return (
+              <AbsoluteFill style={{ overflow: 'hidden' }}>
+                <CanvasVideoCompositor
+                  videoSrc={videoSrc}
                   volume={volume}
-                  crossOrigin="anonymous"
-                  startFrom={mediaStartFrame}
-                  endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
-                  style={{ 
-                    height: `${videoDisplayH}px`, 
-                    width: `${videoDisplayW}px`, 
-                    maxWidth: 'none',
-                    transformOrigin: '0 0',
-                    transform: isSplit 
-                      ? `translate3d(${topTranslateX}px, ${topTranslateY}px, 0) scale(${currentScaleTop})` 
-                      : `translate3d(${translateX}px, ${translateY}px, 0) scale(1)`,
-                    objectFit: 'cover',
-                    willChange: 'transform',
-                    backfaceVisibility: 'hidden'
-                  }} 
+                  mediaStartFrame={mediaStartFrame}
+                  durationFrames={durationFrames}
+                  CONTAINER_W={CONTAINER_W}
+                  CONTAINER_H={CONTAINER_H}
+                  PANEL_H={PANEL_H}
+                  isLandscape={isLandscape}
+                  isSplit={isSplit}
+                  videoDisplayW={videoDisplayW}
+                  videoDisplayH={videoDisplayH}
+                  rawSourceW={rawSourceW}
+                  sourceHeight={sourceHeight}
+                  translateX={translateX}
+                  translateY={translateY}
+                  topTranslateX={topTranslateX}
+                  topTranslateY={topTranslateY}
+                  currentScaleTop={currentScaleTop}
+                  bottomTranslateX={bottomTranslateX}
+                  bottomTranslateY={bottomTranslateY}
+                  currentScaleBottom={currentScaleBottom}
                 />
-              </div>
-
-              {/* Secondary Viewport (Bottom Speaker in Split - Instant Snap Cut) */}
-              {!isLandscape && (
-                <div 
-                  style={{ 
-                    position: 'absolute', 
-                    top: `${PANEL_H}px`, 
-                    left: 0, 
-                    width: CONTAINER_W, 
-                    height: `${PANEL_H}px`, 
-                    overflow: 'hidden',
-                    zIndex: 3,
-                    opacity: isSplit ? 1 : 0,
-                    pointerEvents: 'none',
-                    visibility: isSplit ? 'visible' : 'hidden',
-                    willChange: 'opacity, visibility',
-                    backfaceVisibility: 'hidden'
-                  }}
-                >
-                  <Video 
-                    src={videoSrc} 
-                    volume={0}
-                    crossOrigin="anonymous"
-                    startFrom={mediaStartFrame}
-                    endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
-                    style={{ 
-                      height: `${videoDisplayH}px`, 
-                      width: `${videoDisplayW}px`, 
-                      maxWidth: 'none',
-                      transformOrigin: '0 0',
-                      transform: `translate3d(${bottomTranslateX}px, ${bottomTranslateY}px, 0) scale(${currentScaleBottom})`,
-                      objectFit: 'cover',
-                      willChange: 'transform',
-                      backfaceVisibility: 'hidden'
-                    }} 
-                  />
-                </div>
-              )}
-
-              {/* Center Seam Divider (2px dark line with subtle shadow) */}
-              {!isLandscape && (
-                <div 
-                  style={{ 
-                    position: 'absolute', 
-                    top: `${PANEL_H - 1}px`, 
-                    left: 0, 
-                    width: '100%', 
-                    height: '2px', 
-                    backgroundColor: 'rgba(0, 0, 0, 0.85)', 
-                    boxShadow: '0 0 10px 2px rgba(0, 0, 0, 0.75)',
-                    zIndex: 15,
-                    pointerEvents: 'none',
-                    opacity: isSplit ? 1 : 0,
-                    visibility: isSplit ? 'visible' : 'hidden'
-                  }} 
-                />
-              )}
-            </AbsoluteFill>
-          );
+              </AbsoluteFill>
+            );
+          };
 
           if (videoPath && timelineVideoItems && timelineVideoItems.length > 0) {
             return timelineVideoItems.map(item => {
