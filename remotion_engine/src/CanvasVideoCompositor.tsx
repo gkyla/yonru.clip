@@ -100,7 +100,8 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
       };
     }
 
-    const timeEpsilon = 0.5 / fps;
+    // Use 1ms epsilon for IEEE 754 float precision & 3-decimal JSON rounding without bleeding into preceding frames
+    const timeEpsilon = 0.001;
     let prevIdx = 0;
     for (let i = 0; i < cropMap.length; i++) {
       if (cropMap[i].time <= targetTime + timeEpsilon) {

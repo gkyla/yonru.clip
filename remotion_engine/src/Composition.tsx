@@ -86,8 +86,8 @@ export const YonruClip: React.FC<YonruClipProps> = ({
 
 
     // Scan for adjacent keyframes
-    // Use half-frame epsilon (0.5 / fps) to prevent float rounding delay (e.g. 10.867 vs 10.866667)
-    const timeEpsilon = 0.5 / fps;
+    // Use 1ms epsilon for IEEE 754 float precision & 3-decimal JSON rounding without bleeding into preceding frames
+    const timeEpsilon = 0.001;
     let prevIdx = 0;
     for (let i = 0; i < cropMap.length; i++) {
       if (cropMap[i].time <= currentTime + timeEpsilon) {
