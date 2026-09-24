@@ -554,14 +554,14 @@ class AssetRepository(AssetStore):
         try:
             self._run_ffmpeg([
                 "-accurate_seek",
+                "-ss", str(start_time),
                 "-i", video_path, 
-                "-ss", str(start_time), 
                 "-t", str(duration),
                 "-c:v", "libx264", 
                 "-preset", "superfast", 
                 "-crf", "23", 
                 "-c:a", "aac", 
-                "-avoid_negative_ts", "make_zero",
+                "-avoid_negative_ts", "auto",
                 "-y", out_path
             ])
         except Exception as e:

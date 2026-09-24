@@ -68,6 +68,36 @@ _Avoid_: Hook reasoning, virality explanation, description, AI comment
 The intelligent visual tracking pipeline that dynamically crops and follows active speakers or salient subjects from horizontal 16:9 source footage into vertical 9:16 aspect ratio suitable for short-form video.
 _Avoid_: Vertical crop, auto pan, smart crop, aspect reframing
 
+**Stacked Multi-Speaker Reframe**:
+The dynamic layout mode within the Face Tracking & Auto-Reframe pipeline that splits the vertical 9:16 canvas into stacked top and bottom viewports when two speakers are simultaneously visible in wide footage, framing the left speaker on top and the right speaker on bottom, and automatically reverting to single-speaker framing during solo shots.
+_Avoid_: Split screen video, double crop, 2 face mode, dual vertical
+
+**Face-Anchored Viewport Zoom**:
+The scaling mechanism within Stacked Multi-Speaker Reframe that magnifies the video centered on each detected speaker's face coordinates, isolating tight single-speaker closeups and cropping out adjacent subjects in crowded or wide-angle footage.
+_Avoid_: Digital zoom, scale slider, crop zoom, camera zoom
+
+**Zoom-Relative Framing Offset**:
+The dual-axis (horizontal and vertical) micro-adjustment mechanism within Face-Anchored Viewport Zoom that enables creators to fine-tune headroom and horizontal composition relative to detected faces while preserving active dynamic AI face tracking and enforcing strict edge clamping to prevent black voids.
+_Avoid_: Manual pan override, static crop position, pixel nudge, split camera drag
+
+**Auto-Adaptive Subtitle Placement**:
+The dynamic positioning mechanism that automatically anchors subtitles over the center dividing seam in Stacked Multi-Speaker Reframe to prevent speaker occlusion, while returning to standard lower-third positioning in single-speaker framing, with manual override available in settings.
+_Avoid_: Dynamic subtitles, floating text jump, split captions
+
+**Visual Cut Point**:
+The exact timestamp or frame where a video camera angle or scene visually cuts between different shots.
+_Avoid_: Scene jump, split boundary, edit splice
+
+**Shot-Anchored Layout Snapping**:
+The synchronization mechanism within Face Tracking & Auto-Reframe that locks layout switches between single-speaker and Stacked Multi-Speaker Reframe strictly to the nearest prior Visual Cut Point, eliminating transition delay and duplicate face artifacts.
+_Avoid_: Cut backfill, frame snap, layout jump
+
+**Compositor Engine**:
+The hybrid video presentation architecture in Remotion Engine that routes playback rendering through a single-decoder HTML5 `<canvas>` compositor in the editor preview (preventing hardware decoder duplication and backwards scrubbing glitches), while switching to native `<OffthreadVideo>` extraction during headless MP4 rendering for frame-accurate output.
+_Avoid_: Dual player mode, render switch, canvas exporter
+
+
+
 **Word-Level Audio Censorship**:
 The surgical audio alteration feature that mutes or replaces specific spoken words with bleep audio presets at millisecond precision without cutting or shifting video timeline frames.
 _Avoid_: Audio bleep, profanity filter, censor cut, voice mute

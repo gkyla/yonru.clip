@@ -8,7 +8,7 @@ import { useClipperThumbnail } from './useClipperThumbnail'
 import { useClipperExport } from './useClipperExport'
 
 import fontsManifest from '../../../shared/fonts_manifest.json'
-import type { Hook, CachedVideo, LastAccessedClip, TranscriptSegment, PromptTemplate, SubtitleStyleSettings, TimelineTrack, TimelineTrackItem, HookExtractionMode, HookIntentPreset } from '../types/clipper'
+import type { Hook, CachedVideo, LastAccessedClip, TranscriptSegment, PromptTemplate, SubtitleStyleSettings, TimelineTrack, TimelineTrackItem, HookExtractionMode, HookIntentPreset, CropMapPoint } from '../types/clipper'
 
 export const FONT_OPTIONS = fontsManifest.fonts.map((f: { name: string }) => f.name)
 
@@ -123,12 +123,21 @@ function createClipperState() {
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150) // Default 150ms offset
+  const autoAdaptiveSubtitles = useState<boolean>('autoAdaptiveSubtitles', () => true)
   const font = useState<string>('font', () => 'Montserrat')
   const fontSize = useState<number>('fontSize', () => 50)
   const faceTracking = useState<boolean>('faceTracking', () => false)
   const cropMode = useState<string>('cropMode', () => 'face_tracking') // 'manual' | 'face_tracking'
-  const cropMap = useState<Array<{ time: number, x: number }>>('cropMap', () => [])
+  const cropMap = useState<Array<CropMapPoint>>('cropMap', () => [])
   const cropPercentX = useState<number>('cropPercentX', () => 50) // 0=left, 50=center, 100=right
+  const cropPercentXTop = useState<number>('cropPercentXTop', () => 50)
+  const cropPercentXBottom = useState<number>('cropPercentXBottom', () => 50)
+  const splitZoomTop = useState<number>('splitZoomTop', () => 1.0)
+  const splitZoomBottom = useState<number>('splitZoomBottom', () => 1.0)
+  const splitOffsetXTop = useState<number>('splitOffsetXTop', () => 0)
+  const splitOffsetYTop = useState<number>('splitOffsetYTop', () => 0)
+  const splitOffsetXBottom = useState<number>('splitOffsetXBottom', () => 0)
+  const splitOffsetYBottom = useState<number>('splitOffsetYBottom', () => 0)
   const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
   const whisperModel = useState<string>('whisperModel', () => 'base')
   const useNativePlayer = useState<boolean>('useNativePlayer', () => false)
@@ -458,10 +467,19 @@ function createClipperState() {
       subtitlePosition: subtitlePosition.value,
       subtitleOffset: subtitleOffset.value,
       subtitleSyncOffset: subtitleSyncOffset.value,
+      autoAdaptiveSubtitles: autoAdaptiveSubtitles.value,
       font: font.value,
       fontSize: fontSize.value,
       cropMode: cropMode.value,
       cropPercentX: cropPercentX.value,
+      cropPercentXTop: cropPercentXTop.value,
+      cropPercentXBottom: cropPercentXBottom.value,
+      splitZoomTop: splitZoomTop.value,
+      splitZoomBottom: splitZoomBottom.value,
+      splitOffsetXTop: splitOffsetXTop.value,
+      splitOffsetYTop: splitOffsetYTop.value,
+      splitOffsetXBottom: splitOffsetXBottom.value,
+      splitOffsetYBottom: splitOffsetYBottom.value,
       subtitleMode: subtitleMode.value,
       subtitleAnimation: subtitleAnimation.value,
       subtitleHighlightMode: subtitleHighlightMode.value,
@@ -491,10 +509,17 @@ function createClipperState() {
       subtitlePosition: subtitlePosition.value,
       subtitleOffset: subtitleOffset.value,
       subtitleSyncOffset: subtitleSyncOffset.value,
+      autoAdaptiveSubtitles: autoAdaptiveSubtitles.value,
       font: font.value,
       fontSize: fontSize.value,
       cropMode: cropMode.value,
       cropPercentX: cropPercentX.value,
+      splitZoomTop: splitZoomTop.value,
+      splitZoomBottom: splitZoomBottom.value,
+      splitOffsetXTop: splitOffsetXTop.value,
+      splitOffsetYTop: splitOffsetYTop.value,
+      splitOffsetXBottom: splitOffsetXBottom.value,
+      splitOffsetYBottom: splitOffsetYBottom.value,
       subtitleMode: subtitleMode.value,
       subtitleAnimation: subtitleAnimation.value,
       subtitleHighlightMode: subtitleHighlightMode.value,
@@ -626,8 +651,8 @@ function createClipperState() {
     hooks, savedHooks, activeHook, segmentPadding, folderName, clipId, fullTranscript,
     promptsList, selectedPrompt,
     extractionMode, selectedPresetId, focusTopic, minDuration, maxDuration,
-    youtubeUrl, language, videoLayout, subtitlePosition, subtitleOffset, subtitleSyncOffset,
-    font, fontSize, faceTracking, cropMode, cropMap, cropPercentX, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
+    youtubeUrl, language, videoLayout, subtitlePosition, subtitleOffset, subtitleSyncOffset, autoAdaptiveSubtitles,
+    font, fontSize, faceTracking, cropMode, cropMap, cropPercentX, cropPercentXTop, cropPercentXBottom, splitZoomTop, splitZoomBottom, splitOffsetXTop, splitOffsetYTop, splitOffsetXBottom, splitOffsetYBottom, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
     whisperModels: WHISPER_MODELS,
     activeSafeZone,
     safeZoneOpacity,

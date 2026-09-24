@@ -105,6 +105,18 @@ class TestAssetRepository(unittest.TestCase):
         self.assertEqual(clip["theme"], "Funny Moment")
         self.assertTrue(mock_ffmpeg.called)
 
+        # Regression check: verify ffmpeg uses -avoid_negative_ts auto (never make_zero)
+        # to avoid B-frame lookahead container PTS shifts that break Remotion seeking
+        called_args = mock_ffmpeg.call_args[0][0]
+        self.assertIn("-avoid_negative_ts", called_args)
+        idx = called_args.index("-avoid_negative_ts")
+        self.assertEqual(called_args[idx + 1], "auto")
+        self.assertNotIn("make_zero", called_args)
+        # Verify -ss precedes -i for fast accurate input seeking
+        ss_idx = called_args.index("-ss")
+        i_idx = called_args.index("-i")
+        self.assertLess(ss_idx, i_idx)
+
     def test_hooks_saving_and_deletion(self):
         folder_name = "test_video_123"
         folder_path = os.path.join(self.output_dir, "sources", folder_name)

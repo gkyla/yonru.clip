@@ -18,7 +18,7 @@
       <!-- Draggable crop preview -->
       <div v-if="state?.videoUrl?.value && !state?.outputUrl?.value" 
            class="absolute inset-0 z-30 bg-black select-none"
-           :class="state?.videoLayout?.value === 'landscape' ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'"
+           :class="canDragCanvas ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'"
            @mousedown="startDrag"
            @mousemove="onDrag"
            @mouseup="stopDrag"
@@ -592,7 +592,8 @@ const isProcessing = computed(() => {
 const cropState = useCropDrag(
   computed(() => previewScale.value),
   computed(() => maxOffset.value),
-  computed(() => activeTextItems.value.length > 0)
+  computed(() => activeTextItems.value.length > 0),
+  container
 )
 const {
   isDragging,
@@ -956,7 +957,31 @@ const progressWidth = computed(() => {
   return map[state.jobStatus.value] || '0%'
 })
 
+const isSplitActive = computed(() => {
+  if (!state.cropMap?.value || state.cropMap.value.length === 0) return false
+  const t = state.currentTime?.value || 0
+  let active = state.cropMap.value[0]
+  for (const entry of state.cropMap.value) {
+    if (entry.time <= t) active = entry
+    else break
+  }
+  return active?.mode === 'split'
+})
+
+const canDragCanvas = computed(() => {
+  if (state?.videoLayout?.value === 'landscape') return false
+  if (state?.cropMode?.value === 'manual') return true
+  if (state?.cropMode?.value === 'face_tracking' && isSplitActive.value) {
+    return (state.splitZoomTop?.value ?? 1.0) > 1.0 || (state.splitZoomBottom?.value ?? 1.0) > 1.0
+  }
+  return false
+})
+
 const subtitleIndicatorStyle = computed(() => {
+  const isSplit = isSplitActive.value && (state.autoAdaptiveSubtitles?.value ?? true)
+  if (isSplit) {
+    return { top: '50%', transform: `translate(-50%, calc(-50% + ${state.subtitleOffset.value}px))` }
+  }
   const pos = state.subtitlePosition.value
   const offset = state.subtitleOffset.value
   if (pos === 'top') return { top: `${offset}px` }

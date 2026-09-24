@@ -167,16 +167,34 @@ export interface HistorySnapshot {
   selectedId: string | null
 }
 
+export interface CropMapPoint {
+  time: number
+  x: number
+  mode?: 'single' | 'split'
+  top_x?: number
+  bottom_x?: number
+}
+
 export interface SubtitleStyleSettings {
   videoLayout?: 'vertical' | 'landscape'
   subtitlePosition?: string
   subtitleOffset?: number
   subtitleSyncOffset?: number
+  autoAdaptiveSubtitles?: boolean
   font?: string
   fontSize?: number
   cropMode?: string
-  cropMap?: Array<{ time: number, x: number }>
+  cropMap?: Array<CropMapPoint>
   cropPercentX?: number
+  cropPercentXTop?: number
+  cropPercentXBottom?: number
+  splitZoomTop?: number
+  splitZoomBottom?: number
+  splitOffsetXTop?: number
+  splitOffsetYTop?: number
+  splitOffsetXBottom?: number
+  splitOffsetYBottom?: number
+
   subtitleMode?: 'word' | '3_words' | '4_words'
   subtitleAnimation?: string
   subtitleHighlightMode?: string
