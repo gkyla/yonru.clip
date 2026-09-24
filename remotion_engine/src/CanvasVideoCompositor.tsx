@@ -221,7 +221,7 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
     splitOffsetYBottom,
   ]);
 
-  const draw = useCallback((force: boolean = false) => {
+  const draw = useCallback((force: boolean = false, explicitMediaTime?: number) => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
@@ -241,10 +241,12 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
-    // Anchor layout dynamically to the exact physical presentation timestamp of the current video frame
-    const currentTime = (video && !isNaN(video.currentTime) && video.currentTime > 0)
-      ? video.currentTime
-      : (frame / fps);
+    // Anchor layout dynamically to the exact physical presentation timestamp (PTS) from video decoder
+    const currentTime = (typeof explicitMediaTime === 'number' && !isNaN(explicitMediaTime) && explicitMediaTime >= 0)
+      ? explicitMediaTime
+      : ((video && !isNaN(video.currentTime) && video.currentTime > 0)
+          ? video.currentTime
+          : (frame / fps));
 
     const framing = computeFramingForTime(currentTime);
 
@@ -325,17 +327,21 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
     computeFramingForTime,
   ]);
 
+  // Keep drawRef up-to-date with latest draw callback so rVFC and event listeners never churn
+  const drawRef = useRef(draw);
+  drawRef.current = draw;
+
   // Draw on layout effect whenever frame or draw dependencies change
   useLayoutEffect(() => {
     const video = videoRef.current;
     if (video && video.seeking && !isRendering) {
       let cancelled = false;
       const onSeeked = () => {
-        if (!cancelled) draw(true);
+        if (!cancelled) drawRef.current(true);
       };
       video.addEventListener('seeked', onSeeked, { once: true });
       const timer = setTimeout(() => {
-        if (!cancelled) draw(true);
+        if (!cancelled) drawRef.current(true);
       }, 150);
       return () => {
         cancelled = true;
@@ -343,7 +349,7 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
         clearTimeout(timer);
       };
     } else {
-      draw();
+      draw(false);
     }
   }, [frame, isRendering, draw]);
 
@@ -352,9 +358,9 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
     const video = videoRef.current;
     if (!video) return;
 
-    const handleSeeked = () => draw(true);
-    const handleTimeUpdate = () => draw();
-    const handleLoadedData = () => draw();
+    const handleSeeked = () => drawRef.current(true, video.currentTime);
+    const handleTimeUpdate = () => drawRef.current(false, video.currentTime);
+    const handleLoadedData = () => drawRef.current();
 
     video.addEventListener('seeked', handleSeeked);
     video.addEventListener('timeupdate', handleTimeUpdate);
@@ -365,9 +371,9 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('loadeddata', handleLoadedData);
     };
-  }, [draw]);
+  }, []);
 
-  // High-performance playback sync via requestVideoFrameCallback
+  // High-performance playback sync via requestVideoFrameCallback with exact decoder PTS
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !('requestVideoFrameCallback' in video)) return;
@@ -375,9 +381,10 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
     let callbackId: number;
     let isActive = true;
 
-    const onFrame = () => {
+    const onFrame = (_now: DOMHighResTimeStamp, metadata: any) => {
       if (!isActive) return;
-      draw();
+      const mediaTime = (metadata && typeof metadata.mediaTime === 'number') ? metadata.mediaTime : undefined;
+      drawRef.current(false, mediaTime);
       callbackId = (video as any).requestVideoFrameCallback(onFrame);
     };
 
@@ -389,7 +396,7 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
         (video as any).cancelVideoFrameCallback(callbackId);
       }
     };
-  }, [draw]);
+  }, []);
 
   // Headless rendering synchronization with delayRender / continueRender
   useEffect(() => {
