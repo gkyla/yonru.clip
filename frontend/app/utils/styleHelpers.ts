@@ -85,3 +85,28 @@ export function transformText(text: string, transform?: string): string {
   return text
 }
 
+/**
+ * Generates an 8-directional outer outline shadow for text previews.
+ * Prevents -webkit-text-stroke from eating inwards into glyph fill on small fonts,
+ * creating a crisp, authentic outer outline around characters.
+ */
+export function getOuterStrokeShadow(strokeWidth?: number, strokeColor: string = '#000000'): string {
+  if (!strokeWidth || strokeWidth <= 0) {
+    return '0 1px 3px rgba(0,0,0,0.8)'
+  }
+  // Scale down stroke width for compact preview boxes (~13px font size)
+  const d = Math.max(1, Math.round(strokeWidth * 0.45 * 10) / 10)
+  return [
+    `-${d}px -${d}px 0 ${strokeColor}`,
+    `0 -${d}px 0 ${strokeColor}`,
+    `${d}px -${d}px 0 ${strokeColor}`,
+    `${d}px 0 0 ${strokeColor}`,
+    `${d}px ${d}px 0 ${strokeColor}`,
+    `0 ${d}px 0 ${strokeColor}`,
+    `-${d}px ${d}px 0 ${strokeColor}`,
+    `-${d}px 0 0 ${strokeColor}`,
+    `0 0 ${d}px ${strokeColor}`,
+    '0 2px 4px rgba(0,0,0,0.95)',
+  ].join(', ')
+}
+

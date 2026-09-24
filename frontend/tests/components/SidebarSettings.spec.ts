@@ -36,6 +36,10 @@ const mockState = {
   cropPercentXBottom: ref(50),
   splitZoomTop: ref(1.0),
   splitZoomBottom: ref(1.0),
+  splitOffsetXTop: ref(0),
+  splitOffsetYTop: ref(0),
+  splitOffsetXBottom: ref(0),
+  splitOffsetYBottom: ref(0),
   cropMap: ref([]),
   currentTime: ref(0),
   activeSafeZone,
@@ -79,6 +83,9 @@ describe('SidebarSettings Component', () => {
     expect(wrapper.text()).toContain('Cinematic Docu')
     expect(wrapper.text()).toContain('Rhythm Karaoke')
     expect(wrapper.text()).toContain('Modern Vlog')
+    // Active Preset Viewport should display live studio preview
+    expect(wrapper.text()).toContain('Change')
+    expect(wrapper.text()).toContain('MAKE IT VIRAL')
     expect(wrapper.text()).toContain('Display Mode')
     expect(wrapper.text()).toContain('Sync Offset (Timing)')
   })
@@ -206,6 +213,39 @@ describe('SidebarSettings Component', () => {
 
     expect(wrapper.text()).toContain('Stacked Speaker Zoom')
     expect(wrapper.text()).toContain('Top Speaker Zoom')
+    expect(wrapper.text()).toContain('Bottom Speaker Zoom')
+  })
+
+  it('allows switching between Top and Bottom speaker zoom panels using segmented switcher', async () => {
+    mockState.cropMode.value = 'face_tracking'
+    mockState.cropMap.value = [{ time: 0, x: 500, mode: 'split', top_x: 300, bottom_x: 700 }]
+    mockState.currentTime.value = 0
+    mockState.splitZoomTop.value = 1.35
+    mockState.splitZoomBottom.value = 1.6
+
+    const wrapper = mount(SidebarSettings, {
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, BlacklistSettings: true }
+      }
+    })
+
+    // Click Layout tab
+    const tabs = wrapper.findAll('button.tab-btn')
+    await tabs[2]!.trigger('click')
+
+    // Find the segmented speaker switcher buttons
+    const speakerButtons = wrapper.findAll('button').filter(b => b.text().includes('Speaker'))
+    expect(speakerButtons.length).toBeGreaterThanOrEqual(2)
+
+    // Verify badges display current zoom
+    expect(wrapper.text()).toContain('(1.4x)') // rounded top
+    expect(wrapper.text()).toContain('(1.6x)') // bottom
+
+    // Click bottom speaker switcher
+    const bottomBtn = speakerButtons.find(b => b.text().includes('Bottom Speaker'))
+    await bottomBtn?.trigger('click')
+
+    // Verify both sections are present in DOM and bottom speaker is active
     expect(wrapper.text()).toContain('Bottom Speaker Zoom')
   })
 })

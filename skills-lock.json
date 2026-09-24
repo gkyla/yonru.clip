@@ -7,6 +7,12 @@
       "skillPath": "skills/agent-md-refactor/SKILL.md",
       "computedHash": "51c53259bba830ebad6741b2ab69d213d5a4d02835f7f27925a0e4e93515fc22"
     },
+    "antislop": {
+      "source": "miqdadbadjuber/anti-slop",
+      "sourceType": "github",
+      "skillPath": "skills/antislop/SKILL.md",
+      "computedHash": "87c381caf72677933dbb5c4c278b876f6b7353b22a11eee0f002a26eafe7c64c"
+    },
     "caveman": {
       "source": "mattpocock/skills",
       "sourceType": "github",
