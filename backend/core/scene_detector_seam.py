@@ -14,12 +14,12 @@ class SceneDetectorSeam(ABC):
 class OpenCVSceneDetector(SceneDetectorSeam):
     def __init__(
         self,
-        threshold: float = 0.85,
+        threshold: float = 0.75,
         min_refractory_sec: float = 0.5,
         target_size: tuple = (160, 90)
     ):
         """
-        Detects hard camera cuts using HSV color histogram correlation.
+        Detects hard camera cuts using 3D HSV color histogram correlation.
         - threshold: Correlation threshold below which a cut is detected (default 0.75).
         - min_refractory_sec: Minimum duration in seconds between consecutive cuts (default 0.5s).
         - target_size: Micro-resolution for fast histogram evaluation (default 160x90).
@@ -32,8 +32,8 @@ class OpenCVSceneDetector(SceneDetectorSeam):
         # Resize to micro thumbnail
         small = cv2.resize(frame, self.target_size, interpolation=cv2.INTER_NEAREST)
         hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
-        # Calculate 2D Hue-Saturation histogram (H: 16 bins, S: 8 bins)
-        hist = cv2.calcHist([hsv], [0, 1], None, [16, 8], [0, 180, 0, 256])
+        # Calculate 3D Hue-Saturation-Value histogram (H: 16 bins, S: 8 bins, V: 8 bins)
+        hist = cv2.calcHist([hsv], [0, 1, 2], None, [16, 8, 8], [0, 180, 0, 256, 0, 256])
         cv2.normalize(hist, hist, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
         return hist
 

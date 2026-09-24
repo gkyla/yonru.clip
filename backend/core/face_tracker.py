@@ -6,12 +6,16 @@ from core.frame_source import OpenCVFrameSource
 from core.face_detector_seam import MediaPipeFaceDetector
 from core.scene_detector_seam import SceneDetectorSeam, OpenCVSceneDetector
 
-def find_recent_cut(cuts: List[float], t_sec: float, lookback: float = 0.25) -> Optional[float]:
-    """Finds the latest visual cut point in [t_sec - lookback, t_sec]."""
+def find_recent_cut(cuts: List[float], t_sec: float, lookback: float = 0.25, last_consumed_cut: Optional[float] = None) -> Optional[float]:
+    """Finds the latest visual cut point in [t_sec - lookback, t_sec] that has not already been consumed."""
     if not cuts:
         return None
     # Use 0.05s (~1 frame at 24fps) forward tolerance for floating point / rounding precision
-    recent = [c for c in cuts if (t_sec - lookback - 1e-3) <= c <= (t_sec + 0.05)]
+    recent = [
+        c for c in cuts
+        if (t_sec - lookback - 1e-3) <= c <= (t_sec + 0.05)
+        and (last_consumed_cut is None or c > (last_consumed_cut + 0.01))
+    ]
     return max(recent) if recent else None
 
 class AbstractFaceTracker(ABC):
@@ -89,7 +93,16 @@ class FaceTracker(AbstractFaceTracker):
         split_cut_first_t = None
         split_cut_target_t = None
         single_cut_target_t = None
+        last_consumed_cut: Optional[float] = None
         start_time = getattr(source, "start_time", 0.0)
+
+        def append_crop_entry(entry: dict):
+            entry_t = round(entry["time"], 3)
+            entry["time"] = entry_t
+            if crop_map and round(crop_map[-1]["time"], 3) == entry_t:
+                crop_map[-1] = entry
+            else:
+                crop_map.append(entry)
         
         while True:
             ret, frame = source.read()
@@ -114,12 +127,13 @@ class FaceTracker(AbstractFaceTracker):
                     # Scene Cut Detection into Split: two prominent faces with >= 20% width separation
                     if not is_split_mode:
                         d_faces = abs(detected_faces[1] - detected_faces[0])
-                        recent_cut = find_recent_cut(cut_timestamps, t_sec, lookback=0.25)
+                        recent_cut = find_recent_cut(cut_timestamps, t_sec, lookback=0.25, last_consumed_cut=last_consumed_cut)
 
                         if recent_cut is not None:
                             # Shot-Anchored Snap: visual cut point found!
                             is_cut_to_split = True
                             split_cut_target_t = recent_cut
+                            last_consumed_cut = recent_cut
                         elif d_faces >= MIN_SPLIT_SEPARATION:
                             # Fast Cut Bypass fallback (when no visual cut detected or in un-cut videos)
                             split_enter_cut_samples += 1
@@ -140,16 +154,21 @@ class FaceTracker(AbstractFaceTracker):
                     # Scene Cut Detection: if single face appears following a visual cut, or jumps far
                     if is_split_mode and len(detected_faces) == 1:
                         cand_x = detected_faces[0]
-                        recent_cut = find_recent_cut(cut_timestamps, t_sec, lookback=0.25)
+                        recent_cut = find_recent_cut(cut_timestamps, t_sec, lookback=0.25, last_consumed_cut=last_consumed_cut)
 
-                        if recent_cut is not None:
+                        d_top = abs(cand_x - actual_top_x) if actual_top_x is not None else 0
+                        d_bot = abs(cand_x - actual_bottom_x) if actual_bottom_x is not None else 0
+
+                        # In-Shot Partial Dropout Immunity:
+                        # A single face matching either existing speaker position is an in-shot head-turn/blink, NOT a camera cut.
+                        # Only a face far from BOTH existing split speakers can be an instant cut to a single-speaker close-up.
+                        if recent_cut is not None and d_top >= MIN_SWITCH_DIST and d_bot >= MIN_SWITCH_DIST:
                             # Shot-Anchored Snap: visual cut back to single speaker!
                             is_cut_to_single = True
                             single_cut_target_t = recent_cut
+                            last_consumed_cut = recent_cut
                         elif actual_top_x is not None and actual_bottom_x is not None:
                             # Fallback spatial jump cut detection
-                            d_top = abs(cand_x - actual_top_x)
-                            d_bot = abs(cand_x - actual_bottom_x)
                             if d_top >= MIN_SWITCH_DIST and d_bot >= MIN_SWITCH_DIST:
                                 if pending_split_cut_x is not None and abs(cand_x - pending_split_cut_x) < DEADZONE:
                                     split_cut_frames_count += 1
@@ -218,7 +237,8 @@ class FaceTracker(AbstractFaceTracker):
                             if is_cut_to_split and split_cut_target_t is not None:
                                 split_time = split_cut_target_t
                                 # Shot-Anchored Snapping: prune any intermediate single-mode entries at or after split_cut_target_t
-                                while crop_map and crop_map[-1]["time"] >= split_time:
+                                target_time_rounded = round(split_time, 3)
+                                while crop_map and round(crop_map[-1]["time"], 3) >= target_time_rounded:
                                     crop_map.pop()
 
                             split_enter_cut_samples = 0
@@ -226,8 +246,8 @@ class FaceTracker(AbstractFaceTracker):
                             split_cut_target_t = None
 
                             if not crop_map or just_entered_split:
-                                crop_map.append({
-                                    "time": round(split_time, 3),
+                                append_crop_entry({
+                                    "time": split_time,
                                     "mode": "split",
                                     "x": int(actual_top_x),
                                     "top_x": int(actual_top_x),
@@ -258,8 +278,8 @@ class FaceTracker(AbstractFaceTracker):
                             or abs(actual_bottom_x - prev_entry.get("bottom_x", 0)) >= 1.0
                         )
                         if should_append:
-                            crop_map.append({
-                                "time": round(t_sec, 3),
+                            append_crop_entry({
+                                "time": t_sec,
                                 "mode": "split",
                                 "x": int(actual_top_x),
                                 "top_x": int(actual_top_x),
@@ -278,7 +298,7 @@ class FaceTracker(AbstractFaceTracker):
                             actual_top_x = actual_x
                             actual_bottom_x = min(width - 1, actual_x + width * 0.3)
                             # Backfill: Ensure the video starts at this position
-                            crop_map.append({
+                            append_crop_entry({
                                 "time": 0.0,
                                 "mode": "single",
                                 "x": int(actual_x)
@@ -296,12 +316,13 @@ class FaceTracker(AbstractFaceTracker):
                             if single_cut_target_t is not None:
                                 single_time = single_cut_target_t
                                 # Shot-Anchored Snapping: prune any intermediate split-mode entries at or after single_cut_target_t
-                                while crop_map and crop_map[-1]["time"] >= single_time:
+                                target_time_rounded = round(single_time, 3)
+                                while crop_map and round(crop_map[-1]["time"], 3) >= target_time_rounded:
                                     crop_map.pop()
 
                             single_cut_target_t = None
-                            crop_map.append({
-                                "time": round(single_time, 3),
+                            append_crop_entry({
+                                "time": single_time,
                                 "mode": "single",
                                 "x": int(actual_x)
                             })
@@ -349,8 +370,8 @@ class FaceTracker(AbstractFaceTracker):
                             or abs(actual_x - prev_entry.get("x", 0)) >= 1.0
                         )
                         if should_append:
-                            crop_map.append({
-                                "time": round(t_sec, 3),
+                            append_crop_entry({
+                                "time": t_sec,
                                 "mode": "single",
                                 "x": int(actual_x)
                             })

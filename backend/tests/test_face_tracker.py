@@ -294,6 +294,51 @@ class TestFaceTracker(unittest.TestCase):
         self.assertEqual(single_reverts[0]["time"], 0.7, f"Expected single keyframe at 0.7s, got {single_reverts[0]['time']}")
         self.assertEqual(single_reverts[0]["x"], 500)
 
+    def test_consumed_cut_not_reused_during_partial_dropout(self):
+        # 16 frames at 10 fps -> 8 samples (t = 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4)
+        source = InMemoryFrameSource(total_frames=16, width=1000, height=1000, fps=10.0)
+        
+        # Single face at start (t = 0.0, 0.2, 0.4)
+        # Visual cut at t = 0.5s into dual faces
+        # At t = 0.6s: dual faces [200.0, 800.0] -> enters split mode snapped to 0.5s
+        # At t = 0.8s: Helmy Yahya blinks! Only Ade Rai (200.0) detected (within 0.25s of the cut at 0.5s)
+        # At t = 1.0s..1.4s: dual faces [200.0, 800.0] continue
+        mock_coordinates = [
+            500.0, 500.0, 500.0,
+            [200.0, 800.0],
+            200.0,          # Partial dropout matching top speaker!
+            [200.0, 800.0], [200.0, 800.0], [200.0, 800.0]
+        ]
+        detector = MockFaceDetector(mock_coordinates)
+        scene_detector = MockSceneDetector(cut_timestamps=[0.5])
+        tracker = FaceTracker(frame_source=source, face_detector=detector, scene_detector=scene_detector)
+        crop_map = tracker.analyze_video("dummy_path")
+
+        # Split mode should activate at 0.5s and stay in split mode despite the partial dropout at 0.8s
+        split_entries = [p for p in crop_map if p.get("mode") == "split"]
+        self.assertTrue(len(split_entries) > 0)
+        self.assertEqual(split_entries[0]["time"], 0.5)
+
+        # There must be NO single-mode entry at or after 0.5s
+        bad_single = [p for p in crop_map if p.get("mode") == "single" and p["time"] >= 0.5]
+        self.assertEqual(len(bad_single), 0, f"Unexpected single mode keyframe after cut: {bad_single}")
+
+    def test_no_duplicate_timestamps_in_crop_map(self):
+        source = InMemoryFrameSource(total_frames=20, width=1000, height=1000, fps=10.0)
+        mock_coordinates = [
+            500.0, 500.0, 500.0,
+            [200.0, 800.0], [200.0, 800.0],
+            500.0, 500.0,
+            [200.0, 800.0], [200.0, 800.0], [200.0, 800.0]
+        ]
+        detector = MockFaceDetector(mock_coordinates)
+        scene_detector = MockSceneDetector(cut_timestamps=[0.5, 1.1])
+        tracker = FaceTracker(frame_source=source, face_detector=detector, scene_detector=scene_detector)
+        crop_map = tracker.analyze_video("dummy_path")
+
+        timestamps = [p["time"] for p in crop_map]
+        self.assertEqual(len(timestamps), len(set(timestamps)), f"Found duplicate timestamps in crop_map: {timestamps}")
+
 if __name__ == '__main__':
     unittest.main()
 

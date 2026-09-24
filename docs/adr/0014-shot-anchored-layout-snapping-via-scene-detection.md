@@ -19,15 +19,17 @@ Because `yonru.clip` processes pre-recorded source videos with discrete camera s
 
 1. **Two-Pass Shot Boundary Architecture**:
    - Decouple **Visual Cut Point** detection from **Face Tracking & Layout Classification**.
-   - **Pass 1 (`SceneDetectorSeam`)**: Fast pre-scan across consecutive frames downscaled to micro-resolution ($160\times 90$) evaluating HSV color histogram correlation (`cv2.compareHist`). Significant correlation drops ($< 0.65$) establish exact integer-frame **Visual Cut Points**. A minimum refractory period of $0.5\text{s}$ prevents rapid strobe/gesture false positives.
+   - **Pass 1 (`SceneDetectorSeam`)**: Fast pre-scan across consecutive frames downscaled to micro-resolution ($160\times 90$) evaluating 3D Hue-Saturation-Value (HSV) color histogram correlation (`cv2.compareHist`). Significant correlation drops ($< 0.75$) establish exact integer-frame **Visual Cut Points**. A minimum refractory period of $0.5\text{s}$ prevents rapid strobe/gesture false positives.
    - **Reset Capability**: Add `reset()` to the `FrameSource` contract (`cv2.CAP_PROP_POS_FRAMES = 0` or stream reset), enabling zero-overhead rewind between passes.
    - **Pass 2 (`FaceTracker`)**: Perform deep face tracking every 2 frames as before, cross-referencing layout mode candidates against the pre-computed cut timestamps.
 
 2. **Shot-Anchored Layout Snapping**:
-   - **Cut into Split**: When dual prominent faces ($\ge 20\%$ frame width separation) are detected at time $T$, `FaceTracker` checks for a Visual Cut Point in the asymmetric lookback window $[T - 0.25\text{s}, T]$. If found, the layout switch is **snapped strictly to the exact cut timestamp**.
-   - **Cut into Single**: When detected faces drop from 2 to 1 and a Visual Cut Point exists in $[T - 0.25\text{s}, T]$, the layout instantly snaps back to single-speaker framing at the cut timestamp.
+   - **Cut into Split**: When dual prominent faces ($\ge 20\%$ frame width separation) are detected at time $T$, `FaceTracker` checks for a Visual Cut Point in the asymmetric lookback window $[T - 0.25\text{s}, T]$. If found, the layout switch is **snapped strictly to the exact cut timestamp**, and that cut is marked as consumed (`last_consumed_cut`).
+   - **Anti-Cut Reconsumption & In-Shot Partial Dropout Immunity**: Once a cut timestamp is consumed to enter split mode, it cannot be reused by single-speaker checks to immediately revert the mode. When in split mode, a single detected face matching one of the two active speakers (`d_top < MIN_SWITCH_DIST` or `d_bot < MIN_SWITCH_DIST`) is recognized as an in-shot head-turn or temporary occlusion; split mode remains locked and coordinates freeze.
+   - **Cut into Single**: Only when a NEW unconsumed Visual Cut Point is detected AND the single face is positioned away from both existing split viewports (`d_top >= MIN_SWITCH_DIST` and `d_bot >= MIN_SWITCH_DIST`) does the layout instantly snap back to single-speaker framing at the cut timestamp.
    - **In-Shot Continuity & Dropout Rejection**: If faces drop from 2 to 1 without a Visual Cut Point, the tracker recognizes that the camera did not switch; the event is classified as an in-shot blink or temporary occlusion. The split layout remains locked and coordinates freeze.
    - **In-Shot Entry**: In continuous shots without camera cuts, entering split mode requires the standard $0.35\text{s}$ stability hold.
+   - **Timestamp Deduplication**: Keyframes written to `crop_map` strictly deduplicate rounded millisecond timestamps, preventing conflicting mode collisions at identical points in time.
 
 3. **Container Stream Presentation Timestamp (PTS) Alignment**:
    - `ffmpeg` clip extractions and video streams often exhibit a non-zero initial presentation timestamp (`start_time`, e.g. `0.083s` / ~2 frames delay due to audio-video interleaving or B-frame reordering).
