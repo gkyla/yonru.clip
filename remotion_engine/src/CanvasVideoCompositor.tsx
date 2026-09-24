@@ -334,7 +334,9 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
   // Draw on layout effect whenever frame or draw dependencies change
   useLayoutEffect(() => {
     const video = videoRef.current;
-    if (video && video.seeking && !isRendering) {
+    if (!video) return;
+
+    if (video.seeking && !isRendering) {
       let cancelled = false;
       const onSeeked = () => {
         if (!cancelled) drawRef.current(true);
@@ -348,9 +350,16 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
         video.removeEventListener('seeked', onSeeked);
         clearTimeout(timer);
       };
-    } else {
-      draw(false);
     }
+
+    // EXCLUSIVE SOVEREIGN RENDERER GUARD: During active playback, do NOT draw from useLayoutEffect.
+    // requestVideoFrameCallback holds 100% exclusive authority over the canvas using exact decoder PTS.
+    // useLayoutEffect only draws when video is paused or during headless render.
+    if (!isRendering && !video.paused && !video.seeking) {
+      return;
+    }
+
+    draw(false);
   }, [frame, isRendering, draw]);
 
   // Video event-driven updates (scrubbing, seeking, loadeddata)
@@ -359,7 +368,11 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
     if (!video) return;
 
     const handleSeeked = () => drawRef.current(true, video.currentTime);
-    const handleTimeUpdate = () => drawRef.current(false, video.currentTime);
+    const handleTimeUpdate = () => {
+      // During active playback, rVFC is the exclusive renderer; do not allow timeupdate to clobber
+      if (video && !video.paused && !video.seeking) return;
+      drawRef.current(false, video.currentTime);
+    };
     const handleLoadedData = () => drawRef.current();
 
     video.addEventListener('seeked', handleSeeked);
