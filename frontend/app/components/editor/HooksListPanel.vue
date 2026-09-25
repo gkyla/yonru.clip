@@ -99,7 +99,7 @@
           class="w-full text-left p-3 rounded-xl border transition-all text-xs group relative hover:z-30 overflow-visible"
           :class="[
             isActiveHook(hook)
-              ? 'border-accent-500/40 text-white bg-accent-500/5 hook-item-active cursor-default'
+              ? 'border-accent-500/50 bg-surface-dark/50 text-white hook-item-active cursor-default'
               : 'bg-surface-dark/50 border-surface-border hover:border-accent-500/30 hover:bg-surface-card text-slate-300',
             isOverlayVisible ? 'opacity-50 cursor-not-allowed' : '',
           ]"
@@ -224,7 +224,7 @@
           class="w-full text-left p-3 rounded-xl border transition-all text-xs group relative hover:z-30 overflow-visible"
           :class="[
             isActiveHook(hook)
-              ? 'border-accent-500 text-white bg-accent-500/5 shadow-[inset_0_0_10px_rgba(207,255,80,0.08)] hook-item-active cursor-default'
+              ? 'border-accent-500 bg-surface-dark/50 text-white hook-item-active cursor-default'
               : 'bg-surface-dark/50 border-surface-border hover:border-accent-500/30 hover:bg-surface-card text-slate-300',
             isOverlayVisible ? 'opacity-50 cursor-not-allowed' : '',
           ]"
