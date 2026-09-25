@@ -1,5 +1,7 @@
 <template>
-  <div class="w-80 border-l border-white/10 bg-[#0e0e12]/90 backdrop-blur-xl flex flex-col overflow-hidden text-white relative">
+  <div
+    class="w-80 border-l border-surface-border bg-surface-panel/50 flex flex-col overflow-hidden text-white relative"
+  >
     <!-- Content Safety Audit Panel -->
     <ContentAuditPanel
       class="border-b border-surface-border min-h-0 shrink-0"
@@ -8,50 +10,69 @@
       @settings="emit('open-blacklist-settings')"
     />
 
-    <div class="border-b border-surface-border/30 flex flex-col shrink-0">
-      <div class="flex items-center justify-between px-4 h-10">
-        <span class="text-[10px] uppercase text-slate-400 font-bold tracking-widest flex items-center gap-2">
-          <Icon name="ri:list-settings-line" class="text-sky-500" /> Hooks Panel
+    <div
+      class="border-b border-surface-border/50 bg-surface-dark/40 flex flex-col shrink-0"
+    >
+      <div class="flex items-center justify-between px-3 h-10">
+        <span
+          class="text-[10px] uppercase text-slate-400 font-bold tracking-widest flex items-center gap-1.5"
+        >
+          <Icon name="ri:list-settings-line" class="text-sky-500 text-xs" />
+          Hooks Panel
         </span>
         <button
           v-if="state?.activeHook?.value && !isCurrentHookSaved"
+          type="button"
+          class="flex items-center gap-1 bg-surface-card hover:bg-surface-border text-accent-500 border border-accent-500/30 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all"
           @click="emit('save-current-hook')"
-          class="flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter transition-all"
         >
-          <Icon name="ri:bookmark-line" />
-          Save Current
+          <Icon name="ri:bookmark-line" class="text-xs" />
+          <span>Save</span>
         </button>
         <button
           v-else-if="state?.activeHook?.value && isCurrentHookSaved"
+          type="button"
+          class="flex items-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all"
           @click="emit('remove-current-saved-hook')"
-          class="flex items-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter transition-all"
         >
-          <Icon name="ri:delete-bin-line" />
-          Remove Saved
+          <Icon name="ri:delete-bin-line" class="text-xs" />
+          <span>Remove Saved</span>
         </button>
       </div>
-      <div class="flex bg-black/40 border border-white/5 rounded-xl p-1 gap-1 mb-4 mx-4 mt-2">
+
+      <!-- Segmented Tab Navigation Header -->
+      <div
+        class="grid grid-cols-2 gap-1 bg-surface-dark/80 p-0.5 rounded-xl border border-surface-border/60 mx-3 mb-2.5 mt-1"
+      >
         <button
-          @click="emit('update:panelTab', 'generated')"
-          class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
+          type="button"
+          class="tab-btn py-1.5 px-1 rounded-lg text-[9.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1"
           :class="
             panelTab === 'generated'
-              ? 'bg-white/10 text-amber-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]'
-              : 'text-slate-400 border border-transparent hover:text-white'
+              ? 'bg-accent-500 text-black shadow-md shadow-accent-500/20 font-bold'
+              : 'text-slate-400 hover:text-white hover:bg-surface-card/50'
           "
+          @click="emit('update:panelTab', 'generated')"
         >
-          Generated ({{ state.hooks.value.length }})
+          <span>Generated</span>
+          <span class="mono text-[8.5px] opacity-80 font-bold"
+            >({{ state.hooks.value.length }})</span
+          >
         </button>
         <button
-          @click="emit('update:panelTab', 'saved')"
-          class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5"
+          type="button"
+          class="tab-btn py-1.5 px-1 rounded-lg text-[9.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1"
           :class="
             panelTab === 'saved'
-              ? 'bg-white/10 text-amber-400 border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.2)]'
-              : 'text-slate-400 border border-transparent hover:text-white'
+              ? 'bg-accent-500 text-black shadow-md shadow-accent-500/20 font-bold'
+              : 'text-slate-400 hover:text-white hover:bg-surface-card/50'
           "
+          @click="emit('update:panelTab', 'saved')"
         >
-          Saved ({{ state.savedHooks.value.length }})
+          <span>Saved</span>
+          <span class="mono text-[8.5px] opacity-80 font-bold"
+            >({{ state.savedHooks.value.length }})</span
+          >
         </button>
       </div>
     </div>
@@ -62,44 +83,50 @@
         v-if="panelTab === 'generated'"
         key="generated"
         ref="hooksContainer"
-        class="flex-1 overflow-y-auto px-4 pb-4 pt-1.5 space-y-1.5 custom-scrollbar min-h-0"
+        class="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2 custom-scrollbar min-h-0"
       >
-        <div v-if="!state.hooks.value.length" class="text-center text-slate-600 text-xs p-6">
+        <div
+          v-if="!state.hooks.value.length"
+          class="text-center text-slate-500 text-xs p-6 italic"
+        >
           No hooks generated yet.
         </div>
         <button
           v-for="(hook, idx) in state.hooks.value"
           :key="idx"
-          @click="emit('select-hook', hook)"
+          type="button"
           :disabled="isOverlayVisible || isActiveHook(hook)"
-          class="w-full text-left p-3.5 rounded-2xl border transition-all text-xs group relative hover:z-30 overflow-visible"
+          class="w-full text-left p-3 rounded-xl border transition-all text-xs group relative hover:z-30 overflow-visible"
           :class="[
             isActiveHook(hook)
-              ? 'bg-amber-500/[0.08] border-amber-500/60 text-amber-200 shadow-[0_4px_20px_rgba(245,158,11,0.08)] hook-item-active cursor-default'
-              : 'bg-[#16161c]/60 border-white/10 hover:border-white/20 hover:bg-[#1f1f28]/70 text-slate-300',
-            isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
+              ? 'border-accent-500/40 text-white bg-accent-500/5 hook-item-active cursor-default'
+              : 'bg-surface-dark/50 border-surface-border hover:border-accent-500/30 hover:bg-surface-card text-slate-300',
+            isOverlayVisible ? 'opacity-50 cursor-not-allowed' : '',
           ]"
+          @click="emit('select-hook', hook)"
         >
-          <div class="flex justify-between items-center mb-1">
+          <div class="flex justify-between items-center mb-1.5">
             <div class="flex items-center gap-2">
               <span
                 class="font-bold text-[10px] uppercase tracking-wider"
-                :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'"
+                :class="
+                  isActiveHook(hook) ? 'text-accent-500' : 'text-slate-500'
+                "
               >
-                HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}
+                HOOK {{ String(Number(idx) + 1).padStart(2, "0") }}
               </span>
 
               <!-- Virality Score Badge -->
               <div
                 v-if="hook.virality_score !== undefined"
-                class="px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider flex items-center gap-0.5"
+                class="px-1.5 py-0.5 rounded text-[8.5px] font-bold tracking-wider flex items-center gap-0.5 border"
                 :class="{
-                  'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40':
+                  'bg-emerald-500/10 text-emerald-400 border-emerald-500/30':
                     hook.virality_score >= 90,
-                  'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40':
+                  'bg-cyan-500/10 text-cyan-400 border-cyan-500/30':
                     hook.virality_score >= 75 && hook.virality_score < 90,
-                  'bg-slate-700/40 text-slate-300 border border-slate-600/40':
-                    hook.virality_score < 75
+                  'bg-surface-dark/80 text-slate-400 border-surface-border':
+                    hook.virality_score < 75,
                 }"
               >
                 <Icon
@@ -110,53 +137,68 @@
                         ? 'ri:flashlight-fill'
                         : 'ri:bar-chart-2-fill'
                   "
-                  class="text-[10px]"
+                  class="text-[9.5px]"
                 />
                 <span>{{ hook.virality_score }}</span>
               </div>
 
               <!-- Ready Tooltip -->
-              <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center z-20">
+              <div
+                v-if="isHookRendered(hook)"
+                class="relative group/tooltip flex items-center z-20"
+              >
                 <div
-                  class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help"
+                  class="text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-help"
                 >
-                  <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                  <Icon name="ri:checkbox-circle-fill" class="text-[10px]" />
+                  Ready
                 </div>
                 <div
-                  class="absolute bottom-full ml-10 left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-[999] font-medium normal-case tracking-normal text-center"
+                  class="absolute bottom-full ml-10 left-1/2 -translate-x-1/2 mb-2 w-64 bg-surface-dark/95 border border-emerald-500/30 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-[999] font-medium normal-case tracking-normal text-center backdrop-blur-sm"
                 >
-                  This clip has already been cut and transcribed, and is ready for editing!
+                  This clip has already been cut and transcribed, and is ready
+                  for editing!
                   <div
-                    class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"
-                  ></div>
+                    class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-surface-dark"
+                  />
                 </div>
               </div>
             </div>
             <span
               class="mono text-[10px]"
-              :class="isActiveHook(hook) ? 'text-sky-400 font-bold' : 'text-slate-300'"
+              :class="
+                isActiveHook(hook)
+                  ? 'text-accent-500 font-bold'
+                  : 'text-slate-400'
+              "
             >
-              {{ state.formatDuration(hook.start) }} – {{ state.formatDuration(hook.end) }}
+              {{ state.formatDuration(hook.start) }} -
+              {{ state.formatDuration(hook.end) }}
               <span class="ml-1 text-accent-500 font-bold">
                 ({{
                   Math.floor(hook.end - hook.start) >= 60
                     ? Math.floor((hook.end - hook.start) / 60) +
-                      'm ' +
+                      "m " +
                       Math.floor((hook.end - hook.start) % 60) +
-                      's'
-                    : Math.floor(hook.end - hook.start) + 's'
+                      "s"
+                    : Math.floor(hook.end - hook.start) + "s"
                 }})
               </span>
             </span>
           </div>
-          <p class="font-medium truncate" :class="isActiveHook(hook) ? 'text-white' : 'text-slate-300'">
-            {{ hook.theme || 'Untitled' }}
+          <p
+            class="font-bold truncate"
+            :class="isActiveHook(hook) ? 'text-white' : 'text-slate-200'"
+          >
+            {{ hook.theme || "Untitled" }}
           </p>
-          <p class="text-[10px] mt-1 line-clamp-2 italic opacity-70">
+          <p
+            class="text-[10.5px] mt-1 line-clamp-2 italic text-slate-400 group-hover:text-slate-300"
+          >
             "{{
-              (hook.transcript_quote || '').length > 80
-                ? (hook.transcript_quote || '').substring(0, 77) + '...'
-                : hook.transcript_quote || ''
+              (hook.transcript_quote || "").length > 80
+                ? (hook.transcript_quote || "").substring(0, 77) + "..."
+                : hook.transcript_quote || ""
             }}"
           </p>
         </button>
@@ -166,44 +208,50 @@
       <div
         v-else
         key="saved"
-        class="flex-1 overflow-y-auto px-4 pb-4 pt-1.5 space-y-1.5 custom-scrollbar min-h-0"
+        class="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2 custom-scrollbar min-h-0"
       >
-        <div v-if="!state.savedHooks.value.length" class="text-center text-slate-600 text-xs p-6">
+        <div
+          v-if="!state.savedHooks.value.length"
+          class="text-center text-slate-500 text-xs p-6 italic"
+        >
           No saved hooks for this video yet.
         </div>
         <button
           v-for="(hook, idx) in state.savedHooks.value"
           :key="hook._id || idx"
-          @click="emit('select-hook', hook)"
+          type="button"
           :disabled="isOverlayVisible || isActiveHook(hook)"
-          class="w-full text-left p-3.5 rounded-2xl border transition-all text-xs group relative hover:z-30 overflow-visible"
+          class="w-full text-left p-3 rounded-xl border transition-all text-xs group relative hover:z-30 overflow-visible"
           :class="[
             isActiveHook(hook)
-              ? 'bg-amber-500/[0.08] border-amber-500/60 text-amber-200 shadow-[0_4px_20px_rgba(245,158,11,0.08)] hook-item-active cursor-default'
-              : 'bg-[#16161c]/60 border-white/10 hover:border-white/20 hover:bg-[#1f1f28]/70 text-slate-300',
-            isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
+              ? 'border-accent-500 text-white bg-accent-500/5 shadow-[inset_0_0_10px_rgba(207,255,80,0.08)] hook-item-active cursor-default'
+              : 'bg-surface-dark/50 border-surface-border hover:border-accent-500/30 hover:bg-surface-card text-slate-300',
+            isOverlayVisible ? 'opacity-50 cursor-not-allowed' : '',
           ]"
+          @click="emit('select-hook', hook)"
         >
-          <div class="flex justify-between items-center mb-1">
+          <div class="flex justify-between items-center mb-1.5">
             <div class="flex items-center gap-2">
               <span
                 class="font-bold text-[10px] uppercase tracking-wider"
-                :class="isActiveHook(hook) ? 'text-amber-400' : 'text-slate-500'"
+                :class="
+                  isActiveHook(hook) ? 'text-accent-500' : 'text-slate-500'
+                "
               >
-                SAVED {{ String(Number(idx) + 1).padStart(2, '0') }}
+                SAVED {{ String(Number(idx) + 1).padStart(2, "0") }}
               </span>
 
               <!-- Virality Score Badge -->
               <div
                 v-if="hook.virality_score !== undefined"
-                class="px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider flex items-center gap-0.5"
+                class="px-1.5 py-0.5 rounded text-[8.5px] font-bold tracking-wider flex items-center gap-0.5 border"
                 :class="{
-                  'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40':
+                  'bg-emerald-500/10 text-emerald-400 border-emerald-500/30':
                     hook.virality_score >= 90,
-                  'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40':
+                  'bg-cyan-500/10 text-cyan-400 border-cyan-500/30':
                     hook.virality_score >= 75 && hook.virality_score < 90,
-                  'bg-slate-700/40 text-slate-300 border border-slate-600/40':
-                    hook.virality_score < 75
+                  'bg-surface-dark/80 text-slate-400 border-surface-border':
+                    hook.virality_score < 75,
                 }"
               >
                 <Icon
@@ -214,51 +262,66 @@
                         ? 'ri:flashlight-fill'
                         : 'ri:bar-chart-2-fill'
                   "
-                  class="text-[10px]"
+                  class="text-[9.5px]"
                 />
                 <span>{{ hook.virality_score }}</span>
               </div>
-              <div v-if="isHookRendered(hook)" class="relative group/tooltip flex items-center z-20">
+              <div
+                v-if="isHookRendered(hook)"
+                class="relative group/tooltip flex items-center z-20"
+              >
                 <div
-                  class="text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 cursor-help"
+                  class="text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-help"
                 >
-                  <Icon name="ri:checkbox-circle-fill" class="text-[10px]" /> Ready
+                  <Icon name="ri:checkbox-circle-fill" class="text-[10px]" />
+                  Ready
                 </div>
                 <div
-                  class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 border border-emerald-500/20 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-50 font-medium normal-case tracking-normal text-center"
+                  class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-surface-dark/95 border border-emerald-500/30 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-50 font-medium normal-case tracking-normal text-center backdrop-blur-sm"
                 >
-                  This clip has already been cut and transcribed, and is ready for editing!
+                  This clip has already been cut and transcribed, and is ready
+                  for editing!
                   <div
-                    class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-slate-900"
-                  ></div>
+                    class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-surface-dark"
+                  />
                 </div>
               </div>
             </div>
             <span
               class="mono text-[10px]"
-              :class="isActiveHook(hook) ? 'text-sky-400 font-bold' : 'text-slate-300'"
+              :class="
+                isActiveHook(hook)
+                  ? 'text-accent-500 font-bold'
+                  : 'text-slate-400'
+              "
             >
-              {{ state.formatDuration(hook.start) }} – {{ state.formatDuration(hook.end) }}
+              {{ state.formatDuration(hook.start) }} -
+              {{ state.formatDuration(hook.end) }}
               <span class="ml-1 text-accent-500 font-bold">
                 ({{
                   Math.floor(hook.end - hook.start) >= 60
                     ? Math.floor((hook.end - hook.start) / 60) +
-                      'm ' +
+                      "m " +
                       Math.floor((hook.end - hook.start) % 60) +
-                      's'
-                    : Math.floor(hook.end - hook.start) + 's'
+                      "s"
+                    : Math.floor(hook.end - hook.start) + "s"
                 }})
               </span>
             </span>
           </div>
-          <p class="font-medium truncate" :class="isActiveHook(hook) ? 'text-white' : 'text-slate-300'">
-            {{ hook.theme || 'Untitled' }}
+          <p
+            class="font-bold truncate"
+            :class="isActiveHook(hook) ? 'text-white' : 'text-slate-200'"
+          >
+            {{ hook.theme || "Untitled" }}
           </p>
-          <p class="text-[10px] mt-1 line-clamp-2 italic opacity-70">
+          <p
+            class="text-[10.5px] mt-1 line-clamp-2 italic text-slate-400 group-hover:text-slate-300"
+          >
             "{{
-              (hook.transcript_quote || '').length > 80
-                ? (hook.transcript_quote || '').substring(0, 77) + '...'
-                : hook.transcript_quote || ''
+              (hook.transcript_quote || "").length > 80
+                ? (hook.transcript_quote || "").substring(0, 77) + "..."
+                : hook.transcript_quote || ""
             }}"
           </p>
         </button>
@@ -268,52 +331,59 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import type { Hook } from '../../types/clipper'
+import { ref, watch, nextTick } from "vue";
+import type { Hook } from "../../types/clipper";
 
 const props = defineProps<{
-  panelTab: 'generated' | 'saved'
-  isCurrentHookSaved: boolean
-  isOverlayVisible: boolean
-  isHookRendered: (hook: Hook | null) => boolean
-  isActiveHook: (hook: Hook) => boolean
-}>()
+  panelTab: "generated" | "saved";
+  isCurrentHookSaved: boolean;
+  isOverlayVisible: boolean;
+  isHookRendered: (hook: Hook | null) => boolean;
+  isActiveHook: (hook: Hook) => boolean;
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:panelTab', tab: 'generated' | 'saved'): void
-  (e: 'select-hook', hook: Hook): void
-  (e: 'save-current-hook'): void
-  (e: 'remove-current-saved-hook'): void
-  (e: 'open-blacklist-settings'): void
-}>()
+  (e: "update:panelTab", tab: "generated" | "saved"): void;
+  (e: "select-hook", hook: Hook): void;
+  (e: "save-current-hook"): void;
+  (e: "remove-current-saved-hook"): void;
+  (e: "open-blacklist-settings"): void;
+}>();
 
-const state = useClipperState()
-const isAuditExpanded = ref(false)
-const hooksContainer = ref<HTMLElement | null>(null)
+const state = useClipperState();
+const isAuditExpanded = ref(false);
+const hooksContainer = ref<HTMLElement | null>(null);
 
 watch(
-  [() => state.activeHook.value, () => state.hooks.value, () => state.savedHooks.value, () => props.panelTab],
+  [
+    () => state.activeHook.value,
+    () => state.hooks.value,
+    () => state.savedHooks.value,
+    () => props.panelTab,
+  ],
   async () => {
-    if (!state.activeHook.value) return
+    if (!state.activeHook.value) return;
 
-    await nextTick()
+    await nextTick();
     setTimeout(() => {
-      if (typeof document !== 'undefined') {
-        const activeEl = document.querySelector('.hook-item-active')
+      if (typeof document !== "undefined") {
+        const activeEl = document.querySelector(".hook-item-active");
         if (activeEl) {
-          activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          activeEl.scrollIntoView({ behavior: "smooth", block: "center" });
         }
       }
-    }, 100)
+    }, 100);
   },
-  { immediate: true, deep: true }
-)
+  { immediate: true, deep: true },
+);
 </script>
 
 <style scoped>
 .panel-tab-fade-enter-active,
 .panel-tab-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 .panel-tab-fade-enter-from {
   opacity: 0;
