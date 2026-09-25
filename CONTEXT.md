@@ -84,6 +84,14 @@ _Avoid_: Manual pan override, static crop position, pixel nudge, split camera dr
 The dynamic positioning mechanism that automatically anchors subtitles over the center dividing seam in Stacked Multi-Speaker Reframe to prevent speaker occlusion, while returning to standard lower-third positioning in single-speaker framing, with manual override available in settings.
 _Avoid_: Dynamic subtitles, floating text jump, split captions
 
+**Subtitle Style Preset**:
+A preconfigured collection of typography, color palette, highlight animation, stroke, and background treatments applied to subtitles for viral video pacing and visual branding.
+_Avoid_: Template, subtitle theme, font style, caption design
+
+**Preset Studio Viewport**:
+The cinematic live preview canvas within the active subtitle preset card that renders real-time typography, highlight effects, stroke, and background treatments against a dark studio backdrop simulating actual video output.
+_Avoid_: Preview box, font tester, text demo
+
 **Visual Cut Point**:
 The exact timestamp or frame where a video camera angle or scene visually cuts between different shots.
 _Avoid_: Scene jump, split boundary, edit splice

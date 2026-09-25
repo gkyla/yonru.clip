@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { hexToRgba, getEditingStyle, transformText } from '../../app/utils/styleHelpers'
+import { hexToRgba, getEditingStyle, transformText, getOuterStrokeShadow } from '../../app/utils/styleHelpers'
 
 describe('Style Helpers TDD', () => {
   it('converts 6-digit hex string to rgba correctly', () => {
@@ -84,6 +84,26 @@ describe('Style Helpers TDD', () => {
     it('handles empty inputs safely', () => {
       expect(transformText('', 'uppercase')).toBe('')
       expect(transformText(null as any, 'uppercase')).toBe('')
+    })
+  })
+
+  describe('getOuterStrokeShadow', () => {
+    it('returns subtle ambient shadow when strokeWidth is 0 or undefined', () => {
+      expect(getOuterStrokeShadow(0)).toBe('0 1px 3px rgba(0,0,0,0.8)')
+      expect(getOuterStrokeShadow(undefined)).toBe('0 1px 3px rgba(0,0,0,0.8)')
+    })
+
+    it('generates multi-directional outer shadow rays when strokeWidth > 0', () => {
+      const shadow = getOuterStrokeShadow(3, '#000000')
+      expect(shadow).toContain('-1.4px -1.4px 0 #000000')
+      expect(shadow).toContain('1.4px 1.4px 0 #000000')
+      expect(shadow).toContain('0 0 1.4px #000000')
+      expect(shadow).toContain('0 2px 4px rgba(0,0,0,0.95)')
+    })
+
+    it('supports custom stroke colors', () => {
+      const shadow = getOuterStrokeShadow(2, '#FFFFFF')
+      expect(shadow).toContain('0 #FFFFFF')
     })
   })
 })
