@@ -136,33 +136,105 @@ def test_backend_cmd_reload_exclude_no_globs(mocker):
 def test_bootstrap_node_project_opportunistic_bun(mocker, tmp_path):
     """Verify that _bootstrap_node_project uses bun install when bun is available."""
     mocker.patch("run.log_system")
-    mocker.patch("run.shutil.which", side_effect=lambda bin_name: "/usr/local/bin/bun" if bin_name == "bun" else None)
     mock_sub_run = mocker.patch("run.subprocess.run")
 
     target_dir = tmp_path / "frontend"
     target_dir.mkdir()
 
     launcher = run.BootstrappedLauncher(target="frontend")
+    mocker.patch.object(launcher, "_find_bun", return_value="/usr/local/bin/bun")
     launcher._bootstrap_node_project(str(target_dir), "Frontend")
 
     mock_sub_run.assert_called_once_with(
-        ["bun", "install"], cwd=str(target_dir), shell=run.IS_WIN, check=True
+        ["/usr/local/bin/bun", "install"], cwd=str(target_dir), shell=run.IS_WIN, check=True
     )
 
 
 def test_bootstrap_node_project_fallback_npm(mocker, tmp_path):
     """Verify that _bootstrap_node_project falls back to npm install when bun is not available."""
     mocker.patch("run.log_system")
-    mocker.patch("run.shutil.which", return_value=None)
     mock_sub_run = mocker.patch("run.subprocess.run")
 
     target_dir = tmp_path / "frontend"
     target_dir.mkdir()
 
     launcher = run.BootstrappedLauncher(target="frontend")
+    mocker.patch.object(launcher, "_find_bun", return_value=None)
     launcher._bootstrap_node_project(str(target_dir), "Frontend")
 
     mock_sub_run.assert_called_once_with(
         ["npm", "install"], cwd=str(target_dir), shell=run.IS_WIN, check=True
     )
+
+
+def test_bootstrap_backend_opportunistic_uv(mocker):
+    """Verify that _bootstrap_backend uses uv pip install when uv is available."""
+    mocker.patch("run.log_system")
+    mocker.patch("run.os.path.exists", return_value=True)
+    mocker.patch("run.shutil.rmtree")
+    mocker.patch("builtins.open", mocker.mock_open(read_data="home = /fake/path\nbackend/venv"))
+    mock_sub_run = mocker.patch("run.subprocess.run")
+    mock_sub_run.return_value.returncode = 0
+
+    launcher = run.BootstrappedLauncher(target="backend")
+    mocker.patch.object(launcher, "_find_uv", return_value="/usr/local/bin/uv")
+    venv_py = launcher._bootstrap_backend()
+
+    # The last subprocess.run call should be uv pip install
+    last_call = mock_sub_run.call_args_list[-1]
+    expected_cmd = ["/usr/local/bin/uv", "pip", "install", "--python", venv_py, "-r", "requirements.txt"]
+    assert last_call[0][0] == expected_cmd
+
+
+def test_bootstrap_backend_fallback_pip(mocker):
+    """Verify that _bootstrap_backend falls back to pip install when uv is not available."""
+    mocker.patch("run.log_system")
+    mocker.patch("run.os.path.exists", return_value=True)
+    mocker.patch("run.shutil.rmtree")
+    mocker.patch("builtins.open", mocker.mock_open(read_data="home = /fake/path\nbackend/venv"))
+    mock_sub_run = mocker.patch("run.subprocess.run")
+    mock_sub_run.return_value.returncode = 0
+
+    launcher = run.BootstrappedLauncher(target="backend")
+    mocker.patch.object(launcher, "_find_uv", return_value=None)
+    venv_py = launcher._bootstrap_backend()
+
+    # The last subprocess.run call should be python -m pip install
+    last_call = mock_sub_run.call_args_list[-1]
+    expected_cmd = [venv_py, "-m", "pip", "install", "-r", "requirements.txt"]
+    assert last_call[0][0] == expected_cmd
+
+
+def test_bootstrap_backend_skips_when_hash_matches(mocker):
+    """Verify that _bootstrap_backend completely skips pip/uv verification when requirements hash matches."""
+    mocker.patch("run.log_system")
+    mocker.patch("run.os.path.exists", return_value=True)
+    fake_hash = "abc123hash"
+    venv_dir = os.path.abspath("backend/venv")
+    
+    file_map = {
+        "pyvenv.cfg": f"home = /fake/path\n{venv_dir}",
+        "requirements.txt": b"fastapi\n",
+        ".requirements.hash": fake_hash,
+    }
+
+    def fake_open(filename, *args, **kwargs):
+        for key, val in file_map.items():
+            if key in str(filename):
+                return mocker.mock_open(read_data=val)()
+        return mocker.mock_open(read_data="")()
+
+    mocker.patch("run.hashlib.sha256", return_value=mocker.MagicMock(hexdigest=lambda: fake_hash))
+    mocker.patch("builtins.open", fake_open)
+    mock_sub_run = mocker.patch("run.subprocess.run")
+    mock_sub_run.return_value.returncode = 0
+
+    launcher = run.BootstrappedLauncher(target="backend")
+    launcher._bootstrap_backend()
+
+    # Subprocess run should only be called for python --version check, never for pip or uv install
+    for call in mock_sub_run.call_args_list:
+        cmd = call[0][0]
+        assert "pip" not in cmd, f"Expected pip not to be invoked, but got {cmd}"
+        assert "install" not in cmd, f"Expected install not to be invoked, but got {cmd}"
 

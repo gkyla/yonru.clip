@@ -148,8 +148,11 @@ Get Yonru Clip running locally in 3 simple steps:
 Ensure your computer has these tools installed:
 - [Python (3.10 - 3.12)](https://www.python.org/downloads/)
   *(Important for Windows: make sure to check **"Add Python to PATH"** during installation).*
+- [uv (Optional, highly recommended for instant Python installs)](https://docs.astral.sh/uv/):
+  - macOS / Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh` (or `brew install uv`)
+  - Windows: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"` (or `winget install astral-sh.uv`)
 - [Node.js (18+)](https://nodejs.org/) *(Baseline runtime for Nuxt 4 and Remotion video rendering).*
-- [Bun (Optional, highly recommended)](https://bun.sh/) *(Accelerates package installation by 4x-13x):*
+- [Bun (Optional, highly recommended for instant Node installs)](https://bun.sh/):
   - Via npm (all platforms): `npm install -g bun`
   - macOS / Linux: `curl -fsSL https://bun.sh/install | bash` (or `brew install oven-sh/bun/bun`)
   - Windows: `powershell -c "irm bun.sh/install.ps1 | iex"` (or `winget install Oven-sh.Bun`)
@@ -164,7 +167,7 @@ cd yonru.clip
 python run.py
 ```
 > [!TIP]
-> The unified `run.py` launcher handles all heavy lifting automatically: creating virtual environments, installing dependencies (auto-detecting Bun for rapid install with seamless npm fallback), syncing offline creator fonts, and starting all services.
+> The unified `run.py` launcher handles all heavy lifting automatically: creating virtual environments, installing dependencies (auto-detecting `uv` and `bun` for rapid installs with seamless pip/npm fallback), syncing offline creator fonts, and starting all services.
 
 ### 3. Open Yonru & Add Gemini API Key
 1. Open your browser and navigate to **`http://localhost:3000`**.

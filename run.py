@@ -6,6 +6,7 @@ import subprocess
 import threading
 import time
 import signal
+import hashlib
 from abc import ABC, abstractmethod
 
 # --- Formatting Helpers ---
@@ -345,6 +346,24 @@ class BootstrappedLauncher:
                 log_system("To install FFmpeg on Linux:")
                 log_system("  - Run: 'sudo apt install ffmpeg' (Debian/Ubuntu) or equivalent.")
 
+    @staticmethod
+    def _find_tool(name, fallback_paths=None):
+        found = shutil.which(name)
+        if found:
+            return found
+        if fallback_paths:
+            for p in fallback_paths:
+                exp = os.path.expanduser(p)
+                if os.path.isfile(exp) and os.access(exp, os.X_OK):
+                    return exp
+        return None
+
+    def _find_uv(self):
+        return self._find_tool("uv", ["~/.local/bin/uv", "~/.cargo/bin/uv"])
+
+    def _find_bun(self):
+        return self._find_tool("bun", ["~/.bun/bin/bun"])
+
     def _bootstrap_backend(self):
         backend_dir = os.path.abspath("backend")
         venv_dir = os.path.join(backend_dir, "venv")
@@ -375,13 +394,14 @@ class BootstrappedLauncher:
                     norm_venv_dir = os.path.normpath(venv_dir).lower()
                     norm_cfg_content = os.path.normpath(cfg_content).lower()
                     
-                    if norm_venv_dir in norm_cfg_content:
+                    if norm_venv_dir in norm_cfg_content or "uv =" in cfg_content:
                         res = subprocess.run([venv_python, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
                         if res.returncode == 0:
                             is_valid_venv = True
             except Exception:
                 pass
 
+        uv_bin = self._find_uv()
         if not is_valid_venv:
             log_system("Python virtual environment is missing, moved, or broken. Re-provisioning backend/venv...")
             if os.path.exists(venv_dir):
@@ -389,19 +409,70 @@ class BootstrappedLauncher:
                     shutil.rmtree(venv_dir)
                 except Exception:
                     pass
-            try:
-                subprocess.run([sys.executable, "-m", "venv", "venv"], cwd=backend_dir, check=True)
-            except subprocess.CalledProcessError:
-                log_error("Failed to create Python virtual environment.")
-                if not IS_WIN and sys.platform != "darwin":
-                    log_error("On Ubuntu/Debian, you may need to install python3-venv first:")
-                    log_error("  - Run: 'sudo apt install python3-venv'")
-                else:
-                    log_error("Please make sure you have the 'venv' standard module installed in your Python interpreter.")
-                sys.exit(1)
+            created_venv = False
+            if uv_bin:
+                try:
+                    log_system("uv detected! Rapid-creating backend/venv via uv...")
+                    subprocess.run([uv_bin, "venv", "venv"], cwd=backend_dir, shell=IS_WIN, check=True)
+                    created_venv = True
+                except Exception:
+                    pass
+            if not created_venv:
+                try:
+                    subprocess.run([sys.executable, "-m", "venv", "venv"], cwd=backend_dir, check=True)
+                except subprocess.CalledProcessError:
+                    log_error("Failed to create Python virtual environment.")
+                    if not IS_WIN and sys.platform != "darwin":
+                        log_error("On Ubuntu/Debian, you may need to install python3-venv first:")
+                        log_error("  - Run: 'sudo apt install python3-venv'")
+                    else:
+                        log_error("Please make sure you have the 'venv' standard module installed in your Python interpreter.")
+                    sys.exit(1)
 
-        log_system("Verifying Python backend dependencies (this may take a moment)...")
-        subprocess.run([venv_python, "-m", "pip", "install", "-r", "requirements.txt"], cwd=backend_dir, check=True)
+        req_file = os.path.join(backend_dir, "requirements.txt")
+        sentinel_file = os.path.join(venv_dir, ".requirements.hash")
+
+        current_hash = ""
+        if os.path.exists(req_file):
+            try:
+                with open(req_file, "rb") as f:
+                    current_hash = hashlib.sha256(f.read()).hexdigest()
+            except Exception:
+                pass
+
+        stored_hash = ""
+        if is_valid_venv and os.path.exists(sentinel_file):
+            try:
+                with open(sentinel_file, "r", encoding="utf-8") as f:
+                    stored_hash = f.read().strip()
+            except Exception:
+                pass
+
+        need_install = (not is_valid_venv) or (not current_hash) or (current_hash != stored_hash)
+
+        if need_install:
+            if uv_bin:
+                log_system("uv detected! Rapid-verifying Python dependencies via uv pip...")
+                subprocess.run(
+                    [uv_bin, "pip", "install", "--python", venv_python, "-r", "requirements.txt"],
+                    cwd=backend_dir,
+                    shell=IS_WIN,
+                    check=True
+                )
+            else:
+                log_system("Verifying Python backend dependencies (this may take a moment)...")
+                subprocess.run(
+                    [venv_python, "-m", "pip", "install", "-r", "requirements.txt"],
+                    cwd=backend_dir,
+                    shell=IS_WIN,
+                    check=True
+                )
+            if current_hash and os.path.exists(venv_dir):
+                try:
+                    with open(sentinel_file, "w", encoding="utf-8") as f:
+                        f.write(current_hash)
+                except Exception:
+                    pass
         return venv_python
 
     def _bootstrap_fonts(self):
@@ -450,10 +521,10 @@ class BootstrappedLauncher:
     def _bootstrap_node_project(self, directory, name):
         node_modules = os.path.join(directory, "node_modules")
         if not os.path.exists(node_modules):
-            has_bun = shutil.which("bun") is not None
-            if has_bun:
+            bun_bin = self._find_bun()
+            if bun_bin:
                 log_system(f"Bun detected! Rapid-installing packages for {name} via bun...")
-                cmd = ["bun", "install"]
+                cmd = [bun_bin, "install"]
             else:
                 log_system(f"Installing packages for {name} via npm (tip: install Bun for 10x faster installs)...")
                 cmd = ["npm", "install"]
