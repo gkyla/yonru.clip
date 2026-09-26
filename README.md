@@ -129,7 +129,7 @@ yonru.clip/
 ├── backend/              # FastAPI + Python 3.12 core service
 │   ├── services/         # Pipeline, Whisper STT, Gemini hooks, auto-reframe
 │   └── main.py           # REST APIs & background task orchestrator
-├── remotion_engine/      # Remotion (React 19) multi-track compositor
+├── shared/remotion/      # Remotion multi-track compositor & in-memory player
 └── run.py                # Unified cross-platform self-healing launcher
 ```
 

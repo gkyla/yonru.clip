@@ -93,7 +93,7 @@ def test_service_coordinator_with_mock_sweeper(mocker):
     coordinator.clean_ports()
     
     # Assert that all core Yonru ports are captured by the MockPortSweeper
-    assert mock_sweeper.swept_ports == [8000, 3000, 3003]
+    assert mock_sweeper.swept_ports == [8000, 3000]
 
 
 def test_backend_cmd_reload_exclude_no_globs(mocker):

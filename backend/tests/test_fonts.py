@@ -41,8 +41,10 @@ def test_font_manager_sync_downloads_missing_and_compiles_css(tmp_path):
     # 1. Create temporary directory structure for frontend assets
     font_dir = tmp_path / "frontend" / "app" / "assets" / "fonts"
     frontend_css = tmp_path / "frontend" / "app" / "assets" / "css" / "fonts.css"
-    remotion_css = tmp_path / "remotion_engine" / "src" / "fonts.css"
+    remotion_css = tmp_path / "shared" / "remotion" / "src" / "fonts.css"
     manifest_file = tmp_path / "shared" / "fonts_manifest.json"
+
+    assert download_fonts.DEFAULT_REMOTION_CSS == "shared/remotion/src/fonts.css"
 
     os.makedirs(font_dir, exist_ok=True)
     os.makedirs(frontend_css.parent, exist_ok=True)

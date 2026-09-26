@@ -197,14 +197,14 @@ class RemotionProgressParser:
 class StagedRenderContext:
     """
     Context manager that prepares and cleans up staged video assets and props JSON
-    in remotion_engine/public/ and static/output/ for Remotion rendering.
+    in shared/remotion/public/ and static/output/ for Remotion rendering.
     Guarantees cleanup on normal completion, failures, and exceptions.
     """
     def __init__(self, comp: RenderComposition, out_filename: str, output_dir: str = "static/output"):
         self.comp = comp
         self.out_filename = out_filename
         self.output_dir = output_dir
-        self.remotion_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../remotion_engine"))
+        self.remotion_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../shared/remotion"))
         self.public_dir = os.path.join(self.remotion_dir, "public")
         self.public_video_path: Optional[str] = None
         self.thumbnail_image_path: Optional[str] = None

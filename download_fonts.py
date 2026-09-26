@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 DEFAULT_MANIFEST_PATH = "shared/fonts_manifest.json"
 DEFAULT_FONT_DIR = "frontend/app/assets/fonts"
 DEFAULT_FRONTEND_CSS = "frontend/app/assets/css/fonts.css"
-DEFAULT_REMOTION_CSS = "remotion_engine/src/fonts.css"
+DEFAULT_REMOTION_CSS = "shared/remotion/src/fonts.css"
 API_BASE = "https://gwfh.mranftl.com/api/fonts"
 
 

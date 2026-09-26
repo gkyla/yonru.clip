@@ -27,9 +27,9 @@ graph TD
 2. **Backend (`backend/`, Port 8000)**:
    - Built with **FastAPI**, **Python 3.12+**, and **Pyright**.
    - Orchestrates video processing pipelines via `WorkflowCoordinator`, persists state via `JSONFileJobStore`, and isolates media storage via `AssetRepository`.
-3. **Remotion Engine (`remotion_engine/`, Port 3003 / Headless CLI)**:
-   - Built with **React**, **Remotion**, and **Vite**.
-   - Provides frame-accurate real-time subtitle preview in the editor and headless video rendering compositions for final exports.
+3. **Shared Remotion Package (`shared/remotion/`, In-Memory Player & Headless CLI)**:
+   - Built with **React**, **Remotion**, and **TypeScript**.
+   - Provides frame-accurate in-memory subtitle preview in the Nuxt 4 frontend editor (single localhost on port 3000) and headless video rendering compositions for backend final exports.
 
 ---
 

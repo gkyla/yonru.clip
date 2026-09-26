@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "remotion studio",
-    "build": "remotion render",
-    "preview": "vite"
+    "build": "remotion render"
   },
   "dependencies": {
     "@remotion/bundler": "latest",
@@ -13,12 +12,10 @@
     "@remotion/player": "^4.0.451",
     "@remotion/renderer": "latest",
     "@remotion/studio": "latest",
-    "@vitejs/plugin-react-swc": "^4.3.0",
     "@yonru/remotion": "file:../shared/remotion",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
-    "remotion": "latest",
-    "vite": "^8.0.10"
+    "remotion": "latest"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
