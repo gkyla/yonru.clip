@@ -38,6 +38,12 @@ remotion_engine/.remotion/
 remotion_engine/public/fonts/
 remotion_engine/src/assets/fonts/
 
+# Shared Remotion
+shared/remotion/node_modules/
+shared/remotion/out/
+shared/remotion/.remotion/
+shared/remotion/src/assets/fonts/
+
 # Logs
 *.log
 logs/

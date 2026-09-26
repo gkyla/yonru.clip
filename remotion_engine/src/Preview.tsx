@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+// @ts-ignore
 import { createRoot } from 'react-dom/client';
 import { Player, PlayerRef } from '@remotion/player';
 import { YonruClip } from './Composition';
@@ -91,11 +92,13 @@ const App = () => {
   // Volume as a number (Remotion Player wants a number or callback)
   const volume = typeof props.volume === 'number' ? props.volume : 0.5;
 
+  const RemotionPlayer = Player as any;
+
   return (
     <>
-      <Player
+      <RemotionPlayer
         ref={playerRef}
-        component={YonruClip}
+        component={YonruClip as any}
         durationInFrames={props.durationInFrames || 300}
         compositionWidth={1080}
         compositionHeight={1920}
