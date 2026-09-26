@@ -6,7 +6,7 @@
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { RemotionPlayerView } from './preview/RemotionPlayerView'
+import { RemotionPlayerView } from '~/components/preview/RemotionPlayerView'
 import type { DirectPlayerBridge } from '../utils/playerBridge'
 
 const props = withDefaults(defineProps<{

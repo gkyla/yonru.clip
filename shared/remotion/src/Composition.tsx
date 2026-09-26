@@ -17,8 +17,8 @@ function transformText(text: string, transform?: string): string {
 
 export const YonruClip: React.FC<YonruClipProps> = ({
   videoPath,
-  words,
-  wordTimings,
+  words = [],
+  wordTimings = [],
   cropX,
   cropPercentXTop,
   cropPercentXBottom,

@@ -109,6 +109,28 @@ describe('DirectPlayerBridge Unit Tests', () => {
       expect(propsSpy).toHaveBeenCalledTimes(1)
       expect(messageSpy).toHaveBeenCalledTimes(1)
     })
+
+    it('merges partial props updates instead of overwriting existing props', () => {
+      const fullProps = {
+        videoPath: 'https://localhost:8000/video.mp4',
+        durationInFrames: 300,
+        fps: 30,
+        words: [{ word: 'test', start: 0, end: 1 }],
+        volume: 0.8
+      }
+
+      bridge.updateProps(fullProps)
+      expect(bridge.currentProps).toEqual(fullProps)
+
+      // Simulate handleMuteVolumeChange which calls bridge.updateProps({ volume: targetVol })
+      bridge.updateProps({ volume: 0.5 })
+
+      expect(bridge.currentProps.videoPath).toBe('https://localhost:8000/video.mp4')
+      expect(bridge.currentProps.words).toHaveLength(1)
+      expect(bridge.currentProps.durationInFrames).toBe(300)
+      expect(bridge.currentProps.fps).toBe(30)
+      expect(bridge.currentProps.volume).toBe(0.5)
+    })
   })
 
   describe('Remotion Event Notifications & Emitters', () => {

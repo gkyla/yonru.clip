@@ -31,7 +31,7 @@ export const RemotionPlayerView: React.FC<RemotionPlayerViewProps> = ({
   useEffect(() => {
     const unsubscribe = bridge.onPropsChange((newProps) => {
       if (newProps) {
-        setPlayerProps(newProps)
+        setPlayerProps(prev => ({ ...prev, ...newProps }))
       }
     })
     return () => {
@@ -108,6 +108,15 @@ export const RemotionPlayerView: React.FC<RemotionPlayerViewProps> = ({
         spaceKeyToPlayOrPause={false}
         doubleClickToFullscreen={false}
         clickToPlay={false}
+        errorFallback={({ error }) => {
+          console.error('[RemotionPlayer] Error during composition render:', error)
+          return (
+            <div style={{ position: 'absolute', inset: 0, background: '#090a0f', color: '#ff6b6b', padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+              <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Preview Playback Error</div>
+              <div style={{ fontSize: 12, opacity: 0.8, maxWidth: 400, wordBreak: 'break-word' }}>{error?.message || String(error)}</div>
+            </div>
+          )
+        }}
       />
     </div>
   )

@@ -69,11 +69,11 @@ describe('RemotionPlayer and RemotionPlayerView (Issue #183)', () => {
       })
 
       // 3. Trigger pause event -> should emit REMOTION_PAUSED
-      listeners['pause']()
+      listeners['pause']?.()
       expect(messageSpy).toHaveBeenCalledWith({ type: 'REMOTION_PAUSED' })
 
       // 4. Trigger ended event -> should emit REMOTION_ENDED
-      listeners['ended']()
+      listeners['ended']?.()
       expect(messageSpy).toHaveBeenCalledWith({ type: 'REMOTION_ENDED' })
 
       // Cleanup

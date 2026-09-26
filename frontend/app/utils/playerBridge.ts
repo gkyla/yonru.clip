@@ -85,10 +85,10 @@ export class DirectPlayerBridge implements PlayerBridge {
    * Notifies props listeners and emits an UPDATE_PROPS message for any subscribers.
    */
   public updateProps(props: any): void {
-    this.currentProps = props
+    this.currentProps = { ...(this.currentProps || {}), ...props }
     this.propsListeners.forEach((listener) => {
       try {
-        listener(props)
+        listener(this.currentProps)
       } catch (err) {
         console.error('[DirectPlayerBridge] Error in props listener:', err)
       }

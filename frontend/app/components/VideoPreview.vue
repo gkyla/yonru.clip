@@ -935,7 +935,7 @@ onUnmounted(() => {
   handleWindowTouchEnd()
   if (readyTimeout) clearTimeout(readyTimeout)
   if (safetyTimeout) clearTimeout(safetyTimeout)
-  bridge.destroy()
+  directBridge.destroy()
 })
 
 const statusLabel = computed(() => {
