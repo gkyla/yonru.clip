@@ -35,6 +35,9 @@ export default defineNuxtConfig({
     tsConfig: {
       include: [
         '../tests/**/*'
+      ],
+      exclude: [
+        '../shared/remotion/**/*'
       ]
     }
   },

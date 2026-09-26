@@ -1,7 +1,7 @@
 import React from 'react';
 import { Composition, getInputProps } from 'remotion';
 import { YonruClip } from './Composition';
-import { YonruClipProps } from './types';
+import type { YonruClipProps } from './types';
 import './fonts.css';
 
 export const RemotionRoot: React.FC = () => {
