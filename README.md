@@ -145,10 +145,14 @@ For complete architectural patterns, state management rules, and ADRs:
 Get Yonru Clip running locally in 3 simple steps:
 
 ### 1. Install Core Prerequisites
-Ensure your computer has these 3 tools installed:
+Ensure your computer has these tools installed:
 - [Python (3.10 - 3.12)](https://www.python.org/downloads/)
   *(Important for Windows: make sure to check **"Add Python to PATH"** during installation).*
-- [Node.js (18+)](https://nodejs.org/)
+- [Node.js (18+)](https://nodejs.org/) *(Baseline runtime for Nuxt 4 and Remotion video rendering).*
+- [Bun (Optional, highly recommended)](https://bun.sh/) *(Accelerates package installation by 4x-13x):*
+  - Via npm (all platforms): `npm install -g bun`
+  - macOS / Linux: `curl -fsSL https://bun.sh/install | bash` (or `brew install oven-sh/bun/bun`)
+  - Windows: `powershell -c "irm bun.sh/install.ps1 | iex"` (or `winget install Oven-sh.Bun`)
 - [FFmpeg](https://ffmpeg.org/download.html)
   *(macOS: `brew install ffmpeg` | Windows: `winget install Gyan.FFmpeg` | Linux: `sudo apt install ffmpeg`).*
 
@@ -160,7 +164,7 @@ cd yonru.clip
 python run.py
 ```
 > [!TIP]
-> The unified `run.py` launcher handles all heavy lifting automatically: creating virtual environments, installing dependencies, syncing offline creator fonts, and starting all services.
+> The unified `run.py` launcher handles all heavy lifting automatically: creating virtual environments, installing dependencies (auto-detecting Bun for rapid install with seamless npm fallback), syncing offline creator fonts, and starting all services.
 
 ### 3. Open Yonru & Add Gemini API Key
 1. Open your browser and navigate to **`http://localhost:3000`**.
