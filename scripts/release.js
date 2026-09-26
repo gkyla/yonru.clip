@@ -5,7 +5,7 @@ const { execSync } = require('child_process');
 // Configuration
 const ROOT_DIR = path.resolve(__dirname, '..');
 const FRONTEND_PKG_PATH = path.join(ROOT_DIR, 'frontend', 'package.json');
-const REMOTION_PKG_PATH = path.join(ROOT_DIR, 'remotion_engine', 'package.json');
+const REMOTION_PKG_PATH = path.join(ROOT_DIR, 'shared', 'remotion', 'package.json');
 const BACKEND_MAIN_PATH = path.join(ROOT_DIR, 'backend', 'main.py');
 const CHANGELOG_PATH = path.join(ROOT_DIR, 'CHANGELOG.md');
 

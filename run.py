@@ -62,9 +62,6 @@ __   __                      _____ _ _
     if target in ["all", "backend"]:
         print("  • \033[1mAPI Server (Backend):\033[0m \033[1;36mhttp://localhost:8000\033[0m")
         
-    if target in ["all", "remotion"]:
-        print("  • \033[1mStudio (Remotion):\033[0m   \033[1;36mhttp://localhost:3003\033[0m")
-        
     print("\033[1;30m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m")
     print(" \033[90mBackground logs will stream below. Press Ctrl+C to terminate.\033[0m\n")
 
@@ -155,8 +152,6 @@ class ServiceCoordinator:
             ports.append(8000)
         if self.target in ["all", "frontend"]:
             ports.append(3000)
-        if self.target in ["all", "remotion"]:
-            ports.append(3003)
 
         log_system("Sweeping ports " + ", ".join(map(str, ports)) + " for any active zombie processes...")
         self.sweeper.clean_ports(ports)
@@ -411,7 +406,7 @@ class BootstrappedLauncher:
 
     def _bootstrap_fonts(self):
         frontend_font_dir = "frontend/app/assets/fonts"
-        remotion_font_dir = "remotion_engine/src/assets/fonts"
+        remotion_font_dir = "shared/remotion/src/assets/fonts"
         fonts_missing = True
         
         if self.force_fonts:
@@ -440,7 +435,7 @@ class BootstrappedLauncher:
                 remotion_missing = False
                 
         if remotion_missing:
-            log_system("Synchronizing offline fonts to Remotion Engine...")
+            log_system("Synchronizing offline fonts to shared/remotion...")
             if os.path.exists(remotion_font_dir):
                 try:
                     shutil.rmtree(remotion_font_dir)
@@ -448,9 +443,9 @@ class BootstrappedLauncher:
                     pass
             try:
                 shutil.copytree(frontend_font_dir, remotion_font_dir)
-                log_system("Successfully synchronized offline fonts to Remotion Engine.")
+                log_system("Successfully synchronized offline fonts to shared/remotion.")
             except Exception as e:
-                log_error(f"Failed to copy fonts to Remotion Engine: {e}")
+                log_error(f"Failed to copy fonts to shared/remotion: {e}")
 
     def _bootstrap_node_project(self, directory, name):
         node_modules = os.path.join(directory, "node_modules")
@@ -463,7 +458,7 @@ class BootstrappedLauncher:
         try:
             subprocess.run(
                 ["npx", "remotion", "browser", "ensure"], 
-                cwd="remotion_engine", 
+                cwd="shared/remotion", 
                 shell=IS_WIN, 
                 check=True
             )
@@ -480,14 +475,12 @@ class BootstrappedLauncher:
         # 2. Bootstrapping
         self.venv_python = self._bootstrap_backend()
         
-        if self.target in ["all", "frontend", "remotion"]:
-            self._bootstrap_fonts()
-
         if self.target in ["all", "frontend"]:
+            self._bootstrap_fonts()
             self._bootstrap_node_project("frontend", "Frontend")
             
-        if self.target in ["all", "remotion"]:
-            self._bootstrap_node_project("remotion_engine", "Remotion Engine")
+        if self.target in ["all", "backend"]:
+            self._bootstrap_node_project("shared/remotion", "Shared Remotion")
             self._setup_remotion_browser()
 
         # 3. Execution Commands Configuration
@@ -501,7 +494,6 @@ class BootstrappedLauncher:
             "--reload-exclude", "static"
         ]
         frontend_cmd = ["npm", "run", "dev"]
-        remotion_cmd = ["npm", "run", "preview"]
 
         # 4. Spawn Active Services
         self.coordinator = ServiceCoordinator(self.target)
@@ -532,17 +524,6 @@ class BootstrappedLauncher:
                     ready_signal=["ready in", "local:", "http://localhost"]
                 )
                 self.coordinator.spawn(frontend_def)
-                
-            if self.target in ["all", "remotion"]:
-                remotion_def = ServiceDef(
-                    name="Remotion Studio",
-                    cmd=remotion_cmd,
-                    cwd="remotion_engine",
-                    prefix="[REMOTION]",
-                    color_code="35",
-                    ready_signal=["local:", "ready in", "http://localhost"]
-                )
-                self.coordinator.spawn(remotion_def)
 
             self.coordinator.run_loop()
                         
@@ -578,8 +559,8 @@ def main():
         "target", 
         nargs="?", 
         default="all", 
-        choices=["all", "backend", "frontend", "remotion", "release"],
-        help="Target service to run (all, backend, frontend, remotion, release)"
+        choices=["all", "backend", "frontend", "release"],
+        help="Target service to run (all, backend, frontend, release)"
     )
     parser.add_argument(
         "--force-fonts", 

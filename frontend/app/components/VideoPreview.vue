@@ -47,16 +47,26 @@
           preload="auto"
         />
 
-        <!-- Remotion Player Bridge -->
-        <iframe
-          v-if="!state?.useNativePlayer?.value"
-          ref="remotionIframe"
-          src="http://localhost:3003"
-          @load="syncRemotionProps"
-          class="absolute inset-0 w-full h-full border-none pointer-events-none z-20 transition-opacity duration-300"
-          :class="!state.useNativePlayer.value ? 'opacity-100' : 'opacity-0'"
-          allow="autoplay"
-        ></iframe>
+        <!-- Remotion In-Memory Player -->
+        <ClientOnly>
+          <RemotionPlayer
+            v-if="!state?.useNativePlayer?.value"
+            :bridge="directBridge"
+            class="absolute inset-0 w-full h-full pointer-events-none z-20 transition-opacity duration-300"
+            :class="!state.useNativePlayer.value ? 'opacity-100' : 'opacity-0'"
+          />
+          <template #fallback>
+            <div
+              v-if="!state?.useNativePlayer?.value"
+              class="absolute inset-0 w-full h-full bg-black/40 flex items-center justify-center pointer-events-none z-20"
+            >
+              <div class="flex items-center gap-3 text-slate-400 text-[20px] font-mono">
+                <Icon name="ri:loader-4-line" class="animate-spin text-[28px] text-accent-500" />
+                <span>Loading video player...</span>
+              </div>
+            </div>
+          </template>
+        </ClientOnly>
         
         <!-- Crop guide lines (Vertical only) -->
         <div v-if="state?.videoLayout?.value !== 'landscape'" class="absolute inset-0 pointer-events-none z-10">
@@ -478,8 +488,9 @@ import { useClipperState } from '../composables/useClipperState'
 import { useCropDrag } from '../composables/useCropDrag'
 import { useRemotionBridge } from '../composables/useRemotionBridge'
 import { useInteractiveText } from '../composables/useInteractiveText'
-import { IframePostMessageBridge } from '../utils/playerBridge'
+import { DirectPlayerBridge } from '../utils/playerBridge'
 import { transformText } from '../utils/styleHelpers'
+import RemotionPlayer from './RemotionPlayer.client.vue'
 
 
 
@@ -487,7 +498,6 @@ const state = useClipperState()
 const { activeSafeZone, safeZoneOpacity, safeZoneColor } = state
 
 const previewVideo = ref<HTMLVideoElement | null>(null)
-const remotionIframe = ref<HTMLIFrameElement | null>(null)
 const transformerRef = ref<any>(null)
 const stableVideoBuster = ref<string>(Date.now().toString())
 
@@ -605,9 +615,9 @@ const {
   onDragTouch
 } = cropState
 
-const bridge = new IframePostMessageBridge(remotionIframe)
+const directBridge = new DirectPlayerBridge()
 const bridgeState = useRemotionBridge(
-  bridge,
+  directBridge,
   previewVideo,
   computed(() => videoTime.value),
   computed(() => isInThumbnailWindow.value),
@@ -925,7 +935,7 @@ onUnmounted(() => {
   handleWindowTouchEnd()
   if (readyTimeout) clearTimeout(readyTimeout)
   if (safetyTimeout) clearTimeout(safetyTimeout)
-  bridge.destroy()
+  directBridge.destroy()
 })
 
 const statusLabel = computed(() => {

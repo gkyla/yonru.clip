@@ -31,12 +31,11 @@ frontend/.cache/
 frontend/dist/
 frontend/app/assets/fonts/
 
-# Remotion Engine
-remotion_engine/node_modules/
-remotion_engine/out/
-remotion_engine/.remotion/
-remotion_engine/public/fonts/
-remotion_engine/src/assets/fonts/
+# Shared Remotion
+shared/remotion/node_modules/
+shared/remotion/out/
+shared/remotion/.remotion/
+shared/remotion/src/assets/fonts/
 
 # Logs
 *.log
@@ -68,13 +67,14 @@ weights/
 temp_assets/
 scratch/
 
-# Remotion Engine Generated Assets
-remotion_engine/public/source_render_*
-remotion_engine/public/thumb_*
-remotion_engine/public/*.mp4
-remotion_engine/public/*.jpg
-remotion_engine/public/*.png
-remotion_engine/public/*.json
+# Shared Remotion Generated Assets
+shared/remotion/public/source_render_*
+shared/remotion/public/thumb_*
+shared/remotion/public/*.mp4
+shared/remotion/public/*.jpg
+shared/remotion/public/*.png
+shared/remotion/public/*.json
+!shared/remotion/public/.gitkeep
 
 # Fonts (managed via script)
 *.ttf

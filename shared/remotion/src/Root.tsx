@@ -1,7 +1,7 @@
 import React from 'react';
 import { Composition, getInputProps } from 'remotion';
 import { YonruClip } from './Composition';
-import { YonruClipProps } from './types';
+import type { YonruClipProps } from './types';
 import './fonts.css';
 
 export const RemotionRoot: React.FC = () => {
@@ -12,7 +12,7 @@ export const RemotionRoot: React.FC = () => {
     <>
       <Composition
         id="YonruClip"
-        component={YonruClip}
+        component={YonruClip as any}
         durationInFrames={duration}
         fps={inputProps.fps || 30}
         width={1080}

@@ -435,6 +435,8 @@ class TestRenderEngine(unittest.TestCase):
             staged_video_created = None
 
             with StagedRenderContext(comp, "test_out.mp4", output_dir=temp_dir) as ctx:
+                self.assertTrue(ctx.remotion_dir.endswith(os.path.join("shared", "remotion")))
+                self.assertEqual(ctx.public_dir, os.path.join(ctx.remotion_dir, "public"))
                 self.assertIsNotNone(ctx.props_path)
                 self.assertIsNotNone(ctx.public_video_path)
                 if ctx.props_path and ctx.public_video_path:

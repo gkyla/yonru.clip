@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { AbsoluteFill, Video, OffthreadVideo, Audio, Img, Sequence, staticFile, useCurrentFrame, useVideoConfig, useRemotionEnvironment } from 'remotion';
 import { AnimatedSubtitles } from './AnimatedSubtitles';
 import { CanvasVideoCompositor } from './CanvasVideoCompositor';
-import { YonruClipProps, ThumbnailTextOverlay } from './types';
+import type { YonruClipProps, ThumbnailTextOverlay } from './types';
 import { getFont } from './fonts';
 
 function transformText(text: string, transform?: string): string {
@@ -17,8 +17,8 @@ function transformText(text: string, transform?: string): string {
 
 export const YonruClip: React.FC<YonruClipProps> = ({
   videoPath,
-  words,
-  wordTimings,
+  words = [],
+  wordTimings = [],
   cropX,
   cropPercentXTop,
   cropPercentXBottom,

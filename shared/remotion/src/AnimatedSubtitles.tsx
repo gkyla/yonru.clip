@@ -1,6 +1,6 @@
 import React from 'react';
 import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
-import { SubtitleWord, SubtitleStyle, DEFAULT_SUBTITLE_STYLE, AnimationType } from './types';
+import { DEFAULT_SUBTITLE_STYLE, type SubtitleWord, type SubtitleStyle, type AnimationType } from './types';
 import { getFont } from './fonts';
 import './fonts.css';
 
@@ -12,8 +12,8 @@ interface AnimatedSubtitlesProps {
 }
 
 export const AnimatedSubtitles: React.FC<AnimatedSubtitlesProps> = ({
-  words,
-  wordTimings,
+  words = [],
+  wordTimings = [],
   showDebug,
   style: styleProp
 }) => {
@@ -25,7 +25,7 @@ export const AnimatedSubtitles: React.FC<AnimatedSubtitlesProps> = ({
 
 
   // Find currently active chunk
-  const activeWord = words.find(w => currentTime >= w.start && currentTime <= w.end);
+  const activeWord = (words || []).find(w => currentTime >= w.start && currentTime <= w.end);
 
   if (!activeWord) {
     if (showDebug && words.length > 0) {
