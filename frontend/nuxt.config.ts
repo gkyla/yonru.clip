@@ -1,4 +1,6 @@
+import { fileURLToPath } from 'node:url'
 import { defineNuxtConfig } from 'nuxt/config'
+import react from '@vitejs/plugin-react'
 
 export default defineNuxtConfig({
   modules: [
@@ -39,10 +41,32 @@ export default defineNuxtConfig({
   telemetry: false,
   ssr: false,
   vite: {
+    plugins: [
+      react({
+        include: [
+          /shared\/remotion\/.*\.tsx?$/,
+          /\.tsx$/
+        ]
+      })
+    ],
+    resolve: {
+      alias: {
+        '@yonru/remotion': fileURLToPath(new URL('../shared/remotion/src', import.meta.url))
+      }
+    },
+    server: {
+      fs: {
+        allow: ['..']
+      }
+    },
     optimizeDeps: {
       include: [
         '@tiptap/vue-3',
         '@tiptap/starter-kit',
+        '@remotion/player',
+        'react',
+        'react-dom',
+        'react-dom/client'
       ]
     }
   }
