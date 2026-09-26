@@ -5,6 +5,31 @@ import re
 import uuid
 from typing import Optional, Dict, Any, List
 
+CANONICAL_DEFAULT_STYLE_SETTINGS: Dict[str, Any] = {
+    "videoLayout": "vertical",
+    "subtitlePreset": "bold-podcast",
+    "subtitlePosition": "center",
+    "subtitleOffset": 50,
+    "subtitleSyncOffset": 150,
+    "font": "Montserrat",
+    "fontSize": 50,
+    "cropMode": "face_tracking",
+    "cropPercentX": 50,
+    "subtitleMode": "word",
+    "subtitleAnimation": "pop",
+    "subtitleHighlightMode": "color",
+    "subtitleHighlightColor": "#CFFF50",
+    "subtitleTextColor": "#FFFFFF",
+    "subtitleStrokeColor": "#000000",
+    "subtitleStrokeWidth": 0,
+    "subtitleFontWeight": 900,
+    "subtitleTextTransform": "uppercase",
+    "subtitleBackground": "none",
+    "subtitleBackgroundOpacity": 0.7,
+    "subtitleWordSpacing": 0,
+    "volume": 0.5
+}
+
 class ClipWorkflowCoordinator:
     def __init__(self, job_store, asset_repository, youtube_client, speech_transcriber, prompt_repository, config_store, face_tracker=None):
         self.jobs = job_store
@@ -30,6 +55,16 @@ class ClipWorkflowCoordinator:
         # 1. Check for default style settings
         clip_style_path = os.path.join(clip_dir, "style_settings.json")
         default_style_path = os.path.join(output_dir, "default_style_settings.json")
+
+        if not os.path.exists(default_style_path):
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+                with open(default_style_path, "w", encoding="utf-8") as f:
+                    json.dump(CANONICAL_DEFAULT_STYLE_SETTINGS, f, ensure_ascii=False, indent=2)
+                print(f"[defaults] Seeded canonical default style settings to {default_style_path}")
+            except Exception as e:
+                print(f"[defaults] Failed to seed canonical default style settings: {e}")
+
         if not os.path.exists(clip_style_path) and os.path.exists(default_style_path):
             try:
                 shutil.copy(default_style_path, clip_style_path)

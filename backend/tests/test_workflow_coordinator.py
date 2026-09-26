@@ -908,6 +908,45 @@ def test_get_or_create_crop_map_path_traversal(mock_dependencies, tmp_path):
         coordinator.get_or_create_crop_map("../../etc", "passwd")
 
 
+def test_ensure_defaults_auto_seeds_canonical_style(mock_dependencies, tmp_path):
+    output_dir = tmp_path / "custom_output"
+    clip_dir = output_dir / "clips" / "video1" / "clip1"
+    clip_dir.mkdir(parents=True)
+
+    mock_dependencies["asset_repository"].output_dir = str(output_dir)
+
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+
+    default_style_path = output_dir / "default_style_settings.json"
+    clip_style_path = clip_dir / "style_settings.json"
+
+    assert not default_style_path.exists()
+    assert not clip_style_path.exists()
+
+    coordinator._ensure_defaults(str(clip_dir))
+
+    assert default_style_path.exists()
+    assert clip_style_path.exists()
+
+    with open(default_style_path, "r", encoding="utf-8") as f:
+        default_data = json.load(f)
+    assert default_data["videoLayout"] == "vertical"
+    assert default_data["cropMode"] == "face_tracking"
+
+    with open(clip_style_path, "r", encoding="utf-8") as f:
+        clip_data = json.load(f)
+    assert clip_data["videoLayout"] == "vertical"
+    assert clip_data["cropMode"] == "face_tracking"
+
+
+
 
 
 

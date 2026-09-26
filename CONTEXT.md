@@ -88,6 +88,11 @@ _Avoid_: Dynamic subtitles, floating text jump, split captions
 A preconfigured collection of typography, color palette, highlight animation, stroke, and background treatments applied to subtitles for viral video pacing and visual branding.
 _Avoid_: Template, subtitle theme, font style, caption design
 
+**Default Style Settings**:
+The persisted global user preference configuring the baseline layout mode (Vertical 9:16), auto-reframing crop mode (Face Track), and subtitle typography applied to newly extracted or initialized clips.
+_Avoid_: Global template, root config, editor defaults, initial layout preset
+
+
 **Preset Studio Viewport**:
 The cinematic live preview canvas within the active subtitle preset card that renders real-time typography, highlight effects, stroke, and background treatments against a dark studio backdrop simulating actual video output.
 _Avoid_: Preview box, font tester, text demo
