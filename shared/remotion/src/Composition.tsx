@@ -438,7 +438,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
               alignItems: 'center',
               paddingTop: !useCenterSeam && position === 'top' ? `${subtitleOffset}px` : 0,
               paddingBottom: !useCenterSeam && position === 'bottom' ? `${subtitleOffset}px` : 0,
-              transform: useCenterSeam ? `translateY(${subtitleOffset}px)` : undefined,
+              transform: undefined,
               zIndex: 20
             }}>
               <AnimatedSubtitles

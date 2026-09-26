@@ -90,4 +90,79 @@ describe('VideoPreview Component', () => {
 
     expect(wrapper.text()).toContain('Loading video player...')
   })
+
+  it('centers auto-adaptive subtitles strictly at 50% without offset when in split mode', async () => {
+    const state = useClipperState()
+    state.videoUrl.value = 'http://localhost:8000/sample.mp4'
+    state.useNativePlayer.value = true
+    state.autoAdaptiveSubtitles.value = true
+    state.subtitlePosition.value = 'bottom'
+    state.subtitleOffset.value = 120
+    state.currentTime.value = 5.0
+    state.cropMap.value = [
+      { time: 0, x: 500, mode: 'single' },
+      { time: 4.0, x: 500, mode: 'split', top_x: 400, bottom_x: 600 }
+    ]
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    })
+
+    const overlay = wrapper.find('.absolute.left-1\\/2.-translate-x-1\\/2.z-40')
+    expect(overlay.exists()).toBe(true)
+    const styleAttr = overlay.attributes('style') || ''
+    expect(styleAttr).toContain('top: 50%')
+    expect(styleAttr).toContain('transform: translate(-50%, -50%)')
+    expect(styleAttr).not.toContain('120px')
+  })
+
+  it('respects user-selected position and subtitleOffset in single-speaker mode', async () => {
+    const state = useClipperState()
+    state.videoUrl.value = 'http://localhost:8000/sample.mp4'
+    state.useNativePlayer.value = true
+    state.autoAdaptiveSubtitles.value = true
+    state.subtitlePosition.value = 'bottom'
+    state.subtitleOffset.value = 85
+    state.currentTime.value = 1.0
+    state.cropMap.value = [
+      { time: 0, x: 500, mode: 'single' },
+      { time: 4.0, x: 500, mode: 'split', top_x: 400, bottom_x: 600 }
+    ]
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    })
+
+    const overlay = wrapper.find('.absolute.left-1\\/2.-translate-x-1\\/2.z-40')
+    expect(overlay.exists()).toBe(true)
+    const styleAttr = overlay.attributes('style') || ''
+    expect(styleAttr).toContain('bottom: 85px')
+  })
 })
+

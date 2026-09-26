@@ -990,7 +990,7 @@ const canDragCanvas = computed(() => {
 const subtitleIndicatorStyle = computed(() => {
   const isSplit = isSplitActive.value && (state.autoAdaptiveSubtitles?.value ?? true)
   if (isSplit) {
-    return { top: '50%', transform: `translate(-50%, calc(-50% + ${state.subtitleOffset.value}px))` }
+    return { top: '50%', transform: 'translate(-50%, -50%)' }
   }
   const pos = state.subtitlePosition.value
   const offset = state.subtitleOffset.value

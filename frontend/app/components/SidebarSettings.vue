@@ -1419,10 +1419,10 @@
                     />
                   </button>
                 </div>
-                <p class="text-[8px] text-slate-400 leading-tight">
+                <p class="text-[10.5px] text-slate-400 leading-tight">
                   {{
                     (state.autoAdaptiveSubtitles?.value ?? true)
-                      ? "Automatically floats over dividing seam during multi-speaker split."
+                      ? "Automatically positions to center when in split mode."
                       : "Fixed to custom position presets regardless of video framing."
                   }}
                 </p>
