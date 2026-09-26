@@ -1,6 +1,6 @@
 import React from 'react';
 import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
-import { SubtitleWord, SubtitleStyle, DEFAULT_SUBTITLE_STYLE, AnimationType } from './types';
+import { DEFAULT_SUBTITLE_STYLE, type SubtitleWord, type SubtitleStyle, type AnimationType } from './types';
 import { getFont } from './fonts';
 import './fonts.css';
 
