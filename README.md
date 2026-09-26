@@ -159,6 +159,9 @@ Ensure your computer has these tools installed:
 - [FFmpeg](https://ffmpeg.org/download.html)
   *(macOS: `brew install ffmpeg` | Windows: `winget install Gyan.FFmpeg` | Linux: `sudo apt install ffmpeg`).*
 
+> [!NOTE]
+> **Safe Fallback Guarantee**: `uv` and `Bun` are completely optional accelerators. If either is not installed on your machine, `run.py` automatically and safely falls back to standard Python (`venv` / `pip`) and Node.js (`npm`) with zero errors and no configuration required.
+
 ### 2. Clone & Launch
 Open your terminal and run:
 ```bash
@@ -167,7 +170,7 @@ cd yonru.clip
 python run.py
 ```
 > [!TIP]
-> The unified `run.py` launcher handles all heavy lifting automatically: creating virtual environments, installing dependencies (auto-detecting `uv` and `bun` for rapid installs with seamless pip/npm fallback), syncing offline creator fonts, and starting all services.
+> The unified `run.py` launcher handles all heavy lifting automatically: creating virtual environments, installing dependencies (auto-detecting `uv` and `bun` with safe fallback to `pip` and `npm`), syncing offline creator fonts, and starting all services.
 
 ### 3. Open Yonru & Add Gemini API Key
 1. Open your browser and navigate to **`http://localhost:3000`**.
