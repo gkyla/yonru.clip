@@ -30,6 +30,10 @@ frontend/.nitro/
 frontend/.cache/
 frontend/dist/
 frontend/app/assets/fonts/
+bun.lock
+bun.lockb
+**/bun.lock
+**/bun.lockb
 
 # Shared Remotion
 shared/remotion/node_modules/

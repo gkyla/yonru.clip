@@ -450,8 +450,14 @@ class BootstrappedLauncher:
     def _bootstrap_node_project(self, directory, name):
         node_modules = os.path.join(directory, "node_modules")
         if not os.path.exists(node_modules):
-            log_system(f"Installing NPM packages for {name}...")
-            subprocess.run(["npm", "install"], cwd=directory, shell=IS_WIN, check=True)
+            has_bun = shutil.which("bun") is not None
+            if has_bun:
+                log_system(f"Bun detected! Rapid-installing packages for {name} via bun...")
+                cmd = ["bun", "install"]
+            else:
+                log_system(f"Installing packages for {name} via npm (tip: install Bun for 10x faster installs)...")
+                cmd = ["npm", "install"]
+            subprocess.run(cmd, cwd=directory, shell=IS_WIN, check=True)
 
     def _setup_remotion_browser(self):
         log_system("Verifying Remotion browser configuration (Chrome Headless Shell)...")

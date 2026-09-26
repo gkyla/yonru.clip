@@ -132,3 +132,37 @@ def test_backend_cmd_reload_exclude_no_globs(mocker):
         assert "*" not in pattern, f"Pattern {pattern} contains wildcard * which causes Click glob expansion on Windows"
         assert "?" not in pattern, f"Pattern {pattern} contains wildcard ? which causes Click glob expansion on Windows"
 
+
+def test_bootstrap_node_project_opportunistic_bun(mocker, tmp_path):
+    """Verify that _bootstrap_node_project uses bun install when bun is available."""
+    mocker.patch("run.log_system")
+    mocker.patch("run.shutil.which", side_effect=lambda bin_name: "/usr/local/bin/bun" if bin_name == "bun" else None)
+    mock_sub_run = mocker.patch("run.subprocess.run")
+
+    target_dir = tmp_path / "frontend"
+    target_dir.mkdir()
+
+    launcher = run.BootstrappedLauncher(target="frontend")
+    launcher._bootstrap_node_project(str(target_dir), "Frontend")
+
+    mock_sub_run.assert_called_once_with(
+        ["bun", "install"], cwd=str(target_dir), shell=run.IS_WIN, check=True
+    )
+
+
+def test_bootstrap_node_project_fallback_npm(mocker, tmp_path):
+    """Verify that _bootstrap_node_project falls back to npm install when bun is not available."""
+    mocker.patch("run.log_system")
+    mocker.patch("run.shutil.which", return_value=None)
+    mock_sub_run = mocker.patch("run.subprocess.run")
+
+    target_dir = tmp_path / "frontend"
+    target_dir.mkdir()
+
+    launcher = run.BootstrappedLauncher(target="frontend")
+    launcher._bootstrap_node_project(str(target_dir), "Frontend")
+
+    mock_sub_run.assert_called_once_with(
+        ["npm", "install"], cwd=str(target_dir), shell=run.IS_WIN, check=True
+    )
+
