@@ -80,6 +80,27 @@ describe('SafetyEngine Unit Tests', () => {
         { start: 2.5, duration: 0.55, word: 'mati', text: 'mati' }
       ])
     })
+
+    it('prioritizes Acoustic Word Map timestamps (words array) over linear duration division', () => {
+      const transcript = [
+        {
+          text: 'kamu brengsek banget',
+          start: 0,
+          duration: 3.0,
+          words: [
+            { text: 'kamu', start: 0.2, duration: 0.3 },
+            { text: 'brengsek', start: 0.8, duration: 0.6 },
+            { text: 'banget', start: 1.8, duration: 0.5 }
+          ]
+        }
+      ]
+      // With 0 padding, should strictly match exact word boundaries [0.8, 0.6] rather than linear [1.0, 1.0]
+      const res = auditTranscript(transcript, ['brengsek'], 'word', 0, 'full')
+      expect(res.flaggedWords).toContain('brengsek')
+      expect(res.flaggedSegments).toEqual([
+        { start: 0.8, duration: 0.6, word: 'brengsek', text: 'brengsek' }
+      ])
+    })
   })
 
   describe('Profanity Masking', () => {

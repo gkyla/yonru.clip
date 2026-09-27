@@ -248,5 +248,31 @@ describe('Subtitle Chunker & LayoutEngine Unit Tests', () => {
       expect(engine.masterTranscript[0]!.text).toBe('the quick')
       expect(engine.masterTranscript[1]!.text).toBe('brown fox')
     })
+
+    it('preserves acoustic word map (words array) during chunk building and master export', () => {
+      const transcript: TranscriptSegment[] = [
+        {
+          text: 'one two',
+          start: 0.0,
+          duration: 2.0,
+          words: [
+            { text: 'one', start: 0.1, duration: 0.8 },
+            { text: 'two', start: 1.0, duration: 0.9 }
+          ]
+        }
+      ]
+
+      const engine = new SubtitleLayoutEngine(transcript, '1_word')
+      expect(engine.chunks).toHaveLength(2)
+      expect(engine.chunks[0]!.start).toBe(0.1)
+      expect(engine.chunks[0]!.duration).toBe(0.8)
+      expect(engine.chunks[1]!.start).toBe(1.0)
+      expect(engine.chunks[1]!.duration).toBe(0.9)
+
+      const exported = engine.exportMaster()
+      expect(exported[0]!.words).toBeDefined()
+      expect(exported[0]!.words).toHaveLength(2)
+      expect(exported[0]!.words![0]!.start).toBe(0.1)
+    })
   })
 })

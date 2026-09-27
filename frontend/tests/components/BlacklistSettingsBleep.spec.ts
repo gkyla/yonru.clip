@@ -112,4 +112,23 @@ describe('BlacklistSettings Component - Custom Bleep Audio Options', () => {
     expect(wrapper.text()).toContain('beep.mp3')
     expect(wrapper.text()).toContain('Custom Upload')
   })
+
+  it('renders Auto Acoustic Snapping status and Advanced Acoustic Timing collapsible controls', async () => {
+    const wrapper = mount(BlacklistSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    })
+
+    mockAudioBleepEnabled.value = true
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Auto Acoustic Snapping')
+    expect(wrapper.text()).toContain('Frame-locked Whisper speech alignment')
+    expect(wrapper.text()).toContain('Advanced Acoustic Timing')
+    expect(wrapper.text()).toContain('Manual Padding Override')
+  })
 })

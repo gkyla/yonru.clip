@@ -392,24 +392,39 @@ export class ContentSafetyAuditor {
       const segText = (seg.text || '').trim()
       if (!segText) continue
 
-      const words = segText.split(/\s+/)
-      if (words.length === 1) {
-        flatWords.push({
-          text: words[0] || '',
-          start: seg.start,
-          duration: seg.duration,
-          end: seg.start + seg.duration
-        })
-      } else {
-        const wordDur = seg.duration / words.length
-        words.forEach((w: string, idx: number) => {
+      if (seg.words && Array.isArray(seg.words) && seg.words.length > 0) {
+        for (const w of seg.words) {
+          const wText = (w.text || '').trim()
+          if (!wText) continue
+          const wStart = Number(w.start) || 0
+          const wDuration = Number(w.duration) || 0
           flatWords.push({
-            text: w,
-            start: seg.start + idx * wordDur,
-            duration: wordDur,
-            end: seg.start + (idx + 1) * wordDur
+            text: wText,
+            start: wStart,
+            duration: wDuration,
+            end: w.end !== undefined ? Number(w.end) : wStart + wDuration
           })
-        })
+        }
+      } else {
+        const words = segText.split(/\s+/)
+        if (words.length === 1) {
+          flatWords.push({
+            text: words[0] || '',
+            start: seg.start,
+            duration: seg.duration,
+            end: seg.start + seg.duration
+          })
+        } else {
+          const wordDur = seg.duration / words.length
+          words.forEach((w: string, idx: number) => {
+            flatWords.push({
+              text: w,
+              start: seg.start + idx * wordDur,
+              duration: wordDur,
+              end: seg.start + (idx + 1) * wordDur
+            })
+          })
+        }
       }
     }
 

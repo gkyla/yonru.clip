@@ -179,6 +179,10 @@ export const useRemotionBridge = (
     () => state.thumbnailEnabled.value,
     () => state.thumbnailDuration.value,
     () => state.thumbnailTextOverlays.value,
+    () => state.audioBleepEnabled?.value,
+    () => state.audioBleepSource?.value,
+    () => state.customBleepFile?.value?.data,
+    () => state.contentAudit?.value?.flaggedSegments,
   ], () => {
     syncRemotionProps()
   }, { deep: true, immediate: true })

@@ -199,6 +199,10 @@ export class VideoPlaybackCoordinator {
         thumbnailEnabled: snapshot.thumbnailEnabled,
         thumbnailDuration: snapshot.thumbnailDuration,
         thumbnailTextOverlays: JSON.parse(JSON.stringify(snapshot.thumbnailTextOverlays || [])),
+        censoredSegments: snapshot.audioBleepEnabled ? (snapshot.flaggedSegments || []) : [],
+        bleepAudioSrc: snapshot.audioBleepEnabled && snapshot.audioBleepSource === 'custom'
+          ? (snapshot.customBleepData || '/audio/bleep.wav')
+          : undefined,
         subtitleStyle: {
           fontFamily: snapshot.font,
           fontSize: snapshot.fontSize,

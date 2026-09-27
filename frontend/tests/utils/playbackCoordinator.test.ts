@@ -67,6 +67,19 @@ describe('VideoPlaybackCoordinator Unit Tests', () => {
       expect(props.subtitleStyle.fontFamily).toBe('Montserrat')
       expect(props.words.length).toBeGreaterThan(0)
     })
+
+    it('assembles censoredSegments and bleepAudioSrc when audio censorship is active', () => {
+      const censoredSnapshot = {
+        ...baseSnapshot,
+        audioBleepEnabled: true,
+        audioBleepSource: 'custom',
+        customBleepData: '/audio/bleep.wav',
+        flaggedSegments: [{ start: 1.5, duration: 0.8 }]
+      }
+      const props = coordinator.assembleRemotionProps(censoredSnapshot)
+      expect(props.censoredSegments).toEqual([{ start: 1.5, duration: 0.8 }])
+      expect(props.bleepAudioSrc).toBe('/audio/bleep.wav')
+    })
   })
 
   describe('Single Master Player Mode (ADR-0004)', () => {

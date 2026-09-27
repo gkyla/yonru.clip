@@ -50,6 +50,8 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   thumbnailXOffset = 50,
   sourceWidth,
   sourceHeight,
+  censoredSegments = [],
+  bleepAudioSrc,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -57,6 +59,33 @@ export const YonruClip: React.FC<YonruClipProps> = ({
 
   const thumbnailFrames = thumbnailEnabled ? Math.round(thumbnailDuration * fps) : 0;
   const currentTime = Math.max(0, (frame - thumbnailFrames)) / fps;
+
+  // Automated Micro-Envelope (15ms zero-crossing) & Frame-Locked Volume Ducking
+  const baseVolume = volume;
+  const frameVolume = useMemo(() => {
+    if (!censoredSegments || censoredSegments.length === 0) {
+      return baseVolume;
+    }
+    return (f: number) => {
+      const time = Math.max(0, f - thumbnailFrames) / fps;
+      const fadeSec = 0.015; // 15ms internal micro-envelope
+
+      for (const seg of censoredSegments) {
+        if (time >= seg.start && time <= seg.start + seg.duration) {
+          if (time < seg.start + fadeSec) {
+            const factor = (time - seg.start) / fadeSec;
+            return baseVolume * (1 - factor);
+          }
+          if (time > seg.start + seg.duration - fadeSec) {
+            const factor = (time - (seg.start + seg.duration - fadeSec)) / fadeSec;
+            return baseVolume * factor;
+          }
+          return 0;
+        }
+      }
+      return baseVolume;
+    };
+  }, [censoredSegments, baseVolume, thumbnailFrames, fps]);
 
   const isUrl = videoPath && (videoPath.startsWith('http') || videoPath.startsWith('blob:'));
   const videoSrc = videoPath ? (isUrl ? videoPath : staticFile(videoPath)) : '';
@@ -351,7 +380,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   >
                     <OffthreadVideo
                       src={videoSrc}
-                      volume={volume}
+                      volume={frameVolume}
                       startFrom={mediaStartFrame}
                       endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
                       style={{
@@ -422,7 +451,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
               <AbsoluteFill style={{ overflow: 'hidden' }}>
                 <CanvasVideoCompositor
                   videoSrc={videoSrc}
-                  volume={volume}
+                  volume={frameVolume}
                   mediaStartFrame={mediaStartFrame}
                   durationFrames={durationFrames}
                   fps={fps}
@@ -590,6 +619,22 @@ export const YonruClip: React.FC<YonruClipProps> = ({
             <Audio src={item.src} volume={item.volume ?? 1} />
           </Sequence>
         ))}
+
+        {/* Frame-Locked Censorship Bleep Audio Layers */}
+        {bleepAudioSrc && censoredSegments && censoredSegments.map((seg, idx) => {
+          const segStartFrame = thumbnailFrames + Math.round(seg.start * fps);
+          const segDurationFrames = Math.max(1, Math.round(seg.duration * fps));
+          return (
+            <Sequence
+              key={`bleep-${idx}-${seg.start}`}
+              from={segStartFrame}
+              durationInFrames={segDurationFrames}
+              name={`Bleep-${idx}`}
+            >
+              <Audio src={bleepAudioSrc} volume={1} />
+            </Sequence>
+          );
+        })}
       </Sequence>
     </AbsoluteFill>
   );

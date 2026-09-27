@@ -239,41 +239,64 @@
                 </div>
               </div>
 
-              <!-- Bleep Padding Offset Slider/Input -->
-              <div class="space-y-1 pt-1">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-1.5">
-                    <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Bleep Padding</label>
-                    <div class="relative group/tooltip flex items-center">
-                      <Icon name="ri:question-line" class="text-slate-500 hover:text-slate-300 text-xs cursor-help transition-colors" />
-                      <div class="absolute left-0 bottom-full mb-1.5 w-64 p-2.5 bg-surface-dark/95 border border-surface-border/80 rounded-xl shadow-black/80 shadow-[0_12px_40px_rgba(0,0,0,0.95)] text-[10px] text-slate-300 leading-normal opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity duration-200 z-50 tracking-normal normal-case space-y-1.5">
-                        <p><strong class="text-white font-bold">Bleep Padding (ms):</strong> Configurable time buffer in milliseconds added before and after flagged word timestamps to prevent phoneme leakage during audio muting.</p>
+              <!-- Auto Acoustic Snapping Status -->
+              <div class="p-2.5 rounded-lg bg-accent-500/10 border border-accent-500/20 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-accent-400 animate-pulse"></div>
+                  <div>
+                    <span class="text-[10px] font-bold text-white block">Auto Acoustic Snapping</span>
+                    <span class="text-[8px] text-slate-400 block">Frame-locked Whisper speech alignment (0ms lag)</span>
+                  </div>
+                </div>
+                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-accent-500/20 text-accent-300 font-bold">ACTIVE</span>
+              </div>
+
+              <!-- Collapsible Advanced Timing Section -->
+              <details class="group/timing text-[10px] rounded-lg border border-white/5 bg-white/[0.02] p-2 transition-all">
+                <summary class="flex items-center justify-between cursor-pointer list-none select-none text-slate-400 hover:text-white transition-colors">
+                  <span class="font-bold flex items-center gap-1.5">
+                    <Icon name="ri:sound-module-line" class="text-xs text-accent-400" />
+                    Advanced Acoustic Timing
+                  </span>
+                  <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-200 group-open/timing:rotate-180" />
+                </summary>
+
+                <!-- Bleep Padding Offset Slider/Input -->
+                <div class="space-y-1 pt-2.5 mt-2 border-t border-white/5">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                      <label class="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Manual Padding Override</label>
+                      <div class="relative group/tooltip flex items-center">
+                        <Icon name="ri:question-line" class="text-slate-500 hover:text-slate-300 text-xs cursor-help transition-colors" />
+                        <div class="absolute left-0 bottom-full mb-1.5 w-64 p-2.5 bg-surface-dark/95 border border-surface-border/80 rounded-xl shadow-black/80 shadow-[0_12px_40px_rgba(0,0,0,0.95)] text-[10px] text-slate-300 leading-normal opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity duration-200 z-50 tracking-normal normal-case space-y-1.5">
+                          <p><strong class="text-white font-bold">Manual Padding Override:</strong> Optional buffer in milliseconds for severe acoustic environments (e.g. echo or room reverb). Default is 0ms with automated 15ms micro-envelope.</p>
+                        </div>
                       </div>
                     </div>
+                    <span class="text-[10px] font-mono font-bold text-accent-400">{{ state.bleepPaddingOffset?.value ?? 0 }}ms</span>
                   </div>
-                  <span class="text-[10px] font-mono font-bold text-accent-400">{{ state.bleepPaddingOffset?.value ?? 50 }}ms</span>
+                  <div class="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="0"
+                      max="200"
+                      step="10"
+                      :value="state.bleepPaddingOffset?.value ?? 0"
+                      @input="state.bleepPaddingOffset.value = Number(($event.target).value); state.saveBlacklistToStorage()"
+                      class="w-full accent-accent-500 cursor-pointer h-1.5 bg-white/10 rounded-lg"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="500"
+                      :value="state.bleepPaddingOffset?.value ?? 0"
+                      @input="state.bleepPaddingOffset.value = Math.max(0, Number(($event.target).value)); state.saveBlacklistToStorage()"
+                      class="w-14 px-1.5 py-0.5 bg-white/[0.03] border border-white/10 rounded text-[10px] font-mono text-center text-white focus:outline-none focus:border-accent-500"
+                    />
+                  </div>
+                  <p class="text-[8px] text-slate-500 leading-tight">Override only needed for heavy room echo/reverb.</p>
                 </div>
-                <div class="flex items-center gap-2">
-                  <input
-                    type="range"
-                    min="0"
-                    max="200"
-                    step="10"
-                    :value="state.bleepPaddingOffset?.value ?? 50"
-                    @input="state.bleepPaddingOffset.value = Number(($event.target).value); state.saveBlacklistToStorage()"
-                    class="w-full accent-accent-500 cursor-pointer h-1.5 bg-white/10 rounded-lg"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    max="500"
-                    :value="state.bleepPaddingOffset?.value ?? 50"
-                    @input="state.bleepPaddingOffset.value = Math.max(0, Number(($event.target).value)); state.saveBlacklistToStorage()"
-                    class="w-14 px-1.5 py-0.5 bg-white/[0.03] border border-white/10 rounded text-[10px] font-mono text-center text-white focus:outline-none focus:border-accent-500"
-                  />
-                </div>
-                <p class="text-[9px] text-slate-500 leading-tight">Safety margin before & after flagged words to prevent phoneme leakage.</p>
-              </div>
+              </details>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@
 // Encapsulates SSE stream parsing, progress tracking, ETA, and render lifecycle
 
 import { useTimelineState } from './useTimelineState'
+import { useSafetyAuditor } from './useSafetyAuditor'
 import { parseRenderEvent } from '../utils/renderEventParser'
 
 interface ExportDeps {
@@ -15,6 +16,7 @@ export const useClipperExport = (deps: ExportDeps) => {
   const API_BASE = 'http://localhost:8000'
 
   const timeline = useTimelineState()
+  const safety = useSafetyAuditor()
 
   // --- Render state (global useState keys) ---
   const renderStatus = useState<string>('renderStatus', () => 'idle')
@@ -155,6 +157,7 @@ export const useClipperExport = (deps: ExportDeps) => {
       audio_bleep_enabled: audioBleepEnabled.value,
       audio_bleep_source: audioBleepSource.value,
       custom_bleep_file: customBleepFile.value ? { name: customBleepFile.value.name, data: customBleepFile.value.data } : null,
+      censored_segments: safety.contentAudit.value?.flaggedSegments || [],
       bleep_padding_offset: bleepPaddingOffset.value,
       bleep_mode: bleepMode.value,
       safety_sensitivity: safetySensitivity.value === 'strict' ? 'conservative' :
