@@ -123,6 +123,11 @@ _Avoid_: Dual player mode, render switch, canvas exporter
 The surgical audio alteration feature that mutes or replaces specific spoken words with bleep audio presets at millisecond precision without cutting or shifting video timeline frames.
 _Avoid_: Audio bleep, profanity filter, censor cut, voice mute
 
+**Acoustic Word Map**:
+The immutable, word-level audio alignment map produced directly from speech transcription that acts as the single source of truth for audio censorship boundaries, completely decoupled from visual subtitle chunking.
+_Avoid_: Subtitle words, transcript cache, word timing list
+
+
 **Prompt Editor**:
 The dedicated template workspace in Yonru Clip for composing, testing, and managing modular natural language AI hook detection prompts and extraction directives.
 _Avoid_: Prompt settings, AI config, template screen
