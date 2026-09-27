@@ -127,6 +127,11 @@ _Avoid_: Audio bleep, profanity filter, censor cut, voice mute
 The immutable, word-level audio alignment map produced directly from speech transcription that acts as the single source of truth for audio censorship boundaries, completely decoupled from visual subtitle chunking.
 _Avoid_: Subtitle words, transcript cache, word timing list
 
+**Remediated Violation**:
+A sensitive speech violation that has been neutralized through both visual subtitle masking and active Word-Level Audio Censorship, restoring the Content Safety Score to safe without removing timeline censorship boundaries.
+_Avoid_: Fixed flag, ignored warning, masked audit
+
+
 
 **Prompt Editor**:
 The dedicated template workspace in Yonru Clip for composing, testing, and managing modular natural language AI hook detection prompts and extraction directives.

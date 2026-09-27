@@ -101,6 +101,57 @@ describe('SafetyEngine Unit Tests', () => {
         { start: 0.8, duration: 0.6, word: 'brengsek', text: 'brengsek' }
       ])
     })
+
+    it('treats visually masked words as Remediated Violations when audio bleep is enabled (retaining flaggedSegments and setting score=100)', () => {
+      const auditor = new ContentSafetyAuditor({
+        customBlacklist: ['brengsek'],
+        audioBleepEnabled: true,
+        bleepPaddingOffset: 0
+      })
+
+      const rawTranscript = [
+        {
+          text: 'kamu brengsek banget',
+          start: 0,
+          duration: 3.0,
+          words: [
+            { text: 'kamu', start: 0.2, duration: 0.3 },
+            { text: 'brengsek', start: 0.8, duration: 0.6 },
+            { text: 'banget', start: 1.8, duration: 0.5 }
+          ]
+        }
+      ]
+
+      // 1. Unmasked state: flaggedWords has 'brengsek', score is penalized
+      const unmaskedReport = auditor.audit({ transcript: rawTranscript, subtitleStrokeWidth: 4 })
+      expect(unmaskedReport.score).toBeLessThan(100)
+      expect(unmaskedReport.flaggedWords).toContain('brengsek')
+      expect(unmaskedReport.flaggedSegments.length).toBe(1)
+
+      // 2. Masked state (Auto-Fix):
+      const maskedTranscript = auditor.maskTranscript(rawTranscript)
+      const maskedReport = auditor.audit({ transcript: maskedTranscript, subtitleStrokeWidth: 4 })
+
+      // Score must be 100 (Safe) because it is remediated (masked + audio bleep enabled)
+      expect(maskedReport.score).toBe(100)
+      expect(maskedReport.flaggedWords).toEqual([])
+      expect(maskedReport.remediatedWords).toContain('brengsek')
+      // Critical requirement: flaggedSegments MUST be retained for audio muting!
+      expect(maskedReport.flaggedSegments).toEqual([
+        { start: 0.8, duration: 0.6, word: 'brengsek', text: 'brengsek' }
+      ])
+
+      // 3. If audioBleepEnabled is disabled, remediated status drops and score is penalized
+      auditor.audioBleepEnabled = false
+      const unbleepedReport = auditor.audit({ transcript: maskedTranscript, subtitleStrokeWidth: 4 })
+      expect(unbleepedReport.score).toBeLessThan(100)
+      expect(unbleepedReport.flaggedWords).toContain('brengsek')
+
+      // 4. Unmask / Revert: restores original transcript text
+      const revertedTranscript = auditor.unmaskTranscript(maskedTranscript)
+      expect(revertedTranscript[0].text).toBe('kamu brengsek banget')
+      expect(revertedTranscript[0].words?.[1].text).toBe('brengsek')
+    })
   })
 
   describe('Profanity Masking', () => {
