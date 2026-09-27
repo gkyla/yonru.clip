@@ -174,7 +174,7 @@ export class ContentSafetyAuditor {
       bleepLibrary: [...BUILTIN_BLEEP_PRESETS],
       selectedBleepAudioId: DEFAULT_BLEEP_PRESET.id,
       customBleepFile: { name: DEFAULT_BLEEP_PRESET.name, data: DEFAULT_BLEEP_PRESET.data },
-      bleepPaddingOffset: 50,
+      bleepPaddingOffset: 0,
       bleepMode: 'full',
       isWarningIgnored: false,
       activeCategories: { violence: true, sexual: true, profanity: true },
@@ -1039,7 +1039,7 @@ export function auditTranscript(
   transcript: TranscriptSegment[],
   blacklist?: string[],
   mode: string = 'word',
-  bleepPaddingOffsetMs: number = 50,
+  bleepPaddingOffsetMs: number = 0,
   bleepMode: 'full' | 'partial_end' = 'full'
 ): AuditResult {
   return defaultAuditor.auditTranscript(transcript, blacklist, mode, bleepPaddingOffsetMs, bleepMode)

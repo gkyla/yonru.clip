@@ -28,8 +28,13 @@ In ADR-0002, Word-Level Audio Censorship introduced a manual `bleepPaddingOffset
    - Replace manual user-configured padding with an internal 15–20ms zero-crossing micro-envelope crossfade at word onset and offset boundaries to eliminate digital clicking and consonant clipping without user intervention.
 
 4. **UI Simplification**:
-   - Set `Auto Acoustic Snapping` as default behavior in `BlacklistSettings.vue`.
-   - Relocate the manual `Bleep Padding` slider into an "Advanced Timing" collapsible section solely for extreme acoustic environments (e.g., severe room reverb/echo).
+   - Make acoustic word alignment zero-config and completely transparent in `BlacklistSettings.vue` without redundant status badges.
+   - Relocate the manual `Bleep Padding` slider into an optional collapsible section named `Timing Offset (Opsional)` with `0ms` as the universal default and an instant 0ms reset action.
+
+## Amendment (2026-09-27)
+- **Zero-Config Transparency**: Removed redundant static "Auto Acoustic Snapping" status badge from `BlacklistSettings.vue` to prevent cognitive clutter.
+- **Universal 0ms Default**: Standardized default `bleepPaddingOffset` to `0ms` across `safetyEngine.ts`, `useSafetyAuditor.ts`, and `useClipperExport.ts` (retiring leftover 50ms default from ADR-0002).
+- **Reset Action**: Added a 1-click `Reset (0ms)` button to the padding buffer slider.
 
 ## Consequences
 
@@ -38,6 +43,7 @@ In ADR-0002, Word-Level Audio Censorship introduced a manual `bleepPaddingOffset
 - Eliminates browser audio thread lag during interactive preview playback.
 - Subtitle visual chunking (`1_word`, `3_words`, `sentence`) can be changed freely without corrupting audio censorship accuracy.
 - Complete parity between frontend editor preview and backend headless render outputs.
+- Cleaner, uncluttered UI in the Content Safety Configuration dialog.
 
 ### Negative / Trade-offs
 - Requires passing censored audio sequences and ducking metadata into Remotion props for both preview and export pipelines.

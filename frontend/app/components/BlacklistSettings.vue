@@ -239,41 +239,39 @@
                 </div>
               </div>
 
-              <!-- Auto Acoustic Snapping Status -->
-              <div class="p-2.5 rounded-lg bg-accent-500/10 border border-accent-500/20 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-accent-400 animate-pulse"></div>
-                  <div>
-                    <span class="text-[10px] font-bold text-white block">Auto Acoustic Snapping</span>
-                    <span class="text-[8px] text-slate-400 block">Frame-locked Whisper speech alignment (0ms lag)</span>
-                  </div>
-                </div>
-                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-accent-500/20 text-accent-300 font-bold">ACTIVE</span>
-              </div>
-
-              <!-- Collapsible Advanced Timing Section -->
+              <!-- Collapsible Timing Offset Section -->
               <details class="group/timing text-[10px] rounded-lg border border-white/5 bg-white/[0.02] p-2 transition-all">
                 <summary class="flex items-center justify-between cursor-pointer list-none select-none text-slate-400 hover:text-white transition-colors">
                   <span class="font-bold flex items-center gap-1.5">
                     <Icon name="ri:sound-module-line" class="text-xs text-accent-400" />
-                    Advanced Acoustic Timing
+                    Timing Offset (Opsional)
                   </span>
                   <Icon name="ri:arrow-down-s-line" class="text-xs transition-transform duration-200 group-open/timing:rotate-180" />
                 </summary>
 
                 <!-- Bleep Padding Offset Slider/Input -->
-                <div class="space-y-1 pt-2.5 mt-2 border-t border-white/5">
+                <div class="space-y-1.5 pt-2.5 mt-2 border-t border-white/5">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-1.5">
-                      <label class="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Manual Padding Override</label>
+                      <label class="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Padding Buffer</label>
                       <div class="relative group/tooltip flex items-center">
                         <Icon name="ri:question-line" class="text-slate-500 hover:text-slate-300 text-xs cursor-help transition-colors" />
                         <div class="absolute left-0 bottom-full mb-1.5 w-64 p-2.5 bg-surface-dark/95 border border-surface-border/80 rounded-xl shadow-black/80 shadow-[0_12px_40px_rgba(0,0,0,0.95)] text-[10px] text-slate-300 leading-normal opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity duration-200 z-50 tracking-normal normal-case space-y-1.5">
-                          <p><strong class="text-white font-bold">Manual Padding Override:</strong> Optional buffer in milliseconds for severe acoustic environments (e.g. echo or room reverb). Default is 0ms with automated 15ms micro-envelope.</p>
+                          <p><strong class="text-white font-bold">Padding Buffer:</strong> Buffer milidetik tambahan jika rekaman video memiliki echo atau gema ruangan. Default 0ms sudah optimal dengan micro-envelope otomatis.</p>
                         </div>
                       </div>
                     </div>
-                    <span class="text-[10px] font-mono font-bold text-accent-400">{{ state.bleepPaddingOffset?.value ?? 0 }}ms</span>
+                    <div class="flex items-center gap-2">
+                      <button
+                        v-if="(state.bleepPaddingOffset?.value ?? 0) !== 0"
+                        type="button"
+                        @click="if (state.bleepPaddingOffset) state.bleepPaddingOffset.value = 0; state.saveBlacklistToStorage()"
+                        class="text-[9px] text-accent-400 hover:text-accent-300 hover:underline transition-colors font-medium"
+                      >
+                        Reset (0ms)
+                      </button>
+                      <span class="text-[10px] font-mono font-bold text-accent-400">{{ state.bleepPaddingOffset?.value ?? 0 }}ms</span>
+                    </div>
                   </div>
                   <div class="flex items-center gap-2">
                     <input
@@ -294,7 +292,7 @@
                       class="w-14 px-1.5 py-0.5 bg-white/[0.03] border border-white/10 rounded text-[10px] font-mono text-center text-white focus:outline-none focus:border-accent-500"
                     />
                   </div>
-                  <p class="text-[8px] text-slate-500 leading-tight">Override only needed for heavy room echo/reverb.</p>
+                  <p class="text-[8px] text-slate-500 leading-tight">Default 0ms. Hanya disesuaikan jika video memiliki gema atau pantulan suara.</p>
                 </div>
               </details>
             </div>

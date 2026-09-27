@@ -33,7 +33,7 @@ export const useSafetyAuditor = () => {
     name: DEFAULT_BLEEP_PRESET.name,
     data: DEFAULT_BLEEP_PRESET.data
   }))
-  const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 50)
+  const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 0)
   const bleepMode = useState<BleepMode>('bleepMode', () => 'full')
   const isWarningIgnored = useState<boolean>('isWarningIgnored', () => false)
   const activeCategories = useState<Record<SafetyCategory, boolean>>('activeCategories', () => ({

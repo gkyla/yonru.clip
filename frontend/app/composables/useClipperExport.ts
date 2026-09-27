@@ -77,7 +77,7 @@ export const useClipperExport = (deps: ExportDeps) => {
   const audioBleepEnabled = useState<boolean>('audioBleepEnabled', () => false)
   const audioBleepSource = useState<'mute' | 'custom'>('audioBleepSource', () => 'mute')
   const customBleepFile = useState<{ name: string; data: string } | null>('customBleepFile', () => null)
-  const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 50)
+  const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 0)
   const bleepMode = useState<'full' | 'partial_end'>('bleepMode', () => 'full')
   const safetySensitivity = useState<string>('safetySensitivity', () => 'moderate')
   const maskingStyle = useState<string>('maskingStyle', () => 'asterisk')

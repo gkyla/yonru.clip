@@ -328,6 +328,11 @@ describe('SafetyEngine Unit Tests', () => {
       expect(auditor.bleepLibrary.some(item => item.id === custom.id)).toBe(false)
     })
 
+    it('initializes with default bleepPaddingOffset of 0ms', () => {
+      const fresh = createContentSafetyAuditor()
+      expect(fresh.bleepPaddingOffset).toBe(0)
+    })
+
     it('exports and hydrates state cleanly', () => {
       auditor.customBlacklist = ['testword']
       auditor.bleepPaddingOffset = 80
