@@ -15,6 +15,10 @@ class RenderComposition:
         self.original_video = original_video
         self.crop_center_x = crop_center_x
         self.video_layout = kwargs.get("video_layout", "vertical")
+        sub_style = kwargs.get("subtitle_style") or {}
+        self.landscape_background = kwargs.get("landscape_background") or sub_style.get("landscapeBackground") or "black"
+        self.landscape_blur_radius = kwargs.get("landscape_blur_radius") or sub_style.get("landscapeBlurRadius") or 25
+        self.landscape_darkness = kwargs.get("landscape_darkness") if kwargs.get("landscape_darkness") is not None else sub_style.get("landscapeDarkness", 35)
         self.timeline_tracks = kwargs.get("timeline_tracks")
         self.words_data = kwargs.get("words_data")
         self.timeline_text_items = kwargs.get("timeline_text_items")
@@ -260,6 +264,9 @@ class StagedRenderContext:
             "cropMap": self.comp.crop_center_x if isinstance(self.comp.crop_center_x, list) else [],
             "position": self.comp.position,
             "videoLayout": self.comp.video_layout,
+            "landscapeBackground": self.comp.landscape_background,
+            "landscapeBlurRadius": self.comp.landscape_blur_radius,
+            "landscapeDarkness": self.comp.landscape_darkness,
             "subtitleOffset": self.comp.subtitle_style.get("subtitleOffset", 50) if self.comp.subtitle_style else 50,
             "durationInFrames": self.frames,
             "subtitleStyle": self.comp.subtitle_style or {},
@@ -509,6 +516,9 @@ class RenderEngine(ABC):
             original_video=video_path,
             crop_center_x=crop_x or 960,
             video_layout=getattr(req, "video_layout", "vertical") or "vertical",
+            landscape_background=getattr(req, "landscape_background", "black") or "black",
+            landscape_blur_radius=getattr(req, "landscape_blur_radius", 25) or 25,
+            landscape_darkness=getattr(req, "landscape_darkness", 35) if getattr(req, "landscape_darkness", None) is not None else 35,
             timeline_tracks=req.timeline_tracks,
             words_data=words_data,
             timeline_text_items=timeline_text,

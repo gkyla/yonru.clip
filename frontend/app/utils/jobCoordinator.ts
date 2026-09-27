@@ -87,6 +87,9 @@ export interface JobUpdateCallbacks {
 
 export const DEFAULT_SUBTITLE_STYLES: Partial<SubtitleStyleSettings> = {
   videoLayout: 'vertical',
+  landscapeBackground: 'black',
+  landscapeBlurRadius: 25,
+  landscapeDarkness: 35,
   subtitlePosition: 'center',
   subtitleOffset: 50,
   subtitleSyncOffset: 150,
@@ -159,6 +162,9 @@ export class IngestionJobCoordinator {
     if (!overrides) return { ...base }
     return {
       videoLayout: overrides.videoLayout ?? base.videoLayout,
+      landscapeBackground: overrides.landscapeBackground ?? base.landscapeBackground,
+      landscapeBlurRadius: overrides.landscapeBlurRadius !== undefined ? overrides.landscapeBlurRadius : base.landscapeBlurRadius,
+      landscapeDarkness: overrides.landscapeDarkness !== undefined ? overrides.landscapeDarkness : base.landscapeDarkness,
       subtitlePosition: overrides.subtitlePosition ?? base.subtitlePosition,
       subtitleOffset: overrides.subtitleOffset !== undefined ? overrides.subtitleOffset : base.subtitleOffset,
       subtitleSyncOffset: overrides.subtitleSyncOffset !== undefined ? overrides.subtitleSyncOffset : base.subtitleSyncOffset,

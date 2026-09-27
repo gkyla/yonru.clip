@@ -30,6 +30,10 @@ const mockState = {
   subtitleSyncOffset: ref(0),
   autoAdaptiveSubtitles: ref(true),
   subtitleBackgroundOpacity: ref(0.8),
+  videoLayout: ref('vertical'),
+  landscapeBackground: ref('black'),
+  landscapeBlurRadius: ref(25),
+  landscapeDarkness: ref(35),
   cropMode: ref('manual'),
   cropPercentX: ref(50),
   cropPercentXTop: ref(50),
@@ -291,6 +295,49 @@ describe('SidebarSettings Component', () => {
     await jumpBtn?.trigger('click')
 
     expect(mockState.seekTo).toHaveBeenCalledWith(10.05)
+  })
+
+  it('renders Landscape Background Treatment controls and sliders when videoLayout is landscape', async () => {
+    mockState.videoLayout.value = 'landscape'
+    mockState.landscapeBackground.value = 'black'
+    mockState.landscapeBlurRadius.value = 25
+    mockState.landscapeDarkness.value = 35
+
+    const wrapper = mount(SidebarSettings, {
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, BlacklistSettings: true }
+      }
+    })
+
+    // Click Layout tab
+    const tabs = wrapper.findAll('button.tab-btn')
+    await tabs[2]!.trigger('click')
+
+    // Verify Background Treatment section exists
+    expect(wrapper.text()).toContain('Background Treatment')
+    expect(wrapper.text()).toContain('Solid Black')
+    expect(wrapper.text()).toContain('Blurred Video')
+
+    // Find and click Blurred Video button
+    const blurBtn = wrapper.findAll('button').find(b => b.text().includes('Blurred Video'))
+    expect(blurBtn?.exists()).toBe(true)
+    await blurBtn?.trigger('click')
+
+    expect(mockState.landscapeBackground.value).toBe('blur')
+    await wrapper.vm.$nextTick()
+
+    // Verify sliders appear
+    expect(wrapper.text()).toContain('Blur Radius')
+    expect(wrapper.text()).toContain('25px')
+    expect(wrapper.text()).toContain('Dimming Overlay')
+    expect(wrapper.text()).toContain('35%')
+
+    // Click Solid Black button
+    const blackBtn = wrapper.findAll('button').find(b => b.text().includes('Solid Black'))
+    expect(blackBtn?.exists()).toBe(true)
+    await blackBtn?.trigger('click')
+
+    expect(mockState.landscapeBackground.value).toBe('black')
   })
 })
 

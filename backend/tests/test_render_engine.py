@@ -457,5 +457,40 @@ class TestRenderEngine(unittest.TestCase):
     def test_render_pipeline_coordinator_alias(self):
         self.assertIs(RemotionRenderEngine, RenderPipelineCoordinator)
 
+    def test_render_composition_landscape_background(self):
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+        temp_video = os.path.join(temp_dir, "dummy_landscape.mp4")
+        with open(temp_video, "w") as f:
+            f.write("dummy video content")
+
+        try:
+            comp = RenderComposition(
+                original_video=temp_video,
+                crop_center_x=960,
+                video_layout="landscape",
+                landscape_background="blur",
+                landscape_blur_radius=30,
+                landscape_darkness=50,
+                clip_duration=2.0,
+                fps=30.0
+            )
+            self.assertEqual(comp.video_layout, "landscape")
+            self.assertEqual(comp.landscape_background, "blur")
+            self.assertEqual(comp.landscape_blur_radius, 30)
+            self.assertEqual(comp.landscape_darkness, 50)
+
+            with StagedRenderContext(comp, "test_landscape.mp4", output_dir=temp_dir) as ctx:
+                self.assertIsNotNone(ctx.props_path)
+                assert ctx.props_path is not None
+                with open(ctx.props_path, "r", encoding="utf-8") as f:
+                    props = json.load(f)
+                self.assertEqual(props.get("videoLayout"), "landscape")
+                self.assertEqual(props.get("landscapeBackground"), "blur")
+                self.assertEqual(props.get("landscapeBlurRadius"), 30)
+                self.assertEqual(props.get("landscapeDarkness"), 50)
+        finally:
+            shutil.rmtree(temp_dir)
+
 
 

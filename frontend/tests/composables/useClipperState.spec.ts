@@ -347,9 +347,18 @@ describe('useClipperState Composable', () => {
   it('manages videoLayout state and persists videoLayout in saveStyleSettings', async () => {
     const state = useClipperState()
     expect(state.videoLayout.value).toBe('vertical')
+    expect(state.landscapeBackground.value).toBe('black')
+    expect(state.landscapeBlurRadius.value).toBe(25)
+    expect(state.landscapeDarkness.value).toBe(35)
 
     state.videoLayout.value = 'landscape'
+    state.landscapeBackground.value = 'blur'
+    state.landscapeBlurRadius.value = 30
+    state.landscapeDarkness.value = 40
     expect(state.videoLayout.value).toBe('landscape')
+    expect(state.landscapeBackground.value).toBe('blur')
+    expect(state.landscapeBlurRadius.value).toBe(30)
+    expect(state.landscapeDarkness.value).toBe(40)
 
     const mockFetch = vi.fn().mockResolvedValue({})
     vi.stubGlobal('$fetch', mockFetch)
@@ -365,7 +374,10 @@ describe('useClipperState Composable', () => {
         method: 'PUT',
         body: expect.objectContaining({
           settings: expect.objectContaining({
-            videoLayout: 'landscape'
+            videoLayout: 'landscape',
+            landscapeBackground: 'blur',
+            landscapeBlurRadius: 30,
+            landscapeDarkness: 40
           })
         })
       })

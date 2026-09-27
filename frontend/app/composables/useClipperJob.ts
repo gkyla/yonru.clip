@@ -62,6 +62,9 @@ export const useClipperJob = () => {
 
   // Subtitle positions / styling
   const videoLayout = useState<'vertical' | 'landscape'>('videoLayout', () => 'vertical')
+  const landscapeBackground = useState<'black' | 'blur'>('landscapeBackground', () => 'black')
+  const landscapeBlurRadius = useState<number>('landscapeBlurRadius', () => 25)
+  const landscapeDarkness = useState<number>('landscapeDarkness', () => 35)
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150)
@@ -104,6 +107,9 @@ export const useClipperJob = () => {
 
   function applySubtitleStyles(styles: Partial<SubtitleStyleSettings>) {
     if (styles.videoLayout) videoLayout.value = styles.videoLayout
+    if (styles.landscapeBackground) landscapeBackground.value = styles.landscapeBackground
+    if (styles.landscapeBlurRadius !== undefined) landscapeBlurRadius.value = styles.landscapeBlurRadius
+    if (styles.landscapeDarkness !== undefined) landscapeDarkness.value = styles.landscapeDarkness
     if (styles.subtitlePosition) subtitlePosition.value = styles.subtitlePosition
     if (styles.subtitleOffset !== undefined) subtitleOffset.value = styles.subtitleOffset
     if (styles.subtitleSyncOffset !== undefined) subtitleSyncOffset.value = styles.subtitleSyncOffset

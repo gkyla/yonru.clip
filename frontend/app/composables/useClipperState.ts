@@ -120,6 +120,9 @@ function createClipperState() {
   const youtubeUrl = useState<string>('youtubeUrl', () => '')
   const language = useState<string>('language', () => 'auto')
   const videoLayout = useState<'vertical' | 'landscape'>('videoLayout', () => 'vertical')
+  const landscapeBackground = useState<'black' | 'blur'>('landscapeBackground', () => 'black')
+  const landscapeBlurRadius = useState<number>('landscapeBlurRadius', () => 25)
+  const landscapeDarkness = useState<number>('landscapeDarkness', () => 35)
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150) // Default 150ms offset
@@ -463,6 +466,9 @@ function createClipperState() {
     if (!folderName.value || !clipId.value) return
     const settings = {
       videoLayout: videoLayout.value,
+      landscapeBackground: landscapeBackground.value,
+      landscapeBlurRadius: landscapeBlurRadius.value,
+      landscapeDarkness: landscapeDarkness.value,
       subtitlePreset: subtitlePreset.value,
       subtitlePosition: subtitlePosition.value,
       subtitleOffset: subtitleOffset.value,
@@ -505,6 +511,9 @@ function createClipperState() {
   async function saveDefaultStyleSettings() {
     const settings = {
       videoLayout: videoLayout.value,
+      landscapeBackground: landscapeBackground.value,
+      landscapeBlurRadius: landscapeBlurRadius.value,
+      landscapeDarkness: landscapeDarkness.value,
       subtitlePreset: subtitlePreset.value,
       subtitlePosition: subtitlePosition.value,
       subtitleOffset: subtitleOffset.value,
@@ -651,7 +660,7 @@ function createClipperState() {
     hooks, savedHooks, activeHook, segmentPadding, folderName, clipId, fullTranscript,
     promptsList, selectedPrompt,
     extractionMode, selectedPresetId, focusTopic, minDuration, maxDuration,
-    youtubeUrl, language, videoLayout, subtitlePosition, subtitleOffset, subtitleSyncOffset, autoAdaptiveSubtitles,
+    youtubeUrl, language, videoLayout, landscapeBackground, landscapeBlurRadius, landscapeDarkness, subtitlePosition, subtitleOffset, subtitleSyncOffset, autoAdaptiveSubtitles,
     font, fontSize, faceTracking, cropMode, cropMap, cropPercentX, cropPercentXTop, cropPercentXBottom, splitZoomTop, splitZoomBottom, splitOffsetXTop, splitOffsetYTop, splitOffsetXBottom, splitOffsetYBottom, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
     whisperModels: WHISPER_MODELS,
     activeSafeZone,

@@ -31,6 +31,9 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   cropMap = [],
   position,
   videoLayout = 'vertical',
+  landscapeBackground = 'black',
+  landscapeBlurRadius = 25,
+  landscapeDarkness = 35,
   subtitleOffset = 50,
   autoAdaptiveSubtitles = true,
   showDebug,
@@ -292,6 +295,48 @@ export const YonruClip: React.FC<YonruClipProps> = ({
               // HEADLESS RENDER: Frame-accurate native Remotion OffthreadVideo
               return (
                 <AbsoluteFill style={{ overflow: 'hidden' }}>
+                  {/* Landscape Blurred Video Background (Headless Render parity) */}
+                  {isLandscape && landscapeBackground === 'blur' && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: `${CONTAINER_W}px`,
+                        height: `${CONTAINER_H}px`,
+                        overflow: 'hidden',
+                        zIndex: 0,
+                      }}
+                    >
+                      <OffthreadVideo
+                        src={videoSrc}
+                        volume={0}
+                        muted={true}
+                        startFrom={mediaStartFrame}
+                        endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
+                        style={{
+                          width: `${CONTAINER_W}px`,
+                          height: `${CONTAINER_H}px`,
+                          objectFit: 'cover',
+                          transform: 'scale(1.08)',
+                          filter: `blur(${Math.max(1, landscapeBlurRadius || 25)}px)`,
+                        }}
+                      />
+                      {(landscapeDarkness ?? 35) > 0 && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            backgroundColor: `rgba(0, 0, 0, ${Math.max(0, Math.min(100, landscapeDarkness ?? 35)) / 100})`,
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+
                   {/* Top Viewport (Split mode: Top Speaker | Single mode: Full Framing) */}
                   <div
                     style={{
@@ -385,6 +430,9 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   CONTAINER_H={CONTAINER_H}
                   PANEL_H={PANEL_H}
                   isLandscape={isLandscape}
+                  landscapeBackground={landscapeBackground}
+                  landscapeBlurRadius={landscapeBlurRadius}
+                  landscapeDarkness={landscapeDarkness}
                   isSplit={isSplit}
                   videoDisplayW={videoDisplayW}
                   videoDisplayH={videoDisplayH}

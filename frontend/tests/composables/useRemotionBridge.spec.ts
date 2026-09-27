@@ -323,7 +323,7 @@ describe('useRemotionBridge Composable', () => {
     app.unmount()
   })
 
-  it('automatically triggers props update when videoLayout state changes', async () => {
+  it('automatically triggers props update when videoLayout and landscapeBackground state changes', async () => {
     const previewVideo = ref<HTMLVideoElement | null>(null)
 
     const [_, app] = withSetup(() => useRemotionBridge(
@@ -335,11 +335,18 @@ describe('useRemotionBridge Composable', () => {
     ))
 
     state.videoLayout.value = 'landscape'
+    state.landscapeBackground.value = 'blur'
+    state.landscapeBlurRadius.value = 35
+    state.landscapeDarkness.value = 45
     await nextTick()
 
     const updateCalls = bridge.calls.filter(c => c.type === 'updateProps')
     expect(updateCalls.length).toBeGreaterThan(0)
-    expect(updateCalls[updateCalls.length - 1]?.payload?.videoLayout).toBe('landscape')
+    const latestPayload = updateCalls[updateCalls.length - 1]?.payload
+    expect(latestPayload?.videoLayout).toBe('landscape')
+    expect(latestPayload?.landscapeBackground).toBe('blur')
+    expect(latestPayload?.landscapeBlurRadius).toBe(35)
+    expect(latestPayload?.landscapeDarkness).toBe(45)
 
     app.unmount()
   })

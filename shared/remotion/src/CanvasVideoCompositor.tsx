@@ -19,6 +19,9 @@ export interface CanvasVideoCompositorProps {
   CONTAINER_H: number;
   PANEL_H: number;
   isLandscape: boolean;
+  landscapeBackground?: 'black' | 'blur';
+  landscapeBlurRadius?: number;
+  landscapeDarkness?: number;
   isSplit: boolean;
   videoDisplayW: number;
   videoDisplayH: number;
@@ -55,6 +58,9 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
   CONTAINER_H,
   PANEL_H,
   isLandscape,
+  landscapeBackground = 'black',
+  landscapeBlurRadius = 25,
+  landscapeDarkness = 35,
   isSplit,
   videoDisplayW,
   videoDisplayH,
@@ -258,8 +264,36 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
       const dh = dw / aspect;
       const dy = (CONTAINER_H - dh) / 2;
 
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, CONTAINER_W, CONTAINER_H);
+      if (landscapeBackground === 'blur') {
+        try {
+          // 1. Draw blurred video scaled to cover the 9:16 canvas with 8% overscan
+          ctx.save();
+          const blurRad = Math.max(1, landscapeBlurRadius ?? 25);
+          ctx.filter = `blur(${blurRad}px)`;
+          const coverScale = Math.max(CONTAINER_W / vW, CONTAINER_H / vH) * 1.08;
+          const bgW = vW * coverScale;
+          const bgH = vH * coverScale;
+          const bgX = (CONTAINER_W - bgW) / 2;
+          const bgY = (CONTAINER_H - bgH) / 2;
+          ctx.drawImage(video, 0, 0, vW, vH, bgX, bgY, bgW, bgH);
+          ctx.restore();
+
+          // 2. Dimming overlay
+          const darkness = Math.max(0, Math.min(100, landscapeDarkness ?? 35));
+          if (darkness > 0) {
+            ctx.fillStyle = `rgba(0, 0, 0, ${darkness / 100})`;
+            ctx.fillRect(0, 0, CONTAINER_W, CONTAINER_H);
+          }
+        } catch (err) {
+          // Fallback to black if texture read fails
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(0, 0, CONTAINER_W, CONTAINER_H);
+        }
+      } else {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, CONTAINER_W, CONTAINER_H);
+      }
+
       try {
         ctx.drawImage(video, 0, 0, vW, vH, 0, dy, dw, dh);
       } catch (err) {
@@ -316,6 +350,9 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
     }
   }, [
     isLandscape,
+    landscapeBackground,
+    landscapeBlurRadius,
+    landscapeDarkness,
     CONTAINER_W,
     CONTAINER_H,
     PANEL_H,

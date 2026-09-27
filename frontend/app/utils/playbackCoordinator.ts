@@ -30,6 +30,9 @@ export interface PlaybackStateSnapshot {
 
   // Layout & Crop
   videoLayout: 'vertical' | 'landscape'
+  landscapeBackground?: 'black' | 'blur'
+  landscapeBlurRadius?: number
+  landscapeDarkness?: number
   subtitlePosition: string
   subtitleOffset: number
   autoAdaptiveSubtitles?: boolean
@@ -180,6 +183,9 @@ export class VideoPlaybackCoordinator {
         sourceHeight: sourceDimensions.height,
         position: snapshot.subtitlePosition,
         videoLayout: snapshot.videoLayout || 'vertical',
+        landscapeBackground: snapshot.landscapeBackground || 'black',
+        landscapeBlurRadius: snapshot.landscapeBlurRadius ?? 25,
+        landscapeDarkness: snapshot.landscapeDarkness ?? 35,
         subtitleOffset: snapshot.subtitleOffset,
         autoAdaptiveSubtitles: snapshot.autoAdaptiveSubtitles ?? true,
         durationInFrames: Math.round(snapshot.timelineDuration * activeFps),

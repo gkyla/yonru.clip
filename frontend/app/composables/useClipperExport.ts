@@ -36,6 +36,9 @@ export const useClipperExport = (deps: ExportDeps) => {
 
   // Subtitle style states (read via shared useState keys)
   const videoLayout = useState<string>('videoLayout', () => 'vertical')
+  const landscapeBackground = useState<string>('landscapeBackground', () => 'black')
+  const landscapeBlurRadius = useState<number>('landscapeBlurRadius', () => 25)
+  const landscapeDarkness = useState<number>('landscapeDarkness', () => 35)
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
   const subtitleOffset = useState<number>('subtitleOffset', () => 50)
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150)
@@ -109,6 +112,9 @@ export const useClipperExport = (deps: ExportDeps) => {
       job_id: jobId.value,
       hook_index: hookIndex,
       video_layout: videoLayout.value,
+      landscape_background: landscapeBackground.value,
+      landscape_blur_radius: landscapeBlurRadius.value,
+      landscape_darkness: landscapeDarkness.value,
       subtitle_position: subtitlePosition.value,
       subtitle_offset: subtitleOffset.value,
       font: font.value,

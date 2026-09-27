@@ -96,6 +96,10 @@ _Avoid_: Template, subtitle theme, font style, caption design
 The persisted global user preference configuring the baseline layout mode (Vertical 9:16), auto-reframing crop mode (Face Track), and subtitle typography applied to newly extracted or initialized clips.
 _Avoid_: Global template, root config, editor defaults, initial layout preset
 
+**Landscape Background Treatment**:
+The visual presentation applied to the letterbox padding zones above and below horizontal footage when presented in the vertical 9:16 canvas, offering Solid Black or Blurred Video Fill with adjustable blur radius and dimming overlay.
+_Avoid_: Background color, bar blur, letterbox style, pad blur.
+
 
 **Preset Studio Viewport**:
 The cinematic live preview canvas within the active subtitle preset card that renders real-time typography, highlight effects, stroke, and background treatments against a dark studio backdrop simulating actual video output.
