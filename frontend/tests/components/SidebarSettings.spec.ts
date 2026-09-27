@@ -134,6 +134,9 @@ describe('SidebarSettings Component', () => {
       }
     })
 
+    const tabs = wrapper.findAll('button.tab-btn')
+    await tabs[1]!.trigger('click')
+
     expect(wrapper.text()).toContain('Text Background')
     expect(wrapper.text()).toContain('None')
     expect(wrapper.text()).toContain('Dark Box')

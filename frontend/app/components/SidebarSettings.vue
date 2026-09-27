@@ -363,31 +363,6 @@
                 </button>
               </div>
             </div>
-
-            <!-- Text Background -->
-            <div>
-              <h2
-                class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 flex items-center justify-between"
-              >
-                <span>Text Background</span>
-                <Icon name="ri:shape-2-line" class="text-slate-400" />
-              </h2>
-              <div class="grid grid-cols-3 gap-1.5">
-                <button
-                  v-for="bg in backgrounds"
-                  :key="bg.id"
-                  class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold transition-all hover:bg-surface-card"
-                  :class="
-                    state.subtitleBackground.value === bg.id
-                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
-                      : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
-                  "
-                  @click="state.subtitleBackground.value = bg.id"
-                >
-                  {{ bg.label }}
-                </button>
-              </div>
-            </div>
           </div>
 
           <!-- TAB 2: TYPOGRAPHY & COLORS -->
@@ -735,6 +710,63 @@
                     title="Custom color"
                   />
                 </div>
+              </div>
+            </div>
+
+            <hr class="border-surface-border/40" />
+
+            <!-- Text Background -->
+            <div class="space-y-2.5">
+              <h2
+                class="text-[10px] uppercase tracking-widest text-slate-500 font-bold flex items-center justify-between"
+              >
+                <span>Text Background</span>
+                <Icon name="ri:shape-2-line" class="text-slate-400" />
+              </h2>
+              <div class="grid grid-cols-3 gap-1.5">
+                <button
+                  v-for="bg in backgrounds"
+                  :key="bg.id"
+                  class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold transition-all hover:bg-surface-card"
+                  :class="
+                    state.subtitleBackground.value === bg.id
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                      : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
+                  "
+                  @click="state.subtitleBackground.value = bg.id"
+                >
+                  {{ bg.label }}
+                </button>
+              </div>
+
+              <!-- Opacity Slider -->
+              <div
+                v-if="state.subtitleBackground.value !== 'none'"
+                class="mt-2.5 bg-surface-dark/40 border border-surface-border/80 rounded-xl p-2 space-y-1 transition-all"
+              >
+                <div class="flex justify-between items-center">
+                  <span
+                    class="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1"
+                  >
+                    <Icon name="ri:drop-line" class="text-accent-500" />
+                    Opacity
+                  </span>
+                  <span
+                    class="mono text-[9px] text-accent-500 font-bold bg-accent-500/10 px-1 rounded"
+                    >{{
+                      Math.round(state.subtitleBackgroundOpacity.value * 100)
+                    }}%</span
+                  >
+                </div>
+                <input
+                  v-model.number="state.subtitleBackgroundOpacity.value"
+                  :disabled="state.renderStatus.value === 'rendering'"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer disabled:opacity-30"
+                />
               </div>
             </div>
           </div>
@@ -1448,32 +1480,6 @@
                   min="0"
                   max="500"
                   class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer disabled:opacity-30"
-                />
-              </div>
-
-              <div
-                v-if="state.subtitleBackground.value !== 'none'"
-                class="bg-surface-dark/40 border border-surface-border/80 rounded-xl p-2 space-y-1"
-              >
-                <div class="flex justify-between items-center">
-                  <span
-                    class="text-[9px] text-slate-400 font-bold uppercase tracking-wider"
-                    >BG Opacity</span
-                  >
-                  <span
-                    class="mono text-[9px] text-accent-500 font-bold bg-accent-500/10 px-1 rounded"
-                    >{{
-                      Math.round(state.subtitleBackgroundOpacity.value * 100)
-                    }}%</span
-                  >
-                </div>
-                <input
-                  v-model.number="state.subtitleBackgroundOpacity.value"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
                 />
               </div>
             </div>
