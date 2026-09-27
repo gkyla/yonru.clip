@@ -62,15 +62,45 @@ export const YonruClip: React.FC<YonruClipProps> = ({
 
   // Automated Micro-Envelope (15ms zero-crossing) & Frame-Locked Volume Ducking
   const baseVolume = volume;
+
+  // Normalize & merge overlapping or contiguous censored segments to prevent double-bleep audio phasing
+  const mergedCensoredSegments = useMemo(() => {
+    if (!censoredSegments || censoredSegments.length === 0) return [];
+    const valid = censoredSegments
+      .filter(s => s && typeof s.start === 'number' && typeof s.duration === 'number' && s.duration > 0)
+      .map(s => ({ start: Math.round(s.start * 1000) / 1000, duration: Math.round(s.duration * 1000) / 1000 }))
+      .sort((a, b) => a.start - b.start);
+
+    if (valid.length === 0) return [];
+
+    const merged: Array<{ start: number; duration: number }> = [];
+    let current = { ...valid[0] };
+
+    for (let i = 1; i < valid.length; i++) {
+      const next = valid[i];
+      const currentEnd = Math.round((current.start + current.duration) * 1000) / 1000;
+      if (next.start <= currentEnd + 0.005) {
+        const nextEnd = Math.round((next.start + next.duration) * 1000) / 1000;
+        const newEnd = Math.max(currentEnd, nextEnd);
+        current.duration = Math.round((newEnd - current.start) * 1000) / 1000;
+      } else {
+        merged.push(current);
+        current = { ...next };
+      }
+    }
+    merged.push(current);
+    return merged;
+  }, [censoredSegments]);
+
   const frameVolume = useMemo(() => {
-    if (!censoredSegments || censoredSegments.length === 0) {
+    if (mergedCensoredSegments.length === 0) {
       return baseVolume;
     }
     return (f: number) => {
       const time = Math.max(0, f - thumbnailFrames) / fps;
       const fadeSec = 0.015; // 15ms internal micro-envelope
 
-      for (const seg of censoredSegments) {
+      for (const seg of mergedCensoredSegments) {
         if (time >= seg.start && time <= seg.start + seg.duration) {
           if (time < seg.start + fadeSec) {
             const factor = (time - seg.start) / fadeSec;
@@ -85,7 +115,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
       }
       return baseVolume;
     };
-  }, [censoredSegments, baseVolume, thumbnailFrames, fps]);
+  }, [mergedCensoredSegments, baseVolume, thumbnailFrames, fps]);
 
   const isUrl = videoPath && (videoPath.startsWith('http') || videoPath.startsWith('blob:'));
   const videoSrc = videoPath ? (isUrl ? videoPath : staticFile(videoPath)) : '';
@@ -621,7 +651,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
         ))}
 
         {/* Frame-Locked Censorship Bleep Audio Layers */}
-        {bleepAudioSrc && censoredSegments && censoredSegments.map((seg, idx) => {
+        {bleepAudioSrc && mergedCensoredSegments.map((seg, idx) => {
           const segStartFrame = thumbnailFrames + Math.round(seg.start * fps);
           const segDurationFrames = Math.max(1, Math.round(seg.duration * fps));
           return (
@@ -631,7 +661,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
               durationInFrames={segDurationFrames}
               name={`Bleep-${idx}`}
             >
-              <Audio src={bleepAudioSrc} volume={1} />
+              <Audio src={bleepAudioSrc} loop volume={1} />
             </Sequence>
           );
         })}

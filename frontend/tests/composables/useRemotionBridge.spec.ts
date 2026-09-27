@@ -289,6 +289,42 @@ describe('useRemotionBridge Composable', () => {
     app.unmount()
   })
 
+  it('does not instantiate native Audio element during flagged segment playback (relies on Remotion declarative bleep)', async () => {
+    const audioSpy = vi.spyOn(window, 'Audio')
+    const previewVideo = ref<HTMLVideoElement | null>(null)
+
+    Object.defineProperty(state, 'contentAudit', {
+      value: ref({
+        flaggedSegments: [{ start: 1.0, duration: 1.0 }]
+      }),
+      writable: true,
+      configurable: true
+    })
+    state.audioBleepEnabled.value = true
+    state.audioBleepSource.value = 'custom'
+    state.customBleepFile.value = { name: 'test', data: 'data:audio/wav;base64,UklGRg==' }
+    state.isPlaying.value = true
+
+    const [_, app] = withSetup(() => useRemotionBridge(
+      bridge,
+      previewVideo,
+      ref(0),
+      ref(false),
+      ref('test-buster')
+    ))
+
+    await nextTick()
+
+    // Move time inside flagged segment
+    state.currentTime.value = 1.5
+    await nextTick()
+
+    expect(audioSpy).not.toHaveBeenCalled()
+    audioSpy.mockRestore()
+    app.unmount()
+  })
+
+
   it('keeps native video element paused when isPlaying changes and useNativePlayer is false', async () => {
     const mockPlay = vi.fn().mockResolvedValue(undefined)
     const mockPause = vi.fn()
