@@ -99,6 +99,9 @@ class RenderRequest(BaseModel):
     job_id: str
     hook_index: int = 0
     video_layout: Optional[str] = "vertical"
+    landscape_background: Optional[str] = "black"
+    landscape_blur_radius: Optional[int] = 25
+    landscape_darkness: Optional[int] = 35
     subtitle_position: str = "bottom"
     subtitle_offset: int = 50
     font: str = "Arial"

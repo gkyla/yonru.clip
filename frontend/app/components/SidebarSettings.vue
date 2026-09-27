@@ -833,6 +833,103 @@
               </div>
             </div>
 
+            <!-- Landscape Background Treatment (Landscape Only) -->
+            <Transition
+              :css="false"
+              @enter="onCropEnter"
+              @after-enter="onCropAfterEnter"
+              @leave="onCropLeave"
+            >
+              <div
+                v-if="state.videoLayout?.value === 'landscape'"
+                class="space-y-3"
+              >
+                <hr class="border-surface-border/40" />
+                <div>
+                  <h2
+                    class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1.5 flex items-center justify-between"
+                  >
+                    <span>Background Treatment</span>
+                    <Icon name="ri:drop-line" class="text-slate-400" />
+                  </h2>
+                  <div class="grid grid-cols-2 gap-1.5">
+                    <button
+                      class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card cursor-pointer"
+                      :class="
+                        (state.landscapeBackground?.value || 'black') === 'black'
+                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                          : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
+                      "
+                      @click="
+                        state.landscapeBackground
+                          ? (state.landscapeBackground.value = 'black')
+                          : null
+                      "
+                    >
+                      <Icon name="ri:contrast-drop-line" class="text-xs shrink-0" />
+                      <span>Solid Black</span>
+                    </button>
+                    <button
+                      class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card cursor-pointer"
+                      :class="
+                        state.landscapeBackground?.value === 'blur'
+                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                          : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
+                      "
+                      @click="
+                        state.landscapeBackground
+                          ? (state.landscapeBackground.value = 'blur')
+                          : null
+                      "
+                    >
+                      <Icon name="ri:blur-off-line" class="text-xs shrink-0" />
+                      <span>Blurred Video</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Blurred Video Fine-Tuning Sliders -->
+                <div
+                  v-if="state.landscapeBackground?.value === 'blur'"
+                  class="space-y-2.5 pt-1 border-t border-surface-border/30"
+                >
+                  <!-- Blur Radius Slider -->
+                  <div>
+                    <div class="flex items-center justify-between text-[9px] uppercase tracking-wider font-bold mb-1">
+                      <span class="text-slate-400">Blur Radius</span>
+                      <span class="text-accent-500 font-mono">{{ state.landscapeBlurRadius?.value ?? 25 }}px</span>
+                    </div>
+                    <input
+                      v-if="state.landscapeBlurRadius"
+                      v-model.number="state.landscapeBlurRadius.value"
+                      type="range"
+                      min="5"
+                      max="50"
+                      step="1"
+                      class="w-full h-1 bg-surface-dark rounded-lg appearance-none cursor-pointer accent-accent-500"
+                    />
+                  </div>
+
+                  <!-- Overlay Dimming / Darkness Slider -->
+                  <div>
+                    <div class="flex items-center justify-between text-[9px] uppercase tracking-wider font-bold mb-1">
+                      <span class="text-slate-400">Dimming Overlay</span>
+                      <span class="text-accent-500 font-mono">{{ state.landscapeDarkness?.value ?? 35 }}%</span>
+                    </div>
+                    <input
+                      v-if="state.landscapeDarkness"
+                      v-model.number="state.landscapeDarkness.value"
+                      type="range"
+                      min="0"
+                      max="80"
+                      step="5"
+                      class="w-full h-1 bg-surface-dark rounded-lg appearance-none cursor-pointer accent-accent-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </Transition>
+
             <!-- Crop Mode (Vertical Only) -->
             <Transition
               :css="false"

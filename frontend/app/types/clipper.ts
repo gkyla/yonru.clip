@@ -177,6 +177,9 @@ export interface CropMapPoint {
 
 export interface SubtitleStyleSettings {
   videoLayout?: 'vertical' | 'landscape'
+  landscapeBackground?: 'black' | 'blur'
+  landscapeBlurRadius?: number
+  landscapeDarkness?: number
   subtitlePosition?: string
   subtitleOffset?: number
   subtitleSyncOffset?: number
