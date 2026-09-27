@@ -87,8 +87,22 @@ describe('SidebarSettings Component', () => {
     // Active Preset Viewport should display live studio preview
     expect(wrapper.text()).toContain('Change')
     expect(wrapper.text()).toContain('MAKE IT VIRAL')
-    expect(wrapper.text()).toContain('Display Mode')
-    expect(wrapper.text()).toContain('Sync Offset (Timing)')
+    expect(wrapper.text()).toContain('Subtitle Offset (Timing)')
+    expect(wrapper.text()).toContain('Reset')
+  })
+
+  it('resets subtitle sync offset to 150ms when reset button is clicked', async () => {
+    mockState.subtitleSyncOffset.value = 250
+    const wrapper = mount(SidebarSettings, {
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, BlacklistSettings: true }
+      }
+    })
+
+    const resetButton = wrapper.find('button[title="Reset to default (150ms)"]')
+    expect(resetButton.exists()).toBe(true)
+    await resetButton.trigger('click')
+    expect(mockState.subtitleSyncOffset.value).toBe(150)
   })
 
   it('applies Hormozi Bold preset with Montserrat and 0px stroke correctly', async () => {
@@ -220,7 +234,7 @@ describe('SidebarSettings Component', () => {
     expect(wrapper.text()).toContain('Bottom Speaker Zoom')
   })
 
-  it('allows switching between Top and Bottom speaker zoom panels using segmented switcher', async () => {
+  it('renders both Top and Bottom speaker zoom controls simultaneously with framing grids', async () => {
     mockState.cropMode.value = 'face_tracking'
     mockState.cropMap.value = [{ time: 0, x: 500, mode: 'split', top_x: 300, bottom_x: 700 }]
     mockState.currentTime.value = 0
@@ -237,20 +251,16 @@ describe('SidebarSettings Component', () => {
     const tabs = wrapper.findAll('button.tab-btn')
     await tabs[2]!.trigger('click')
 
-    // Find the segmented speaker switcher buttons
-    const speakerButtons = wrapper.findAll('button').filter(b => b.text().includes('Top') || b.text().includes('Bottom'))
-    expect(speakerButtons.length).toBeGreaterThanOrEqual(2)
-
-    // Verify badges display current zoom
-    expect(wrapper.text()).toContain('(1.4x)') // rounded top
-    expect(wrapper.text()).toContain('(1.6x)') // bottom
-
-    // Click bottom speaker switcher
-    const bottomBtn = speakerButtons.find(b => b.text().includes('Bottom'))
-    await bottomBtn?.trigger('click')
-
-    // Verify both sections are present in DOM and bottom speaker is active
+    // Verify both sections and badges are simultaneously present in the DOM
+    expect(wrapper.text()).toContain('Top Speaker Zoom')
+    expect(wrapper.text()).toContain('1.35x')
     expect(wrapper.text()).toContain('Bottom Speaker Zoom')
+    expect(wrapper.text()).toContain('1.60x')
+
+    // Since both zooms > 1.0, verify framing controls (Up / Down & Left / Right) are rendered
+    expect(wrapper.text()).toContain('Framing Position')
+    expect(wrapper.text()).toContain('Up / Down')
+    expect(wrapper.text()).toContain('Left / Right')
   })
 
   it('displays solo shot status and seeks to split segment when Jump to Split is clicked', async () => {

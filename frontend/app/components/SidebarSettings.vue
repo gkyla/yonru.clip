@@ -282,12 +282,24 @@
                   class="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1"
                 >
                   <Icon name="ri:timer-line" class="text-accent-500" />
-                  Sync Offset (Timing)
+                  Subtitle Offset (Timing)
                 </span>
-                <span
-                  class="mono text-[10px] text-accent-500 font-bold bg-accent-500/10 px-1 rounded"
-                  >{{ state.subtitleSyncOffset.value }}ms</span
-                >
+                <div class="flex items-center gap-1.5">
+                  <button
+                    v-if="state.subtitleSyncOffset.value !== 150"
+                    :disabled="state.renderStatus.value === 'rendering'"
+                    class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold text-accent-500 bg-accent-500/10 hover:bg-accent-500/20 transition-all border border-accent-500/20 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                    title="Reset to default (150ms)"
+                    @click="state.subtitleSyncOffset.value = 150"
+                  >
+                    <Icon name="ri:restart-line" class="text-[10px]" />
+                    <span>Reset</span>
+                  </button>
+                  <span
+                    class="mono text-[10px] text-accent-500 font-bold bg-accent-500/10 px-1 rounded"
+                    >{{ state.subtitleSyncOffset.value }}ms</span
+                  >
+                </div>
               </div>
               <input
                 v-model.number="state.subtitleSyncOffset.value"
@@ -921,11 +933,11 @@
                     class="overflow-hidden space-y-2 mt-2"
                   >
                     <p
-                      class="text-[10px] text-slate-400 flex items-center gap-1.5"
+                      class="text-[10.5px] text-slate-400 flex items-center gap-1.5"
                     >
                       <Icon
-                        name="ri:sparkling-fill"
-                        class="text-accent-500 text-xs shrink-0"
+                        name="ri:lightbulb-line"
+                        class="text-accent-500 text-sm shrink-0"
                       />
                       <span
                         >You can zoom in/out speaker whenever screen is
@@ -933,11 +945,12 @@
                       >
                     </p>
 
-                    <!-- Stacked Multi-Speaker Framing Zoom Controls (Option 1: Segmented Speaker Switcher) -->
+                    <!-- Stacked Multi-Speaker Framing Zoom Controls (Dual Spatial Stack) -->
                     <div
                       v-if="isCurrentSplit || hasAnySplit"
-                      class="bg-surface-dark/40 border border-surface-border/80 rounded-xl p-2.5 space-y-2.5"
+                      class="space-y-2.5 pt-1"
                     >
+                      <!-- Header Status & Global Reset -->
                       <div class="flex items-center justify-between">
                         <span
                           class="text-[10px] text-accent-500 font-bold uppercase tracking-wider flex items-center gap-1.5"
@@ -965,7 +978,7 @@
                               (state.splitOffsetXBottom?.value ?? 0) !== 0 ||
                               (state.splitOffsetYBottom?.value ?? 0) !== 0
                             "
-                            class="text-[7.5px] uppercase px-1.5 py-0.5 rounded bg-surface-border text-slate-300 hover:text-white transition-colors"
+                            class="text-[7.5px] uppercase px-1.5 py-0.5 rounded bg-surface-border text-slate-300 hover:text-white transition-colors cursor-pointer"
                             title="Reset All Zoom & Framing"
                             @click="resetSplitZoom"
                           >
@@ -992,7 +1005,7 @@
                         </div>
                         <button
                           type="button"
-                          class="text-[8px] font-bold text-accent-500 hover:text-accent-400 uppercase tracking-wider flex items-center gap-0.5 shrink-0 hover:underline px-1.5 py-0.5 rounded bg-accent-500/10"
+                          class="text-[8px] font-bold text-accent-500 hover:text-accent-400 uppercase tracking-wider flex items-center gap-0.5 shrink-0 hover:underline px-1.5 py-0.5 rounded bg-accent-500/10 cursor-pointer"
                           @click="jumpToSplit"
                         >
                           <span>Jump to Split</span>
@@ -1000,95 +1013,41 @@
                         </button>
                       </div>
 
-                      <!-- Segmented Speaker Switcher -->
+                      <!-- Top Speaker Spatial Card (Upper Half) -->
                       <div
-                        class="grid grid-cols-2 gap-1 bg-surface-dark/80 p-0.5 rounded-lg border border-surface-border/60"
+                        class="bg-surface-dark/40 border border-surface-border/80 rounded-xl p-2.5 space-y-2"
                       >
-                        <button
-                          type="button"
-                          class="py-1 px-1.5 rounded-md text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 truncate"
-                          :class="
-                            activeSplitSpeaker === 'top'
-                              ? 'bg-accent-500 text-black shadow-sm font-black'
-                              : 'text-slate-400 hover:text-white hover:bg-surface-card/40'
-                          "
-                          @click="activeSplitSpeaker = 'top'"
+                        <div
+                          class="flex justify-between items-center text-[9px] font-bold tracking-wider uppercase"
                         >
-                          <Icon
-                            name="ri:layout-top-line"
-                            class="text-xs shrink-0"
-                          />
-                          <span class="truncate">Top</span>
+                          <span class="flex items-center gap-1.5 text-slate-300">
+                            <Icon
+                              name="ri:layout-top-line"
+                              class="text-accent-500 text-xs shrink-0"
+                            />
+                            <span>Top Speaker Zoom</span>
+                          </span>
                           <span
-                            class="mono text-[7.5px] opacity-80 shrink-0 font-normal"
-                            >({{
-                              (state.splitZoomTop?.value ?? 1.0).toFixed(1)
-                            }}x)</span
+                            class="mono text-[9px] text-accent-500 font-bold bg-accent-500/10 px-1 rounded"
+                            >{{
+                              (state.splitZoomTop?.value ?? 1.0).toFixed(2)
+                            }}x</span
                           >
-                        </button>
-                        <button
-                          type="button"
-                          class="py-1 px-1.5 rounded-md text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 truncate"
-                          :class="
-                            activeSplitSpeaker === 'bottom'
-                              ? 'bg-accent-500 text-black shadow-sm font-black'
-                              : 'text-slate-400 hover:text-white hover:bg-surface-card/40'
-                          "
-                          @click="activeSplitSpeaker = 'bottom'"
-                        >
-                          <Icon
-                            name="ri:layout-bottom-line"
-                            class="text-xs shrink-0"
-                          />
-                          <span class="truncate">Bottom</span>
-                          <span
-                            class="mono text-[7.5px] opacity-80 shrink-0 font-normal"
-                            >({{
-                              (state.splitZoomBottom?.value ?? 1.0).toFixed(1)
-                            }}x)</span
-                          >
-                        </button>
-                      </div>
-
-                      <!-- Top Speaker Controls (Kept in DOM via v-show for test stability) -->
-                      <div
-                        v-show="activeSplitSpeaker === 'top'"
-                        class="space-y-2"
-                      >
-                        <div>
-                          <div
-                            class="flex justify-between items-center text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1"
-                          >
-                            <span
-                              class="flex items-center gap-1 text-slate-300"
-                            >
-                              <Icon
-                                name="ri:layout-top-line"
-                                class="text-accent-500 text-xs shrink-0"
-                              />
-                              <span>Top Speaker Zoom</span>
-                            </span>
-                            <span
-                              class="mono text-accent-500 font-bold bg-accent-500/10 px-1 rounded"
-                              >{{
-                                (state.splitZoomTop?.value ?? 1.0).toFixed(2)
-                              }}x</span
-                            >
-                          </div>
-                          <input
-                            v-model.number="state.splitZoomTop.value"
-                            type="range"
-                            min="1"
-                            max="2.5"
-                            step="0.05"
-                            class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
-                          />
                         </div>
 
-                        <!-- Top Framing Adjustments (Disclosed when zoom > 1.0) -->
+                        <input
+                          v-model.number="state.splitZoomTop.value"
+                          type="range"
+                          min="1"
+                          max="2.5"
+                          step="0.05"
+                          class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                        />
+
+                        <!-- Top Framing Adjustments (Auto-Disclosed when zoom > 1.0) -->
                         <div
                           v-if="(state.splitZoomTop?.value ?? 1.0) > 1.0"
-                          class="p-2 rounded-lg bg-surface-dark/70 border border-white/5 space-y-1.5 animate-in fade-in duration-150"
+                          class="pt-1.5 border-t border-surface-border/50 space-y-1.5 animate-in fade-in duration-150"
                         >
                           <div
                             class="flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider"
@@ -1098,7 +1057,7 @@
                             >
                               <Icon
                                 name="ri:focus-3-line"
-                                class="text-[10px]"
+                                class="text-[9px]"
                               />
                               <span>Framing Position</span>
                             </span>
@@ -1107,100 +1066,102 @@
                                 (state.splitOffsetXTop?.value ?? 0) !== 0 ||
                                 (state.splitOffsetYTop?.value ?? 0) !== 0
                               "
-                              class="text-[7px] uppercase px-1.5 py-0.2 rounded bg-surface-border text-slate-300 hover:text-white transition-colors"
+                              class="text-[7px] uppercase px-1.5 py-0.5 rounded bg-surface-border text-slate-300 hover:text-white transition-colors cursor-pointer"
                               @click="resetTopFraming"
                             >
                               Reset
                             </button>
                           </div>
 
-                          <!-- Headroom Slider -->
-                          <div v-if="state.splitOffsetYTop">
+                          <div class="grid grid-cols-2 gap-1.5">
+                            <!-- Up / Down (Vertical) -->
                             <div
-                              class="flex justify-between items-center text-[8px] text-slate-400 mb-0.5"
+                              v-if="state.splitOffsetYTop"
+                              class="bg-surface-dark/60 rounded-lg p-1.5 space-y-0.5 border border-surface-border/40"
                             >
-                              <span>Vertical Headroom</span>
-                              <span class="mono text-accent-500 font-bold"
-                                >{{
-                                  Math.round(state.splitOffsetYTop?.value ?? 0)
-                                }}%</span
+                              <div
+                                class="flex justify-between items-center text-[7.5px] text-slate-400 uppercase font-bold"
                               >
+                                <span>Up / Down</span>
+                                <span class="mono text-accent-500 font-bold"
+                                  >{{
+                                    Math.round(state.splitOffsetYTop?.value ?? 0)
+                                  }}%</span
+                                >
+                              </div>
+                              <input
+                                v-model.number="state.splitOffsetYTop.value"
+                                type="range"
+                                min="-50"
+                                max="50"
+                                step="1"
+                                class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                              />
                             </div>
-                            <input
-                              v-model.number="state.splitOffsetYTop.value"
-                              type="range"
-                              min="-50"
-                              max="50"
-                              step="1"
-                              class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
-                            />
-                          </div>
 
-                          <!-- Horizontal Nudge Slider -->
-                          <div v-if="state.splitOffsetXTop">
+                            <!-- Left / Right (Horizontal) -->
                             <div
-                              class="flex justify-between items-center text-[8px] text-slate-400 mb-0.5"
+                              v-if="state.splitOffsetXTop"
+                              class="bg-surface-dark/60 rounded-lg p-1.5 space-y-0.5 border border-surface-border/40"
                             >
-                              <span>Horizontal Nudge</span>
-                              <span class="mono text-accent-500 font-bold"
-                                >{{
-                                  Math.round(state.splitOffsetXTop?.value ?? 0)
-                                }}%</span
+                              <div
+                                class="flex justify-between items-center text-[7.5px] text-slate-400 uppercase font-bold"
                               >
+                                <span>Left / Right</span>
+                                <span class="mono text-accent-500 font-bold"
+                                  >{{
+                                    Math.round(state.splitOffsetXTop?.value ?? 0)
+                                  }}%</span
+                                >
+                              </div>
+                              <input
+                                v-model.number="state.splitOffsetXTop.value"
+                                type="range"
+                                min="-50"
+                                max="50"
+                                step="1"
+                                class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                              />
                             </div>
-                            <input
-                              v-model.number="state.splitOffsetXTop.value"
-                              type="range"
-                              min="-50"
-                              max="50"
-                              step="1"
-                              class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
-                            />
                           </div>
                         </div>
                       </div>
 
-                      <!-- Bottom Speaker Controls (Kept in DOM via v-show for test stability) -->
+                      <!-- Bottom Speaker Spatial Card (Lower Half) -->
                       <div
-                        v-show="activeSplitSpeaker === 'bottom'"
-                        class="space-y-2"
+                        class="bg-surface-dark/40 border border-surface-border/80 rounded-xl p-2.5 space-y-2"
                       >
-                        <div>
-                          <div
-                            class="flex justify-between items-center text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-1"
+                        <div
+                          class="flex justify-between items-center text-[9px] font-bold tracking-wider uppercase"
+                        >
+                          <span class="flex items-center gap-1.5 text-slate-300">
+                            <Icon
+                              name="ri:layout-bottom-line"
+                              class="text-accent-500 text-xs shrink-0"
+                            />
+                            <span>Bottom Speaker Zoom</span>
+                          </span>
+                          <span
+                            class="mono text-[9px] text-accent-500 font-bold bg-accent-500/10 px-1 rounded"
+                            >{{
+                              (state.splitZoomBottom?.value ?? 1.0).toFixed(2)
+                            }}x</span
                           >
-                            <span
-                              class="flex items-center gap-1 text-slate-300"
-                            >
-                              <Icon
-                                name="ri:layout-bottom-line"
-                                class="text-accent-500 text-xs shrink-0"
-                              />
-                              <span>Bottom Speaker Zoom</span>
-                            </span>
-                            <span
-                              class="mono text-accent-500 font-bold bg-accent-500/10 px-1 rounded"
-                              >{{
-                                (state.splitZoomBottom?.value ?? 1.0).toFixed(
-                                  2,
-                                )
-                              }}x</span
-                            >
-                          </div>
-                          <input
-                            v-model.number="state.splitZoomBottom.value"
-                            type="range"
-                            min="1"
-                            max="2.5"
-                            step="0.05"
-                            class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
-                          />
                         </div>
 
-                        <!-- Bottom Framing Adjustments (Disclosed when zoom > 1.0) -->
+                        <input
+                          v-model.number="state.splitZoomBottom.value"
+                          type="range"
+                          min="1"
+                          max="2.5"
+                          step="0.05"
+                          class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                        />
+
+                        <!-- Bottom Framing Adjustments (Auto-Disclosed when zoom > 1.0) -->
                         <div
                           v-if="(state.splitZoomBottom?.value ?? 1.0) > 1.0"
-                          class="p-2 rounded-lg bg-surface-dark/70 border border-white/5 space-y-1.5 animate-in fade-in duration-150"
+                          class="pt-1.5 border-t border-surface-border/50 space-y-1.5 animate-in fade-in duration-150"
                         >
                           <div
                             class="flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider"
@@ -1210,7 +1171,7 @@
                             >
                               <Icon
                                 name="ri:focus-3-line"
-                                class="text-[10px]"
+                                class="text-[9px]"
                               />
                               <span>Framing Position</span>
                             </span>
@@ -1219,59 +1180,67 @@
                                 (state.splitOffsetXBottom?.value ?? 0) !== 0 ||
                                 (state.splitOffsetYBottom?.value ?? 0) !== 0
                               "
-                              class="text-[7px] uppercase px-1.5 py-0.2 rounded bg-surface-border text-slate-300 hover:text-white transition-colors"
+                              class="text-[7px] uppercase px-1.5 py-0.5 rounded bg-surface-border text-slate-300 hover:text-white transition-colors cursor-pointer"
                               @click="resetBottomFraming"
                             >
                               Reset
                             </button>
                           </div>
 
-                          <!-- Headroom Slider -->
-                          <div v-if="state.splitOffsetYBottom">
+                          <div class="grid grid-cols-2 gap-1.5">
+                            <!-- Up / Down (Vertical) -->
                             <div
-                              class="flex justify-between items-center text-[8px] text-slate-400 mb-0.5"
+                              v-if="state.splitOffsetYBottom"
+                              class="bg-surface-dark/60 rounded-lg p-1.5 space-y-0.5 border border-surface-border/40"
                             >
-                              <span>Vertical Headroom</span>
-                              <span class="mono text-accent-500 font-bold"
-                                >{{
-                                  Math.round(
-                                    state.splitOffsetYBottom?.value ?? 0,
-                                  )
-                                }}%</span
+                              <div
+                                class="flex justify-between items-center text-[7.5px] text-slate-400 uppercase font-bold"
                               >
+                                <span>Up / Down</span>
+                                <span class="mono text-accent-500 font-bold"
+                                  >{{
+                                    Math.round(
+                                      state.splitOffsetYBottom?.value ?? 0,
+                                    )
+                                  }}%</span
+                                >
+                              </div>
+                              <input
+                                v-model.number="state.splitOffsetYBottom.value"
+                                type="range"
+                                min="-50"
+                                max="50"
+                                step="1"
+                                class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                              />
                             </div>
-                            <input
-                              v-model.number="state.splitOffsetYBottom.value"
-                              type="range"
-                              min="-50"
-                              max="50"
-                              step="1"
-                              class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
-                            />
-                          </div>
 
-                          <!-- Horizontal Nudge Slider -->
-                          <div v-if="state.splitOffsetXBottom">
+                            <!-- Left / Right (Horizontal) -->
                             <div
-                              class="flex justify-between items-center text-[8px] text-slate-400 mb-0.5"
+                              v-if="state.splitOffsetXBottom"
+                              class="bg-surface-dark/60 rounded-lg p-1.5 space-y-0.5 border border-surface-border/40"
                             >
-                              <span>Horizontal Nudge</span>
-                              <span class="mono text-accent-500 font-bold"
-                                >{{
-                                  Math.round(
-                                    state.splitOffsetXBottom?.value ?? 0,
-                                  )
-                                }}%</span
+                              <div
+                                class="flex justify-between items-center text-[7.5px] text-slate-400 uppercase font-bold"
                               >
+                                <span>Left / Right</span>
+                                <span class="mono text-accent-500 font-bold"
+                                  >{{
+                                    Math.round(
+                                      state.splitOffsetXBottom?.value ?? 0,
+                                    )
+                                  }}%</span
+                                >
+                              </div>
+                              <input
+                                v-model.number="state.splitOffsetXBottom.value"
+                                type="range"
+                                min="-50"
+                                max="50"
+                                step="1"
+                                class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
+                              />
                             </div>
-                            <input
-                              v-model.number="state.splitOffsetXBottom.value"
-                              type="range"
-                              min="-50"
-                              max="50"
-                              step="1"
-                              class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
-                            />
                           </div>
                         </div>
                       </div>
@@ -1805,7 +1774,6 @@ function resetBottomFraming() {
 
 const activeTab = ref("style"); // 'style' | 'type' | 'layout'
 const activeColorPicker = ref(null); // null | 'text' | 'highlight' | 'stroke'
-const activeSplitSpeaker = ref("top"); // 'top' | 'bottom'
 
 const showBlacklistSettings = ref(false);
 const isNamingClip = ref(false);

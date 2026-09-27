@@ -77,12 +77,16 @@ The scaling mechanism within Stacked Multi-Speaker Reframe that magnifies the vi
 _Avoid_: Digital zoom, scale slider, crop zoom, camera zoom
 
 **Zoom-Relative Framing Offset**:
-The dual-axis (horizontal and vertical) micro-adjustment mechanism within Face-Anchored Viewport Zoom that enables creators to fine-tune headroom and horizontal composition relative to detected faces while preserving active dynamic AI face tracking and enforcing strict edge clamping to prevent black voids.
+The dual-axis (horizontal and vertical) micro-adjustment mechanism within Face-Anchored Viewport Zoom that enables creators to fine-tune vertical framing (Up / Down) and horizontal composition (Left / Right) relative to detected faces while preserving active dynamic AI face tracking and enforcing strict edge clamping to prevent black voids.
 _Avoid_: Manual pan override, static crop position, pixel nudge, split camera drag
 
 **Auto-Adaptive Subtitle Placement**:
 The dynamic positioning mechanism that automatically anchors subtitles over the center dividing seam in Stacked Multi-Speaker Reframe to prevent speaker occlusion, while returning to standard lower-third positioning in single-speaker framing, with manual override available in settings.
 _Avoid_: Dynamic subtitles, floating text jump, split captions
+
+**Subtitle Offset (Timing)**:
+The millisecond adjustment applied to subtitle timestamps to synchronize caption visibility with spoken audio, defaulting to a 150ms lead time.
+_Avoid_: Audio delay, subtitle delay, speech lag
 
 **Subtitle Style Preset**:
 A preconfigured collection of typography, color palette, highlight animation, stroke, and background treatments applied to subtitles for viral video pacing and visual branding.
