@@ -462,7 +462,7 @@ const loadingLabel = computed(() => {
 
 function extractYoutubeId(url: string): string | null {
   const reg =
-    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i;
+    /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/ ]{11})/i;
   const match = url.match(reg);
   return match ? (match[1] ?? null) : null;
 }
