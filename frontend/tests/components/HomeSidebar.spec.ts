@@ -625,4 +625,55 @@ describe('HomeSidebar Component', () => {
     expect(wrapper.text()).toContain('No recent clip');
     expect(wrapper.text()).not.toContain('No active projects');
   });
+
+  it('cascades thumbnail from clip to parent video, and terminates to icon when exhausted', async () => {
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        lastVideo: {
+          video_id: 'vid-123',
+          title: 'Parent Video',
+          thumbnail_url: '/assets/sources/parent_folder/thumb.jpg'
+        },
+        lastClip: {
+          folder: 'parent_folder',
+          clip_id: '15_45',
+          title: 'Selected Clip',
+          thumbnail_url: '/assets/sources/parent_folder/thumb_15.jpg'
+        },
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: { template: '<a><slot /></a>' }
+        }
+      }
+    });
+
+    // Stage 0: Initial clip thumbnail
+    let img = wrapper.find('img[alt="Clip Thumbnail"]');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('src')).toBe(
+      'http://localhost:8000/assets/sources/parent_folder/thumb_15.jpg'
+    );
+
+    // Trigger Stage 0 error -> Stage 1 (Parent video thumbnail)
+    await img.trigger('error');
+    img = wrapper.find('img[alt="Clip Thumbnail"]');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('src')).toBe(
+      'http://localhost:8000/assets/sources/parent_folder/thumb.jpg'
+    );
+
+    // Trigger Stage 1 error -> Stage 2 (Clean termination to Icon, img is gone)
+    await img.trigger('error');
+    img = wrapper.find('img[alt="Clip Thumbnail"]');
+    expect(img.exists()).toBe(false);
+    expect(wrapper.find('[name="lucide:clapperboard"]').exists()).toBe(true);
+  });
 });

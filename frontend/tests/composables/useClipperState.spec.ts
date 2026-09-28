@@ -13,7 +13,7 @@ describe('useClipperState Composable', () => {
     state.cropMap.value = [];
   });
 
-  it('updates lastAccessedClip when a valid clip finishes loading (ready)', async () => {
+  it('does NOT prematurely update lastAccessedClip when background job status becomes ready', async () => {
     const state = useClipperState();
 
     // Reset state first
@@ -21,7 +21,7 @@ describe('useClipperState Composable', () => {
     state.lastAccessedClip.value = null;
     await nextTick();
 
-    // Initialize persistence (setup watch)
+    // Initialize persistence
     state.initPersistence();
 
     // Simulate active hook
@@ -32,13 +32,27 @@ describe('useClipperState Composable', () => {
       duration: 10
     };
 
-    // Set clip state to ready
+    // Set background clip state to ready
     state.folderName.value = 'folderA';
     state.clipId.value = 'clipA';
     state.jobStatus.value = 'ready';
 
     // Wait for watchers
     await nextTick();
+
+    // Assert that lastAccessedClip remains null because the clip was never explicitly opened into the editor
+    expect(state.lastAccessedClip.value).toBeNull();
+    expect(localStorage.getItem('yonru_last_clip')).toBeNull();
+  });
+
+  it('updates lastAccessedClip when a clip is explicitly opened into the editor (loadReadyClipIntoEditor)', async () => {
+    const state = useClipperState();
+
+    state.resetWorkspace();
+    state.lastAccessedClip.value = null;
+    await nextTick();
+
+    await state.loadReadyClipIntoEditor('folderA', '10_20_clip');
 
     interface LastClip {
       folder: string;
@@ -47,12 +61,9 @@ describe('useClipperState Composable', () => {
     }
 
     const lastClip = state.lastAccessedClip.value as LastClip | null;
-    expect(lastClip).toEqual({
-      folder: 'folderA',
-      clip_id: 'clipA',
-      title: 'My Active Clip'
-    });
-    expect(localStorage.getItem('yonru_last_clip')).toContain('clipA');
+    expect(lastClip?.folder).toBe('folderA');
+    expect(lastClip?.clip_id).toBe('10_20_clip');
+    expect(localStorage.getItem('yonru_last_clip')).toContain('10_20_clip');
   });
 
   it('does NOT update lastAccessedClip when loading a cached library video without a clip (repro bug)', async () => {
@@ -65,17 +76,8 @@ describe('useClipperState Composable', () => {
 
     state.initPersistence();
 
-    // 1. Load a valid clip first
-    state.activeHook.value = {
-      theme: 'First Clip',
-      start: 10,
-      end: 20,
-      duration: 10
-    };
-    state.folderName.value = 'folderA';
-    state.clipId.value = 'clipA';
-    state.jobStatus.value = 'ready';
-    await nextTick();
+    // 1. Explicitly open a valid clip first
+    await state.loadReadyClipIntoEditor('folderA', '10_20_clip');
 
     interface LastClip {
       folder: string;
@@ -85,7 +87,7 @@ describe('useClipperState Composable', () => {
 
     const firstLastClip = state.lastAccessedClip.value as LastClip | null;
     expect(firstLastClip?.folder).toBe('folderA');
-    expect(firstLastClip?.clip_id).toBe('clipA');
+    expect(firstLastClip?.clip_id).toBe('10_20_clip');
 
     // 2. Simulate loading hooks for a cached library video (which sets jobStatus to queued and clears clipId)
     state.clipId.value = null;
@@ -97,10 +99,10 @@ describe('useClipperState Composable', () => {
     state.jobStatus.value = 'ready';
     await nextTick();
 
-    // Assert that lastAccessedClip was NOT overwritten and still points to the first clip (folderA, clipA)
+    // Assert that lastAccessedClip was NOT overwritten and still points to the first clip (folderA, 10_20_clip)
     const secondLastClip = state.lastAccessedClip.value as LastClip | null;
     expect(secondLastClip?.folder).toBe('folderA');
-    expect(secondLastClip?.clip_id).toBe('clipA');
+    expect(secondLastClip?.clip_id).toBe('10_20_clip');
   });
 
   it('handles pagination, searching, sorting, and item accumulation in fetchCached', async () => {

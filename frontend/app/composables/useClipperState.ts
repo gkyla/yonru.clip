@@ -509,14 +509,18 @@ function createClipperState() {
   }
 
   // --- Actions ---
-  const {
-    analyzeUrl,
-    analyzeCached,
-    startPolling,
-    stopPolling,
-    extractClip,
-    loadReadyClipIntoEditor
-  } = job;
+  const { analyzeUrl, analyzeCached, startPolling, stopPolling, extractClip } =
+    job;
+
+  async function loadReadyClipIntoEditor(folder: string, id: string) {
+    await job.loadReadyClipIntoEditor(folder, id);
+    setLastClip(
+      folder,
+      id,
+      activeHook.value?.theme || activeHook.value?.title || 'Current Clip',
+      activeHook.value?.thumbnail_url
+    );
+  }
 
   function formatDuration(sec: number) {
     const m = Math.floor(sec / 60);

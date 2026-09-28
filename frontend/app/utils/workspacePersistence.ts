@@ -248,24 +248,6 @@ export class WorkspacePersistenceCoordinator {
     const unwatchList: Array<() => void> = [];
 
     unwatchList.push(
-      watch(
-        [ctx.folderName, ctx.clipId, ctx.jobStatus],
-        ([newFolder, newClipId, newStatus]) => {
-          if (newFolder && newClipId && newStatus === 'ready') {
-            ctx.setLastClip(
-              newFolder,
-              newClipId,
-              ctx.activeHook.value?.theme ||
-                ctx.activeHook.value?.title ||
-                'Current Clip',
-              ctx.activeHook.value?.thumbnail_url
-            );
-          }
-        }
-      )
-    );
-
-    unwatchList.push(
       watch(ctx.selectedPrompt, val => this.saveSetting(this.KEYS.PROMPT, val))
     );
     unwatchList.push(

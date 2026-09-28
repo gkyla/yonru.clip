@@ -662,6 +662,12 @@ async function executeDeleteClip() {
         `${API_BASE}/api/ready-clips/${clip.folder_name}/${clip.clip_id}`,
         { method: 'DELETE' }
       );
+      if (state.lastAccessedClip.value?.clip_id === clip.clip_id) {
+        state.lastAccessedClip.value = null;
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('yonru_last_clip');
+        }
+      }
       state.showToast('Clip successfully deleted.', 'success');
       emit('refresh-clips');
     } else if (selectedClips.value.size > 0) {
@@ -675,6 +681,16 @@ async function executeDeleteClip() {
         method: 'POST',
         body: { clips: clipsToDelete }
       });
+
+      if (
+        state.lastAccessedClip.value?.clip_id &&
+        selectedClips.value.has(state.lastAccessedClip.value.clip_id)
+      ) {
+        state.lastAccessedClip.value = null;
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('yonru_last_clip');
+        }
+      }
 
       lastDeletedCount.value = count;
       showSuccessState.value = true;
