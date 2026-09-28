@@ -90,15 +90,33 @@ export class SubtitleLayoutEngine {
       const chunkerSeg = seg as ChunkerSegment
       chunkerSeg.flatWords = []
 
-      const wordObj: ChunkerFlatWord = {
-        text: seg.text || '',
-        start: seg.start,
-        duration: seg.duration,
-        end: seg.start + seg.duration,
-        originalSegment: chunkerSeg
+      if (seg.words && Array.isArray(seg.words) && seg.words.length > 0) {
+        seg.words.forEach(w => {
+          const wText = (w.text || '').trim()
+          if (!wText) return
+          const wStart = Number(w.start) || 0
+          const wDuration = Number(w.duration) || 0
+          const wordObj: ChunkerFlatWord = {
+            text: wText,
+            start: wStart,
+            duration: wDuration,
+            end: w.end !== undefined ? Number(w.end) : wStart + wDuration,
+            originalSegment: chunkerSeg
+          }
+          flatWords.push(wordObj)
+          chunkerSeg.flatWords.push(wordObj)
+        })
+      } else {
+        const wordObj: ChunkerFlatWord = {
+          text: seg.text || '',
+          start: seg.start,
+          duration: seg.duration,
+          end: seg.start + seg.duration,
+          originalSegment: chunkerSeg
+        }
+        flatWords.push(wordObj)
+        chunkerSeg.flatWords.push(wordObj)
       }
-      flatWords.push(wordObj)
-      chunkerSeg.flatWords.push(wordObj)
     })
 
     this._flatWords = flatWords
@@ -455,6 +473,7 @@ export class SubtitleLayoutEngine {
       text: s.text,
       start: s.start,
       duration: s.duration,
+      ...(s.words ? { words: JSON.parse(JSON.stringify(s.words)) } : {}),
       ...(s.id ? { id: s.id } : {})
     }))
   }

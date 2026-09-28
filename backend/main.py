@@ -139,6 +139,11 @@ class RenderRequest(BaseModel):
     thumbnail_duration: float = 1.0
     thumbnail_text_overlays: Optional[list] = None
     thumbnail_x_offset: float = 50.0
+    # Censorship
+    audio_bleep_enabled: bool = False
+    audio_bleep_source: Optional[str] = "mute"
+    custom_bleep_file: Optional[dict] = None
+    censored_segments: Optional[list] = None
     
 class LoadReadyClipRequest(BaseModel):
     folder_name: str

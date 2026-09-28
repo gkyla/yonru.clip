@@ -85,12 +85,21 @@ export interface YonruClipProps {
   sourceWidth?: number;
   sourceHeight?: number;
   hideSubtitles?: boolean;
+  // Censorship & Bleeps
+  censoredSegments?: CensoredSegment[];
+  bleepAudioSrc?: string;
   // Thumbnail
   thumbnailEnabled?: boolean;
   thumbnailDuration?: number;  // seconds
   thumbnailImagePath?: string;
   thumbnailTextOverlays?: ThumbnailTextOverlay[];
   thumbnailXOffset?: number;
+}
+
+export interface CensoredSegment {
+  start: number;
+  duration: number;
+  word?: string;
 }
 
 // Default subtitle style

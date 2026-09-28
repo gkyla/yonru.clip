@@ -18,7 +18,6 @@ export const useRemotionBridge = (
   const coordinator = new VideoPlaybackCoordinator(bridge)
   const isInternalTimeUpdate = ref(false)
   let unsubscribe: (() => void) | null = null
-  let bleepAudioPlayer: HTMLAudioElement | null = null
 
   const getSnapshot = (): PlaybackStateSnapshot => ({
     currentTime: state.currentTime.value,
@@ -86,34 +85,6 @@ export const useRemotionBridge = (
     })
   }
 
-  function handleBleepAudio(audioResult: { audioDataChanged: boolean; isMuted: boolean }) {
-    const currentAudioData = state.customBleepFile?.value?.data || ''
-
-    if (audioResult.audioDataChanged) {
-      if (bleepAudioPlayer) {
-        bleepAudioPlayer.pause()
-        bleepAudioPlayer = null
-      }
-    }
-
-    if (audioResult.isMuted) {
-      if (state.audioBleepSource?.value === 'custom' && currentAudioData) {
-        if (!bleepAudioPlayer) {
-          bleepAudioPlayer = new Audio(currentAudioData)
-          bleepAudioPlayer.loop = true
-        }
-        if (bleepAudioPlayer.paused) {
-          bleepAudioPlayer.currentTime = 0
-          bleepAudioPlayer.play().catch(e => console.warn('Bleep playback failed:', e))
-        }
-      }
-    } else {
-      if (bleepAudioPlayer && !bleepAudioPlayer.paused) {
-        bleepAudioPlayer.pause()
-      }
-    }
-  }
-
   function onRemotionMessage(data: any) {
     if (!data) return
     if (data.type === 'REMOTION_TIMEUPDATE') {
@@ -179,6 +150,10 @@ export const useRemotionBridge = (
     () => state.thumbnailEnabled.value,
     () => state.thumbnailDuration.value,
     () => state.thumbnailTextOverlays.value,
+    () => state.audioBleepEnabled?.value,
+    () => state.audioBleepSource?.value,
+    () => state.customBleepFile?.value?.data,
+    () => state.contentAudit?.value?.flaggedSegments,
   ], () => {
     syncRemotionProps()
   }, { deep: true, immediate: true })
@@ -188,8 +163,7 @@ export const useRemotionBridge = (
   })
 
   watch(() => state.volume.value, () => {
-    const res = coordinator.handleMuteVolumeChange(getSnapshot(), previewVideo.value)
-    handleBleepAudio(res)
+    coordinator.handleMuteVolumeChange(getSnapshot(), previewVideo.value)
   })
 
   watch(() => state.currentTime.value, (newTime) => {
@@ -210,8 +184,7 @@ export const useRemotionBridge = (
     () => state.customBleepFile?.value?.data,
     () => state.volume.value
   ], () => {
-    const res = coordinator.handleMuteVolumeChange(getSnapshot(), previewVideo.value)
-    handleBleepAudio(res)
+    coordinator.handleMuteVolumeChange(getSnapshot(), previewVideo.value)
   })
 
   onMounted(() => {
@@ -221,10 +194,6 @@ export const useRemotionBridge = (
   onUnmounted(() => {
     if (unsubscribe) {
       unsubscribe()
-    }
-    if (bleepAudioPlayer) {
-      bleepAudioPlayer.pause()
-      bleepAudioPlayer = null
     }
   })
 

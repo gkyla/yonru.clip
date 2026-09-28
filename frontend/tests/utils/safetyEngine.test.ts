@@ -72,13 +72,85 @@ describe('SafetyEngine Unit Tests', () => {
       expect(res.score).toBeLessThan(100)
     })
 
-    it('calculates partial_end bleep offset targeting trailing 50% syllable', () => {
+    it('always applies full word censorship boundaries for consistent protection', () => {
       const transcript = [{ text: 'mati', start: 2.0, duration: 1.0 }]
-      const res = auditTranscript(transcript, ['mati'], 'word', 50, 'partial_end')
+      const res = auditTranscript(transcript, ['mati'], 'word', 50, 'full')
       expect(res.flaggedWords).toContain('mati')
       expect(res.flaggedSegments).toEqual([
-        { start: 2.5, duration: 0.55, word: 'mati', text: 'mati' }
+        { start: 1.95, duration: 1.1, word: 'mati', text: 'mati' }
       ])
+    })
+
+    it('prioritizes Acoustic Word Map timestamps (words array) over linear duration division', () => {
+      const transcript = [
+        {
+          text: 'kamu brengsek banget',
+          start: 0,
+          duration: 3.0,
+          words: [
+            { text: 'kamu', start: 0.2, duration: 0.3 },
+            { text: 'brengsek', start: 0.8, duration: 0.6 },
+            { text: 'banget', start: 1.8, duration: 0.5 }
+          ]
+        }
+      ]
+      // With 0 padding, should strictly match exact word boundaries [0.8, 0.6] rather than linear [1.0, 1.0]
+      const res = auditTranscript(transcript, ['brengsek'], 'word', 0, 'full')
+      expect(res.flaggedWords).toContain('brengsek')
+      expect(res.flaggedSegments).toEqual([
+        { start: 0.8, duration: 0.6, word: 'brengsek', text: 'brengsek' }
+      ])
+    })
+
+    it('treats visually masked words as Remediated Violations when audio bleep is enabled (retaining flaggedSegments and setting score=100)', () => {
+      const auditor = new ContentSafetyAuditor({
+        customBlacklist: ['brengsek'],
+        audioBleepEnabled: true,
+        bleepPaddingOffset: 0
+      })
+
+      const rawTranscript = [
+        {
+          text: 'kamu brengsek banget',
+          start: 0,
+          duration: 3.0,
+          words: [
+            { text: 'kamu', start: 0.2, duration: 0.3 },
+            { text: 'brengsek', start: 0.8, duration: 0.6 },
+            { text: 'banget', start: 1.8, duration: 0.5 }
+          ]
+        }
+      ]
+
+      // 1. Unmasked state: flaggedWords has 'brengsek', score is penalized
+      const unmaskedReport = auditor.audit({ transcript: rawTranscript, subtitleStrokeWidth: 4 })
+      expect(unmaskedReport.score).toBeLessThan(100)
+      expect(unmaskedReport.flaggedWords).toContain('brengsek')
+      expect(unmaskedReport.flaggedSegments.length).toBe(1)
+
+      // 2. Masked state (Auto-Fix):
+      const maskedTranscript = auditor.maskTranscript(rawTranscript)
+      const maskedReport = auditor.audit({ transcript: maskedTranscript, subtitleStrokeWidth: 4 })
+
+      // Score must be 100 (Safe) because it is remediated (masked + audio bleep enabled)
+      expect(maskedReport.score).toBe(100)
+      expect(maskedReport.flaggedWords).toEqual([])
+      expect(maskedReport.remediatedWords).toContain('brengsek')
+      // Critical requirement: flaggedSegments MUST be retained for audio muting!
+      expect(maskedReport.flaggedSegments).toEqual([
+        { start: 0.8, duration: 0.6, word: 'brengsek', text: 'brengsek' }
+      ])
+
+      // 3. If audioBleepEnabled is disabled, remediated status drops and score is penalized
+      auditor.audioBleepEnabled = false
+      const unbleepedReport = auditor.audit({ transcript: maskedTranscript, subtitleStrokeWidth: 4 })
+      expect(unbleepedReport.score).toBeLessThan(100)
+      expect(unbleepedReport.flaggedWords).toContain('brengsek')
+
+      // 4. Unmask / Revert: restores original transcript text
+      const revertedTranscript = auditor.unmaskTranscript(maskedTranscript)
+      expect(revertedTranscript[0].text).toBe('kamu brengsek banget')
+      expect(revertedTranscript[0].words?.[1].text).toBe('brengsek')
     })
   })
 
@@ -248,12 +320,17 @@ describe('SafetyEngine Unit Tests', () => {
       expect(auditor.customBleepFile?.name).toBe('My Bleep')
 
       // Select preset
-      expect(auditor.selectBleepAudio('roblox_death')).toBe(true)
-      expect(auditor.selectedBleepAudioId).toBe('roblox_death')
+      expect(auditor.selectBleepAudio('default_preset')).toBe(true)
+      expect(auditor.selectedBleepAudioId).toBe('default_preset')
 
       // Remove custom bleep
       expect(auditor.removeCustomBleepFile(custom.id)).toBe(true)
       expect(auditor.bleepLibrary.some(item => item.id === custom.id)).toBe(false)
+    })
+
+    it('initializes with default bleepPaddingOffset of 0ms', () => {
+      const fresh = createContentSafetyAuditor()
+      expect(fresh.bleepPaddingOffset).toBe(0)
     })
 
     it('exports and hydrates state cleanly', () => {

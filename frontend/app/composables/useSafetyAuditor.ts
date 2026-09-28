@@ -33,7 +33,7 @@ export const useSafetyAuditor = () => {
     name: DEFAULT_BLEEP_PRESET.name,
     data: DEFAULT_BLEEP_PRESET.data
   }))
-  const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 50)
+  const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 0)
   const bleepMode = useState<BleepMode>('bleepMode', () => 'full')
   const isWarningIgnored = useState<boolean>('isWarningIgnored', () => false)
   const activeCategories = useState<Record<SafetyCategory, boolean>>('activeCategories', () => ({
@@ -170,12 +170,16 @@ export const useSafetyAuditor = () => {
       subtitleBackground: subtitleBackground.value || 'none',
       subtitleStrokeWidth: subtitleStrokeWidth.value || 0,
       subtitleStrokeColor: subtitleStrokeColor.value || '#000000',
-      isWarningIgnored: isWarningIgnored.value
+      isWarningIgnored: isWarningIgnored.value,
+      audioBleepEnabled: audioBleepEnabled.value
     })
 
     return {
       ...report.rawAudit,
-      score: report.score
+      score: report.score,
+      remediatedWords: report.remediatedWords || [],
+      remediatedSegments: report.remediatedSegments || [],
+      isRemediated: report.isRemediated
     }
   })
 
@@ -259,6 +263,11 @@ export const useSafetyAuditor = () => {
     fullTranscript.value = auditor.value.maskTranscript(transcript)
   }
 
+  const revertMaskedWords = () => {
+    const transcript = fullTranscript.value || []
+    fullTranscript.value = auditor.value.unmaskTranscript(transcript)
+  }
+
   return {
     customBlacklist,
     customWhitelist,
@@ -286,6 +295,7 @@ export const useSafetyAuditor = () => {
     contentAudit,
     runDeepAudit,
     maskFlaggedWords,
+    revertMaskedWords,
     layoutAudit,
     fitSubtitlesToSafeZone,
     readabilityAudit,

@@ -143,6 +143,36 @@ export class VideoPlaybackCoordinator {
     return !snapshot.useNativePlayer
   }
 
+  public mergeCensoredSegments(
+    segments: Array<{ start: number; duration: number }>
+  ): Array<{ start: number; duration: number }> {
+    if (!segments || segments.length === 0) return []
+    const valid = segments
+      .filter(s => s && typeof s.start === 'number' && typeof s.duration === 'number' && s.duration > 0)
+      .map(s => ({ start: Math.round(s.start * 1000) / 1000, duration: Math.round(s.duration * 1000) / 1000 }))
+      .sort((a, b) => a.start - b.start)
+
+    if (valid.length === 0) return []
+
+    const merged: Array<{ start: number; duration: number }> = []
+    let current = { ...valid[0] }
+
+    for (let i = 1; i < valid.length; i++) {
+      const next = valid[i]
+      const currentEnd = Math.round((current.start + current.duration) * 1000) / 1000
+      if (next.start <= currentEnd + 0.005) {
+        const nextEnd = Math.round((next.start + next.duration) * 1000) / 1000
+        const newEnd = Math.max(currentEnd, nextEnd)
+        current.duration = Math.round((newEnd - current.start) * 1000) / 1000
+      } else {
+        merged.push(current)
+        current = { ...next }
+      }
+    }
+    merged.push(current)
+    return merged
+  }
+
   public assembleRemotionProps(
     snapshot: PlaybackStateSnapshot,
     sourceDimensions: { width: number; height: number } = { width: 1920, height: 1080 }
@@ -199,6 +229,12 @@ export class VideoPlaybackCoordinator {
         thumbnailEnabled: snapshot.thumbnailEnabled,
         thumbnailDuration: snapshot.thumbnailDuration,
         thumbnailTextOverlays: JSON.parse(JSON.stringify(snapshot.thumbnailTextOverlays || [])),
+        censoredSegments: snapshot.audioBleepEnabled
+          ? this.mergeCensoredSegments(snapshot.flaggedSegments || [])
+          : [],
+        bleepAudioSrc: snapshot.audioBleepEnabled && snapshot.audioBleepSource === 'custom'
+          ? (snapshot.customBleepData || '/audio/bleep.wav')
+          : undefined,
         subtitleStyle: {
           fontFamily: snapshot.font,
           fontSize: snapshot.fontSize,

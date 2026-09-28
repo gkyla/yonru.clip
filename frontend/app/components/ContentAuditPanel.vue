@@ -380,7 +380,9 @@
                     <p class="text-xs text-slate-200 font-medium">
                       {{
                         audit.flaggedWords.length === 0
-                          ? "No sensitive words or localized slang detected"
+                          ? (audit.remediatedWords && audit.remediatedWords.length > 0
+                              ? "All sensitive words are masked and audio-censored. Safe from shadowban."
+                              : "No sensitive words or localized slang detected")
                           : `${audit.flaggedWords.length} sensitive words/slang found`
                       }}
                     </p>
@@ -425,6 +427,44 @@
                   <p class="text-[9px] text-slate-500 italic">
                     Flagged words appear as "K*lling" or "Unal*ve" to bypass
                     automated filters.
+                  </p>
+                </div>
+
+                <!-- Remediated Words List (Protected & Neutralized State) -->
+                <div
+                  v-else-if="audit.remediatedWords && audit.remediatedWords.length > 0"
+                  class="pl-11 space-y-3"
+                >
+                  <p
+                    class="text-[9px] text-emerald-400/90 font-black uppercase tracking-widest"
+                  >
+                    Protected & Remediated Keywords:
+                  </p>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span
+                      v-for="word in audit.remediatedWords"
+                      :key="word"
+                      class="px-2 py-0.5 bg-emerald-950/30 text-emerald-300 text-[10px] font-bold rounded-md border border-emerald-500/20 flex items-center gap-1.5"
+                    >
+                      <Icon
+                        name="ri:shield-check-line"
+                        class="text-[10px] text-emerald-400"
+                      />
+                      {{ word }}
+                    </span>
+                  </div>
+
+                  <button
+                    class="w-full py-1.5 bg-white/[0.03] border border-white/10 text-slate-400 hover:bg-white/[0.06] hover:border-white/20 hover:text-white rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                    title="Revert masked words back to original transcript"
+                    @click="state.revertMaskedWords()"
+                  >
+                    <Icon name="ri:arrow-go-back-line" class="text-xs" />
+                    Revert to Unmasked Text
+                  </button>
+
+                  <p class="text-[9px] text-slate-500 italic">
+                    Words are visually masked in subtitles and audio segments are silenced/bleeped during export.
                   </p>
                 </div>
               </div>
@@ -650,6 +690,9 @@ onMounted(() => {
 
 const scoreLabel = computed(() => {
   if (!audit.value) return "ANALYZING...";
+  if (audit.value.isRemediated || (audit.value.remediatedWords?.length > 0 && audit.value.flaggedWords.length === 0)) {
+    return "PROTECTED & NEUTRALIZED";
+  }
   const score = audit.value.score;
   if (score >= 90) return "EXCELLENT ELIGIBILITY";
   if (score >= 70) return "GOOD - MINOR RISKS";

@@ -492,5 +492,36 @@ class TestRenderEngine(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
+    def test_render_composition_audio_censorship_props(self):
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+        temp_video = os.path.join(temp_dir, "dummy_censor.mp4")
+        with open(temp_video, "w") as f:
+            f.write("dummy video content")
+
+        try:
+            comp = RenderComposition(
+                original_video=temp_video,
+                crop_center_x=960,
+                clip_duration=2.0,
+                fps=30.0,
+                censored_segments=[{"start": 0.5, "duration": 0.8, "word": "badword"}],
+                bleep_audio_src="/audio/bleep.wav"
+            )
+            self.assertEqual(len(comp.censored_segments), 1)
+            self.assertEqual(comp.bleep_audio_src, "/audio/bleep.wav")
+
+            with StagedRenderContext(comp, "test_censor.mp4", output_dir=temp_dir) as ctx:
+                self.assertIsNotNone(ctx.props_path)
+                assert ctx.props_path is not None
+                with open(ctx.props_path, "r", encoding="utf-8") as f:
+                    props = json.load(f)
+                self.assertEqual(len(props.get("censoredSegments", [])), 1)
+                self.assertEqual(props.get("censoredSegments")[0]["word"], "badword")
+                self.assertEqual(props.get("bleepAudioSrc"), "/audio/bleep.wav")
+        finally:
+            shutil.rmtree(temp_dir)
+
+
 
 

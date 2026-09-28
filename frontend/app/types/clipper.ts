@@ -136,6 +136,8 @@ export interface TranscriptWord {
   start: number
   duration: number
   end?: number
+  rawText?: string
+  isMasked?: boolean
 }
 
 export interface TranscriptSegment {
@@ -144,6 +146,7 @@ export interface TranscriptSegment {
   start: number
   duration: number
   words?: TranscriptWord[]
+  rawText?: string
 }
 
 export interface DeepAuditResult {

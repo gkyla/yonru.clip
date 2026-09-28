@@ -617,6 +617,10 @@ function createClipperState() {
     auditor.maskFlaggedWords()
   }
 
+  function revertMaskedWords() {
+    auditor.revertMaskedWords()
+  }
+
   return {
     contentAudit: auditor.contentAudit, 
     customBlacklist: auditor.customBlacklist, 
@@ -688,7 +692,7 @@ function createClipperState() {
     detectHardwareProfile: diagnostics.detectHardwareProfile,
     formatDuration, fetchPrompts, editPrompt, deletePrompt, fetchSavedHooks, saveHook, deleteSavedHook,
     saveTranscript, saveStyleSettings, saveDefaultStyleSettings, updateHooks,
-    runDeepAudit: auditor.runDeepAudit, maskFlaggedWords,
+    runDeepAudit: auditor.runDeepAudit, maskFlaggedWords, revertMaskedWords,
     fitSubtitlesToSafeZone: auditor.fitSubtitlesToSafeZone,
     fitSubtitlesToReadability: auditor.fitSubtitlesToReadability,
     ignoreSafetyWarnings: auditor.ignoreSafetyWarnings,

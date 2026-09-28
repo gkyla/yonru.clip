@@ -38,6 +38,8 @@ class RenderComposition:
         self.split_offset_y_top = kwargs.get("split_offset_y_top", 0.0)
         self.split_offset_x_bottom = kwargs.get("split_offset_x_bottom", 0.0)
         self.split_offset_y_bottom = kwargs.get("split_offset_y_bottom", 0.0)
+        self.censored_segments = kwargs.get("censored_segments") or []
+        self.bleep_audio_src = kwargs.get("bleep_audio_src")
 
 
 class SafeEncoder(json.JSONEncoder):
@@ -273,6 +275,8 @@ class StagedRenderContext:
             "timelineTextItems": self.comp.timeline_text_items or [],
             "timelineAudioItems": self.comp.timeline_audio_items or [],
             "timelineVideoItems": timeline_video_items,
+            "censoredSegments": self.comp.censored_segments or [],
+            "bleepAudioSrc": self.comp.bleep_audio_src,
             "volume": self.comp.volume,
             "fps": self.comp.fps,
             "thumbnailEnabled": thumbnail_image_name is not None,
@@ -512,6 +516,17 @@ class RenderEngine(ABC):
             else:
                 thumbnail_config["enabled"] = False
 
+        censored_segments = []
+        bleep_audio_src = None
+        if getattr(req, "audio_bleep_enabled", False):
+            censored_segments = getattr(req, "censored_segments", None) or []
+            if getattr(req, "audio_bleep_source", "mute") == "custom":
+                custom_file = getattr(req, "custom_bleep_file", None)
+                if custom_file and isinstance(custom_file, dict) and custom_file.get("data"):
+                    bleep_audio_src = custom_file["data"]
+                else:
+                    bleep_audio_src = "/audio/bleep.wav"
+
         return RenderComposition(
             original_video=video_path,
             crop_center_x=crop_x or 960,
@@ -553,6 +568,8 @@ class RenderEngine(ABC):
             split_offset_y_top=getattr(req, "split_offset_y_top", 0.0) or 0.0,
             split_offset_x_bottom=getattr(req, "split_offset_x_bottom", 0.0) or 0.0,
             split_offset_y_bottom=getattr(req, "split_offset_y_bottom", 0.0) or 0.0,
+            censored_segments=censored_segments,
+            bleep_audio_src=bleep_audio_src,
         )
 
     def compile_and_render(self, job: dict, req: Any, asset_repository: Any, out_filename: str) -> Optional[str]:

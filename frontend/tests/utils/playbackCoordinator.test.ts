@@ -67,7 +67,40 @@ describe('VideoPlaybackCoordinator Unit Tests', () => {
       expect(props.subtitleStyle.fontFamily).toBe('Montserrat')
       expect(props.words.length).toBeGreaterThan(0)
     })
+
+    it('assembles censoredSegments and bleepAudioSrc when audio censorship is active', () => {
+      const censoredSnapshot = {
+        ...baseSnapshot,
+        audioBleepEnabled: true,
+        audioBleepSource: 'custom',
+        customBleepData: '/audio/bleep.wav',
+        flaggedSegments: [{ start: 1.5, duration: 0.8 }]
+      }
+      const props = coordinator.assembleRemotionProps(censoredSnapshot)
+      expect(props.censoredSegments).toEqual([{ start: 1.5, duration: 0.8 }])
+      expect(props.bleepAudioSrc).toBe('/audio/bleep.wav')
+    })
+
+    it('merges overlapping and contiguous flagged segments to prevent duplicate audio bleep sequences', () => {
+      const censoredSnapshot = {
+        ...baseSnapshot,
+        audioBleepEnabled: true,
+        audioBleepSource: 'custom',
+        customBleepData: '/audio/bleep.wav',
+        flaggedSegments: [
+          { start: 1.0, duration: 0.5 }, // [1.0, 1.5]
+          { start: 1.3, duration: 0.6 }, // [1.3, 1.9] -> overlaps with first
+          { start: 3.0, duration: 0.4 }  // [3.0, 3.4] -> separate
+        ]
+      }
+      const props = coordinator.assembleRemotionProps(censoredSnapshot)
+      expect(props.censoredSegments).toEqual([
+        { start: 1.0, duration: 0.9 },
+        { start: 3.0, duration: 0.4 }
+      ])
+    })
   })
+
 
   describe('Single Master Player Mode (ADR-0004)', () => {
     it('keeps native video paused when isPlaying is true but useNativePlayer is false', () => {

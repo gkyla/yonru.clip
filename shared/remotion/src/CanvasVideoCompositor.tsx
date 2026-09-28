@@ -11,7 +11,7 @@ export interface CropMapEntry {
 
 export interface CanvasVideoCompositorProps {
   videoSrc: string;
-  volume: number;
+  volume: number | ((frame: number) => number);
   mediaStartFrame?: number;
   durationFrames?: number;
   fps?: number;

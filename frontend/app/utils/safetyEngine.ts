@@ -18,6 +18,8 @@ export interface AuditResult {
   flaggedWords: string[]
   flaggedSegments: FlaggedSegment[]
   uniqueFlagsCount: number
+  remediatedWords?: string[]
+  remediatedSegments?: FlaggedSegment[]
 }
 
 export interface LayoutAuditResult {
@@ -58,6 +60,9 @@ export interface ComprehensiveSafetyReport {
   flaggedWords: string[]
   flaggedSegments: FlaggedSegment[]
   uniqueFlagsCount: number
+  remediatedWords: string[]
+  remediatedSegments: FlaggedSegment[]
+  isRemediated: boolean
   layout: LayoutAuditResult
   readability: ReadabilityAuditResult
   isLayoutSafe: boolean
@@ -122,24 +127,6 @@ export const BUILTIN_BLEEP_PRESETS: BleepAudioItem[] = [
     name: 'Standard Bleep',
     data: '/audio/bleep.wav',
     isPreset: true
-  },
-  {
-    id: 'discord_notification',
-    name: 'Discord Notification',
-    data: '/audio/discord-notification.mp3',
-    isPreset: true
-  },
-  {
-    id: 'roblox_death',
-    name: 'Roblox Death (Oof)',
-    data: '/audio/roblox-death.mp3',
-    isPreset: true
-  },
-  {
-    id: 'spongebob_dolphin',
-    name: 'Spongebob Dolphin Censor',
-    data: '/audio/spongebob-dolphin-censor.mp3',
-    isPreset: true
   }
 ]
 
@@ -169,7 +156,7 @@ export class ContentSafetyAuditor {
       bleepLibrary: [...BUILTIN_BLEEP_PRESETS],
       selectedBleepAudioId: DEFAULT_BLEEP_PRESET.id,
       customBleepFile: { name: DEFAULT_BLEEP_PRESET.name, data: DEFAULT_BLEEP_PRESET.data },
-      bleepPaddingOffset: 50,
+      bleepPaddingOffset: 0,
       bleepMode: 'full',
       isWarningIgnored: false,
       activeCategories: { violence: true, sexual: true, profanity: true },
@@ -368,12 +355,14 @@ export class ContentSafetyAuditor {
     blacklistOverride?: string[],
     _mode: string = 'word',
     bleepPaddingOffsetMs?: number,
-    bleepMode?: BleepMode
+    bleepMode?: BleepMode,
+    audioBleepEnabledOverride?: boolean
   ): AuditResult {
     const activeBlacklist = blacklistOverride ?? this.getEffectiveBlacklist()
     const compiledPatterns = this.compileBlacklist(activeBlacklist)
     const padding = bleepPaddingOffsetMs ?? this._config.bleepPaddingOffset
     const mode = bleepMode ?? this._config.bleepMode
+    const audioBleepEnabled = audioBleepEnabledOverride ?? this._config.audioBleepEnabled
 
     if (compiledPatterns.length === 0 || !transcript || transcript.length === 0) {
       return {
@@ -385,75 +374,138 @@ export class ContentSafetyAuditor {
     }
 
     const flaggedWords: string[] = []
+    const remediatedWords: string[] = []
     const flaggedSegments: FlaggedSegment[] = []
-    const flatWords: { text: string; start: number; duration: number; end: number }[] = []
+    const remediatedSegments: FlaggedSegment[] = []
+    const activeSegments: FlaggedSegment[] = []
+
+    const flatWords: {
+      text: string
+      rawText: string
+      isMasked: boolean
+      parentSegText: string
+      start: number
+      duration: number
+      end: number
+    }[] = []
 
     for (const seg of transcript) {
       const segText = (seg.text || '').trim()
-      if (!segText) continue
+      const segRawText = (seg.rawText || segText).trim()
+      if (!segText && !segRawText) continue
 
-      const words = segText.split(/\s+/)
-      if (words.length === 1) {
-        flatWords.push({
-          text: words[0] || '',
-          start: seg.start,
-          duration: seg.duration,
-          end: seg.start + seg.duration
-        })
-      } else {
-        const wordDur = seg.duration / words.length
-        words.forEach((w: string, idx: number) => {
+      if (seg.words && Array.isArray(seg.words) && seg.words.length > 0) {
+        for (const w of seg.words) {
+          const wText = (w.text || '').trim()
+          const wRawText = (w.rawText || wText).trim()
+          if (!wText && !wRawText) continue
+          const wStart = Number(w.start) || 0
+          const wDuration = Number(w.duration) || 0
+          const isWordMasked = Boolean(w.isMasked || (wText !== wRawText && wText.includes('*')))
           flatWords.push({
-            text: w,
-            start: seg.start + idx * wordDur,
-            duration: wordDur,
-            end: seg.start + (idx + 1) * wordDur
+            text: wText || wRawText,
+            rawText: wRawText || wText,
+            isMasked: isWordMasked,
+            parentSegText: segText,
+            start: wStart,
+            duration: wDuration,
+            end: w.end !== undefined ? Number(w.end) : wStart + wDuration
           })
-        })
+        }
+      } else {
+        const words = segText.split(/\s+/)
+        const rawWords = segRawText.split(/\s+/)
+        if (words.length === 1) {
+          flatWords.push({
+            text: words[0] || '',
+            rawText: rawWords[0] || words[0] || '',
+            isMasked: Boolean(seg.rawText && seg.rawText !== seg.text),
+            parentSegText: segText,
+            start: seg.start,
+            duration: seg.duration,
+            end: seg.start + seg.duration
+          })
+        } else {
+          const wordDur = seg.duration / words.length
+          words.forEach((w: string, idx: number) => {
+            flatWords.push({
+              text: w,
+              rawText: rawWords[idx] || w,
+              isMasked: Boolean(seg.rawText && seg.rawText !== seg.text),
+              parentSegText: segText,
+              start: seg.start + idx * wordDur,
+              duration: wordDur,
+              end: seg.start + (idx + 1) * wordDur
+            })
+          })
+        }
       }
     }
 
     const paddingSec = (padding || 0) / 1000
 
     for (const w of flatWords) {
-      const lowerText = w.text.toLowerCase()
+      const lowerRaw = w.rawText.toLowerCase()
+      const lowerVisual = w.text.toLowerCase()
+
       for (const pattern of compiledPatterns) {
-        if (pattern.regex.test(lowerText)) {
-          let segStart: number
-          let segDuration: number
+        const matchesRaw = pattern.regex.test(lowerRaw)
+        const matchesVisual = pattern.regex.test(lowerVisual)
 
-          if (mode === 'partial_end') {
-            const halfDur = w.duration * 0.5
-            segStart = w.start + halfDur
-            segDuration = halfDur + paddingSec
-          } else {
-            segStart = Math.max(0, w.start - paddingSec)
-            segDuration = w.duration + 2 * paddingSec
-          }
+        if (matchesRaw || matchesVisual) {
+          const segStart = Math.max(0, w.start - paddingSec)
+          const segDuration = w.duration + 2 * paddingSec
 
-          flaggedSegments.push({
+          const segItem: FlaggedSegment = {
             start: segStart,
             duration: segDuration,
             word: pattern.source,
-            text: w.text
-          })
-          if (!flaggedWords.includes(pattern.source)) {
-            flaggedWords.push(pattern.source)
+            text: w.rawText || w.text
+          }
+
+          flaggedSegments.push(segItem)
+
+          // Determine if visually masked in subtitle text or word text
+          const isVisualMasked = Boolean(
+            w.isMasked ||
+            !pattern.regex.test(lowerVisual) ||
+            !pattern.regex.test(w.parentSegText.toLowerCase()) ||
+            w.text.includes('*') ||
+            w.text.includes('[BLEEP]')
+          )
+
+          // Remediated Violation: Visually masked AND Audio Bleep enabled
+          if (isVisualMasked && audioBleepEnabled) {
+            remediatedSegments.push(segItem)
+            if (!remediatedWords.includes(pattern.source)) {
+              remediatedWords.push(pattern.source)
+            }
+          } else {
+            activeSegments.push(segItem)
+            if (!flaggedWords.includes(pattern.source)) {
+              flaggedWords.push(pattern.source)
+            }
           }
         }
       }
     }
 
     let score = 100
-    const uniqueTimeFlags = new Set(flaggedSegments.map(f => f.start.toFixed(2))).size
+    // Only active (unremediated) flags penalize the safety score!
+    const uniqueTimeFlags = new Set(activeSegments.map(f => f.start.toFixed(2))).size
     score -= uniqueTimeFlags * 12
 
-    return {
+    const result: AuditResult = {
       score: Math.max(0, score),
       flaggedWords,
       flaggedSegments,
       uniqueFlagsCount: flaggedSegments.length
     }
+    if (remediatedWords.length > 0) {
+      result.remediatedWords = remediatedWords
+      result.remediatedSegments = remediatedSegments
+    }
+    return result
   }
 
   /**
@@ -589,9 +641,19 @@ export class ContentSafetyAuditor {
     subtitleStrokeWidth?: number
     subtitleStrokeColor?: string
     isWarningIgnored?: boolean
+    blacklistOverride?: string[]
+    audioBleepEnabled?: boolean
   }): ComprehensiveSafetyReport {
     const ignored = context.isWarningIgnored ?? this._config.isWarningIgnored
-    const rawAudit = this.auditTranscript(context.transcript)
+    const bleepEnabled = context.audioBleepEnabled ?? this._config.audioBleepEnabled
+    const rawAudit = this.auditTranscript(
+      context.transcript,
+      context.blacklistOverride,
+      'word',
+      this._config.bleepPaddingOffset,
+      this._config.bleepMode,
+      bleepEnabled
+    )
 
     const layout = this.auditLayoutCollision(
       context.activeSafeZone || 'none',
@@ -615,6 +677,8 @@ export class ContentSafetyAuditor {
       ignored
     )
 
+    const isRemediated = (rawAudit.remediatedWords?.length ?? 0) > 0 && rawAudit.flaggedWords.length === 0
+
     if (ignored) {
       return {
         rawAudit,
@@ -623,6 +687,9 @@ export class ContentSafetyAuditor {
         flaggedWords: [],
         flaggedSegments: rawAudit.flaggedSegments,
         uniqueFlagsCount: rawAudit.uniqueFlagsCount,
+        remediatedWords: rawAudit.remediatedWords || [],
+        remediatedSegments: rawAudit.remediatedSegments || [],
+        isRemediated,
         layout,
         readability,
         isLayoutSafe: true,
@@ -638,6 +705,9 @@ export class ContentSafetyAuditor {
       flaggedWords: rawAudit.flaggedWords,
       flaggedSegments: rawAudit.flaggedSegments,
       uniqueFlagsCount: rawAudit.uniqueFlagsCount,
+      remediatedWords: rawAudit.remediatedWords || [],
+      remediatedSegments: rawAudit.remediatedSegments || [],
+      isRemediated,
       layout,
       readability,
       isLayoutSafe: layout.isSafe,
@@ -683,10 +753,48 @@ export class ContentSafetyAuditor {
     styleOverride?: MaskingStyle
   ): TranscriptSegment[] {
     if (!transcript) return []
-    return transcript.map(seg => ({
-      ...seg,
-      text: this.maskText(seg.text || '', blacklistOverride, styleOverride)
-    }))
+    return transcript.map(seg => {
+      const origSegText = seg.rawText || seg.text || ''
+      const maskedSegText = this.maskText(origSegText, blacklistOverride, styleOverride)
+
+      const maskedWords = seg.words?.map(w => {
+        const origWordText = (w as any).rawText || w.text || ''
+        const maskedWordText = this.maskText(origWordText, blacklistOverride, styleOverride)
+        const isWordMasked = maskedWordText !== origWordText
+        return {
+          ...w,
+          text: maskedWordText,
+          rawText: origWordText,
+          isMasked: isWordMasked
+        }
+      })
+
+      return {
+        ...seg,
+        text: maskedSegText,
+        rawText: origSegText,
+        words: maskedWords
+      }
+    })
+  }
+
+  public unmaskTranscript(
+    transcript: TranscriptSegment[]
+  ): TranscriptSegment[] {
+    if (!transcript) return []
+    return transcript.map(seg => {
+      const restoredText = seg.rawText || seg.text || ''
+      const restoredWords = seg.words?.map(w => ({
+        ...w,
+        text: (w as any).rawText || w.text,
+        isMasked: false
+      }))
+      return {
+        ...seg,
+        text: restoredText,
+        words: restoredWords
+      }
+    })
   }
 
   // --- Bleep Audio Library Management ---
@@ -904,7 +1012,7 @@ export function auditTranscript(
   transcript: TranscriptSegment[],
   blacklist?: string[],
   mode: string = 'word',
-  bleepPaddingOffsetMs: number = 50,
+  bleepPaddingOffsetMs: number = 0,
   bleepMode: 'full' | 'partial_end' = 'full'
 ): AuditResult {
   return defaultAuditor.auditTranscript(transcript, blacklist, mode, bleepPaddingOffsetMs, bleepMode)

@@ -50,6 +50,8 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   thumbnailXOffset = 50,
   sourceWidth,
   sourceHeight,
+  censoredSegments = [],
+  bleepAudioSrc,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -57,6 +59,63 @@ export const YonruClip: React.FC<YonruClipProps> = ({
 
   const thumbnailFrames = thumbnailEnabled ? Math.round(thumbnailDuration * fps) : 0;
   const currentTime = Math.max(0, (frame - thumbnailFrames)) / fps;
+
+  // Automated Micro-Envelope (15ms zero-crossing) & Frame-Locked Volume Ducking
+  const baseVolume = volume;
+
+  // Normalize & merge overlapping or contiguous censored segments to prevent double-bleep audio phasing
+  const mergedCensoredSegments = useMemo(() => {
+    if (!censoredSegments || censoredSegments.length === 0) return [];
+    const valid = censoredSegments
+      .filter(s => s && typeof s.start === 'number' && typeof s.duration === 'number' && s.duration > 0)
+      .map(s => ({ start: Math.round(s.start * 1000) / 1000, duration: Math.round(s.duration * 1000) / 1000 }))
+      .sort((a, b) => a.start - b.start);
+
+    if (valid.length === 0) return [];
+
+    const merged: Array<{ start: number; duration: number }> = [];
+    let current = { ...valid[0] };
+
+    for (let i = 1; i < valid.length; i++) {
+      const next = valid[i];
+      const currentEnd = Math.round((current.start + current.duration) * 1000) / 1000;
+      if (next.start <= currentEnd + 0.005) {
+        const nextEnd = Math.round((next.start + next.duration) * 1000) / 1000;
+        const newEnd = Math.max(currentEnd, nextEnd);
+        current.duration = Math.round((newEnd - current.start) * 1000) / 1000;
+      } else {
+        merged.push(current);
+        current = { ...next };
+      }
+    }
+    merged.push(current);
+    return merged;
+  }, [censoredSegments]);
+
+  const frameVolume = useMemo(() => {
+    if (mergedCensoredSegments.length === 0) {
+      return baseVolume;
+    }
+    return (f: number) => {
+      const time = Math.max(0, f - thumbnailFrames) / fps;
+      const fadeSec = 0.015; // 15ms internal micro-envelope
+
+      for (const seg of mergedCensoredSegments) {
+        if (time >= seg.start && time <= seg.start + seg.duration) {
+          if (time < seg.start + fadeSec) {
+            const factor = (time - seg.start) / fadeSec;
+            return baseVolume * (1 - factor);
+          }
+          if (time > seg.start + seg.duration - fadeSec) {
+            const factor = (time - (seg.start + seg.duration - fadeSec)) / fadeSec;
+            return baseVolume * factor;
+          }
+          return 0;
+        }
+      }
+      return baseVolume;
+    };
+  }, [mergedCensoredSegments, baseVolume, thumbnailFrames, fps]);
 
   const isUrl = videoPath && (videoPath.startsWith('http') || videoPath.startsWith('blob:'));
   const videoSrc = videoPath ? (isUrl ? videoPath : staticFile(videoPath)) : '';
@@ -351,7 +410,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   >
                     <OffthreadVideo
                       src={videoSrc}
-                      volume={volume}
+                      volume={frameVolume}
                       startFrom={mediaStartFrame}
                       endAt={durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined}
                       style={{
@@ -422,7 +481,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
               <AbsoluteFill style={{ overflow: 'hidden' }}>
                 <CanvasVideoCompositor
                   videoSrc={videoSrc}
-                  volume={volume}
+                  volume={frameVolume}
                   mediaStartFrame={mediaStartFrame}
                   durationFrames={durationFrames}
                   fps={fps}
@@ -590,6 +649,22 @@ export const YonruClip: React.FC<YonruClipProps> = ({
             <Audio src={item.src} volume={item.volume ?? 1} />
           </Sequence>
         ))}
+
+        {/* Frame-Locked Censorship Bleep Audio Layers */}
+        {bleepAudioSrc && mergedCensoredSegments.map((seg, idx) => {
+          const segStartFrame = thumbnailFrames + Math.round(seg.start * fps);
+          const segDurationFrames = Math.max(1, Math.round(seg.duration * fps));
+          return (
+            <Sequence
+              key={`bleep-${idx}-${seg.start}`}
+              from={segStartFrame}
+              durationInFrames={segDurationFrames}
+              name={`Bleep-${idx}`}
+            >
+              <Audio src={bleepAudioSrc} loop volume={1} />
+            </Sequence>
+          );
+        })}
       </Sequence>
     </AbsoluteFill>
   );

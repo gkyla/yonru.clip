@@ -5,9 +5,15 @@ import UnifiedAnalyzerPanel from '../../app/components/home/UnifiedAnalyzerPanel
 import HookResultsGallery from '../../app/components/home/HookResultsGallery.vue'
 import { ref } from 'vue'
 
-if (typeof global.requestAnimationFrame === 'undefined') {
-  global.requestAnimationFrame = (cb: any) => setTimeout(cb, 0)
+const mockRaf = (cb: any) => {
+  try {
+    cb(Date.now())
+  } catch {}
+  return 0
 }
+;(globalThis as any).requestAnimationFrame = mockRaf
+if (typeof window !== 'undefined') (window as any).requestAnimationFrame = mockRaf
+if (typeof global !== 'undefined') (global as any).requestAnimationFrame = mockRaf
 
 if (typeof global.history === 'undefined') {
   global.history = {
