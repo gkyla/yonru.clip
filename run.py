@@ -532,10 +532,20 @@ class BootstrappedLauncher:
 
     def _setup_remotion_browser(self):
         log_system("Verifying Remotion browser configuration (Chrome Headless Shell)...")
+        remotion_dir = os.path.abspath("shared/remotion")
+        bin_name = "remotion.cmd" if IS_WIN else "remotion"
+        local_bin = os.path.join(remotion_dir, "node_modules", ".bin", bin_name)
+
+        if os.path.isfile(local_bin):
+            cmd = [local_bin, "browser", "ensure"]
+        else:
+            npx_bin = "npx.cmd" if IS_WIN else "npx"
+            cmd = [npx_bin, "--package=@remotion/cli", "remotion", "browser", "ensure"]
+
         try:
             subprocess.run(
-                ["npx", "remotion", "browser", "ensure"], 
-                cwd="shared/remotion", 
+                cmd, 
+                cwd=remotion_dir, 
                 shell=IS_WIN, 
                 check=True
             )

@@ -522,38 +522,45 @@ class TestRenderEngine(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_resolve_npx_command_windows(self):
-        with patch("sys.platform", "win32"), patch("shutil.which") as mock_which:
-            mock_which.side_effect = lambda cmd: "C:\\Program Files\\nodejs\\npx.cmd" if cmd == "npx.cmd" else None
-            cmd = RenderPipelineCoordinator.resolve_npx_command()
-            self.assertEqual(cmd, "C:\\Program Files\\nodejs\\npx.cmd")
+    def test_resolve_remotion_command_local_bin_exists(self):
+        with patch("os.path.isfile", return_value=True):
+            cmd = RenderPipelineCoordinator.resolve_remotion_command("/fake/remotion")
+            self.assertEqual(len(cmd), 1)
+            self.assertTrue(cmd[0].endswith("remotion.cmd") or cmd[0].endswith("remotion"))
 
-        with patch("sys.platform", "win32"), patch("shutil.which", return_value=None):
-            cmd = RenderPipelineCoordinator.resolve_npx_command()
-            self.assertEqual(cmd, "npx.cmd")
+    def test_resolve_remotion_command_fallback_windows(self):
+        with patch("sys.platform", "win32"), patch("os.path.isfile", return_value=False), patch("shutil.which") as mock_which:
+            mock_which.side_effect = lambda c: "C:\\Program Files\\nodejs\\npx.cmd" if c == "npx.cmd" else None
+            cmd = RenderPipelineCoordinator.resolve_remotion_command("/fake/remotion")
+            self.assertEqual(cmd, ["C:\\Program Files\\nodejs\\npx.cmd", "--package=@remotion/cli", "remotion"])
 
-    def test_resolve_npx_command_unix(self):
-        with patch("sys.platform", "darwin"), patch("shutil.which", return_value="/usr/local/bin/npx"):
-            cmd = RenderPipelineCoordinator.resolve_npx_command()
-            self.assertEqual(cmd, "/usr/local/bin/npx")
+    def test_resolve_remotion_command_fallback_unix(self):
+        with patch("sys.platform", "darwin"), patch("os.path.isfile", return_value=False), patch("shutil.which", return_value="/usr/local/bin/npx"):
+            cmd = RenderPipelineCoordinator.resolve_remotion_command("/fake/remotion")
+            self.assertEqual(cmd, ["/usr/local/bin/npx", "--package=@remotion/cli", "remotion"])
 
     def test_build_remotion_cmd_path_normalization(self):
         coordinator = RenderPipelineCoordinator()
         mock_ctx = MagicMock()
+        mock_ctx.remotion_dir = "/fake/remotion"
         mock_ctx.props_path = "C:\\Users\\tester\\output\\props_clip.json"
         mock_ctx.frames = 300
         comp = RenderComposition("test.mp4", 960, fps=30.0)
 
-        cmd = coordinator._build_remotion_cmd(mock_ctx, comp, "static/output/clip.mp4")
-        self.assertIn("--overwrite", cmd)
-        self.assertNotIn("--force", cmd)
-        # Props path must have forward slashes
-        props_idx = cmd.index("--props")
-        self.assertEqual(cmd[props_idx + 1], "C:/Users/tester/output/props_clip.json")
-        self.assertNotIn("\\", cmd[props_idx + 1])
-        # Output path must have forward slashes
-        self.assertTrue(cmd[7].endswith("/static/output/clip.mp4"))
-        self.assertNotIn("\\", cmd[7])
+        with patch.object(coordinator, "resolve_remotion_command", return_value=["remotion"]):
+            cmd = coordinator._build_remotion_cmd(mock_ctx, comp, "static/output/clip.mp4")
+            self.assertEqual(cmd[0], "remotion")
+            self.assertEqual(cmd[1], "render")
+            self.assertIn("--overwrite", cmd)
+            self.assertNotIn("--force", cmd)
+            # Props path must have forward slashes
+            props_idx = cmd.index("--props")
+            self.assertEqual(cmd[props_idx + 1], "C:/Users/tester/output/props_clip.json")
+            self.assertNotIn("\\", cmd[props_idx + 1])
+            # Output path must have forward slashes
+            out_idx = props_idx + 2
+            self.assertTrue(cmd[out_idx].endswith("/static/output/clip.mp4"))
+            self.assertNotIn("\\", cmd[out_idx])
 
     def test_render_streaming_captures_error_ring_buffer(self):
         coordinator = RenderPipelineCoordinator()

@@ -630,20 +630,29 @@ class RenderPipelineCoordinator(RenderEngine):
             raise RuntimeError("Friendly Alert: FFmpeg was not detected on this machine. Please download/install FFmpeg and map it to your execution variables.")
 
     @staticmethod
-    def resolve_npx_command() -> str:
-        """Resolve platform-specific npx executable path."""
-        if sys.platform == "win32":
-            return shutil.which("npx.cmd") or shutil.which("npx") or "npx.cmd"
-        return shutil.which("npx") or "npx"
+    def resolve_remotion_command(remotion_dir: str) -> List[str]:
+        """
+        Resolve the Remotion CLI command.
+        Prefers direct execution of local node_modules/.bin/remotion (.cmd on Windows)
+        to eliminate npm/npx package resolution overhead and npm 11+ getBinFromManifest failure.
+        Falls back to npx --package=@remotion/cli remotion.
+        """
+        bin_name = "remotion.cmd" if sys.platform == "win32" else "remotion"
+        local_bin = os.path.abspath(os.path.join(remotion_dir, "node_modules", ".bin", bin_name))
+        if os.path.isfile(local_bin):
+            return [local_bin]
+
+        npx_bin = shutil.which("npx.cmd") or shutil.which("npx") or "npx.cmd" if sys.platform == "win32" else (shutil.which("npx") or "npx")
+        return [npx_bin, "--package=@remotion/cli", "remotion"]
 
     def _build_remotion_cmd(self, ctx: StagedRenderContext, comp: RenderComposition, output_path: str) -> List[str]:
-        npx_bin = self.resolve_npx_command()
+        remotion_cmd = self.resolve_remotion_command(ctx.remotion_dir)
         # Normalize paths with forward slashes to prevent backslash escape collisions on Windows
         props_path = (ctx.props_path or "").replace("\\", "/")
         norm_output_path = os.path.abspath(output_path).replace("\\", "/")
 
-        return [
-            npx_bin, "remotion", "render",
+        return remotion_cmd + [
+            "render",
             "src/index.ts", "YonruClip",
             "--props", props_path,
             norm_output_path,
