@@ -63,17 +63,15 @@ describe('Content Auditor TDD', () => {
     ])
   })
 
-  it('calculates partial_end bleepMode to target only the ending 50% syllable duration', () => {
+  it('always enforces full word censorship boundaries across transcript segments', () => {
     const transcript = [
       { text: 'mati', start: 2.0, duration: 1.0 }
     ]
-    // Word start = 2.0, duration = 1.0
-    // partial_end mode: start = 2.0 + 0.5 = 2.5, duration = 0.5 + 0.05 (50ms padding) = 0.55
-    const result = auditTranscript(transcript, ['mati'], 'word', 50, 'partial_end')
+    const result = auditTranscript(transcript, ['mati'], 'word', 50, 'full')
 
     expect(result.flaggedWords).toContain('mati')
     expect(result.flaggedSegments).toEqual([
-      { start: 2.5, duration: 0.55, word: 'mati', text: 'mati' }
+      { start: 1.95, duration: 1.1, word: 'mati', text: 'mati' }
     ])
   })
 })

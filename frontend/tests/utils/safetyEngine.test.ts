@@ -72,12 +72,12 @@ describe('SafetyEngine Unit Tests', () => {
       expect(res.score).toBeLessThan(100)
     })
 
-    it('calculates partial_end bleep offset targeting trailing 50% syllable', () => {
+    it('always applies full word censorship boundaries for consistent protection', () => {
       const transcript = [{ text: 'mati', start: 2.0, duration: 1.0 }]
-      const res = auditTranscript(transcript, ['mati'], 'word', 50, 'partial_end')
+      const res = auditTranscript(transcript, ['mati'], 'word', 50, 'full')
       expect(res.flaggedWords).toContain('mati')
       expect(res.flaggedSegments).toEqual([
-        { start: 2.5, duration: 0.55, word: 'mati', text: 'mati' }
+        { start: 1.95, duration: 1.1, word: 'mati', text: 'mati' }
       ])
     })
 
@@ -320,8 +320,8 @@ describe('SafetyEngine Unit Tests', () => {
       expect(auditor.customBleepFile?.name).toBe('My Bleep')
 
       // Select preset
-      expect(auditor.selectBleepAudio('roblox_death')).toBe(true)
-      expect(auditor.selectedBleepAudioId).toBe('roblox_death')
+      expect(auditor.selectBleepAudio('default_preset')).toBe(true)
+      expect(auditor.selectedBleepAudioId).toBe('default_preset')
 
       // Remove custom bleep
       expect(auditor.removeCustomBleepFile(custom.id)).toBe(true)

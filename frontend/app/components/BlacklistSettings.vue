@@ -203,41 +203,6 @@
                 </div>
               </div>
 
-              <!-- Audio Mute Scope Selector -->
-              <div class="space-y-1 pt-1">
-                <div class="flex items-center gap-1.5">
-                  <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Audio Mute Scope</label>
-                  <div class="relative group/tooltip flex items-center">
-                    <Icon name="ri:question-line" class="text-slate-500 hover:text-slate-300 text-xs cursor-help transition-colors" />
-                    <div class="absolute left-0 bottom-full mb-1.5 w-64 p-2.5 bg-surface-dark/95 border border-surface-border/80 rounded-xl shadow-black/80 shadow-[0_12px_40px_rgba(0,0,0,0.95)] text-[10px] text-slate-300 leading-normal opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity duration-200 z-50 tracking-normal normal-case space-y-1.5">
-                      <p><strong class="text-white font-bold">Full Word:</strong> Mutes or bleeps the full duration of sensitive words from start to end.</p>
-                      <p><strong class="text-accent-400 font-bold">Partial End:</strong> Mutes only the ending 50% syllable duration (initial syllable remains audible for spoken context).</p>
-                    </div>
-                  </div>
-                </div>
-                <div class="grid grid-cols-2 gap-1 p-0.5 bg-white/[0.02] border border-white/5 rounded-lg">
-                  <button
-                    type="button"
-                    @click="if (state.bleepMode) state.bleepMode.value = 'full'; state.saveBlacklistToStorage()"
-                    class="py-1 text-[10px] font-black uppercase tracking-wider rounded transition-all"
-                    :class="state.bleepMode?.value !== 'partial_end'
-                      ? 'bg-white/10 text-white shadow-sm font-black'
-                      : 'text-slate-400 hover:text-white font-bold'"
-                  >
-                    Full Word
-                  </button>
-                  <button
-                    type="button"
-                    @click="if (state.bleepMode) state.bleepMode.value = 'partial_end'; state.saveBlacklistToStorage()"
-                    class="py-1 text-[10px] font-black uppercase tracking-wider rounded transition-all"
-                    :class="state.bleepMode?.value === 'partial_end'
-                      ? 'bg-white/10 text-white shadow-sm font-black'
-                      : 'text-slate-400 hover:text-white font-bold'"
-                  >
-                    Partial End
-                  </button>
-                </div>
-              </div>
 
               <!-- Collapsible Timing Offset Section -->
               <details class="group/timing text-[10px] rounded-lg border border-white/5 bg-white/[0.02] p-2 transition-all">

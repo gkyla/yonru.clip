@@ -127,24 +127,6 @@ export const BUILTIN_BLEEP_PRESETS: BleepAudioItem[] = [
     name: 'Standard Bleep',
     data: '/audio/bleep.wav',
     isPreset: true
-  },
-  {
-    id: 'discord_notification',
-    name: 'Discord Notification',
-    data: '/audio/discord-notification.mp3',
-    isPreset: true
-  },
-  {
-    id: 'roblox_death',
-    name: 'Roblox Death (Oof)',
-    data: '/audio/roblox-death.mp3',
-    isPreset: true
-  },
-  {
-    id: 'spongebob_dolphin',
-    name: 'Spongebob Dolphin Censor',
-    data: '/audio/spongebob-dolphin-censor.mp3',
-    isPreset: true
   }
 ]
 
@@ -471,17 +453,8 @@ export class ContentSafetyAuditor {
         const matchesVisual = pattern.regex.test(lowerVisual)
 
         if (matchesRaw || matchesVisual) {
-          let segStart: number
-          let segDuration: number
-
-          if (mode === 'partial_end') {
-            const halfDur = w.duration * 0.5
-            segStart = w.start + halfDur
-            segDuration = halfDur + paddingSec
-          } else {
-            segStart = Math.max(0, w.start - paddingSec)
-            segDuration = w.duration + 2 * paddingSec
-          }
+          const segStart = Math.max(0, w.start - paddingSec)
+          const segDuration = w.duration + 2 * paddingSec
 
           const segItem: FlaggedSegment = {
             start: segStart,

@@ -127,6 +127,8 @@ describe('BlacklistSettings Component - Custom Bleep Audio Options', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).not.toContain('Auto Acoustic Snapping')
+    expect(wrapper.text()).not.toContain('Partial End')
+    expect(wrapper.text()).not.toContain('Audio Mute Scope')
     expect(wrapper.text()).toContain('Timing Offset (Opsional)')
     expect(wrapper.text()).toContain('Padding Buffer')
     expect(wrapper.text()).toContain('Reset (0ms)')
