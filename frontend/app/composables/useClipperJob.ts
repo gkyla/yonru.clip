@@ -543,16 +543,20 @@ export const useClipperJob = () => {
       end_time = parseFloat(parts[1] || '0') || 0;
       if (parts.length >= 3) {
         theme = parts.slice(2).join(' ').replace(/_/g, ' ');
+      } else {
+        const formatSec = (s: number) => {
+          const m = Math.floor(s / 60);
+          const sec = Math.floor(s % 60);
+          return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+        };
+        theme = `Clip ${formatSec(start_time)} - ${formatSec(end_time)}`;
       }
     }
 
     isPlaying.value = false;
     currentTime.value = 0;
-    const thumbSec = parseInt(parts[0] || '0');
     const calculatedThumb =
-      !isNaN(thumbSec) && folder
-        ? `/assets/sources/${folder}/thumb_${thumbSec}.jpg`
-        : undefined;
+      folder && id ? `/assets/clips/${folder}/${id}/thumbnail.jpg` : undefined;
     activeHook.value = {
       theme: theme,
       start: start_time,

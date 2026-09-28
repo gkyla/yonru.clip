@@ -676,4 +676,39 @@ describe('HomeSidebar Component', () => {
     expect(img.exists()).toBe(false);
     expect(wrapper.find('[name="lucide:clapperboard"]').exists()).toBe(true);
   });
+
+  it('renders theme on line 1 and video_title on line 2 with clip thumbnail when lastClip has theme and video_title', async () => {
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        lastClip: {
+          folder: 'parent_folder',
+          clip_id: '10_20_awesome_hook',
+          theme: 'Awesome Viral Hook',
+          video_title: 'Full Source Video Title',
+          thumbnail_url:
+            '/assets/clips/parent_folder/10_20_awesome_hook/thumbnail.jpg'
+        },
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: { template: '<a><slot /></a>' }
+        }
+      }
+    });
+
+    expect(wrapper.text()).toContain('Awesome Viral Hook');
+    expect(wrapper.text()).toContain('Full Source Video Title');
+    const img = wrapper.find('img[alt="Clip Thumbnail"]');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('src')).toBe(
+      'http://localhost:8000/assets/clips/parent_folder/10_20_awesome_hook/thumbnail.jpg'
+    );
+  });
 });

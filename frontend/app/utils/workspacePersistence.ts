@@ -52,8 +52,10 @@ export interface WorkspaceReactivityContext {
   setLastClip: (
     folder: string,
     clipId: string,
+    title?: string,
+    thumbnailUrl?: string,
     theme?: string,
-    thumbnailUrl?: string
+    videoTitle?: string
   ) => void;
 
   auditor: { loadBlacklistFromStorage: () => void };

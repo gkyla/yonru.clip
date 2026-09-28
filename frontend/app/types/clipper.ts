@@ -22,6 +22,8 @@ export interface LastAccessedClip {
   folder: string;
   clip_id: string;
   title?: string;
+  theme?: string;
+  video_title?: string;
   thumbnail_url?: string;
 }
 

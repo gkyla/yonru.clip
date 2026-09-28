@@ -379,7 +379,7 @@
 
               <!-- Case 2: Continue Editing / Last Accessed Clip Available -->
               <button
-                v-else-if="lastClip && lastVideo"
+                v-else-if="lastClip && (lastVideo || lastClip.video_title)"
                 :disabled="isCurrentClipActive"
                 class="border border-transparent flex items-center gap-2.5 rounded-xl transition-all duration-200 ease-out group w-full text-left"
                 :class="[
@@ -392,7 +392,7 @@
                 ]"
                 :title="
                   isCollapsed
-                    ? lastClip.theme || lastClip.title || 'Last Accessed Clip'
+                    ? `${lastClip.theme || lastClip.title || 'Last Accessed Clip'}${lastClip.video_title || lastVideo?.title ? ' • ' + (lastClip.video_title || lastVideo?.title) : ''}`
                     : undefined
                 "
                 @click="
@@ -482,7 +482,11 @@
                       {{ lastClip.theme || lastClip.title || 'Untitled Clip' }}
                     </p>
                     <p class="text-[10px] text-white/50 truncate mt-0.5">
-                      {{ lastVideo.title || 'Untitled Video' }}
+                      {{
+                        lastClip.video_title ||
+                        lastVideo?.title ||
+                        'Untitled Video'
+                      }}
                     </p>
                   </div>
                 </div>
@@ -570,7 +574,7 @@
                 </div>
 
                 <div
-                  v-else-if="lastClip && lastVideo"
+                  v-else-if="lastClip && (lastVideo || lastClip.video_title)"
                   class="flex items-center gap-2.5 p-1 rounded-xl transition-all"
                   :class="
                     !isCurrentClipActive
@@ -616,7 +620,11 @@
                       {{ lastClip.theme || lastClip.title || 'Untitled Clip' }}
                     </p>
                     <p class="text-[9px] text-white/60 truncate">
-                      {{ lastVideo.title || 'Untitled Video' }}
+                      {{
+                        lastClip.video_title ||
+                        lastVideo?.title ||
+                        'Untitled Video'
+                      }}
                     </p>
                   </div>
                 </div>
@@ -921,12 +929,6 @@ const lastClipThumbnail = computed(() => {
 
   const folder = clip.folder || clip.folder_name;
   if (folder && clip.clip_id) {
-    // Check if clip_id is numeric timestamp (e.g., "15_45" -> thumb_15.jpg)
-    const parts = clip.clip_id.split('_');
-    const startSec = parseInt(parts[0] || '');
-    if (!isNaN(startSec)) {
-      return `${props.API_BASE}/assets/sources/${folder}/thumb_${startSec}.jpg`;
-    }
     return `${props.API_BASE}/assets/clips/${folder}/${clip.clip_id}/thumbnail.jpg`;
   }
 
@@ -1027,8 +1029,7 @@ async function handleContinueEditingClick() {
   if (isCurrentClipActive.value) return;
   const router = useSafeRouter();
   const clip = lastClip.value;
-  const video = lastVideo.value;
-  if (!clip || !video) return;
+  if (!clip) return;
 
   try {
     if (state?.isNavigatingToEditor) {

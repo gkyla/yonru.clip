@@ -540,10 +540,20 @@ class AssetRepository(AssetStore):
         out_path = os.path.join(target_dir, out_name)
         
         duration = end_time - start_time
+        thumb_name = "thumbnail.jpg"
+        thumb_path = os.path.join(target_dir, thumb_name)
+        thumb_url = f"/assets/clips/{folder_name}/{clip_id}/{thumb_name}"
+
         if os.path.exists(out_path):
+            if not os.path.exists(thumb_path):
+                try:
+                    self.extract_clip_screenshot(out_path, 0.0, thumb_path)
+                except Exception as e:
+                    print(f"[asset_repository] Failed to extract thumbnail for existing clip: {e}")
             return {
                 "file_path": out_path, 
                 "asset_url": f"/assets/clips/{folder_name}/{clip_id}/{out_name}", 
+                "thumbnail_url": thumb_url,
                 "duration": duration,
                 "clip_id": clip_id,
                 "start": start_time,
@@ -564,6 +574,10 @@ class AssetRepository(AssetStore):
                 "-avoid_negative_ts", "auto",
                 "-y", out_path
             ])
+            try:
+                self.extract_clip_screenshot(out_path, 0.0, thumb_path)
+            except Exception as e:
+                print(f"[asset_repository] Failed to extract thumbnail for new clip: {e}")
         except Exception as e:
             print(f"Error cutting segment: {e}")
             raise e
@@ -571,6 +585,7 @@ class AssetRepository(AssetStore):
         return {
             "file_path": out_path, 
             "asset_url": f"/assets/clips/{folder_name}/{clip_id}/{out_name}", 
+            "thumbnail_url": thumb_url,
             "duration": duration,
             "clip_id": clip_id,
             "start": start_time,
@@ -709,6 +724,7 @@ class AssetRepository(AssetStore):
                 
                 video_path = os.path.join(clip_entry.path, "video.mp4")
                 transcript_path = os.path.join(clip_entry.path, "transcript.json")
+                thumb_path = os.path.join(clip_entry.path, "thumbnail.jpg")
                 
                 if os.path.exists(video_path):
                     if not os.path.exists(transcript_path):
@@ -718,6 +734,13 @@ class AssetRepository(AssetStore):
                             print(f"[asset_repository] Auto-healed missing transcript at {transcript_path}")
                         except Exception as e:
                             print(f"[asset_repository] Failed to auto-heal missing transcript at {transcript_path}: {e}")
+                    
+                    if not os.path.exists(thumb_path):
+                        try:
+                            self.extract_clip_screenshot(video_path, 0.0, thumb_path)
+                            print(f"[asset_repository] Auto-healed missing thumbnail at {thumb_path}")
+                        except Exception as e:
+                            print(f"[asset_repository] Failed to auto-heal missing thumbnail at {thumb_path}: {e}")
                     
                     mtime = os.path.getmtime(video_path)
                     clip_id = clip_entry.name
@@ -749,6 +772,10 @@ class AssetRepository(AssetStore):
                             end_time = float(parts[1])
                             if len(parts) >= 3:
                                 theme = " ".join(parts[2:])
+                            else:
+                                m1, s1 = divmod(int(start_time), 60)
+                                m2, s2 = divmod(int(end_time), 60)
+                                theme = f"Clip {m1:02d}:{s1:02d} - {m2:02d}:{s2:02d}"
                         except:
                             pass
                     
@@ -761,7 +788,8 @@ class AssetRepository(AssetStore):
                         "end_time": end_time,
                         "duration": duration,
                         "mtime": mtime,
-                        "asset_url": f"/assets/clips/{parent_name}/{clip_id}/video.mp4"
+                        "asset_url": f"/assets/clips/{parent_name}/{clip_id}/video.mp4",
+                        "thumbnail_url": f"/assets/clips/{parent_name}/{clip_id}/thumbnail.jpg"
                     })
         
         results.sort(key=lambda x: x["mtime"], reverse=True)

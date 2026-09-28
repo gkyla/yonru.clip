@@ -587,7 +587,9 @@ async function loadReadyClip(clip: ReadyClip) {
       clip.folder_name,
       clip.clip_id,
       clip.theme || clip.title,
-      clip.thumbnail_url
+      clip.thumbnail_url,
+      clip.theme,
+      clip.title
     );
 
     let hookIndex = 0;

@@ -13,7 +13,7 @@ A rendered or extracted standalone video clip derived from a Hook that is availa
 _Avoid_: Exported video, snippet, output file
 
 **Last Accessed Clip**:
-The clip session that was most recently explicitly opened into the Studio Editor and tracked in the workspace for quick-resume editing via the Navigation Sidebar. Unopened background-generated clips or newly discovered hooks are never treated as the Last Accessed Clip until opened.
+The clip session that was most recently explicitly opened into the Studio Editor and tracked in the workspace for quick-resume editing via the Navigation Sidebar. Retains the Hook theme title, the parent Source Video title, and a static thumbnail image. Unopened background-generated clips or newly discovered hooks are never treated as the Last Accessed Clip until opened.
 _Avoid_: Recent project, draft, active session
 
 **Source Video / Cached Video**:
