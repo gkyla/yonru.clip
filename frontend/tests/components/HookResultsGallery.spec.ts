@@ -292,4 +292,313 @@ describe('HookResultsGallery Component (Cinematic Hook Cards)', () => {
     expect(wrapper.find('video[controls]').exists()).toBe(false);
     expect(wrapper.text()).toContain('Video source unavailable');
   });
+
+  it('renders Two-Tier Hook Timing Slider with Full Video Overview and Zoomed Window', async () => {
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: 'http://localhost:8000/static/test_folder/preview.mp4',
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          Icon: { template: '<span class="icon-stub"></span>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    });
+
+    const vm = wrapper.vm as any;
+    vm.selectedModalHook = { ...mockState.hooks.value[0] };
+    vm.showAdjustDuration = true;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('Full Video Overview');
+    expect(wrapper.text()).toContain('Adjust Hook Boundaries');
+    expect(wrapper.text()).toContain('Zoomed Window');
+    expect(wrapper.text()).toContain('Clip Duration: 00:32');
+    expect(wrapper.find('#modal-hook-slider').exists()).toBe(true);
+  });
+
+  it('synchronizes start and end input strings reactively during slider dragging', async () => {
+    const wrapper = mount(HookResultsGallery, {
+      attachTo: document.body,
+      props: {
+        previewVideoUrl: 'http://localhost:8000/static/test_folder/preview.mp4',
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          Icon: { template: '<span class="icon-stub"></span>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    });
+
+    const vm = wrapper.vm as any;
+    vm.selectedModalHook = { ...mockState.hooks.value[0], start: 10, end: 40 };
+    vm.showAdjustDuration = true;
+    await wrapper.vm.$nextTick();
+
+    // Verify initial input strings (safetyBuffer = 2, so start is 10 - 2 = 8s -> 00:08)
+    expect(vm.startInputStr).toBe('00:08');
+    expect(vm.endInputStr).toBe('00:40');
+
+    // Start dragging end handle
+    vm.startDrag('end');
+    expect(vm.dragInitialEnd).toBe(40);
+
+    const sliderEl =
+      vm.modalHookSliderRef || document.getElementById('modal-hook-slider');
+    expect(sliderEl).toBeTruthy();
+    if (sliderEl) {
+      vi.spyOn(sliderEl, 'getBoundingClientRect').mockReturnValue({
+        left: 0,
+        width: 100,
+        top: 0,
+        bottom: 20,
+        right: 100,
+        height: 20,
+        x: 0,
+        y: 0,
+        toJSON: () => {}
+      });
+    }
+
+    // Set micro window manually for deterministic test: 0 to 100s
+    vm.microWindowStart = 0;
+    vm.microWindowEnd = 100;
+
+    // Drag to 60% of micro duration (60s)
+    const mouseMoveEvent = new MouseEvent('mousemove', { clientX: 60 });
+    window.dispatchEvent(mouseMoveEvent);
+
+    expect(vm.selectedModalHook.end).toBe(60);
+    // endInputStr must be synchronized in real time!
+    expect(vm.endInputStr).toBe('01:00');
+
+    // Drag start handle to 20% (20s)
+    vm.startDrag('start');
+    const mouseMoveStartEvent = new MouseEvent('mousemove', { clientX: 20 });
+    window.dispatchEvent(mouseMoveStartEvent);
+
+    // startInputStr must be synchronized in real time!
+    expect(vm.startInputStr).toBe('00:20');
+    expect(vm.selectedModalHook.start).toBe(22); // 20 + safetyBuffer 2
+    wrapper.unmount();
+  });
+
+  it('previews playback delta from old end to new end when extending end time', async () => {
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: 'http://localhost:8000/static/test_folder/preview.mp4',
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          Icon: { template: '<span class="icon-stub"></span>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    });
+
+    const vm = wrapper.vm as any;
+    vm.selectedModalHook = { ...mockState.hooks.value[0], start: 10, end: 40 };
+    vm.showAdjustDuration = true;
+    await wrapper.vm.$nextTick();
+
+    const mockPlay = vi.fn().mockResolvedValue(undefined);
+    vm.modalVideoPlayer = {
+      currentTime: 0,
+      play: mockPlay
+    };
+
+    // User starts dragging end from 40s
+    vm.startDrag('end');
+    expect(vm.dragInitialEnd).toBe(40);
+
+    // Extend end to 65s
+    vm.selectedModalHook.end = 65;
+    vm.stopDragging();
+
+    // Must seek to previous end time (40s) and play forward to preview newly added segment!
+    expect(vm.modalVideoPlayer.currentTime).toBe(40);
+    expect(mockPlay).toHaveBeenCalled();
+    expect(vm.isPreviewingDelta).toBe(true);
+
+    // When video reaches new end (65s), timeupdate should reset playback to effectiveStart (10 - 2 = 8s)
+    let currentTime = 65;
+    vm.onModalTimeUpdate({
+      target: {
+        get currentTime() {
+          return currentTime;
+        },
+        set currentTime(val: number) {
+          currentTime = val;
+          vm.modalVideoPlayer.currentTime = val;
+        }
+      }
+    } as any);
+
+    expect(vm.modalVideoPlayer.currentTime).toBe(8);
+    expect(vm.isPreviewingDelta).toBe(false);
+  });
+
+  it('previews tail context when shortening end time', async () => {
+    const wrapper = mount(HookResultsGallery, {
+      props: {
+        previewVideoUrl: 'http://localhost:8000/static/test_folder/preview.mp4',
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          Icon: { template: '<span class="icon-stub"></span>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    });
+
+    const vm = wrapper.vm as any;
+    vm.selectedModalHook = { ...mockState.hooks.value[0], start: 10, end: 40 };
+    vm.showAdjustDuration = true;
+    await wrapper.vm.$nextTick();
+
+    const mockPlay = vi.fn().mockResolvedValue(undefined);
+    vm.modalVideoPlayer = {
+      currentTime: 0,
+      play: mockPlay
+    };
+
+    // User starts dragging end from 40s
+    vm.startDrag('end');
+    expect(vm.dragInitialEnd).toBe(40);
+
+    // Shorten end to 30s
+    vm.selectedModalHook.end = 30;
+    vm.stopDragging();
+
+    // Must seek to tail review (30 - 3 = 27s) and play forward
+    expect(vm.modalVideoPlayer.currentTime).toBe(27);
+    expect(mockPlay).toHaveBeenCalled();
+    expect(vm.isPreviewingDelta).toBe(true);
+  });
+
+  it('prevents runaway window expansion and sensitivity explosion when scrubbing near slider boundary', async () => {
+    const wrapper = mount(HookResultsGallery, {
+      attachTo: document.body,
+      props: {
+        previewVideoUrl: 'http://localhost:8000/static/test_folder/preview.mp4',
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          Icon: { template: '<span class="icon-stub"></span>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    });
+
+    const vm = wrapper.vm as any;
+    vm.selectedModalHook = { ...mockState.hooks.value[0], start: 10, end: 40 };
+    vm.showAdjustDuration = true;
+    await wrapper.vm.$nextTick();
+
+    const sliderEl =
+      vm.modalHookSliderRef || document.getElementById('modal-hook-slider');
+    if (sliderEl) {
+      vi.spyOn(sliderEl, 'getBoundingClientRect').mockReturnValue({
+        left: 0,
+        width: 100,
+        top: 0,
+        bottom: 20,
+        right: 100,
+        height: 20,
+        x: 0,
+        y: 0,
+        toJSON: () => {}
+      });
+    }
+
+    // Initial micro window: 0 to 70s
+    vm.microWindowStart = 0;
+    vm.microWindowEnd = 70;
+
+    vm.startDrag('end');
+
+    // Drag to right edge (clientX = 99) 3 times consecutively (simulating small mouse jitter at the edge)
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 99 }));
+    const firstWindowEnd = vm.microWindowEnd;
+
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 99 }));
+    const secondWindowEnd = vm.microWindowEnd;
+
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 99 }));
+    const thirdWindowEnd = vm.microWindowEnd;
+
+    // Window must NOT runaway expand on consecutive events at the same position!
+    expect(secondWindowEnd).toBe(firstWindowEnd);
+    expect(thirdWindowEnd).toBe(firstWindowEnd);
+
+    vm.stopDragging();
+    wrapper.unmount();
+  });
+
+  it('activates edge auto-scroll when dragging near boundary and scrolls smoothly', async () => {
+    const wrapper = mount(HookResultsGallery, {
+      attachTo: document.body,
+      props: {
+        previewVideoUrl: 'http://localhost:8000/static/test_folder/preview.mp4',
+        readyClips: []
+      },
+      global: {
+        stubs: {
+          Icon: { template: '<span class="icon-stub"></span>' },
+          Transition: { template: '<div><slot /></div>' }
+        }
+      }
+    });
+
+    const vm = wrapper.vm as any;
+    vm.selectedModalHook = { ...mockState.hooks.value[0], start: 10, end: 40 };
+    vm.showAdjustDuration = true;
+    await wrapper.vm.$nextTick();
+
+    const sliderEl =
+      vm.modalHookSliderRef || document.getElementById('modal-hook-slider');
+    if (sliderEl) {
+      vi.spyOn(sliderEl, 'getBoundingClientRect').mockReturnValue({
+        left: 0,
+        width: 100,
+        top: 0,
+        bottom: 20,
+        right: 100,
+        height: 20,
+        x: 0,
+        y: 0,
+        toJSON: () => {}
+      });
+    }
+
+    vm.microWindowStart = 0;
+    vm.microWindowEnd = 70;
+
+    vm.startDrag('end');
+
+    // Drag to right edge (clientX = 99)
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 99 }));
+    expect(vm.edgeScrollDirection).toBe(1);
+
+    // Simulate stepEdgeAutoScroll frame advancing by 100ms
+    vm.stepEdgeAutoScroll(1000);
+    vm.stepEdgeAutoScroll(1100);
+
+    // End boundary should have advanced smoothly
+    expect(vm.selectedModalHook.end).toBeGreaterThan(69);
+
+    // Move back to middle (clientX = 50)
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 50 }));
+    expect(vm.edgeScrollDirection).toBe(0);
+
+    vm.stopDragging();
+    wrapper.unmount();
+  });
 });
