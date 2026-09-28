@@ -1,0 +1,16 @@
+#!/bin/sh
+# 1. Frontend Unit Tests
+cd frontend
+echo "Running pre-push Frontend Unit Tests (Vitest)..."
+npm run test || exit 1
+
+# 2. Backend Unit Tests
+cd ../backend
+echo "Running pre-push Backend Unit Tests (Pytest)..."
+if [ -f "venv/Scripts/pytest.exe" ] || [ -f "venv/Scripts/pytest" ]; then
+    venv/Scripts/pytest || exit 1
+elif [ -f "venv/bin/pytest" ]; then
+    venv/bin/pytest || exit 1
+else
+    python -m pytest || exit 1
+fi
