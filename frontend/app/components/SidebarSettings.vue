@@ -1476,7 +1476,7 @@
               <h2
                 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold flex items-center justify-between"
               >
-                <span>Positioning & Vertical Offset</span>
+                <span>Subtitle Positioning</span>
                 <Icon name="ri:align-center" class="text-slate-400" />
               </h2>
 
