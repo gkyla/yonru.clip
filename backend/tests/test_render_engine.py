@@ -522,6 +522,66 @@ class TestRenderEngine(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
+    def test_resolve_npx_command_windows(self):
+        with patch("sys.platform", "win32"), patch("shutil.which") as mock_which:
+            mock_which.side_effect = lambda cmd: "C:\\Program Files\\nodejs\\npx.cmd" if cmd == "npx.cmd" else None
+            cmd = RenderPipelineCoordinator.resolve_npx_command()
+            self.assertEqual(cmd, "C:\\Program Files\\nodejs\\npx.cmd")
+
+        with patch("sys.platform", "win32"), patch("shutil.which", return_value=None):
+            cmd = RenderPipelineCoordinator.resolve_npx_command()
+            self.assertEqual(cmd, "npx.cmd")
+
+    def test_resolve_npx_command_unix(self):
+        with patch("sys.platform", "darwin"), patch("shutil.which", return_value="/usr/local/bin/npx"):
+            cmd = RenderPipelineCoordinator.resolve_npx_command()
+            self.assertEqual(cmd, "/usr/local/bin/npx")
+
+    def test_build_remotion_cmd_path_normalization(self):
+        coordinator = RenderPipelineCoordinator()
+        mock_ctx = MagicMock()
+        mock_ctx.props_path = "C:\\Users\\tester\\output\\props_clip.json"
+        mock_ctx.frames = 300
+        comp = RenderComposition("test.mp4", 960, fps=30.0)
+
+        cmd = coordinator._build_remotion_cmd(mock_ctx, comp, "static/output/clip.mp4")
+        self.assertIn("--overwrite", cmd)
+        self.assertNotIn("--force", cmd)
+        # Props path must have forward slashes
+        props_idx = cmd.index("--props")
+        self.assertEqual(cmd[props_idx + 1], "C:/Users/tester/output/props_clip.json")
+        self.assertNotIn("\\", cmd[props_idx + 1])
+        # Output path must have forward slashes
+        self.assertTrue(cmd[7].endswith("/static/output/clip.mp4"))
+        self.assertNotIn("\\", cmd[7])
+
+    def test_render_streaming_captures_error_ring_buffer(self):
+        coordinator = RenderPipelineCoordinator()
+        comp = RenderComposition("test.mp4", 960, fps=30.0, clip_duration=2.0)
+
+        mock_proc = MagicMock()
+        mock_proc.stdout.readline.side_effect = [
+            "Bundling 10%\n",
+            "Error: [Chrome Headless Shell] GPU process launch failed\n",
+            "at /shared/remotion/node_modules/remotion/render.js:42\n",
+            ""
+        ]
+        mock_proc.poll.return_value = 1
+        mock_proc.returncode = 1
+
+        with patch.object(coordinator, "_build_remotion_cmd", return_value=["npx", "remotion", "render"]), \
+             patch("core.render_engine.StagedRenderContext.__enter__", return_value=MagicMock(frames=60, remotion_dir=".")), \
+             patch("core.render_engine.StagedRenderContext.__exit__"), \
+             patch("subprocess.Popen", return_value=mock_proc):
+
+            events = list(coordinator.render_streaming(comp, "test_out.mp4"))
+            error_events = [e for e in events if e.get("stage") == "error"]
+            self.assertEqual(len(error_events), 1)
+            err_msg = error_events[0]["message"]
+            self.assertIn("Remotion exited with code 1", err_msg)
+            self.assertIn("GPU process launch failed", err_msg)
+
+
 
 
 
