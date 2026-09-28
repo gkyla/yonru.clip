@@ -17,12 +17,14 @@ export const RemotionRoot: React.FC = () => {
         fps={inputProps.fps || 30}
         width={1080}
         height={1920}
-        defaultProps={{
-          videoPath: '',
-          words: [],
-          cropX: 0,
-          position: 'center'
-        } as YonruClipProps}
+        defaultProps={
+          {
+            videoPath: '',
+            words: [],
+            cropX: 0,
+            position: 'center'
+          } as YonruClipProps
+        }
       />
     </>
   );

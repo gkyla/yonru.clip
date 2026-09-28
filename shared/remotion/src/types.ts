@@ -12,15 +12,22 @@ export interface CropMapEntry {
   bottom_x?: number;
 }
 
-export type AnimationType = 'pop' | 'slide-up' | 'fade' | 'bounce' | 'typewriter' | 'karaoke' | 'none';
+export type AnimationType =
+  | 'pop'
+  | 'slide-up'
+  | 'fade'
+  | 'bounce'
+  | 'typewriter'
+  | 'karaoke'
+  | 'none';
 export type HighlightMode = 'color' | 'scale' | 'underline' | 'box' | 'none';
 export type TextBackground = 'none' | 'box' | 'blur';
 
 export interface ThumbnailTextOverlay {
   id: string;
   text: string;
-  x: number;        // 0-1080
-  y: number;        // 0-1920
+  x: number; // 0-1080
+  y: number; // 0-1920
   fontSize: number;
   fontFamily: string;
   fontWeight: number;
@@ -90,7 +97,7 @@ export interface YonruClipProps {
   bleepAudioSrc?: string;
   // Thumbnail
   thumbnailEnabled?: boolean;
-  thumbnailDuration?: number;  // seconds
+  thumbnailDuration?: number; // seconds
   thumbnailImagePath?: string;
   thumbnailTextOverlays?: ThumbnailTextOverlay[];
   thumbnailXOffset?: number;
@@ -116,7 +123,7 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   highlightMode: 'color',
   background: 'none',
   backgroundOpacity: 0.7,
-  wordSpacing: 0,
+  wordSpacing: 0
 };
 
 // Style presets
@@ -144,7 +151,7 @@ export const STYLE_PRESETS: StylePreset[] = [
       animation: 'pop',
       highlightMode: 'color',
       background: 'none',
-      backgroundOpacity: 0.7,
+      backgroundOpacity: 0.7
     }
   },
   {
@@ -163,7 +170,7 @@ export const STYLE_PRESETS: StylePreset[] = [
       animation: 'karaoke',
       highlightMode: 'scale',
       background: 'blur',
-      backgroundOpacity: 0.6,
+      backgroundOpacity: 0.6
     }
   },
   {
@@ -182,7 +189,7 @@ export const STYLE_PRESETS: StylePreset[] = [
       animation: 'pop',
       highlightMode: 'color',
       background: 'none',
-      backgroundOpacity: 0.8,
+      backgroundOpacity: 0.8
     }
   },
   {
@@ -201,7 +208,7 @@ export const STYLE_PRESETS: StylePreset[] = [
       animation: 'typewriter',
       highlightMode: 'underline',
       background: 'none',
-      backgroundOpacity: 0.7,
+      backgroundOpacity: 0.7
     }
   },
   {
@@ -220,7 +227,7 @@ export const STYLE_PRESETS: StylePreset[] = [
       animation: 'karaoke',
       highlightMode: 'color',
       background: 'none',
-      backgroundOpacity: 0.7,
+      backgroundOpacity: 0.7
     }
   },
   {
@@ -239,9 +246,9 @@ export const STYLE_PRESETS: StylePreset[] = [
       animation: 'slide-up',
       highlightMode: 'scale',
       background: 'none',
-      backgroundOpacity: 0.5,
+      backgroundOpacity: 0.5
     }
-  },
+  }
 ];
 
 // Curated color palette
@@ -255,6 +262,5 @@ export const COLOR_PALETTE = [
   '#34D399', // Emerald
   '#FB923C', // Orange
   '#F472B6', // Pink
-  '#000000', // Black
+  '#000000' // Black
 ];
-

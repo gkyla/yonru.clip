@@ -7,10 +7,24 @@
 const fontCache: Record<string, string> = {};
 
 const FONT_LIST = [
-  'Montserrat', 'Inter', 'Bebas Neue', 'Oswald', 'Poppins', 
-  'Outfit', 'Noto Sans', 'Roboto Condensed', 'Playfair Display',
-  'Anton', 'Bangers', 'Permanent Marker', 'Russo One', 'Teko',
-  'Luckiest Guy', 'Titan One', 'Lilita One', 'Passion One'
+  'Montserrat',
+  'Inter',
+  'Bebas Neue',
+  'Oswald',
+  'Poppins',
+  'Outfit',
+  'Noto Sans',
+  'Roboto Condensed',
+  'Playfair Display',
+  'Anton',
+  'Bangers',
+  'Permanent Marker',
+  'Russo One',
+  'Teko',
+  'Luckiest Guy',
+  'Titan One',
+  'Lilita One',
+  'Passion One'
 ];
 
 /**
@@ -30,4 +44,3 @@ export function getFont(name: string): string {
   // Fallback: use the raw name (works for system fonts like Arial)
   return `"${name}", system-ui, -apple-system, sans-serif`;
 }
-
