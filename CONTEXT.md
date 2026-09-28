@@ -149,6 +149,10 @@ _Avoid_: Hook list, results screen, card grid, clip browser
 The focused inspection dialog providing synchronized video playback, start/end timestamp adjustments, transcript excerpts, and the AI Virality Rationale breakdown before opening a clip in the Studio Editor.
 _Avoid_: Video preview popup, hook detail modal, player dialog
 
+**Two-Tier Hook Timing Slider**:
+The dual-scale timeline control within the Cinematic Hook Preview Modal comprising a macro source video overview bar and an expanded micro context window for precise hook boundary adjustment without handle collision.
+_Avoid_: Dual slider, time scrub, range picker, clip trimmer
+
 **Cached Video Library**:
 The local storage repository and grid interface showcasing previously ingested and processed source videos for instant re-analysis, hook replay, or offline management without re-downloading.
 _Avoid_: Download history, video cache list, saved files

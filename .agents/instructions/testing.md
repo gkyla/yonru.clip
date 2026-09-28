@@ -25,3 +25,12 @@ graph TD
 
 ### 3. Frontend Testing
 - **Colocation and Framework**: For frontend TDD cycles, write colocated `*.spec.ts` files inside the `frontend/tests/` folder (organized by mirroring the app folder structure, e.g., `tests/components/` or `tests/pages/`), leveraging Vitest, Happy DOM, and `@nuxt/test-utils`.
+- **Strict Node.js Runner**: All frontend test execution must run on Node.js using Vitest. Never invoke tests with Bun (`bun test` is completely forbidden as it breaks Happy DOM / `@nuxt/test-utils` and causes widespread test suite failures).
+
+### 4. Canonical Test Commands
+Agents must strictly use these command patterns:
+- **Run all frontend tests**: `cd frontend && rtk npm test` (or `npm --prefix frontend test`)
+- **Run specific frontend test file**: `cd frontend && rtk npm test -- tests/components/<file>.spec.ts`
+- **Run all backend tests**: `cd backend && rtk pytest`
+- **Run specific backend test**: `cd backend && rtk pytest tests/<file>.py`
+

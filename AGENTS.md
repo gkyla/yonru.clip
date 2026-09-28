@@ -6,6 +6,8 @@ This document formalizes the development guidelines, testing loops, and architec
 - **Frontend**: **Nuxt 4 (`^4.4.x`)** using the `frontend/app/` directory structure, **Vue 3.5+**, **Vite**, and **TailwindCSS**. Developer agents must strictly anchor all mental models and documentation to Nuxt 4 (never Nuxt 3).
 - **Backend**: **Python 3.12+**, **FastAPI**, and **Pyright**.
 - **Inspection Rule**: Always check `frontend/package.json` before diagnosing issues or proposing framework changes.
+- **Node.js Runtime & CLI Enforcement (Strict)**: All frontend testing, building, linting, and formatting **MUST strictly execute under Node.js (`npm` / `npx`)**. Developer agents **MUST NEVER** run `bun test`, `bun run`, or `bunx`. Bun is strictly restricted to opportunistic dependency installation (`bun install`) in `run.py` per [ADR 0016](docs/adr/0016-opportunistic-bun-package-management.md).
+
 
 ## Detailed Guidelines
 
