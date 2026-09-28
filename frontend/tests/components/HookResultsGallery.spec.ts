@@ -1,8 +1,8 @@
 // @vitest-environment nuxt
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
-import HookResultsGallery from '../../app/components/home/HookResultsGallery.vue'
-import { ref } from 'vue'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mount } from '@vue/test-utils';
+import HookResultsGallery from '../../app/components/home/HookResultsGallery.vue';
+import { ref } from 'vue';
 
 const mockState = {
   hooks: ref([
@@ -10,7 +10,8 @@ const mockState = {
       start: 10,
       end: 40,
       theme: 'How AI Automation Works',
-      transcript_quote: 'We built an agent that automates the entire workflow seamlessly.',
+      transcript_quote:
+        'We built an agent that automates the entire workflow seamlessly.',
       virality_score: 95,
       virality_reason: 'High intrigue hook with strong value proposition.'
     },
@@ -36,7 +37,8 @@ const mockState = {
       start: 10,
       end: 40,
       theme: 'How AI Automation Works',
-      transcript_quote: 'We built an agent that automates the entire workflow seamlessly.',
+      transcript_quote:
+        'We built an agent that automates the entire workflow seamlessly.',
       virality_score: 95,
       virality_reason: 'High intrigue hook with strong value proposition.'
     }
@@ -54,30 +56,31 @@ const mockState = {
   saveHook: vi.fn(),
   deleteSavedHook: vi.fn(),
   formatDuration: (sec: number) => {
-    const m = Math.floor(sec / 60)
-    const s = Math.floor(sec % 60)
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
-}
+};
 
 vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => mockState
-}))
+}));
 
 describe('HookResultsGallery Component (Cinematic Hook Cards)', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.clearAllMocks();
     mockState.savedHooks.value = [
       {
         start: 10,
         end: 40,
         theme: 'How AI Automation Works',
-        transcript_quote: 'We built an agent that automates the entire workflow seamlessly.',
+        transcript_quote:
+          'We built an agent that automates the entire workflow seamlessly.',
         virality_score: 95,
         virality_reason: 'High intrigue hook with strong value proposition.'
       }
-    ]
-  })
+    ];
+  });
 
   it('renders unified hook score pill in top-left overlay with virality color tiers', () => {
     const wrapper = mount(HookResultsGallery, {
@@ -93,27 +96,27 @@ describe('HookResultsGallery Component (Cinematic Hook Cards)', () => {
           Transition: false
         }
       }
-    })
+    });
 
     // First card: Hook 01 with score 95 (emerald tier)
-    const text = wrapper.text()
-    expect(text).toContain('HOOK 01')
-    expect(text).toContain('95')
+    const text = wrapper.text();
+    expect(text).toContain('HOOK 01');
+    expect(text).toContain('95');
 
     // Check virality score color styling on first card
-    const emeraldPills = wrapper.findAll('.text-emerald-400')
-    expect(emeraldPills.length).toBeGreaterThan(0)
+    const emeraldPills = wrapper.findAll('.text-emerald-400');
+    expect(emeraldPills.length).toBeGreaterThan(0);
 
     // Check second card score 82 (cyan tier)
-    expect(text).toContain('HOOK 02')
-    expect(text).toContain('82')
-    const cyanPills = wrapper.findAll('.text-cyan-400')
-    expect(cyanPills.length).toBeGreaterThan(0)
+    expect(text).toContain('HOOK 02');
+    expect(text).toContain('82');
+    const cyanPills = wrapper.findAll('.text-cyan-400');
+    expect(cyanPills.length).toBeGreaterThan(0);
 
     // Check third card score 65 (slate tier)
-    expect(text).toContain('HOOK 03')
-    expect(text).toContain('65')
-  })
+    expect(text).toContain('HOOK 03');
+    expect(text).toContain('65');
+  });
 
   it('renders ambient ready indicator when hook matches a ready clip', () => {
     const wrapper = mount(HookResultsGallery, {
@@ -138,10 +141,10 @@ describe('HookResultsGallery Component (Cinematic Hook Cards)', () => {
           Transition: false
         }
       }
-    })
+    });
 
-    expect(wrapper.text()).toContain('Ready')
-  })
+    expect(wrapper.text()).toContain('Ready');
+  });
 
   it('toggles saved hook on bookmark click and prevents modal opening', async () => {
     const wrapper = mount(HookResultsGallery, {
@@ -157,20 +160,20 @@ describe('HookResultsGallery Component (Cinematic Hook Cards)', () => {
           Transition: false
         }
       }
-    })
+    });
 
-    const bookmarkBtns = wrapper.findAll('button[aria-label="Bookmark Hook"]')
-    expect(bookmarkBtns.length).toBeGreaterThan(0)
+    const bookmarkBtns = wrapper.findAll('button[aria-label="Bookmark Hook"]');
+    expect(bookmarkBtns.length).toBeGreaterThan(0);
 
     // First hook in mockState is in savedHooks, but doesn't have _id so it calls saveHook for non-saved hooks
     // Second hook (idx 1) is not saved
-    await bookmarkBtns[1]!.trigger('click')
-    expect(mockState.saveHook).toHaveBeenCalledTimes(1)
+    await bookmarkBtns[1]!.trigger('click');
+    expect(mockState.saveHook).toHaveBeenCalledTimes(1);
 
     // Modal should not open
-    const vm = wrapper.vm as any
-    expect(vm.selectedModalHook).toBeNull()
-  })
+    const vm = wrapper.vm as any;
+    expect(vm.selectedModalHook).toBeNull();
+  });
 
   it('renders streamlined card body with theme, quote, timestamp range, and preview CTA', () => {
     const wrapper = mount(HookResultsGallery, {
@@ -186,14 +189,16 @@ describe('HookResultsGallery Component (Cinematic Hook Cards)', () => {
           Transition: false
         }
       }
-    })
+    });
 
-    expect(wrapper.text()).toContain('How AI Automation Works')
-    expect(wrapper.text()).toContain('We built an agent that automates the entire workflow seamlessly.')
-    expect(wrapper.text()).toContain('00:10')
-    expect(wrapper.text()).toContain('00:40')
-    expect(wrapper.text()).toContain('Preview Segment')
-  })
+    expect(wrapper.text()).toContain('How AI Automation Works');
+    expect(wrapper.text()).toContain(
+      'We built an agent that automates the entire workflow seamlessly.'
+    );
+    expect(wrapper.text()).toContain('00:10');
+    expect(wrapper.text()).toContain('00:40');
+    expect(wrapper.text()).toContain('Preview Segment');
+  });
 
   it('renders saved hooks tab with amber styling and active bookmark state', async () => {
     const wrapper = mount(HookResultsGallery, {
@@ -211,22 +216,22 @@ describe('HookResultsGallery Component (Cinematic Hook Cards)', () => {
           }
         }
       }
-    })
+    });
 
     // Click Saved Hooks tab
-    const vm = wrapper.vm as any
-    vm.activeTab = 'saved'
-    await wrapper.vm.$nextTick()
+    const vm = wrapper.vm as any;
+    vm.activeTab = 'saved';
+    await wrapper.vm.$nextTick();
 
-    const text = wrapper.text()
-    expect(text).toContain('SAVED 01')
-    expect(text).toContain('How AI Automation Works')
-  })
+    const text = wrapper.text();
+    expect(text).toContain('SAVED 01');
+    expect(text).toContain('How AI Automation Works');
+  });
 
   it('resolves fallback source url from folderName when videoUrl and previewVideoUrl are null', async () => {
-    mockState.videoUrl.value = null
-    mockState.folderName.value = 'fallback_folder'
-    mockState.hasPreview.value = true
+    mockState.videoUrl.value = null;
+    mockState.folderName.value = 'fallback_folder';
+    mockState.hasPreview.value = true;
 
     const wrapper = mount(HookResultsGallery, {
       props: {
@@ -239,20 +244,25 @@ describe('HookResultsGallery Component (Cinematic Hook Cards)', () => {
           Transition: { template: '<div><slot /></div>' }
         }
       }
-    })
+    });
 
-    const vm = wrapper.vm as any
-    vm.selectedModalHook = mockState.hooks.value[0]
-    await wrapper.vm.$nextTick()
+    const vm = wrapper.vm as any;
+    vm.selectedModalHook = mockState.hooks.value[0];
+    await wrapper.vm.$nextTick();
 
-    expect(vm.modalVideoUrl).toBe('http://localhost:8000/assets/sources/fallback_folder/preview.mp4')
-    const modalVideo = wrapper.find('video[controls]')
-    expect(modalVideo.exists()).toBe(true)
-    expect(modalVideo.attributes('src')).toBe('http://localhost:8000/assets/sources/fallback_folder/preview.mp4')
-  })
+    expect(vm.modalVideoUrl).toBe(
+      'http://localhost:8000/assets/sources/fallback_folder/preview.mp4'
+    );
+    const modalVideo = wrapper.find('video[controls]');
+    expect(modalVideo.exists()).toBe(true);
+    expect(modalVideo.attributes('src')).toBe(
+      'http://localhost:8000/assets/sources/fallback_folder/preview.mp4'
+    );
+  });
 
   it('displays fallback message gracefully when video triggers an error event', async () => {
-    mockState.videoUrl.value = 'http://localhost:8000/assets/sources/broken/full.mp4'
+    mockState.videoUrl.value =
+      'http://localhost:8000/assets/sources/broken/full.mp4';
 
     const wrapper = mount(HookResultsGallery, {
       props: {
@@ -265,21 +275,21 @@ describe('HookResultsGallery Component (Cinematic Hook Cards)', () => {
           Transition: { template: '<div><slot /></div>' }
         }
       }
-    })
+    });
 
-    const vm = wrapper.vm as any
-    vm.selectedModalHook = mockState.hooks.value[0]
-    await wrapper.vm.$nextTick()
+    const vm = wrapper.vm as any;
+    vm.selectedModalHook = mockState.hooks.value[0];
+    await wrapper.vm.$nextTick();
 
-    const modalVideo = wrapper.find('video[controls]')
-    expect(modalVideo.exists()).toBe(true)
+    const modalVideo = wrapper.find('video[controls]');
+    expect(modalVideo.exists()).toBe(true);
 
     // Trigger video error on modal video
-    await modalVideo.trigger('error')
-    await wrapper.vm.$nextTick()
+    await modalVideo.trigger('error');
+    await wrapper.vm.$nextTick();
 
     // Modal video should unmount and fallback message should be visible
-    expect(wrapper.find('video[controls]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('Video source unavailable')
-  })
-})
+    expect(wrapper.find('video[controls]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('Video source unavailable');
+  });
+});

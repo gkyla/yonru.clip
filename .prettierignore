@@ -1,0 +1,12 @@
+node_modules
+.nuxt
+.output
+dist
+backend/venv
+.pytest_cache
+*.mp4
+*.mov
+*.avi
+*.mkv
+temp_assets
+scratch

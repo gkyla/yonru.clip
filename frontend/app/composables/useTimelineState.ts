@@ -1,45 +1,78 @@
 // useTimelineState.ts - Extracted timeline tracks and duration sequencing logic
-import { nextTick } from 'vue'
-import { calculateTimelineDuration, calculateVideoTime } from '../utils/timelineHelpers'
-import { TimelineTransactionEngine } from '../utils/timelineHistory'
-import type { TimelineTrack, TimelineTrackItem, TranscriptSegment, HistorySnapshot } from '../types/clipper'
+import { nextTick } from 'vue';
+import {
+  calculateTimelineDuration,
+  calculateVideoTime
+} from '../utils/timelineHelpers';
+import { TimelineTransactionEngine } from '../utils/timelineHistory';
+import type {
+  TimelineTrack,
+  TimelineTrackItem,
+  TranscriptSegment,
+  HistorySnapshot
+} from '../types/clipper';
 
 export const useTimelineState = () => {
-  const historyManager = new TimelineTransactionEngine(50)
-  const API_BASE = 'http://localhost:8000'
+  const historyManager = new TimelineTransactionEngine(50);
+  const API_BASE = 'http://localhost:8000';
 
   const timelineTracks = useState<TimelineTrack[]>('timelineTracks', () => [
     { id: 'video', name: 'Main Video', type: 'video', items: [] },
     { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
     { id: 'text', name: 'Text layers', type: 'text', items: [] },
     { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
-  ])
-  const defaultTimelineTextStyle = useState<Partial<TimelineTrackItem> | null>('defaultTimelineTextStyle', () => null)
-  const selectedTimelineItem = useState<TimelineTrackItem | null>('selectedTimelineItem', () => null)
-  const isSavingLocked = useState<boolean>('isSavingLocked', () => false)
-  const isTimelineShifting = useState<boolean>('isTimelineShifting', () => false)
+  ]);
+  const defaultTimelineTextStyle = useState<Partial<TimelineTrackItem> | null>(
+    'defaultTimelineTextStyle',
+    () => null
+  );
+  const selectedTimelineItem = useState<TimelineTrackItem | null>(
+    'selectedTimelineItem',
+    () => null
+  );
+  const isSavingLocked = useState<boolean>('isSavingLocked', () => false);
+  const isTimelineShifting = useState<boolean>(
+    'isTimelineShifting',
+    () => false
+  );
 
   // External states synced globally via useState
-  const thumbnailEnabled = useState<boolean>('thumbnailEnabled')
-  const thumbnailDuration = useState<number>('thumbnailDuration')
-  const videoDuration = useState<number>('videoDuration')
-  const currentTime = useState<number>('currentTime')
-  const folderName = useState<string | null>('folderName')
-  const clipId = useState<string | null>('clipId')
-  const fullTranscript = useState<TranscriptSegment[]>('fullTranscript', () => [])
+  const thumbnailEnabled = useState<boolean>('thumbnailEnabled');
+  const thumbnailDuration = useState<number>('thumbnailDuration');
+  const videoDuration = useState<number>('videoDuration');
+  const currentTime = useState<number>('currentTime');
+  const folderName = useState<string | null>('folderName');
+  const clipId = useState<string | null>('clipId');
+  const fullTranscript = useState<TranscriptSegment[]>(
+    'fullTranscript',
+    () => []
+  );
 
   // History state for undo/redo
-  const timelineUndoStack = useState<HistorySnapshot[]>('timelineUndoStack', () => [])
-  const timelineRedoStack = useState<HistorySnapshot[]>('timelineRedoStack', () => [])
-  const isSavingHistory = useState<boolean>('isSavingHistory', () => false)
-  const hasUnsavedHistory = useState<boolean>('hasUnsavedHistory', () => false)
-  const isHydratingHistory = useState<boolean>('isHydratingHistory', () => false)
+  const timelineUndoStack = useState<HistorySnapshot[]>(
+    'timelineUndoStack',
+    () => []
+  );
+  const timelineRedoStack = useState<HistorySnapshot[]>(
+    'timelineRedoStack',
+    () => []
+  );
+  const isSavingHistory = useState<boolean>('isSavingHistory', () => false);
+  const hasUnsavedHistory = useState<boolean>('hasUnsavedHistory', () => false);
+  const isHydratingHistory = useState<boolean>(
+    'isHydratingHistory',
+    () => false
+  );
 
   // Isolate history to specific hook/clip — save before clearing (option A)
   watch([folderName, clipId], async (_newVal, oldVal) => {
-    const [oldFolder, oldClip] = oldVal || [null, null]
+    const [oldFolder, oldClip] = oldVal || [null, null];
     // Save current stacks to backend for the old clip before clearing
-    if (oldFolder && oldClip && (timelineUndoStack.value.length > 0 || timelineRedoStack.value.length > 0)) {
+    if (
+      oldFolder &&
+      oldClip &&
+      (timelineUndoStack.value.length > 0 || timelineRedoStack.value.length > 0)
+    ) {
       try {
         await $fetch(`${API_BASE}/api/timeline-history`, {
           method: 'PUT',
@@ -49,22 +82,25 @@ export const useTimelineState = () => {
             undo_stack: timelineUndoStack.value,
             redo_stack: timelineRedoStack.value
           }
-        })
+        });
       } catch (e) {
-        console.error('[timeline] Failed to save history before clip switch:', e)
+        console.error(
+          '[timeline] Failed to save history before clip switch:',
+          e
+        );
       }
     }
-    isHydratingHistory.value = true
-    timelineUndoStack.value = []
-    timelineRedoStack.value = []
-    hasUnsavedHistory.value = false
+    isHydratingHistory.value = true;
+    timelineUndoStack.value = [];
+    timelineRedoStack.value = [];
+    hasUnsavedHistory.value = false;
     nextTick(() => {
-      isHydratingHistory.value = false
-    })
-  })
+      isHydratingHistory.value = false;
+    });
+  });
 
-  const canUndo = computed(() => timelineUndoStack.value.length > 0)
-  const canRedo = computed(() => timelineRedoStack.value.length > 0)
+  const canUndo = computed(() => timelineUndoStack.value.length > 0);
+  const canRedo = computed(() => timelineRedoStack.value.length > 0);
 
   function commitToHistory() {
     historyManager.commit(
@@ -73,7 +109,7 @@ export const useTimelineState = () => {
       timelineTracks.value,
       fullTranscript.value,
       selectedTimelineItem.value?.id || null
-    )
+    );
   }
 
   function undo() {
@@ -83,17 +119,17 @@ export const useTimelineState = () => {
       timelineTracks.value,
       fullTranscript.value,
       selectedTimelineItem.value?.id || null
-    )
+    );
     if (previousState) {
-      timelineTracks.value = previousState.tracks
-      fullTranscript.value = previousState.transcript
+      timelineTracks.value = previousState.tracks;
+      fullTranscript.value = previousState.transcript;
       if (previousState.selectedId) {
         const item = previousState.tracks
           .flatMap((t: TimelineTrack) => t.items)
-          .find((i: TimelineTrackItem) => i.id === previousState.selectedId)
-        selectedTimelineItem.value = item || null
+          .find((i: TimelineTrackItem) => i.id === previousState.selectedId);
+        selectedTimelineItem.value = item || null;
       } else {
-        selectedTimelineItem.value = null
+        selectedTimelineItem.value = null;
       }
     }
   }
@@ -105,24 +141,24 @@ export const useTimelineState = () => {
       timelineTracks.value,
       fullTranscript.value,
       selectedTimelineItem.value?.id || null
-    )
+    );
     if (nextState) {
-      timelineTracks.value = nextState.tracks
-      fullTranscript.value = nextState.transcript
+      timelineTracks.value = nextState.tracks;
+      fullTranscript.value = nextState.transcript;
       if (nextState.selectedId) {
         const item = nextState.tracks
           .flatMap((t: TimelineTrack) => t.items)
-          .find((i: TimelineTrackItem) => i.id === nextState.selectedId)
-        selectedTimelineItem.value = item || null
+          .find((i: TimelineTrackItem) => i.id === nextState.selectedId);
+        selectedTimelineItem.value = item || null;
       } else {
-        selectedTimelineItem.value = null
+        selectedTimelineItem.value = null;
       }
     }
   }
 
   async function saveHistoryToBackend() {
-    if (!folderName.value || !clipId.value) return
-    isSavingHistory.value = true
+    if (!folderName.value || !clipId.value) return;
+    isSavingHistory.value = true;
     try {
       await $fetch(`${API_BASE}/api/timeline-history`, {
         method: 'PUT',
@@ -132,26 +168,33 @@ export const useTimelineState = () => {
           undo_stack: timelineUndoStack.value,
           redo_stack: timelineRedoStack.value
         }
-      })
-      hasUnsavedHistory.value = false
-      console.log('[timeline] Saved history to backend')
+      });
+      hasUnsavedHistory.value = false;
+      console.log('[timeline] Saved history to backend');
     } catch (e) {
-      console.error('[timeline] Failed to save history:', e)
+      console.error('[timeline] Failed to save history:', e);
     } finally {
-      isSavingHistory.value = false
+      isSavingHistory.value = false;
     }
   }
 
-  function loadHistoryFromResponse(historyData: { undo_stack?: HistorySnapshot[]; redo_stack?: HistorySnapshot[] } | null) {
+  function loadHistoryFromResponse(
+    historyData: {
+      undo_stack?: HistorySnapshot[];
+      redo_stack?: HistorySnapshot[];
+    } | null
+  ) {
     if (historyData && typeof historyData === 'object') {
-      isHydratingHistory.value = true
-      timelineUndoStack.value = historyData.undo_stack || []
-      timelineRedoStack.value = historyData.redo_stack || []
-      hasUnsavedHistory.value = false
+      isHydratingHistory.value = true;
+      timelineUndoStack.value = historyData.undo_stack || [];
+      timelineRedoStack.value = historyData.redo_stack || [];
+      hasUnsavedHistory.value = false;
       nextTick(() => {
-        isHydratingHistory.value = false
-      })
-      console.log(`[timeline] Hydrated history: ${timelineUndoStack.value.length} undo, ${timelineRedoStack.value.length} redo`)
+        isHydratingHistory.value = false;
+      });
+      console.log(
+        `[timeline] Hydrated history: ${timelineUndoStack.value.length} undo, ${timelineRedoStack.value.length} redo`
+      );
     }
   }
 
@@ -161,8 +204,8 @@ export const useTimelineState = () => {
       thumbnailEnabled.value,
       thumbnailDuration.value,
       videoDuration.value
-    )
-  })
+    );
+  });
 
   const videoTime = computed(() => {
     return calculateVideoTime(
@@ -170,18 +213,25 @@ export const useTimelineState = () => {
       thumbnailEnabled.value,
       thumbnailDuration.value,
       timelineTracks.value
-    )
-  })
+    );
+  });
 
   async function saveTimelineTracks() {
     if (isSavingLocked.value) {
-      console.log('[clipper] saveTimelineTracks BLOCKED (lock active)')
-      return
+      console.log('[clipper] saveTimelineTracks BLOCKED (lock active)');
+      return;
     }
-    if (!folderName.value || !clipId.value) return
-    
-    console.log('[clipper] saveTimelineTracks triggered for:', folderName.value, clipId.value)
-    console.log('[clipper] Tracks state:', JSON.stringify(timelineTracks.value).substring(0, 200) + '...')
+    if (!folderName.value || !clipId.value) return;
+
+    console.log(
+      '[clipper] saveTimelineTracks triggered for:',
+      folderName.value,
+      clipId.value
+    );
+    console.log(
+      '[clipper] Tracks state:',
+      JSON.stringify(timelineTracks.value).substring(0, 200) + '...'
+    );
 
     try {
       await $fetch(`${API_BASE}/api/timeline`, {
@@ -191,28 +241,32 @@ export const useTimelineState = () => {
           clip_id: clipId.value,
           timeline_tracks: timelineTracks.value
         }
-      })
-      console.log('[clipper] Saved timeline tracks successfully')
+      });
+      console.log('[clipper] Saved timeline tracks successfully');
     } catch (e) {
-      console.error('[clipper] Failed to save timeline tracks:', e)
+      console.error('[clipper] Failed to save timeline tracks:', e);
     }
   }
 
   function getGlobalStyleSnapshot() {
-    const font = useState<string>('font')
-    const subtitleFontWeight = useState<string | number>('subtitleFontWeight')
-    const subtitleTextTransform = useState<string>('subtitleTextTransform')
-    const subtitleTextColor = useState<string>('subtitleTextColor')
-    const subtitleStrokeColor = useState<string>('subtitleStrokeColor')
-    const subtitleStrokeWidth = useState<number>('subtitleStrokeWidth')
-    const subtitleBackground = useState<string>('subtitleBackground')
-    const subtitleBackgroundOpacity = useState<number>('subtitleBackgroundOpacity')
-    const subtitleWordSpacing = useState<number>('subtitleWordSpacing')
+    const font = useState<string>('font');
+    const subtitleFontWeight = useState<string | number>('subtitleFontWeight');
+    const subtitleTextTransform = useState<string>('subtitleTextTransform');
+    const subtitleTextColor = useState<string>('subtitleTextColor');
+    const subtitleStrokeColor = useState<string>('subtitleStrokeColor');
+    const subtitleStrokeWidth = useState<number>('subtitleStrokeWidth');
+    const subtitleBackground = useState<string>('subtitleBackground');
+    const subtitleBackgroundOpacity = useState<number>(
+      'subtitleBackgroundOpacity'
+    );
+    const subtitleWordSpacing = useState<number>('subtitleWordSpacing');
 
     return {
       font: font.value || 'Outfit',
       fontSize: 80,
-      fontWeight: subtitleFontWeight.value ? String(subtitleFontWeight.value) : '900',
+      fontWeight: subtitleFontWeight.value
+        ? String(subtitleFontWeight.value)
+        : '900',
       textTransform: subtitleTextTransform.value || 'uppercase',
       align: 'center' as const,
       color: subtitleTextColor.value || '#FFFFFF',
@@ -230,25 +284,28 @@ export const useTimelineState = () => {
       shadowColor: '#000000',
       shadowOpacity: 0.5,
       shadowOffsetX: 5,
-      shadowOffsetY: 5,
-    }
+      shadowOffsetY: 5
+    };
   }
 
   function addTimelineItem(trackId: string, item: Partial<TimelineTrackItem>) {
-    const track = timelineTracks.value.find(t => t.id === trackId)
+    const track = timelineTracks.value.find(t => t.id === trackId);
     if (track) {
-      const startSec = item.start ?? currentTime.value
-      const maxRemaining = Math.max(0.5, timelineDuration.value - startSec)
-      const defaultDuration = item.duration ?? 5
-      const durationSec = Math.min(defaultDuration, maxRemaining)
+      const startSec = item.start ?? currentTime.value;
+      const maxRemaining = Math.max(0.5, timelineDuration.value - startSec);
+      const defaultDuration = item.duration ?? 5;
+      const durationSec = Math.min(defaultDuration, maxRemaining);
 
-      let styleOverrides: Partial<TimelineTrackItem> = {}
+      let styleOverrides: Partial<TimelineTrackItem> = {};
       if (trackId === 'text') {
         if (defaultTimelineTextStyle.value) {
-          styleOverrides = { ...defaultTimelineTextStyle.value, linkToGlobal: true }
+          styleOverrides = {
+            ...defaultTimelineTextStyle.value,
+            linkToGlobal: true
+          };
         } else {
-          styleOverrides = getGlobalStyleSnapshot()
-          styleOverrides.linkToGlobal = true
+          styleOverrides = getGlobalStyleSnapshot();
+          styleOverrides.linkToGlobal = true;
         }
       }
 
@@ -260,42 +317,51 @@ export const useTimelineState = () => {
         content: '',
         ...styleOverrides,
         ...item
-      }
-      track.items.push(newItem)
-      selectedTimelineItem.value = newItem
+      };
+      track.items.push(newItem);
+      selectedTimelineItem.value = newItem;
     }
   }
 
   function deleteTimelineItem(trackId: string, itemId: string) {
-    const track = timelineTracks.value.find(t => t.id === trackId)
+    const track = timelineTracks.value.find(t => t.id === trackId);
     if (track) {
-      track.items = track.items.filter((i: TimelineTrackItem) => i.id !== itemId)
+      track.items = track.items.filter(
+        (i: TimelineTrackItem) => i.id !== itemId
+      );
       if (selectedTimelineItem.value?.id === itemId) {
-        selectedTimelineItem.value = null
+        selectedTimelineItem.value = null;
       }
     }
   }
 
-  function updateTimelineItem(trackId: string, itemId: string, updates: Partial<TimelineTrackItem>) {
-    const track = timelineTracks.value.find(t => t.id === trackId)
+  function updateTimelineItem(
+    trackId: string,
+    itemId: string,
+    updates: Partial<TimelineTrackItem>
+  ) {
+    const track = timelineTracks.value.find(t => t.id === trackId);
     if (track) {
-      const item = track.items.find((i: TimelineTrackItem) => i.id === itemId)
+      const item = track.items.find((i: TimelineTrackItem) => i.id === itemId);
       if (item) {
-        Object.assign(item, updates)
+        Object.assign(item, updates);
       }
     }
   }
 
   function syncGlobalStylesToItem(item: TimelineTrackItem) {
-    const snap = getGlobalStyleSnapshot()
-    Object.assign(item, snap)
-    item.linkToGlobal = true
+    const snap = getGlobalStyleSnapshot();
+    Object.assign(item, snap);
+    item.linkToGlobal = true;
   }
 
   function saveTimelineTextStyleAsDefault(item: TimelineTrackItem) {
-    const font = useState<string>('font')
-    const toast = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>('clipperToast')
-    
+    const font = useState<string>('font');
+    const toast = useState<{
+      message: string;
+      type: 'success' | 'error' | 'info';
+    } | null>('clipperToast');
+
     const style = {
       font: item.font || font.value || 'Montserrat',
       fontSize: item.fontSize || 80,
@@ -317,13 +383,16 @@ export const useTimelineState = () => {
       shadowColor: item.shadowColor || '#000000',
       shadowOpacity: item.shadowOpacity ?? 0.5,
       shadowOffsetX: item.shadowOffsetX ?? 5,
-      shadowOffsetY: item.shadowOffsetY ?? 5,
-    }
-    defaultTimelineTextStyle.value = style
+      shadowOffsetY: item.shadowOffsetY ?? 5
+    };
+    defaultTimelineTextStyle.value = style;
     if (import.meta.client) {
-      localStorage.setItem('defaultTimelineTextStyle', JSON.stringify(style))
+      localStorage.setItem('defaultTimelineTextStyle', JSON.stringify(style));
     }
-    toast.value = { message: 'Saved current style as manual text default!', type: 'success' }
+    toast.value = {
+      message: 'Saved current style as manual text default!',
+      type: 'success'
+    };
   }
 
   return {
@@ -353,6 +422,5 @@ export const useTimelineState = () => {
     timelineUndoStack,
     timelineRedoStack,
     isHydratingHistory
-  }
-}
-
+  };
+};

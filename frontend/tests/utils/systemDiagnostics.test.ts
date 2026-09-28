@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest'
-import { isPrerequisiteMissing } from '../../app/utils/systemDiagnostics'
+import { describe, it, expect } from 'vitest';
+import { isPrerequisiteMissing } from '../../app/utils/systemDiagnostics';
 
 describe('System Diagnostics TDD', () => {
   it('returns false when health data is null or undefined', () => {
-    expect(isPrerequisiteMissing(null)).toBe(false)
-    expect(isPrerequisiteMissing(undefined)).toBe(false)
-  })
+    expect(isPrerequisiteMissing(null)).toBe(false);
+    expect(isPrerequisiteMissing(undefined)).toBe(false);
+  });
 
   it('returns false when all prerequisites are OK or Configured', () => {
     const health = {
@@ -14,9 +14,9 @@ describe('System Diagnostics TDD', () => {
       python_env: { status: 'OK' },
       gemini_api: { status: 'Configured' },
       cookies: { status: 'Configured' }
-    }
-    expect(isPrerequisiteMissing(health)).toBe(false)
-  })
+    };
+    expect(isPrerequisiteMissing(health)).toBe(false);
+  });
 
   it('returns true when any engine dependency (ffmpeg, node, python_env) status is not OK', () => {
     const healthWithBadFFmpeg = {
@@ -25,8 +25,8 @@ describe('System Diagnostics TDD', () => {
       python_env: { status: 'OK' },
       gemini_api: { status: 'Configured' },
       cookies: { status: 'Configured' }
-    }
-    expect(isPrerequisiteMissing(healthWithBadFFmpeg)).toBe(true)
+    };
+    expect(isPrerequisiteMissing(healthWithBadFFmpeg)).toBe(true);
 
     const healthWithBadPython = {
       ffmpeg: { status: 'OK' },
@@ -34,9 +34,9 @@ describe('System Diagnostics TDD', () => {
       python_env: { status: 'Error' },
       gemini_api: { status: 'Configured' },
       cookies: { status: 'Configured' }
-    }
-    expect(isPrerequisiteMissing(healthWithBadPython)).toBe(true)
-  })
+    };
+    expect(isPrerequisiteMissing(healthWithBadPython)).toBe(true);
+  });
 
   it('returns true when any config dependency (gemini_api, cookies) status is not Configured', () => {
     const healthWithBadGemini = {
@@ -45,8 +45,8 @@ describe('System Diagnostics TDD', () => {
       python_env: { status: 'OK' },
       gemini_api: { status: 'Missing' },
       cookies: { status: 'Configured' }
-    }
-    expect(isPrerequisiteMissing(healthWithBadGemini)).toBe(true)
+    };
+    expect(isPrerequisiteMissing(healthWithBadGemini)).toBe(true);
 
     const healthWithBadCookies = {
       ffmpeg: { status: 'OK' },
@@ -54,7 +54,7 @@ describe('System Diagnostics TDD', () => {
       python_env: { status: 'OK' },
       gemini_api: { status: 'Configured' },
       cookies: { status: 'Not Configured' }
-    }
-    expect(isPrerequisiteMissing(healthWithBadCookies)).toBe(true)
-  })
-})
+    };
+    expect(isPrerequisiteMissing(healthWithBadCookies)).toBe(true);
+  });
+});

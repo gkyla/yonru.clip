@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
-import docs from '../../app/pages/docs.vue'
+import { describe, it, expect } from 'vitest';
+import { mount } from '@vue/test-utils';
+import docs from '../../app/pages/docs.vue';
 
 describe('Docs Page', () => {
   it('renders successfully', () => {
@@ -13,7 +13,7 @@ describe('Docs Page', () => {
           HomeDocs: true
         }
       }
-    })
-    expect(wrapper.exists()).toBe(true)
-  })
-})
+    });
+    expect(wrapper.exists()).toBe(true);
+  });
+});

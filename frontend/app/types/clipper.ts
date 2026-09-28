@@ -1,333 +1,340 @@
-export type HookIntentPreset = 'auto' | 'humor' | 'educational' | 'storytelling' | 'debate'
-export type HookExtractionMode = 'preset' | 'custom'
+export type HookIntentPreset =
+  'auto' | 'humor' | 'educational' | 'storytelling' | 'debate';
+export type HookExtractionMode = 'preset' | 'custom';
 
 export interface Hook {
-  id?: string
-  _id?: string
-  theme: string
-  title?: string
-  start: number
-  end: number
-  duration?: number
-  transcript_quote?: string
-  originalStart?: number
-  originalEnd?: number
-  thumbnail_url?: string
-  virality_score?: number
-  virality_reason?: string
+  id?: string;
+  _id?: string;
+  theme: string;
+  title?: string;
+  start: number;
+  end: number;
+  duration?: number;
+  transcript_quote?: string;
+  originalStart?: number;
+  originalEnd?: number;
+  thumbnail_url?: string;
+  virality_score?: number;
+  virality_reason?: string;
 }
 
 export interface LastAccessedClip {
-  folder: string
-  clip_id: string
-  title?: string
-  thumbnail_url?: string
+  folder: string;
+  clip_id: string;
+  title?: string;
+  thumbnail_url?: string;
 }
 
-export type CommandPaletteCategory = 'navigation' | 'settings' | 'prompts' | 'videos' | 'clips'
+export type CommandPaletteCategory =
+  'navigation' | 'settings' | 'prompts' | 'videos' | 'clips';
 
 export interface CommandPaletteItem {
-  id: string
-  title: string
-  subtitle?: string
-  category: CommandPaletteCategory
-  subcategory?: string
-  groupLabel?: string
-  icon: string
-  badge?: string
-  actionLabel?: string
-  keywords?: string[]
-  handler: () => void | Promise<void>
+  id: string;
+  title: string;
+  subtitle?: string;
+  category: CommandPaletteCategory;
+  subcategory?: string;
+  groupLabel?: string;
+  icon: string;
+  badge?: string;
+  actionLabel?: string;
+  keywords?: string[];
+  handler: () => void | Promise<void>;
 }
 
 export interface CommandPaletteSubGroup {
-  key: string
-  label: string
-  items: CommandPaletteItem[]
+  key: string;
+  label: string;
+  items: CommandPaletteItem[];
 }
 
 export interface CommandPaletteGroup {
-  key: string
-  category: CommandPaletteCategory
-  label: string
-  items: CommandPaletteItem[]
-  subgroups?: CommandPaletteSubGroup[]
+  key: string;
+  category: CommandPaletteCategory;
+  label: string;
+  items: CommandPaletteItem[];
+  subgroups?: CommandPaletteSubGroup[];
 }
 
 export interface CachedVideo {
-  video_id: string
-  title: string
-  duration: number
-  folder_name: string
-  channel?: string
-  added_at?: number
-  mtime?: number
-  has_heatmap?: boolean
-  fps?: number
-  asset_url?: string
-  thumbnail?: string
-  thumbnail_url?: string
+  video_id: string;
+  title: string;
+  duration: number;
+  folder_name: string;
+  channel?: string;
+  added_at?: number;
+  mtime?: number;
+  has_heatmap?: boolean;
+  fps?: number;
+  asset_url?: string;
+  thumbnail?: string;
+  thumbnail_url?: string;
 }
 
 export interface ThumbnailTextOverlay {
-  id: string
-  text: string
-  fontFamily: string
-  fontSize: number
-  fontWeight: string | number
-  color: string
-  x: number
-  y: number
-  rotation?: number
-  textTransform?: string
-  showStroke?: boolean
-  strokeColor?: string
-  strokeWidth?: number
-  showBackground?: boolean
-  backgroundColor?: string
-  backgroundOpacity?: number
-  backgroundPadding?: number
+  id: string;
+  text: string;
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: string | number;
+  color: string;
+  x: number;
+  y: number;
+  rotation?: number;
+  textTransform?: string;
+  showStroke?: boolean;
+  strokeColor?: string;
+  strokeWidth?: number;
+  showBackground?: boolean;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  backgroundPadding?: number;
 }
 
 export interface TimelineTrackItem {
-  id: string
-  name?: string
-  start: number
-  mediaStart?: number
-  duration: number
-  content?: string
-  font?: string
-  fontSize?: number
-  fontWeight?: string | number
-  textTransform?: string
-  align?: 'left' | 'center' | 'right'
-  color?: string
-  opacity?: number
-  strokeColor?: string
-  strokeWidth?: number
-  showStroke?: boolean
-  showBackground?: boolean
-  backgroundColor?: string
-  backgroundOpacity?: number
-  letterSpacing?: number
-  wordSpacing?: number
-  lineHeight?: number
-  shadowBlur?: number
-  shadowColor?: string
-  shadowOpacity?: number
-  shadowOffsetX?: number
-  shadowOffsetY?: number
-  linkToGlobal?: boolean
-  x?: number
-  y?: number
-  src?: string | ArrayBuffer | null
-  type?: 'video' | 'audio' | 'text'
+  id: string;
+  name?: string;
+  start: number;
+  mediaStart?: number;
+  duration: number;
+  content?: string;
+  font?: string;
+  fontSize?: number;
+  fontWeight?: string | number;
+  textTransform?: string;
+  align?: 'left' | 'center' | 'right';
+  color?: string;
+  opacity?: number;
+  strokeColor?: string;
+  strokeWidth?: number;
+  showStroke?: boolean;
+  showBackground?: boolean;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  letterSpacing?: number;
+  wordSpacing?: number;
+  lineHeight?: number;
+  shadowBlur?: number;
+  shadowColor?: string;
+  shadowOpacity?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  linkToGlobal?: boolean;
+  x?: number;
+  y?: number;
+  src?: string | ArrayBuffer | null;
+  type?: 'video' | 'audio' | 'text';
 }
 
 export interface TimelineTrack {
-  id: 'video' | 'audio' | 'text' | 'subtitle'
-  name: string
-  type: 'video' | 'audio' | 'text' | 'subtitle'
-  items: TimelineTrackItem[]
+  id: 'video' | 'audio' | 'text' | 'subtitle';
+  name: string;
+  type: 'video' | 'audio' | 'text' | 'subtitle';
+  items: TimelineTrackItem[];
 }
 
 export interface TranscriptWord {
-  text: string
-  start: number
-  duration: number
-  end?: number
-  rawText?: string
-  isMasked?: boolean
+  text: string;
+  start: number;
+  duration: number;
+  end?: number;
+  rawText?: string;
+  isMasked?: boolean;
 }
 
 export interface TranscriptSegment {
-  id?: string
-  text: string
-  start: number
-  duration: number
-  words?: TranscriptWord[]
-  rawText?: string
+  id?: string;
+  text: string;
+  start: number;
+  duration: number;
+  words?: TranscriptWord[];
+  rawText?: string;
 }
 
 export interface DeepAuditResult {
-  riskLevel: string
-  violations: string[]
-  suggestions: string
+  riskLevel: string;
+  violations: string[];
+  suggestions: string;
 }
 
 export interface PromptTemplate {
-  id: string
-  name: string
-  suitableFor: string[]
-  prompt?: string
-  numHooks?: number
-  autoHooks?: boolean
+  id: string;
+  name: string;
+  suitableFor: string[];
+  prompt?: string;
+  numHooks?: number;
+  autoHooks?: boolean;
 }
 
 export interface HistorySnapshot {
-  tracks: TimelineTrack[]
-  transcript: TranscriptSegment[]
-  selectedId: string | null
+  tracks: TimelineTrack[];
+  transcript: TranscriptSegment[];
+  selectedId: string | null;
 }
 
 export interface CropMapPoint {
-  time: number
-  x: number
-  mode?: 'single' | 'split'
-  top_x?: number
-  bottom_x?: number
+  time: number;
+  x: number;
+  mode?: 'single' | 'split';
+  top_x?: number;
+  bottom_x?: number;
 }
 
 export interface SubtitleStyleSettings {
-  videoLayout?: 'vertical' | 'landscape'
-  landscapeBackground?: 'black' | 'blur'
-  landscapeBlurRadius?: number
-  landscapeDarkness?: number
-  subtitlePosition?: string
-  subtitleOffset?: number
-  subtitleSyncOffset?: number
-  autoAdaptiveSubtitles?: boolean
-  font?: string
-  fontSize?: number
-  cropMode?: string
-  cropMap?: Array<CropMapPoint>
-  cropPercentX?: number
-  cropPercentXTop?: number
-  cropPercentXBottom?: number
-  splitZoomTop?: number
-  splitZoomBottom?: number
-  splitOffsetXTop?: number
-  splitOffsetYTop?: number
-  splitOffsetXBottom?: number
-  splitOffsetYBottom?: number
+  videoLayout?: 'vertical' | 'landscape';
+  landscapeBackground?: 'black' | 'blur';
+  landscapeBlurRadius?: number;
+  landscapeDarkness?: number;
+  subtitlePosition?: string;
+  subtitleOffset?: number;
+  subtitleSyncOffset?: number;
+  autoAdaptiveSubtitles?: boolean;
+  font?: string;
+  fontSize?: number;
+  cropMode?: string;
+  cropMap?: Array<CropMapPoint>;
+  cropPercentX?: number;
+  cropPercentXTop?: number;
+  cropPercentXBottom?: number;
+  splitZoomTop?: number;
+  splitZoomBottom?: number;
+  splitOffsetXTop?: number;
+  splitOffsetYTop?: number;
+  splitOffsetXBottom?: number;
+  splitOffsetYBottom?: number;
 
-  subtitleMode?: 'word' | '3_words' | '4_words'
-  subtitleAnimation?: string
-  subtitleHighlightMode?: string
-  subtitleHighlightColor?: string
-  subtitleTextColor?: string
-  subtitleStrokeColor?: string
-  subtitleStrokeWidth?: number
-  subtitleFontWeight?: number
-  subtitleTextTransform?: string
-  subtitleBackground?: string
-  subtitleBackgroundOpacity?: number
-  subtitleWordSpacing?: number
-  volume?: number
-  subtitlePreset?: string
+  subtitleMode?: 'word' | '3_words' | '4_words';
+  subtitleAnimation?: string;
+  subtitleHighlightMode?: string;
+  subtitleHighlightColor?: string;
+  subtitleTextColor?: string;
+  subtitleStrokeColor?: string;
+  subtitleStrokeWidth?: number;
+  subtitleFontWeight?: number;
+  subtitleTextTransform?: string;
+  subtitleBackground?: string;
+  subtitleBackgroundOpacity?: number;
+  subtitleWordSpacing?: number;
+  volume?: number;
+  subtitlePreset?: string;
 }
 
 export interface WhisperModelOption {
-  id: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3'
-  name: string
-  speed: string
-  acc: string
-  desc: string
+  id: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
+  name: string;
+  speed: string;
+  acc: string;
+  desc: string;
 }
 
 export interface HardwareModelCapacity {
-  status: 'optimal' | 'supported' | 'heavy'
-  warning?: string | null
+  status: 'optimal' | 'supported' | 'heavy';
+  warning?: string | null;
 }
 
 export interface HardwareModelEstimate {
-  estimated_seconds: number
-  display_text: string
+  estimated_seconds: number;
+  display_text: string;
 }
 
 export interface HardwareIntentTier {
-  model: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3'
-  label: string
-  tag: string
-  estimated_seconds: number
-  display_time: string
-  desc: string
+  model: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
+  label: string;
+  tag: string;
+  estimated_seconds: number;
+  display_time: string;
+  desc: string;
 }
 
 export interface HardwareTopIntents {
-  fastest: HardwareIntentTier
-  balanced: HardwareIntentTier
-  accurate: HardwareIntentTier
+  fastest: HardwareIntentTier;
+  balanced: HardwareIntentTier;
+  accurate: HardwareIntentTier;
 }
 
 export interface HardwareProfile {
   cpu: {
-    brand: string
-    arch: string
-    cores: number
-    os: string
-  }
+    brand: string;
+    arch: string;
+    cores: number;
+    os: string;
+  };
   memory: {
-    total_gb: number
-  }
+    total_gb: number;
+  };
   gpu: {
-    type: 'apple_silicon' | 'cuda' | 'cpu'
-    name: string
-    vram_gb?: number | null
-  }
-  recommended_model: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3'
-  recommendation_reason: string
-  top_intents?: HardwareTopIntents
-  model_estimates?: Record<'tiny' | 'base' | 'small' | 'medium' | 'large-v3', HardwareModelEstimate>
-  model_capacities: Record<'tiny' | 'base' | 'small' | 'medium' | 'large-v3', HardwareModelCapacity>
+    type: 'apple_silicon' | 'cuda' | 'cpu';
+    name: string;
+    vram_gb?: number | null;
+  };
+  recommended_model: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
+  recommendation_reason: string;
+  top_intents?: HardwareTopIntents;
+  model_estimates?: Record<
+    'tiny' | 'base' | 'small' | 'medium' | 'large-v3',
+    HardwareModelEstimate
+  >;
+  model_capacities: Record<
+    'tiny' | 'base' | 'small' | 'medium' | 'large-v3',
+    HardwareModelCapacity
+  >;
 }
 
 export interface ReadyClip {
-  folder_name: string
-  clip_id: string
-  title?: string
-  duration?: number
-  created_at?: string
-  video_id?: string
-  theme?: string
-  start_time?: number
-  end_time?: number
-  asset_url?: string
-  thumbnail_url?: string
+  folder_name: string;
+  clip_id: string;
+  title?: string;
+  duration?: number;
+  created_at?: string;
+  video_id?: string;
+  theme?: string;
+  start_time?: number;
+  end_time?: number;
+  asset_url?: string;
+  thumbnail_url?: string;
 }
 
 export interface ThumbnailConfig {
-  enabled?: boolean
-  duration?: number
-  screenshotTime?: number
-  textOverlays?: ThumbnailTextOverlay[]
-  xOffset?: number
+  enabled?: boolean;
+  duration?: number;
+  screenshotTime?: number;
+  textOverlays?: ThumbnailTextOverlay[];
+  xOffset?: number;
 }
 
 export interface JobApiResponse {
-  job_id?: string
-  status: string
-  folder_name?: string
-  fps?: number
-  error?: string
-  download_percent?: number
+  job_id?: string;
+  status: string;
+  folder_name?: string;
+  fps?: number;
+  error?: string;
+  download_percent?: number;
   video?: {
-    title?: string
-    duration?: number
-    fps?: number
-    has_heatmap?: boolean
-    asset_url?: string
-    folder_name?: string
-    hd_ready?: boolean
-    has_preview?: boolean
-  }
+    title?: string;
+    duration?: number;
+    fps?: number;
+    has_heatmap?: boolean;
+    asset_url?: string;
+    folder_name?: string;
+    hd_ready?: boolean;
+    has_preview?: boolean;
+  };
   clip?: {
-    asset_url?: string
-    duration?: number
-    transcript?: TranscriptSegment[]
-    theme?: string
-    start?: number
-    end?: number
-    transcript_quote?: string
-  }
-  hooks?: Hook[]
+    asset_url?: string;
+    duration?: number;
+    transcript?: TranscriptSegment[];
+    theme?: string;
+    start?: number;
+    end?: number;
+    transcript_quote?: string;
+  };
+  hooks?: Hook[];
   history?: {
-    undo_stack?: HistorySnapshot[]
-    redo_stack?: HistorySnapshot[]
-  }
+    undo_stack?: HistorySnapshot[];
+    redo_stack?: HistorySnapshot[];
+  };
 }
 
-export type DefaultThumbnailStyle = Partial<ThumbnailTextOverlay> & { thumbnailDuration?: number }
-
-
-
+export type DefaultThumbnailStyle = Partial<ThumbnailTextOverlay> & {
+  thumbnailDuration?: number;
+};

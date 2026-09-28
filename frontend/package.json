@@ -10,6 +10,9 @@
     "postinstall": "nuxt prepare",
     "typecheck": "nuxi typecheck",
     "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint-staged": "lint-staged",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "cd .. && husky frontend/.husky"
@@ -41,7 +44,12 @@
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^17.1.8",
     "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "oxc-parser": "^0.131.0",
+    "prettier": "^3.9.9",
     "vitest": "^3.0.5"
+  },
+  "lint-staged": {
+    "*.{js,ts,vue,json,css}": "prettier --write"
   }
 }

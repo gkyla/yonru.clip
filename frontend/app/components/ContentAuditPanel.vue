@@ -59,16 +59,16 @@
           >
             <span
               class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"
-            />
+            ></span>
             <span
               class="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"
-            />
+            ></span>
           </span>
           <div
             v-else
             class="w-1.5 h-1.5 rounded-full ml-0.5"
             :class="scoreBgClass"
-          />
+          ></div>
         </div>
         <div class="flex items-center">
           <!-- Violations count badge in header -->
@@ -76,7 +76,7 @@
             class="text-xs font-black tracking-tighter mr-2"
             :class="scoreTextClass"
             >{{
-              audit && !audit.flaggedWords.length ? Math.round(audit.score) : ""
+              audit && !audit.flaggedWords.length ? Math.round(audit.score) : ''
             }}</span
           >
           <span
@@ -85,7 +85,7 @@
           >
             <Icon name="ri:alert-line" class="text-[9px]" />
             {{ audit.flaggedWords.length }}
-            {{ audit.flaggedWords.length === 1 ? "Risk" : "Risks" }}
+            {{ audit.flaggedWords.length === 1 ? 'Risk' : 'Risks' }}
           </span>
           <Icon
             :name="
@@ -147,7 +147,7 @@
                 <div
                   class="absolute -left-6 -bottom-6 w-24 h-24 rounded-full blur-2xl opacity-10 transition-opacity group-hover:opacity-20"
                   :class="scoreBgClass"
-                />
+                ></div>
               </div>
 
               <!-- SVG Radial Gauge Ring -->
@@ -181,7 +181,7 @@
                           ? 'stroke-accent-500'
                           : audit.score >= 40
                             ? 'stroke-amber-500'
-                            : 'stroke-rose-500',
+                            : 'stroke-rose-500'
                     ]"
                     stroke-width="4.5"
                     stroke-linecap="round"
@@ -380,9 +380,10 @@
                     <p class="text-xs text-slate-200 font-medium">
                       {{
                         audit.flaggedWords.length === 0
-                          ? (audit.remediatedWords && audit.remediatedWords.length > 0
-                              ? "All sensitive words are masked and audio-censored. Safe from shadowban."
-                              : "No sensitive words or localized slang detected")
+                          ? audit.remediatedWords &&
+                            audit.remediatedWords.length > 0
+                            ? 'All sensitive words are masked and audio-censored. Safe from shadowban.'
+                            : 'No sensitive words or localized slang detected'
                           : `${audit.flaggedWords.length} sensitive words/slang found`
                       }}
                     </p>
@@ -432,7 +433,9 @@
 
                 <!-- Remediated Words List (Protected & Neutralized State) -->
                 <div
-                  v-else-if="audit.remediatedWords && audit.remediatedWords.length > 0"
+                  v-else-if="
+                    audit.remediatedWords && audit.remediatedWords.length > 0
+                  "
                   class="pl-11 space-y-3"
                 >
                   <p
@@ -464,7 +467,8 @@
                   </button>
 
                   <p class="text-[9px] text-slate-500 italic">
-                    Words are visually masked in subtitles and audio segments are silenced/bleeped during export.
+                    Words are visually masked in subtitles and audio segments
+                    are silenced/bleeped during export.
                   </p>
                 </div>
               </div>
@@ -589,7 +593,7 @@
           <div
             class="absolute inset-0 bg-black/80 backdrop-blur-md"
             @click="showIgnoreModal = false"
-          />
+          ></div>
 
           <!-- Modal Card -->
           <div
@@ -666,7 +670,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted } from 'vue';
 
 const state = useClipperState();
 const showIgnoreModal = ref(false);
@@ -680,57 +684,61 @@ const confirmIgnoreWarnings = () => {
 
 const audit = computed(() => {
   const res = state?.contentAudit?.value;
-  console.log("[Audit] New data:", res);
+  console.log('[Audit] New data:', res);
   return res;
 });
 
 onMounted(() => {
-  console.log("[Audit] Component Mounted. State:", !!state);
+  console.log('[Audit] Component Mounted. State:', !!state);
 });
 
 const scoreLabel = computed(() => {
-  if (!audit.value) return "ANALYZING...";
-  if (audit.value.isRemediated || (audit.value.remediatedWords?.length > 0 && audit.value.flaggedWords.length === 0)) {
-    return "PROTECTED & NEUTRALIZED";
+  if (!audit.value) return 'ANALYZING...';
+  if (
+    audit.value.isRemediated ||
+    (audit.value.remediatedWords?.length > 0 &&
+      audit.value.flaggedWords.length === 0)
+  ) {
+    return 'PROTECTED & NEUTRALIZED';
   }
   const score = audit.value.score;
-  if (score >= 90) return "EXCELLENT ELIGIBILITY";
-  if (score >= 70) return "GOOD - MINOR RISKS";
-  if (score >= 40) return "CAUTION - RESTRICTED";
-  return "HIGH RISK OF SHADOWBAN";
+  if (score >= 90) return 'EXCELLENT ELIGIBILITY';
+  if (score >= 70) return 'GOOD - MINOR RISKS';
+  if (score >= 40) return 'CAUTION - RESTRICTED';
+  return 'HIGH RISK OF SHADOWBAN';
 });
 
 const scoreColorClass = computed(() => {
-  if (!audit.value) return "bg-slate-500";
+  if (!audit.value) return 'bg-slate-500';
   const score = audit.value.score;
-  if (score >= 90) return "text-emerald-500";
-  if (score >= 70) return "text-accent-500";
-  if (score >= 40) return "text-amber-500";
-  return "text-rose-500";
+  if (score >= 90) return 'text-emerald-500';
+  if (score >= 70) return 'text-accent-500';
+  if (score >= 40) return 'text-amber-500';
+  return 'text-rose-500';
 });
 
 const scoreTextClass = computed(() => {
-  if (!audit.value) return "text-slate-500";
+  if (!audit.value) return 'text-slate-500';
   const score = audit.value.score;
-  if (score >= 90) return "text-emerald-500";
-  if (score >= 70) return "text-accent-500";
-  if (score >= 40) return "text-amber-500";
-  return "text-rose-500";
+  if (score >= 90) return 'text-emerald-500';
+  if (score >= 70) return 'text-accent-500';
+  if (score >= 40) return 'text-amber-500';
+  return 'text-rose-500';
 });
 
 const scoreBgClass = computed(() => {
-  if (!audit.value) return "bg-slate-500";
+  if (!audit.value) return 'bg-slate-500';
   const score = audit.value.score;
   if (score >= 90)
-    return "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]";
-  if (score >= 70) return "bg-accent-500 shadow-[0_0_8px_rgba(207,255,80,0.5)]";
-  if (score >= 40) return "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]";
-  return "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]";
+    return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]';
+  if (score >= 70) return 'bg-accent-500 shadow-[0_0_8px_rgba(207,255,80,0.5)]';
+  if (score >= 40) return 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]';
+  return 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]';
 });
 
 defineProps({
-  expanded: { type: Boolean, default: false },
+  expanded: { type: Boolean, default: false }
 });
 
-defineEmits(["settings", "toggle-expand"]);
+defineEmits(['settings', 'toggle-expand']);
 </script>

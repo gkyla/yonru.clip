@@ -14,25 +14,39 @@
     >
       <Transition name="panel-tab-fade" mode="out-in">
         <!-- Edit Subtitles Tab -->
-        <div v-if="editorTab === 'edit'" key="edit" class="flex flex-col h-full overflow-hidden p-0">
+        <div
+          v-if="editorTab === 'edit'"
+          key="edit"
+          class="flex flex-col h-full overflow-hidden p-0"
+        >
           <!-- Subtitle Header Bar -->
           <div class="flex items-center justify-between gap-2 mb-3 shrink-0">
             <div class="flex items-center gap-2">
               <button
-                @click="isAutoScrollEnabled = !isAutoScrollEnabled"
                 class="h-8 px-2.5 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
                 :class="
                   isAutoScrollEnabled
                     ? 'bg-accent-500/10 text-accent-500 border-accent-500/30 shadow-[0_0_10px_rgba(207,255,80,0.1)]'
                     : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'
                 "
-                :title="isAutoScrollEnabled ? 'Auto-Scroll Active' : 'Auto-Scroll Paused'"
+                :title="
+                  isAutoScrollEnabled
+                    ? 'Auto-Scroll Active'
+                    : 'Auto-Scroll Paused'
+                "
+                @click="isAutoScrollEnabled = !isAutoScrollEnabled"
               >
                 <Icon
-                  :name="isAutoScrollEnabled ? 'ri:flashlight-fill' : 'ri:flashlight-line'"
+                  :name="
+                    isAutoScrollEnabled
+                      ? 'ri:flashlight-fill'
+                      : 'ri:flashlight-line'
+                  "
                   class="text-xs"
                 />
-                <span>Auto-Scroll {{ isAutoScrollEnabled ? 'ON' : 'OFF' }}</span>
+                <span
+                  >Auto-Scroll {{ isAutoScrollEnabled ? 'ON' : 'OFF' }}</span
+                >
               </button>
 
               <div
@@ -54,7 +68,11 @@
                 "
               >
                 <Icon
-                  :name="isAutoSaving ? 'ri:loader-4-line' : 'ri:checkbox-circle-line'"
+                  :name="
+                    isAutoSaving
+                      ? 'ri:loader-4-line'
+                      : 'ri:checkbox-circle-line'
+                  "
                   class="text-xs"
                   :class="{ 'animate-spin': isAutoSaving }"
                 />
@@ -63,9 +81,9 @@
 
               <!-- Close Button (X) -->
               <button
-                @click="$emit('close')"
                 class="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
                 title="Close Panel"
+                @click="$emit('close')"
               >
                 <Icon name="ri:close-line" class="text-base" />
               </button>
@@ -76,14 +94,14 @@
           <div class="flex-1 overflow-hidden relative">
             <div
               ref="subtitleContainer"
+              class="h-full overflow-y-auto pr-1.5 space-y-1.5 custom-scrollbar scroll-smooth relative"
               @mouseenter="isHoveringSubtitles = true"
               @mouseleave="isHoveringSubtitles = false"
-              class="h-full overflow-y-auto pr-1.5 space-y-1.5 custom-scrollbar scroll-smooth relative"
             >
               <div
                 v-for="(seg, i) in visibleSegments"
-                :key="i"
                 :id="`seg-${i}`"
+                :key="i"
                 class="bg-[#14141a]/80 border rounded-xl p-2 transition-all duration-200 flex items-center gap-2.5 group relative"
                 :class="[
                   activeSegIdx === i
@@ -97,57 +115,73 @@
                 >
                   <input
                     :value="seg.start"
-                    @input="
-                      (e) => {
-                        updateSegmentStart(seg, parseFloat((e.target as HTMLInputElement).value))
-                        triggerDebouncedAutoSave()
-                      }
-                    "
                     type="number"
                     step="0.01"
                     class="bg-transparent text-[10px] text-slate-200 font-mono w-9 text-center focus:outline-none focus:text-accent-500 font-bold transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     title="Start time (sec)"
-                  />
-                  <span class="text-[9px] text-slate-500 font-mono select-none">–</span>
-                  <input
-                    :value="Number((seg.start + seg.duration).toFixed(2))"
                     @input="
-                      (e) => {
-                        const newEnd = parseFloat((e.target as HTMLInputElement).value)
-                        if (!isNaN(newEnd) && newEnd > seg.start) {
-                          updateSegmentDuration(seg, parseFloat((newEnd - seg.start).toFixed(2)))
-                          triggerDebouncedAutoSave()
-                        }
+                      e => {
+                        updateSegmentStart(
+                          seg,
+                          parseFloat((e.target as HTMLInputElement).value)
+                        );
+                        triggerDebouncedAutoSave();
                       }
                     "
+                  />
+                  <span class="text-[9px] text-slate-500 font-mono select-none"
+                    >–</span
+                  >
+                  <input
+                    :value="Number((seg.start + seg.duration).toFixed(2))"
                     type="number"
                     step="0.01"
                     class="bg-transparent text-[10px] text-slate-200 font-mono w-9 text-center focus:outline-none focus:text-accent-500 font-bold transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     title="End time (sec)"
+                    @input="
+                      e => {
+                        const newEnd = parseFloat(
+                          (e.target as HTMLInputElement).value
+                        );
+                        if (!isNaN(newEnd) && newEnd > seg.start) {
+                          updateSegmentDuration(
+                            seg,
+                            parseFloat((newEnd - seg.start).toFixed(2))
+                          );
+                          triggerDebouncedAutoSave();
+                        }
+                      }
+                    "
                   />
-                  <Icon name="ri:time-line" class="text-[11px] text-slate-400 shrink-0 ml-0.5" />
+                  <Icon
+                    name="ri:time-line"
+                    class="text-[11px] text-slate-400 shrink-0 ml-0.5"
+                  />
                 </div>
 
                 <!-- Inline Subtitle Text Editor -->
                 <textarea
                   :value="seg.text"
-                  @input="
-                    (e) => {
-                      updateSegmentText(seg, (e.target as HTMLTextAreaElement).value)
-                      autoGrow(e)
-                      triggerDebouncedAutoSave()
-                    }
-                  "
                   rows="1"
                   class="flex-1 bg-transparent border-none text-white text-xs focus:outline-none resize-none font-semibold leading-snug py-0.5"
                   placeholder="Enter subtitle text..."
+                  @input="
+                    e => {
+                      updateSegmentText(
+                        seg,
+                        (e.target as HTMLTextAreaElement).value
+                      );
+                      autoGrow(e);
+                      triggerDebouncedAutoSave();
+                    }
+                  "
                 ></textarea>
 
                 <!-- Jump to Segment Start Button -->
                 <button
-                  @click="jumpTo(seg.start)"
                   class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-accent-500 hover:bg-white/10 rounded-lg transition-all shrink-0 active:scale-95"
                   title="Play from this segment start"
+                  @click="jumpTo(seg.start)"
                 >
                   <Icon name="ri:play-mini-fill" class="text-base" />
                 </button>
@@ -166,29 +200,41 @@
           <div class="pb-1 mb-3 flex items-center justify-between shrink-0">
             <div class="flex items-center gap-2.5">
               <div class="flex items-center gap-1.5">
-                <Icon name="ri:chat-quote-line" class="text-sky-400 text-base" />
-                <span class="text-xs font-bold text-white tracking-wide">Raw Quote</span>
+                <Icon
+                  name="ri:chat-quote-line"
+                  class="text-sky-400 text-base"
+                />
+                <span class="text-xs font-bold text-white tracking-wide"
+                  >Raw Quote</span
+                >
               </div>
               <span
                 class="bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1"
               >
-                QUOTE #{{ String((activeHookIndex >= 0 ? activeHookIndex : 0) + 1).padStart(2, '0') }}
+                QUOTE #{{
+                  String(
+                    (activeHookIndex >= 0 ? activeHookIndex : 0) + 1
+                  ).padStart(2, '0')
+                }}
               </span>
             </div>
 
             <div class="flex items-center gap-2">
               <button
-                @click="copyQuoteToClipboard"
                 class="h-8 px-3 flex items-center justify-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shrink-0"
                 title="Copy full quote text"
+                @click="copyQuoteToClipboard"
               >
-                <Icon :name="copied ? 'ri:check-line' : 'ri:file-copy-line'" class="text-xs" />
+                <Icon
+                  :name="copied ? 'ri:check-line' : 'ri:file-copy-line'"
+                  class="text-xs"
+                />
                 <span>{{ copied ? 'Copied' : 'Copy Quote' }}</span>
               </button>
               <button
-                @click="$emit('close')"
                 class="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
                 title="Close Panel"
+                @click="$emit('close')"
               >
                 <Icon name="ri:close-line" class="text-base" />
               </button>
@@ -205,7 +251,9 @@
               <Icon name="ri:mic-line" class="text-sky-400 text-sm" />
             </div>
             <div class="flex-1 min-w-0">
-              <div class="text-[9px] font-black uppercase tracking-widest text-slate-400">
+              <div
+                class="text-[9px] font-black uppercase tracking-widest text-slate-400"
+              >
                 Podcast Speaker Context
               </div>
               <div
@@ -236,8 +284,12 @@
                 </span>
               </div>
 
-              <div class="relative z-10 overflow-y-auto p-4 custom-scrollbar flex-1 w-full">
-                <p class="text-slate-100 text-sm leading-relaxed font-sans select-text whitespace-pre-wrap">
+              <div
+                class="relative z-10 overflow-y-auto p-4 custom-scrollbar flex-1 w-full"
+              >
+                <p
+                  class="text-slate-100 text-sm leading-relaxed font-sans select-text whitespace-pre-wrap"
+                >
                   {{
                     state?.activeHook?.value?.transcript_quote ||
                     'No transcript quote available for this segment.'
@@ -257,7 +309,10 @@
               <div
                 class="bg-black/40 border border-white/5 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider"
               >
-                <Icon name="ri:character-recognition-line" class="text-sky-400 text-xs" />
+                <Icon
+                  name="ri:character-recognition-line"
+                  class="text-sky-400 text-xs"
+                />
                 <span>{{ quoteCharCount }} Chars</span>
               </div>
               <div
@@ -284,147 +339,158 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import {
   createSubtitleLayoutEngine,
   updateSegmentText,
   updateSegmentStart,
   updateSegmentDuration
-} from '../../utils/subtitleChunker'
-import type { Hook } from '../../types/clipper'
-import { useClipperState } from '../../composables/useClipperState'
+} from '../../utils/subtitleChunker';
+import type { Hook } from '../../types/clipper';
+import { useClipperState } from '../../composables/useClipperState';
 
 defineProps<{
-  isPanelOpen: boolean
-  editorTab: 'edit' | 'quote' | 'thumbnail'
-}>()
+  isPanelOpen: boolean;
+  editorTab: 'edit' | 'quote' | 'thumbnail';
+}>();
 
 defineEmits<{
-  (e: 'close'): void
-}>()
+  (e: 'close'): void;
+}>();
 
-const state = useClipperState()
+const state = useClipperState();
 
 const activeHookIndex = computed(() => {
-  if (!state?.activeHook?.value) return -1
-  const active = state.activeHook.value
-  const aStart = typeof active.start === 'string' ? parseFloat(active.start) : active.start
-  const aEnd = typeof active.end === 'string' ? parseFloat(active.end) : active.end
+  if (!state?.activeHook?.value) return -1;
+  const active = state.activeHook.value;
+  const aStart =
+    typeof active.start === 'string' ? parseFloat(active.start) : active.start;
+  const aEnd =
+    typeof active.end === 'string' ? parseFloat(active.end) : active.end;
 
   let idx = state.hooks?.value?.findIndex((h: Hook) => {
-    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
-    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
-    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
-  })
+    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start;
+    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end;
+    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1;
+  });
 
-  if (idx !== -1 && idx !== undefined) return idx
+  if (idx !== -1 && idx !== undefined) return idx;
 
   idx = state.savedHooks?.value?.findIndex((h: Hook) => {
-    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start
-    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end
-    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1
-  })
+    const hStart = typeof h.start === 'string' ? parseFloat(h.start) : h.start;
+    const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end;
+    return Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1;
+  });
 
-  return idx !== undefined ? idx : -1
-})
+  return idx !== undefined ? idx : -1;
+});
 
-const copied = ref(false)
+const copied = ref(false);
 function copyQuoteToClipboard() {
-  if (!state?.activeHook?.value?.transcript_quote) return
-  navigator.clipboard.writeText(state.activeHook.value.transcript_quote)
-  copied.value = true
+  if (!state?.activeHook?.value?.transcript_quote) return;
+  navigator.clipboard.writeText(state.activeHook.value.transcript_quote);
+  copied.value = true;
   setTimeout(() => {
-    copied.value = false
-  }, 2000)
+    copied.value = false;
+  }, 2000);
 }
 
 const quoteWordCount = computed(() => {
-  const quote = state?.activeHook?.value?.transcript_quote || ''
-  const clean = quote.trim()
-  return clean ? clean.split(/\s+/).length : 0
-})
+  const quote = state?.activeHook?.value?.transcript_quote || '';
+  const clean = quote.trim();
+  return clean ? clean.split(/\s+/).length : 0;
+});
 
 const quoteCharCount = computed(() => {
-  return (state?.activeHook?.value?.transcript_quote || '').length
-})
+  return (state?.activeHook?.value?.transcript_quote || '').length;
+});
 
 const quoteReadingTime = computed(() => {
-  return Math.max(1, Math.round(quoteWordCount.value / 3.3))
-})
+  return Math.max(1, Math.round(quoteWordCount.value / 3.3));
+});
 
-const subtitleContainer = ref<HTMLElement | null>(null)
-const isHoveringSubtitles = ref(false)
-const isAutoScrollEnabled = ref(true)
-const isAutoSaving = ref(false)
-let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+const subtitleContainer = ref<HTMLElement | null>(null);
+const isHoveringSubtitles = ref(false);
+const isAutoScrollEnabled = ref(true);
+const isAutoSaving = ref(false);
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function triggerDebouncedAutoSave() {
-  isAutoSaving.value = true
-  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  isAutoSaving.value = true;
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(async () => {
     try {
-      await state.saveTranscript(true)
+      await state.saveTranscript(true);
     } catch {
       // ignore
     } finally {
-      isAutoSaving.value = false
+      isAutoSaving.value = false;
     }
-  }, 1000)
+  }, 1000);
 }
 
-const absoluteTime = computed(() => state?.currentTime?.value || 0)
+const absoluteTime = computed(() => state?.currentTime?.value || 0);
 
 const layoutEngine = computed(() => {
   return createSubtitleLayoutEngine(
     (state?.fullTranscript?.value || []) as any,
     state?.subtitleMode?.value || 'word'
-  )
-})
+  );
+});
 
-const visibleSegments = computed(() => layoutEngine.value.chunks)
+const visibleSegments = computed(() => layoutEngine.value.chunks);
 
 const activeSegIdx = computed(() => {
-  if (!state?.fullTranscript?.value || !state?.activeHook?.value) return -1
+  if (!state?.fullTranscript?.value || !state?.activeHook?.value) return -1;
   return layoutEngine.value.findChunkIndexAt(absoluteTime.value, {
     syncOffsetMs: state?.subtitleSyncOffset?.value || 0,
     hookStart: state?.activeHook?.value?.start || 0,
-    thumbnailDuration: state?.thumbnailEnabled?.value ? (state?.thumbnailDuration?.value || 0) : 0
-  })
-})
+    thumbnailDuration: state?.thumbnailEnabled?.value
+      ? state?.thumbnailDuration?.value || 0
+      : 0
+  });
+});
 
-watch(activeSegIdx, (idx) => {
-  if (isAutoScrollEnabled.value && idx !== -1 && subtitleContainer.value && !isHoveringSubtitles.value) {
-    const el = document.getElementById(`seg-${idx}`)
+watch(activeSegIdx, idx => {
+  if (
+    isAutoScrollEnabled.value &&
+    idx !== -1 &&
+    subtitleContainer.value &&
+    !isHoveringSubtitles.value
+  ) {
+    const el = document.getElementById(`seg-${idx}`);
     if (el) {
       el.scrollIntoView({
         behavior: 'smooth',
         block: 'center'
-      })
+      });
     }
   }
-})
+});
 
 function jumpTo(segmentStart: number) {
-  if (!state?.currentTime) return
+  if (!state?.currentTime) return;
 
-  const thumbSec = state?.thumbnailEnabled?.value ? (state?.thumbnailDuration?.value || 0) : 0
-  const firstStart = state?.fullTranscript?.value?.[0]?.start || 0
-  const hookStart = state?.activeHook?.value?.start || 0
-  const isTranscriptZeroBased = firstStart < hookStart - 2
+  const thumbSec = state?.thumbnailEnabled?.value
+    ? state?.thumbnailDuration?.value || 0
+    : 0;
+  const firstStart = state?.fullTranscript?.value?.[0]?.start || 0;
+  const hookStart = state?.activeHook?.value?.start || 0;
+  const isTranscriptZeroBased = firstStart < hookStart - 2;
 
   const relativeSegStart = isTranscriptZeroBased
     ? segmentStart
-    : Math.max(0, segmentStart - hookStart)
+    : Math.max(0, segmentStart - hookStart);
 
-  const targetTime = thumbSec + relativeSegStart
-  state.seekTo(targetTime)
+  const targetTime = thumbSec + relativeSegStart;
+  state.seekTo(targetTime);
 }
 
 function autoGrow(e: Event) {
-  const target = e.target as HTMLTextAreaElement
+  const target = e.target as HTMLTextAreaElement;
   if (target) {
-    target.style.height = 'auto'
-    target.style.height = target.scrollHeight + 'px'
+    target.style.height = 'auto';
+    target.style.height = target.scrollHeight + 'px';
   }
 }
 </script>
@@ -432,7 +498,9 @@ function autoGrow(e: Event) {
 <style scoped>
 .panel-tab-fade-enter-active,
 .panel-tab-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 .panel-tab-fade-enter-from {
   opacity: 0;

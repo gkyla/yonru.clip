@@ -1,10 +1,14 @@
 #!/bin/sh
-# 1. Frontend Checks
+# 1. Format Staged Files
 cd frontend
+echo "Running pre-commit lint-staged (Prettier auto-formatting)..."
+npm run lint-staged || exit 1
+
+# 2. Frontend Checks
 echo "Running pre-commit Unit Tests..."
 npm run test || exit 1
 
-# 2. Backend Checks
+# 3. Backend Checks
 cd ../backend
 echo "Running pre-commit Python Pyright checks..."
 export PYRIGHT_PYTHON_FORCE_SYSTEM_NODE=1

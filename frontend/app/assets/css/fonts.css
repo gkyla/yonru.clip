@@ -619,210 +619,240 @@
   font-style: normal;
   font-weight: 100;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-100-normal.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-100-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: italic;
   font-weight: 100;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-100-italic.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-100-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: normal;
   font-weight: 200;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-200-normal.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-200-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: italic;
   font-weight: 200;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-200-italic.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-200-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: normal;
   font-weight: 300;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-300-normal.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-300-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: italic;
   font-weight: 300;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-300-italic.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-300-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-400-normal.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-400-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: italic;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-400-italic.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-400-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-500-normal.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-500-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: italic;
   font-weight: 500;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-500-italic.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-500-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-600-normal.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-600-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: italic;
   font-weight: 600;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-600-italic.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-600-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-700-normal.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-700-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: italic;
   font-weight: 700;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-700-italic.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-700-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: normal;
   font-weight: 800;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-800-normal.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-800-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: italic;
   font-weight: 800;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-800-italic.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-800-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: normal;
   font-weight: 900;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-900-normal.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-900-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: italic;
   font-weight: 900;
   font-display: swap;
-  src: url('../fonts/roboto-condensed/roboto-condensed-900-italic.woff2') format('woff2');
+  src: url('../fonts/roboto-condensed/roboto-condensed-900-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-400-normal.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-400-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: italic;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-400-italic.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-400-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-500-normal.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-500-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: italic;
   font-weight: 500;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-500-italic.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-500-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-600-normal.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-600-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: italic;
   font-weight: 600;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-600-italic.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-600-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-700-normal.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-700-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: italic;
   font-weight: 700;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-700-italic.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-700-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: normal;
   font-weight: 800;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-800-normal.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-800-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: italic;
   font-weight: 800;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-800-italic.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-800-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: normal;
   font-weight: 900;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-900-normal.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-900-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Playfair Display';
   font-style: italic;
   font-weight: 900;
   font-display: swap;
-  src: url('../fonts/playfair-display/playfair-display-900-italic.woff2') format('woff2');
+  src: url('../fonts/playfair-display/playfair-display-900-italic.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Anton';
@@ -843,7 +873,8 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/permanent-marker/permanent-marker-400-normal.woff2') format('woff2');
+  src: url('../fonts/permanent-marker/permanent-marker-400-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Russo One';
@@ -892,7 +923,8 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/luckiest-guy/luckiest-guy-400-normal.woff2') format('woff2');
+  src: url('../fonts/luckiest-guy/luckiest-guy-400-normal.woff2')
+    format('woff2');
 }
 @font-face {
   font-family: 'Titan One';

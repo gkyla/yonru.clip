@@ -1,392 +1,480 @@
 // playbackCoordinator.ts - Video Playback Coordinator domain engine (ADR-0004, ADR-0005)
-import { parseSubtitleWords } from './remotionHelpers'
-import { PlayerBridge } from './playerBridge'
+import { parseSubtitleWords } from './remotionHelpers';
+import type { PlayerBridge } from './playerBridge';
 import type {
   Hook,
   TranscriptSegment,
   ThumbnailTextOverlay,
   TimelineTrack
-} from '../types/clipper'
+} from '../types/clipper';
 
 export interface PlaybackStateSnapshot {
-  currentTime: number
-  videoTime: number
-  timelineDuration: number
-  videoFps: number
-  volume: number
-  isPlaying: boolean
-  useNativePlayer: boolean
-  isTimelineShifting: boolean
-  videoUrl: string | null
-  outputUrl: string | null
-  stableVideoBuster: string
+  currentTime: number;
+  videoTime: number;
+  timelineDuration: number;
+  videoFps: number;
+  volume: number;
+  isPlaying: boolean;
+  useNativePlayer: boolean;
+  isTimelineShifting: boolean;
+  videoUrl: string | null;
+  outputUrl: string | null;
+  stableVideoBuster: string;
 
   // Transcript & Subtitles
-  fullTranscript: TranscriptSegment[]
-  subtitleSyncOffset: number
-  subtitleMode: string
-  activeHook: Hook | null
-  showIframeDebug: boolean
+  fullTranscript: TranscriptSegment[];
+  subtitleSyncOffset: number;
+  subtitleMode: string;
+  activeHook: Hook | null;
+  showIframeDebug: boolean;
 
   // Layout & Crop
-  videoLayout: 'vertical' | 'landscape'
-  landscapeBackground?: 'black' | 'blur'
-  landscapeBlurRadius?: number
-  landscapeDarkness?: number
-  subtitlePosition: string
-  subtitleOffset: number
-  autoAdaptiveSubtitles?: boolean
-  cropMode: string
-  cropMap: Array<{ time: number; x: number; mode?: 'single' | 'split'; top_x?: number; bottom_x?: number }>
-  cropPercentX: number
-  cropPercentXTop?: number
-  cropPercentXBottom?: number
-  splitZoomTop?: number
-  splitZoomBottom?: number
-  splitOffsetXTop?: number
-  splitOffsetYTop?: number
-  splitOffsetXBottom?: number
-  splitOffsetYBottom?: number
-
+  videoLayout: 'vertical' | 'landscape';
+  landscapeBackground?: 'black' | 'blur';
+  landscapeBlurRadius?: number;
+  landscapeDarkness?: number;
+  subtitlePosition: string;
+  subtitleOffset: number;
+  autoAdaptiveSubtitles?: boolean;
+  cropMode: string;
+  cropMap: Array<{
+    time: number;
+    x: number;
+    mode?: 'single' | 'split';
+    top_x?: number;
+    bottom_x?: number;
+  }>;
+  cropPercentX: number;
+  cropPercentXTop?: number;
+  cropPercentXBottom?: number;
+  splitZoomTop?: number;
+  splitZoomBottom?: number;
+  splitOffsetXTop?: number;
+  splitOffsetYTop?: number;
+  splitOffsetXBottom?: number;
+  splitOffsetYBottom?: number;
 
   // Typography & Styling
-  font: string
-  fontSize: number
-  subtitleFontWeight: number
-  subtitleTextColor: string
-  subtitleHighlightColor: string
-  subtitleStrokeColor: string
-  subtitleStrokeWidth: number
-  subtitleTextTransform: string
-  subtitleAnimation: string
-  subtitleHighlightMode: string
-  subtitleBackground: string
-  subtitleBackgroundOpacity: number
-  subtitleWordSpacing: number
+  font: string;
+  fontSize: number;
+  subtitleFontWeight: number;
+  subtitleTextColor: string;
+  subtitleHighlightColor: string;
+  subtitleStrokeColor: string;
+  subtitleStrokeWidth: number;
+  subtitleTextTransform: string;
+  subtitleAnimation: string;
+  subtitleHighlightMode: string;
+  subtitleBackground: string;
+  subtitleBackgroundOpacity: number;
+  subtitleWordSpacing: number;
 
   // Tracks & Thumbnail
-  timelineTracks: TimelineTrack[]
-  thumbnailEnabled: boolean
-  thumbnailDuration: number
-  thumbnailTextOverlays: ThumbnailTextOverlay[]
-  isInThumbnailWindow: boolean
+  timelineTracks: TimelineTrack[];
+  thumbnailEnabled: boolean;
+  thumbnailDuration: number;
+  thumbnailTextOverlays: ThumbnailTextOverlay[];
+  isInThumbnailWindow: boolean;
 
   // Censorship & Bleeps
-  audioBleepEnabled: boolean
-  audioBleepSource?: string
-  customBleepData?: string
-  flaggedSegments?: Array<{ start: number; duration: number }>
+  audioBleepEnabled: boolean;
+  audioBleepSource?: string;
+  customBleepData?: string;
+  flaggedSegments?: Array<{ start: number; duration: number }>;
 }
 
 export class VideoPlaybackCoordinator {
-  private bridge: PlayerBridge
-  private lastSeekFrame: number | null = null
-  private lastMuteState: boolean | null = null
-  private lastAudioData: string | null = null
-  private nativeVideoStarted: boolean = false
+  private bridge: PlayerBridge;
+  private lastSeekFrame: number | null = null;
+  private lastMuteState: boolean | null = null;
+  private lastAudioData: string | null = null;
+  private nativeVideoStarted: boolean = false;
 
   constructor(bridge: PlayerBridge) {
-    this.bridge = bridge
+    this.bridge = bridge;
   }
 
   public getLastSeekFrame(): number | null {
-    return this.lastSeekFrame
+    return this.lastSeekFrame;
   }
 
   public getLastMuteState(): boolean | null {
-    return this.lastMuteState
+    return this.lastMuteState;
   }
 
   public isNativeVideoStarted(): boolean {
-    return this.nativeVideoStarted
+    return this.nativeVideoStarted;
   }
 
   public setNativeVideoStarted(val: boolean): void {
-    this.nativeVideoStarted = val
+    this.nativeVideoStarted = val;
   }
 
   public resetState(): void {
-    this.lastSeekFrame = null
-    this.lastMuteState = null
-    this.lastAudioData = null
-    this.nativeVideoStarted = false
+    this.lastSeekFrame = null;
+    this.lastMuteState = null;
+    this.lastAudioData = null;
+    this.nativeVideoStarted = false;
   }
 
   public isInsideFlaggedSegment(snapshot: PlaybackStateSnapshot): boolean {
-    if (!snapshot.audioBleepEnabled) return false
+    if (!snapshot.audioBleepEnabled) return false;
 
-    const firstStart = snapshot.fullTranscript?.[0]?.start || 0
+    const firstStart = snapshot.fullTranscript?.[0]?.start || 0;
     const isTranscriptZeroBased = snapshot.activeHook
       ? firstStart < (snapshot.activeHook.start || 0) - 2
-      : true
+      : true;
 
-    const thumbSec = snapshot.thumbnailEnabled ? (snapshot.thumbnailDuration || 0) : 0
-    const relativeTime = Math.max(0, snapshot.currentTime - thumbSec)
+    const thumbSec = snapshot.thumbnailEnabled
+      ? snapshot.thumbnailDuration || 0
+      : 0;
+    const relativeTime = Math.max(0, snapshot.currentTime - thumbSec);
 
     // Note: Audio waveform in video matches currentTime directly without subtitleSyncOffset
     const searchTime = isTranscriptZeroBased
       ? relativeTime
-      : (snapshot.activeHook?.start || 0) + relativeTime
+      : (snapshot.activeHook?.start || 0) + relativeTime;
 
-    const segments = snapshot.flaggedSegments || []
-    return segments.some((seg) => searchTime >= seg.start && searchTime <= seg.start + seg.duration)
+    const segments = snapshot.flaggedSegments || [];
+    return segments.some(
+      seg => searchTime >= seg.start && searchTime <= seg.start + seg.duration
+    );
   }
 
   public getTargetVolume(snapshot: PlaybackStateSnapshot): number {
-    const isCensored = this.isInsideFlaggedSegment(snapshot) && snapshot.isPlaying
-    return isCensored ? 0 : snapshot.volume
+    const isCensored =
+      this.isInsideFlaggedSegment(snapshot) && snapshot.isPlaying;
+    return isCensored ? 0 : snapshot.volume;
   }
 
   public isTargetMuted(snapshot: PlaybackStateSnapshot): boolean {
-    const isCensored = this.isInsideFlaggedSegment(snapshot) && snapshot.isPlaying
-    if (isCensored) return true
-    return !snapshot.useNativePlayer
+    const isCensored =
+      this.isInsideFlaggedSegment(snapshot) && snapshot.isPlaying;
+    if (isCensored) return true;
+    return !snapshot.useNativePlayer;
   }
 
   public mergeCensoredSegments(
     segments: Array<{ start: number; duration: number }>
   ): Array<{ start: number; duration: number }> {
-    if (!segments || segments.length === 0) return []
+    if (!segments || segments.length === 0) return [];
     const valid = segments
-      .filter(s => s && typeof s.start === 'number' && typeof s.duration === 'number' && s.duration > 0)
-      .map(s => ({ start: Math.round(s.start * 1000) / 1000, duration: Math.round(s.duration * 1000) / 1000 }))
-      .sort((a, b) => a.start - b.start)
+      .filter(
+        s =>
+          s &&
+          typeof s.start === 'number' &&
+          typeof s.duration === 'number' &&
+          s.duration > 0
+      )
+      .map(s => ({
+        start: Math.round(s.start * 1000) / 1000,
+        duration: Math.round(s.duration * 1000) / 1000
+      }))
+      .sort((a, b) => a.start - b.start);
 
-    if (valid.length === 0) return []
+    if (valid.length === 0) return [];
 
-    const merged: Array<{ start: number; duration: number }> = []
-    let current = { ...valid[0] }
+    const merged: Array<{ start: number; duration: number }> = [];
+    let current = { ...valid[0] };
 
     for (let i = 1; i < valid.length; i++) {
-      const next = valid[i]
-      const currentEnd = Math.round((current.start + current.duration) * 1000) / 1000
+      const next = valid[i];
+      const currentEnd =
+        Math.round((current.start + current.duration) * 1000) / 1000;
       if (next.start <= currentEnd + 0.005) {
-        const nextEnd = Math.round((next.start + next.duration) * 1000) / 1000
-        const newEnd = Math.max(currentEnd, nextEnd)
-        current.duration = Math.round((newEnd - current.start) * 1000) / 1000
+        const nextEnd = Math.round((next.start + next.duration) * 1000) / 1000;
+        const newEnd = Math.max(currentEnd, nextEnd);
+        current.duration = Math.round((newEnd - current.start) * 1000) / 1000;
       } else {
-        merged.push(current)
-        current = { ...next }
+        merged.push(current);
+        current = { ...next };
       }
     }
-    merged.push(current)
-    return merged
+    merged.push(current);
+    return merged;
   }
 
   public assembleRemotionProps(
     snapshot: PlaybackStateSnapshot,
-    sourceDimensions: { width: number; height: number } = { width: 1920, height: 1080 }
+    sourceDimensions: { width: number; height: number } = {
+      width: 1920,
+      height: 1080
+    }
   ): Record<string, any> {
-    const syncOffsetMs = snapshot.subtitleSyncOffset
-    const mode = snapshot.subtitleMode || 'word'
+    const syncOffsetMs = snapshot.subtitleSyncOffset;
+    const mode = snapshot.subtitleMode || 'word';
 
     const { wordsData, allWordTimings } = parseSubtitleWords(
       snapshot.fullTranscript || [],
       syncOffsetMs,
       mode
-    )
+    );
 
-    const cropXPixel = ((snapshot.cropPercentX ?? 50) / 100) * 1920
+    const cropXPixel = ((snapshot.cropPercentX ?? 50) / 100) * 1920;
 
-    let videoSrc = snapshot.videoUrl || ''
+    let videoSrc = snapshot.videoUrl || '';
     if (videoSrc.includes('localhost:8000') && !videoSrc.includes('?t=')) {
-      videoSrc += (videoSrc.includes('?') ? '&' : '?') + 't=' + snapshot.stableVideoBuster
+      videoSrc +=
+        (videoSrc.includes('?') ? '&' : '?') +
+        't=' +
+        snapshot.stableVideoBuster;
     }
 
-      const activeFps = snapshot.videoFps || 30
+    const activeFps = snapshot.videoFps || 30;
 
-      return {
-        videoPath: videoSrc,
-        words: wordsData,
-        wordTimings: allWordTimings,
-        cropX: isNaN(cropXPixel) ? 960 : cropXPixel,
-        cropPercentXTop: snapshot.cropMode === 'manual' ? snapshot.cropPercentXTop : undefined,
-        cropPercentXBottom: snapshot.cropMode === 'manual' ? snapshot.cropPercentXBottom : undefined,
-        splitZoomTop: snapshot.splitZoomTop ?? 1.0,
-        splitZoomBottom: snapshot.splitZoomBottom ?? 1.0,
-        splitOffsetXTop: snapshot.splitOffsetXTop ?? 0,
-        splitOffsetYTop: snapshot.splitOffsetYTop ?? 0,
-        splitOffsetXBottom: snapshot.splitOffsetXBottom ?? 0,
-        splitOffsetYBottom: snapshot.splitOffsetYBottom ?? 0,
-        cropMap: snapshot.cropMode === 'face_tracking' ? JSON.parse(JSON.stringify(snapshot.cropMap || [])) : [],
-        sourceWidth: sourceDimensions.width,
-        sourceHeight: sourceDimensions.height,
-        position: snapshot.subtitlePosition,
-        videoLayout: snapshot.videoLayout || 'vertical',
-        landscapeBackground: snapshot.landscapeBackground || 'black',
-        landscapeBlurRadius: snapshot.landscapeBlurRadius ?? 25,
-        landscapeDarkness: snapshot.landscapeDarkness ?? 35,
-        subtitleOffset: snapshot.subtitleOffset,
-        autoAdaptiveSubtitles: snapshot.autoAdaptiveSubtitles ?? true,
-        durationInFrames: Math.round(snapshot.timelineDuration * activeFps),
-        fps: activeFps,
-        hideSubtitles: !!snapshot.outputUrl && snapshot.videoUrl === snapshot.outputUrl,
-        showDebug: snapshot.showIframeDebug,
-        volume: snapshot.volume,
-        timelineTextItems: [],
-        timelineAudioItems: JSON.parse(JSON.stringify(snapshot.timelineTracks?.find(t => t.id === 'audio')?.items || [])),
-        timelineVideoItems: JSON.parse(JSON.stringify(snapshot.timelineTracks?.find(t => t.id === 'video')?.items || [])),
-        thumbnailEnabled: snapshot.thumbnailEnabled,
-        thumbnailDuration: snapshot.thumbnailDuration,
-        thumbnailTextOverlays: JSON.parse(JSON.stringify(snapshot.thumbnailTextOverlays || [])),
-        censoredSegments: snapshot.audioBleepEnabled
-          ? this.mergeCensoredSegments(snapshot.flaggedSegments || [])
-          : [],
-        bleepAudioSrc: snapshot.audioBleepEnabled && snapshot.audioBleepSource === 'custom'
-          ? (snapshot.customBleepData || '/audio/bleep.wav')
+    return {
+      videoPath: videoSrc,
+      words: wordsData,
+      wordTimings: allWordTimings,
+      cropX: isNaN(cropXPixel) ? 960 : cropXPixel,
+      cropPercentXTop:
+        snapshot.cropMode === 'manual' ? snapshot.cropPercentXTop : undefined,
+      cropPercentXBottom:
+        snapshot.cropMode === 'manual'
+          ? snapshot.cropPercentXBottom
           : undefined,
-        subtitleStyle: {
-          fontFamily: snapshot.font,
-          fontSize: snapshot.fontSize,
-          fontWeight: snapshot.subtitleFontWeight,
-          color: snapshot.subtitleTextColor,
-          highlightColor: snapshot.subtitleHighlightColor,
-          strokeColor: snapshot.subtitleStrokeColor,
-          strokeWidth: snapshot.subtitleStrokeWidth,
-          textTransform: snapshot.subtitleTextTransform,
-          animation: snapshot.subtitleAnimation,
-          highlightMode: snapshot.subtitleHighlightMode,
-          background: snapshot.subtitleBackground,
-          backgroundOpacity: snapshot.subtitleBackgroundOpacity,
-          wordSpacing: snapshot.subtitleWordSpacing
-        }
+      splitZoomTop: snapshot.splitZoomTop ?? 1.0,
+      splitZoomBottom: snapshot.splitZoomBottom ?? 1.0,
+      splitOffsetXTop: snapshot.splitOffsetXTop ?? 0,
+      splitOffsetYTop: snapshot.splitOffsetYTop ?? 0,
+      splitOffsetXBottom: snapshot.splitOffsetXBottom ?? 0,
+      splitOffsetYBottom: snapshot.splitOffsetYBottom ?? 0,
+      cropMap:
+        snapshot.cropMode === 'face_tracking'
+          ? JSON.parse(JSON.stringify(snapshot.cropMap || []))
+          : [],
+      sourceWidth: sourceDimensions.width,
+      sourceHeight: sourceDimensions.height,
+      position: snapshot.subtitlePosition,
+      videoLayout: snapshot.videoLayout || 'vertical',
+      landscapeBackground: snapshot.landscapeBackground || 'black',
+      landscapeBlurRadius: snapshot.landscapeBlurRadius ?? 25,
+      landscapeDarkness: snapshot.landscapeDarkness ?? 35,
+      subtitleOffset: snapshot.subtitleOffset,
+      autoAdaptiveSubtitles: snapshot.autoAdaptiveSubtitles ?? true,
+      durationInFrames: Math.round(snapshot.timelineDuration * activeFps),
+      fps: activeFps,
+      hideSubtitles:
+        !!snapshot.outputUrl && snapshot.videoUrl === snapshot.outputUrl,
+      showDebug: snapshot.showIframeDebug,
+      volume: snapshot.volume,
+      timelineTextItems: [],
+      timelineAudioItems: JSON.parse(
+        JSON.stringify(
+          snapshot.timelineTracks?.find(t => t.id === 'audio')?.items || []
+        )
+      ),
+      timelineVideoItems: JSON.parse(
+        JSON.stringify(
+          snapshot.timelineTracks?.find(t => t.id === 'video')?.items || []
+        )
+      ),
+      thumbnailEnabled: snapshot.thumbnailEnabled,
+      thumbnailDuration: snapshot.thumbnailDuration,
+      thumbnailTextOverlays: JSON.parse(
+        JSON.stringify(snapshot.thumbnailTextOverlays || [])
+      ),
+      censoredSegments: snapshot.audioBleepEnabled
+        ? this.mergeCensoredSegments(snapshot.flaggedSegments || [])
+        : [],
+      bleepAudioSrc:
+        snapshot.audioBleepEnabled && snapshot.audioBleepSource === 'custom'
+          ? snapshot.customBleepData || '/audio/bleep.wav'
+          : undefined,
+      subtitleStyle: {
+        fontFamily: snapshot.font,
+        fontSize: snapshot.fontSize,
+        fontWeight: snapshot.subtitleFontWeight,
+        color: snapshot.subtitleTextColor,
+        highlightColor: snapshot.subtitleHighlightColor,
+        strokeColor: snapshot.subtitleStrokeColor,
+        strokeWidth: snapshot.subtitleStrokeWidth,
+        textTransform: snapshot.subtitleTextTransform,
+        animation: snapshot.subtitleAnimation,
+        highlightMode: snapshot.subtitleHighlightMode,
+        background: snapshot.subtitleBackground,
+        backgroundOpacity: snapshot.subtitleBackgroundOpacity,
+        wordSpacing: snapshot.subtitleWordSpacing
       }
-    }
+    };
+  }
 
-    public syncProps(
-      snapshot: PlaybackStateSnapshot,
-      sourceDimensions: { width: number; height: number } = { width: 1920, height: 1080 }
-    ): void {
-      const props = this.assembleRemotionProps(snapshot, sourceDimensions)
-      this.bridge.updateProps(props)
-
-      if (!snapshot.isPlaying) {
-        const activeFps = snapshot.videoFps || 30
-        const targetFrame = Math.floor(snapshot.currentTime * activeFps)
-        this.bridge.seek(targetFrame)
-        this.lastSeekFrame = targetFrame
-      }
+  public syncProps(
+    snapshot: PlaybackStateSnapshot,
+    sourceDimensions: { width: number; height: number } = {
+      width: 1920,
+      height: 1080
     }
+  ): void {
+    const props = this.assembleRemotionProps(snapshot, sourceDimensions);
+    this.bridge.updateProps(props);
+
+    if (!snapshot.isPlaying) {
+      const activeFps = snapshot.videoFps || 30;
+      const targetFrame = Math.floor(snapshot.currentTime * activeFps);
+      this.bridge.seek(targetFrame);
+      this.lastSeekFrame = targetFrame;
+    }
+  }
 
   public handlePlayStateChange(
     playing: boolean,
     snapshot: PlaybackStateSnapshot,
-    nativeVideo?: { paused: boolean; muted: boolean; volume: number; currentTime: number; play: () => Promise<void>; pause: () => void } | null
+    nativeVideo?: {
+      paused: boolean;
+      muted: boolean;
+      volume: number;
+      currentTime: number;
+      play: () => Promise<void>;
+      pause: () => void;
+    } | null
   ): void {
     if (!playing) {
-      this.nativeVideoStarted = false
+      this.nativeVideoStarted = false;
     }
 
     if (nativeVideo) {
       // Strict Single Master Player Mode (ADR-0004)
       if (playing && snapshot.useNativePlayer) {
         if (snapshot.isInThumbnailWindow) {
-          nativeVideo.currentTime = 0
-          nativeVideo.muted = true
+          nativeVideo.currentTime = 0;
+          nativeVideo.muted = true;
         } else {
-          nativeVideo.muted = this.isTargetMuted(snapshot)
-          nativeVideo.volume = this.getTargetVolume(snapshot)
-          nativeVideo.currentTime = snapshot.videoTime
-          nativeVideo.play().catch(e => console.warn('Native play blocked:', e))
+          nativeVideo.muted = this.isTargetMuted(snapshot);
+          nativeVideo.volume = this.getTargetVolume(snapshot);
+          nativeVideo.currentTime = snapshot.videoTime;
+          nativeVideo
+            .play()
+            .catch(e => console.warn('Native play blocked:', e));
         }
       } else {
-        if (!nativeVideo.paused) nativeVideo.pause()
+        if (!nativeVideo.paused) nativeVideo.pause();
       }
     }
 
     if (playing) {
-      this.bridge.play()
+      this.bridge.play();
     } else {
-      this.bridge.pause()
+      this.bridge.pause();
     }
   }
 
   public handleTimeChange(
     newTime: number,
     snapshot: PlaybackStateSnapshot,
-    nativeVideo?: { paused: boolean; muted: boolean; volume: number; currentTime: number; play: () => Promise<void>; pause: () => void } | null
-  ): { targetFrame: number; shouldSeek: boolean; crossedThumbnailBoundary?: boolean } {
-    let crossedThumbnailBoundary = false
+    nativeVideo?: {
+      paused: boolean;
+      muted: boolean;
+      volume: number;
+      currentTime: number;
+      play: () => Promise<void>;
+      pause: () => void;
+    } | null
+  ): {
+    targetFrame: number;
+    shouldSeek: boolean;
+    crossedThumbnailBoundary?: boolean;
+  } {
+    let crossedThumbnailBoundary = false;
 
-    const activeFps = snapshot.videoFps || 30
+    const activeFps = snapshot.videoFps || 30;
 
     if (snapshot.isTimelineShifting) {
-      return { targetFrame: Math.floor(newTime * activeFps), shouldSeek: false }
+      return {
+        targetFrame: Math.floor(newTime * activeFps),
+        shouldSeek: false
+      };
     }
 
     // Thumbnail boundary transition handling
-    if (snapshot.useNativePlayer && snapshot.isPlaying && nativeVideo && snapshot.thumbnailEnabled) {
+    if (
+      snapshot.useNativePlayer &&
+      snapshot.isPlaying &&
+      nativeVideo &&
+      snapshot.thumbnailEnabled
+    ) {
       if (snapshot.isInThumbnailWindow) {
-        if (!nativeVideo.paused) nativeVideo.pause()
-        nativeVideo.currentTime = 0
-        nativeVideo.muted = true
-        this.nativeVideoStarted = false
+        if (!nativeVideo.paused) nativeVideo.pause();
+        nativeVideo.currentTime = 0;
+        nativeVideo.muted = true;
+        this.nativeVideoStarted = false;
       } else if (!this.nativeVideoStarted) {
-        this.nativeVideoStarted = true
-        nativeVideo.currentTime = snapshot.videoTime
-        nativeVideo.muted = this.isTargetMuted(snapshot)
-        nativeVideo.volume = this.getTargetVolume(snapshot)
-        nativeVideo.play().catch(e => console.warn('Native play at boundary:', e))
-        crossedThumbnailBoundary = true
+        this.nativeVideoStarted = true;
+        nativeVideo.currentTime = snapshot.videoTime;
+        nativeVideo.muted = this.isTargetMuted(snapshot);
+        nativeVideo.volume = this.getTargetVolume(snapshot);
+        nativeVideo
+          .play()
+          .catch(e => console.warn('Native play at boundary:', e));
+        crossedThumbnailBoundary = true;
       }
     }
 
     // Native position alignment
     if (snapshot.useNativePlayer && nativeVideo) {
       if (snapshot.isInThumbnailWindow) {
-        if (nativeVideo.currentTime !== 0) nativeVideo.currentTime = 0
+        if (nativeVideo.currentTime !== 0) nativeVideo.currentTime = 0;
       } else {
-        const targetTime = snapshot.videoTime
+        const targetTime = snapshot.videoTime;
         if (Math.abs(nativeVideo.currentTime - targetTime) > 0.001) {
-          nativeVideo.currentTime = targetTime
+          nativeVideo.currentTime = targetTime;
         }
       }
     }
 
-    const targetFrame = Math.floor(newTime * activeFps)
-    const shouldSeek = this.lastSeekFrame !== targetFrame
+    const targetFrame = Math.floor(newTime * activeFps);
+    const shouldSeek = this.lastSeekFrame !== targetFrame;
 
     if (shouldSeek) {
-      this.bridge.seek(targetFrame)
-      this.lastSeekFrame = targetFrame
+      this.bridge.seek(targetFrame);
+      this.lastSeekFrame = targetFrame;
     }
 
-    return { targetFrame, shouldSeek, crossedThumbnailBoundary }
+    return { targetFrame, shouldSeek, crossedThumbnailBoundary };
   }
 
   public handleMuteVolumeChange(
     snapshot: PlaybackStateSnapshot,
     nativeVideo?: { muted: boolean; volume: number } | null
-  ): { muteStateChanged: boolean; isMuted: boolean; targetVolume: number; audioDataChanged: boolean } {
-    const isMuted = this.isInsideFlaggedSegment(snapshot) && snapshot.isPlaying
-    const currentAudioData = snapshot.customBleepData || ''
-    const audioDataChanged = this.lastAudioData !== currentAudioData
+  ): {
+    muteStateChanged: boolean;
+    isMuted: boolean;
+    targetVolume: number;
+    audioDataChanged: boolean;
+  } {
+    const isMuted = this.isInsideFlaggedSegment(snapshot) && snapshot.isPlaying;
+    const currentAudioData = snapshot.customBleepData || '';
+    const audioDataChanged = this.lastAudioData !== currentAudioData;
 
     if (audioDataChanged) {
-      this.lastAudioData = currentAudioData
-      this.lastMuteState = null
+      this.lastAudioData = currentAudioData;
+      this.lastMuteState = null;
     }
 
     // State Deduplication (ADR-0005)
-    const muteStateChanged = this.lastMuteState !== isMuted
+    const muteStateChanged = this.lastMuteState !== isMuted;
     if (muteStateChanged) {
-      this.lastMuteState = isMuted
+      this.lastMuteState = isMuted;
     }
 
-    const targetVol = this.getTargetVolume(snapshot)
+    const targetVol = this.getTargetVolume(snapshot);
 
     if (isMuted) {
       if (snapshot.useNativePlayer && nativeVideo) {
-        nativeVideo.volume = 0
-        nativeVideo.muted = true
+        nativeVideo.volume = 0;
+        nativeVideo.muted = true;
       }
-      this.bridge.updateProps({ volume: 0 })
+      this.bridge.updateProps({ volume: 0 });
     } else {
-      if (snapshot.useNativePlayer && nativeVideo && !snapshot.isInThumbnailWindow) {
-        nativeVideo.muted = this.isTargetMuted(snapshot)
-        nativeVideo.volume = targetVol
+      if (
+        snapshot.useNativePlayer &&
+        nativeVideo &&
+        !snapshot.isInThumbnailWindow
+      ) {
+        nativeVideo.muted = this.isTargetMuted(snapshot);
+        nativeVideo.volume = targetVol;
       }
-      this.bridge.updateProps({ volume: targetVol })
+      this.bridge.updateProps({ volume: targetVol });
     }
 
     return {
@@ -394,7 +482,7 @@ export class VideoPlaybackCoordinator {
       isMuted,
       targetVolume: targetVol,
       audioDataChanged
-    }
+    };
   }
 
   public handleRemotionTimeUpdate(
@@ -402,26 +490,31 @@ export class VideoPlaybackCoordinator {
     snapshot: PlaybackStateSnapshot,
     nativeVideo?: { currentTime: number } | null
   ): { newCurrentTime: number; shouldPause: boolean; needsDriftSync: boolean } {
-    let shouldPause = false
-    let newCurrentTime = remotionTime
-    let needsDriftSync = false
+    let shouldPause = false;
+    let newCurrentTime = remotionTime;
+    let needsDriftSync = false;
 
-    const isAtOrNearEnd = remotionTime >= (snapshot.timelineDuration - 0.05)
+    const isAtOrNearEnd = remotionTime >= snapshot.timelineDuration - 0.05;
     if (isAtOrNearEnd && snapshot.isPlaying) {
-      newCurrentTime = snapshot.timelineDuration
-      shouldPause = true
-      this.bridge.pause()
+      newCurrentTime = snapshot.timelineDuration;
+      shouldPause = true;
+      this.bridge.pause();
     }
 
     // Conditional Sync Drift Evaluation (ADR-0004)
-    if (snapshot.useNativePlayer && snapshot.isPlaying && nativeVideo && !snapshot.isInThumbnailWindow) {
-      const diff = nativeVideo.currentTime - snapshot.videoTime
+    if (
+      snapshot.useNativePlayer &&
+      snapshot.isPlaying &&
+      nativeVideo &&
+      !snapshot.isInThumbnailWindow
+    ) {
+      const diff = nativeVideo.currentTime - snapshot.videoTime;
       if (Math.abs(diff) > 0.25) {
-        needsDriftSync = true
-        nativeVideo.currentTime = snapshot.videoTime
+        needsDriftSync = true;
+        nativeVideo.currentTime = snapshot.videoTime;
       }
     }
 
-    return { newCurrentTime, shouldPause, needsDriftSync }
+    return { newCurrentTime, shouldPause, needsDriftSync };
   }
 }

@@ -1,18 +1,23 @@
-import { describe, it, expect } from 'vitest'
-import { hexToRgba, getEditingStyle, transformText, getOuterStrokeShadow } from '../../app/utils/styleHelpers'
+import { describe, it, expect } from 'vitest';
+import {
+  hexToRgba,
+  getEditingStyle,
+  transformText,
+  getOuterStrokeShadow
+} from '../../app/utils/styleHelpers';
 
 describe('Style Helpers TDD', () => {
   it('converts 6-digit hex string to rgba correctly', () => {
-    expect(hexToRgba('#000000', 0.7)).toBe('rgba(0, 0, 0, 0.7)')
-    expect(hexToRgba('#FF0000', 1)).toBe('rgba(255, 0, 0, 1)')
-    expect(hexToRgba('00FF00', 0.5)).toBe('rgba(0, 255, 0, 0.5)')
-  })
+    expect(hexToRgba('#000000', 0.7)).toBe('rgba(0, 0, 0, 0.7)');
+    expect(hexToRgba('#FF0000', 1)).toBe('rgba(255, 0, 0, 1)');
+    expect(hexToRgba('00FF00', 0.5)).toBe('rgba(0, 255, 0, 0.5)');
+  });
 
   it('converts 3-digit shorthand hex string to rgba correctly', () => {
-    expect(hexToRgba('#FFF', 1)).toBe('rgba(255, 255, 255, 1)')
-    expect(hexToRgba('#000', 0.5)).toBe('rgba(0, 0, 0, 0.5)')
-    expect(hexToRgba('F00', 0.8)).toBe('rgba(255, 0, 0, 0.8)')
-  })
+    expect(hexToRgba('#FFF', 1)).toBe('rgba(255, 255, 255, 1)');
+    expect(hexToRgba('#000', 0.5)).toBe('rgba(0, 0, 0, 0.5)');
+    expect(hexToRgba('F00', 0.8)).toBe('rgba(255, 0, 0, 0.8)');
+  });
 
   it('maps text overlay settings to valid CSS properties using getEditingStyle', () => {
     const item = {
@@ -38,73 +43,71 @@ describe('Style Helpers TDD', () => {
       shadowOffsetX: 4,
       shadowOffsetY: 4,
       shadowOpacity: 0.6
-    }
+    };
 
-    const styles: any = getEditingStyle(item)
+    const styles: any = getEditingStyle(item);
 
-    expect(styles.position).toBe('absolute')
-    expect(styles.left).toBe('100px')
-    expect(styles.top).toBe('200px')
-    expect(styles.fontFamily).toBe('"Montserrat", sans-serif')
-    expect(styles.fontSize).toBe('50px')
-    expect(styles.fontWeight).toBe('700')
-    expect(styles.textTransform).toBe('uppercase')
-    expect(styles.textAlign).toBe('left')
-    expect(styles.lineHeight).toBe(1.2)
-    expect(styles.letterSpacing).toBe('2px')
-    expect(styles.color).toBe('#FF0000')
-    expect(styles.opacity).toBe(0.9)
-    expect(styles.backgroundColor).toBe('rgba(0, 0, 0, 0.7)')
-    expect(styles.borderRadius).toBe('10px')
-    expect(styles.padding).toBe('15px')
-    expect(styles['-webkit-text-stroke']).toBe('3px #FFFFFF')
-    expect(styles.textShadow).toBe('4px 4px 8px rgba(17, 17, 17, 0.6)')
-  })
+    expect(styles.position).toBe('absolute');
+    expect(styles.left).toBe('100px');
+    expect(styles.top).toBe('200px');
+    expect(styles.fontFamily).toBe('"Montserrat", sans-serif');
+    expect(styles.fontSize).toBe('50px');
+    expect(styles.fontWeight).toBe('700');
+    expect(styles.textTransform).toBe('uppercase');
+    expect(styles.textAlign).toBe('left');
+    expect(styles.lineHeight).toBe(1.2);
+    expect(styles.letterSpacing).toBe('2px');
+    expect(styles.color).toBe('#FF0000');
+    expect(styles.opacity).toBe(0.9);
+    expect(styles.backgroundColor).toBe('rgba(0, 0, 0, 0.7)');
+    expect(styles.borderRadius).toBe('10px');
+    expect(styles.padding).toBe('15px');
+    expect(styles['-webkit-text-stroke']).toBe('3px #FFFFFF');
+    expect(styles.textShadow).toBe('4px 4px 8px rgba(17, 17, 17, 0.6)');
+  });
 
   describe('transformText', () => {
-
     it('transforms text to uppercase correctly', () => {
-      expect(transformText('hello world', 'uppercase')).toBe('HELLO WORLD')
-    })
+      expect(transformText('hello world', 'uppercase')).toBe('HELLO WORLD');
+    });
 
     it('transforms text to lowercase correctly', () => {
-      expect(transformText('HELLO WORLD', 'lowercase')).toBe('hello world')
-    })
+      expect(transformText('HELLO WORLD', 'lowercase')).toBe('hello world');
+    });
 
     it('transforms text to capitalize correctly', () => {
-      expect(transformText('hello world', 'capitalize')).toBe('Hello World')
-      expect(transformText('foo bar baz', 'capitalize')).toBe('Foo Bar Baz')
-    })
+      expect(transformText('hello world', 'capitalize')).toBe('Hello World');
+      expect(transformText('foo bar baz', 'capitalize')).toBe('Foo Bar Baz');
+    });
 
     it('retains text casing when transform is none or unknown', () => {
-      expect(transformText('Hello World', 'none')).toBe('Hello World')
-      expect(transformText('Hello World', undefined)).toBe('Hello World')
-    })
+      expect(transformText('Hello World', 'none')).toBe('Hello World');
+      expect(transformText('Hello World', undefined)).toBe('Hello World');
+    });
 
     it('handles empty inputs safely', () => {
-      expect(transformText('', 'uppercase')).toBe('')
-      expect(transformText(null as any, 'uppercase')).toBe('')
-    })
-  })
+      expect(transformText('', 'uppercase')).toBe('');
+      expect(transformText(null as any, 'uppercase')).toBe('');
+    });
+  });
 
   describe('getOuterStrokeShadow', () => {
     it('returns subtle ambient shadow when strokeWidth is 0 or undefined', () => {
-      expect(getOuterStrokeShadow(0)).toBe('0 1px 3px rgba(0,0,0,0.8)')
-      expect(getOuterStrokeShadow(undefined)).toBe('0 1px 3px rgba(0,0,0,0.8)')
-    })
+      expect(getOuterStrokeShadow(0)).toBe('0 1px 3px rgba(0,0,0,0.8)');
+      expect(getOuterStrokeShadow(undefined)).toBe('0 1px 3px rgba(0,0,0,0.8)');
+    });
 
     it('generates multi-directional outer shadow rays when strokeWidth > 0', () => {
-      const shadow = getOuterStrokeShadow(3, '#000000')
-      expect(shadow).toContain('-1.4px -1.4px 0 #000000')
-      expect(shadow).toContain('1.4px 1.4px 0 #000000')
-      expect(shadow).toContain('0 0 1.4px #000000')
-      expect(shadow).toContain('0 2px 4px rgba(0,0,0,0.95)')
-    })
+      const shadow = getOuterStrokeShadow(3, '#000000');
+      expect(shadow).toContain('-1.4px -1.4px 0 #000000');
+      expect(shadow).toContain('1.4px 1.4px 0 #000000');
+      expect(shadow).toContain('0 0 1.4px #000000');
+      expect(shadow).toContain('0 2px 4px rgba(0,0,0,0.95)');
+    });
 
     it('supports custom stroke colors', () => {
-      const shadow = getOuterStrokeShadow(2, '#FFFFFF')
-      expect(shadow).toContain('0 #FFFFFF')
-    })
-  })
-})
-
+      const shadow = getOuterStrokeShadow(2, '#FFFFFF');
+      expect(shadow).toContain('0 #FFFFFF');
+    });
+  });
+});

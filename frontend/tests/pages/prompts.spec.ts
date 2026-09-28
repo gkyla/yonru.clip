@@ -1,14 +1,14 @@
-import { describe, it, expect, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
-import prompts from '../../app/pages/prompts.vue'
+import { describe, it, expect, vi } from 'vitest';
+import { mount } from '@vue/test-utils';
+import prompts from '../../app/pages/prompts.vue';
 
 vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => ({
     promptsList: { value: [] },
     selectedPrompt: { value: '' },
-    showToast: vi.fn(),
+    showToast: vi.fn()
   })
-}))
+}));
 
 describe('Prompts Page', () => {
   it('renders successfully', () => {
@@ -21,7 +21,7 @@ describe('Prompts Page', () => {
           HomePrompts: true
         }
       }
-    })
-    expect(wrapper.exists()).toBe(true)
-  })
-})
+    });
+    expect(wrapper.exists()).toBe(true);
+  });
+});

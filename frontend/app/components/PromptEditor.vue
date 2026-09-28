@@ -1,110 +1,142 @@
 <template>
   <ClientOnly>
-    <div class="w-full bg-[#111318] border border-surface-border rounded-xl overflow-hidden focus-within:border-accent-500/50 transition-all flex flex-col flex-1 min-h-[400px]">
+    <div
+      class="w-full bg-[#111318] border border-surface-border rounded-xl overflow-hidden focus-within:border-accent-500/50 transition-all flex flex-col flex-1 min-h-[400px]"
+    >
       <!-- Toolbar -->
-      <div v-if="editor" class="flex flex-wrap items-center gap-1 p-2 border-b border-surface-border bg-surface-dark/50 shrink-0">
-        <button 
-          @click="editor.chain().focus().toggleBold().run()"
-          :class="{ 'bg-accent-500 text-black': editor.isActive('bold'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('bold') }"
+      <div
+        v-if="editor"
+        class="flex flex-wrap items-center gap-1 p-2 border-b border-surface-border bg-surface-dark/50 shrink-0"
+      >
+        <button
+          :class="{
+            'bg-accent-500 text-black': editor.isActive('bold'),
+            'text-slate-400 hover:text-white hover:bg-surface-panel':
+              !editor.isActive('bold')
+          }"
           class="p-1.5 rounded transition-all cursor-pointer"
           title="Bold"
+          @click="editor.chain().focus().toggleBold().run()"
         >
           <Icon name="ri:bold" class="text-lg" />
         </button>
-        <button 
-          @click="editor.chain().focus().toggleItalic().run()"
-          :class="{ 'bg-accent-500 text-black': editor.isActive('italic'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('italic') }"
+        <button
+          :class="{
+            'bg-accent-500 text-black': editor.isActive('italic'),
+            'text-slate-400 hover:text-white hover:bg-surface-panel':
+              !editor.isActive('italic')
+          }"
           class="p-1.5 rounded transition-all cursor-pointer"
           title="Italic"
+          @click="editor.chain().focus().toggleItalic().run()"
         >
           <Icon name="ri:italic" class="text-lg" />
         </button>
-        <button 
-          @click="editor.chain().focus().toggleCode().run()"
-          :class="{ 'bg-accent-500 text-black': editor.isActive('code'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('code') }"
+        <button
+          :class="{
+            'bg-accent-500 text-black': editor.isActive('code'),
+            'text-slate-400 hover:text-white hover:bg-surface-panel':
+              !editor.isActive('code')
+          }"
           class="p-1.5 rounded transition-all cursor-pointer"
           title="Inline Code"
+          @click="editor.chain().focus().toggleCode().run()"
         >
           <Icon name="ri:code-line" class="text-lg" />
         </button>
-        
+
         <div class="w-px h-4 bg-surface-border mx-1"></div>
-        
-        <button 
-          @click="editor.chain().focus().toggleBulletList().run()"
-          :class="{ 'bg-accent-500 text-black': editor.isActive('bulletList'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('bulletList') }"
+
+        <button
+          :class="{
+            'bg-accent-500 text-black': editor.isActive('bulletList'),
+            'text-slate-400 hover:text-white hover:bg-surface-panel':
+              !editor.isActive('bulletList')
+          }"
           class="p-1.5 rounded transition-all cursor-pointer"
           title="Bullet List"
+          @click="editor.chain().focus().toggleBulletList().run()"
         >
           <Icon name="ri:list-unordered" class="text-lg" />
         </button>
-        <button 
-          @click="editor.chain().focus().toggleOrderedList().run()"
-          :class="{ 'bg-accent-500 text-black': editor.isActive('orderedList'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('orderedList') }"
+        <button
+          :class="{
+            'bg-accent-500 text-black': editor.isActive('orderedList'),
+            'text-slate-400 hover:text-white hover:bg-surface-panel':
+              !editor.isActive('orderedList')
+          }"
           class="p-1.5 rounded transition-all cursor-pointer"
           title="Ordered List"
+          @click="editor.chain().focus().toggleOrderedList().run()"
         >
           <Icon name="ri:list-ordered" class="text-lg" />
         </button>
-        <button 
-          @click="editor.chain().focus().toggleCodeBlock().run()"
-          :class="{ 'bg-accent-500 text-black': editor.isActive('codeBlock'), 'text-slate-400 hover:text-white hover:bg-surface-panel': !editor.isActive('codeBlock') }"
+        <button
+          :class="{
+            'bg-accent-500 text-black': editor.isActive('codeBlock'),
+            'text-slate-400 hover:text-white hover:bg-surface-panel':
+              !editor.isActive('codeBlock')
+          }"
           class="p-1.5 rounded transition-all cursor-pointer"
           title="Code Block"
+          @click="editor.chain().focus().toggleCodeBlock().run()"
         >
           <Icon name="ri:code-box-line" class="text-lg" />
         </button>
-        <button 
-          @click="editor.chain().focus().setHardBreak().run()"
+        <button
           class="p-1.5 text-slate-400 hover:text-white hover:bg-surface-panel rounded transition-all cursor-pointer"
           title="Line Break <br> (Shift + Enter)"
+          @click="editor.chain().focus().setHardBreak().run()"
         >
           <Icon name="ri:corner-down-left-line" class="text-lg" />
         </button>
 
         <div class="w-px h-4 bg-surface-border mx-1"></div>
 
-        <button 
-          @click="editor.chain().focus().undo().run()"
+        <button
           class="p-1.5 text-slate-400 hover:text-white hover:bg-surface-panel rounded transition-all cursor-pointer"
           title="Undo"
+          @click="editor.chain().focus().undo().run()"
         >
           <Icon name="ri:arrow-go-back-line" class="text-lg" />
         </button>
-        <button 
-          @click="editor.chain().focus().redo().run()"
+        <button
           class="p-1.5 text-slate-400 hover:text-white hover:bg-surface-panel rounded transition-all cursor-pointer"
           title="Redo"
+          @click="editor.chain().focus().redo().run()"
         >
           <Icon name="ri:arrow-go-forward-line" class="text-lg" />
         </button>
       </div>
 
       <!-- Editor Content Full Area Wrapper (Click anywhere to focus) -->
-      <div 
-        @click="focusEditor" 
+      <div
         class="flex-1 flex flex-col p-4 custom-scrollbar overflow-y-auto cursor-text min-h-[350px]"
+        @click="focusEditor"
       >
-        <editor-content :editor="editor" class="flex-1 flex flex-col h-full cursor-text" />
+        <editor-content
+          :editor="editor"
+          class="flex-1 flex flex-col h-full cursor-text"
+        />
       </div>
     </div>
   </ClientOnly>
 </template>
 
 <script setup lang="ts">
-import { useEditor, EditorContent } from '@tiptap/vue-3'
-import StarterKit from '@tiptap/starter-kit'
-import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import { watch, onBeforeUnmount } from 'vue'
+import { useEditor, EditorContent } from '@tiptap/vue-3';
+import StarterKit from '@tiptap/starter-kit';
+import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { watch, onBeforeUnmount } from 'vue';
 
 const props = defineProps<{
-  modelValue: string
-  variables?: Record<string, string>
-}>()
+  modelValue: string;
+  variables?: Record<string, string>;
+}>();
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue']);
 
 const VariableHighlight = Extension.create({
   name: 'variableHighlight',
@@ -115,114 +147,128 @@ const VariableHighlight = Extension.create({
         key: new PluginKey('variableHighlight'),
         state: {
           init(config, state) {
-            const decorations: Decoration[] = []
-            
+            const decorations: Decoration[] = [];
+
             state.doc.descendants((node, pos) => {
               if (node.isText && node.text) {
-                const regex = /\{([a-zA-Z0-9_]+)\}/g
-                let match
+                const regex = /\{([a-zA-Z0-9_]+)\}/g;
+                let match;
                 while ((match = regex.exec(node.text)) !== null) {
-                  const fullMatch = match[0]
-                  const varName = match[1]
+                  const fullMatch = match[0];
+                  const varName = match[1];
                   if (varName) {
-                    let varValue = props.variables?.[varName] || fullMatch
+                    let varValue = props.variables?.[varName] || fullMatch;
                     if (typeof varValue === 'string') {
-                      varValue = varValue.trim()
+                      varValue = varValue.trim();
                     }
-                    
+
                     decorations.push(
-                      Decoration.inline(pos + match.index, pos + match.index + fullMatch.length, {
-                        class: 'tiptap-variable-badge',
-                        'data-variable': varName,
-                        'data-value': varValue,
-                      })
-                    )
+                      Decoration.inline(
+                        pos + match.index,
+                        pos + match.index + fullMatch.length,
+                        {
+                          class: 'tiptap-variable-badge',
+                          'data-variable': varName,
+                          'data-value': varValue
+                        }
+                      )
+                    );
                   }
                 }
               }
-            })
-            
-            return DecorationSet.create(state.doc, decorations)
+            });
+
+            return DecorationSet.create(state.doc, decorations);
           },
           apply(tr, old) {
-            const decorations: Decoration[] = []
-            
+            const decorations: Decoration[] = [];
+
             tr.doc.descendants((node, pos) => {
               if (node.isText && node.text) {
-                const regex = /\{([a-zA-Z0-9_]+)\}/g
-                let match
+                const regex = /\{([a-zA-Z0-9_]+)\}/g;
+                let match;
                 while ((match = regex.exec(node.text)) !== null) {
-                  const fullMatch = match[0]
-                  const varName = match[1]
+                  const fullMatch = match[0];
+                  const varName = match[1];
                   if (varName) {
-                    let varValue = props.variables?.[varName] || fullMatch
+                    let varValue = props.variables?.[varName] || fullMatch;
                     if (typeof varValue === 'string') {
-                      varValue = varValue.trim()
+                      varValue = varValue.trim();
                     }
-                    
+
                     decorations.push(
-                      Decoration.inline(pos + match.index, pos + match.index + fullMatch.length, {
-                        class: 'tiptap-variable-badge',
-                        'data-variable': varName,
-                        'data-value': varValue,
-                      })
-                    )
+                      Decoration.inline(
+                        pos + match.index,
+                        pos + match.index + fullMatch.length,
+                        {
+                          class: 'tiptap-variable-badge',
+                          'data-variable': varName,
+                          'data-value': varValue
+                        }
+                      )
+                    );
                   }
                 }
               }
-            })
-            
-            return DecorationSet.create(tr.doc, decorations)
-          },
+            });
+
+            return DecorationSet.create(tr.doc, decorations);
+          }
         },
         props: {
           decorations(state) {
-            return this.getState(state)
+            return this.getState(state);
           },
           handleKeyDown(view, event) {
             if (event.key === 'Backspace' || event.key === 'Delete') {
-              const { state, dispatch } = view
-              const { selection } = state
-              if (!selection.empty) return false
-              
-              const pos = selection.anchor
-              const $pos = state.doc.resolve(pos)
-              const text = $pos.parent.textContent
-              const offset = $pos.parentOffset
-              const blockStart = pos - offset
-              
-              const regex = /\{([a-zA-Z0-9_]+)\}/g
-              let match
+              const { state, dispatch } = view;
+              const { selection } = state;
+              if (!selection.empty) return false;
+
+              const pos = selection.anchor;
+              const $pos = state.doc.resolve(pos);
+              const text = $pos.parent.textContent;
+              const offset = $pos.parentOffset;
+              const blockStart = pos - offset;
+
+              const regex = /\{([a-zA-Z0-9_]+)\}/g;
+              let match;
               while ((match = regex.exec(text)) !== null) {
-                const start = match.index
-                const end = start + match[0].length
-                
+                const start = match.index;
+                const end = start + match[0].length;
+
                 // If Backspace, check if cursor is inside or immediately after the variable
                 if (event.key === 'Backspace') {
                   if (offset > start && offset <= end) {
-                    const tr = state.tr.delete(blockStart + start, blockStart + end)
-                    dispatch(tr)
-                    return true
+                    const tr = state.tr.delete(
+                      blockStart + start,
+                      blockStart + end
+                    );
+                    dispatch(tr);
+                    return true;
                   }
                 }
-                
+
                 // If Delete, check if cursor is inside or immediately before the variable
                 if (event.key === 'Delete') {
                   if (offset >= start && offset < end) {
-                    const tr = state.tr.delete(blockStart + start, blockStart + end)
-                    dispatch(tr)
-                    return true
+                    const tr = state.tr.delete(
+                      blockStart + start,
+                      blockStart + end
+                    );
+                    dispatch(tr);
+                    return true;
                   }
                 }
               }
             }
-            return false
+            return false;
           }
-        },
-      }),
-    ]
-  },
-})
+        }
+      })
+    ];
+  }
+});
 
 const editor = useEditor({
   content: props.modelValue,
@@ -230,53 +276,62 @@ const editor = useEditor({
     StarterKit.configure({
       codeBlock: {
         HTMLAttributes: {
-          class: 'bg-surface-dark p-3 rounded-md font-mono text-xs my-2 border border-surface-border',
-        },
-      },
+          class:
+            'bg-surface-dark p-3 rounded-md font-mono text-xs my-2 border border-surface-border'
+        }
+      }
     }),
-    VariableHighlight,
+    VariableHighlight
   ],
   editorProps: {
     attributes: {
-      class: 'prose prose-invert max-w-none focus:outline-none text-sm leading-relaxed min-h-full flex-1 flex flex-col cursor-text outline-none',
-    },
+      class:
+        'prose prose-invert max-w-none focus:outline-none text-sm leading-relaxed min-h-full flex-1 flex flex-col cursor-text outline-none'
+    }
   },
   onUpdate: ({ editor }) => {
-    emit('update:modelValue', editor.getHTML())
-  },
-})
+    emit('update:modelValue', editor.getHTML());
+  }
+});
 
 function focusEditor(event?: MouseEvent) {
   if (editor.value) {
     if (!editor.value.isFocused) {
-      editor.value.commands.focus('end')
+      editor.value.commands.focus('end');
     }
   }
 }
 
 // Sync external changes to editor
-watch(() => props.modelValue, (newValue) => {
-  if (editor.value && newValue !== editor.value.getHTML()) {
-    editor.value.commands.setContent(newValue, { emitUpdate: false })
+watch(
+  () => props.modelValue,
+  newValue => {
+    if (editor.value && newValue !== editor.value.getHTML()) {
+      editor.value.commands.setContent(newValue, { emitUpdate: false });
+    }
   }
-})
+);
 
 // Force update Prosemirror decorations when external variables change
-watch(() => props.variables, () => {
-  if (editor.value && editor.value.view) {
-    const view = editor.value.view
-    view.dispatch(view.state.tr.setMeta('forceUpdate', true))
-  }
-}, { deep: true })
+watch(
+  () => props.variables,
+  () => {
+    if (editor.value && editor.value.view) {
+      const view = editor.value.view;
+      view.dispatch(view.state.tr.setMeta('forceUpdate', true));
+    }
+  },
+  { deep: true }
+);
 
 defineExpose({
   editor,
   focusEditor
-})
+});
 
 onBeforeUnmount(() => {
-  editor.value?.destroy()
-})
+  editor.value?.destroy();
+});
 </script>
 
 <style lang="postcss">
@@ -296,7 +351,7 @@ onBeforeUnmount(() => {
   cursor: text;
   display: flex;
   flex-direction: column;
-  
+
   & p {
     @apply my-1.5;
   }
@@ -341,7 +396,7 @@ onBeforeUnmount(() => {
   font-size: 13px !important;
   font-family: monospace;
   font-weight: 500;
-  color: #CFFF50; /* accent-500 */
+  color: #cfff50; /* accent-500 */
   background: rgba(207, 255, 80, 0.08); /* accent-500/8 */
   border: 1px dashed rgba(207, 255, 80, 0.35);
   padding: 1px 4px;
@@ -359,14 +414,16 @@ onBeforeUnmount(() => {
 
 /* Premium Cinematic Tooltip */
 .tiptap-variable-badge::after {
-  content: "Variable: {" attr(data-variable) "}";
+  content: 'Variable: {' attr(data-variable) '}';
   position: absolute;
   bottom: 125%;
   left: 50%;
   transform: translateX(-50%) translateY(4px);
   background: rgba(15, 23, 42, 0.96); /* slate-900 with high opacity */
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 0 15px rgba(207, 255, 80, 0.15);
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.5),
+    0 0 15px rgba(207, 255, 80, 0.15);
   color: #f8fafc; /* slate-50 */
   padding: 6px 12px;
   border-radius: 8px;
@@ -393,7 +450,7 @@ onBeforeUnmount(() => {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.06); 
+  background: rgba(255, 255, 255, 0.06);
   border-radius: 0;
 }
 </style>

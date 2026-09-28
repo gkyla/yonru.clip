@@ -1,10 +1,10 @@
 // @vitest-environment nuxt
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
-import HookResultsGallery from '../../app/components/home/HookResultsGallery.vue'
-import PipelineProgressStepper from '../../app/components/home/PipelineProgressStepper.vue'
-import TimelineEditor from '../../app/components/TimelineEditor.vue'
-import { ref } from 'vue'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mount } from '@vue/test-utils';
+import HookResultsGallery from '../../app/components/home/HookResultsGallery.vue';
+import PipelineProgressStepper from '../../app/components/home/PipelineProgressStepper.vue';
+import TimelineEditor from '../../app/components/TimelineEditor.vue';
+import { ref } from 'vue';
 
 const mockState = {
   hooks: ref([
@@ -12,7 +12,8 @@ const mockState = {
       start: 10,
       end: 40,
       theme: 'How AI Automation Works',
-      transcript_quote: 'We built an agent that automates the entire workflow seamlessly.',
+      transcript_quote:
+        'We built an agent that automates the entire workflow seamlessly.',
       virality_score: 95,
       virality_reason: 'High intrigue hook with strong value proposition.'
     }
@@ -22,7 +23,8 @@ const mockState = {
       start: 10,
       end: 40,
       theme: 'Saved AI Automation Hook',
-      transcript_quote: 'We built an agent that automates the entire workflow seamlessly.',
+      transcript_quote:
+        'We built an agent that automates the entire workflow seamlessly.',
       virality_score: 95,
       virality_reason: 'High intrigue hook with strong value proposition.'
     }
@@ -44,9 +46,9 @@ const mockState = {
   saveHook: vi.fn(),
   deleteSavedHook: vi.fn(),
   formatDuration: (sec: number) => {
-    const m = Math.floor(sec / 60)
-    const s = Math.floor(sec % 60)
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   },
   timelineTracks: ref([
     {
@@ -54,7 +56,13 @@ const mockState = {
       name: 'Main Video',
       type: 'video',
       items: [
-        { id: 'item-1', name: 'Intro', start: 0, duration: 15, content: 'Welcome to Yonru' }
+        {
+          id: 'item-1',
+          name: 'Intro',
+          start: 0,
+          duration: 15,
+          content: 'Welcome to Yonru'
+        }
       ]
     }
   ]),
@@ -81,104 +89,117 @@ const mockState = {
   subtitleFontWeight: ref(700),
   subtitleWordSpacing: ref(0),
   subtitleHighlightMode: ref('none'),
-  subtitleHighlightColor: ref('#CFFF50'),
-}
+  subtitleHighlightColor: ref('#CFFF50')
+};
 
 vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => mockState,
   FONT_OPTIONS: ['Outfit', 'Montserrat', 'Inter', 'Roboto']
-}))
+}));
 
 const globalStubs = {
-  Icon: { template: '<span class="icon-stub" :data-name="$attrs.name"></span>' },
+  Icon: {
+    template: '<span class="icon-stub" :data-name="$attrs.name"></span>'
+  },
   NuxtIcon: { template: '<span class="nuxt-icon-stub"></span>' },
   Transition: { template: '<div><slot /></div>' },
   ClientOnly: { template: '<div><slot /></div>' }
-}
+};
 
 describe('Text Selection and Smart Selection Guard Unit Tests', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockState.selectedTimelineItem.value = null
-  })
+    vi.clearAllMocks();
+    mockState.selectedTimelineItem.value = null;
+  });
 
   describe('HookResultsGallery Text Selection & Smart Selection Guard', () => {
     it('applies cursor-text and select-text styling to hook title and transcript quote', () => {
       const wrapper = mount(HookResultsGallery, {
         props: {
-          previewVideoUrl: 'http://localhost:8000/static/test_folder/preview.mp4',
+          previewVideoUrl:
+            'http://localhost:8000/static/test_folder/preview.mp4',
           readyClips: []
         },
         global: {
           stubs: globalStubs
         }
-      })
+      });
 
-      const title = wrapper.find('h4')
-      expect(title.exists()).toBe(true)
-      expect(title.classes()).toContain('cursor-text')
-      expect(title.classes()).toContain('select-text')
+      const title = wrapper.find('h4');
+      expect(title.exists()).toBe(true);
+      expect(title.classes()).toContain('cursor-text');
+      expect(title.classes()).toContain('select-text');
 
-      const quote = wrapper.find('p.italic')
-      expect(quote.exists()).toBe(true)
-      expect(quote.classes()).toContain('cursor-text')
-      expect(quote.classes()).toContain('select-text')
-    })
+      const quote = wrapper.find('p.italic');
+      expect(quote.exists()).toBe(true);
+      expect(quote.classes()).toContain('cursor-text');
+      expect(quote.classes()).toContain('select-text');
+    });
 
     it('opens modal when clicking card with NO text selected', async () => {
       vi.spyOn(window, 'getSelection').mockReturnValue({
         toString: () => ''
-      } as any)
+      } as any);
 
       const wrapper = mount(HookResultsGallery, {
         props: {
-          previewVideoUrl: 'http://localhost:8000/static/test_folder/preview.mp4',
+          previewVideoUrl:
+            'http://localhost:8000/static/test_folder/preview.mp4',
           readyClips: []
         },
         global: {
           stubs: globalStubs
         }
-      })
+      });
 
-      const card = wrapper.find('.cursor-pointer.group')
-      expect(card.exists()).toBe(true)
+      const card = wrapper.find('.cursor-pointer.group');
+      expect(card.exists()).toBe(true);
 
-      await card.trigger('click')
-      expect((wrapper.vm as any).selectedModalHook).not.toBeNull()
-      expect((wrapper.vm as any).selectedModalHook.theme).toBe('How AI Automation Works')
-    })
+      await card.trigger('click');
+      expect((wrapper.vm as any).selectedModalHook).not.toBeNull();
+      expect((wrapper.vm as any).selectedModalHook.theme).toBe(
+        'How AI Automation Works'
+      );
+    });
 
     it('guards card click: does NOT open modal when text is actively selected', async () => {
       // Simulate user selecting text across the quote or theme
       vi.spyOn(window, 'getSelection').mockReturnValue({
         toString: () => 'How AI Automation Works'
-      } as any)
+      } as any);
 
       const wrapper = mount(HookResultsGallery, {
         props: {
-          previewVideoUrl: 'http://localhost:8000/static/test_folder/preview.mp4',
+          previewVideoUrl:
+            'http://localhost:8000/static/test_folder/preview.mp4',
           readyClips: []
         },
         global: {
           stubs: globalStubs
         }
-      })
+      });
 
-      const card = wrapper.find('.cursor-pointer.group')
-      expect(card.exists()).toBe(true)
+      const card = wrapper.find('.cursor-pointer.group');
+      expect(card.exists()).toBe(true);
 
-      await card.trigger('click')
+      await card.trigger('click');
       // Smart Selection Guard should prevent modal from opening
-      expect((wrapper.vm as any).selectedModalHook).toBeNull()
-    })
-  })
+      expect((wrapper.vm as any).selectedModalHook).toBeNull();
+    });
+  });
 
   describe('PipelineProgressStepper Selection Compatibility', () => {
     it('does not apply select-none to the stages grid container', () => {
       const wrapper = mount(PipelineProgressStepper, {
         props: {
           stages: [
-            { id: 'download', name: 'Download', description: 'Fetching video', icon: 'download', state: 'active' }
+            {
+              id: 'download',
+              name: 'Download',
+              description: 'Fetching video',
+              icon: 'download',
+              state: 'active'
+            }
           ],
           progressPercent: 50,
           loadingLabel: 'Downloading...'
@@ -186,13 +207,13 @@ describe('Text Selection and Smart Selection Guard Unit Tests', () => {
         global: {
           stubs: globalStubs
         }
-      })
+      });
 
-      const grid = wrapper.find('.grid.gap-4.w-full')
-      expect(grid.exists()).toBe(true)
-      expect(grid.classes()).not.toContain('select-none')
-    })
-  })
+      const grid = wrapper.find('.grid.gap-4.w-full');
+      expect(grid.exists()).toBe(true);
+      expect(grid.classes()).not.toContain('select-none');
+    });
+  });
 
   describe('TimelineEditor Selection Scoping', () => {
     it('allows text selection in root editor container and properties panel while keeping timeline track body select-none', async () => {
@@ -202,7 +223,7 @@ describe('Text Selection and Smart Selection Guard Unit Tests', () => {
         start: 0,
         duration: 5,
         type: 'text'
-      }
+      };
 
       const wrapper = mount(TimelineEditor, {
         global: {
@@ -211,22 +232,28 @@ describe('Text Selection and Smart Selection Guard Unit Tests', () => {
             Transition: false
           }
         }
-      })
+      });
 
       // 1. Root container does NOT have select-none
-      const root = wrapper.element
-      expect(root.classList.contains('select-none')).toBe(false)
+      const root = wrapper.element;
+      expect(root.classList.contains('select-none')).toBe(false);
 
       // 2. Timeline track body has select-none to prevent gesture glitches
-      const timelineBody = wrapper.find('.flex-1.flex.overflow-hidden.relative.select-none')
-      expect(timelineBody.exists()).toBe(true)
+      const timelineBody = wrapper.find(
+        '.flex-1.flex.overflow-hidden.relative.select-none'
+      );
+      expect(timelineBody.exists()).toBe(true);
 
       // 3. Properties panel (when item selected and teleported to body) does NOT have select-none
-      const propertiesPanel = document.body.querySelector('.fixed.top-\\[72px\\]')
-      expect(propertiesPanel).not.toBeNull()
-      const scrollableBody = propertiesPanel?.querySelector('.flex-1.overflow-y-auto')
-      expect(scrollableBody).not.toBeNull()
-      expect(scrollableBody?.classList.contains('select-none')).toBe(false)
-    })
-  })
-})
+      const propertiesPanel = document.body.querySelector(
+        '.fixed.top-\\[72px\\]'
+      );
+      expect(propertiesPanel).not.toBeNull();
+      const scrollableBody = propertiesPanel?.querySelector(
+        '.flex-1.overflow-y-auto'
+      );
+      expect(scrollableBody).not.toBeNull();
+      expect(scrollableBody?.classList.contains('select-none')).toBe(false);
+    });
+  });
+});

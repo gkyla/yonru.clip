@@ -3,15 +3,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
+import { ref } from 'vue';
+import { onBeforeRouteLeave } from 'vue-router';
 
-const homePromptsRef = ref<any>(null)
+const homePromptsRef = ref<any>(null);
 
 onBeforeRouteLeave((to, from) => {
   if (homePromptsRef.value?.handleRouteLeave) {
-    return homePromptsRef.value.handleRouteLeave(to, from)
+    return homePromptsRef.value.handleRouteLeave(to, from);
   }
-  return true
-})
+  return true;
+});
 </script>

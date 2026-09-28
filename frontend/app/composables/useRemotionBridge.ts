@@ -1,11 +1,11 @@
 // useRemotionBridge.ts - Lean reactive adapter delegating to VideoPlaybackCoordinator
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { useClipperState } from './useClipperState'
-import { PlayerBridge } from '../utils/playerBridge'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { useClipperState } from './useClipperState';
+import type { PlayerBridge } from '../utils/playerBridge';
 import {
   VideoPlaybackCoordinator,
   type PlaybackStateSnapshot
-} from '../utils/playbackCoordinator'
+} from '../utils/playbackCoordinator';
 
 export const useRemotionBridge = (
   bridge: PlayerBridge,
@@ -14,10 +14,10 @@ export const useRemotionBridge = (
   isInThumbnailWindow: { value: boolean },
   stableVideoBuster: { value: string }
 ) => {
-  const state = useClipperState()
-  const coordinator = new VideoPlaybackCoordinator(bridge)
-  const isInternalTimeUpdate = ref(false)
-  let unsubscribe: (() => void) | null = null
+  const state = useClipperState();
+  const coordinator = new VideoPlaybackCoordinator(bridge);
+  const isInternalTimeUpdate = ref(false);
+  let unsubscribe: (() => void) | null = null;
 
   const getSnapshot = (): PlaybackStateSnapshot => ({
     currentTime: state.currentTime.value,
@@ -76,130 +76,164 @@ export const useRemotionBridge = (
     audioBleepSource: state.audioBleepSource?.value,
     customBleepData: state.customBleepFile?.value?.data,
     flaggedSegments: state.contentAudit.value?.flaggedSegments
-  })
+  });
 
   function syncRemotionProps() {
     coordinator.syncProps(getSnapshot(), {
       width: previewVideo.value?.videoWidth || 1920,
       height: previewVideo.value?.videoHeight || 1080
-    })
+    });
   }
 
   function onRemotionMessage(data: any) {
-    if (!data) return
+    if (!data) return;
     if (data.type === 'REMOTION_TIMEUPDATE') {
-      isInternalTimeUpdate.value = true
+      isInternalTimeUpdate.value = true;
 
-      const res = coordinator.handleRemotionTimeUpdate(data.currentTime, getSnapshot(), previewVideo.value)
-      state.currentTime.value = res.newCurrentTime
+      const res = coordinator.handleRemotionTimeUpdate(
+        data.currentTime,
+        getSnapshot(),
+        previewVideo.value
+      );
+      state.currentTime.value = res.newCurrentTime;
       if (res.shouldPause) {
-        state.isPlaying.value = false
+        state.isPlaying.value = false;
       }
 
-      nextTick(() => { isInternalTimeUpdate.value = false })
+      nextTick(() => {
+        isInternalTimeUpdate.value = false;
+      });
     } else if (data.type === 'REMOTION_ENDED') {
-      state.isPlaying.value = false
+      state.isPlaying.value = false;
     } else if (data.type === 'REMOTION_PAUSED') {
-      state.isPlaying.value = false
+      state.isPlaying.value = false;
     } else if (data.type === 'IFRAME_READY') {
-      console.log('[VideoPreview] Remotion Iframe Ready. Syncing...')
-      syncRemotionProps()
-      state.isMediaLoading.value = false
+      console.log('[VideoPreview] Remotion Iframe Ready. Syncing...');
+      syncRemotionProps();
+      state.isMediaLoading.value = false;
     }
   }
 
-  watch([
-    () => state.videoUrl.value,
-    () => state.cropMode?.value,
-    () => state.cropMap?.value,
-    () => state.cropPercentX.value,
-    () => state.cropPercentXTop?.value,
-    () => state.cropPercentXBottom?.value,
-    () => state.splitZoomTop?.value,
-    () => state.splitZoomBottom?.value,
-    () => state.splitOffsetXTop?.value,
-    () => state.splitOffsetYTop?.value,
-    () => state.splitOffsetXBottom?.value,
-    () => state.splitOffsetYBottom?.value,
-    () => state.subtitlePosition.value,
-    () => state.videoLayout?.value,
-    () => state.landscapeBackground?.value,
-    () => state.landscapeBlurRadius?.value,
-    () => state.landscapeDarkness?.value,
-    () => state.subtitleOffset.value,
-    () => state.autoAdaptiveSubtitles?.value,
-    () => state.subtitleSyncOffset.value,
-    () => state?.activeHook?.value,
-    () => state.fullTranscript.value,
-    () => state.subtitleMode.value,
-    () => state.showIframeDebug.value,
-    () => state.font.value,
-    () => state.fontSize.value,
-    () => state.subtitleAnimation.value,
-    () => state.subtitleHighlightMode.value,
-    () => state.subtitleHighlightColor.value,
-    () => state.subtitleTextColor.value,
-    () => state.subtitleStrokeColor.value,
-    () => state.subtitleStrokeWidth.value,
-    () => state.subtitleFontWeight.value,
-    () => state.subtitleTextTransform.value,
-    () => state.subtitleBackground.value,
-    () => state.subtitleBackgroundOpacity.value,
-    () => state.subtitleWordSpacing.value,
-    () => state.timelineTracks.value,
-    () => state.thumbnailEnabled.value,
-    () => state.thumbnailDuration.value,
-    () => state.thumbnailTextOverlays.value,
-    () => state.audioBleepEnabled?.value,
-    () => state.audioBleepSource?.value,
-    () => state.customBleepFile?.value?.data,
-    () => state.contentAudit?.value?.flaggedSegments,
-  ], () => {
-    syncRemotionProps()
-  }, { deep: true, immediate: true })
+  watch(
+    [
+      () => state.videoUrl.value,
+      () => state.cropMode?.value,
+      () => state.cropMap?.value,
+      () => state.cropPercentX.value,
+      () => state.cropPercentXTop?.value,
+      () => state.cropPercentXBottom?.value,
+      () => state.splitZoomTop?.value,
+      () => state.splitZoomBottom?.value,
+      () => state.splitOffsetXTop?.value,
+      () => state.splitOffsetYTop?.value,
+      () => state.splitOffsetXBottom?.value,
+      () => state.splitOffsetYBottom?.value,
+      () => state.subtitlePosition.value,
+      () => state.videoLayout?.value,
+      () => state.landscapeBackground?.value,
+      () => state.landscapeBlurRadius?.value,
+      () => state.landscapeDarkness?.value,
+      () => state.subtitleOffset.value,
+      () => state.autoAdaptiveSubtitles?.value,
+      () => state.subtitleSyncOffset.value,
+      () => state?.activeHook?.value,
+      () => state.fullTranscript.value,
+      () => state.subtitleMode.value,
+      () => state.showIframeDebug.value,
+      () => state.font.value,
+      () => state.fontSize.value,
+      () => state.subtitleAnimation.value,
+      () => state.subtitleHighlightMode.value,
+      () => state.subtitleHighlightColor.value,
+      () => state.subtitleTextColor.value,
+      () => state.subtitleStrokeColor.value,
+      () => state.subtitleStrokeWidth.value,
+      () => state.subtitleFontWeight.value,
+      () => state.subtitleTextTransform.value,
+      () => state.subtitleBackground.value,
+      () => state.subtitleBackgroundOpacity.value,
+      () => state.subtitleWordSpacing.value,
+      () => state.timelineTracks.value,
+      () => state.thumbnailEnabled.value,
+      () => state.thumbnailDuration.value,
+      () => state.thumbnailTextOverlays.value,
+      () => state.audioBleepEnabled?.value,
+      () => state.audioBleepSource?.value,
+      () => state.customBleepFile?.value?.data,
+      () => state.contentAudit?.value?.flaggedSegments
+    ],
+    () => {
+      syncRemotionProps();
+    },
+    { deep: true, immediate: true }
+  );
 
-  watch(() => state.isPlaying.value, (playing) => {
-    coordinator.handlePlayStateChange(playing, getSnapshot(), previewVideo.value)
-  })
-
-  watch(() => state.volume.value, () => {
-    coordinator.handleMuteVolumeChange(getSnapshot(), previewVideo.value)
-  })
-
-  watch(() => state.currentTime.value, (newTime) => {
-    if (isInternalTimeUpdate.value) return
-    coordinator.handleTimeChange(newTime, getSnapshot(), previewVideo.value)
-  })
-
-  watch(() => state.isTimelineShifting.value, (shifting) => {
-    if (!shifting) {
-      coordinator.handleTimeChange(state.currentTime.value, getSnapshot(), previewVideo.value)
-    }
-  })
-
-  watch([
-    () => coordinator.isInsideFlaggedSegment(getSnapshot()),
+  watch(
     () => state.isPlaying.value,
-    () => state.audioBleepSource?.value,
-    () => state.customBleepFile?.value?.data,
-    () => state.volume.value
-  ], () => {
-    coordinator.handleMuteVolumeChange(getSnapshot(), previewVideo.value)
-  })
+    playing => {
+      coordinator.handlePlayStateChange(
+        playing,
+        getSnapshot(),
+        previewVideo.value
+      );
+    }
+  );
+
+  watch(
+    () => state.volume.value,
+    () => {
+      coordinator.handleMuteVolumeChange(getSnapshot(), previewVideo.value);
+    }
+  );
+
+  watch(
+    () => state.currentTime.value,
+    newTime => {
+      if (isInternalTimeUpdate.value) return;
+      coordinator.handleTimeChange(newTime, getSnapshot(), previewVideo.value);
+    }
+  );
+
+  watch(
+    () => state.isTimelineShifting.value,
+    shifting => {
+      if (!shifting) {
+        coordinator.handleTimeChange(
+          state.currentTime.value,
+          getSnapshot(),
+          previewVideo.value
+        );
+      }
+    }
+  );
+
+  watch(
+    [
+      () => coordinator.isInsideFlaggedSegment(getSnapshot()),
+      () => state.isPlaying.value,
+      () => state.audioBleepSource?.value,
+      () => state.customBleepFile?.value?.data,
+      () => state.volume.value
+    ],
+    () => {
+      coordinator.handleMuteVolumeChange(getSnapshot(), previewVideo.value);
+    }
+  );
 
   onMounted(() => {
-    unsubscribe = bridge.onMessage(onRemotionMessage)
-  })
+    unsubscribe = bridge.onMessage(onRemotionMessage);
+  });
 
   onUnmounted(() => {
     if (unsubscribe) {
-      unsubscribe()
+      unsubscribe();
     }
-  })
+  });
 
   return {
     syncRemotionProps,
     isInternalTimeUpdate,
-    setNativeVideoStarted: (val: boolean) => coordinator.setNativeVideoStarted(val)
-  }
-}
+    setNativeVideoStarted: (val: boolean) =>
+      coordinator.setNativeVideoStarted(val)
+  };
+};

@@ -14,60 +14,91 @@ import {
   type MaskingStyle,
   type BleepMode,
   type PlatformSafeZone
-} from '../utils/safetyEngine'
-import type { Hook, DeepAuditResult, TranscriptSegment } from '../types/clipper'
+} from '../utils/safetyEngine';
+import type {
+  Hook,
+  DeepAuditResult,
+  TranscriptSegment
+} from '../types/clipper';
 
 export const useSafetyAuditor = () => {
-  const API_BASE = 'http://localhost:8000'
+  const API_BASE = 'http://localhost:8000';
 
   // Reactive State
-  const customBlacklist = useState<string[]>('customBlacklist', () => [])
-  const customWhitelist = useState<string[]>('customWhitelist', () => [])
-  const safetySensitivity = useState<SafetySensitivity>('safetySensitivity', () => 'strict')
-  const maskingStyle = useState<MaskingStyle>('maskingStyle', () => 'asterisk')
-  const audioBleepEnabled = useState<boolean>('audioBleepEnabled', () => true)
-  const audioBleepSource = useState<'mute' | 'custom'>('audioBleepSource', () => 'mute')
-  const bleepLibrary = useState<BleepAudioItem[]>('bleepLibrary', () => [...BUILTIN_BLEEP_PRESETS])
-  const selectedBleepAudioId = useState<string>('selectedBleepAudioId', () => DEFAULT_BLEEP_PRESET.id)
-  const customBleepFile = useState<{ name: string; data: string } | null>('customBleepFile', () => ({
-    name: DEFAULT_BLEEP_PRESET.name,
-    data: DEFAULT_BLEEP_PRESET.data
-  }))
-  const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 0)
-  const bleepMode = useState<BleepMode>('bleepMode', () => 'full')
-  const isWarningIgnored = useState<boolean>('isWarningIgnored', () => false)
-  const activeCategories = useState<Record<SafetyCategory, boolean>>('activeCategories', () => ({
-    violence: true,
-    sexual: true,
-    profanity: true
-  }))
-  const activePlatformFilters = useState<{ tiktok: boolean; reels: boolean; shorts: boolean }>('activePlatformFilters', () => ({
+  const customBlacklist = useState<string[]>('customBlacklist', () => []);
+  const customWhitelist = useState<string[]>('customWhitelist', () => []);
+  const safetySensitivity = useState<SafetySensitivity>(
+    'safetySensitivity',
+    () => 'strict'
+  );
+  const maskingStyle = useState<MaskingStyle>('maskingStyle', () => 'asterisk');
+  const audioBleepEnabled = useState<boolean>('audioBleepEnabled', () => true);
+  const audioBleepSource = useState<'mute' | 'custom'>(
+    'audioBleepSource',
+    () => 'mute'
+  );
+  const bleepLibrary = useState<BleepAudioItem[]>('bleepLibrary', () => [
+    ...BUILTIN_BLEEP_PRESETS
+  ]);
+  const selectedBleepAudioId = useState<string>(
+    'selectedBleepAudioId',
+    () => DEFAULT_BLEEP_PRESET.id
+  );
+  const customBleepFile = useState<{ name: string; data: string } | null>(
+    'customBleepFile',
+    () => ({
+      name: DEFAULT_BLEEP_PRESET.name,
+      data: DEFAULT_BLEEP_PRESET.data
+    })
+  );
+  const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 0);
+  const bleepMode = useState<BleepMode>('bleepMode', () => 'full');
+  const isWarningIgnored = useState<boolean>('isWarningIgnored', () => false);
+  const activeCategories = useState<Record<SafetyCategory, boolean>>(
+    'activeCategories',
+    () => ({
+      violence: true,
+      sexual: true,
+      profanity: true
+    })
+  );
+  const activePlatformFilters = useState<{
+    tiktok: boolean;
+    reels: boolean;
+    shorts: boolean;
+  }>('activePlatformFilters', () => ({
     tiktok: true,
     reels: true,
     shorts: true
-  }))
+  }));
 
-  const deepAuditResults = useState<DeepAuditResult | null>('deepAuditResults', () => null)
-  const isDeepAuditing = useState<boolean>('isDeepAuditing', () => false)
-  const safeZoneVisible = useState<boolean>('safeZoneVisible', () => false)
+  const deepAuditResults = useState<DeepAuditResult | null>(
+    'deepAuditResults',
+    () => null
+  );
+  const isDeepAuditing = useState<boolean>('isDeepAuditing', () => false);
+  const safeZoneVisible = useState<boolean>('safeZoneVisible', () => false);
 
-  const categorizedBlacklist = useState<Record<SafetyCategory, string[]>>('categorizedBlacklist', () => ({
-    violence: [...DEFAULT_CATEGORIZED_BLACKLIST.violence],
-    sexual: [...DEFAULT_CATEGORIZED_BLACKLIST.sexual],
-    profanity: [...DEFAULT_CATEGORIZED_BLACKLIST.profanity]
-  }))
+  const categorizedBlacklist = useState<Record<SafetyCategory, string[]>>(
+    'categorizedBlacklist',
+    () => ({
+      violence: [...DEFAULT_CATEGORIZED_BLACKLIST.violence],
+      sexual: [...DEFAULT_CATEGORIZED_BLACKLIST.sexual],
+      profanity: [...DEFAULT_CATEGORIZED_BLACKLIST.profanity]
+    })
+  );
 
   // Subtitle style / mode dependencies
-  const subtitleMode = useState<string>('subtitleMode')
-  const fullTranscript = useState<TranscriptSegment[]>('fullTranscript')
-  const activeHook = useState<Hook | null>('activeHook')
-  const language = useState<string>('language')
-  const activeSafeZone = useState<PlatformSafeZone>('activeSafeZone')
-  const subtitleOffset = useState<number>('subtitleOffset')
-  const subtitlePosition = useState<string>('subtitlePosition')
-  const subtitleBackground = useState<string>('subtitleBackground')
-  const subtitleStrokeWidth = useState<number>('subtitleStrokeWidth')
-  const subtitleStrokeColor = useState<string>('subtitleStrokeColor')
+  const subtitleMode = useState<string>('subtitleMode');
+  const fullTranscript = useState<TranscriptSegment[]>('fullTranscript');
+  const activeHook = useState<Hook | null>('activeHook');
+  const language = useState<string>('language');
+  const activeSafeZone = useState<PlatformSafeZone>('activeSafeZone');
+  const subtitleOffset = useState<number>('subtitleOffset');
+  const subtitlePosition = useState<string>('subtitlePosition');
+  const subtitleBackground = useState<string>('subtitleBackground');
+  const subtitleStrokeWidth = useState<number>('subtitleStrokeWidth');
+  const subtitleStrokeColor = useState<string>('subtitleStrokeColor');
 
   // Create encapsulated auditor configured from current reactive state
   const auditor = computed(() => {
@@ -87,78 +118,84 @@ export const useSafetyAuditor = () => {
       isWarningIgnored: isWarningIgnored.value,
       activeCategories: activeCategories.value,
       activePlatformFilters: activePlatformFilters.value
-    })
-  })
+    });
+  });
 
   // Synchronize bleep audio selection
   const syncCustomBleepFile = () => {
-    const activeItem = bleepLibrary.value.find(item => item.id === selectedBleepAudioId.value) || DEFAULT_BLEEP_PRESET
-    customBleepFile.value = { name: activeItem.name, data: activeItem.data }
-  }
+    const activeItem =
+      bleepLibrary.value.find(item => item.id === selectedBleepAudioId.value) ||
+      DEFAULT_BLEEP_PRESET;
+    customBleepFile.value = { name: activeItem.name, data: activeItem.data };
+  };
 
-  watch([selectedBleepAudioId, bleepLibrary], () => {
-    syncCustomBleepFile()
-  }, { deep: true, immediate: true })
+  watch(
+    [selectedBleepAudioId, bleepLibrary],
+    () => {
+      syncCustomBleepFile();
+    },
+    { deep: true, immediate: true }
+  );
 
   const selectBleepAudio = (id: string) => {
     if (bleepLibrary.value.some(item => item.id === id)) {
-      selectedBleepAudioId.value = id
-      syncCustomBleepFile()
-      saveBlacklistToStorage()
+      selectedBleepAudioId.value = id;
+      syncCustomBleepFile();
+      saveBlacklistToStorage();
     }
-  }
+  };
 
   const addCustomBleepFile = (file: { name: string; data: string }) => {
-    const engine = auditor.value
-    const newItem = engine.addCustomBleepFile(file)
-    bleepLibrary.value = [...engine.bleepLibrary]
-    selectedBleepAudioId.value = engine.selectedBleepAudioId
-    syncCustomBleepFile()
-    saveBlacklistToStorage()
-    return newItem
-  }
+    const engine = auditor.value;
+    const newItem = engine.addCustomBleepFile(file);
+    bleepLibrary.value = [...engine.bleepLibrary];
+    selectedBleepAudioId.value = engine.selectedBleepAudioId;
+    syncCustomBleepFile();
+    saveBlacklistToStorage();
+    return newItem;
+  };
 
   const removeCustomBleepFile = (id: string) => {
-    const engine = auditor.value
-    const removed = engine.removeCustomBleepFile(id)
+    const engine = auditor.value;
+    const removed = engine.removeCustomBleepFile(id);
     if (removed) {
-      bleepLibrary.value = [...engine.bleepLibrary]
-      selectedBleepAudioId.value = engine.selectedBleepAudioId
-      syncCustomBleepFile()
-      saveBlacklistToStorage()
+      bleepLibrary.value = [...engine.bleepLibrary];
+      selectedBleepAudioId.value = engine.selectedBleepAudioId;
+      syncCustomBleepFile();
+      saveBlacklistToStorage();
     }
-  }
+  };
 
   const saveBlacklistToStorage = () => {
     if (import.meta.client) {
-      auditor.value.serializeToStorage(localStorage)
+      auditor.value.serializeToStorage(localStorage);
     }
-  }
+  };
 
   const loadBlacklistFromStorage = () => {
     if (import.meta.client) {
-      const engine = createContentSafetyAuditor()
-      engine.hydrateFromStorage(localStorage)
-      const exported = engine.exportState()
+      const engine = createContentSafetyAuditor();
+      engine.hydrateFromStorage(localStorage);
+      const exported = engine.exportState();
 
-      customBlacklist.value = exported.customBlacklist
-      customWhitelist.value = exported.customWhitelist
-      categorizedBlacklist.value = exported.categorizedBlacklist
-      audioBleepSource.value = exported.audioBleepSource
-      bleepLibrary.value = exported.bleepLibrary
-      selectedBleepAudioId.value = exported.selectedBleepAudioId
-      audioBleepEnabled.value = exported.audioBleepEnabled
-      bleepPaddingOffset.value = exported.bleepPaddingOffset
-      bleepMode.value = exported.bleepMode
-      syncCustomBleepFile()
+      customBlacklist.value = exported.customBlacklist;
+      customWhitelist.value = exported.customWhitelist;
+      categorizedBlacklist.value = exported.categorizedBlacklist;
+      audioBleepSource.value = exported.audioBleepSource;
+      bleepLibrary.value = exported.bleepLibrary;
+      selectedBleepAudioId.value = exported.selectedBleepAudioId;
+      audioBleepEnabled.value = exported.audioBleepEnabled;
+      bleepPaddingOffset.value = exported.bleepPaddingOffset;
+      bleepMode.value = exported.bleepMode;
+      syncCustomBleepFile();
     }
-  }
+  };
 
-  watch(bleepMode, (val) => {
+  watch(bleepMode, val => {
     if (import.meta.client) {
-      localStorage.setItem('yonru_bleep_mode', val)
+      localStorage.setItem('yonru_bleep_mode', val);
     }
-  })
+  });
 
   // 3-Pillar Safety Audits
   const contentAudit = computed(() => {
@@ -172,7 +209,7 @@ export const useSafetyAuditor = () => {
       subtitleStrokeColor: subtitleStrokeColor.value || '#000000',
       isWarningIgnored: isWarningIgnored.value,
       audioBleepEnabled: audioBleepEnabled.value
-    })
+    });
 
     return {
       ...report.rawAudit,
@@ -180,8 +217,8 @@ export const useSafetyAuditor = () => {
       remediatedWords: report.remediatedWords || [],
       remediatedSegments: report.remediatedSegments || [],
       isRemediated: report.isRemediated
-    }
-  })
+    };
+  });
 
   const layoutAudit = computed(() => {
     return auditor.value.auditLayoutCollision(
@@ -190,18 +227,18 @@ export const useSafetyAuditor = () => {
       subtitleOffset.value || 0,
       activePlatformFilters.value,
       isWarningIgnored.value
-    )
-  })
+    );
+  });
 
   const fitSubtitlesToSafeZone = () => {
     const safeOffset = auditor.value.calculateSafeOffset(
       activeSafeZone.value || 'none',
       subtitlePosition.value || 'center'
-    )
+    );
     if (safeOffset !== null) {
-      subtitleOffset.value = safeOffset
+      subtitleOffset.value = safeOffset;
     }
-  }
+  };
 
   const readabilityAudit = computed(() => {
     return auditor.value.auditReadability(
@@ -209,26 +246,26 @@ export const useSafetyAuditor = () => {
       subtitleStrokeWidth.value || 0,
       subtitleStrokeColor.value || '#000000',
       isWarningIgnored.value
-    )
-  })
+    );
+  });
 
   const fitSubtitlesToReadability = () => {
-    subtitleStrokeWidth.value = 4
-    subtitleStrokeColor.value = '#000000'
-  }
+    subtitleStrokeWidth.value = 4;
+    subtitleStrokeColor.value = '#000000';
+  };
 
   const ignoreSafetyWarnings = () => {
-    isWarningIgnored.value = true
-  }
+    isWarningIgnored.value = true;
+  };
 
   const restoreSafetyWarnings = () => {
-    isWarningIgnored.value = false
-  }
+    isWarningIgnored.value = false;
+  };
 
   async function runDeepAudit() {
-    if (!activeHook.value || isDeepAuditing.value) return
-    isDeepAuditing.value = true
-    deepAuditResults.value = null
+    if (!activeHook.value || isDeepAuditing.value) return;
+    isDeepAuditing.value = true;
+    deepAuditResults.value = null;
 
     try {
       const response = await fetch(`${API_BASE}/audit/deep`, {
@@ -238,35 +275,38 @@ export const useSafetyAuditor = () => {
           transcript: activeHook.value.transcript_quote,
           language: language.value
         })
-      })
-      if (!response.ok) throw new Error('Backend audit failed')
-      const data = await response.json()
-      deepAuditResults.value = data
+      });
+      if (!response.ok) throw new Error('Backend audit failed');
+      const data = await response.json();
+      deepAuditResults.value = data;
     } catch (e) {
-      console.error('[audit] Deep audit failed:', e)
+      console.error('[audit] Deep audit failed:', e);
       setTimeout(() => {
         deepAuditResults.value = {
           riskLevel: 'medium',
-          violations: ['Potential clickbait pattern detected', 'Sensitive health claim check recommended'],
+          violations: [
+            'Potential clickbait pattern detected',
+            'Sensitive health claim check recommended'
+          ],
           suggestions: 'Rephrase the opening sentence to be less inflammatory.'
-        }
-      }, 1500)
+        };
+      }, 1500);
     } finally {
       setTimeout(() => {
-        isDeepAuditing.value = false
-      }, 1500)
+        isDeepAuditing.value = false;
+      }, 1500);
     }
   }
 
   const maskFlaggedWords = () => {
-    const transcript = fullTranscript.value || []
-    fullTranscript.value = auditor.value.maskTranscript(transcript)
-  }
+    const transcript = fullTranscript.value || [];
+    fullTranscript.value = auditor.value.maskTranscript(transcript);
+  };
 
   const revertMaskedWords = () => {
-    const transcript = fullTranscript.value || []
-    fullTranscript.value = auditor.value.unmaskTranscript(transcript)
-  }
+    const transcript = fullTranscript.value || [];
+    fullTranscript.value = auditor.value.unmaskTranscript(transcript);
+  };
 
   return {
     customBlacklist,
@@ -302,5 +342,5 @@ export const useSafetyAuditor = () => {
     fitSubtitlesToReadability,
     ignoreSafetyWarnings,
     restoreSafetyWarnings
-  }
-}
+  };
+};

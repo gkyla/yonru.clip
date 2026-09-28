@@ -101,7 +101,7 @@
             isActiveHook(hook)
               ? 'border-accent-500/50 bg-surface-dark/50 text-white hook-item-active cursor-default'
               : 'bg-surface-dark/50 border-surface-border hover:border-accent-500/30 hover:bg-surface-card text-slate-300',
-            isOverlayVisible ? 'opacity-50 cursor-not-allowed' : '',
+            isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
           ]"
           @click="emit('select-hook', hook)"
         >
@@ -113,7 +113,7 @@
                   isActiveHook(hook) ? 'text-accent-500' : 'text-slate-500'
                 "
               >
-                HOOK {{ String(Number(idx) + 1).padStart(2, "0") }}
+                HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}
               </span>
 
               <!-- Virality Score Badge -->
@@ -126,7 +126,7 @@
                   'bg-cyan-500/10 text-cyan-400 border-cyan-500/30':
                     hook.virality_score >= 75 && hook.virality_score < 90,
                   'bg-surface-dark/80 text-slate-400 border-surface-border':
-                    hook.virality_score < 75,
+                    hook.virality_score < 75
                 }"
               >
                 <Icon
@@ -160,7 +160,7 @@
                   for editing!
                   <div
                     class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-surface-dark"
-                  />
+                  ></div>
                 </div>
               </div>
             </div>
@@ -178,10 +178,10 @@
                 ({{
                   Math.floor(hook.end - hook.start) >= 60
                     ? Math.floor((hook.end - hook.start) / 60) +
-                      "m " +
+                      'm ' +
                       Math.floor((hook.end - hook.start) % 60) +
-                      "s"
-                    : Math.floor(hook.end - hook.start) + "s"
+                      's'
+                    : Math.floor(hook.end - hook.start) + 's'
                 }})
               </span>
             </span>
@@ -190,15 +190,15 @@
             class="font-bold truncate"
             :class="isActiveHook(hook) ? 'text-white' : 'text-slate-200'"
           >
-            {{ hook.theme || "Untitled" }}
+            {{ hook.theme || 'Untitled' }}
           </p>
           <p
             class="text-[10.5px] mt-1 line-clamp-2 italic text-slate-400 group-hover:text-slate-300"
           >
             "{{
-              (hook.transcript_quote || "").length > 80
-                ? (hook.transcript_quote || "").substring(0, 77) + "..."
-                : hook.transcript_quote || ""
+              (hook.transcript_quote || '').length > 80
+                ? (hook.transcript_quote || '').substring(0, 77) + '...'
+                : hook.transcript_quote || ''
             }}"
           </p>
         </button>
@@ -226,7 +226,7 @@
             isActiveHook(hook)
               ? 'border-accent-500 bg-surface-dark/50 text-white hook-item-active cursor-default'
               : 'bg-surface-dark/50 border-surface-border hover:border-accent-500/30 hover:bg-surface-card text-slate-300',
-            isOverlayVisible ? 'opacity-50 cursor-not-allowed' : '',
+            isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
           ]"
           @click="emit('select-hook', hook)"
         >
@@ -238,7 +238,7 @@
                   isActiveHook(hook) ? 'text-accent-500' : 'text-slate-500'
                 "
               >
-                SAVED {{ String(Number(idx) + 1).padStart(2, "0") }}
+                SAVED {{ String(Number(idx) + 1).padStart(2, '0') }}
               </span>
 
               <!-- Virality Score Badge -->
@@ -251,7 +251,7 @@
                   'bg-cyan-500/10 text-cyan-400 border-cyan-500/30':
                     hook.virality_score >= 75 && hook.virality_score < 90,
                   'bg-surface-dark/80 text-slate-400 border-surface-border':
-                    hook.virality_score < 75,
+                    hook.virality_score < 75
                 }"
               >
                 <Icon
@@ -283,7 +283,7 @@
                   for editing!
                   <div
                     class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-surface-dark"
-                  />
+                  ></div>
                 </div>
               </div>
             </div>
@@ -301,10 +301,10 @@
                 ({{
                   Math.floor(hook.end - hook.start) >= 60
                     ? Math.floor((hook.end - hook.start) / 60) +
-                      "m " +
+                      'm ' +
                       Math.floor((hook.end - hook.start) % 60) +
-                      "s"
-                    : Math.floor(hook.end - hook.start) + "s"
+                      's'
+                    : Math.floor(hook.end - hook.start) + 's'
                 }})
               </span>
             </span>
@@ -313,15 +313,15 @@
             class="font-bold truncate"
             :class="isActiveHook(hook) ? 'text-white' : 'text-slate-200'"
           >
-            {{ hook.theme || "Untitled" }}
+            {{ hook.theme || 'Untitled' }}
           </p>
           <p
             class="text-[10.5px] mt-1 line-clamp-2 italic text-slate-400 group-hover:text-slate-300"
           >
             "{{
-              (hook.transcript_quote || "").length > 80
-                ? (hook.transcript_quote || "").substring(0, 77) + "..."
-                : hook.transcript_quote || ""
+              (hook.transcript_quote || '').length > 80
+                ? (hook.transcript_quote || '').substring(0, 77) + '...'
+                : hook.transcript_quote || ''
             }}"
           </p>
         </button>
@@ -331,11 +331,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from "vue";
-import type { Hook } from "../../types/clipper";
+import { ref, watch, nextTick } from 'vue';
+import type { Hook } from '../../types/clipper';
 
 const props = defineProps<{
-  panelTab: "generated" | "saved";
+  panelTab: 'generated' | 'saved';
   isCurrentHookSaved: boolean;
   isOverlayVisible: boolean;
   isHookRendered: (hook: Hook | null) => boolean;
@@ -343,11 +343,11 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "update:panelTab", tab: "generated" | "saved"): void;
-  (e: "select-hook", hook: Hook): void;
-  (e: "save-current-hook"): void;
-  (e: "remove-current-saved-hook"): void;
-  (e: "open-blacklist-settings"): void;
+  (e: 'update:panelTab', tab: 'generated' | 'saved'): void;
+  (e: 'select-hook', hook: Hook): void;
+  (e: 'save-current-hook'): void;
+  (e: 'remove-current-saved-hook'): void;
+  (e: 'open-blacklist-settings'): void;
 }>();
 
 const state = useClipperState();
@@ -359,22 +359,22 @@ watch(
     () => state.activeHook.value,
     () => state.hooks.value,
     () => state.savedHooks.value,
-    () => props.panelTab,
+    () => props.panelTab
   ],
   async () => {
     if (!state.activeHook.value) return;
 
     await nextTick();
     setTimeout(() => {
-      if (typeof document !== "undefined") {
-        const activeEl = document.querySelector(".hook-item-active");
+      if (typeof document !== 'undefined') {
+        const activeEl = document.querySelector('.hook-item-active');
         if (activeEl) {
-          activeEl.scrollIntoView({ behavior: "smooth", block: "center" });
+          activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }
     }, 100);
   },
-  { immediate: true, deep: true },
+  { immediate: true, deep: true }
 );
 </script>
 

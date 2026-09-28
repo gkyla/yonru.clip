@@ -1,61 +1,134 @@
 // Composable for managing the entire clipper state
-import { useSystemDiagnostics } from './useSystemDiagnostics'
-import { useSafetyAuditor } from './useSafetyAuditor'
-import { DEFAULT_BLACKLIST, CATEGORIZED_BLACKLIST } from '../utils/safetyEngine'
-import { useTimelineState } from './useTimelineState'
-import { useClipperJob } from './useClipperJob'
-import { useClipperThumbnail } from './useClipperThumbnail'
-import { useClipperExport } from './useClipperExport'
+import { useSystemDiagnostics } from './useSystemDiagnostics';
+import { useSafetyAuditor } from './useSafetyAuditor';
+import {
+  DEFAULT_BLACKLIST,
+  CATEGORIZED_BLACKLIST
+} from '../utils/safetyEngine';
+import { useTimelineState } from './useTimelineState';
+import { useClipperJob } from './useClipperJob';
+import { useClipperThumbnail } from './useClipperThumbnail';
+import { useClipperExport } from './useClipperExport';
 
-import fontsManifest from '../../../shared/fonts_manifest.json'
-import type { Hook, CachedVideo, LastAccessedClip, TranscriptSegment, PromptTemplate, SubtitleStyleSettings, TimelineTrack, TimelineTrackItem, HookExtractionMode, HookIntentPreset, CropMapPoint } from '../types/clipper'
+import fontsManifest from '../../../shared/fonts_manifest.json';
+import type {
+  Hook,
+  CachedVideo,
+  LastAccessedClip,
+  TranscriptSegment,
+  PromptTemplate,
+  SubtitleStyleSettings,
+  TimelineTrack,
+  TimelineTrackItem,
+  HookExtractionMode,
+  HookIntentPreset,
+  CropMapPoint
+} from '../types/clipper';
 
-export const FONT_OPTIONS = fontsManifest.fonts.map((f: { name: string }) => f.name)
+export const FONT_OPTIONS = fontsManifest.fonts.map(
+  (f: { name: string }) => f.name
+);
 
 export const WHISPER_MODELS = [
-  { id: 'tiny', name: 'Tiny', speed: 'Ultra Fast', acc: 'Basic', desc: 'Minimal accuracy, best for quick testing on weak hardware.' },
-  { id: 'base', name: 'Base', speed: 'Very Fast', acc: 'Good', desc: 'Great balance for clear audio. Default choice.' },
-  { id: 'small', name: 'Small', speed: 'Fast', acc: 'Better', desc: 'Significantly better for non-English or noisy audio.' },
-  { id: 'medium', name: 'Medium', speed: 'Moderate', acc: 'Excellent', desc: 'High precision. Requires decent hardware (~5GB VRAM).' },
-  { id: 'large-v3', name: 'Large-v3', speed: 'Slow', acc: 'State-of-the-Art', desc: 'Highest accuracy possible. Best for complex dialogue.' }
-] as const
+  {
+    id: 'tiny',
+    name: 'Tiny',
+    speed: 'Ultra Fast',
+    acc: 'Basic',
+    desc: 'Minimal accuracy, best for quick testing on weak hardware.'
+  },
+  {
+    id: 'base',
+    name: 'Base',
+    speed: 'Very Fast',
+    acc: 'Good',
+    desc: 'Great balance for clear audio. Default choice.'
+  },
+  {
+    id: 'small',
+    name: 'Small',
+    speed: 'Fast',
+    acc: 'Better',
+    desc: 'Significantly better for non-English or noisy audio.'
+  },
+  {
+    id: 'medium',
+    name: 'Medium',
+    speed: 'Moderate',
+    acc: 'Excellent',
+    desc: 'High precision. Requires decent hardware (~5GB VRAM).'
+  },
+  {
+    id: 'large-v3',
+    name: 'Large-v3',
+    speed: 'Slow',
+    acc: 'State-of-the-Art',
+    desc: 'Highest accuracy possible. Best for complex dialogue.'
+  }
+] as const;
 
-let cachedState: ReturnType<typeof createClipperState> | null = null
+let cachedState: ReturnType<typeof createClipperState> | null = null;
 
 export const useClipperState = () => {
   if (import.meta.server) {
-    return createClipperState()
+    return createClipperState();
   }
 
   if (!cachedState) {
-    cachedState = createClipperState()
+    cachedState = createClipperState();
   }
-  return cachedState
-}
+  return cachedState;
+};
 
 function createClipperState() {
   // API Base
-  const API_BASE = 'http://localhost:8000'
+  const API_BASE = 'http://localhost:8000';
 
   // Instantiate Sub-composables for separated concerns
-  const diagnostics = useSystemDiagnostics()
-  const auditor = useSafetyAuditor()
-  const timeline = useTimelineState()
-  const job = useClipperJob()
-  const thumbnailState = useClipperThumbnail()
+  const diagnostics = useSystemDiagnostics();
+  const auditor = useSafetyAuditor();
+  const timeline = useTimelineState();
+  const job = useClipperJob();
+  const thumbnailState = useClipperThumbnail();
 
   // Job state delegated from useClipperJob sub-composable
-  const { jobId, isMediaLoading, jobStatus, jobError, isNavigatingToEditor, startSafetyBuffer, isCachedAnalysis, downloadPercent, hdReady } = job
+  const {
+    jobId,
+    isMediaLoading,
+    jobStatus,
+    jobError,
+    isNavigatingToEditor,
+    startSafetyBuffer,
+    isCachedAnalysis,
+    downloadPercent,
+    hdReady
+  } = job;
 
   // Thumbnail state delegated from useClipperThumbnail sub-composable
   const {
-    thumbnailEnabled, thumbnailUrl, thumbnailDuration, thumbnailScreenshotTime,
-    thumbnailTextOverlays, thumbnailEditMode, thumbnailXOffset, activeThumbnailTextId, isDeletingThumbnail, isCapturingThumbnail,
+    thumbnailEnabled,
+    thumbnailUrl,
+    thumbnailDuration,
+    thumbnailScreenshotTime,
+    thumbnailTextOverlays,
+    thumbnailEditMode,
+    thumbnailXOffset,
+    activeThumbnailTextId,
+    isDeletingThumbnail,
+    isCapturingThumbnail,
     defaultThumbnailStyle,
-    resetThumbnailState, captureScreenshot, addThumbnailText, removeThumbnailText,
-    saveThumbnailConfig, loadThumbnailConfig, toggleThumbnail, deleteThumbnail,
-    loadDefaultThumbnailStyle, saveDefaultThumbnailStyle, applyDefaultThumbnailStyle
-  } = thumbnailState
+    resetThumbnailState,
+    captureScreenshot,
+    addThumbnailText,
+    removeThumbnailText,
+    saveThumbnailConfig,
+    loadThumbnailConfig,
+    toggleThumbnail,
+    deleteThumbnail,
+    loadDefaultThumbnailStyle,
+    saveDefaultThumbnailStyle,
+    applyDefaultThumbnailStyle
+  } = thumbnailState;
 
   // Export state delegated from useClipperExport sub-composable
   const exportState = useClipperExport({
@@ -63,206 +136,306 @@ function createClipperState() {
     saveStyleSettings,
     saveTimelineTracks: () => timeline.saveTimelineTracks(),
     saveThumbnailConfig
-  })
-  const { renderStatus, renderProgress, renderStage, renderEta, outputUrl, renderFrame, renderTotalFrames, renderStartTime, renderClip } = exportState
-
+  });
+  const {
+    renderStatus,
+    renderProgress,
+    renderStage,
+    renderEta,
+    outputUrl,
+    renderFrame,
+    renderTotalFrames,
+    renderStartTime,
+    renderClip
+  } = exportState;
 
   // Video info
-  const videoTitle = useState<string>('videoTitle', () => '')
-  const videoDuration = useState<number>('videoDuration', () => 0)
-  const hasHeatmap = useState<boolean>('hasHeatmap', () => false)
-  const hasPreview = useState<boolean>('hasPreview', () => false)
-  const videoUrl = useState<string | null>('videoUrl', () => null)
-  const videoFps = useState<number>('videoFps', () => 30)
+  const videoTitle = useState<string>('videoTitle', () => '');
+  const videoDuration = useState<number>('videoDuration', () => 0);
+  const hasHeatmap = useState<boolean>('hasHeatmap', () => false);
+  const hasPreview = useState<boolean>('hasPreview', () => false);
+  const videoUrl = useState<string | null>('videoUrl', () => null);
+  const videoFps = useState<number>('videoFps', () => 30);
 
   // Hooks
-  const hooks = useState<Hook[]>('hooks', () => [])
-  const savedHooks = useState<Hook[]>('savedHooks', () => [])
-  const activeHook = useState<Hook | null>('activeHook', () => null)
-  const activeSafeZone = useState<'none' | 'tiktok' | 'reels' | 'shorts'>('activeSafeZone', () => 'none')
-  const safeZoneOpacity = useState<number>('safeZoneOpacity', () => 55)
-  const safeZoneColor = useState<string>('safeZoneColor', () => '#000000')
-  const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false)
-  
+  const hooks = useState<Hook[]>('hooks', () => []);
+  const savedHooks = useState<Hook[]>('savedHooks', () => []);
+  const activeHook = useState<Hook | null>('activeHook', () => null);
+  const activeSafeZone = useState<'none' | 'tiktok' | 'reels' | 'shorts'>(
+    'activeSafeZone',
+    () => 'none'
+  );
+  const safeZoneOpacity = useState<number>('safeZoneOpacity', () => 55);
+  const safeZoneColor = useState<string>('safeZoneColor', () => '#000000');
+  const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
+
   // Toast state
-  const toast = useState<{message: string, type: 'success' | 'error' | 'info'} | null>('clipperToast', () => null)
-  let toastTimeout: ReturnType<typeof setTimeout> | null = null
+  const toast = useState<{
+    message: string;
+    type: 'success' | 'error' | 'info';
+  } | null>('clipperToast', () => null);
+  let toastTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Centralized reactive timeout mediator for decoupled shared reactivity
-  watch(toast, (newVal) => {
+  watch(toast, newVal => {
     if (newVal) {
-      if (toastTimeout) clearTimeout(toastTimeout)
+      if (toastTimeout) clearTimeout(toastTimeout);
       toastTimeout = setTimeout(() => {
-        toast.value = null
-      }, 3000)
+        toast.value = null;
+      }, 3000);
     }
-  })
+  });
 
-  function showToast(message: string, type: 'success' | 'error' | 'info' = 'success') {
-    toast.value = { message, type }
+  function showToast(
+    message: string,
+    type: 'success' | 'error' | 'info' = 'success'
+  ) {
+    toast.value = { message, type };
   }
-  const segmentPadding = 2 // Match backend YouTubeParser safe_start buffer
+  const segmentPadding = 2; // Match backend YouTubeParser safe_start buffer
 
-  const folderName = useState<string | null>('folderName', () => null)
-  const clipId = useState<string | null>('clipId', () => null)
-  const fullTranscript = useState<TranscriptSegment[]>('fullTranscript', () => [])
+  const folderName = useState<string | null>('folderName', () => null);
+  const clipId = useState<string | null>('clipId', () => null);
+  const fullTranscript = useState<TranscriptSegment[]>(
+    'fullTranscript',
+    () => []
+  );
 
   // Prompts & Smart Presets
-  const promptsList = useState<{id: string, name: string, suitableFor: string[], prompt?: string, numHooks?: number, autoHooks?: boolean}[]>('promptsList', () => [])
-  const selectedPrompt = useState<string>('selectedPrompt', () => 'prompt.json')
-  const extractionMode = useState<HookExtractionMode>('extractionMode', () => 'preset')
-  const selectedPresetId = useState<HookIntentPreset>('selectedPresetId', () => 'auto')
-  const focusTopic = useState<string>('focusTopic', () => '')
-  const minDuration = useState<number>('minDuration', () => 30)
-  const maxDuration = useState<number>('maxDuration', () => 180)
+  const promptsList = useState<
+    {
+      id: string;
+      name: string;
+      suitableFor: string[];
+      prompt?: string;
+      numHooks?: number;
+      autoHooks?: boolean;
+    }[]
+  >('promptsList', () => []);
+  const selectedPrompt = useState<string>(
+    'selectedPrompt',
+    () => 'prompt.json'
+  );
+  const extractionMode = useState<HookExtractionMode>(
+    'extractionMode',
+    () => 'preset'
+  );
+  const selectedPresetId = useState<HookIntentPreset>(
+    'selectedPresetId',
+    () => 'auto'
+  );
+  const focusTopic = useState<string>('focusTopic', () => '');
+  const minDuration = useState<number>('minDuration', () => 30);
+  const maxDuration = useState<number>('maxDuration', () => 180);
 
   // Settings
-  const youtubeUrl = useState<string>('youtubeUrl', () => '')
-  const language = useState<string>('language', () => 'auto')
-  const videoLayout = useState<'vertical' | 'landscape'>('videoLayout', () => 'vertical')
-  const landscapeBackground = useState<'black' | 'blur'>('landscapeBackground', () => 'black')
-  const landscapeBlurRadius = useState<number>('landscapeBlurRadius', () => 25)
-  const landscapeDarkness = useState<number>('landscapeDarkness', () => 35)
-  const subtitlePosition = useState<string>('subtitlePosition', () => 'center')
-  const subtitleOffset = useState<number>('subtitleOffset', () => 50)
-  const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150) // Default 150ms offset
-  const autoAdaptiveSubtitles = useState<boolean>('autoAdaptiveSubtitles', () => true)
-  const font = useState<string>('font', () => 'Montserrat')
-  const fontSize = useState<number>('fontSize', () => 50)
-  const faceTracking = useState<boolean>('faceTracking', () => false)
-  const cropMode = useState<string>('cropMode', () => 'face_tracking') // 'manual' | 'face_tracking'
-  const cropMap = useState<Array<CropMapPoint>>('cropMap', () => [])
-  const cropPercentX = useState<number>('cropPercentX', () => 50) // 0=left, 50=center, 100=right
-  const cropPercentXTop = useState<number>('cropPercentXTop', () => 50)
-  const cropPercentXBottom = useState<number>('cropPercentXBottom', () => 50)
-  const splitZoomTop = useState<number>('splitZoomTop', () => 1.0)
-  const splitZoomBottom = useState<number>('splitZoomBottom', () => 1.0)
-  const splitOffsetXTop = useState<number>('splitOffsetXTop', () => 0)
-  const splitOffsetYTop = useState<number>('splitOffsetYTop', () => 0)
-  const splitOffsetXBottom = useState<number>('splitOffsetXBottom', () => 0)
-  const splitOffsetYBottom = useState<number>('splitOffsetYBottom', () => 0)
-  const subtitleMode = useState<'word' | '3_words' | '4_words'>('subtitleMode', () => 'word')
-  const whisperModel = useState<string>('whisperModel', () => 'base')
-  const useNativePlayer = useState<boolean>('useNativePlayer', () => false)
-  const showIframeDebug = useState<boolean>('showIframeDebug', () => false)
-  const volume = useState<number>('volume', () => 0.5)
+  const youtubeUrl = useState<string>('youtubeUrl', () => '');
+  const language = useState<string>('language', () => 'auto');
+  const videoLayout = useState<'vertical' | 'landscape'>(
+    'videoLayout',
+    () => 'vertical'
+  );
+  const landscapeBackground = useState<'black' | 'blur'>(
+    'landscapeBackground',
+    () => 'black'
+  );
+  const landscapeBlurRadius = useState<number>('landscapeBlurRadius', () => 25);
+  const landscapeDarkness = useState<number>('landscapeDarkness', () => 35);
+  const subtitlePosition = useState<string>('subtitlePosition', () => 'center');
+  const subtitleOffset = useState<number>('subtitleOffset', () => 50);
+  const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150); // Default 150ms offset
+  const autoAdaptiveSubtitles = useState<boolean>(
+    'autoAdaptiveSubtitles',
+    () => true
+  );
+  const font = useState<string>('font', () => 'Montserrat');
+  const fontSize = useState<number>('fontSize', () => 50);
+  const faceTracking = useState<boolean>('faceTracking', () => false);
+  const cropMode = useState<string>('cropMode', () => 'face_tracking'); // 'manual' | 'face_tracking'
+  const cropMap = useState<Array<CropMapPoint>>('cropMap', () => []);
+  const cropPercentX = useState<number>('cropPercentX', () => 50); // 0=left, 50=center, 100=right
+  const cropPercentXTop = useState<number>('cropPercentXTop', () => 50);
+  const cropPercentXBottom = useState<number>('cropPercentXBottom', () => 50);
+  const splitZoomTop = useState<number>('splitZoomTop', () => 1.0);
+  const splitZoomBottom = useState<number>('splitZoomBottom', () => 1.0);
+  const splitOffsetXTop = useState<number>('splitOffsetXTop', () => 0);
+  const splitOffsetYTop = useState<number>('splitOffsetYTop', () => 0);
+  const splitOffsetXBottom = useState<number>('splitOffsetXBottom', () => 0);
+  const splitOffsetYBottom = useState<number>('splitOffsetYBottom', () => 0);
+  const subtitleMode = useState<'word' | '3_words' | '4_words'>(
+    'subtitleMode',
+    () => 'word'
+  );
+  const whisperModel = useState<string>('whisperModel', () => 'base');
+  const useNativePlayer = useState<boolean>('useNativePlayer', () => false);
+  const showIframeDebug = useState<boolean>('showIframeDebug', () => false);
+  const volume = useState<number>('volume', () => 0.5);
 
   // Subtitle style
-  const subtitleAnimation = useState<string>('subtitleAnimation', () => 'pop')
-  const subtitleHighlightMode = useState<string>('subtitleHighlightMode', () => 'color')
-  const subtitleHighlightColor = useState<string>('subtitleHighlightColor', () => '#CFFF50')
-  const subtitleTextColor = useState<string>('subtitleTextColor', () => '#FFFFFF')
-  const subtitleStrokeColor = useState<string>('subtitleStrokeColor', () => '#000000')
-  const subtitleStrokeWidth = useState<number>('subtitleStrokeWidth', () => 4)
-  const subtitleFontWeight = useState<number>('subtitleFontWeight', () => 900)
-  const subtitleTextTransform = useState<string>('subtitleTextTransform', () => 'uppercase')
-  const subtitleBackground = useState<string>('subtitleBackground', () => 'none')
-  const subtitleBackgroundOpacity = useState<number>('subtitleBackgroundOpacity', () => 0.7)
-  const subtitleWordSpacing = useState<number>('subtitleWordSpacing', () => 0)
-  const subtitlePreset = useState<string>('subtitlePreset', () => 'bold-podcast')
-
-
+  const subtitleAnimation = useState<string>('subtitleAnimation', () => 'pop');
+  const subtitleHighlightMode = useState<string>(
+    'subtitleHighlightMode',
+    () => 'color'
+  );
+  const subtitleHighlightColor = useState<string>(
+    'subtitleHighlightColor',
+    () => '#CFFF50'
+  );
+  const subtitleTextColor = useState<string>(
+    'subtitleTextColor',
+    () => '#FFFFFF'
+  );
+  const subtitleStrokeColor = useState<string>(
+    'subtitleStrokeColor',
+    () => '#000000'
+  );
+  const subtitleStrokeWidth = useState<number>('subtitleStrokeWidth', () => 4);
+  const subtitleFontWeight = useState<number>('subtitleFontWeight', () => 900);
+  const subtitleTextTransform = useState<string>(
+    'subtitleTextTransform',
+    () => 'uppercase'
+  );
+  const subtitleBackground = useState<string>(
+    'subtitleBackground',
+    () => 'none'
+  );
+  const subtitleBackgroundOpacity = useState<number>(
+    'subtitleBackgroundOpacity',
+    () => 0.7
+  );
+  const subtitleWordSpacing = useState<number>('subtitleWordSpacing', () => 0);
+  const subtitlePreset = useState<string>(
+    'subtitlePreset',
+    () => 'bold-podcast'
+  );
 
   // Playback state (Shared Clock)
-  const isPlaying = useState<boolean>('isPlaying', () => false)
-  const currentTime = useState<number>('currentTime', () => 0)
+  const isPlaying = useState<boolean>('isPlaying', () => false);
+  const currentTime = useState<number>('currentTime', () => 0);
 
-
-  
   // Cache / Library
-  const cachedVideos = useState<CachedVideo[]>('cachedVideos', () => [])
-  const isCachedLoading = useState<boolean>('isCachedLoading', () => false)
-  const isCachedMoreLoading = useState<boolean>('isCachedMoreLoading', () => false)
-  const cachedVideosFetchError = useState<boolean>('cachedVideosFetchError', () => false)
-  const lastAccessedVideoId = useState<string | null>('lastAccessedVideoId', () => null)
-  const lastAccessedClip = useState<LastAccessedClip | null>('lastAccessedClip', () => null)
-  const lastAccessedVideoStored = useState<CachedVideo | null>('lastAccessedVideoStored', () => null)
-  
-  const cachedVideosTotal = useState<number>('cachedVideosTotal', () => 0)
-  const cachedVideosPage = useState<number>('cachedVideosPage', () => 1)
-  const cachedVideosLimit = useState<number>('cachedVideosLimit', () => 6)
-  const cachedVideosSearch = useState<string>('cachedVideosSearch', () => '')
-  const cachedVideosSortBy = useState<string>('cachedVideosSortBy', () => 'date')
-  const cachedVideosSortOrder = useState<string>('cachedVideosSortOrder', () => 'desc')
-  const cachedVideosHasMore = useState<boolean>('cachedVideosHasMore', () => false)
-  const cachedVideosRequestId = useState<number>('cachedVideosRequestId', () => 0)
+  const cachedVideos = useState<CachedVideo[]>('cachedVideos', () => []);
+  const isCachedLoading = useState<boolean>('isCachedLoading', () => false);
+  const isCachedMoreLoading = useState<boolean>(
+    'isCachedMoreLoading',
+    () => false
+  );
+  const cachedVideosFetchError = useState<boolean>(
+    'cachedVideosFetchError',
+    () => false
+  );
+  const lastAccessedVideoId = useState<string | null>(
+    'lastAccessedVideoId',
+    () => null
+  );
+  const lastAccessedClip = useState<LastAccessedClip | null>(
+    'lastAccessedClip',
+    () => null
+  );
+  const lastAccessedVideoStored = useState<CachedVideo | null>(
+    'lastAccessedVideoStored',
+    () => null
+  );
 
+  const cachedVideosTotal = useState<number>('cachedVideosTotal', () => 0);
+  const cachedVideosPage = useState<number>('cachedVideosPage', () => 1);
+  const cachedVideosLimit = useState<number>('cachedVideosLimit', () => 6);
+  const cachedVideosSearch = useState<string>('cachedVideosSearch', () => '');
+  const cachedVideosSortBy = useState<string>(
+    'cachedVideosSortBy',
+    () => 'date'
+  );
+  const cachedVideosSortOrder = useState<string>(
+    'cachedVideosSortOrder',
+    () => 'desc'
+  );
+  const cachedVideosHasMore = useState<boolean>(
+    'cachedVideosHasMore',
+    () => false
+  );
+  const cachedVideosRequestId = useState<number>(
+    'cachedVideosRequestId',
+    () => 0
+  );
 
-  let isPersistenceInitialized = false
-
+  let isPersistenceInitialized = false;
 
   function updateStoredVideo(vid: CachedVideo) {
-    lastAccessedVideoStored.value = vid
+    lastAccessedVideoStored.value = vid;
     if (import.meta.client) {
-      localStorage.setItem('yonru_last_video_stored', JSON.stringify(vid))
+      localStorage.setItem('yonru_last_video_stored', JSON.stringify(vid));
     }
   }
 
   const lastAccessedVideo = computed(() => {
-    const clip = lastAccessedClip.value
+    const clip = lastAccessedClip.value;
     // 1. Prioritize parent video of the last accessed clip from cachedVideos
     if (clip && clip.folder) {
-      const vid = cachedVideos.value.find(v => v.folder_name === clip.folder)
+      const vid = cachedVideos.value.find(v => v.folder_name === clip.folder);
       if (vid) {
-        return vid
+        return vid;
       }
     }
     // 2. Fallback to last accessed video ID from cachedVideos
     if (lastAccessedVideoId.value) {
-      const vid = cachedVideos.value.find(v => v.video_id === lastAccessedVideoId.value)
+      const vid = cachedVideos.value.find(
+        v => v.video_id === lastAccessedVideoId.value
+      );
       if (vid) {
-        return vid
+        return vid;
       }
     }
     // 3. Fallback to stored video object
     if (lastAccessedVideoStored.value) {
-      const stored = lastAccessedVideoStored.value
-      const matchesClip = clip && clip.folder && stored.folder_name === clip.folder
-      const matchesId = lastAccessedVideoId.value && stored.video_id === lastAccessedVideoId.value
+      const stored = lastAccessedVideoStored.value;
+      const matchesClip =
+        clip && clip.folder && stored.folder_name === clip.folder;
+      const matchesId =
+        lastAccessedVideoId.value &&
+        stored.video_id === lastAccessedVideoId.value;
       if (matchesClip || matchesId) {
-        return stored
+        return stored;
       }
     }
-    return null
-  })
+    return null;
+  });
 
   // Synchronize lastAccessedVideoStored reactively via watcher to avoid computed side-effects
   watch(
     [lastAccessedClip, lastAccessedVideoId, cachedVideos],
     ([clip, vidId, videos]) => {
       if (clip && clip.folder) {
-        const vid = videos.find(v => v.folder_name === clip.folder)
+        const vid = videos.find(v => v.folder_name === clip.folder);
         if (vid) {
-          updateStoredVideo(vid)
-          return
+          updateStoredVideo(vid);
+          return;
         }
       }
       if (vidId) {
-        const vid = videos.find(v => v.video_id === vidId)
+        const vid = videos.find(v => v.video_id === vidId);
         if (vid) {
-          updateStoredVideo(vid)
+          updateStoredVideo(vid);
         }
       }
     },
     { immediate: true }
-  )
-
+  );
 
   async function fetchCached(reset = false) {
     if (reset) {
-      cachedVideosPage.value = 1
-      cachedVideosFetchError.value = false
-      isCachedMoreLoading.value = false
+      cachedVideosPage.value = 1;
+      cachedVideosFetchError.value = false;
+      isCachedMoreLoading.value = false;
     }
     if (cachedVideosPage.value === 1) {
-      isCachedLoading.value = true
+      isCachedLoading.value = true;
     } else {
-      isCachedMoreLoading.value = true
-      cachedVideosFetchError.value = false
+      isCachedMoreLoading.value = true;
+      cachedVideosFetchError.value = false;
     }
 
-    cachedVideosRequestId.value++
-    const reqId = cachedVideosRequestId.value
+    cachedVideosRequestId.value++;
+    const reqId = cachedVideosRequestId.value;
 
     try {
       const queryParams: Record<string, any> = {
@@ -270,152 +443,199 @@ function createClipperState() {
         limit: cachedVideosLimit.value,
         sort_by: cachedVideosSortBy.value,
         order: cachedVideosSortOrder.value
-      }
+      };
       if (cachedVideosSearch.value) {
-        queryParams.search = cachedVideosSearch.value
+        queryParams.search = cachedVideosSearch.value;
       }
-      
-      const res = await $fetch<{ videos: CachedVideo[], total: number, has_more: boolean }>(
-        `${API_BASE}/api/cached`,
-        { params: queryParams }
-      )
-      
+
+      const res = await $fetch<{
+        videos: CachedVideo[];
+        total: number;
+        has_more: boolean;
+      }>(`${API_BASE}/api/cached`, { params: queryParams });
+
       if (reqId !== cachedVideosRequestId.value) {
-        return
+        return;
       }
-      
+
       if (cachedVideosPage.value === 1) {
-        cachedVideos.value = res.videos || []
+        cachedVideos.value = res.videos || [];
       } else {
-        cachedVideos.value = [...cachedVideos.value, ...(res.videos || [])]
+        cachedVideos.value = [...cachedVideos.value, ...(res.videos || [])];
       }
-      cachedVideosTotal.value = res.total || 0
-      cachedVideosHasMore.value = res.has_more || false
-      cachedVideosFetchError.value = false
+      cachedVideosTotal.value = res.total || 0;
+      cachedVideosHasMore.value = res.has_more || false;
+      cachedVideosFetchError.value = false;
     } catch (e) {
       if (reqId !== cachedVideosRequestId.value) {
-        return
+        return;
       }
-      console.error('Failed to fetch cached videos', e)
+      console.error('Failed to fetch cached videos', e);
       if (cachedVideosPage.value === 1) {
-        cachedVideos.value = []
-        cachedVideosTotal.value = 0
-        cachedVideosHasMore.value = false
+        cachedVideos.value = [];
+        cachedVideosTotal.value = 0;
+        cachedVideosHasMore.value = false;
       } else {
-        cachedVideosFetchError.value = true
+        cachedVideosFetchError.value = true;
       }
     } finally {
       if (reqId === cachedVideosRequestId.value) {
-        isCachedLoading.value = false
-        isCachedMoreLoading.value = false
+        isCachedLoading.value = false;
+        isCachedMoreLoading.value = false;
       }
     }
   }
 
   function setLastAccessed(vidId: string) {
-    lastAccessedVideoId.value = vidId
-    if (import.meta.client) localStorage.setItem('yonru_last_video', vidId)
+    lastAccessedVideoId.value = vidId;
+    if (import.meta.client) localStorage.setItem('yonru_last_video', vidId);
   }
 
-  function setLastClip(folder: string, clipId: string, title?: string, thumbnailUrl?: string) {
-    const payload: LastAccessedClip = { folder, clip_id: clipId, title: title || 'Current Clip', thumbnail_url: thumbnailUrl }
-    lastAccessedClip.value = payload
-    if (import.meta.client) localStorage.setItem('yonru_last_clip', JSON.stringify(payload))
+  function setLastClip(
+    folder: string,
+    clipId: string,
+    title?: string,
+    thumbnailUrl?: string
+  ) {
+    const payload: LastAccessedClip = {
+      folder,
+      clip_id: clipId,
+      title: title || 'Current Clip',
+      thumbnail_url: thumbnailUrl
+    };
+    lastAccessedClip.value = payload;
+    if (import.meta.client)
+      localStorage.setItem('yonru_last_clip', JSON.stringify(payload));
   }
 
   // --- Actions ---
-  const { analyzeUrl, analyzeCached, startPolling, stopPolling, extractClip, loadReadyClipIntoEditor } = job
-
-
+  const {
+    analyzeUrl,
+    analyzeCached,
+    startPolling,
+    stopPolling,
+    extractClip,
+    loadReadyClipIntoEditor
+  } = job;
 
   function formatDuration(sec: number) {
-    const m = Math.floor(sec / 60)
-    const s = Math.floor(sec % 60)
-    return `${m}:${s.toString().padStart(2, '0')}`
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
   async function fetchPrompts() {
     try {
-      const res = await $fetch<{ prompts: {id: string, name: string, suitableFor: string[], prompt?: string}[] }>(`${API_BASE}/api/prompts`)
-      promptsList.value = res.prompts || []
-      if (promptsList.value.length > 0 && !promptsList.value.find(p => p.id === selectedPrompt.value)) {
-        const firstPrompt = promptsList.value[0]
+      const res = await $fetch<{
+        prompts: {
+          id: string;
+          name: string;
+          suitableFor: string[];
+          prompt?: string;
+        }[];
+      }>(`${API_BASE}/api/prompts`);
+      promptsList.value = res.prompts || [];
+      if (
+        promptsList.value.length > 0 &&
+        !promptsList.value.find(p => p.id === selectedPrompt.value)
+      ) {
+        const firstPrompt = promptsList.value[0];
         if (firstPrompt) {
-          selectedPrompt.value = firstPrompt.id
+          selectedPrompt.value = firstPrompt.id;
         }
       }
     } catch (e) {
-      console.error('Failed to fetch prompts', e)
+      console.error('Failed to fetch prompts', e);
     }
   }
 
-  async function editPrompt(id: string, name: string, suitableFor: string[], prompt: string, numHooks: number = 10, autoHooks: boolean = false) {
+  async function editPrompt(
+    id: string,
+    name: string,
+    suitableFor: string[],
+    prompt: string,
+    numHooks: number = 10,
+    autoHooks: boolean = false
+  ) {
     try {
       await $fetch(`${API_BASE}/api/prompts/edit`, {
         method: 'PUT',
         body: { id, promptName: name, suitableFor, prompt, numHooks, autoHooks }
-      })
-      await fetchPrompts()
-      showToast('Prompt updated successfully', 'success')
-      return true
+      });
+      await fetchPrompts();
+      showToast('Prompt updated successfully', 'success');
+      return true;
     } catch (e) {
-      showToast('Failed to update prompt', 'error')
-      return false
+      showToast('Failed to update prompt', 'error');
+      return false;
     }
-  }  async function deletePrompt(id: string) {
+  }
+  async function deletePrompt(id: string) {
     try {
       await $fetch(`${API_BASE}/api/prompts/${id}`, {
         method: 'DELETE'
-      })
-      await fetchPrompts()
-      showToast('Prompt template removed', 'success')
-      return true
+      });
+      await fetchPrompts();
+      showToast('Prompt template removed', 'success');
+      return true;
     } catch (e) {
-      showToast('Failed to remove prompt template', 'error')
-      return false
+      showToast('Failed to remove prompt template', 'error');
+      return false;
     }
   }
 
-
   async function fetchSavedHooks() {
-    if (!folderName.value) return
+    if (!folderName.value) return;
     try {
-      const res = await $fetch<{ saved_hooks: Hook[] }>(`${API_BASE}/api/cached/${folderName.value}/saved_hooks`)
-      savedHooks.value = res.saved_hooks || []
+      const res = await $fetch<{ saved_hooks: Hook[] }>(
+        `${API_BASE}/api/cached/${folderName.value}/saved_hooks`
+      );
+      savedHooks.value = res.saved_hooks || [];
     } catch {
-      savedHooks.value = []
+      savedHooks.value = [];
     }
   }
 
   async function saveHook(hook: Hook) {
-    if (!folderName.value) return
+    if (!folderName.value) return;
     try {
-      const res = await $fetch<{ saved_hooks: Hook[] }>(`${API_BASE}/api/cached/saved_hooks`, {
-        method: 'POST',
-        body: { folder_name: folderName.value, hook }
-      })
-      savedHooks.value = res.saved_hooks || []
-      return true
-    } catch { return false }
+      const res = await $fetch<{ saved_hooks: Hook[] }>(
+        `${API_BASE}/api/cached/saved_hooks`,
+        {
+          method: 'POST',
+          body: { folder_name: folderName.value, hook }
+        }
+      );
+      savedHooks.value = res.saved_hooks || [];
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async function deleteSavedHook(hookId: string) {
-    if (!folderName.value) return
+    if (!folderName.value) return;
     try {
-      const res = await $fetch<{ saved_hooks: Hook[] }>(`${API_BASE}/api/cached/${folderName.value}/saved_hooks/${hookId}`, {
-        method: 'DELETE'
-      })
-      savedHooks.value = res.saved_hooks || []
+      const res = await $fetch<{ saved_hooks: Hook[] }>(
+        `${API_BASE}/api/cached/${folderName.value}/saved_hooks/${hookId}`,
+        {
+          method: 'DELETE'
+        }
+      );
+      savedHooks.value = res.saved_hooks || [];
     } catch {}
   }
 
   function seekTo(targetTime: number) {
-    const sanitized = Math.max(0, typeof targetTime === 'number' ? targetTime : 0)
-    currentTime.value = sanitized
+    const sanitized = Math.max(
+      0,
+      typeof targetTime === 'number' ? targetTime : 0
+    );
+    currentTime.value = sanitized;
   }
 
   async function updateHooks() {
-    if (!folderName.value || !hooks.value) return
+    if (!folderName.value || !hooks.value) return;
     try {
       await $fetch(`${API_BASE}/api/hooks`, {
         method: 'PUT',
@@ -423,23 +643,29 @@ function createClipperState() {
           folder_name: folderName.value,
           hooks: hooks.value
         }
-      })
-      showToast('Hook names updated', 'success')
+      });
+      showToast('Hook names updated', 'success');
     } catch (e: any) {
-      showToast('Failed to update hook names', 'error')
+      showToast('Failed to update hook names', 'error');
     }
   }
 
   async function saveTranscript(isSilent = false) {
-    if (!folderName.value || !fullTranscript.value) return
-    const silent = isSilent === true
+    if (!folderName.value || !fullTranscript.value) return;
+    const silent = isSilent === true;
 
     // Sanitize transcript data to strip out non-serializable circular references (such as flatWords)
-    const cleanTranscript = fullTranscript.value.map((seg: TranscriptSegment) => ({
-      start: typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start,
-      duration: typeof seg.duration === 'string' ? parseFloat(seg.duration) : seg.duration,
-      text: seg.text
-    }))
+    const cleanTranscript = fullTranscript.value.map(
+      (seg: TranscriptSegment) => ({
+        start:
+          typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start,
+        duration:
+          typeof seg.duration === 'string'
+            ? parseFloat(seg.duration)
+            : seg.duration,
+        text: seg.text
+      })
+    );
 
     try {
       await $fetch(`${API_BASE}/api/transcript`, {
@@ -449,13 +675,13 @@ function createClipperState() {
           clip_id: clipId.value,
           transcript: cleanTranscript
         }
-      })
+      });
       if (!silent) {
-        showToast('Edits saved successfully!', 'success')
+        showToast('Edits saved successfully!', 'success');
       }
     } catch (e) {
       if (!silent) {
-        showToast('Failed to save edits', 'error')
+        showToast('Failed to save edits', 'error');
       }
     }
   }
@@ -463,7 +689,7 @@ function createClipperState() {
   // --- Timeline Actions ---
 
   async function saveStyleSettings() {
-    if (!folderName.value || !clipId.value) return
+    if (!folderName.value || !clipId.value) return;
     const settings = {
       videoLayout: videoLayout.value,
       landscapeBackground: landscapeBackground.value,
@@ -499,13 +725,13 @@ function createClipperState() {
       subtitleBackgroundOpacity: subtitleBackgroundOpacity.value,
       subtitleWordSpacing: subtitleWordSpacing.value,
       volume: volume.value
-    }
+    };
     try {
       await $fetch(`${API_BASE}/api/style-settings`, {
         method: 'PUT',
         body: { folder_name: folderName.value, clip_id: clipId.value, settings }
-      })
-    } catch (e) {}
+      });
+    } catch {}
   }
 
   async function saveDefaultStyleSettings() {
@@ -542,18 +768,18 @@ function createClipperState() {
       subtitleBackgroundOpacity: subtitleBackgroundOpacity.value,
       subtitleWordSpacing: subtitleWordSpacing.value,
       volume: volume.value
-    }
+    };
     try {
       await $fetch(`${API_BASE}/api/default-style-settings`, {
         method: 'PUT',
         body: { settings }
-      })
-    } catch (e) {}
+      });
+    } catch {}
   }
 
   function initPersistence() {
-    if (import.meta.server || isPersistenceInitialized) return
-    isPersistenceInitialized = true
+    if (import.meta.server || isPersistenceInitialized) return;
+    isPersistenceInitialized = true;
 
     WorkspacePersistenceCoordinator.bindReactivity({
       selectedPrompt,
@@ -585,45 +811,43 @@ function createClipperState() {
       subtitleBackground,
       subtitleBackgroundOpacity,
       subtitleWordSpacing
-    })
+    });
   }
 
   function resetWorkspace() {
-    stopPolling()
-    folderName.value = null
-    clipId.value = null
-    jobId.value = null
-    jobStatus.value = 'idle'
-    hooks.value = []
-    savedHooks.value = []
-    activeHook.value = null
-    fullTranscript.value = []
+    stopPolling();
+    folderName.value = null;
+    clipId.value = null;
+    jobId.value = null;
+    jobStatus.value = 'idle';
+    hooks.value = [];
+    savedHooks.value = [];
+    activeHook.value = null;
+    fullTranscript.value = [];
     if (timeline.timelineTracks.value && timeline.timelineTracks.value[0]) {
-      timeline.timelineTracks.value[0].items = []
+      timeline.timelineTracks.value[0].items = [];
     }
-    videoUrl.value = null
-    outputUrl.value = null
-    renderStatus.value = 'idle'
-    isMediaLoading.value = false
-    isCachedAnalysis.value = false
-    downloadPercent.value = 0
-    hdReady.value = false
-    resetThumbnailState()
+    videoUrl.value = null;
+    outputUrl.value = null;
+    renderStatus.value = 'idle';
+    isMediaLoading.value = false;
+    isCachedAnalysis.value = false;
+    downloadPercent.value = 0;
+    hdReady.value = false;
+    resetThumbnailState();
   }
 
-
-
   function maskFlaggedWords() {
-    auditor.maskFlaggedWords()
+    auditor.maskFlaggedWords();
   }
 
   function revertMaskedWords() {
-    auditor.revertMaskedWords()
+    auditor.revertMaskedWords();
   }
 
   return {
-    contentAudit: auditor.contentAudit, 
-    customBlacklist: auditor.customBlacklist, 
+    contentAudit: auditor.contentAudit,
+    customBlacklist: auditor.customBlacklist,
     customWhitelist: auditor.customWhitelist,
     safetySensitivity: auditor.safetySensitivity,
     maskingStyle: auditor.maskingStyle,
@@ -640,83 +864,202 @@ function createClipperState() {
     activeCategories: auditor.activeCategories,
     activePlatformFilters: auditor.activePlatformFilters,
     categorizedBlacklist: auditor.categorizedBlacklist,
-    safeZoneVisible: auditor.safeZoneVisible, 
-    saveBlacklistToStorage: auditor.saveBlacklistToStorage, 
-    layoutAudit: auditor.layoutAudit, 
-    readabilityAudit: auditor.readabilityAudit, 
+    safeZoneVisible: auditor.safeZoneVisible,
+    saveBlacklistToStorage: auditor.saveBlacklistToStorage,
+    layoutAudit: auditor.layoutAudit,
+    readabilityAudit: auditor.readabilityAudit,
     DEFAULT_BLACKLIST,
     CATEGORIZED_BLACKLIST,
-    thumbnailEnabled, 
-    thumbnailUrl, 
-    thumbnailDuration, 
+    thumbnailEnabled,
+    thumbnailUrl,
+    thumbnailDuration,
     thumbnailScreenshotTime,
-    thumbnailTextOverlays, 
+    thumbnailTextOverlays,
     thumbnailEditMode,
     thumbnailXOffset,
     activeThumbnailTextId,
     isCapturingThumbnail,
     defaultThumbnailStyle,
     // Other State
-    jobId, isMediaLoading, jobStatus, jobError, isCachedAnalysis, isOverlayVisible,
-    isNavigatingToEditor, downloadPercent, hdReady,
+    jobId,
+    isMediaLoading,
+    jobStatus,
+    jobError,
+    isCachedAnalysis,
+    isOverlayVisible,
+    isNavigatingToEditor,
+    downloadPercent,
+    hdReady,
     startSafetyBuffer,
-    videoTitle, videoDuration, hasHeatmap, hasPreview, videoUrl, videoFps,
-    hooks, savedHooks, activeHook, segmentPadding, folderName, clipId, fullTranscript,
-    promptsList, selectedPrompt,
-    extractionMode, selectedPresetId, focusTopic, minDuration, maxDuration,
-    youtubeUrl, language, videoLayout, landscapeBackground, landscapeBlurRadius, landscapeDarkness, subtitlePosition, subtitleOffset, subtitleSyncOffset, autoAdaptiveSubtitles,
-    font, fontSize, faceTracking, cropMode, cropMap, cropPercentX, cropPercentXTop, cropPercentXBottom, splitZoomTop, splitZoomBottom, splitOffsetXTop, splitOffsetYTop, splitOffsetXBottom, splitOffsetYBottom, subtitleMode, whisperModel, useNativePlayer, showIframeDebug,
+    videoTitle,
+    videoDuration,
+    hasHeatmap,
+    hasPreview,
+    videoUrl,
+    videoFps,
+    hooks,
+    savedHooks,
+    activeHook,
+    segmentPadding,
+    folderName,
+    clipId,
+    fullTranscript,
+    promptsList,
+    selectedPrompt,
+    extractionMode,
+    selectedPresetId,
+    focusTopic,
+    minDuration,
+    maxDuration,
+    youtubeUrl,
+    language,
+    videoLayout,
+    landscapeBackground,
+    landscapeBlurRadius,
+    landscapeDarkness,
+    subtitlePosition,
+    subtitleOffset,
+    subtitleSyncOffset,
+    autoAdaptiveSubtitles,
+    font,
+    fontSize,
+    faceTracking,
+    cropMode,
+    cropMap,
+    cropPercentX,
+    cropPercentXTop,
+    cropPercentXBottom,
+    splitZoomTop,
+    splitZoomBottom,
+    splitOffsetXTop,
+    splitOffsetYTop,
+    splitOffsetXBottom,
+    splitOffsetYBottom,
+    subtitleMode,
+    whisperModel,
+    useNativePlayer,
+    showIframeDebug,
     whisperModels: WHISPER_MODELS,
     activeSafeZone,
     safeZoneOpacity,
     safeZoneColor,
-    subtitleAnimation, subtitleHighlightMode, subtitleHighlightColor, subtitleTextColor,
-    subtitleStrokeColor, subtitleStrokeWidth, subtitleFontWeight, subtitleTextTransform,
-    subtitleBackground, subtitleBackgroundOpacity,
-    subtitleWordSpacing, subtitlePreset, volume,
-    isPlaying, currentTime, videoTime: timeline.videoTime,
+    subtitleAnimation,
+    subtitleHighlightMode,
+    subtitleHighlightColor,
+    subtitleTextColor,
+    subtitleStrokeColor,
+    subtitleStrokeWidth,
+    subtitleFontWeight,
+    subtitleTextTransform,
+    subtitleBackground,
+    subtitleBackgroundOpacity,
+    subtitleWordSpacing,
+    subtitlePreset,
+    volume,
+    isPlaying,
+    currentTime,
+    videoTime: timeline.videoTime,
     isTimelineShifting: timeline.isTimelineShifting,
-    renderStatus, renderProgress, renderStage, renderEta, outputUrl, renderFrame, renderTotalFrames, renderStartTime,
-    cachedVideos, isCachedLoading, isCachedMoreLoading, cachedVideosFetchError, lastAccessedVideoId, lastAccessedVideo, lastAccessedClip, lastAccessedVideoStored,
-    cachedVideosTotal, cachedVideosPage, cachedVideosLimit, cachedVideosSearch, cachedVideosSortBy, cachedVideosSortOrder, cachedVideosHasMore,
-    timelineTracks: timeline.timelineTracks, timelineDuration: timeline.timelineDuration, selectedTimelineItem: timeline.selectedTimelineItem,
+    renderStatus,
+    renderProgress,
+    renderStage,
+    renderEta,
+    outputUrl,
+    renderFrame,
+    renderTotalFrames,
+    renderStartTime,
+    cachedVideos,
+    isCachedLoading,
+    isCachedMoreLoading,
+    cachedVideosFetchError,
+    lastAccessedVideoId,
+    lastAccessedVideo,
+    lastAccessedClip,
+    lastAccessedVideoStored,
+    cachedVideosTotal,
+    cachedVideosPage,
+    cachedVideosLimit,
+    cachedVideosSearch,
+    cachedVideosSortBy,
+    cachedVideosSortOrder,
+    cachedVideosHasMore,
+    timelineTracks: timeline.timelineTracks,
+    timelineDuration: timeline.timelineDuration,
+    selectedTimelineItem: timeline.selectedTimelineItem,
     defaultTimelineTextStyle: timeline.defaultTimelineTextStyle,
-    deepAuditResults: auditor.deepAuditResults, isDeepAuditing: auditor.isDeepAuditing,
+    deepAuditResults: auditor.deepAuditResults,
+    isDeepAuditing: auditor.isDeepAuditing,
     bleepMode: auditor.bleepMode,
-    systemHealth: diagnostics.systemHealth, checkingHealth: diagnostics.checkingHealth, isAnyPrerequisiteMissing: diagnostics.isAnyPrerequisiteMissing, settingsScrollTarget: diagnostics.settingsScrollTarget,
-    hardwareProfile: diagnostics.hardwareProfile, detectingHardware: diagnostics.detectingHardware,
+    systemHealth: diagnostics.systemHealth,
+    checkingHealth: diagnostics.checkingHealth,
+    isAnyPrerequisiteMissing: diagnostics.isAnyPrerequisiteMissing,
+    settingsScrollTarget: diagnostics.settingsScrollTarget,
+    hardwareProfile: diagnostics.hardwareProfile,
+    detectingHardware: diagnostics.detectingHardware,
     // Actions
     seekTo,
-    analyzeUrl, analyzeCached, extractClip, loadReadyClipIntoEditor, renderClip, startPolling, stopPolling,
+    analyzeUrl,
+    analyzeCached,
+    extractClip,
+    loadReadyClipIntoEditor,
+    renderClip,
+    startPolling,
+    stopPolling,
     checkSystemHealth: diagnostics.checkSystemHealth,
     detectHardwareProfile: diagnostics.detectHardwareProfile,
-    formatDuration, fetchPrompts, editPrompt, deletePrompt, fetchSavedHooks, saveHook, deleteSavedHook,
-    saveTranscript, saveStyleSettings, saveDefaultStyleSettings, updateHooks,
-    runDeepAudit: auditor.runDeepAudit, maskFlaggedWords, revertMaskedWords,
+    formatDuration,
+    fetchPrompts,
+    editPrompt,
+    deletePrompt,
+    fetchSavedHooks,
+    saveHook,
+    deleteSavedHook,
+    saveTranscript,
+    saveStyleSettings,
+    saveDefaultStyleSettings,
+    updateHooks,
+    runDeepAudit: auditor.runDeepAudit,
+    maskFlaggedWords,
+    revertMaskedWords,
     fitSubtitlesToSafeZone: auditor.fitSubtitlesToSafeZone,
     fitSubtitlesToReadability: auditor.fitSubtitlesToReadability,
     ignoreSafetyWarnings: auditor.ignoreSafetyWarnings,
     restoreSafetyWarnings: auditor.restoreSafetyWarnings,
-    fetchCached, setLastAccessed, setLastClip,
+    fetchCached,
+    setLastAccessed,
+    setLastClip,
     saveTimelineTracks: timeline.saveTimelineTracks,
-    addTimelineItem: timeline.addTimelineItem, deleteTimelineItem: timeline.deleteTimelineItem, updateTimelineItem: timeline.updateTimelineItem, saveTimelineTextStyleAsDefault: timeline.saveTimelineTextStyleAsDefault, syncGlobalStylesToItem: timeline.syncGlobalStylesToItem,
+    addTimelineItem: timeline.addTimelineItem,
+    deleteTimelineItem: timeline.deleteTimelineItem,
+    updateTimelineItem: timeline.updateTimelineItem,
+    saveTimelineTextStyleAsDefault: timeline.saveTimelineTextStyleAsDefault,
+    syncGlobalStylesToItem: timeline.syncGlobalStylesToItem,
     canUndo: timeline.canUndo,
     canRedo: timeline.canRedo,
     commitToHistory: timeline.commitToHistory,
     isSavingHistory: timeline.isSavingHistory,
     hasUnsavedHistory: timeline.hasUnsavedHistory,
     undo: () => {
-      timeline.undo()
-      saveTranscript(true)
+      timeline.undo();
+      saveTranscript(true);
     },
     redo: () => {
-      timeline.redo()
-      saveTranscript(true)
+      timeline.redo();
+      saveTranscript(true);
     },
-    captureScreenshot, addThumbnailText, removeThumbnailText, saveThumbnailConfig, loadThumbnailConfig, deleteThumbnail,
+    captureScreenshot,
+    addThumbnailText,
+    removeThumbnailText,
+    saveThumbnailConfig,
+    loadThumbnailConfig,
+    deleteThumbnail,
     toggleThumbnail,
     resetWorkspace,
-    toast, showToast, initPersistence,
-    loadDefaultThumbnailStyle, saveDefaultThumbnailStyle, applyDefaultThumbnailStyle
-  }
+    toast,
+    showToast,
+    initPersistence,
+    loadDefaultThumbnailStyle,
+    saveDefaultThumbnailStyle,
+    applyDefaultThumbnailStyle
+  };
 }

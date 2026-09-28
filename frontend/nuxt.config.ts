@@ -1,22 +1,15 @@
-import { fileURLToPath } from 'node:url'
-import { defineNuxtConfig } from 'nuxt/config'
+import { fileURLToPath } from 'node:url';
+import { defineNuxtConfig } from 'nuxt/config';
 
 export default defineNuxtConfig({
-  modules: [
-    '@nuxtjs/tailwindcss',
-    '@nuxt/icon',
-    '@nuxt/eslint'
-  ],
+  modules: ['@nuxtjs/tailwindcss', '@nuxt/icon', '@nuxt/eslint'],
   eslint: {
     config: {
       standalone: true,
       typescript: true
     }
   },
-  css: [
-    '~/assets/css/fonts.css',
-    '~/assets/css/main.css'
-  ],
+  css: ['~/assets/css/fonts.css', '~/assets/css/main.css'],
   app: {
     pageTransition: { name: 'page', mode: 'out-in' },
     head: {
@@ -32,12 +25,8 @@ export default defineNuxtConfig({
     typeCheck: false,
     strict: true,
     tsConfig: {
-      include: [
-        '../tests/**/*'
-      ],
-      exclude: [
-        '../shared/remotion/**/*'
-      ]
+      include: ['../tests/**/*'],
+      exclude: ['../shared/remotion/**/*']
     }
   },
   telemetry: false,
@@ -48,37 +37,46 @@ export default defineNuxtConfig({
         name: 'remotion-react-jsx',
         enforce: 'pre',
         async transform(code: string, id: string) {
-          const cleanId = id.split('?')[0] || ''
-          if (cleanId.endsWith('.tsx') && (cleanId.includes('shared/remotion') || cleanId.includes('RemotionPlayerView'))) {
-            const { transform } = await import('esbuild')
+          const cleanId = id.split('?')[0] || '';
+          if (
+            cleanId.endsWith('.tsx') &&
+            (cleanId.includes('shared/remotion') ||
+              cleanId.includes('RemotionPlayerView'))
+          ) {
+            const { transform } = await import('esbuild');
             const result = await transform(code, {
               loader: 'tsx',
               jsx: 'automatic',
               jsxImportSource: 'react',
               sourcefile: cleanId,
               sourcemap: true
-            })
+            });
             return {
               code: result.code,
               map: result.map
-            }
+            };
           }
         }
       }
     ],
     vueJsx: {
-      exclude: [
-        /shared\/remotion/,
-        /RemotionPlayerView/
-      ]
+      exclude: [/shared\/remotion/, /RemotionPlayerView/]
     },
     resolve: {
       alias: {
-        '@yonru/remotion': fileURLToPath(new URL('../shared/remotion/src', import.meta.url)),
-        'react': fileURLToPath(new URL('./node_modules/react', import.meta.url)),
-        'react-dom': fileURLToPath(new URL('./node_modules/react-dom', import.meta.url)),
-        'remotion': fileURLToPath(new URL('./node_modules/remotion', import.meta.url)),
-        '@remotion/player': fileURLToPath(new URL('./node_modules/@remotion/player', import.meta.url))
+        '@yonru/remotion': fileURLToPath(
+          new URL('../shared/remotion/src', import.meta.url)
+        ),
+        react: fileURLToPath(new URL('./node_modules/react', import.meta.url)),
+        'react-dom': fileURLToPath(
+          new URL('./node_modules/react-dom', import.meta.url)
+        ),
+        remotion: fileURLToPath(
+          new URL('./node_modules/remotion', import.meta.url)
+        ),
+        '@remotion/player': fileURLToPath(
+          new URL('./node_modules/@remotion/player', import.meta.url)
+        )
       },
       dedupe: ['vue', 'react', 'react-dom', 'remotion', '@remotion/player']
     },
@@ -98,4 +96,4 @@ export default defineNuxtConfig({
       ]
     }
   }
-})
+});

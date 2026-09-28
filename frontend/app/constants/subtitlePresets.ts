@@ -1,26 +1,26 @@
 export interface SubtitlePreset {
-  id: string
-  name: string
-  category: 'viral' | 'minimal' | 'podcast' | 'creative'
-  icon: string
-  font: string
-  fontSize: number
-  fontWeight: number
-  color: string
-  highlightColor: string
-  animation: 'pop' | 'slide-up' | 'fade' | 'bounce' | 'typewriter' | 'karaoke'
-  highlightMode: 'color' | 'scale' | 'underline' | 'box' | 'none'
-  background: 'none' | 'box' | 'blur'
-  strokeWidth: number
-  textTransform: 'uppercase' | 'capitalize' | 'none'
-  description: string
-  tags?: string[]
+  id: string;
+  name: string;
+  category: 'viral' | 'minimal' | 'podcast' | 'creative';
+  icon: string;
+  font: string;
+  fontSize: number;
+  fontWeight: number;
+  color: string;
+  highlightColor: string;
+  animation: 'pop' | 'slide-up' | 'fade' | 'bounce' | 'typewriter' | 'karaoke';
+  highlightMode: 'color' | 'scale' | 'underline' | 'box' | 'none';
+  background: 'none' | 'box' | 'blur';
+  strokeWidth: number;
+  textTransform: 'uppercase' | 'capitalize' | 'none';
+  description: string;
+  tags?: string[];
 }
 
 export interface PresetCategory {
-  id: 'all' | 'viral' | 'minimal' | 'podcast' | 'creative'
-  label: string
-  icon: string
+  id: 'all' | 'viral' | 'minimal' | 'podcast' | 'creative';
+  label: string;
+  icon: string;
 }
 
 export const PRESET_CATEGORIES: PresetCategory[] = [
@@ -28,8 +28,8 @@ export const PRESET_CATEGORIES: PresetCategory[] = [
   { id: 'viral', label: 'Viral Hooks', icon: 'ri:flashlight-fill' },
   { id: 'minimal', label: 'Minimalist', icon: 'ri:sparkling-line' },
   { id: 'podcast', label: 'Podcast & Talk', icon: 'ri:mic-line' },
-  { id: 'creative', label: 'Creative & Docu', icon: 'ri:magic-line' },
-]
+  { id: 'creative', label: 'Creative & Docu', icon: 'ri:magic-line' }
+];
 
 export const SUBTITLE_PRESETS: SubtitlePreset[] = [
   // 1. Hormozi Bold (Original)
@@ -320,4 +320,4 @@ export const SUBTITLE_PRESETS: SubtitlePreset[] = [
     textTransform: 'capitalize',
     description: 'Warm pastel tones over a smooth frosted backdrop.'
   }
-]
+];

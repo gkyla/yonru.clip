@@ -1,18 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   DirectPlayerBridge,
   type PlayerRefTarget
-} from '../../app/utils/playerBridge'
+} from '../../app/utils/playerBridge';
 
 describe('DirectPlayerBridge Unit Tests', () => {
-  let bridge: DirectPlayerBridge
+  let bridge: DirectPlayerBridge;
   let mockPlayer: {
-    play: ReturnType<typeof vi.fn>
-    pause: ReturnType<typeof vi.fn>
-    seekTo: ReturnType<typeof vi.fn>
-    getCurrentFrame: ReturnType<typeof vi.fn>
-    isPlaying: ReturnType<typeof vi.fn>
-  }
+    play: ReturnType<typeof vi.fn>;
+    pause: ReturnType<typeof vi.fn>;
+    seekTo: ReturnType<typeof vi.fn>;
+    getCurrentFrame: ReturnType<typeof vi.fn>;
+    isPlaying: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     mockPlayer = {
@@ -21,94 +21,94 @@ describe('DirectPlayerBridge Unit Tests', () => {
       seekTo: vi.fn(),
       getCurrentFrame: vi.fn().mockReturnValue(120),
       isPlaying: vi.fn().mockReturnValue(true)
-    }
-    bridge = new DirectPlayerBridge()
-  })
+    };
+    bridge = new DirectPlayerBridge();
+  });
 
   describe('Player Reference Resolution & Binding', () => {
     it('initializes with null player and resolves to null safely', () => {
-      expect(bridge.getPlayer()).toBeNull()
+      expect(bridge.getPlayer()).toBeNull();
       expect(() => {
-        bridge.play()
-        bridge.pause()
-        bridge.seek(100)
-      }).not.toThrow()
-    })
+        bridge.play();
+        bridge.pause();
+        bridge.seek(100);
+      }).not.toThrow();
+    });
 
     it('binds to a React-style ref object ({ current: player })', () => {
-      const reactRef = { current: mockPlayer }
-      bridge.bindPlayer(reactRef)
-      expect(bridge.getPlayer()).toBe(mockPlayer)
+      const reactRef = { current: mockPlayer };
+      bridge.bindPlayer(reactRef);
+      expect(bridge.getPlayer()).toBe(mockPlayer);
 
-      bridge.play()
-      expect(mockPlayer.play).toHaveBeenCalledTimes(1)
-    })
+      bridge.play();
+      expect(mockPlayer.play).toHaveBeenCalledTimes(1);
+    });
 
     it('binds to a Vue-style ref object ({ value: player })', () => {
-      const vueRef = { value: mockPlayer }
-      bridge.bindPlayer(vueRef)
-      expect(bridge.getPlayer()).toBe(mockPlayer)
+      const vueRef = { value: mockPlayer };
+      bridge.bindPlayer(vueRef);
+      expect(bridge.getPlayer()).toBe(mockPlayer);
 
-      bridge.pause()
-      expect(mockPlayer.pause).toHaveBeenCalledTimes(1)
-    })
+      bridge.pause();
+      expect(mockPlayer.pause).toHaveBeenCalledTimes(1);
+    });
 
     it('binds to direct player object instance', () => {
-      bridge.bindPlayer(mockPlayer)
-      expect(bridge.getPlayer()).toBe(mockPlayer)
+      bridge.bindPlayer(mockPlayer);
+      expect(bridge.getPlayer()).toBe(mockPlayer);
 
-      bridge.seek(300)
-      expect(mockPlayer.seekTo).toHaveBeenCalledWith(300)
-    })
+      bridge.seek(300);
+      expect(mockPlayer.seekTo).toHaveBeenCalledWith(300);
+    });
 
     it('accepts player ref in constructor', () => {
-      const ctorBridge = new DirectPlayerBridge({ current: mockPlayer })
-      expect(ctorBridge.getPlayer()).toBe(mockPlayer)
-      ctorBridge.play()
-      expect(mockPlayer.play).toHaveBeenCalledTimes(1)
-    })
+      const ctorBridge = new DirectPlayerBridge({ current: mockPlayer });
+      expect(ctorBridge.getPlayer()).toBe(mockPlayer);
+      ctorBridge.play();
+      expect(mockPlayer.play).toHaveBeenCalledTimes(1);
+    });
 
     it('queries getCurrentFrame and isPlaying when available', () => {
-      bridge.bindPlayer(mockPlayer)
-      expect(bridge.getCurrentFrame()).toBe(120)
-      expect(bridge.isPlaying()).toBe(true)
+      bridge.bindPlayer(mockPlayer);
+      expect(bridge.getCurrentFrame()).toBe(120);
+      expect(bridge.isPlaying()).toBe(true);
 
-      const emptyBridge = new DirectPlayerBridge()
-      expect(emptyBridge.getCurrentFrame()).toBeNull()
-      expect(emptyBridge.isPlaying()).toBeNull()
-    })
-  })
+      const emptyBridge = new DirectPlayerBridge();
+      expect(emptyBridge.getCurrentFrame()).toBeNull();
+      expect(emptyBridge.isPlaying()).toBeNull();
+    });
+  });
 
   describe('Props Management & In-Memory Dispatching', () => {
     it('synchronously updates currentProps and notifies listeners', () => {
-      const propsSpy = vi.fn()
-      const messageSpy = vi.fn()
+      const propsSpy = vi.fn();
+      const messageSpy = vi.fn();
 
-      const unsubProps = bridge.onPropsChange(propsSpy)
-      const unsubMessage = bridge.onMessage(messageSpy)
+      const unsubProps = bridge.onPropsChange(propsSpy);
+      const unsubMessage = bridge.onMessage(messageSpy);
 
       const testProps = {
         videoPath: 'https://localhost:8000/test.mp4',
         durationInFrames: 600,
         volume: 0.75
-      }
+      };
 
-      bridge.updateProps(testProps)
+      bridge.updateProps(testProps);
 
-      expect(bridge.currentProps).toEqual(testProps)
-      expect(propsSpy).toHaveBeenCalledWith(testProps)
+      expect(bridge.currentProps).toEqual(testProps);
+      expect(propsSpy).toHaveBeenCalledWith(testProps);
       expect(messageSpy).toHaveBeenCalledWith({
         type: 'UPDATE_PROPS',
         payload: testProps
-      })
+      });
 
       // Unsubscribe checks
-      unsubProps()
-      unsubMessage()
-      bridge.updateProps({ volume: 0.2 })
-      expect(propsSpy).toHaveBeenCalledTimes(1)
-      expect(messageSpy).toHaveBeenCalledTimes(1)
-    })
+      unsubProps();
+      unsubMessage();
+      bridge.updateProps({ volume: 0.2 });
+      expect(propsSpy).toHaveBeenCalledTimes(1);
+      expect(messageSpy).toHaveBeenCalledTimes(1);
+    });
 
     it('merges partial props updates instead of overwriting existing props', () => {
       const fullProps = {
@@ -117,91 +117,94 @@ describe('DirectPlayerBridge Unit Tests', () => {
         fps: 30,
         words: [{ word: 'test', start: 0, end: 1 }],
         volume: 0.8
-      }
+      };
 
-      bridge.updateProps(fullProps)
-      expect(bridge.currentProps).toEqual(fullProps)
+      bridge.updateProps(fullProps);
+      expect(bridge.currentProps).toEqual(fullProps);
 
       // Simulate handleMuteVolumeChange which calls bridge.updateProps({ volume: targetVol })
-      bridge.updateProps({ volume: 0.5 })
+      bridge.updateProps({ volume: 0.5 });
 
-      expect(bridge.currentProps.videoPath).toBe('https://localhost:8000/video.mp4')
-      expect(bridge.currentProps.words).toHaveLength(1)
-      expect(bridge.currentProps.durationInFrames).toBe(300)
-      expect(bridge.currentProps.fps).toBe(30)
-      expect(bridge.currentProps.volume).toBe(0.5)
-    })
-  })
+      expect(bridge.currentProps.videoPath).toBe(
+        'https://localhost:8000/video.mp4'
+      );
+      expect(bridge.currentProps.words).toHaveLength(1);
+      expect(bridge.currentProps.durationInFrames).toBe(300);
+      expect(bridge.currentProps.fps).toBe(30);
+      expect(bridge.currentProps.volume).toBe(0.5);
+    });
+  });
 
   describe('Remotion Event Notifications & Emitters', () => {
     it('emits generic messages to onMessage subscribers', () => {
-      const listener = vi.fn()
-      const unsub = bridge.onMessage(listener)
+      const listener = vi.fn();
+      const unsub = bridge.onMessage(listener);
 
-      bridge.emitMessage({ type: 'CUSTOM_EVENT', data: 42 })
-      expect(listener).toHaveBeenCalledWith({ type: 'CUSTOM_EVENT', data: 42 })
+      bridge.emitMessage({ type: 'CUSTOM_EVENT', data: 42 });
+      expect(listener).toHaveBeenCalledWith({ type: 'CUSTOM_EVENT', data: 42 });
 
-      unsub()
-      bridge.emitMessage({ type: 'ANOTHER_EVENT' })
-      expect(listener).toHaveBeenCalledTimes(1)
-    })
+      unsub();
+      bridge.emitMessage({ type: 'ANOTHER_EVENT' });
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
 
     it('emits time updates matching REMOTION_TIMEUPDATE contract', () => {
-      const listener = vi.fn()
-      bridge.onMessage(listener)
+      const listener = vi.fn();
+      bridge.onMessage(listener);
 
-      bridge.emitTimeUpdate(5.25, 157)
+      bridge.emitTimeUpdate(5.25, 157);
       expect(listener).toHaveBeenCalledWith({
         type: 'REMOTION_TIMEUPDATE',
         currentTime: 5.25,
         frame: 157
-      })
-    })
+      });
+    });
 
     it('emits pause, ended, and ready lifecycle events', () => {
-      const listener = vi.fn()
-      bridge.onMessage(listener)
+      const listener = vi.fn();
+      bridge.onMessage(listener);
 
-      bridge.emitPaused()
-      expect(listener).toHaveBeenCalledWith({ type: 'REMOTION_PAUSED' })
+      bridge.emitPaused();
+      expect(listener).toHaveBeenCalledWith({ type: 'REMOTION_PAUSED' });
 
-      bridge.emitEnded()
-      expect(listener).toHaveBeenCalledWith({ type: 'REMOTION_ENDED' })
+      bridge.emitEnded();
+      expect(listener).toHaveBeenCalledWith({ type: 'REMOTION_ENDED' });
 
-      bridge.emitReady()
-      expect(listener).toHaveBeenCalledWith({ type: 'IFRAME_READY' })
-    })
-  })
+      bridge.emitReady();
+      expect(listener).toHaveBeenCalledWith({ type: 'IFRAME_READY' });
+    });
+  });
 
   describe('Lifecycle Cleanup (destroy)', () => {
     it('resets player binding and clears all message and props listeners', () => {
-      const propsListener = vi.fn()
-      const messageListener = vi.fn()
+      const propsListener = vi.fn();
+      const messageListener = vi.fn();
 
-      bridge.bindPlayer(mockPlayer)
-      bridge.onPropsChange(propsListener)
-      bridge.onMessage(messageListener)
+      bridge.bindPlayer(mockPlayer);
+      bridge.onPropsChange(propsListener);
+      bridge.onMessage(messageListener);
 
-      bridge.destroy()
+      bridge.destroy();
 
-      expect(bridge.getPlayer()).toBeNull()
-      expect(bridge.currentProps).toBeNull()
+      expect(bridge.getPlayer()).toBeNull();
+      expect(bridge.currentProps).toBeNull();
 
-      bridge.updateProps({ test: true })
-      bridge.emitMessage({ type: 'TEST' })
-      bridge.play()
+      bridge.updateProps({ test: true });
+      bridge.emitMessage({ type: 'TEST' });
+      bridge.play();
 
-      expect(propsListener).not.toHaveBeenCalled()
-      expect(messageListener).not.toHaveBeenCalled()
-      expect(mockPlayer.play).not.toHaveBeenCalled()
-    })
-  })
+      expect(propsListener).not.toHaveBeenCalled();
+      expect(messageListener).not.toHaveBeenCalled();
+      expect(mockPlayer.play).not.toHaveBeenCalled();
+    });
+  });
 
   describe('Integration with VideoPlaybackCoordinator', () => {
     it('dispatches play and seek commands via coordinator seamlessly', async () => {
-      const { VideoPlaybackCoordinator } = await import('../../app/utils/playbackCoordinator')
-      bridge.bindPlayer(mockPlayer)
-      const coordinator = new VideoPlaybackCoordinator(bridge)
+      const { VideoPlaybackCoordinator } =
+        await import('../../app/utils/playbackCoordinator');
+      bridge.bindPlayer(mockPlayer);
+      const coordinator = new VideoPlaybackCoordinator(bridge);
 
       const baseSnapshot = {
         currentTime: 0,
@@ -245,14 +248,13 @@ describe('DirectPlayerBridge Unit Tests', () => {
         thumbnailTextOverlays: [],
         isInThumbnailWindow: false,
         audioBleepEnabled: false
-      } as any
+      } as any;
 
-      coordinator.handlePlayStateChange(true, baseSnapshot, null)
-      expect(mockPlayer.play).toHaveBeenCalledTimes(1)
+      coordinator.handlePlayStateChange(true, baseSnapshot, null);
+      expect(mockPlayer.play).toHaveBeenCalledTimes(1);
 
-      coordinator.handleTimeChange(4.0, baseSnapshot, null)
-      expect(mockPlayer.seekTo).toHaveBeenCalledWith(120) // 4.0 * 30fps
-    })
-  })
-})
-
+      coordinator.handleTimeChange(4.0, baseSnapshot, null);
+      expect(mockPlayer.seekTo).toHaveBeenCalledWith(120); // 4.0 * 30fps
+    });
+  });
+});

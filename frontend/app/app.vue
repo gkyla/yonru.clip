@@ -34,8 +34,7 @@
             </p>
             <pre
               class="text-left bg-black/50 border border-red-500/20 rounded-xl p-4 text-xs text-red-300 overflow-auto max-h-48 mb-6 font-mono"
-              >{{ error }}</pre
-            >
+              >{{ error }}</pre>
             <button
               class="bg-accent-500 text-black px-6 py-2 rounded-lg font-bold text-sm uppercase tracking-wider hover:bg-accent-400 transition-all"
               @click="clearError"
@@ -62,7 +61,7 @@
       >
         <div
           class="absolute inset-0 bg-noise opacity-[0.015] mix-blend-overlay pointer-events-none"
-        />
+        ></div>
 
         <!-- Micro Brand Mark with Sleek Spinner Ring -->
         <div
@@ -70,7 +69,7 @@
         >
           <div
             class="w-14 h-14 rounded-full border-[1.5px] border-white/10 border-t-accent-500 animate-spin absolute inset-0"
-          />
+          ></div>
           <div
             class="w-8 h-8 rounded-[7px] bg-accent-500 flex items-center justify-center text-black font-black text-xs shadow-[0_0_16px_rgba(207,255,80,0.15)] relative z-10"
           >
@@ -95,7 +94,7 @@
             <div
               class="h-full bg-accent-500 rounded-full transition-all duration-300"
               :style="{ width: `${state.downloadPercent.value}%` }"
-            />
+            ></div>
           </div>
           <span class="text-slate-500 font-mono text-[11px] relative z-10">
             <span class="text-accent-500 font-semibold"
@@ -137,7 +136,7 @@
               ? 'bg-accent-500/10 border-accent-500/20 text-accent-500'
               : state.toast.value.type === 'error'
                 ? 'bg-red-500/10 border-red-500/20 text-red-500'
-                : 'bg-white/10 border-white/20 text-white',
+                : 'bg-white/10 border-white/20 text-white'
           ]"
         >
           <Icon
@@ -188,12 +187,12 @@ const visitedRoutes = ref(new Set<string>());
 const showLoadingIndicator = ref(true);
 
 if (import.meta.client) {
-  if (route.path && !route.path.startsWith("/editor")) {
+  if (route.path && !route.path.startsWith('/editor')) {
     visitedRoutes.value.add(route.path);
   }
 
-  router.beforeEach((to) => {
-    if (to.path.startsWith("/editor")) {
+  router.beforeEach(to => {
+    if (to.path.startsWith('/editor')) {
       showLoadingIndicator.value = false;
       return;
     }

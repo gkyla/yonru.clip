@@ -15,10 +15,14 @@
         <div
           class="absolute w-[50vw] h-[50vw] rounded-full blur-[160px] -top-1/3 -right-1/3 mix-blend-screen bg-rose-500/10 pointer-events-none"
         ></div>
-        <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
+        <div
+          class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"
+        ></div>
 
         <div class="relative mb-8 z-10 flex items-center justify-center">
-          <div class="absolute w-40 h-40 bg-rose-500/10 rounded-full blur-[60px]"></div>
+          <div
+            class="absolute w-40 h-40 bg-rose-500/10 rounded-full blur-[60px]"
+          ></div>
           <div
             class="w-24 h-24 rounded-full border-[4px] border-rose-500/20 relative z-10 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.2)_inset,0_0_40px_rgba(239,68,68,0.3)]"
           >
@@ -26,24 +30,31 @@
           </div>
         </div>
 
-        <h2 class="text-2xl font-black tracking-tight text-white mb-2 z-10 uppercase italic">
+        <h2
+          class="text-2xl font-black tracking-tight text-white mb-2 z-10 uppercase italic"
+        >
           Extraction Failed
         </h2>
-        <p class="text-slate-400 text-sm max-w-md mb-8 px-4 z-10 leading-relaxed font-medium">
-          {{ state.jobError.value || 'An unexpected error occurred during clip ingestion.' }}
+        <p
+          class="text-slate-400 text-sm max-w-md mb-8 px-4 z-10 leading-relaxed font-medium"
+        >
+          {{
+            state.jobError.value ||
+            'An unexpected error occurred during clip ingestion.'
+          }}
         </p>
 
         <div class="flex items-center gap-4 z-10">
           <button
-            @click="emit('error-back')"
             class="px-6 py-2.5 rounded-full border border-surface-border text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+            @click="emit('error-back')"
           >
             Go Back
           </button>
           <button
             v-if="state.activeHook.value"
-            @click="emit('error-retry')"
             class="px-6 py-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+            @click="emit('error-retry')"
           >
             Retry Cut
           </button>
@@ -63,11 +74,15 @@
                   : ''
           "
         ></div>
-        <div class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
+        <div
+          class="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"
+        ></div>
 
         <!-- Main spinner -->
         <div class="relative mb-10 z-10 flex items-center justify-center">
-          <div class="absolute w-40 h-40 bg-accent-500/10 rounded-full blur-[60px] animate-pulse"></div>
+          <div
+            class="absolute w-40 h-40 bg-accent-500/10 rounded-full blur-[60px] animate-pulse"
+          ></div>
           <div
             class="w-28 h-28 rounded-full border-[4px] border-surface-border relative transition-all duration-700 z-10 flex items-center justify-center"
             :class="
@@ -94,7 +109,8 @@
                 name="ri:scissors-cut-fill"
                 class="absolute text-4xl text-sky-400 transition-all duration-300 ease-out transform"
                 :class="
-                  pipelineStep === 'cutting' && state.jobStatus.value !== 'ready'
+                  pipelineStep === 'cutting' &&
+                  state.jobStatus.value !== 'ready'
                     ? 'opacity-100 scale-100 animate-pulse'
                     : 'opacity-0 scale-75 pointer-events-none'
                 "
@@ -105,7 +121,8 @@
                 name="ri:mic-ai-fill"
                 class="absolute text-4xl text-violet-400 transition-all duration-300 ease-out transform"
                 :class="
-                  pipelineStep === 'transcribing' && state.jobStatus.value !== 'ready'
+                  pipelineStep === 'transcribing' &&
+                  state.jobStatus.value !== 'ready'
                     ? 'opacity-100 scale-100 animate-pulse'
                     : 'opacity-0 scale-75 pointer-events-none'
                 "
@@ -162,12 +179,19 @@
                   : 'bg-surface-dark/50 border-surface-border/30 text-slate-600'
             "
           >
-            <Icon :name="pipelineStepIdx > 0 ? 'ri:check-line' : 'ri:scissors-cut-line'" class="text-sm" />
+            <Icon
+              :name="
+                pipelineStepIdx > 0 ? 'ri:check-line' : 'ri:scissors-cut-line'
+              "
+              class="text-sm"
+            />
             <span>Cut</span>
           </div>
           <div
             class="w-8 h-px transition-colors duration-500"
-            :class="pipelineStepIdx > 0 ? 'bg-accent-500/50' : 'bg-surface-border/30'"
+            :class="
+              pipelineStepIdx > 0 ? 'bg-accent-500/50' : 'bg-surface-border/30'
+            "
           ></div>
           <!-- Step 2: Transcribe -->
           <div
@@ -180,12 +204,17 @@
                   : 'bg-surface-dark/50 border-surface-border/30 text-slate-600'
             "
           >
-            <Icon :name="pipelineStepIdx > 1 ? 'ri:check-line' : 'ri:mic-ai-line'" class="text-sm" />
+            <Icon
+              :name="pipelineStepIdx > 1 ? 'ri:check-line' : 'ri:mic-ai-line'"
+              class="text-sm"
+            />
             <span>Transcribe</span>
           </div>
           <div
             class="w-8 h-px transition-colors duration-500"
-            :class="pipelineStepIdx > 1 ? 'bg-accent-500/50' : 'bg-surface-border/30'"
+            :class="
+              pipelineStepIdx > 1 ? 'bg-accent-500/50' : 'bg-surface-border/30'
+            "
           ></div>
           <!-- Step 3: Ready -->
           <div
@@ -206,7 +235,9 @@
           v-if="state?.activeHook?.value"
           class="bg-surface-dark/60 border border-surface-border/40 rounded-xl px-5 py-3 z-10 max-w-md"
         >
-          <p class="text-[10px] uppercase tracking-widest text-slate-600 font-bold mb-1">
+          <p
+            class="text-[10px] uppercase tracking-widest text-slate-600 font-bold mb-1"
+          >
             Processing Hook
           </p>
           <p class="text-white font-bold text-sm truncate">
@@ -223,18 +254,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed } from 'vue';
 
 const props = defineProps<{
-  pipelineStep: string
-  pipelineStepIdx: number
-}>()
+  pipelineStep: string;
+  pipelineStepIdx: number;
+}>();
 
 const emit = defineEmits<{
-  (e: 'error-back'): void
-  (e: 'error-retry'): void
-}>()
+  (e: 'error-back'): void;
+  (e: 'error-retry'): void;
+}>();
 
-const state = useClipperState()
-const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false)
+const state = useClipperState();
+const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
 </script>
