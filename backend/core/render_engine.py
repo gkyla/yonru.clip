@@ -629,6 +629,40 @@ class RenderPipelineCoordinator(RenderEngine):
         if not shutil.which("ffmpeg"):
             raise RuntimeError("Friendly Alert: FFmpeg was not detected on this machine. Please download/install FFmpeg and map it to your execution variables.")
 
+    @staticmethod
+    def resolve_remotion_command(remotion_dir: str) -> List[str]:
+        """
+        Resolve the Remotion CLI command.
+        Prefers direct execution of local node_modules/.bin/remotion (.cmd on Windows)
+        to eliminate npm/npx package resolution overhead and npm 11+ getBinFromManifest failure.
+        Falls back to npx --package=@remotion/cli remotion.
+        """
+        bin_name = "remotion.cmd" if sys.platform == "win32" else "remotion"
+        local_bin = os.path.abspath(os.path.join(remotion_dir, "node_modules", ".bin", bin_name))
+        if os.path.isfile(local_bin):
+            return [local_bin]
+
+        npx_bin = shutil.which("npx.cmd") or shutil.which("npx") or "npx.cmd" if sys.platform == "win32" else (shutil.which("npx") or "npx")
+        return [npx_bin, "--package=@remotion/cli", "remotion"]
+
+    def _build_remotion_cmd(self, ctx: StagedRenderContext, comp: RenderComposition, output_path: str) -> List[str]:
+        remotion_cmd = self.resolve_remotion_command(ctx.remotion_dir)
+        # Normalize paths with forward slashes to prevent backslash escape collisions on Windows
+        props_path = (ctx.props_path or "").replace("\\", "/")
+        norm_output_path = os.path.abspath(output_path).replace("\\", "/")
+
+        return remotion_cmd + [
+            "render",
+            "src/index.ts", "YonruClip",
+            "--props", props_path,
+            norm_output_path,
+            "--overwrite",
+            f"--fps={comp.fps}",
+            "--width=1080",
+            "--height=1920",
+            "--frames", f"0-{ctx.frames-1}"
+        ]
+
     def _prepare_props_and_paths(self, comp: RenderComposition, out_filename: str) -> tuple:
         """Legacy helper for testing and direct staging inspection."""
         ctx = StagedRenderContext(comp, out_filename, self.output_dir)
@@ -639,17 +673,7 @@ class RenderPipelineCoordinator(RenderEngine):
         output_path = os.path.join(self.output_dir, out_filename)
 
         with StagedRenderContext(comp, out_filename, self.output_dir) as ctx:
-            cmd = [
-                "npx", "remotion", "render",
-                "src/index.ts", "YonruClip",
-                "--props", ctx.props_path or "",
-                os.path.abspath(output_path),
-                "--force",
-                f"--fps={comp.fps}",
-                "--width=1080",
-                "--height=1920",
-                "--frames", f"0-{ctx.frames-1}"
-            ]
+            cmd = self._build_remotion_cmd(ctx, comp, output_path)
 
             print(f"[render-engine] Executing Remotion: {' '.join(cmd)}")
             result = subprocess.run(
@@ -663,7 +687,10 @@ class RenderPipelineCoordinator(RenderEngine):
             )
 
             if result.returncode != 0:
-                print(f"[render-engine] Remotion failed:\n{result.stderr}")
+                stdout_tail = (result.stdout or "").strip()
+                stderr_tail = (result.stderr or "").strip()
+                err_detail = f"Stdout:\n{stdout_tail}\nStderr:\n{stderr_tail}" if stdout_tail else stderr_tail
+                print(f"[render-engine] Remotion failed with code {result.returncode}:\n{err_detail}")
                 return None
 
             return output_path
@@ -672,17 +699,7 @@ class RenderPipelineCoordinator(RenderEngine):
         output_path = os.path.join(self.output_dir, out_filename)
 
         with StagedRenderContext(comp, out_filename, self.output_dir) as ctx:
-            cmd = [
-                "npx", "remotion", "render",
-                "src/index.ts", "YonruClip",
-                "--props", ctx.props_path or "",
-                os.path.abspath(output_path),
-                "--force",
-                f"--fps={comp.fps}",
-                "--width=1080",
-                "--height=1920",
-                "--frames", f"0-{ctx.frames-1}"
-            ]
+            cmd = self._build_remotion_cmd(ctx, comp, output_path)
 
             print(f"[render-engine-stream] Executing Remotion: {' '.join(cmd)}")
             parser = RemotionProgressParser(ctx.frames)
@@ -699,7 +716,7 @@ class RenderPipelineCoordinator(RenderEngine):
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
-                    bufsize=0,
+                    bufsize=1,
                     env=env,
                     shell=(sys.platform == "win32"),
                     encoding="utf-8"
@@ -708,6 +725,9 @@ class RenderPipelineCoordinator(RenderEngine):
                 if process.stdout is None:
                     raise RuntimeError("Failed to capture stdout from subprocess")
 
+                output_history: List[str] = []
+                max_history = 50
+
                 while True:
                     line = process.stdout.readline()
                     if not line and process.poll() is not None:
@@ -715,15 +735,29 @@ class RenderPipelineCoordinator(RenderEngine):
                     if not line:
                         continue
 
+                    cleaned = line.strip()
+                    if cleaned:
+                        output_history.append(cleaned)
+                        if len(output_history) > max_history:
+                            output_history.pop(0)
+
                     event = parser.parse_line(line)
                     if event:
                         yield event
+                    elif cleaned:
+                        # Log unrecognized lines containing warnings or errors directly to backend console
+                        if any(token in cleaned.lower() for token in ["error", "warn", "fail", "exit", "cannot", "unable", "fatal"]):
+                            print(f"[render-engine-stream] Remotion output: {cleaned}")
 
                 process.wait()
 
                 if process.returncode != 0:
-                    print(f"[render-engine-stream] Remotion failed with code {process.returncode}")
-                    yield parser.error_event(f"Remotion exited with code {process.returncode}")
+                    tail_output = "\n".join(output_history[-20:])
+                    print(f"[render-engine-stream] Remotion failed with code {process.returncode}:\n{tail_output}")
+                    error_msg = f"Remotion exited with code {process.returncode}"
+                    if tail_output:
+                        error_msg += f":\n{tail_output}"
+                    yield parser.error_event(error_msg)
                     return
 
                 # Graceful transition: Emit encoding stage for seamless UX completion gratification
