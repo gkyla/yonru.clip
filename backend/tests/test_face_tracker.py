@@ -241,6 +241,13 @@ class TestFaceTracker(unittest.TestCase):
         expected_x = (0.2 + 0.06 / 2) * 1000
         self.assertAlmostEqual(faces[0], expected_x)
 
+    def test_mediapipe_face_detector_initialization(self):
+        from core.face_detector_seam import MediaPipeFaceDetector
+        detector = MediaPipeFaceDetector()
+        self.assertIsNotNone(detector.face_detection)
+        self.assertIsNotNone(detector.mp_face_detection)
+
+
     def test_shot_anchored_snap_locks_exactly_to_scene_cut(self):
         # 16 frames at 10 fps -> 8 samples (t = 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4)
         # Visual cut occurs at t = 0.5s (between sample 2 (0.4s) and sample 3 (0.6s))
