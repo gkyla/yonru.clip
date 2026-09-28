@@ -131,6 +131,10 @@ _Avoid_: Subtitle words, transcript cache, word timing list
 A sensitive speech violation that has been neutralized through both visual subtitle masking and active Word-Level Audio Censorship, restoring the Content Safety Score to safe without removing timeline censorship boundaries.
 _Avoid_: Fixed flag, ignored warning, masked audit
 
+**Safety Filter Scope**:
+The keyword detection threshold (`Strict`, `Standard`, `Custom Only`) that determines which sensitive words and profanities are flagged from transcripts, strictly decoupled from remediation actions (subtitle masking and audio bleeping).
+_Avoid_: Safety sensitivity, censor level, sensitivity mode, manual mode
+
 
 
 **Prompt Editor**:

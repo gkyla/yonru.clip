@@ -61,7 +61,7 @@
           'opacity-40 pointer-events-none':
             state.jobStatus.value !== 'ready' ||
             isOverlayVisible ||
-            state.renderStatus.value === 'rendering',
+            state.renderStatus.value === 'rendering'
         }"
       >
         <Transition name="panel-tab-fade" mode="out-in">
@@ -151,15 +151,15 @@
                             ? 'uppercase'
                             : 'none',
                         textShadow: getOuterStrokeShadow(
-                          currentPreset.strokeWidth,
-                        ),
+                          currentPreset.strokeWidth
+                        )
                       }"
                       class="px-2 py-1 rounded leading-tight transition-all text-center inline-block truncate max-w-full"
                       :class="{
                         'bg-slate-950/85 px-2 py-1 rounded':
                           currentPreset.background === 'box',
                         'bg-slate-900/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10':
-                          currentPreset.background === 'blur',
+                          currentPreset.background === 'blur'
                       }"
                     >
                       <template
@@ -176,7 +176,7 @@
                             'bg-red-500/25 px-1 rounded':
                               currentPreset.highlightMode === 'box',
                             'scale-110 inline-block font-black':
-                              currentPreset.highlightMode === 'scale',
+                              currentPreset.highlightMode === 'scale'
                           }"
                           >VIRAL</span
                         >
@@ -193,9 +193,9 @@
                           <span
                             class="absolute -bottom-0.5 left-0 right-0 h-[2px] rounded-full"
                             :style="{
-                              backgroundColor: currentPreset.highlightColor,
+                              backgroundColor: currentPreset.highlightColor
                             }"
-                          />
+                          ></span>
                         </span>
                       </template>
                       <template v-else>
@@ -235,7 +235,7 @@
                     <span
                       class="w-2 h-2 rounded-full shrink-0 border border-white/20 ml-1"
                       :style="{ background: preset.highlightColor }"
-                    />
+                    ></span>
                   </button>
                 </div>
               </div>
@@ -256,7 +256,7 @@
                   v-for="mode in [
                     { id: 'word', label: '1 Word' },
                     { id: '3_words', label: '3 Words' },
-                    { id: '4_words', label: '4 Words' },
+                    { id: '4_words', label: '4 Words' }
                   ]"
                   :key="mode.id"
                   :disabled="state.renderStatus.value === 'rendering'"
@@ -421,7 +421,7 @@
                     "
                     @click="state.subtitleTextTransform.value = tt"
                   >
-                    {{ tt === "none" ? "Normal" : tt }}
+                    {{ tt === 'none' ? 'Normal' : tt }}
                   </button>
                 </div>
               </div>
@@ -490,7 +490,7 @@
                     step="100"
                     class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
                   />
-                  <div v-else class="h-1 bg-surface-border/40 rounded-lg" />
+                  <div v-else class="h-1 bg-surface-border/40 rounded-lg"></div>
                 </div>
               </div>
 
@@ -575,7 +575,7 @@
                   <div
                     class="w-5 h-5 rounded-md border border-white/20 shadow-sm"
                     :style="{ background: state.subtitleTextColor.value }"
-                  />
+                  ></div>
                   <span
                     class="text-[9px] font-bold uppercase tracking-wider text-slate-300"
                     >Text</span
@@ -597,7 +597,7 @@
                   <div
                     class="w-5 h-5 rounded-md border border-white/20 shadow-sm"
                     :style="{ background: state.subtitleHighlightColor.value }"
-                  />
+                  ></div>
                   <span
                     class="text-[9px] font-bold uppercase tracking-wider text-slate-300"
                     >Highlight</span
@@ -619,7 +619,7 @@
                   <div
                     class="w-5 h-5 rounded-md border border-white/20 shadow-sm"
                     :style="{ background: state.subtitleStrokeColor.value }"
-                  />
+                  ></div>
                   <span
                     class="text-[9px] font-bold uppercase tracking-wider text-slate-300"
                     >Stroke</span
@@ -671,7 +671,7 @@
                         ? (state.subtitleTextColor.value = c)
                         : (state.subtitleHighlightColor.value = c)
                     "
-                  />
+                  ></button>
                   <input
                     type="color"
                     :value="
@@ -682,7 +682,7 @@
                     class="w-5 h-5 rounded-md border-0 cursor-pointer bg-transparent"
                     title="Custom color"
                     @input="
-                      (e) =>
+                      e =>
                         activeColorPicker === 'text'
                           ? (state.subtitleTextColor.value = e.target.value)
                           : (state.subtitleHighlightColor.value =
@@ -703,7 +703,7 @@
                       '#1a1a1a',
                       '#333333',
                       '#EF4444',
-                      '#3B82F6',
+                      '#3B82F6'
                     ]"
                     :key="'stroke-' + c"
                     class="w-5 h-5 rounded-md border-2 transition-all hover:scale-110"
@@ -714,7 +714,7 @@
                     "
                     :style="{ background: c }"
                     @click="state.subtitleStrokeColor.value = c"
-                  />
+                  ></button>
                   <input
                     v-model="state.subtitleStrokeColor.value"
                     type="color"
@@ -856,7 +856,8 @@
                     <button
                       class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card cursor-pointer"
                       :class="
-                        (state.landscapeBackground?.value || 'black') === 'black'
+                        (state.landscapeBackground?.value || 'black') ===
+                        'black'
                           ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
                           : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                       "
@@ -866,7 +867,10 @@
                           : null
                       "
                     >
-                      <Icon name="ri:contrast-drop-line" class="text-xs shrink-0" />
+                      <Icon
+                        name="ri:contrast-drop-line"
+                        class="text-xs shrink-0"
+                      />
                       <span>Solid Black</span>
                     </button>
                     <button
@@ -895,9 +899,13 @@
                 >
                   <!-- Blur Radius Slider -->
                   <div>
-                    <div class="flex items-center justify-between text-[9px] uppercase tracking-wider font-bold mb-1">
+                    <div
+                      class="flex items-center justify-between text-[9px] uppercase tracking-wider font-bold mb-1"
+                    >
                       <span class="text-slate-400">Blur Radius</span>
-                      <span class="text-accent-500 font-mono">{{ state.landscapeBlurRadius?.value ?? 25 }}px</span>
+                      <span class="text-accent-500 font-mono"
+                        >{{ state.landscapeBlurRadius?.value ?? 25 }}px</span
+                      >
                     </div>
                     <input
                       v-if="state.landscapeBlurRadius"
@@ -912,9 +920,13 @@
 
                   <!-- Overlay Dimming / Darkness Slider -->
                   <div>
-                    <div class="flex items-center justify-between text-[9px] uppercase tracking-wider font-bold mb-1">
+                    <div
+                      class="flex items-center justify-between text-[9px] uppercase tracking-wider font-bold mb-1"
+                    >
                       <span class="text-slate-400">Dimming Overlay</span>
-                      <span class="text-accent-500 font-mono">{{ state.landscapeDarkness?.value ?? 35 }}%</span>
+                      <span class="text-accent-500 font-mono"
+                        >{{ state.landscapeDarkness?.value ?? 35 }}%</span
+                      >
                     </div>
                     <input
                       v-if="state.landscapeDarkness"
@@ -1117,7 +1129,9 @@
                         <div
                           class="flex justify-between items-center text-[9px] font-bold tracking-wider uppercase"
                         >
-                          <span class="flex items-center gap-1.5 text-slate-300">
+                          <span
+                            class="flex items-center gap-1.5 text-slate-300"
+                          >
                             <Icon
                               name="ri:layout-top-line"
                               class="text-accent-500 text-xs shrink-0"
@@ -1152,10 +1166,7 @@
                             <span
                               class="flex items-center gap-1 text-accent-400"
                             >
-                              <Icon
-                                name="ri:focus-3-line"
-                                class="text-[9px]"
-                              />
+                              <Icon name="ri:focus-3-line" class="text-[9px]" />
                               <span>Framing Position</span>
                             </span>
                             <button
@@ -1182,7 +1193,9 @@
                                 <span>Up / Down</span>
                                 <span class="mono text-accent-500 font-bold"
                                   >{{
-                                    Math.round(state.splitOffsetYTop?.value ?? 0)
+                                    Math.round(
+                                      state.splitOffsetYTop?.value ?? 0
+                                    )
                                   }}%</span
                                 >
                               </div>
@@ -1207,7 +1220,9 @@
                                 <span>Left / Right</span>
                                 <span class="mono text-accent-500 font-bold"
                                   >{{
-                                    Math.round(state.splitOffsetXTop?.value ?? 0)
+                                    Math.round(
+                                      state.splitOffsetXTop?.value ?? 0
+                                    )
                                   }}%</span
                                 >
                               </div>
@@ -1231,7 +1246,9 @@
                         <div
                           class="flex justify-between items-center text-[9px] font-bold tracking-wider uppercase"
                         >
-                          <span class="flex items-center gap-1.5 text-slate-300">
+                          <span
+                            class="flex items-center gap-1.5 text-slate-300"
+                          >
                             <Icon
                               name="ri:layout-bottom-line"
                               class="text-accent-500 text-xs shrink-0"
@@ -1266,10 +1283,7 @@
                             <span
                               class="flex items-center gap-1 text-accent-400"
                             >
-                              <Icon
-                                name="ri:focus-3-line"
-                                class="text-[9px]"
-                              />
+                              <Icon name="ri:focus-3-line" class="text-[9px]" />
                               <span>Framing Position</span>
                             </span>
                             <button
@@ -1297,7 +1311,7 @@
                                 <span class="mono text-accent-500 font-bold"
                                   >{{
                                     Math.round(
-                                      state.splitOffsetYBottom?.value ?? 0,
+                                      state.splitOffsetYBottom?.value ?? 0
                                     )
                                   }}%</span
                                 >
@@ -1324,7 +1338,7 @@
                                 <span class="mono text-accent-500 font-bold"
                                   >{{
                                     Math.round(
-                                      state.splitOffsetXBottom?.value ?? 0,
+                                      state.splitOffsetXBottom?.value ?? 0
                                     )
                                   }}%</span
                                 >
@@ -1367,13 +1381,13 @@
                       {
                         id: 'reels',
                         label: 'Reels',
-                        icon: 'ri:instagram-line',
+                        icon: 'ri:instagram-line'
                       },
                       {
                         id: 'shorts',
                         label: 'Shorts',
-                        icon: 'ri:youtube-fill',
-                      },
+                        icon: 'ri:youtube-fill'
+                      }
                     ]"
                     :key="platform.id"
                     class="bg-surface-dark/50 border border-surface-border rounded-lg py-1.5 px-1 text-center text-[8.5px] font-bold uppercase tracking-wider transition-all grid place-items-center gap-1 hover:bg-surface-card"
@@ -1422,7 +1436,7 @@
                       <div
                         class="w-3 h-3 rounded border border-white/20"
                         :style="{ background: safeZoneColor }"
-                      />
+                      ></div>
                     </label>
                     <div class="flex gap-1.5 flex-wrap">
                       <button
@@ -1431,7 +1445,7 @@
                           '#ef4444',
                           '#3b82f6',
                           '#10b981',
-                          '#f59e0b',
+                          '#f59e0b'
                         ]"
                         :key="'sz-color-' + c"
                         class="w-5 h-5 rounded-md border-2 transition-all hover:scale-110"
@@ -1442,7 +1456,7 @@
                         "
                         :style="{ background: c }"
                         @click="safeZoneColor = c"
-                      />
+                      ></button>
                       <input
                         v-model="safeZoneColor"
                         type="color"
@@ -1471,7 +1485,7 @@
                   v-for="pos in ['top', 'center', 'bottom']"
                   :key="pos"
                   :disabled="state.renderStatus.value === 'rendering'"
-                  class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center capitalize hover:bg-surface-card disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold tracking-wider transition-all flex items-center justify-center capitalize hover:bg-surface-card disabled:opacity-50 disabled:cursor-not-allowed"
                   :class="
                     state.subtitlePosition.value === pos
                       ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
@@ -1514,14 +1528,14 @@
                           ? 'translate-x-4'
                           : 'translate-x-0'
                       "
-                    />
+                    ></div>
                   </button>
                 </div>
                 <p class="text-[10.5px] text-slate-400 leading-tight">
                   {{
                     (state.autoAdaptiveSubtitles?.value ?? true)
-                      ? "Automatically positions to center when in split mode."
-                      : "Fixed to custom position presets regardless of video framing."
+                      ? 'Automatically positions to center when in split mode.'
+                      : 'Fixed to custom position presets regardless of video framing.'
                   }}
                 </p>
               </div>
@@ -1561,7 +1575,7 @@
         'opacity-40 pointer-events-none':
           state.jobStatus.value !== 'ready' ||
           isOverlayVisible ||
-          state.renderStatus.value === 'rendering',
+          state.renderStatus.value === 'rendering'
       }"
     >
       <!-- Render Status Download Alert Banner (Compact) -->
@@ -1602,11 +1616,7 @@
               state?.renderStatus?.value === 'rendering'
             "
             class="bg-surface-dark/80 border border-surface-border/80 hover:border-accent-500/50 text-slate-300 hover:text-accent-400 p-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 hover:bg-surface-card disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:border-surface-border/80 disabled:hover:text-slate-300 disabled:hover:bg-surface-dark/80"
-            @click="
-              state.saveDefaultStyleSettings();
-              if (state.showToast)
-                state.showToast('Default style saved!', 'success');
-            "
+            @click="handleSaveDefaultStyle"
           >
             <Icon name="ri:save-3-line" class="text-sm text-accent-500" />
             <span class="text-[9.5px] font-bold uppercase tracking-wider"
@@ -1648,14 +1658,14 @@
                 : 'ri:movie-fill'
             "
             :class="{
-              'animate-spin': state?.renderStatus?.value === 'rendering',
+              'animate-spin': state?.renderStatus?.value === 'rendering'
             }"
             class="text-sm shrink-0"
           />
           <span class="truncate">{{
-            state?.renderStatus?.value === "rendering"
-              ? "RENDERING..."
-              : "RENDER CLIP"
+            state?.renderStatus?.value === 'rendering'
+              ? 'RENDERING...'
+              : 'RENDER CLIP'
           }}</span>
         </button>
       </div>
@@ -1669,7 +1679,7 @@
       <div
         class="absolute inset-y-0 right-0 w-[2px] bg-transparent group-hover:bg-accent-500 group-active:bg-accent-500 transition-all group-hover:shadow-[0_0_8px_#CFFF50]"
         :class="{ 'bg-accent-500 shadow-[0_0_8px_#CFFF50]': isResizing }"
-      />
+      ></div>
     </div>
 
     <!-- Naming Modal -->
@@ -1689,7 +1699,7 @@
           <div
             class="absolute inset-0 bg-black/60 backdrop-blur-md"
             @click="isNamingClip = false"
-          />
+          ></div>
 
           <div
             class="relative bg-surface-panel border border-surface-border p-8 rounded-3xl shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-300"
@@ -1764,10 +1774,8 @@
           <div
             class="absolute inset-0 bg-black/80 backdrop-blur-xl"
             @click="showBlacklistSettings = false"
-          />
-          <div
-            class="relative bg-surface-panel border border-surface-border rounded-3xl shadow-2xl max-w-4xl max-h-[90vh] w-full flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden"
-          >
+          ></div>
+          <div class="relative w-full max-w-2xl z-10">
             <BlacklistSettings @close="showBlacklistSettings = false" />
           </div>
         </div>
@@ -1785,11 +1793,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import { FONT_OPTIONS } from "../composables/useClipperState";
-import { SUBTITLE_PRESETS } from "../constants/subtitlePresets";
-import { getOuterStrokeShadow } from "../utils/styleHelpers";
-import PresetStudioModal from "./editor/PresetStudioModal.vue";
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { FONT_OPTIONS } from '../composables/useClipperState';
+import { SUBTITLE_PRESETS } from '../constants/subtitlePresets';
+import { getOuterStrokeShadow } from '../utils/styleHelpers';
+import PresetStudioModal from './editor/PresetStudioModal.vue';
 
 const state = useClipperState();
 const { activeSafeZone, safeZoneOpacity, safeZoneColor, isOverlayVisible } =
@@ -1799,7 +1807,7 @@ const showPresetStudio = ref(false);
 
 const currentPreset = computed(() => {
   return (
-    SUBTITLE_PRESETS.find((p) => p.id === state.subtitlePreset.value) ||
+    SUBTITLE_PRESETS.find(p => p.id === state.subtitlePreset.value) ||
     SUBTITLE_PRESETS[0]
   );
 });
@@ -1817,21 +1825,21 @@ const isCurrentSplit = computed(() => {
     if (entry.time <= t) active = entry;
     else break;
   }
-  return active?.mode === "split";
+  return active?.mode === 'split';
 });
 
 const hasAnySplit = computed(() => {
-  return state.cropMap?.value?.some((entry) => entry.mode === "split") ?? false;
+  return state.cropMap?.value?.some(entry => entry.mode === 'split') ?? false;
 });
 
 function jumpToSplit() {
   if (!state.cropMap?.value || state.cropMap.value.length === 0) return;
   const t = state.currentTime?.value || 0;
   const nextSplit = state.cropMap.value.find(
-    (entry) => entry.time > t && entry.mode === "split",
+    entry => entry.time > t && entry.mode === 'split'
   );
   const targetSplit =
-    nextSplit || state.cropMap.value.find((entry) => entry.mode === "split");
+    nextSplit || state.cropMap.value.find(entry => entry.mode === 'split');
   if (targetSplit) {
     const targetTime = targetSplit.time + 0.05;
     if (state.seekTo) {
@@ -1869,12 +1877,12 @@ function resetBottomFraming() {
 
 // Segmented Navigation Tab State
 
-const activeTab = ref("style"); // 'style' | 'type' | 'layout'
+const activeTab = ref('style'); // 'style' | 'type' | 'layout'
 const activeColorPicker = ref(null); // null | 'text' | 'highlight' | 'stroke'
 
 const showBlacklistSettings = ref(false);
 const isNamingClip = ref(false);
-const renderName = ref("");
+const renderName = ref('');
 
 // Resize variables
 const sidebarWidth = ref(340);
@@ -1883,10 +1891,10 @@ const sidebarRef = ref(null);
 
 function startResize(e) {
   isResizing.value = true;
-  document.addEventListener("mousemove", handleResize);
-  document.addEventListener("mouseup", stopResize);
-  document.body.style.userSelect = "none";
-  document.body.style.cursor = "col-resize";
+  document.addEventListener('mousemove', handleResize);
+  document.addEventListener('mouseup', stopResize);
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'col-resize';
 }
 
 function handleResize(e) {
@@ -1900,17 +1908,17 @@ function handleResize(e) {
 function stopResize() {
   if (!isResizing.value) return;
   isResizing.value = false;
-  document.removeEventListener("mousemove", handleResize);
-  document.removeEventListener("mouseup", stopResize);
-  document.body.style.userSelect = "";
-  document.body.style.cursor = "";
+  document.removeEventListener('mousemove', handleResize);
+  document.removeEventListener('mouseup', stopResize);
+  document.body.style.userSelect = '';
+  document.body.style.cursor = '';
 
   // Persist computed sidebar width to localStorage
-  localStorage.setItem("yonru_sidebar_width", sidebarWidth.value.toString());
+  localStorage.setItem('yonru_sidebar_width', sidebarWidth.value.toString());
 }
 
 onMounted(() => {
-  const savedWidth = localStorage.getItem("yonru_sidebar_width");
+  const savedWidth = localStorage.getItem('yonru_sidebar_width');
   if (savedWidth) {
     const widthNum = parseInt(savedWidth, 10);
     if (!isNaN(widthNum)) {
@@ -1920,176 +1928,176 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  document.removeEventListener("mousemove", handleResize);
-  document.removeEventListener("mouseup", stopResize);
+  document.removeEventListener('mousemove', handleResize);
+  document.removeEventListener('mouseup', stopResize);
 });
 
 function onCropEnter(el, done) {
-  el.style.height = "0px";
-  el.style.opacity = "0";
-  el.style.overflow = "hidden";
-  el.style.marginTop = "0px";
+  el.style.height = '0px';
+  el.style.opacity = '0';
+  el.style.overflow = 'hidden';
+  el.style.marginTop = '0px';
   void el.offsetHeight; // trigger reflow
 
   const targetHeight = el.scrollHeight;
   el.style.transition =
-    "height 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.25s ease-out, margin-top 0.3s cubic-bezier(0.32, 0.72, 0, 1)";
+    'height 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.25s ease-out, margin-top 0.3s cubic-bezier(0.32, 0.72, 0, 1)';
   el.style.height = `${targetHeight}px`;
-  el.style.opacity = "1";
-  el.style.marginTop = "";
+  el.style.opacity = '1';
+  el.style.marginTop = '';
 
   let finished = false;
-  const handleEnd = (e) => {
+  const handleEnd = e => {
     if (e && e.target !== el) return;
     if (!finished) {
       finished = true;
-      el.removeEventListener("transitionend", handleEnd);
+      el.removeEventListener('transitionend', handleEnd);
       done();
     }
   };
-  el.addEventListener("transitionend", handleEnd);
+  el.addEventListener('transitionend', handleEnd);
   setTimeout(() => handleEnd(), 350);
 }
 
 function onCropAfterEnter(el) {
-  el.style.height = "";
-  el.style.opacity = "";
-  el.style.overflow = "";
-  el.style.marginTop = "";
-  el.style.transition = "";
+  el.style.height = '';
+  el.style.opacity = '';
+  el.style.overflow = '';
+  el.style.marginTop = '';
+  el.style.transition = '';
 }
 
 function onCropLeave(el, done) {
   el.style.height = `${el.offsetHeight}px`;
-  el.style.opacity = "1";
-  el.style.overflow = "hidden";
+  el.style.opacity = '1';
+  el.style.overflow = 'hidden';
   void el.offsetHeight; // trigger reflow
 
   el.style.transition =
-    "height 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease-in, margin-top 0.28s cubic-bezier(0.32, 0.72, 0, 1)";
-  el.style.height = "0px";
-  el.style.opacity = "0";
-  el.style.marginTop = "0px";
+    'height 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease-in, margin-top 0.28s cubic-bezier(0.32, 0.72, 0, 1)';
+  el.style.height = '0px';
+  el.style.opacity = '0';
+  el.style.marginTop = '0px';
 
   let finished = false;
-  const handleEnd = (e) => {
+  const handleEnd = e => {
     if (e && e.target !== el) return;
     if (!finished) {
       finished = true;
-      el.removeEventListener("transitionend", handleEnd);
+      el.removeEventListener('transitionend', handleEnd);
       done();
     }
   };
-  el.addEventListener("transitionend", handleEnd);
+  el.addEventListener('transitionend', handleEnd);
   setTimeout(() => handleEnd(), 330);
 }
 
 function onSlideEnter(el, done) {
-  el.style.height = "0px";
-  el.style.opacity = "0";
-  el.style.overflow = "hidden";
+  el.style.height = '0px';
+  el.style.opacity = '0';
+  el.style.overflow = 'hidden';
   void el.offsetHeight; // trigger reflow
 
   const targetHeight = el.scrollHeight;
   el.style.transition =
-    "height 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.25s ease-out";
+    'height 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.25s ease-out';
   el.style.height = `${targetHeight}px`;
-  el.style.opacity = "1";
+  el.style.opacity = '1';
 
   let finished = false;
-  const handleEnd = (e) => {
+  const handleEnd = e => {
     if (e && e.target !== el) return;
     if (!finished) {
       finished = true;
-      el.removeEventListener("transitionend", handleEnd);
+      el.removeEventListener('transitionend', handleEnd);
       done();
     }
   };
-  el.addEventListener("transitionend", handleEnd);
+  el.addEventListener('transitionend', handleEnd);
   setTimeout(() => handleEnd(), 350);
 }
 
 function onSlideAfterEnter(el) {
-  el.style.height = "";
-  el.style.opacity = "";
-  el.style.overflow = "";
-  el.style.transition = "";
+  el.style.height = '';
+  el.style.opacity = '';
+  el.style.overflow = '';
+  el.style.transition = '';
 }
 
 function onSlideLeave(el, done) {
   el.style.height = `${el.offsetHeight}px`;
-  el.style.opacity = "1";
-  el.style.overflow = "hidden";
+  el.style.opacity = '1';
+  el.style.overflow = 'hidden';
   void el.offsetHeight; // trigger reflow
 
   el.style.transition =
-    "height 0.25s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease-in";
-  el.style.height = "0px";
-  el.style.opacity = "0";
+    'height 0.25s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease-in';
+  el.style.height = '0px';
+  el.style.opacity = '0';
 
   let finished = false;
-  const handleEnd = (e) => {
+  const handleEnd = e => {
     if (e && e.target !== el) return;
     if (!finished) {
       finished = true;
-      el.removeEventListener("transitionend", handleEnd);
+      el.removeEventListener('transitionend', handleEnd);
       done();
     }
   };
-  el.addEventListener("transitionend", handleEnd);
+  el.addEventListener('transitionend', handleEnd);
   setTimeout(() => handleEnd(), 300);
 }
 
 function onFadeEnter(el, done) {
-  el.style.height = "0px";
-  el.style.opacity = "0";
-  el.style.overflow = "hidden";
+  el.style.height = '0px';
+  el.style.opacity = '0';
+  el.style.overflow = 'hidden';
   void el.offsetHeight;
 
   const targetHeight = el.scrollHeight;
   el.style.transition =
-    "height 0.25s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease-out";
+    'height 0.25s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease-out';
   el.style.height = `${targetHeight}px`;
-  el.style.opacity = "1";
+  el.style.opacity = '1';
 
   let finished = false;
   const handleEnd = () => {
     if (!finished) {
       finished = true;
-      el.removeEventListener("transitionend", handleEnd);
+      el.removeEventListener('transitionend', handleEnd);
       done();
     }
   };
-  el.addEventListener("transitionend", handleEnd);
+  el.addEventListener('transitionend', handleEnd);
   setTimeout(handleEnd, 300);
 }
 
 function onFadeLeave(el, done) {
   el.style.height = `${el.offsetHeight}px`;
-  el.style.opacity = "1";
-  el.style.overflow = "hidden";
+  el.style.opacity = '1';
+  el.style.overflow = 'hidden';
   void el.offsetHeight;
 
   el.style.transition =
-    "height 0.2s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.15s ease-in";
-  el.style.height = "0px";
-  el.style.opacity = "0";
+    'height 0.2s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.15s ease-in';
+  el.style.height = '0px';
+  el.style.opacity = '0';
 
   let finished = false;
   const handleEnd = () => {
     if (!finished) {
       finished = true;
-      el.removeEventListener("transitionend", handleEnd);
+      el.removeEventListener('transitionend', handleEnd);
       done();
     }
   };
-  el.addEventListener("transitionend", handleEnd);
+  el.addEventListener('transitionend', handleEnd);
   setTimeout(handleEnd, 250);
 }
 
 function prepareRender() {
   if (state.activeHook.value) {
-    renderName.value = state.activeHook.value.theme || "";
+    renderName.value = state.activeHook.value.theme || '';
   }
   isNamingClip.value = true;
 }
@@ -2101,51 +2109,51 @@ function startFinalRender() {
 }
 
 const SINGLE_WEIGHT_FONTS = new Set([
-  "Bebas Neue",
-  "Anton",
-  "Bangers",
-  "Permanent Marker",
-  "Russo One",
-  "Luckiest Guy",
-  "Titan One",
-  "Lilita One",
-  "Passion One",
+  'Bebas Neue',
+  'Anton',
+  'Bangers',
+  'Permanent Marker',
+  'Russo One',
+  'Luckiest Guy',
+  'Titan One',
+  'Lilita One',
+  'Passion One'
 ]);
 
 const palette = [
-  "#FFFFFF",
-  "#CFFF50",
-  "#FFD700",
-  "#EF4444",
-  "#60A5FA",
-  "#A78BFA",
-  "#34D399",
-  "#FB923C",
-  "#F472B6",
-  "#000000",
+  '#FFFFFF',
+  '#CFFF50',
+  '#FFD700',
+  '#EF4444',
+  '#60A5FA',
+  '#A78BFA',
+  '#34D399',
+  '#FB923C',
+  '#F472B6',
+  '#000000'
 ];
 
 const animations = [
-  { id: "pop", label: "Pop", icon: "ri:magic-line" },
-  { id: "slide-up", label: "Slide", icon: "ri:arrow-up-line" },
-  { id: "fade", label: "Fade", icon: "ri:contrast-drop-line" },
-  { id: "bounce", label: "Bounce", icon: "ri:basketball-line" },
-  { id: "typewriter", label: "Type", icon: "ri:keyboard-line" },
-  { id: "karaoke", label: "Karaoke", icon: "ri:mic-line" },
+  { id: 'pop', label: 'Pop', icon: 'ri:magic-line' },
+  { id: 'slide-up', label: 'Slide', icon: 'ri:arrow-up-line' },
+  { id: 'fade', label: 'Fade', icon: 'ri:contrast-drop-line' },
+  { id: 'bounce', label: 'Bounce', icon: 'ri:basketball-line' },
+  { id: 'typewriter', label: 'Type', icon: 'ri:keyboard-line' },
+  { id: 'karaoke', label: 'Karaoke', icon: 'ri:mic-line' }
 ];
 
 const highlights = [
-  { id: "color", label: "Color Swap" },
-  { id: "scale", label: "Scale Pulse" },
-  { id: "underline", label: "Underline" },
-  { id: "box", label: "Box Highlight" },
-  { id: "none", label: "None" },
+  { id: 'color', label: 'Color Swap' },
+  { id: 'scale', label: 'Scale Pulse' },
+  { id: 'underline', label: 'Underline' },
+  { id: 'box', label: 'Box Highlight' },
+  { id: 'none', label: 'None' }
 ];
 
 const backgrounds = [
-  { id: "none", label: "None" },
-  { id: "box", label: "Dark Box" },
-  { id: "blur", label: "Blur Pill" },
+  { id: 'none', label: 'None' },
+  { id: 'box', label: 'Dark Box' },
+  { id: 'blur', label: 'Blur Pill' }
 ];
 
 const presets = SUBTITLE_PRESETS;
@@ -2162,6 +2170,13 @@ function applyPreset(preset) {
   state.subtitleBackground.value = preset.background;
   state.subtitleStrokeWidth.value = preset.strokeWidth;
   state.subtitleTextTransform.value = preset.textTransform;
+}
+
+function handleSaveDefaultStyle() {
+  state.saveDefaultStyleSettings();
+  if (state.showToast) {
+    state.showToast('Default style saved!', 'success');
+  }
 }
 </script>
 

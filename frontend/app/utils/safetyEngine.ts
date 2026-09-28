@@ -90,17 +90,70 @@ export interface SafetyAuditConfig {
 
 export const DEFAULT_CATEGORIZED_BLACKLIST: Record<SafetyCategory, string[]> = {
   violence: [
-    'kill', 'death', 'suicide', 'unalive', 'gun', 'blood', 'weapon', 'murder', 'shot',
-    '/bunuh/', 'mati', 'tewas', '/darah/', '/senjata/', '/tembak/', 'perang', '/teroris/', '/bom/',
-    'war', 'terror', 'bomb', 'crash', 'accident', 'crime'
+    'kill',
+    'death',
+    'suicide',
+    'unalive',
+    'gun',
+    'blood',
+    'weapon',
+    'murder',
+    'shot',
+    '/bunuh/',
+    'mati',
+    'tewas',
+    '/darah/',
+    '/senjata/',
+    '/tembak/',
+    'perang',
+    '/teroris/',
+    '/bom/',
+    'war',
+    'terror',
+    'bomb',
+    'crash',
+    'accident',
+    'crime'
   ],
   sexual: [
-    'sex', 'porn', 'seggs', 'hentai', 'nude', 'nudity', 'sexy',
-    '/bokep/', '/telanjang/', '/seks/', '/mesum/', 's*ksi', '/lonte/', '/perek/'
+    'sex',
+    'porn',
+    'seggs',
+    'hentai',
+    'nude',
+    'nudity',
+    'sexy',
+    '/bokep/',
+    '/telanjang/',
+    '/seks/',
+    '/mesum/',
+    's*ksi',
+    '/lonte/',
+    '/perek/'
   ],
   profanity: [
-    'sh!t', 'f*ck', 'b!tch', 'damn', 'hell',
-    '/anjing/', '/anjg/', '/bangsat/', '/bgsat/', '/tolol/', '/goblok/', '/babi/', '/kontol/', '/kontl/', '/memek/', '/memk/', '/itil/', '/bajingan/', '/pantek/', '/jancok/', '/jancuk/', '/tai/'
+    'sh!t',
+    'f*ck',
+    'b!tch',
+    'damn',
+    'hell',
+    '/anjing/',
+    '/anjg/',
+    '/bangsat/',
+    '/bgsat/',
+    '/tolol/',
+    '/goblok/',
+    '/babi/',
+    '/kontol/',
+    '/kontl/',
+    '/memek/',
+    '/memk/',
+    '/itil/',
+    '/bajingan/',
+    '/pantek/',
+    '/jancok/',
+    '/jancuk/',
+    '/tai/'
   ]
 }
 
@@ -114,11 +167,38 @@ export const DEFAULT_BLACKLIST: string[] = [
 
 export const SEVERE_WORDS = new Set([
   // violence
-  'suicide', 'unalive', 'murder', 'bunuh', 'teroris', 'bom', 'terror', 'bomb',
+  'suicide',
+  'unalive',
+  'murder',
+  'bunuh',
+  'teroris',
+  'bom',
+  'terror',
+  'bomb',
   // sexual
-  'porn', 'hentai', 'nude', 'nudity', 'bokep', 'telanjang', 'mesum', 'lonte', 'perek',
+  'porn',
+  'hentai',
+  'nude',
+  'nudity',
+  'bokep',
+  'telanjang',
+  'mesum',
+  'lonte',
+  'perek',
   // profanity
-  'f*ck', 'b!tch', 'bangsat', 'bgsat', 'kontol', 'kontl', 'memek', 'memk', 'itil', 'bajingan', 'pantek', 'jancok', 'jancuk'
+  'f*ck',
+  'b!tch',
+  'bangsat',
+  'bgsat',
+  'kontol',
+  'kontl',
+  'memek',
+  'memk',
+  'itil',
+  'bajingan',
+  'pantek',
+  'jancok',
+  'jancuk'
 ])
 
 export const BUILTIN_BLEEP_PRESETS: BleepAudioItem[] = [
@@ -155,7 +235,10 @@ export class ContentSafetyAuditor {
       audioBleepSource: 'mute',
       bleepLibrary: [...BUILTIN_BLEEP_PRESETS],
       selectedBleepAudioId: DEFAULT_BLEEP_PRESET.id,
-      customBleepFile: { name: DEFAULT_BLEEP_PRESET.name, data: DEFAULT_BLEEP_PRESET.data },
+      customBleepFile: {
+        name: DEFAULT_BLEEP_PRESET.name,
+        data: DEFAULT_BLEEP_PRESET.data
+      },
       bleepPaddingOffset: 0,
       bleepMode: 'full',
       isWarningIgnored: false,
@@ -260,10 +343,18 @@ export class ContentSafetyAuditor {
     this._config.activeCategories = val
   }
 
-  public get activePlatformFilters(): { tiktok: boolean; reels: boolean; shorts: boolean } {
+  public get activePlatformFilters(): {
+    tiktok: boolean
+    reels: boolean
+    shorts: boolean
+  } {
     return this._config.activePlatformFilters
   }
-  public set activePlatformFilters(val: { tiktok: boolean; reels: boolean; shorts: boolean }) {
+  public set activePlatformFilters(val: {
+    tiktok: boolean
+    reels: boolean
+    shorts: boolean
+  }) {
     this._config.activePlatformFilters = val
   }
 
@@ -276,7 +367,11 @@ export class ContentSafetyAuditor {
 
     let pattern = this._patternCache.get(trimmed)
     if (!pattern) {
-      if (trimmed.startsWith('/') && trimmed.endsWith('/') && trimmed.length > 2) {
+      if (
+        trimmed.startsWith('/') &&
+        trimmed.endsWith('/') &&
+        trimmed.length > 2
+      ) {
         const raw = trimmed.slice(1, -1)
         pattern = {
           source: trimmed,
@@ -284,7 +379,9 @@ export class ContentSafetyAuditor {
           globalRegex: new RegExp(raw, 'gi')
         }
       } else {
-        const escaped = trimmed.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const escaped = trimmed
+          .toLowerCase()
+          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         pattern = {
           source: trimmed,
           regex: new RegExp(`\\b${escaped}\\b`, 'i'),
@@ -317,17 +414,22 @@ export class ContentSafetyAuditor {
       for (const cat of categories) {
         if (this._config.activeCategories[cat]) {
           const words = this._config.categorizedBlacklist[cat] || []
-          if (this._config.safetySensitivity === 'standard' && !this._config.audioBleepEnabled) {
+          if (this._config.safetySensitivity === 'standard') {
             // Only severe words OR user-added words (not in default list)
             const defaultSet = new Set(DEFAULT_CATEGORIZED_BLACKLIST[cat])
-            list.push(...words.filter(word => {
-              const clean = word.startsWith('/') && word.endsWith('/') ? word.slice(1, -1) : word
-              const isSevere = SEVERE_WORDS.has(clean.toLowerCase().trim())
-              const isUserAdded = !defaultSet.has(word)
-              return isSevere || isUserAdded
-            }))
+            list.push(
+              ...words.filter(word => {
+                const clean =
+                  word.startsWith('/') && word.endsWith('/')
+                    ? word.slice(1, -1)
+                    : word
+                const isSevere = SEVERE_WORDS.has(clean.toLowerCase().trim())
+                const isUserAdded = !defaultSet.has(word)
+                return isSevere || isUserAdded
+              })
+            )
           } else {
-            // Strict mode OR audio bleep enabled uses all words from active categories
+            // Strict mode uses all words from active categories
             list.push(...words)
           }
         }
@@ -338,10 +440,16 @@ export class ContentSafetyAuditor {
     list.push(...this._config.customBlacklist)
 
     // Filter out case-insensitive whitelisted words
-    const whitelistSet = new Set(this._config.customWhitelist.map(w => w.toLowerCase().trim()))
+    const whitelistSet = new Set(
+      this._config.customWhitelist.map(w => w.toLowerCase().trim())
+    )
     return [...new Set(list)].filter(word => {
-      const cleanWord = word.startsWith('/') && word.endsWith('/') ? word.slice(1, -1) : word
-      return !whitelistSet.has(cleanWord.toLowerCase().trim()) && !whitelistSet.has(word.toLowerCase().trim())
+      const cleanWord =
+        word.startsWith('/') && word.endsWith('/') ? word.slice(1, -1) : word
+      return (
+        !whitelistSet.has(cleanWord.toLowerCase().trim()) &&
+        !whitelistSet.has(word.toLowerCase().trim())
+      )
     })
   }
 
@@ -361,10 +469,15 @@ export class ContentSafetyAuditor {
     const activeBlacklist = blacklistOverride ?? this.getEffectiveBlacklist()
     const compiledPatterns = this.compileBlacklist(activeBlacklist)
     const padding = bleepPaddingOffsetMs ?? this._config.bleepPaddingOffset
-    const mode = bleepMode ?? this._config.bleepMode
-    const audioBleepEnabled = audioBleepEnabledOverride ?? this._config.audioBleepEnabled
+    const _effectiveMode = bleepMode ?? this._config.bleepMode
+    const audioBleepEnabled =
+      audioBleepEnabledOverride ?? this._config.audioBleepEnabled
 
-    if (compiledPatterns.length === 0 || !transcript || transcript.length === 0) {
+    if (
+      compiledPatterns.length === 0 ||
+      !transcript ||
+      transcript.length === 0
+    ) {
       return {
         score: 100,
         flaggedWords: [],
@@ -401,7 +514,9 @@ export class ContentSafetyAuditor {
           if (!wText && !wRawText) continue
           const wStart = Number(w.start) || 0
           const wDuration = Number(w.duration) || 0
-          const isWordMasked = Boolean(w.isMasked || (wText !== wRawText && wText.includes('*')))
+          const isWordMasked = Boolean(
+            w.isMasked || (wText !== wRawText && wText.includes('*'))
+          )
           flatWords.push({
             text: wText || wRawText,
             rawText: wRawText || wText,
@@ -492,7 +607,8 @@ export class ContentSafetyAuditor {
 
     let score = 100
     // Only active (unremediated) flags penalize the safety score!
-    const uniqueTimeFlags = new Set(activeSegments.map(f => f.start.toFixed(2))).size
+    const uniqueTimeFlags = new Set(activeSegments.map(f => f.start.toFixed(2)))
+      .size
     score -= uniqueTimeFlags * 12
 
     const result: AuditResult = {
@@ -539,13 +655,15 @@ export class ContentSafetyAuditor {
     let reason = 'Subtitles are placed in a safe layout zone.'
 
     if (position === 'top') {
-      const topDeadzone = platform === 'tiktok' ? 130 : platform === 'reels' ? 220 : 160
+      const topDeadzone =
+        platform === 'tiktok' ? 130 : platform === 'reels' ? 220 : 160
       if (offset < topDeadzone) {
         isColliding = true
         reason = `Subtitles collide with top ${platform} header zone (${topDeadzone}px).`
       }
     } else if (position === 'bottom') {
-      const bottomDeadzone = platform === 'tiktok' ? 250 : platform === 'reels' ? 350 : 280
+      const bottomDeadzone =
+        platform === 'tiktok' ? 250 : platform === 'reels' ? 350 : 280
       if (offset < bottomDeadzone) {
         isColliding = true
         reason = `Subtitles collide with bottom ${platform} controls/caption zone (${bottomDeadzone}px).`
@@ -568,11 +686,13 @@ export class ContentSafetyAuditor {
   ): number | null {
     if (platform === 'none') return null
     if (position === 'top') {
-      const topDeadzone = platform === 'tiktok' ? 130 : platform === 'reels' ? 220 : 160
+      const topDeadzone =
+        platform === 'tiktok' ? 130 : platform === 'reels' ? 220 : 160
       return topDeadzone + 20
     }
     if (position === 'bottom') {
-      const bottomDeadzone = platform === 'tiktok' ? 250 : platform === 'reels' ? 350 : 280
+      const bottomDeadzone =
+        platform === 'tiktok' ? 250 : platform === 'reels' ? 350 : 280
       return bottomDeadzone + 20
     }
     return null
@@ -596,18 +716,23 @@ export class ContentSafetyAuditor {
     }
 
     const hasBg = background !== 'none'
-    const hasStroke = strokeWidth >= 2 && strokeColor !== 'transparent' && strokeColor !== 'none'
+    const hasStroke =
+      strokeWidth >= 2 &&
+      strokeColor !== 'transparent' &&
+      strokeColor !== 'none'
 
     if (!hasBg && !hasStroke) {
       return {
         isSafe: false,
-        reason: 'Low subtitle contrast: Add a text outline or background box to guarantee readability.'
+        reason:
+          'Low subtitle contrast: Add a text outline or background box to guarantee readability.'
       }
     }
 
     return {
       isSafe: true,
-      reason: 'Subtitle readability is secured with active outline or background styles.'
+      reason:
+        'Subtitle readability is secured with active outline or background styles.'
     }
   }
 
@@ -645,7 +770,8 @@ export class ContentSafetyAuditor {
     audioBleepEnabled?: boolean
   }): ComprehensiveSafetyReport {
     const ignored = context.isWarningIgnored ?? this._config.isWarningIgnored
-    const bleepEnabled = context.audioBleepEnabled ?? this._config.audioBleepEnabled
+    const bleepEnabled =
+      context.audioBleepEnabled ?? this._config.audioBleepEnabled
     const rawAudit = this.auditTranscript(
       context.transcript,
       context.blacklistOverride,
@@ -677,7 +803,9 @@ export class ContentSafetyAuditor {
       ignored
     )
 
-    const isRemediated = (rawAudit.remediatedWords?.length ?? 0) > 0 && rawAudit.flaggedWords.length === 0
+    const isRemediated =
+      (rawAudit.remediatedWords?.length ?? 0) > 0 &&
+      rawAudit.flaggedWords.length === 0
 
     if (ignored) {
       return {
@@ -755,11 +883,19 @@ export class ContentSafetyAuditor {
     if (!transcript) return []
     return transcript.map(seg => {
       const origSegText = seg.rawText || seg.text || ''
-      const maskedSegText = this.maskText(origSegText, blacklistOverride, styleOverride)
+      const maskedSegText = this.maskText(
+        origSegText,
+        blacklistOverride,
+        styleOverride
+      )
 
       const maskedWords = seg.words?.map(w => {
         const origWordText = (w as any).rawText || w.text || ''
-        const maskedWordText = this.maskText(origWordText, blacklistOverride, styleOverride)
+        const maskedWordText = this.maskText(
+          origWordText,
+          blacklistOverride,
+          styleOverride
+        )
         const isWordMasked = maskedWordText !== origWordText
         return {
           ...w,
@@ -808,7 +944,10 @@ export class ContentSafetyAuditor {
     return false
   }
 
-  public addCustomBleepFile(file: { name: string; data: string }): BleepAudioItem {
+  public addCustomBleepFile(file: {
+    name: string
+    data: string
+  }): BleepAudioItem {
     const newItem: BleepAudioItem = {
       id: `custom_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       name: file.name,
@@ -822,7 +961,9 @@ export class ContentSafetyAuditor {
   }
 
   public removeCustomBleepFile(id: string): boolean {
-    const index = this._config.bleepLibrary.findIndex(item => item.id === id && !item.isPreset)
+    const index = this._config.bleepLibrary.findIndex(
+      item => item.id === id && !item.isPreset
+    )
     if (index !== -1) {
       this._config.bleepLibrary.splice(index, 1)
       if (this._config.selectedBleepAudioId === id) {
@@ -835,8 +976,14 @@ export class ContentSafetyAuditor {
   }
 
   private _syncCustomBleepFile(): void {
-    const activeItem = this._config.bleepLibrary.find(item => item.id === this._config.selectedBleepAudioId) || DEFAULT_BLEEP_PRESET
-    this._config.customBleepFile = { name: activeItem.name, data: activeItem.data }
+    const activeItem =
+      this._config.bleepLibrary.find(
+        item => item.id === this._config.selectedBleepAudioId
+      ) || DEFAULT_BLEEP_PRESET
+    this._config.customBleepFile = {
+      name: activeItem.name,
+      data: activeItem.data
+    }
   }
 
   // --- Serialization & Storage Hydration ---
@@ -858,64 +1005,118 @@ export class ContentSafetyAuditor {
   }
 
   public hydrate(state: Partial<SafetyAuditConfig>): void {
-    if (state.customBlacklist) this._config.customBlacklist = [...state.customBlacklist]
-    if (state.customWhitelist) this._config.customWhitelist = [...state.customWhitelist]
+    if (state.customBlacklist)
+      this._config.customBlacklist = [...state.customBlacklist]
+    if (state.customWhitelist)
+      this._config.customWhitelist = [...state.customWhitelist]
     if (state.categorizedBlacklist) {
       this._config.categorizedBlacklist = {
-        violence: [...(state.categorizedBlacklist.violence || DEFAULT_CATEGORIZED_BLACKLIST.violence)],
-        sexual: [...(state.categorizedBlacklist.sexual || DEFAULT_CATEGORIZED_BLACKLIST.sexual)],
-        profanity: [...(state.categorizedBlacklist.profanity || DEFAULT_CATEGORIZED_BLACKLIST.profanity)]
+        violence: [
+          ...(state.categorizedBlacklist.violence ||
+            DEFAULT_CATEGORIZED_BLACKLIST.violence)
+        ],
+        sexual: [
+          ...(state.categorizedBlacklist.sexual ||
+            DEFAULT_CATEGORIZED_BLACKLIST.sexual)
+        ],
+        profanity: [
+          ...(state.categorizedBlacklist.profanity ||
+            DEFAULT_CATEGORIZED_BLACKLIST.profanity)
+        ]
       }
     }
-    if (state.safetySensitivity) this._config.safetySensitivity = state.safetySensitivity
+    if (state.safetySensitivity)
+      this._config.safetySensitivity = state.safetySensitivity
     if (state.maskingStyle) this._config.maskingStyle = state.maskingStyle
-    if (state.audioBleepEnabled !== undefined) this._config.audioBleepEnabled = state.audioBleepEnabled
-    if (state.audioBleepSource) this._config.audioBleepSource = state.audioBleepSource
+    if (state.audioBleepEnabled !== undefined)
+      this._config.audioBleepEnabled = state.audioBleepEnabled
+    if (state.audioBleepSource)
+      this._config.audioBleepSource = state.audioBleepSource
     if (state.bleepLibrary) {
       const customOnly = state.bleepLibrary.filter(item => !item.isPreset)
       this._config.bleepLibrary = [...BUILTIN_BLEEP_PRESETS, ...customOnly]
     }
     if (state.selectedBleepAudioId) {
-      if (this._config.bleepLibrary.some(item => item.id === state.selectedBleepAudioId)) {
+      if (
+        this._config.bleepLibrary.some(
+          item => item.id === state.selectedBleepAudioId
+        )
+      ) {
         this._config.selectedBleepAudioId = state.selectedBleepAudioId
       } else {
         this._config.selectedBleepAudioId = DEFAULT_BLEEP_PRESET.id
       }
     }
-    if (state.bleepPaddingOffset !== undefined) this.bleepPaddingOffset = state.bleepPaddingOffset
+    if (state.bleepPaddingOffset !== undefined)
+      this.bleepPaddingOffset = state.bleepPaddingOffset
     if (state.bleepMode) this._config.bleepMode = state.bleepMode
-    if (state.isWarningIgnored !== undefined) this._config.isWarningIgnored = state.isWarningIgnored
-    if (state.activeCategories) this._config.activeCategories = { ...this._config.activeCategories, ...state.activeCategories }
-    if (state.activePlatformFilters) this._config.activePlatformFilters = { ...this._config.activePlatformFilters, ...state.activePlatformFilters }
+    if (state.isWarningIgnored !== undefined)
+      this._config.isWarningIgnored = state.isWarningIgnored
+    if (state.activeCategories)
+      this._config.activeCategories = {
+        ...this._config.activeCategories,
+        ...state.activeCategories
+      }
+    if (state.activePlatformFilters)
+      this._config.activePlatformFilters = {
+        ...this._config.activePlatformFilters,
+        ...state.activePlatformFilters
+      }
 
     this._syncCustomBleepFile()
   }
 
   public serializeToStorage(storage?: Storage): void {
-    const targetStorage = storage || (typeof window !== 'undefined' ? window.localStorage : null)
+    const targetStorage =
+      storage || (typeof window !== 'undefined' ? window.localStorage : null)
     if (!targetStorage) return
 
-    targetStorage.setItem('yonru_subtitle_blacklist', JSON.stringify(this._config.customBlacklist))
-    targetStorage.setItem('yonru_subtitle_whitelist', JSON.stringify(this._config.customWhitelist))
-    targetStorage.setItem('yonru_categorized_blacklist', JSON.stringify(this._config.categorizedBlacklist))
-    targetStorage.setItem('yonru_audio_bleep_enabled', this._config.audioBleepEnabled ? 'true' : 'false')
-    targetStorage.setItem('yonru_audio_bleep_source', this._config.audioBleepSource)
-    targetStorage.setItem('yonru_bleep_padding_offset', this._config.bleepPaddingOffset.toString())
-    targetStorage.setItem('yonru_selected_bleep_id', this._config.selectedBleepAudioId)
+    targetStorage.setItem(
+      'yonru_subtitle_blacklist',
+      JSON.stringify(this._config.customBlacklist)
+    )
+    targetStorage.setItem(
+      'yonru_subtitle_whitelist',
+      JSON.stringify(this._config.customWhitelist)
+    )
+    targetStorage.setItem(
+      'yonru_categorized_blacklist',
+      JSON.stringify(this._config.categorizedBlacklist)
+    )
+    targetStorage.setItem(
+      'yonru_audio_bleep_enabled',
+      this._config.audioBleepEnabled ? 'true' : 'false'
+    )
+    targetStorage.setItem(
+      'yonru_audio_bleep_source',
+      this._config.audioBleepSource
+    )
+    targetStorage.setItem(
+      'yonru_bleep_padding_offset',
+      this._config.bleepPaddingOffset.toString()
+    )
+    targetStorage.setItem(
+      'yonru_selected_bleep_id',
+      this._config.selectedBleepAudioId
+    )
     targetStorage.setItem('yonru_bleep_mode', this._config.bleepMode)
 
     const customOnly = this._config.bleepLibrary.filter(item => !item.isPreset)
     targetStorage.setItem('yonru_bleep_library', JSON.stringify(customOnly))
 
     if (this._config.customBleepFile) {
-      targetStorage.setItem('yonru_custom_bleep_file', JSON.stringify(this._config.customBleepFile))
+      targetStorage.setItem(
+        'yonru_custom_bleep_file',
+        JSON.stringify(this._config.customBleepFile)
+      )
     } else {
       targetStorage.removeItem('yonru_custom_bleep_file')
     }
   }
 
   public hydrateFromStorage(storage?: Storage): void {
-    const targetStorage = storage || (typeof window !== 'undefined' ? window.localStorage : null)
+    const targetStorage =
+      storage || (typeof window !== 'undefined' ? window.localStorage : null)
     if (!targetStorage) return
 
     const savedBlack = targetStorage.getItem('yonru_subtitle_blacklist')
@@ -936,7 +1137,9 @@ export class ContentSafetyAuditor {
       }
     }
 
-    const savedCategorized = targetStorage.getItem('yonru_categorized_blacklist')
+    const savedCategorized = targetStorage.getItem(
+      'yonru_categorized_blacklist'
+    )
     if (savedCategorized) {
       try {
         this._config.categorizedBlacklist = JSON.parse(savedCategorized)
@@ -963,7 +1166,10 @@ export class ContentSafetyAuditor {
     }
 
     const savedSelectedId = targetStorage.getItem('yonru_selected_bleep_id')
-    if (savedSelectedId && this._config.bleepLibrary.some(item => item.id === savedSelectedId)) {
+    if (
+      savedSelectedId &&
+      this._config.bleepLibrary.some(item => item.id === savedSelectedId)
+    ) {
       this._config.selectedBleepAudioId = savedSelectedId
     } else {
       this._config.selectedBleepAudioId = DEFAULT_BLEEP_PRESET.id
@@ -994,7 +1200,9 @@ export class ContentSafetyAuditor {
 // Global default singleton instance
 const defaultAuditor = new ContentSafetyAuditor()
 
-export function createContentSafetyAuditor(config?: Partial<SafetyAuditConfig>): ContentSafetyAuditor {
+export function createContentSafetyAuditor(
+  config?: Partial<SafetyAuditConfig>
+): ContentSafetyAuditor {
   return new ContentSafetyAuditor(config)
 }
 
@@ -1015,7 +1223,13 @@ export function auditTranscript(
   bleepPaddingOffsetMs: number = 0,
   bleepMode: 'full' | 'partial_end' = 'full'
 ): AuditResult {
-  return defaultAuditor.auditTranscript(transcript, blacklist, mode, bleepPaddingOffsetMs, bleepMode)
+  return defaultAuditor.auditTranscript(
+    transcript,
+    blacklist,
+    mode,
+    bleepPaddingOffsetMs,
+    bleepMode
+  )
 }
 
 export function maskText(
@@ -1033,7 +1247,13 @@ export function auditLayoutCollision(
   activeFilters: { tiktok: boolean; reels: boolean; shorts: boolean },
   isWarningIgnored: boolean = false
 ): LayoutAuditResult {
-  return defaultAuditor.auditLayoutCollision(platform, position, offset, activeFilters, isWarningIgnored)
+  return defaultAuditor.auditLayoutCollision(
+    platform,
+    position,
+    offset,
+    activeFilters,
+    isWarningIgnored
+  )
 }
 
 export function calculateSafeOffset(
@@ -1049,7 +1269,12 @@ export function auditReadability(
   strokeColor: string = '#000000',
   isWarningIgnored: boolean = false
 ): ReadabilityAuditResult {
-  return defaultAuditor.auditReadability(background, strokeWidth, strokeColor, isWarningIgnored)
+  return defaultAuditor.auditReadability(
+    background,
+    strokeWidth,
+    strokeColor,
+    isWarningIgnored
+  )
 }
 
 export function calculateAdjustedScore(
@@ -1058,5 +1283,10 @@ export function calculateAdjustedScore(
   isReadabilitySafe: boolean,
   isWarningIgnored: boolean = false
 ): number {
-  return defaultAuditor.calculateAdjustedScore(rawScore, isLayoutSafe, isReadabilitySafe, isWarningIgnored)
+  return defaultAuditor.calculateAdjustedScore(
+    rawScore,
+    isLayoutSafe,
+    isReadabilitySafe,
+    isWarningIgnored
+  )
 }

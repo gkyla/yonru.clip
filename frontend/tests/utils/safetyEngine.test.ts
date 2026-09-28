@@ -54,7 +54,9 @@ describe('SafetyEngine Unit Tests', () => {
         flaggedSegments: [],
         uniqueFlagsCount: 0
       })
-      expect(auditTranscript([{ text: 'hello', start: 0, duration: 1 }], [])).toEqual({
+      expect(
+        auditTranscript([{ text: 'hello', start: 0, duration: 1 }], [])
+      ).toEqual({
         score: 100,
         flaggedWords: [],
         flaggedSegments: [],
@@ -123,14 +125,20 @@ describe('SafetyEngine Unit Tests', () => {
       ]
 
       // 1. Unmasked state: flaggedWords has 'brengsek', score is penalized
-      const unmaskedReport = auditor.audit({ transcript: rawTranscript, subtitleStrokeWidth: 4 })
+      const unmaskedReport = auditor.audit({
+        transcript: rawTranscript,
+        subtitleStrokeWidth: 4
+      })
       expect(unmaskedReport.score).toBeLessThan(100)
       expect(unmaskedReport.flaggedWords).toContain('brengsek')
       expect(unmaskedReport.flaggedSegments.length).toBe(1)
 
       // 2. Masked state (Auto-Fix):
       const maskedTranscript = auditor.maskTranscript(rawTranscript)
-      const maskedReport = auditor.audit({ transcript: maskedTranscript, subtitleStrokeWidth: 4 })
+      const maskedReport = auditor.audit({
+        transcript: maskedTranscript,
+        subtitleStrokeWidth: 4
+      })
 
       // Score must be 100 (Safe) because it is remediated (masked + audio bleep enabled)
       expect(maskedReport.score).toBe(100)
@@ -143,7 +151,10 @@ describe('SafetyEngine Unit Tests', () => {
 
       // 3. If audioBleepEnabled is disabled, remediated status drops and score is penalized
       auditor.audioBleepEnabled = false
-      const unbleepedReport = auditor.audit({ transcript: maskedTranscript, subtitleStrokeWidth: 4 })
+      const unbleepedReport = auditor.audit({
+        transcript: maskedTranscript,
+        subtitleStrokeWidth: 4
+      })
       expect(unbleepedReport.score).toBeLessThan(100)
       expect(unbleepedReport.flaggedWords).toContain('brengsek')
 
@@ -166,7 +177,9 @@ describe('SafetyEngine Unit Tests', () => {
     })
 
     it('masks with bleep_marker style', () => {
-      expect(maskText('stop the kill now', ['kill'], 'bleep_marker')).toBe('stop the [BLEEP] now')
+      expect(maskText('stop the kill now', ['kill'], 'bleep_marker')).toBe(
+        'stop the [BLEEP] now'
+      )
     })
 
     it('handles empty input gracefully', () => {
@@ -182,7 +195,13 @@ describe('SafetyEngine Unit Tests', () => {
       const resNone = auditLayoutCollision('none', 'top', 50, allActive, false)
       expect(resNone.isSafe).toBe(true)
 
-      const resIgnored = auditLayoutCollision('tiktok', 'top', 50, allActive, true)
+      const resIgnored = auditLayoutCollision(
+        'tiktok',
+        'top',
+        50,
+        allActive,
+        true
+      )
       expect(resIgnored.isSafe).toBe(true)
     })
 
@@ -270,13 +289,18 @@ describe('SafetyEngine Unit Tests', () => {
       expect(effective).toContain('murder')
     })
 
-    it('filters non-severe words when standard sensitivity is active without audio bleeping', () => {
+    it('filters non-severe words when standard sensitivity is active regardless of audio bleeping', () => {
       auditor.safetySensitivity = 'standard'
       auditor.audioBleepEnabled = false
 
-      const effective = auditor.getEffectiveBlacklist()
+      let effective = auditor.getEffectiveBlacklist()
       expect(effective).toContain('murder') // severe word
       expect(effective).not.toContain('crash') // mild word in violence category
+
+      auditor.audioBleepEnabled = true
+      effective = auditor.getEffectiveBlacklist()
+      expect(effective).toContain('murder')
+      expect(effective).not.toContain('crash')
     })
 
     it('uses all category words when strict sensitivity is active', () => {
@@ -311,11 +335,16 @@ describe('SafetyEngine Unit Tests', () => {
     })
 
     it('manages bleep audio preset library lifecycle', () => {
-      expect(auditor.bleepLibrary.length).toBeGreaterThanOrEqual(BUILTIN_BLEEP_PRESETS.length)
+      expect(auditor.bleepLibrary.length).toBeGreaterThanOrEqual(
+        BUILTIN_BLEEP_PRESETS.length
+      )
       expect(auditor.selectedBleepAudioId).toBe(DEFAULT_BLEEP_PRESET.id)
 
       // Add custom bleep
-      const custom = auditor.addCustomBleepFile({ name: 'My Bleep', data: 'data:audio/mp3;base64,123' })
+      const custom = auditor.addCustomBleepFile({
+        name: 'My Bleep',
+        data: 'data:audio/mp3;base64,123'
+      })
       expect(auditor.selectedBleepAudioId).toBe(custom.id)
       expect(auditor.customBleepFile?.name).toBe('My Bleep')
 
@@ -325,7 +354,9 @@ describe('SafetyEngine Unit Tests', () => {
 
       // Remove custom bleep
       expect(auditor.removeCustomBleepFile(custom.id)).toBe(true)
-      expect(auditor.bleepLibrary.some(item => item.id === custom.id)).toBe(false)
+      expect(auditor.bleepLibrary.some(item => item.id === custom.id)).toBe(
+        false
+      )
     })
 
     it('initializes with default bleepPaddingOffset of 0ms', () => {
@@ -351,9 +382,15 @@ describe('SafetyEngine Unit Tests', () => {
       const storageMap = new Map<string, string>()
       const mockStorage = {
         getItem: (k: string) => storageMap.get(k) || null,
-        setItem: (k: string, v: string) => { storageMap.set(k, v) },
-        removeItem: (k: string) => { storageMap.delete(k) },
-        clear: () => { storageMap.clear() },
+        setItem: (k: string, v: string) => {
+          storageMap.set(k, v)
+        },
+        removeItem: (k: string) => {
+          storageMap.delete(k)
+        },
+        clear: () => {
+          storageMap.clear()
+        },
         key: () => null,
         length: 0
       } as Storage
