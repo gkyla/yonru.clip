@@ -52,8 +52,10 @@ export interface WorkspaceReactivityContext {
   setLastClip: (
     folder: string,
     clipId: string,
+    title?: string,
+    thumbnailUrl?: string,
     theme?: string,
-    thumbnailUrl?: string
+    videoTitle?: string
   ) => void;
 
   auditor: { loadBlacklistFromStorage: () => void };
@@ -246,24 +248,6 @@ export class WorkspacePersistenceCoordinator {
 
     // 4. Setup Reactive Watchers
     const unwatchList: Array<() => void> = [];
-
-    unwatchList.push(
-      watch(
-        [ctx.folderName, ctx.clipId, ctx.jobStatus],
-        ([newFolder, newClipId, newStatus]) => {
-          if (newFolder && newClipId && newStatus === 'ready') {
-            ctx.setLastClip(
-              newFolder,
-              newClipId,
-              ctx.activeHook.value?.theme ||
-                ctx.activeHook.value?.title ||
-                'Current Clip',
-              ctx.activeHook.value?.thumbnail_url
-            );
-          }
-        }
-      )
-    );
 
     unwatchList.push(
       watch(ctx.selectedPrompt, val => this.saveSetting(this.KEYS.PROMPT, val))

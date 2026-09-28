@@ -528,6 +528,13 @@ async function deleteVideo(folderName: string) {
       );
     }
 
+    if (state.lastAccessedClip.value?.folder === folderName) {
+      state.lastAccessedClip.value = null;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('yonru_last_clip');
+      }
+    }
+
     await state.fetchCached(true);
     state.showToast('Video source successfully deleted.', 'success');
   } catch (e: unknown) {
@@ -580,7 +587,9 @@ async function loadReadyClip(clip: ReadyClip) {
       clip.folder_name,
       clip.clip_id,
       clip.theme || clip.title,
-      clip.thumbnail_url
+      clip.thumbnail_url,
+      clip.theme,
+      clip.title
     );
 
     let hookIndex = 0;
@@ -740,8 +749,20 @@ async function initDashboard() {
     const savedClip = localStorage.getItem('yonru_last_clip');
     if (savedClip) {
       try {
-        state.lastAccessedClip.value = JSON.parse(savedClip);
-      } catch {}
+        const parsed = JSON.parse(savedClip);
+        const folderExists = state.cachedVideos.value.some(
+          (v: CachedVideo) => v.folder_name === parsed.folder
+        );
+        if (folderExists || state.cachedVideos.value.length === 0) {
+          state.lastAccessedClip.value = parsed;
+        } else {
+          state.lastAccessedClip.value = null;
+          localStorage.removeItem('yonru_last_clip');
+        }
+      } catch {
+        state.lastAccessedClip.value = null;
+        localStorage.removeItem('yonru_last_clip');
+      }
     }
   }
 }

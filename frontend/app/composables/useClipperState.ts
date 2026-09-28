@@ -495,13 +495,25 @@ function createClipperState() {
     folder: string,
     clipId: string,
     title?: string,
-    thumbnailUrl?: string
+    thumbnailUrl?: string,
+    theme?: string,
+    videoTitle?: string
   ) {
+    const parentVideo = cachedVideos.value.find(
+      v => v.folder_name === folder || v.video_id === folder
+    );
+    const resolvedVideoTitle = videoTitle || parentVideo?.title;
+    const resolvedTheme = theme || title || 'Current Clip';
+    const resolvedThumbnail =
+      thumbnailUrl || `/assets/clips/${folder}/${clipId}/thumbnail.jpg`;
+
     const payload: LastAccessedClip = {
       folder,
       clip_id: clipId,
-      title: title || 'Current Clip',
-      thumbnail_url: thumbnailUrl
+      title: resolvedTheme,
+      theme: resolvedTheme,
+      video_title: resolvedVideoTitle,
+      thumbnail_url: resolvedThumbnail
     };
     lastAccessedClip.value = payload;
     if (import.meta.client)
@@ -509,14 +521,26 @@ function createClipperState() {
   }
 
   // --- Actions ---
-  const {
-    analyzeUrl,
-    analyzeCached,
-    startPolling,
-    stopPolling,
-    extractClip,
-    loadReadyClipIntoEditor
-  } = job;
+  const { analyzeUrl, analyzeCached, startPolling, stopPolling, extractClip } =
+    job;
+
+  async function loadReadyClipIntoEditor(folder: string, id: string) {
+    await job.loadReadyClipIntoEditor(folder, id);
+    const parentVideo = cachedVideos.value.find(
+      v => v.folder_name === folder || v.video_id === folder
+    );
+    const videoTitle = parentVideo?.title;
+    const theme =
+      activeHook.value?.theme || activeHook.value?.title || 'Current Clip';
+    setLastClip(
+      folder,
+      id,
+      theme,
+      activeHook.value?.thumbnail_url,
+      theme,
+      videoTitle
+    );
+  }
 
   function formatDuration(sec: number) {
     const m = Math.floor(sec / 60);

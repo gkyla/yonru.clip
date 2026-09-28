@@ -316,6 +316,29 @@ class TestAssetRepository(unittest.TestCase):
         self.assertEqual(len(filtered), 1)
         self.assertEqual(filtered[0]["clip_id"], "10_20_c2")
 
+    @patch('core.asset_repository.AssetRepository.get_video_duration')
+    def test_list_ready_clips_auto_heals_thumbnail_and_fallback_theme(self, mock_dur):
+        mock_dur.return_value = 10.0
+        clip_dir = os.path.join(self.output_dir, "clips", "src_video", "10_20")
+        os.makedirs(clip_dir, exist_ok=True)
+        clip_path = os.path.join(clip_dir, "video.mp4")
+        with open(clip_path, "w") as f:
+            f.write("data")
+
+        with patch.object(self.repo, 'extract_clip_screenshot') as mock_extract:
+            def side_effect(vid, ts, out):
+                with open(out, "w") as f:
+                    f.write("thumb")
+                return True
+            mock_extract.side_effect = side_effect
+            
+            clips = self.repo.list_ready_clips()
+            self.assertEqual(len(clips), 1)
+            self.assertEqual(clips[0]["clip_id"], "10_20")
+            self.assertEqual(clips[0]["theme"], "Clip 00:10 - 00:20")
+            self.assertEqual(clips[0]["thumbnail_url"], "/assets/clips/src_video/10_20/thumbnail.jpg")
+            mock_extract.assert_called_once_with(clip_path, 0.0, os.path.join(clip_dir, "thumbnail.jpg"))
+
     def test_delete_clip_with_job(self):
         clip_dir = os.path.join(self.output_dir, "clips", "test_folder", "1_10")
         os.makedirs(clip_dir, exist_ok=True)

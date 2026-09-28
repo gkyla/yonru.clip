@@ -94,6 +94,16 @@ class ClipWorkflowCoordinator:
             except Exception as e:
                 print(f"[defaults] Failed to populate default thumbnail config: {e}")
 
+        # 3. Check for default thumbnail image
+        clip_thumb_img_path = os.path.join(clip_dir, "thumbnail.jpg")
+        clip_video_path = os.path.join(clip_dir, "video.mp4")
+        if not os.path.exists(clip_thumb_img_path) and os.path.exists(clip_video_path):
+            try:
+                self.asset_repository.extract_clip_screenshot(clip_video_path, 0.0, clip_thumb_img_path)
+                print(f"[defaults] Generated initial thumbnail at {clip_thumb_img_path}")
+            except Exception as e:
+                print(f"[defaults] Failed to generate initial thumbnail: {e}")
+
     def _compute_and_cache_crop_map(
         self, clip_dir: str, video_path: str, tracker: Optional[Any] = None
     ) -> List[Dict[str, Any]]:
@@ -480,6 +490,7 @@ class ClipWorkflowCoordinator:
                 job["fps"] = cached_info.get("fps", 30.0)
                 job["clip"] = {
                     "asset_url": f"/assets/clips/{folder_name}/{clip_id}/video.mp4",
+                    "thumbnail_url": f"/assets/clips/{folder_name}/{clip_id}/thumbnail.jpg",
                     "duration": end_time - start_time,
                     "start": start_time,
                     "end": end_time,
@@ -637,6 +648,7 @@ class ClipWorkflowCoordinator:
             "clip_duration": duration,
             "clip": {
                 "asset_url": f"/assets/clips/{folder_name}/{clip_id}/video.mp4",
+                "thumbnail_url": f"/assets/clips/{folder_name}/{clip_id}/thumbnail.jpg",
                 "duration": duration,
                 "file_path": clip_path,
                 "start": snapped_start,

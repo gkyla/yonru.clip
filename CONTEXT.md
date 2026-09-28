@@ -12,8 +12,16 @@ _Avoid_: Segment, cut, highlight
 A rendered or extracted standalone video clip derived from a Hook that is available in the library and ready for multi-track editing and subtitle customization.
 _Avoid_: Exported video, snippet, output file
 
+**Clip Poster**:
+A clean, static video frame extracted from a Ready Clip representing the media asset in library grids, workspace cards, and navigation sidebars without editorial graphic overlays.
+_Avoid_: Clip thumbnail, editor thumbnail, card image, preview picture
+
+**Cover Slide**:
+A customizable title card sequence designed in the Studio Editor featuring a chosen video frame, typography, and text overlays, rendered as an initial intro slide before the video playback or exported as a platform cover frame.
+_Avoid_: Thumbnail, cover thumbnail, thumbnail intro, video cover
+
 **Last Accessed Clip**:
-The most recently opened or active clip session tracked in the workspace for quick-resume editing via the sidebar.
+The clip session that was most recently explicitly opened into the Studio Editor and tracked in the workspace for quick-resume editing via the Navigation Sidebar. Retains the Hook theme title, the parent Source Video title, and a static Clip Poster image. Unopened background-generated clips or newly discovered hooks are never treated as the Last Accessed Clip until opened.
 _Avoid_: Recent project, draft, active session
 
 **Source Video / Cached Video**:

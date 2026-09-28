@@ -379,7 +379,7 @@
 
               <!-- Case 2: Continue Editing / Last Accessed Clip Available -->
               <button
-                v-else-if="lastClip && lastVideo"
+                v-else-if="lastClip && (lastVideo || lastClip.video_title)"
                 :disabled="isCurrentClipActive"
                 class="border border-transparent flex items-center gap-2.5 rounded-xl transition-all duration-200 ease-out group w-full text-left"
                 :class="[
@@ -392,7 +392,7 @@
                 ]"
                 :title="
                   isCollapsed
-                    ? lastClip.theme || lastClip.title || 'Last Accessed Clip'
+                    ? `${lastClip.theme || lastClip.title || 'Last Accessed Clip'}${lastClip.video_title || lastVideo?.title ? ' • ' + (lastClip.video_title || lastVideo?.title) : ''}`
                     : undefined
                 "
                 @click="
@@ -482,7 +482,11 @@
                       {{ lastClip.theme || lastClip.title || 'Untitled Clip' }}
                     </p>
                     <p class="text-[10px] text-white/50 truncate mt-0.5">
-                      {{ lastVideo.title || 'Untitled Video' }}
+                      {{
+                        lastClip.video_title ||
+                        lastVideo?.title ||
+                        'Untitled Video'
+                      }}
                     </p>
                   </div>
                 </div>
@@ -570,7 +574,7 @@
                 </div>
 
                 <div
-                  v-else-if="lastClip && lastVideo"
+                  v-else-if="lastClip && (lastVideo || lastClip.video_title)"
                   class="flex items-center gap-2.5 p-1 rounded-xl transition-all"
                   :class="
                     !isCurrentClipActive
@@ -616,7 +620,11 @@
                       {{ lastClip.theme || lastClip.title || 'Untitled Clip' }}
                     </p>
                     <p class="text-[9px] text-white/60 truncate">
-                      {{ lastVideo.title || 'Untitled Video' }}
+                      {{
+                        lastClip.video_title ||
+                        lastVideo?.title ||
+                        'Untitled Video'
+                      }}
                     </p>
                   </div>
                 </div>
@@ -879,65 +887,64 @@ const lastClip = computed(() => {
     : state?.lastAccessedClip?.value;
 });
 
-const thumbnailLoadFailed = ref(false);
+const thumbnailFallbackStage = ref<number>(0);
 
-watch(
-  () => lastClip.value?.clip_id,
-  () => {
-    thumbnailLoadFailed.value = false;
+watch([() => lastClip.value?.clip_id, () => lastClip.value?.folder], () => {
+  thumbnailFallbackStage.value = 0;
+});
+
+function formatThumbnailUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
   }
-);
+  return `${props.API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+}
 
 const lastClipThumbnail = computed(() => {
-  if (thumbnailLoadFailed.value) {
-    const video = lastVideo.value;
-    if (video?.thumbnail) {
-      return `${props.API_BASE}/api/proxy-image?url=${encodeURIComponent(video.thumbnail)}`;
-    }
-    if (video?.thumbnail_url) {
-      return video.thumbnail_url.startsWith('http')
-        ? `${props.API_BASE}/api/proxy-image?url=${encodeURIComponent(video.thumbnail_url)}`
-        : `${props.API_BASE}${video.thumbnail_url}`;
-    }
-    return null;
-  }
-
   const clip = lastClip.value;
   const video = lastVideo.value;
   if (!clip) return null;
 
-  // 1. Explicit thumbnail_url stored on the clip
-  if (clip.thumbnail_url) {
-    return clip.thumbnail_url.startsWith('http')
-      ? `${props.API_BASE}/api/proxy-image?url=${encodeURIComponent(clip.thumbnail_url)}`
-      : `${props.API_BASE}${clip.thumbnail_url}`;
+  // Stage 2: Exhausted both clip and video thumbnails -> fall back cleanly to Icon
+  if (thumbnailFallbackStage.value >= 2) {
+    return null;
   }
 
-  // 2. Smart Dynamic Resolver: extract start timestamp from clip_id (e.g., "15_45" -> thumb_15.jpg)
+  // Stage 1: Fallback to parent video thumbnail
+  if (thumbnailFallbackStage.value === 1) {
+    if (video?.thumbnail_url) {
+      return formatThumbnailUrl(video.thumbnail_url);
+    }
+    if (video?.thumbnail) {
+      return formatThumbnailUrl(video.thumbnail);
+    }
+    return null;
+  }
+
+  // Stage 0: Try clip thumbnail
+  if (clip.thumbnail_url) {
+    return formatThumbnailUrl(clip.thumbnail_url);
+  }
+
   const folder = clip.folder || clip.folder_name;
   if (folder && clip.clip_id) {
-    const parts = clip.clip_id.split('_');
-    const startSec = parseInt(parts[0] || '');
-    if (!isNaN(startSec)) {
-      return `${props.API_BASE}/assets/sources/${folder}/thumb_${startSec}.jpg`;
-    }
+    return `${props.API_BASE}/assets/clips/${folder}/${clip.clip_id}/thumbnail.jpg`;
   }
 
-  // 3. Fallback to parent video thumbnail
-  if (video?.thumbnail) {
-    return `${props.API_BASE}/api/proxy-image?url=${encodeURIComponent(video.thumbnail)}`;
-  }
+  // If Stage 0 has no candidate at all, try parent video directly
   if (video?.thumbnail_url) {
-    return video.thumbnail_url.startsWith('http')
-      ? `${props.API_BASE}/api/proxy-image?url=${encodeURIComponent(video.thumbnail_url)}`
-      : `${props.API_BASE}${video.thumbnail_url}`;
+    return formatThumbnailUrl(video.thumbnail_url);
+  }
+  if (video?.thumbnail) {
+    return formatThumbnailUrl(video.thumbnail);
   }
 
   return null;
 });
 
 function handleThumbnailError() {
-  thumbnailLoadFailed.value = true;
+  thumbnailFallbackStage.value += 1;
 }
 
 const navItemsConfig = [
@@ -1022,8 +1029,7 @@ async function handleContinueEditingClick() {
   if (isCurrentClipActive.value) return;
   const router = useSafeRouter();
   const clip = lastClip.value;
-  const video = lastVideo.value;
-  if (!clip || !video) return;
+  if (!clip) return;
 
   try {
     if (state?.isNavigatingToEditor) {
