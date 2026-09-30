@@ -60,6 +60,12 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "ef32aea0a8fab9b365ff9e08a95f8d353e20ca21ea46ec2e73587c86dd341351"
     },
+    "logo-design": {
+      "source": "kaankiziltug/logo-design-skill",
+      "sourceType": "github",
+      "skillPath": "skills/logo-design/SKILL.md",
+      "computedHash": "e3969f47ced722e7c09113f91b022f873cad6f2bb3c0fd480fb1f1124b740a72"
+    },
     "prototype": {
       "source": "mattpocock/skills",
       "sourceType": "github",
