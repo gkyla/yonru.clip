@@ -72,10 +72,11 @@ class ClipWorkflowCoordinator:
             except Exception as e:
                 print(f"[defaults] Failed to copy default style settings: {e}")
 
-        # 2. Check for default thumbnail config
+        # 2. Check for default thumbnail/cover config
+        clip_cover_config_path = os.path.join(clip_dir, "cover_config.json")
         clip_thumb_config_path = os.path.join(clip_dir, "thumbnail_config.json")
         default_thumb_style_path = os.path.join(output_dir, "default_thumbnail_style.json")
-        if not os.path.exists(clip_thumb_config_path) and os.path.exists(default_thumb_style_path):
+        if not os.path.exists(clip_cover_config_path) and not os.path.exists(clip_thumb_config_path) and os.path.exists(default_thumb_style_path):
             try:
                 with open(default_thumb_style_path, "r", encoding="utf-8") as f:
                     default_style = json.load(f)
@@ -88,21 +89,31 @@ class ClipWorkflowCoordinator:
                     "xOffset": 50
                 }
                 os.makedirs(clip_dir, exist_ok=True)
+                with open(clip_cover_config_path, "w", encoding="utf-8") as f:
+                    json.dump(initial_config, f, ensure_ascii=False, indent=2)
                 with open(clip_thumb_config_path, "w", encoding="utf-8") as f:
                     json.dump(initial_config, f, ensure_ascii=False, indent=2)
-                print(f"[defaults] Populated default thumbnail config to {clip_thumb_config_path}")
+                print(f"[defaults] Populated default cover config to {clip_cover_config_path}")
             except Exception as e:
-                print(f"[defaults] Failed to populate default thumbnail config: {e}")
+                print(f"[defaults] Failed to populate default cover config: {e}")
 
-        # 3. Check for default thumbnail image
+        # 3. Check for default Clip Thumbnail image (thumbnail.jpg)
         clip_thumb_img_path = os.path.join(clip_dir, "thumbnail.jpg")
+        clip_poster_img_path = os.path.join(clip_dir, "poster.jpg")
         clip_video_path = os.path.join(clip_dir, "video.mp4")
-        if not os.path.exists(clip_thumb_img_path) and os.path.exists(clip_video_path):
-            try:
-                self.asset_repository.extract_clip_screenshot(clip_video_path, 0.0, clip_thumb_img_path)
-                print(f"[defaults] Generated initial thumbnail at {clip_thumb_img_path}")
-            except Exception as e:
-                print(f"[defaults] Failed to generate initial thumbnail: {e}")
+        if not os.path.exists(clip_thumb_img_path):
+            if os.path.exists(clip_poster_img_path):
+                try:
+                    shutil.copy2(clip_poster_img_path, clip_thumb_img_path)
+                    print(f"[defaults] Auto-healed Clip Thumbnail from poster at {clip_thumb_img_path}")
+                except Exception as e:
+                    print(f"[defaults] Failed to copy Clip Thumbnail from poster: {e}")
+            elif os.path.exists(clip_video_path):
+                try:
+                    self.asset_repository.extract_clip_screenshot(clip_video_path, 0.0, clip_thumb_img_path)
+                    print(f"[defaults] Generated initial Clip Thumbnail at {clip_thumb_img_path}")
+                except Exception as e:
+                    print(f"[defaults] Failed to generate initial Clip Thumbnail: {e}")
 
     def _compute_and_cache_crop_map(
         self, clip_dir: str, video_path: str, tracker: Optional[Any] = None
@@ -244,9 +255,10 @@ class ClipWorkflowCoordinator:
 
         return response
 
-    def extract_clip_thumbnail(self, job_id: str, timestamp: Optional[float] = None) -> Dict[str, Any]:
+    def extract_clip_cover(self, job_id: str, timestamp: Optional[float] = None) -> Dict[str, Any]:
         """
-        Extracts a single frame from the clip video as a thumbnail with timestamp bounds clamping.
+        Extracts a single frame from the clip video as a custom Cover Slide frame (cover.jpg)
+        with timestamp bounds clamping, strictly leaving the Clip Thumbnail (thumbnail.jpg) intact.
         """
         job = self.jobs.get_job(job_id) if hasattr(self.jobs, "get_job") else self.jobs.get(job_id)
         if not job:
@@ -265,21 +277,25 @@ class ClipWorkflowCoordinator:
             import random
             ts = random.uniform(0.5, max(0.6, clip_duration * 0.8))
 
-        thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
-        success = self.asset_repository.extract_clip_screenshot(clip_path, ts, thumb_path)
+        cover_path = os.path.join(clip_dir, "cover.jpg")
+        success = self.asset_repository.extract_clip_screenshot(clip_path, ts, cover_path)
         if not success:
-            raise RuntimeError("Failed to extract thumbnail frame")
+            raise RuntimeError("Failed to extract cover frame")
 
         parts = clip_path.replace("\\", "/").split("/")
         try:
             clips_idx = parts.index("clips")
             relative = "/".join(parts[clips_idx:])
-            asset_url = f"/assets/{relative.rsplit('/', 1)[0]}/thumbnail.jpg"
+            asset_url = f"/assets/{relative.rsplit('/', 1)[0]}/cover.jpg"
         except Exception:
-            asset_url = "/assets/clips/thumbnail.jpg"
+            asset_url = "/assets/clips/cover.jpg"
 
-        print(f"[thumbnail] Captured frame at {ts:.3f}s → {thumb_path}")
-        return {"status": "ok", "timestamp": round(ts, 3), "thumbnail_url": asset_url}
+        print(f"[cover] Captured frame at {ts:.3f}s → {cover_path}")
+        return {"status": "ok", "timestamp": round(ts, 3), "cover_url": asset_url, "thumbnail_url": asset_url}
+
+    def extract_clip_thumbnail(self, job_id: str, timestamp: Optional[float] = None) -> Dict[str, Any]:
+        """Backward compatibility alias for extract_clip_cover."""
+        return self.extract_clip_cover(job_id=job_id, timestamp=timestamp)
 
     def replay_cached_analysis(
         self,
@@ -710,15 +726,14 @@ class ClipWorkflowCoordinator:
             except Exception as e:
                 print(f"[load-ready-clip] Failed to read crop map: {e}")
 
-        # Load thumbnail config
-        thumbnail_config_data = None
-        thumb_config_path = os.path.join(clip_dir, "thumbnail_config.json")
-        if os.path.exists(thumb_config_path):
-            try:
-                with open(thumb_config_path, "r", encoding="utf-8") as f:
-                    thumbnail_config_data = json.load(f)
-            except Exception as e:
-                print(f"[load-ready-clip] Failed to read thumbnail config: {e}")
+        # Load cover config and thumbnail/cover URLs
+        cover_config_data = self.asset_repository.get_cover_config(folder_name, clip_id)
+        cover_url = self.asset_repository.migrate_legacy_cover_if_needed(folder_name, clip_id)
+        if not cover_url:
+            cover_path = os.path.join(clip_dir, "cover.jpg")
+            cover_url = f"/assets/clips/{folder_name}/{clip_id}/cover.jpg" if os.path.exists(cover_path) else None
+        thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
+        thumbnail_url = f"/assets/clips/{folder_name}/{clip_id}/thumbnail.jpg" if os.path.exists(thumb_path) else None
 
         return {
             "job_id": job_id,
@@ -727,7 +742,11 @@ class ClipWorkflowCoordinator:
             "style_settings": style_data,
             "history": history_data,
             "crop_map": crop_map_data,
-            "thumbnail_config": thumbnail_config_data
+            "cover_config": cover_config_data,
+            "cover_url": cover_url,
+            "thumbnail_config": cover_config_data,
+            "thumbnail_url": thumbnail_url,
+            "poster_url": thumbnail_url
         }
 
 

@@ -63,7 +63,10 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
             }
           });
         }
-        if (urlStr.includes('/api/thumbnail/config')) {
+        if (
+          urlStr.includes('/api/cover/config') ||
+          urlStr.includes('/api/thumbnail/config')
+        ) {
           return Promise.resolve({ config: null });
         }
         return Promise.resolve({});

@@ -104,8 +104,31 @@ function createClipperState() {
     hdReady
   } = job;
 
-  // Thumbnail state delegated from useClipperThumbnail sub-composable
+  // Cover & Thumbnail state delegated from useClipperThumbnail / useClipperCover sub-composable
   const {
+    coverEnabled,
+    coverUrl,
+    coverDuration,
+    coverScreenshotTime,
+    coverTextOverlays,
+    coverEditMode,
+    coverXOffset,
+    activeCoverTextId,
+    isDeletingCover,
+    isCapturingCover,
+    defaultCoverStyle,
+    resetCoverState,
+    captureScreenshot,
+    addCoverText,
+    removeCoverText,
+    saveCoverConfig,
+    loadCoverConfig,
+    toggleCover,
+    deleteCover,
+    loadDefaultCoverStyle,
+    saveDefaultCoverStyle,
+    applyDefaultCoverStyle,
+
     thumbnailEnabled,
     thumbnailUrl,
     thumbnailDuration,
@@ -118,7 +141,6 @@ function createClipperState() {
     isCapturingThumbnail,
     defaultThumbnailStyle,
     resetThumbnailState,
-    captureScreenshot,
     addThumbnailText,
     removeThumbnailText,
     saveThumbnailConfig,
@@ -1084,6 +1106,29 @@ function createClipperState() {
     initPersistence,
     loadDefaultThumbnailStyle,
     saveDefaultThumbnailStyle,
-    applyDefaultThumbnailStyle
+    applyDefaultThumbnailStyle,
+
+    // Canonical Cover Slide API
+    coverEnabled,
+    coverUrl,
+    coverDuration,
+    coverScreenshotTime,
+    coverTextOverlays,
+    coverEditMode,
+    coverXOffset,
+    activeCoverTextId,
+    isDeletingCover,
+    isCapturingCover,
+    defaultCoverStyle,
+    resetCoverState,
+    addCoverText,
+    removeCoverText,
+    saveCoverConfig,
+    loadCoverConfig,
+    toggleCover,
+    deleteCover,
+    loadDefaultCoverStyle,
+    saveDefaultCoverStyle,
+    applyDefaultCoverStyle
   };
 }

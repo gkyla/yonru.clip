@@ -25,6 +25,7 @@ export interface LastAccessedClip {
   theme?: string;
   video_title?: string;
   thumbnail_url?: string;
+  poster_url?: string;
 }
 
 export type CommandPaletteCategory =
@@ -294,6 +295,8 @@ export interface ReadyClip {
   end_time?: number;
   asset_url?: string;
   thumbnail_url?: string;
+  cover_url?: string;
+  poster_url?: string;
 }
 
 export interface ThumbnailConfig {
@@ -303,6 +306,9 @@ export interface ThumbnailConfig {
   textOverlays?: ThumbnailTextOverlay[];
   xOffset?: number;
 }
+
+export type CoverTextOverlay = ThumbnailTextOverlay;
+export type CoverConfig = ThumbnailConfig;
 
 export interface JobApiResponse {
   job_id?: string;
@@ -340,3 +346,5 @@ export interface JobApiResponse {
 export type DefaultThumbnailStyle = Partial<ThumbnailTextOverlay> & {
   thumbnailDuration?: number;
 };
+
+export type DefaultCoverStyle = DefaultThumbnailStyle;

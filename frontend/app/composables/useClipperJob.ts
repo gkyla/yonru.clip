@@ -154,7 +154,18 @@ export const useClipperJob = () => {
     () => 'bold-podcast'
   );
 
-  // Thumbnail state
+  // Cover & Thumbnail states (kept in sync for full compatibility)
+  const coverEnabled = useState<boolean>('coverEnabled', () => false);
+  const coverUrl = useState<string | null>('coverUrl', () => null);
+  const coverDuration = useState<number>('coverDuration', () => 1.0);
+  const coverScreenshotTime = useState<number>('coverScreenshotTime', () => 0);
+  const coverTextOverlays = useState<ThumbnailTextOverlay[]>(
+    'coverTextOverlays',
+    () => []
+  );
+  const coverEditMode = useState<boolean>('coverEditMode', () => false);
+  const coverXOffset = useState<number>('coverXOffset', () => 50);
+
   const thumbnailEnabled = useState<boolean>('thumbnailEnabled', () => false);
   const thumbnailUrl = useState<string | null>('thumbnailUrl', () => null);
   const thumbnailDuration = useState<number>('thumbnailDuration', () => 1.0);
@@ -231,7 +242,17 @@ export const useClipperJob = () => {
   }
 
   function resetThumbnailState(keepLocked = false) {
-    timeline.isSavingLocked.value = true;
+    if (!keepLocked) {
+      timeline.isSavingLocked.value = true;
+    }
+    coverEnabled.value = false;
+    coverUrl.value = null;
+    coverDuration.value = 1.0;
+    coverScreenshotTime.value = 0;
+    coverXOffset.value = 50;
+    coverTextOverlays.value = [];
+    coverEditMode.value = false;
+
     thumbnailEnabled.value = false;
     thumbnailUrl.value = null;
     thumbnailDuration.value = 1.0;
@@ -282,15 +303,37 @@ export const useClipperJob = () => {
     }
 
     if (bundle.thumbnailConfig) {
-      thumbnailEnabled.value = bundle.thumbnailConfig.enabled ?? false;
-      thumbnailDuration.value = bundle.thumbnailConfig.duration ?? 1.0;
-      thumbnailScreenshotTime.value =
-        bundle.thumbnailConfig.screenshotTime ?? 0;
-      thumbnailXOffset.value = bundle.thumbnailConfig.xOffset ?? 50;
-      thumbnailTextOverlays.value = mapThumbnailOverlays(
+      const enabled = bundle.thumbnailConfig.enabled ?? false;
+      const duration = bundle.thumbnailConfig.duration ?? 1.0;
+      const screenshotTime = bundle.thumbnailConfig.screenshotTime ?? 0;
+      const xOffset = bundle.thumbnailConfig.xOffset ?? 50;
+      const overlays = mapThumbnailOverlays(
         bundle.thumbnailConfig.textOverlays
       );
-      thumbnailUrl.value = `${API_BASE}/assets/clips/${bundle.folderName}/${bundle.clipId}/thumbnail.jpg?t=${Date.now()}`;
+      const resolvedCoverUrl = bundle.coverUrl
+        ? bundle.coverUrl.startsWith('http')
+          ? bundle.coverUrl
+          : `${API_BASE}${bundle.coverUrl}?t=${Date.now()}`
+        : null;
+
+      coverEnabled.value = enabled;
+      coverDuration.value = duration;
+      coverScreenshotTime.value = screenshotTime;
+      coverXOffset.value = xOffset;
+      coverTextOverlays.value = overlays;
+      coverUrl.value = resolvedCoverUrl;
+
+      thumbnailEnabled.value = enabled;
+      thumbnailDuration.value = duration;
+      thumbnailScreenshotTime.value = screenshotTime;
+      thumbnailXOffset.value = xOffset;
+      thumbnailTextOverlays.value = overlays;
+      thumbnailUrl.value = resolvedCoverUrl;
+    } else {
+      coverEnabled.value = false;
+      coverUrl.value = null;
+      thumbnailEnabled.value = false;
+      thumbnailUrl.value = null;
     }
 
     if (bundle.savedHooks && bundle.savedHooks.length > 0) {
@@ -620,6 +663,7 @@ export const useClipperJob = () => {
     stopPolling,
     extractClip,
     loadReadyClipIntoEditor,
+    applyHydratedClipBundle,
     startSafetyBuffer,
     isCachedAnalysis,
     downloadPercent,

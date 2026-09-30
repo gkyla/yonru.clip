@@ -225,15 +225,16 @@ class StagedRenderContext:
         self.public_video_path = os.path.join(self.public_dir, temp_public_video_name)
         shutil.copy2(self.comp.original_video, self.public_video_path)
 
-        thumbnail_image_name = None
-        thumb_duration = 0.0
-        if self.comp.thumbnail_config and self.comp.thumbnail_config.get("enabled"):
-            thumb_src = self.comp.thumbnail_config.get("imagePath")
-            if thumb_src and os.path.exists(thumb_src):
-                thumbnail_image_name = f"thumb_{self.out_filename}.jpg"
-                self.thumbnail_image_path = os.path.join(self.public_dir, thumbnail_image_name)
-                shutil.copy2(thumb_src, self.thumbnail_image_path)
-                thumb_duration = self.comp.thumbnail_config.get("duration", 1.0)
+        cover_image_name = None
+        cover_duration = 0.0
+        cover_cfg = getattr(self.comp, "cover_config", None) or getattr(self.comp, "thumbnail_config", None)
+        if cover_cfg and cover_cfg.get("enabled"):
+            cover_src = cover_cfg.get("imagePath")
+            if cover_src and os.path.exists(cover_src):
+                cover_image_name = f"cover_{self.out_filename}.jpg"
+                self.thumbnail_image_path = os.path.join(self.public_dir, cover_image_name)
+                shutil.copy2(cover_src, self.thumbnail_image_path)
+                cover_duration = cover_cfg.get("duration", 1.0)
 
         clip_dur = self.comp.clip_duration
         if self.comp.timeline_tracks:
@@ -256,8 +257,8 @@ class StagedRenderContext:
         timeline_video_items = timeline_video_items or []
 
         video_frames = max(1, int((clip_dur or 10.0) * self.comp.fps))
-        thumbnail_frames = int(thumb_duration * self.comp.fps)
-        self.frames = video_frames + thumbnail_frames
+        cover_frames = int(cover_duration * self.comp.fps)
+        self.frames = video_frames + cover_frames
 
         props = {
             "videoPath": temp_public_video_name,
@@ -279,11 +280,16 @@ class StagedRenderContext:
             "bleepAudioSrc": self.comp.bleep_audio_src,
             "volume": self.comp.volume,
             "fps": self.comp.fps,
-            "thumbnailEnabled": thumbnail_image_name is not None,
-            "thumbnailDuration": thumb_duration,
-            "thumbnailImagePath": thumbnail_image_name,
-            "thumbnailTextOverlays": self.comp.thumbnail_config.get("textOverlays", []) if self.comp.thumbnail_config else [],
-            "thumbnailXOffset": self.comp.thumbnail_config.get("xOffset", 50.0) if self.comp.thumbnail_config else 50.0,
+            "coverEnabled": cover_image_name is not None,
+            "coverDuration": cover_duration,
+            "coverImagePath": cover_image_name,
+            "coverTextOverlays": cover_cfg.get("textOverlays", []) if cover_cfg else [],
+            "coverXOffset": cover_cfg.get("xOffset", 50.0) if cover_cfg else 50.0,
+            "thumbnailEnabled": cover_image_name is not None,
+            "thumbnailDuration": cover_duration,
+            "thumbnailImagePath": cover_image_name,
+            "thumbnailTextOverlays": cover_cfg.get("textOverlays", []) if cover_cfg else [],
+            "thumbnailXOffset": cover_cfg.get("xOffset", 50.0) if cover_cfg else 50.0,
             "sourceWidth": self.comp.source_width,
             "sourceHeight": self.comp.source_height,
             "splitZoomTop": getattr(self.comp, "split_zoom_top", 1.0) or 1.0,
@@ -501,17 +507,36 @@ class RenderEngine(ABC):
         else:
             crop_x = int((req.crop_percent_x / 100.0) * source_width)
 
+        is_cover_enabled = getattr(req, "cover_enabled", None)
+        if is_cover_enabled is None:
+            is_cover_enabled = getattr(req, "thumbnail_enabled", False)
+
         thumbnail_config = None
-        if req.thumbnail_enabled:
+        if is_cover_enabled:
+            cover_dur = getattr(req, "cover_duration", None)
+            if cover_dur is None:
+                cover_dur = getattr(req, "thumbnail_duration", 1.0)
+
+            cover_overlays = getattr(req, "cover_text_overlays", None)
+            if cover_overlays is None:
+                cover_overlays = getattr(req, "thumbnail_text_overlays", None) or []
+
+            cover_off = getattr(req, "cover_x_offset", None)
+            if cover_off is None:
+                cover_off = getattr(req, "thumbnail_x_offset", 50.0)
+
             thumbnail_config = {
                 "enabled": True,
-                "duration": req.thumbnail_duration,
-                "textOverlays": req.thumbnail_text_overlays or [],
-                "xOffset": req.thumbnail_x_offset,
+                "duration": cover_dur,
+                "textOverlays": cover_overlays,
+                "xOffset": cover_off,
             }
             clip_dir = os.path.dirname(video_path)
+            cover_path = os.path.join(clip_dir, "cover.jpg")
             thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
-            if os.path.exists(thumb_path):
+            if os.path.exists(cover_path):
+                thumbnail_config["imagePath"] = cover_path
+            elif os.path.exists(thumb_path):
                 thumbnail_config["imagePath"] = thumb_path
             else:
                 thumbnail_config["enabled"] = False

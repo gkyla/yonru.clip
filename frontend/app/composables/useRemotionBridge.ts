@@ -68,9 +68,18 @@ export const useRemotionBridge = (
     subtitleBackgroundOpacity: state.subtitleBackgroundOpacity.value,
     subtitleWordSpacing: state.subtitleWordSpacing.value,
     timelineTracks: state.timelineTracks.value,
+    coverEnabled: state.coverEnabled?.value ?? state.thumbnailEnabled.value,
+    coverDuration: state.coverDuration?.value ?? state.thumbnailDuration.value,
+    coverTextOverlays:
+      state.coverTextOverlays?.value ?? state.thumbnailTextOverlays.value,
+    coverXOffset:
+      state.coverXOffset?.value ?? state.thumbnailXOffset?.value ?? 50,
+    coverImagePath: state.coverUrl?.value ?? state.thumbnailUrl?.value,
     thumbnailEnabled: state.thumbnailEnabled.value,
     thumbnailDuration: state.thumbnailDuration.value,
     thumbnailTextOverlays: state.thumbnailTextOverlays.value,
+    thumbnailXOffset: state.thumbnailXOffset?.value ?? 50,
+    thumbnailImagePath: state.thumbnailUrl?.value,
     isInThumbnailWindow: isInThumbnailWindow.value,
     audioBleepEnabled: state.audioBleepEnabled.value,
     audioBleepSource: state.audioBleepSource?.value,

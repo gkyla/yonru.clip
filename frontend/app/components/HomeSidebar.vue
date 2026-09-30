@@ -922,9 +922,13 @@ const lastClipThumbnail = computed(() => {
     return null;
   }
 
-  // Stage 0: Try clip thumbnail
+  // Stage 0: Try Clip Thumbnail (thumbnail_url) or legacy poster_url
   if (clip.thumbnail_url) {
     return formatThumbnailUrl(clip.thumbnail_url);
+  }
+
+  if (clip.poster_url) {
+    return formatThumbnailUrl(clip.poster_url);
   }
 
   const folder = clip.folder || clip.folder_name;

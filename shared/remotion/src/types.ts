@@ -95,13 +95,21 @@ export interface YonruClipProps {
   // Censorship & Bleeps
   censoredSegments?: CensoredSegment[];
   bleepAudioSrc?: string;
-  // Thumbnail
+  // Cover Slide (Intro)
+  coverEnabled?: boolean;
+  coverDuration?: number; // seconds
+  coverImagePath?: string;
+  coverTextOverlays?: ThumbnailTextOverlay[];
+  coverXOffset?: number;
+  // Backward compatibility: Thumbnail
   thumbnailEnabled?: boolean;
   thumbnailDuration?: number; // seconds
   thumbnailImagePath?: string;
   thumbnailTextOverlays?: ThumbnailTextOverlay[];
   thumbnailXOffset?: number;
 }
+
+export type CoverTextOverlay = ThumbnailTextOverlay;
 
 export interface CensoredSegment {
   start: number;

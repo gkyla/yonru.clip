@@ -581,7 +581,7 @@
             <p
               class="text-[24px] font-medium text-slate-400 text-center px-4 leading-relaxed"
             >
-              Generating high-quality thumbnail preview from frame
+              Generating high-quality cover slide preview from frame
             </p>
           </div>
         </div>

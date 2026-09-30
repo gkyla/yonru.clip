@@ -321,7 +321,7 @@ describe('Editor Page', () => {
           TimelineEditor: true,
           BlacklistSettings: true,
           ContentAuditPanel: true,
-          ThumbnailEditor: true,
+          CoverEditor: true,
           Icon: true
         }
       }

@@ -54,6 +54,11 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   timelineVideoItems = [],
   volume = 0.5,
   hideSubtitles = false,
+  coverEnabled,
+  coverDuration,
+  coverImagePath,
+  coverTextOverlays,
+  coverXOffset,
   thumbnailEnabled = false,
   thumbnailDuration = 1,
   thumbnailImagePath,
@@ -68,8 +73,14 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   const { fps } = useVideoConfig();
   const { isRendering } = useRemotionEnvironment();
 
-  const thumbnailFrames = thumbnailEnabled
-    ? Math.round(thumbnailDuration * fps)
+  const isCoverActive = coverEnabled ?? thumbnailEnabled;
+  const activeCoverDuration = coverDuration ?? thumbnailDuration;
+  const activeCoverImage = coverImagePath ?? thumbnailImagePath;
+  const activeCoverOverlays = coverTextOverlays ?? thumbnailTextOverlays;
+  const activeCoverXOffset = coverXOffset ?? thumbnailXOffset;
+
+  const thumbnailFrames = isCoverActive
+    ? Math.round(activeCoverDuration * fps)
     : 0;
   const currentTime = Math.max(0, frame - thumbnailFrames) / fps;
 
@@ -377,21 +388,21 @@ export const YonruClip: React.FC<YonruClipProps> = ({
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'black', overflow: 'hidden' }}>
-      {/* ===== THUMBNAIL SLIDE ===== */}
-      {thumbnailEnabled && thumbnailImagePath && (
-        <Sequence from={0} durationInFrames={thumbnailFrames} name="Thumbnail">
+      {/* ===== COVER / THUMBNAIL SLIDE ===== */}
+      {isCoverActive && activeCoverImage && (
+        <Sequence from={0} durationInFrames={thumbnailFrames} name="Cover">
           <AbsoluteFill>
             <Img
-              src={staticFile(thumbnailImagePath)}
+              src={staticFile(activeCoverImage)}
               style={{
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                objectPosition: `${thumbnailXOffset}% center`
+                objectPosition: `${activeCoverXOffset}% center`
               }}
             />
-            {/* Thumbnail text overlays */}
-            {thumbnailTextOverlays.map((overlay: ThumbnailTextOverlay) => (
+            {/* Cover text overlays */}
+            {activeCoverOverlays.map((overlay: ThumbnailTextOverlay) => (
               <div
                 key={overlay.id}
                 style={{
