@@ -29,6 +29,21 @@ class TestRenderEngine(unittest.TestCase):
         self.assertEqual(comp.crop_center_x, 960)
         self.assertEqual(comp.volume, 0.8)
         self.assertEqual(comp.fps, 60.0)
+        self.assertFalse(comp.hide_subtitles)
+
+        comp_disabled = RenderComposition(
+            original_video="test_video.mp4",
+            crop_center_x=960,
+            subtitles_enabled=False
+        )
+        self.assertTrue(comp_disabled.hide_subtitles)
+
+        comp_enabled = RenderComposition(
+            original_video="test_video.mp4",
+            crop_center_x=960,
+            subtitles_enabled=True
+        )
+        self.assertFalse(comp_enabled.hide_subtitles)
 
     def test_fake_render_engine_sync(self):
         engine = FakeRenderEngine()
@@ -97,6 +112,12 @@ class TestRenderEngine(unittest.TestCase):
             self.assertEqual(comp.volume, 0.5)
             self.assertEqual(comp.fps, 30.0)
             self.assertEqual(comp.position, "bottom")
+            self.assertFalse(comp.hide_subtitles)
+
+            # Test with subtitles_enabled=False
+            mock_req.subtitles_enabled = False
+            comp_no_sub = engine.compile_composition(mock_job, mock_req, mock_asset_repo)
+            self.assertTrue(comp_no_sub.hide_subtitles)
 
     def test_compile_and_render_methods(self):
         mock_req = MagicMock()
@@ -442,9 +463,28 @@ class TestRenderEngine(unittest.TestCase):
                 if ctx.props_path and ctx.public_video_path:
                     self.assertTrue(os.path.exists(ctx.props_path))
                     self.assertTrue(os.path.exists(ctx.public_video_path))
+                    with open(ctx.props_path, "r", encoding="utf-8") as f:
+                        props_data = json.load(f)
+                    self.assertIn("hideSubtitles", props_data)
+                    self.assertFalse(props_data["hideSubtitles"])
                     props_path_created = ctx.props_path
                     staged_video_created = ctx.public_video_path
                 self.assertEqual(ctx.frames, 60)
+
+            # Test StagedRenderContext with hide_subtitles=True
+            comp_no_sub = RenderComposition(
+                original_video=temp_video,
+                crop_center_x=960,
+                clip_duration=2.0,
+                fps=30.0,
+                hide_subtitles=True
+            )
+            with StagedRenderContext(comp_no_sub, "test_nosub.mp4", output_dir=temp_dir) as ctx:
+                self.assertIsNotNone(ctx.props_path)
+                if ctx.props_path:
+                    with open(ctx.props_path, "r", encoding="utf-8") as f:
+                        props_data = json.load(f)
+                    self.assertTrue(props_data["hideSubtitles"])
 
             # Check that files were cleaned up automatically on exit
             if props_path_created:

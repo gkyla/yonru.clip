@@ -462,4 +462,32 @@ describe('useClipperState Composable', () => {
     expect(state.cropMode.value).toBe('face_tracking');
     expect(state.cropMap.value).toEqual([]);
   });
+
+  it('exposes subtitlesEnabled state defaulting to true and persists it via saveStyleSettings', async () => {
+    const state = useClipperState();
+    expect(state.subtitlesEnabled.value).toBe(true);
+
+    state.subtitlesEnabled.value = false;
+    expect(state.subtitlesEnabled.value).toBe(false);
+
+    const mockFetch = vi.fn().mockResolvedValue({});
+    vi.stubGlobal('$fetch', mockFetch);
+
+    state.folderName.value = 'folderSub';
+    state.clipId.value = 'clipSub';
+
+    await state.saveStyleSettings();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/style-settings'),
+      expect.objectContaining({
+        method: 'PUT',
+        body: expect.objectContaining({
+          settings: expect.objectContaining({
+            subtitlesEnabled: false
+          })
+        })
+      })
+    );
+  });
 });

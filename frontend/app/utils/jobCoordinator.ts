@@ -118,7 +118,8 @@ export const DEFAULT_SUBTITLE_STYLES: Partial<SubtitleStyleSettings> = {
   subtitleBackgroundOpacity: 0.7,
   subtitleWordSpacing: 0,
   volume: 0.5,
-  subtitlePreset: 'bold-podcast'
+  subtitlePreset: 'bold-podcast',
+  subtitlesEnabled: true
 };
 
 export class IngestionJobCoordinator {
@@ -233,7 +234,11 @@ export class IngestionJobCoordinator {
           ? overrides.subtitleWordSpacing
           : base.subtitleWordSpacing,
       volume: overrides.volume !== undefined ? overrides.volume : base.volume,
-      subtitlePreset: overrides.subtitlePreset ?? base.subtitlePreset
+      subtitlePreset: overrides.subtitlePreset ?? base.subtitlePreset,
+      subtitlesEnabled:
+        overrides.subtitlesEnabled !== undefined
+          ? overrides.subtitlesEnabled
+          : (base.subtitlesEnabled ?? true)
     };
   }
 

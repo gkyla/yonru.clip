@@ -129,6 +129,7 @@ class RenderRequest(BaseModel):
     subtitle_background: str = "none"
     subtitle_background_opacity: float = 0.7
     subtitle_word_spacing: int = 0
+    subtitles_enabled: bool = True
     # Render Controls
     volume: float = 0.5
     fps: float = 30.0

@@ -190,9 +190,20 @@
             :class="trackColor(track.type)"
           />
           <span
-            class="text-[8px] font-bold uppercase tracking-widest text-slate-600 truncate"
-            >{{ track.name }}</span
+            class="text-[8px] font-bold uppercase tracking-widest truncate"
+            :class="
+              track.id === 'subtitle' && !state.subtitlesEnabled?.value
+                ? 'text-slate-500 opacity-80'
+                : 'text-slate-600'
+            "
           >
+            {{ track.name }}
+            <span
+              v-if="track.id === 'subtitle' && !state.subtitlesEnabled?.value"
+              class="text-[7px] text-amber-500/80 font-bold ml-1"
+              >(OFF)</span
+            >
+          </span>
         </div>
       </div>
 
@@ -273,8 +284,13 @@
             <div
               v-for="item in track.items"
               :key="item.id"
-              class="absolute top-[4px] rounded-[3px] cursor-move flex items-center px-2 gap-1.5 overflow-hidden border-l-[3px]"
-              :class="itemClasses(track.type, item)"
+              class="absolute top-[4px] rounded-[3px] cursor-move flex items-center px-2 gap-1.5 overflow-hidden border-l-[3px] transition-opacity duration-200"
+              :class="[
+                itemClasses(track.type, item),
+                track.id === 'subtitle' && !state.subtitlesEnabled?.value
+                  ? '!opacity-35 grayscale-[0.5]'
+                  : ''
+              ]"
               :style="itemStyle(track, item)"
               @mousedown.stop="startMove($event, track.id, item)"
             >

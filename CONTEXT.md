@@ -100,6 +100,14 @@ _Avoid_: Audio delay, subtitle delay, speech lag
 A preconfigured collection of typography, color palette, highlight animation, stroke, and background treatments applied to subtitles for viral video pacing and visual branding.
 _Avoid_: Template, subtitle theme, font style, caption design
 
+**Subtitle Visibility Toggle**:
+The clip-level presentation control that enables creators to show or hide visual subtitles in both the Studio Editor preview and final rendered media without mutating or deleting underlying transcript timing or audio censorship boundaries.
+_Avoid_: Mute subtitles, hide captions, delete transcript, subtitle disable
+
+**Subtitle Pacing**:
+The word grouping density configuration (1 Word, 3 Words, or 4 Words) dictating how many words appear concurrently on-screen during playback and export.
+_Avoid_: Display mode, word density, text chunks, caption flow
+
 **Default Style Settings**:
 The persisted global user preference configuring the baseline layout mode (Vertical 9:16), auto-reframing crop mode (Face Track), and subtitle typography applied to newly extracted or initialized clips.
 _Avoid_: Global template, root config, editor defaults, initial layout preset

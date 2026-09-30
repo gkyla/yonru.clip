@@ -50,6 +50,7 @@ export const useClipperExport = (deps: ExportDeps) => {
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center');
   const subtitleOffset = useState<number>('subtitleOffset', () => 50);
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150);
+  const subtitlesEnabled = useState<boolean>('subtitlesEnabled', () => true);
   const font = useState<string>('font', () => 'Montserrat');
   const fontSize = useState<number>('fontSize', () => 100);
   const cropMode = useState<string>('cropMode', () => 'manual');
@@ -200,6 +201,7 @@ export const useClipperExport = (deps: ExportDeps) => {
       subtitle_background: subtitleBackground.value,
       subtitle_background_opacity: subtitleBackgroundOpacity.value,
       subtitle_word_spacing: subtitleWordSpacing.value,
+      subtitles_enabled: subtitlesEnabled.value,
       volume: volume.value,
       fps: videoFps.value,
       transcript: fullTranscript.value.map((seg: any) => ({

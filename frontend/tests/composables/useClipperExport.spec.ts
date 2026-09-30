@@ -79,6 +79,7 @@ describe('useClipperExport Composable', () => {
     expect(capturedBody.job_id).toBe('test-job-id');
     expect(capturedBody.output_name).toBe('My Test Output');
     expect(capturedBody.video_layout).toBe('landscape');
+    expect(capturedBody.subtitles_enabled).toBe(true);
     expect(capturedBody.cover_enabled).toBeDefined();
     expect(capturedBody.thumbnail_enabled).toBeDefined();
 

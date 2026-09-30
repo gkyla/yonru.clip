@@ -259,4 +259,22 @@ describe('VideoPlaybackCoordinator Unit Tests', () => {
       expect(nativeVideo.play).toHaveBeenCalled();
     });
   });
+
+  describe('Subtitle visibility toggle', () => {
+    it('sets hideSubtitles to false when subtitlesEnabled is true (or undefined)', () => {
+      const props = coordinator.assembleRemotionProps({
+        ...baseSnapshot,
+        subtitlesEnabled: true
+      });
+      expect(props.hideSubtitles).toBe(false);
+    });
+
+    it('sets hideSubtitles to true when subtitlesEnabled is false', () => {
+      const props = coordinator.assembleRemotionProps({
+        ...baseSnapshot,
+        subtitlesEnabled: false
+      });
+      expect(props.hideSubtitles).toBe(true);
+    });
+  });
 });

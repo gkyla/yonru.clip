@@ -40,6 +40,11 @@ class RenderComposition:
         self.split_offset_y_bottom = kwargs.get("split_offset_y_bottom", 0.0)
         self.censored_segments = kwargs.get("censored_segments") or []
         self.bleep_audio_src = kwargs.get("bleep_audio_src")
+        subtitles_enabled = kwargs.get("subtitles_enabled")
+        if subtitles_enabled is not None:
+            self.hide_subtitles = not subtitles_enabled
+        else:
+            self.hide_subtitles = kwargs.get("hide_subtitles", False)
 
 
 class SafeEncoder(json.JSONEncoder):
@@ -271,6 +276,7 @@ class StagedRenderContext:
             "landscapeBlurRadius": self.comp.landscape_blur_radius,
             "landscapeDarkness": self.comp.landscape_darkness,
             "subtitleOffset": self.comp.subtitle_style.get("subtitleOffset", 50) if self.comp.subtitle_style else 50,
+            "hideSubtitles": getattr(self.comp, "hide_subtitles", False),
             "durationInFrames": self.frames,
             "subtitleStyle": self.comp.subtitle_style or {},
             "timelineTextItems": self.comp.timeline_text_items or [],
@@ -595,6 +601,7 @@ class RenderEngine(ABC):
             split_offset_y_bottom=getattr(req, "split_offset_y_bottom", 0.0) or 0.0,
             censored_segments=censored_segments,
             bleep_audio_src=bleep_audio_src,
+            hide_subtitles=not getattr(req, "subtitles_enabled", True),
         )
 
     def compile_and_render(self, job: dict, req: Any, asset_repository: Any, out_filename: str) -> Optional[str]:
