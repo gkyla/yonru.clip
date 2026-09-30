@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><title>Yonru logo</title><g transform="translate(-78.98 -78.98) scale(1.617)">
+  <title id="title-yonru-small">Yonru Logo Symbol (Small Cut)</title>
+  <path fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" d="
+    M 92 52
+    H 52
+    V 204
+    H 92
+  "/>
+  <path fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" d="
+    M 164 52
+    H 204
+    V 204
+    H 164
+  "/>
+  <rect x="112" y="66" width="32" height="124" rx="16" fill="#ffd700"/>
+</g></svg>

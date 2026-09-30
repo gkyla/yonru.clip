@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 256" width="880" height="256" role="img" aria-labelledby="lockup-title-c">
+  <title id="lockup-title-c">Yonru Logo Lockup C</title>
+  <g transform="translate(48, 48) scale(0.625)">
+    <path fill="#111111" fill-rule="evenodd" d="
+      M 48 54
+      C 48 54, 74 118, 114 146
+      V 218
+      C 114 224.6, 119.4 230, 126 230
+      H 130
+      C 136.6 230, 142 224.6, 142 218
+      V 146
+      C 182 118, 208 54, 208 54
+      H 168
+      C 154 90, 138 112, 128 120
+      C 118 112, 102 90, 88 54
+      Z
+    "/>
+  </g>
+  <text x="236" y="162" font-family="'Outfit', system-ui, -apple-system, sans-serif" font-size="112" font-weight="700" letter-spacing="-2" fill="#111111">Yonru</text>
+  <text x="554" y="162" font-family="'Outfit', system-ui, -apple-system, sans-serif" font-size="112" font-weight="400" fill="#ffd700">.</text>
+</svg>

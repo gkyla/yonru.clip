@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 360" width="400" height="360" role="img" aria-labelledby="title-s-light">
+  <title id="title-s-light">Yonru Stacked Logo (Light)</title>
+  <g transform="translate(112, 32) scale(0.6875)">
+    <path fill="none" stroke="#09090B" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" d="
+      M 94 56
+      H 56
+      V 200
+      H 94
+    "/>
+    <path fill="none" stroke="#09090B" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" d="
+      M 162 56
+      H 200
+      V 200
+      H 162
+    "/>
+    <rect x="114" y="68" width="28" height="120" rx="14" fill="#ffd700"/>
+  </g>
+  <text x="200" y="284" font-family="'Outfit', system-ui, -apple-system, sans-serif" font-size="82" font-weight="700" letter-spacing="-2" fill="#09090B" text-anchor="middle">Yonru<tspan fill="#ffd700">.</tspan></text>
+</svg>

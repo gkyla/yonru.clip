@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title-yonru-light">
+  <title id="title-yonru-light">Yonru Logo Symbol (Color on Light)</title>
+  <!-- In-point bracket [ -->
+  <path fill="none" stroke="#09090B" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" d="
+    M 94 56
+    H 56
+    V 200
+    H 94
+  "/>
+  <!-- Out-point bracket ] -->
+  <path fill="none" stroke="#09090B" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" d="
+    M 162 56
+    H 200
+    V 200
+    H 162
+  "/>
+  <!-- Center focal clip capsule (The captured moment) -->
+  <rect x="114" y="68" width="28" height="120" rx="14" fill="#ffd700"/>
+</svg>

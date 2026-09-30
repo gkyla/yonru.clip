@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 256" width="880" height="256" role="img" aria-labelledby="title-h-dark">
+  <title id="title-h-dark">Yonru Horizontal Logo (Dark)</title>
+  <g transform="translate(48, 48) scale(0.625)">
+    <path fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" d="
+      M 94 56
+      H 56
+      V 200
+      H 94
+    "/>
+    <path fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" d="
+      M 162 56
+      H 200
+      V 200
+      H 162
+    "/>
+    <rect x="114" y="68" width="28" height="120" rx="14" fill="#ffd700"/>
+  </g>
+  <text x="236" y="162" font-family="'Outfit', system-ui, -apple-system, sans-serif" font-size="112" font-weight="700" letter-spacing="-2" fill="#FFFFFF">Yonru</text>
+  <text x="554" y="162" font-family="'Outfit', system-ui, -apple-system, sans-serif" font-size="112" font-weight="400" fill="#ffd700">.</text>
+</svg>

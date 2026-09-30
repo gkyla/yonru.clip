@@ -1,0 +1,40 @@
+{
+  "brand": "Yonru",
+  "tagline": "Calm, effortless video clipping",
+  "brief": "A cross-platform short video clipper designed for calm, frictionless capture. Primary accent is #ffd700 (Gold) on deep dark surfaces (#09090B), completely subverting clichéd scissors, cutting blades, and film strips.",
+  "adjectives": [
+    "calm",
+    "effortless",
+    "focused",
+    "serene",
+    "precise"
+  ],
+  "criteria": "Recognisable at 16 px, zero cutting clichés, harmonious pairing with #ffd700 gold accent on dark UI surfaces.",
+  "industry": "software",
+  "brand_color": "#ffd700",
+  "tile_color": "#09090B",
+  "greyscale": false,
+  "final": true,
+  "designer": "Senior Identity Designer",
+  "round": 1,
+  "concepts": [
+    {
+      "name": "The Focal Frame",
+      "symbol": "yonru-symbol-color.svg",
+      "symbol_on_tile": "yonru-symbol-color-dark.svg",
+      "symbol_on_dark": "yonru-symbol-color-dark.svg",
+      "lockup": "yonru-horizontal.svg",
+      "lockup_on_dark": "yonru-horizontal-dark.svg",
+      "stacked": "yonru-stacked.svg",
+      "stacked_on_dark": "yonru-stacked-dark.svg",
+      "avatar": "yonru-app-icon.svg",
+      "idea": "Two calm in/out brackets [ ] embracing the captured moment.",
+      "rationale": [
+        "Directly speaks the video editing language (In-point, Out-point, Clip) without cliché scissors or film sprockets",
+        "Centered golden capsule in #ffd700 represents the isolated, captured moment in pure stillness",
+        "Perfect 16 px legibility verified across desktop docks, browser tabs, and application headers"
+      ]
+    }
+  ],
+  "recommendation": "The Focal Frame translates the core action of video clipping into an iconic, tranquil brand mark that establishes Yonru as a modern, premium, calm productivity tool."
+}

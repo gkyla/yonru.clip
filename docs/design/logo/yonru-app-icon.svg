@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title-yonru-app-icon">
+  <title id="title-yonru-app-icon">Yonru App Icon</title>
+  <!-- Dark tile background #09090B with 22.5% squircle corner radius -->
+  <rect width="256" height="256" rx="58" fill="#09090B"/>
+  <!-- Centered full color mark scaled to 64% -->
+  <g transform="translate(46, 46) scale(0.64)">
+    <path fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" d="
+      M 94 56
+      H 56
+      V 200
+      H 94
+    "/>
+    <path fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" d="
+      M 162 56
+      H 200
+      V 200
+      H 162
+    "/>
+    <rect x="114" y="68" width="28" height="120" rx="14" fill="#ffd700"/>
+  </g>
+</svg>

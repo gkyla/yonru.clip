@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title-c">
+  <title id="title-c">Yonru — The Zen Shutter</title>
+  <path fill="#111111" fill-rule="evenodd" d="
+    M 48 54
+    C 48 54, 74 118, 114 146
+    V 218
+    C 114 224.6, 119.4 230, 126 230
+    H 130
+    C 136.6 230, 142 224.6, 142 218
+    V 146
+    C 182 118, 208 54, 208 54
+    H 168
+    C 154 90, 138 112, 128 120
+    C 118 112, 102 90, 88 54
+    Z
+  "/>
+</svg>
