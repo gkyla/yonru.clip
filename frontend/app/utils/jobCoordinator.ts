@@ -59,6 +59,7 @@ export interface HydratedClipBundle {
   cropMap: Array<{ time: number; x: number }>;
   timelineTracks: TimelineTrack[];
   thumbnailConfig: ThumbnailConfig | null;
+  coverUrl?: string | null;
   history?: {
     undo_stack?: HistorySnapshot[];
     redo_stack?: HistorySnapshot[];
@@ -580,8 +581,8 @@ export class IngestionJobCoordinator {
       this.executeFetch<TimelineTrack[]>(
         `${targetBaseUrl}/timeline.json?t=${now}`
       ).catch(() => null),
-      this.executeFetch<{ config: ThumbnailConfig }>(
-        `${this.apiBase}/api/thumbnail/config/${folderName}/${clipId}`
+      this.executeFetch<{ config: ThumbnailConfig; cover_url?: string | null }>(
+        `${this.apiBase}/api/cover/config/${folderName}/${clipId}`
       ).catch(() => null),
       this.executeFetch<{ saved_hooks: Hook[] }>(
         `${this.apiBase}/api/cached/${folderName}/saved_hooks`
@@ -641,10 +642,14 @@ export class IngestionJobCoordinator {
       });
     }
 
-    // Resolve thumbnail config
+    // Resolve thumbnail/cover config and cover URL
     const thumbnailConfig: ThumbnailConfig | null =
       thumbConfigRes.status === 'fulfilled' && thumbConfigRes.value?.config
         ? thumbConfigRes.value.config
+        : null;
+    const coverUrl: string | null =
+      thumbConfigRes.status === 'fulfilled' && thumbConfigRes.value?.cover_url
+        ? thumbConfigRes.value.cover_url
         : null;
 
     // Resolve saved hooks
@@ -662,6 +667,7 @@ export class IngestionJobCoordinator {
       cropMap,
       timelineTracks,
       thumbnailConfig,
+      coverUrl,
       savedHooks,
       assetUrl: `${targetBaseUrl}/video.mp4`
     };
@@ -693,6 +699,10 @@ export class IngestionJobCoordinator {
     bundle.videoDuration = res?.clip?.duration || 0;
     bundle.hooks = res?.hooks || [];
     bundle.history = res?.history || null;
+
+    if (res?.cover_url) {
+      bundle.coverUrl = res.cover_url;
+    }
 
     if (res?.clip?.theme) {
       bundle.activeHook = {

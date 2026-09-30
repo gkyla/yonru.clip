@@ -93,7 +93,7 @@
             hoveredTab === 'edit'
               ? 'Subtitles'
               : hoveredTab === 'thumbnail'
-                ? 'Thumbnail'
+                ? 'Cover Slide'
                 : 'Raw Quote'
           }}
         </div>

@@ -681,6 +681,7 @@ def test_load_ready_clip_success(mock_dependencies, tmp_path):
     assert res["job"]["clip"]["theme"] == "awesome clip"
     assert len(res["job"]["hooks"]) == 1
     assert (clip_dir / "crop_map.json").exists()
+    mock_dependencies["asset_repository"].migrate_legacy_cover_if_needed.assert_called_once_with("vid_folder_1", "10_25_awesome_clip")
 
 
 def test_replay_cached_analysis_instant_ready(mock_dependencies, tmp_path):
@@ -840,14 +841,14 @@ def test_extract_clip_thumbnail_bounds_clamping(mock_dependencies, tmp_path):
     mock_dependencies["asset_repository"].extract_clip_screenshot.return_value = True
     
     # Request timestamp 25.0 beyond duration 10.0 -> clamped to 9.9
-    res = coordinator.extract_clip_thumbnail(job_id, timestamp=25.0)
+    res = coordinator.extract_clip_cover(job_id, timestamp=25.0)
     assert res["status"] == "ok"
     assert res["timestamp"] == 9.9
-    assert "thumbnail.jpg" in res["thumbnail_url"]
+    assert "cover.jpg" in res["cover_url"]
     
-    # Verify mock was called with clamped timestamp
+    # Verify mock was called targeting cover.jpg (Clip Thumbnail thumbnail.jpg preserved)
     mock_dependencies["asset_repository"].extract_clip_screenshot.assert_called_with(
-        str(clip_path), 9.9, str(clip_dir / "thumbnail.jpg")
+        str(clip_path), 9.9, str(clip_dir / "cover.jpg")
     )
 
 

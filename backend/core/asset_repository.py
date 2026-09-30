@@ -542,18 +542,29 @@ class AssetRepository(AssetStore):
         duration = end_time - start_time
         thumb_name = "thumbnail.jpg"
         thumb_path = os.path.join(target_dir, thumb_name)
-        thumb_url = f"/assets/clips/{folder_name}/{clip_id}/{thumb_name}"
+        thumbnail_url = f"/assets/clips/{folder_name}/{clip_id}/{thumb_name}"
+        cover_path = os.path.join(target_dir, "cover.jpg")
+        cover_url = f"/assets/clips/{folder_name}/{clip_id}/cover.jpg" if os.path.exists(cover_path) else None
 
         if os.path.exists(out_path):
             if not os.path.exists(thumb_path):
-                try:
-                    self.extract_clip_screenshot(out_path, 0.0, thumb_path)
-                except Exception as e:
-                    print(f"[asset_repository] Failed to extract thumbnail for existing clip: {e}")
+                poster_path = os.path.join(target_dir, "poster.jpg")
+                if os.path.exists(poster_path):
+                    try:
+                        shutil.copy2(poster_path, thumb_path)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        self.extract_clip_screenshot(out_path, 0.0, thumb_path)
+                    except Exception as e:
+                        print(f"[asset_repository] Failed to extract thumbnail for existing clip: {e}")
             return {
                 "file_path": out_path, 
                 "asset_url": f"/assets/clips/{folder_name}/{clip_id}/{out_name}", 
-                "thumbnail_url": thumb_url,
+                "thumbnail_url": thumbnail_url,
+                "poster_url": thumbnail_url,
+                "cover_url": cover_url,
                 "duration": duration,
                 "clip_id": clip_id,
                 "start": start_time,
@@ -585,7 +596,9 @@ class AssetRepository(AssetStore):
         return {
             "file_path": out_path, 
             "asset_url": f"/assets/clips/{folder_name}/{clip_id}/{out_name}", 
-            "thumbnail_url": thumb_url,
+            "thumbnail_url": thumbnail_url,
+            "poster_url": thumbnail_url,
+            "cover_url": cover_url,
             "duration": duration,
             "clip_id": clip_id,
             "start": start_time,
@@ -735,12 +748,21 @@ class AssetRepository(AssetStore):
                         except Exception as e:
                             print(f"[asset_repository] Failed to auto-heal missing transcript at {transcript_path}: {e}")
                     
+                    thumb_path = os.path.join(clip_entry.path, "thumbnail.jpg")
                     if not os.path.exists(thumb_path):
-                        try:
-                            self.extract_clip_screenshot(video_path, 0.0, thumb_path)
-                            print(f"[asset_repository] Auto-healed missing thumbnail at {thumb_path}")
-                        except Exception as e:
-                            print(f"[asset_repository] Failed to auto-heal missing thumbnail at {thumb_path}: {e}")
+                        poster_path = os.path.join(clip_entry.path, "poster.jpg")
+                        if os.path.exists(poster_path):
+                            try:
+                                shutil.copy2(poster_path, thumb_path)
+                                print(f"[asset_repository] Auto-healed thumbnail from poster at {thumb_path}")
+                            except Exception as e:
+                                print(f"[asset_repository] Failed to copy thumbnail from poster: {e}")
+                        else:
+                            try:
+                                self.extract_clip_screenshot(video_path, 0.0, thumb_path)
+                                print(f"[asset_repository] Auto-healed missing thumbnail at {thumb_path}")
+                            except Exception as e:
+                                print(f"[asset_repository] Failed to auto-heal missing thumbnail at {thumb_path}: {e}")
                     
                     mtime = os.path.getmtime(video_path)
                     clip_id = clip_entry.name
@@ -779,6 +801,9 @@ class AssetRepository(AssetStore):
                         except:
                             pass
                     
+                    thumbnail_url = f"/assets/clips/{parent_name}/{clip_id}/thumbnail.jpg"
+                    cover_path = os.path.join(clip_entry.path, "cover.jpg")
+                    cover_url = f"/assets/clips/{parent_name}/{clip_id}/cover.jpg" if os.path.exists(cover_path) else None
                     results.append({
                         "clip_id": clip_id,
                         "folder_name": parent_name,
@@ -789,7 +814,9 @@ class AssetRepository(AssetStore):
                         "duration": duration,
                         "mtime": mtime,
                         "asset_url": f"/assets/clips/{parent_name}/{clip_id}/video.mp4",
-                        "thumbnail_url": f"/assets/clips/{parent_name}/{clip_id}/thumbnail.jpg"
+                        "thumbnail_url": thumbnail_url,
+                        "poster_url": thumbnail_url,
+                        "cover_url": cover_url
                     })
         
         results.sort(key=lambda x: x["mtime"], reverse=True)
@@ -990,11 +1017,30 @@ class AssetRepository(AssetStore):
                 pass
         return None
 
-    def save_default_thumbnail_style(self, style: dict) -> bool:
+    def save_default_cover_style(self, style: dict) -> bool:
+        default_cover_path = os.path.join(self.output_dir, "default_cover_style.json")
         default_thumb_path = os.path.join(self.output_dir, "default_thumbnail_style.json")
-        with open(default_thumb_path, "w", encoding="utf-8") as f:
-            json.dump(style, f, ensure_ascii=False, indent=2)
-        return True
+        try:
+            with open(default_cover_path, "w", encoding="utf-8") as f:
+                json.dump(style, f, ensure_ascii=False, indent=2)
+            with open(default_thumb_path, "w", encoding="utf-8") as f:
+                json.dump(style, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception:
+            return False
+
+    def get_default_cover_style(self) -> Optional[dict]:
+        default_cover_path = os.path.join(self.output_dir, "default_cover_style.json")
+        if os.path.exists(default_cover_path):
+            try:
+                with open(default_cover_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return self.get_default_thumbnail_style()
+
+    def save_default_thumbnail_style(self, style: dict) -> bool:
+        return self.save_default_cover_style(style)
 
     def get_default_thumbnail_style(self) -> Optional[dict]:
         default_thumb_path = os.path.join(self.output_dir, "default_thumbnail_style.json")
@@ -1006,31 +1052,76 @@ class AssetRepository(AssetStore):
                 pass
         return None
 
-    def save_thumbnail_config(self, folder_name: str, clip_id: str, config: dict) -> bool:
-        config_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail_config.json")
-        os.makedirs(os.path.dirname(config_path), exist_ok=True)
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
-        return True
+    def save_cover_config(self, folder_name: str, clip_id: str, config: dict) -> bool:
+        cover_path = self._resolve_clip_path(folder_name, clip_id, "cover_config.json")
+        thumb_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail_config.json")
+        os.makedirs(os.path.dirname(cover_path), exist_ok=True)
+        try:
+            with open(cover_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+            # Sync with thumbnail_config.json for seamless backward compatibility
+            with open(thumb_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"[asset_repository] Failed to save cover config: {e}")
+            return False
 
-    def get_thumbnail_config(self, folder_name: str, clip_id: str) -> Optional[dict]:
-        config_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail_config.json")
-        if os.path.exists(config_path):
+    def get_cover_config(self, folder_name: str, clip_id: str) -> Optional[dict]:
+        cover_path = self._resolve_clip_path(folder_name, clip_id, "cover_config.json")
+        if os.path.exists(cover_path):
             try:
-                with open(config_path, "r", encoding="utf-8") as f:
+                with open(cover_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        
+        # Backward compatibility fallback: read legacy thumbnail_config.json
+        thumb_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail_config.json")
+        if os.path.exists(thumb_path):
+            try:
+                with open(thumb_path, "r", encoding="utf-8") as f:
                     return json.load(f)
             except Exception:
                 pass
         return None
 
-    def delete_thumbnail(self, folder_name: str, clip_id: str) -> bool:
-        thumb_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail.jpg")
-        if os.path.exists(thumb_path):
+    def delete_cover(self, folder_name: str, clip_id: str) -> bool:
+        cover_path = self._resolve_clip_path(folder_name, clip_id, "cover.jpg")
+        if os.path.exists(cover_path):
             try:
-                os.remove(thumb_path)
+                os.remove(cover_path)
             except Exception:
                 pass
+        # Note: Clip Thumbnail (thumbnail.jpg) is strictly preserved and never deleted
         return True
+
+    def migrate_legacy_cover_if_needed(self, folder_name: str, clip_id: str) -> Optional[str]:
+        cover_path = self._resolve_clip_path(folder_name, clip_id, "cover.jpg")
+        if os.path.exists(cover_path):
+            return f"/assets/clips/{folder_name}/{clip_id}/cover.jpg"
+
+        config = self.get_cover_config(folder_name, clip_id)
+        if config and config.get("enabled"):
+            thumb_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail.jpg")
+            if os.path.exists(thumb_path):
+                try:
+                    import shutil
+                    shutil.copy2(thumb_path, cover_path)
+                    return f"/assets/clips/{folder_name}/{clip_id}/cover.jpg"
+                except Exception as e:
+                    print(f"[asset_repository] Failed to auto-migrate legacy cover: {e}")
+        return None
+
+    def save_thumbnail_config(self, folder_name: str, clip_id: str, config: dict) -> bool:
+        return self.save_cover_config(folder_name, clip_id, config)
+
+    def get_thumbnail_config(self, folder_name: str, clip_id: str) -> Optional[dict]:
+        return self.get_cover_config(folder_name, clip_id)
+
+    def delete_thumbnail(self, folder_name: str, clip_id: str) -> bool:
+        """Backward compatibility alias: delegates to delete_cover, preserving Clip Thumbnail (thumbnail.jpg)."""
+        return self.delete_cover(folder_name, clip_id)
 
     def extract_clip_screenshot(self, clip_path: str, timestamp: float, output_path: str) -> bool:
         if not os.path.exists(clip_path):

@@ -316,9 +316,10 @@ describe('IngestionJobCoordinator Unit Tests', () => {
             { id: 'video', name: 'Video', type: 'video', items: [] }
           ]);
         }
-        if (url.includes('thumbnail/config')) {
+        if (url.includes('cover/config') || url.includes('thumbnail/config')) {
           return Promise.resolve({
-            config: { enabled: true, duration: 2.0, xOffset: 50 }
+            config: { enabled: true, duration: 2.0, xOffset: 50 },
+            cover_url: '/assets/clips/test-folder/clip-101/cover.jpg'
           });
         }
         if (url.includes('saved_hooks')) {
@@ -344,6 +345,9 @@ describe('IngestionJobCoordinator Unit Tests', () => {
       expect(bundle.cropMap).toEqual([{ time: 0, x: 960 }]);
       expect(bundle.timelineTracks).toHaveLength(2); // Video track + subtitle track injected
       expect(bundle.thumbnailConfig?.enabled).toBe(true);
+      expect(bundle.coverUrl).toBe(
+        '/assets/clips/test-folder/clip-101/cover.jpg'
+      );
       expect(bundle.savedHooks).toHaveLength(1);
     });
 

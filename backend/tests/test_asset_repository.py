@@ -239,14 +239,56 @@ class TestAssetRepository(unittest.TestCase):
         self.assertTrue(self.repo.save_thumbnail_config(folder_name, clip_id, config))
         self.assertEqual(self.repo.get_thumbnail_config(folder_name, clip_id), config)
 
-        # Create dummy thumbnail image
-        thumb_img = os.path.join(self.output_dir, "clips", folder_name, clip_id, "thumbnail.jpg")
+        # Create dummy thumbnail image (Clip Thumbnail) and cover image (Cover Slide)
+        clip_dir = os.path.join(self.output_dir, "clips", folder_name, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+        thumb_img = os.path.join(clip_dir, "thumbnail.jpg")
+        cover_img = os.path.join(clip_dir, "cover.jpg")
         with open(thumb_img, "w") as f:
-            f.write("image data")
+            f.write("thumbnail card data")
+        with open(cover_img, "w") as f:
+            f.write("cover slide data")
         self.assertTrue(os.path.exists(thumb_img))
+        self.assertTrue(os.path.exists(cover_img))
 
-        self.assertTrue(self.repo.delete_thumbnail(folder_name, clip_id))
-        self.assertFalse(os.path.exists(thumb_img))
+        # Deleting cover in editor removes cover.jpg, but strictly preserves thumbnail.jpg (Clip Thumbnail)
+        self.assertTrue(self.repo.delete_cover(folder_name, clip_id))
+        self.assertFalse(os.path.exists(cover_img))
+        self.assertTrue(os.path.exists(thumb_img), "Clip Thumbnail (thumbnail.jpg) must never be deleted when cover is reset")
+
+    def test_cover_slide_decoupling_and_fallback(self):
+        folder_name = "test_video_fallback"
+        clip_id = "20_30"
+        clip_dir = os.path.join(self.output_dir, "clips", folder_name, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+
+        # 1. Legacy fallback: only thumbnail_config.json exists
+        legacy_config = {"enabled": True, "duration": 2.0, "textOverlays": [{"text": "Legacy"}]}
+        legacy_path = os.path.join(clip_dir, "thumbnail_config.json")
+        with open(legacy_path, "w", encoding="utf-8") as f:
+            json.dump(legacy_config, f)
+
+        # get_cover_config should seamlessly fall back to legacy thumbnail_config.json
+        self.assertEqual(self.repo.get_cover_config(folder_name, clip_id), legacy_config)
+
+        # 2. Modern cover_config.json takes precedence
+        modern_config = {"enabled": True, "duration": 1.0, "textOverlays": [{"text": "Modern"}]}
+        self.assertTrue(self.repo.save_cover_config(folder_name, clip_id, modern_config))
+        self.assertEqual(self.repo.get_cover_config(folder_name, clip_id), modern_config)
+
+        # 3. Legacy auto-migration of frame
+        thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
+        with open(thumb_path, "w") as f:
+            f.write("legacy poster")
+        cover_path = os.path.join(clip_dir, "cover.jpg")
+        if os.path.exists(cover_path):
+            os.remove(cover_path)
+
+        migrated_url = self.repo.migrate_legacy_cover_if_needed(folder_name, clip_id)
+        self.assertIsNotNone(migrated_url)
+        self.assertTrue(os.path.exists(cover_path))
+        with open(cover_path, "r") as f:
+            self.assertEqual(f.read(), "legacy poster")
 
     @patch('core.asset_repository.AssetRepository._generate_thumbnail')
     @patch('core.asset_repository.AssetRepository.get_video_duration')
@@ -336,6 +378,7 @@ class TestAssetRepository(unittest.TestCase):
             self.assertEqual(len(clips), 1)
             self.assertEqual(clips[0]["clip_id"], "10_20")
             self.assertEqual(clips[0]["theme"], "Clip 00:10 - 00:20")
+            self.assertEqual(clips[0]["poster_url"], "/assets/clips/src_video/10_20/thumbnail.jpg")
             self.assertEqual(clips[0]["thumbnail_url"], "/assets/clips/src_video/10_20/thumbnail.jpg")
             mock_extract.assert_called_once_with(clip_path, 0.0, os.path.join(clip_dir, "thumbnail.jpg"))
 

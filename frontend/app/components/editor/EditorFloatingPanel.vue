@@ -325,13 +325,13 @@
           </div>
         </div>
 
-        <!-- Thumbnail Editor Tab -->
+        <!-- Cover Slide Editor Tab -->
         <div
           v-else-if="editorTab === 'thumbnail'"
           key="thumbnail"
           class="flex flex-col h-full overflow-hidden"
         >
-          <ThumbnailEditor @close="$emit('close')" />
+          <CoverEditor @close="$emit('close')" />
         </div>
       </Transition>
     </div>

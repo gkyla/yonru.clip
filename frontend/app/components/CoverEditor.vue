@@ -7,26 +7,26 @@
         <div class="flex items-center gap-1.5">
           <Icon name="ri:image-edit-line" class="text-emerald-400 text-base" />
           <span class="text-xs font-bold text-white tracking-wide"
-            >Thumbnail</span
+            >Cover Slide</span
           >
         </div>
         <!-- Compact Header Toggle Switch -->
         <button
           class="w-8 h-4 rounded-full transition-all relative shrink-0"
-          :class="
-            state.thumbnailEnabled.value ? 'bg-emerald-500' : 'bg-white/20'
-          "
+          :class="state.coverEnabled.value ? 'bg-emerald-500' : 'bg-white/20'"
           :title="
-            state.thumbnailEnabled.value
-              ? 'Thumbnail Enabled'
-              : 'Thumbnail Disabled'
+            state.coverEnabled.value
+              ? 'Cover Slide Enabled'
+              : 'Cover Slide Disabled'
           "
-          @click="state.toggleThumbnail()"
+          @click="state.toggleCover()"
         >
           <div
             class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform duration-200 shadow-sm"
             :class="
-              state.thumbnailEnabled.value ? 'translate-x-4' : 'translate-x-0'
+              (state.coverEnabled?.value ?? state.thumbnailEnabled?.value)
+                ? 'translate-x-4'
+                : 'translate-x-0'
             "
           ></div>
         </button>
@@ -280,11 +280,13 @@
             Current Frame
           </button>
           <button
-            v-if="state.thumbnailUrl.value"
-            :disabled="state.isCapturingThumbnail.value"
+            v-if="state.coverUrl.value || state.thumbnailUrl.value"
+            :disabled="
+              state.isCapturingCover.value || state.isCapturingThumbnail.value
+            "
             class="h-8 px-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center active:scale-95"
-            title="Delete Thumbnail"
-            @click="state.deleteThumbnail()"
+            title="Delete Cover Slide"
+            @click="state.deleteCover()"
           >
             <Icon name="ri:delete-bin-line" class="text-sm" />
           </button>
@@ -890,20 +892,20 @@
           <Icon name="ri:image-line" class="text-xl" />
         </div>
         <h4 class="text-xs font-bold text-white mb-1 tracking-wide">
-          Thumbnail Frame Disabled
+          Cover Slide Disabled
         </h4>
         <p
           class="text-[10px] text-slate-400 max-w-[220px] mb-4 leading-relaxed"
         >
-          Enable thumbnail frame to prepend a cover frame image and overlay
-          custom text headings at the start of your clip.
+          Enable cover slide to prepend an intro title card and overlay custom
+          text headings at the start of your clip.
         </p>
         <button
           class="flex items-center gap-1.5 bg-emerald-500 text-black px-4 py-2 rounded-xl text-[10px] font-extrabold tracking-wider hover:bg-emerald-400 transition-all active:scale-95 shadow-lg shadow-emerald-500/10"
-          @click="state.toggleThumbnail()"
+          @click="state.toggleCover()"
         >
           <Icon name="ri:power-flash-line" class="text-sm" />
-          <span>Enable Thumbnail</span>
+          <span>Enable Cover Slide</span>
         </button>
       </div>
     </div>

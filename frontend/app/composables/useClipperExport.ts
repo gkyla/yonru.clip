@@ -97,14 +97,28 @@ export const useClipperExport = (deps: ExportDeps) => {
   );
   const subtitleWordSpacing = useState<number>('subtitleWordSpacing', () => 0);
 
-  // Thumbnail states (read via shared useState keys)
-  const thumbnailEnabled = useState<boolean>('thumbnailEnabled', () => false);
-  const thumbnailDuration = useState<number>('thumbnailDuration', () => 3);
+  // Cover & Thumbnail states (read via shared useState keys)
+  const coverEnabled = useState<boolean>('coverEnabled', () => false);
+  const coverDuration = useState<number>('coverDuration', () => 1.0);
+  const coverTextOverlays = useState<any[]>('coverTextOverlays', () => []);
+  const coverXOffset = useState<number>('coverXOffset', () => 50);
+
+  const thumbnailEnabled = useState<boolean>(
+    'thumbnailEnabled',
+    () => coverEnabled.value
+  );
+  const thumbnailDuration = useState<number>(
+    'thumbnailDuration',
+    () => coverDuration.value
+  );
   const thumbnailTextOverlays = useState<any[]>(
     'thumbnailTextOverlays',
-    () => []
+    () => coverTextOverlays.value
   );
-  const thumbnailXOffset = useState<number>('thumbnailXOffset', () => 50);
+  const thumbnailXOffset = useState<number>(
+    'thumbnailXOffset',
+    () => coverXOffset.value
+  );
 
   // Safety/Censorship configuration states
   const audioBleepEnabled = useState<boolean>('audioBleepEnabled', () => false);
@@ -197,6 +211,13 @@ export const useClipperExport = (deps: ExportDeps) => {
             : seg.duration,
         text: seg.text
       })),
+      cover_enabled: coverEnabled.value ?? thumbnailEnabled.value,
+      cover_duration: coverDuration.value ?? thumbnailDuration.value,
+      cover_text_overlays:
+        coverTextOverlays.value?.length > 0
+          ? coverTextOverlays.value
+          : thumbnailTextOverlays.value,
+      cover_x_offset: coverXOffset.value ?? thumbnailXOffset.value,
       thumbnail_enabled: thumbnailEnabled.value,
       thumbnail_duration: thumbnailDuration.value,
       thumbnail_text_overlays: thumbnailTextOverlays.value,

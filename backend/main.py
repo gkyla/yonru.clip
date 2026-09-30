@@ -134,7 +134,12 @@ class RenderRequest(BaseModel):
     fps: float = 30.0
     transcript: Optional[list] = None
     output_name: Optional[str] = None
-    # Thumbnail
+    # Cover Slide (Intro)
+    cover_enabled: Optional[bool] = None
+    cover_duration: Optional[float] = None
+    cover_text_overlays: Optional[list] = None
+    cover_x_offset: Optional[float] = None
+    # Backward-compatible Thumbnail
     thumbnail_enabled: bool = False
     thumbnail_duration: float = 1.0
     thumbnail_text_overlays: Optional[list] = None
@@ -152,7 +157,12 @@ class LoadReadyClipRequest(BaseModel):
     volume: float = 0.5
     fps: float = 30.0
     transcript: Optional[list] = None
-    # Thumbnail
+    # Cover Slide (Intro)
+    cover_enabled: Optional[bool] = None
+    cover_duration: Optional[float] = None
+    cover_text_overlays: Optional[list] = None
+    cover_x_offset: Optional[float] = None
+    # Backward-compatible Thumbnail
     thumbnail_enabled: bool = False
     thumbnail_duration: float = 1.0
     thumbnail_text_overlays: Optional[list] = None
@@ -192,6 +202,8 @@ class DefaultStyleSettingsRequest(BaseModel):
 class DefaultThumbnailStyleRequest(BaseModel):
     style: dict
 
+DefaultCoverStyleRequest = DefaultThumbnailStyleRequest
+
 class SystemSettingsRequest(BaseModel):
     GEMINI_API_KEY: Optional[str] = None
     FFMPEG_PATH: Optional[str] = None
@@ -226,10 +238,14 @@ class ThumbnailScreenshotRequest(BaseModel):
     job_id: str
     timestamp: Optional[float] = None  # None = random
 
+CoverScreenshotRequest = ThumbnailScreenshotRequest
+
 class ThumbnailConfigRequest(BaseModel):
     folder_name: str
     clip_id: str
     config: dict  # { enabled, duration, screenshotTime, textOverlays }
+
+CoverConfigRequest = ThumbnailConfigRequest
 
 class BatchDeleteClipsRequest(BaseModel):
     clips: list[dict] # list of {folder_name, clip_id}
@@ -598,21 +614,23 @@ async def update_default_style_settings(req: DefaultStyleSettingsRequest):
         print(f"[edit] Default style save failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/default-cover-style")
 @app.get("/api/default-thumbnail-style")
-async def get_default_thumbnail_style():
-    """Retrieve default thumbnail style settings."""
-    style = asset_repository.get_default_thumbnail_style()
+async def get_default_cover_style():
+    """Retrieve default cover style settings."""
+    style = asset_repository.get_default_cover_style()
     return {"style": style}
 
+@app.put("/api/default-cover-style")
 @app.put("/api/default-thumbnail-style")
-async def update_default_thumbnail_style(req: DefaultThumbnailStyleRequest):
-    """Persist default thumbnail style settings for all future clips."""
+async def update_default_cover_style(req: DefaultThumbnailStyleRequest):
+    """Persist default cover style settings for all future clips."""
     try:
-        asset_repository.save_default_thumbnail_style(req.style)
-        print(f"[edit] Updated default thumbnail style")
+        asset_repository.save_default_cover_style(req.style)
+        print(f"[edit] Updated default cover style")
         return {"status": "ok"}
     except Exception as e:
-        print(f"[edit] Default thumbnail style save failed: {e}")
+        print(f"[edit] Default cover style save failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -687,11 +705,12 @@ async def hardware_profile():
 
 # --- Thumbnail Endpoints ---
 
+@app.post("/api/cover/screenshot")
 @app.post("/api/thumbnail/screenshot")
-async def thumbnail_screenshot(req: ThumbnailScreenshotRequest):
-    """Extract a single frame from the clip video as thumbnail."""
+async def cover_screenshot(req: ThumbnailScreenshotRequest):
+    """Extract a single frame from the clip video as Cover Slide frame (cover.jpg)."""
     try:
-        return workflow_coordinator.extract_clip_thumbnail(job_id=req.job_id, timestamp=req.timestamp)
+        return workflow_coordinator.extract_clip_cover(job_id=req.job_id, timestamp=req.timestamp)
     except KeyError:
         raise HTTPException(status_code=404, detail="Job not found")
     except ValueError as e:
@@ -699,24 +718,27 @@ async def thumbnail_screenshot(req: ThumbnailScreenshotRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.put("/api/cover/config")
 @app.put("/api/thumbnail/config")
-async def save_thumbnail_config(req: ThumbnailConfigRequest):
-    """Save thumbnail configuration for a clip."""
+async def save_cover_config(req: ThumbnailConfigRequest):
+    """Save Cover Slide configuration for a clip."""
     try:
-        asset_repository.save_thumbnail_config(req.folder_name, req.clip_id, req.config)
+        asset_repository.save_cover_config(req.folder_name, req.clip_id, req.config)
         return {"status": "ok"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/cover/config/{folder_name}/{clip_id}")
 @app.get("/api/thumbnail/config/{folder_name}/{clip_id}")
-async def get_thumbnail_config(folder_name: str, clip_id: str):
-    """Load thumbnail configuration for a clip."""
+async def get_cover_config(folder_name: str, clip_id: str):
+    """Load Cover Slide configuration for a clip with backward-compatible fallback."""
     try:
-        config = asset_repository.get_thumbnail_config(folder_name, clip_id)
+        config = asset_repository.get_cover_config(folder_name, clip_id)
+        cover_url = asset_repository.migrate_legacy_cover_if_needed(folder_name, clip_id)
         if config is not None:
-            return {"config": config}
+            return {"config": config, "cover_url": cover_url}
         
         default_style = asset_repository.get_default_thumbnail_style()
         if default_style:
@@ -728,19 +750,20 @@ async def get_thumbnail_config(folder_name: str, clip_id: str):
                 "textOverlays": [],
                 "xOffset": 50
             }
-            asset_repository.save_thumbnail_config(folder_name, clip_id, initial_config)
-            return {"config": initial_config}
-        return {"config": None}
+            asset_repository.save_cover_config(folder_name, clip_id, initial_config)
+            return {"config": initial_config, "cover_url": cover_url}
+        return {"config": None, "cover_url": cover_url}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/api/cover/{folder_name}/{clip_id}")
 @app.delete("/api/thumbnail/{folder_name}/{clip_id}")
-async def delete_thumbnail(folder_name: str, clip_id: str):
-    """Delete thumbnail image and config for a clip."""
+async def delete_cover(folder_name: str, clip_id: str):
+    """Reset/delete cover image (cover.jpg) while strictly preserving Clip Thumbnail (thumbnail.jpg)."""
     try:
-        asset_repository.delete_thumbnail(folder_name, clip_id)
+        asset_repository.delete_cover(folder_name, clip_id)
         return {"status": "ok"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -765,7 +788,12 @@ async def load_ready_clip(req: LoadReadyClipRequest, background_tasks: Backgroun
             "clip": res["job"]["clip"],
             "hooks": res["job"]["hooks"],
             "fps": res["job"]["fps"],
-            "history": res.get("history")
+            "history": res.get("history"),
+            "cover_url": res.get("cover_url"),
+            "cover_config": res.get("cover_config"),
+            "thumbnail_url": res.get("thumbnail_url"),
+            "thumbnail_config": res.get("thumbnail_config"),
+            "poster_url": res.get("poster_url")
         }
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

@@ -245,9 +245,12 @@
             class="relative border-b border-white/[0.03]"
             :style="{ height: trackH + 'px' }"
           >
-            <!-- Thumbnail block -->
+            <!-- Cover Slide block -->
             <div
-              v-if="track.type === 'video' && state.thumbnailEnabled.value"
+              v-if="
+                track.type === 'video' &&
+                (state.coverEnabled?.value ?? state.thumbnailEnabled.value)
+              "
               class="absolute top-[4px] rounded-[3px] border-l-[3px] border-emerald-500 flex items-center px-2 gap-1 pointer-events-none"
               :style="{
                 left: 0,
@@ -255,14 +258,15 @@
                 height: trackH - 8 + 'px',
                 background: '#064e3b'
               }"
+              title="Cover Slide"
             >
               <Icon
                 name="ri:image-edit-fill"
                 class="text-emerald-400 text-[10px] shrink-0"
               />
               <span
-                class="text-[7px] font-bold text-emerald-400 truncate uppercase tracking-wider"
-                >Thumb</span
+                class="text-[7px] font-bold text-emerald-400 truncate tracking-wider"
+                >Cover Slide</span
               >
             </div>
             <!-- Track items -->
@@ -1324,22 +1328,25 @@ const isUserScrolling = ref(false);
 let scrollTimeout: any = null;
 let isProgrammaticScroll = false;
 
-// --- Thumbnail ---
-const thumbW = computed(() =>
-  state.thumbnailEnabled.value
-    ? state.thumbnailDuration.value * pxPerSec.value
-    : 0
-);
+// --- Cover Slide ---
+const thumbW = computed(() => {
+  const isEnabled = state.coverEnabled?.value ?? state.thumbnailEnabled.value;
+  const duration =
+    state.coverDuration?.value ?? state.thumbnailDuration.value ?? 3;
+  return isEnabled ? duration * pxPerSec.value : 0;
+});
 const thumbOffsetPx = computed(() => thumbW.value);
 
 function getItemLeft(track: any, item: any) {
   const base = item.start * pxPerSec.value;
-  return state.thumbnailEnabled.value ? base + thumbOffsetPx.value : base;
+  const isEnabled = state.coverEnabled?.value ?? state.thumbnailEnabled.value;
+  return isEnabled ? base + thumbOffsetPx.value : base;
 }
 
 function getMarkerLeft(val: number) {
   const base = val * pxPerSec.value;
-  return state.thumbnailEnabled.value ? base + thumbOffsetPx.value : base;
+  const isEnabled = state.coverEnabled?.value ?? state.thumbnailEnabled.value;
+  return isEnabled ? base + thumbOffsetPx.value : base;
 }
 
 function getRelativeMarkerTime(val: number) {
