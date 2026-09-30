@@ -14,7 +14,7 @@
       </div>
       <!-- Quick "+ Create New" button -->
       <button
-        class="px-4 py-2.5 bg-accent-500 hover:bg-accent-400 text-black font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-[0_0_15px_rgba(207,255,80,0.15)] active:scale-95 flex items-center gap-2 self-start sm:self-auto cursor-pointer"
+        class="px-4 py-2.5 bg-accent-500 hover:bg-accent-400 text-black font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-[0_0_15px_rgba(255,215,0,0.15)] active:scale-95 flex items-center gap-2 self-start sm:self-auto cursor-pointer"
         :class="{ 'ring-2 ring-accent-500/50': isCreatingNew && !editingId }"
         @click="startNewPrompt"
       >
@@ -149,7 +149,7 @@
 
                   <!-- Custom Hover Tooltip -->
                   <div
-                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-[10px] font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(207,255,80,0.12)] opacity-0 group-hover/tag:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/tag:translate-y-0 flex items-center gap-0.5"
+                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-[10px] font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(255,215,0,0.12)] opacity-0 group-hover/tag:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/tag:translate-y-0 flex items-center gap-0.5"
                   >
                     <span class="text-accent-500 font-black">#</span>
                     <span>{{ tag }}</span>
@@ -172,7 +172,7 @@
 
                   <!-- Custom Tooltip showing hidden tags list -->
                   <div
-                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-[10px] font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(207,255,80,0.12)] opacity-0 group-hover/more:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/more:translate-y-0"
+                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-[10px] font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(255,215,0,0.12)] opacity-0 group-hover/more:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/more:translate-y-0"
                   >
                     <span class="text-accent-500 font-black mr-1"
                       >+{{ p.suitableFor.length - 2 }} more:</span
@@ -241,7 +241,7 @@
                 :class="
                   isDirty
                     ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24] animate-pulse'
-                    : 'bg-accent-500 shadow-[0_0_8px_#CFFF50]'
+                    : 'bg-accent-500 shadow-[0_0_8px_#ffd700]'
                 "
               ></div>
               <h3
@@ -292,7 +292,7 @@
 
               <button
                 :disabled="!promptName || !promptText"
-                class="px-4 py-1.5 bg-accent-500 text-black font-black uppercase tracking-wider text-[10px] rounded-lg hover:bg-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_15px_rgba(207,255,80,0.15)] active:scale-95 cursor-pointer"
+                class="px-4 py-1.5 bg-accent-500 text-black font-black uppercase tracking-wider text-[10px] rounded-lg hover:bg-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_15px_rgba(255,215,0,0.15)] active:scale-95 cursor-pointer"
                 @click="handleSaveButtonClick"
               >
                 {{ editingId ? 'Update Prompt' : 'Save Prompt' }}
@@ -342,7 +342,7 @@
 
                 <!-- Custom Hover Tooltip -->
                 <div
-                  class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-xs font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(207,255,80,0.12)] opacity-0 group-hover/pill:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/pill:translate-y-0 flex items-center gap-1"
+                  class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-xs font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(255,215,0,0.12)] opacity-0 group-hover/pill:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/pill:translate-y-0 flex items-center gap-1"
                 >
                   <span class="text-accent-500 font-black">#</span>
                   <span>{{ tag }}</span>
@@ -546,7 +546,7 @@
           >
             <button
               :disabled="!promptName || !promptText"
-              class="flex-1 py-3 px-4 bg-accent-500 hover:bg-accent-400 text-black rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(207,255,80,0.2)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+              class="flex-1 py-3 px-4 bg-accent-500 hover:bg-accent-400 text-black rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(255,215,0,0.2)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
               @click="confirmSaveAndProceed"
             >
               <Icon name="ri:save-3-line" class="text-base font-bold" />

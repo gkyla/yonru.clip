@@ -47,7 +47,7 @@
           class="border p-5 flex flex-col justify-between min-h-[120px] transition-all duration-700 ease-out relative group"
           :class="[
             stg.state === 'active'
-              ? 'border-accent-500/40 bg-gradient-to-br from-accent-500/[0.04] to-violet-500/[0.02] shadow-[0_0_20px_rgba(207,255,80,0.08)]'
+              ? 'border-accent-500/40 bg-gradient-to-br from-accent-500/[0.04] to-violet-500/[0.02] shadow-[0_0_20px_rgba(255,215,0,0.08)]'
               : stg.state === 'completed'
                 ? 'border-emerald-500/20 bg-emerald-500/[0.02] text-emerald-400'
                 : 'border-surface-border/50 bg-black/10 text-slate-500 opacity-60'
@@ -55,7 +55,7 @@
         >
           <!-- Shimmer line on active card -->
           <div
-            class="absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-accent-500 to-violet-500 shadow-[0_0_10px_#CFFF50] transition-opacity duration-700 ease-out pointer-events-none"
+            class="absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-accent-500 to-violet-500 shadow-[0_0_10px_#ffd700] transition-opacity duration-700 ease-out pointer-events-none"
             :class="stg.state === 'active' ? 'opacity-100' : 'opacity-0'"
           ></div>
 
@@ -64,7 +64,7 @@
               class="w-8 h-8 flex items-center justify-center border text-sm transition-all duration-700 ease-out group-hover:scale-105"
               :class="[
                 stg.state === 'active'
-                  ? 'border-accent-500/30 text-accent-500 bg-accent-500/10 shadow-[0_0_10px_rgba(207,255,80,0.2)]'
+                  ? 'border-accent-500/30 text-accent-500 bg-accent-500/10 shadow-[0_0_10px_rgba(255,215,0,0.2)]'
                   : stg.state === 'completed'
                     ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
                     : 'border-surface-border/50 text-slate-500'
@@ -116,7 +116,7 @@
         class="w-full bg-black/40 border border-surface-border/50 h-2.5 overflow-hidden mb-8 relative z-10 p-[2px]"
       >
         <div
-          class="h-full bg-gradient-to-r from-accent-500 to-violet-500 relative shadow-[0_0_12px_rgba(207,255,80,0.5)]"
+          class="h-full bg-gradient-to-r from-accent-500 to-violet-500 relative shadow-[0_0_12px_rgba(255,215,0,0.5)]"
           :class="
             state.isCachedAnalysis?.value && !isReanalyzingCached
               ? 'animate-progress-sweep'

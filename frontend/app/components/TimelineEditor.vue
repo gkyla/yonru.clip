@@ -1414,13 +1414,13 @@ const itemBg: Record<string, string> = {
   video: '#1a365d',
   audio: '#1a3a1a',
   text: '#2d1b5e',
-  subtitle: 'rgba(207,255,80,0.05)'
+  subtitle: 'rgba(255,215,0,0.05)'
 };
 const itemBorder: Record<string, string> = {
   video: '#3182ce',
   audio: '#38a169',
   text: '#805ad5',
-  subtitle: '#CFFF50'
+  subtitle: '#ffd700'
 };
 
 function itemClasses(type: string, item: any) {
@@ -1699,7 +1699,7 @@ function addText() {
   state.commitToHistory();
   state.addTimelineItem('text', {
     content: 'NEW TEXT',
-    color: '#CFFF50',
+    color: '#ffd700',
     fontSize: 80,
     x: 540,
     y: 960

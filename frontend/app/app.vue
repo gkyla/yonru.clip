@@ -6,7 +6,7 @@
     <NuxtLoadingIndicator
       v-if="showLoadingIndicator"
       :height="3"
-      color="linear-gradient(to right, #CFFF50, #9eff00)"
+      color="linear-gradient(to right, #ffd700, #E6C200)"
       :throttle="0"
     />
 
@@ -63,18 +63,46 @@
           class="absolute inset-0 bg-noise opacity-[0.015] mix-blend-overlay pointer-events-none"
         ></div>
 
-        <!-- Micro Brand Mark with Sleek Spinner Ring -->
+        <!-- Brand Mark ("The Focal Frame") with Sleek Golden Spinner Orbit -->
         <div
-          class="relative flex items-center justify-center w-14 h-14 mb-6 z-10"
+          class="relative flex items-center justify-center w-16 h-16 mb-6 z-10"
         >
           <div
-            class="w-14 h-14 rounded-full border-[1.5px] border-white/10 border-t-accent-500 animate-spin absolute inset-0"
+            class="w-16 h-16 rounded-full border-[1.5px] border-white/10 border-t-accent-500 animate-spin absolute inset-0"
           ></div>
-          <div
-            class="w-8 h-8 rounded-[7px] bg-accent-500 flex items-center justify-center text-black font-black text-xs shadow-[0_0_16px_rgba(207,255,80,0.15)] relative z-10"
+          <svg
+            viewBox="0 0 256 256"
+            class="w-8 h-8 drop-shadow-[0_0_12px_rgba(255,215,0,0.3)] relative z-10 select-none"
+            fill="none"
+            role="img"
+            aria-label="Yonru."
           >
-            Y
-          </div>
+            <!-- In-point bracket [ -->
+            <path
+              d="M 94 56 H 56 V 200 H 94"
+              stroke="#FFFFFF"
+              stroke-width="26"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <!-- Out-point bracket ] -->
+            <path
+              d="M 162 56 H 200 V 200 H 162"
+              stroke="#FFFFFF"
+              stroke-width="26"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <!-- Center focal clip capsule -->
+            <rect
+              x="114"
+              y="68"
+              width="28"
+              height="120"
+              rx="14"
+              fill="#ffd700"
+            />
+          </svg>
         </div>
 
         <template
@@ -213,7 +241,7 @@ onMounted(() => {
 <style>
 .nuxt-loading-indicator {
   box-shadow:
-    0 0 10px rgba(207, 255, 80, 0.7),
-    0 0 5px rgba(207, 255, 80, 0.4) !important;
+    0 0 10px rgba(255, 215, 0, 0.7),
+    0 0 5px rgba(255, 215, 0, 0.4) !important;
 }
 </style>

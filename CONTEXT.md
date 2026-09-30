@@ -49,7 +49,7 @@ The primary collapsible navigation panel on the left rail containing global view
 _Avoid_: Navbar, menu drawer, left bar
 
 **Brand Mark**:
-The signature visual mark of Yonru Clip consisting of an acid-green rounded badge bearing a bold black capital letter "Y", displayed in the Navigation Sidebar header and as the browser tab favicon.
+The signature visual mark of Yonru Clip ("The Focal Frame") consisting of two framing brackets embracing a central timeline clip capsule rendered in Brand Gold (`#ffd700`) on dark surfaces, displayed in the Navigation Sidebar header, the Editor Transition Overlay, and as the browser tab favicon.
 _Avoid_: App icon, site logo, avatar, monogram, logo badge
 
 **Timeline Viewport**:

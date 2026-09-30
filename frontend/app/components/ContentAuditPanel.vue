@@ -731,7 +731,7 @@ const scoreBgClass = computed(() => {
   const score = audit.value.score;
   if (score >= 90)
     return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]';
-  if (score >= 70) return 'bg-accent-500 shadow-[0_0_8px_rgba(207,255,80,0.5)]';
+  if (score >= 70) return 'bg-accent-500 shadow-[0_0_8px_rgba(255,215,0,0.5)]';
   if (score >= 40) return 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]';
   return 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]';
 });

@@ -23,8 +23,9 @@ export default {
       },
       colors: {
         accent: {
-          500: '#CFFF50', // Radioactive/Acid green
-          600: '#B2E630'
+          400: '#FFE033',
+          500: '#ffd700', // Gold
+          600: '#E6C200'
         },
         surface: {
           dark: '#09090B',

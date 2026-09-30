@@ -75,7 +75,7 @@
         <div
           v-for="clip in readyClips.slice(0, 3)"
           :key="clip.clip_id"
-          class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-2xl flex flex-col group hover:border-accent-500/50 hover:shadow-[0_0_30px_rgba(207,255,80,0.05)] transition-all cursor-pointer relative overflow-hidden"
+          class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-2xl flex flex-col group hover:border-accent-500/50 hover:shadow-[0_0_30px_rgba(255,215,0,0.05)] transition-all cursor-pointer relative overflow-hidden"
           @click="$emit('load-clip', clip)"
         >
           <div class="aspect-video bg-black overflow-hidden relative">
@@ -202,7 +202,7 @@
               class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all cursor-pointer"
               :class="
                 isManageMode
-                  ? 'bg-accent-500 text-black shadow-[0_0_15px_rgba(207,255,80,0.3)]'
+                  ? 'bg-accent-500 text-black shadow-[0_0_15px_rgba(255,215,0,0.3)]'
                   : 'bg-surface-dark text-slate-400 border border-surface-border hover:text-white'
               "
               @click="toggleManageMode"
@@ -268,7 +268,7 @@
               <div
                 v-for="clip in paginatedReadyClips"
                 :key="clip.clip_id"
-                class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-xl flex flex-col group hover:border-accent-500/50 hover:shadow-[0_0_30px_rgba(207,255,80,0.05)] transition-all cursor-pointer relative overflow-hidden"
+                class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-xl flex flex-col group hover:border-accent-500/50 hover:shadow-[0_0_30px_rgba(255,215,0,0.05)] transition-all cursor-pointer relative overflow-hidden"
                 :class="{
                   'ring-2 ring-accent-500 ring-offset-4 ring-offset-[#060608]':
                     isManageMode && selectedClips.has(clip.clip_id)
@@ -281,7 +281,7 @@
                     class="w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all"
                     :class="
                       selectedClips.has(clip.clip_id)
-                        ? 'bg-accent-500 border-accent-500 shadow-[0_0_10px_rgba(207,255,80,0.5)]'
+                        ? 'bg-accent-500 border-accent-500 shadow-[0_0_10px_rgba(255,215,0,0.5)]'
                         : 'bg-black/50 border-white/30 hover:border-white/60'
                     "
                   >

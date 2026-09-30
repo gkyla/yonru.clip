@@ -91,7 +91,7 @@
                   class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-bold uppercase tracking-widest transition-all duration-500 whitespace-nowrap shadow-sm"
                   :class="[
                     idx < activeStageIndex
-                      ? 'bg-accent-500/10 border-accent-500/40 text-accent-500 shadow-[0_0_12px_rgba(207,255,80,0.15)]'
+                      ? 'bg-accent-500/10 border-accent-500/40 text-accent-500 shadow-[0_0_12px_rgba(255,215,0,0.15)]'
                       : idx === activeStageIndex
                         ? stageActivePillStyle(stage.id)
                         : 'bg-surface-dark/50 border-surface-border/30 text-slate-600'
@@ -179,7 +179,7 @@
                 class="relative h-2.5 bg-surface-border/40 rounded-full overflow-hidden p-[1px]"
               >
                 <div
-                  class="relative h-full bg-gradient-to-r from-accent-500 via-emerald-400 to-accent-500 rounded-full transition-all duration-300 ease-out shadow-[0_0_15px_rgba(207,255,80,0.5)] overflow-hidden"
+                  class="relative h-full bg-gradient-to-r from-accent-500 via-emerald-400 to-accent-500 rounded-full transition-all duration-300 ease-out shadow-[0_0_15px_rgba(255,215,0,0.5)] overflow-hidden"
                   :style="{ width: `${effectiveProgress}%` }"
                 >
                   <div
@@ -229,7 +229,7 @@
             <!-- Hero Centerpiece Spinner (Double Check / Ready) -->
             <div class="relative mb-10 z-10 flex items-center justify-center">
               <div
-                class="w-28 h-28 rounded-full border-[4px] border-surface-border relative z-10 flex items-center justify-center shadow-[0_0_30px_#CFFF50_inset,0_0_50px_rgba(207,255,80,0.4)]"
+                class="w-28 h-28 rounded-full border-[4px] border-surface-border relative z-10 flex items-center justify-center shadow-[0_0_30px_#ffd700_inset,0_0_50px_rgba(255,215,0,0.4)]"
               >
                 <div
                   class="absolute inset-[-4px] rounded-full border-[4px] border-transparent border-t-accent-500"
@@ -263,7 +263,7 @@
               </button>
               <button
                 data-testid="download-btn"
-                class="px-6 py-2.5 rounded-full bg-accent-500 hover:bg-accent-400 text-black text-xs font-extrabold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(207,255,80,0.4)] flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+                class="px-6 py-2.5 rounded-full bg-accent-500 hover:bg-accent-400 text-black text-xs font-extrabold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(255,215,0,0.4)] flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
                 @click="downloadVideo"
               >
                 <Icon name="ri:download-2-fill" class="text-sm" />
@@ -415,9 +415,9 @@ const spinnerGlowShadow = computed(() => {
     case 1:
       return renderFrame.value === 0
         ? 'shadow-[0_0_30px_#a78bfa_inset,0_0_50px_rgba(167,139,250,0.4)]'
-        : 'shadow-[0_0_30px_#CFFF50_inset,0_0_50px_rgba(207,255,80,0.4)]';
+        : 'shadow-[0_0_30px_#ffd700_inset,0_0_50px_rgba(255,215,0,0.4)]';
     default:
-      return 'shadow-[0_0_30px_#CFFF50_inset,0_0_50px_rgba(207,255,80,0.4)]';
+      return 'shadow-[0_0_30px_#ffd700_inset,0_0_50px_rgba(255,215,0,0.4)]';
   }
 });
 
@@ -467,9 +467,9 @@ function stageActivePillStyle(stageId: string): string {
   if (stageId === 'render') {
     return renderFrame.value === 0
       ? 'bg-violet-500/10 border-violet-500/40 text-violet-400 shadow-[0_0_12px_rgba(167,139,250,0.25)]'
-      : 'bg-accent-500/10 border-accent-500/40 text-accent-400 shadow-[0_0_12px_rgba(207,255,80,0.25)]';
+      : 'bg-accent-500/10 border-accent-500/40 text-accent-400 shadow-[0_0_12px_rgba(255,215,0,0.25)]';
   }
-  return 'bg-accent-500/10 border-accent-500/40 text-accent-400 shadow-[0_0_12px_rgba(207,255,80,0.25)]';
+  return 'bg-accent-500/10 border-accent-500/40 text-accent-400 shadow-[0_0_12px_rgba(255,215,0,0.25)]';
 }
 
 const currentStageTitle = computed(() => {

@@ -80,7 +80,7 @@
         >
           <!-- Animated Sliding Indicator Line (Desktop) -->
           <div
-            class="hidden md:block absolute left-0 w-[2.5px] bg-accent-500 rounded-r-full pointer-events-none transition-all duration-300 ease-out shadow-[0_0_8px_rgba(207,255,80,0.4)]"
+            class="hidden md:block absolute left-0 w-[2.5px] bg-accent-500 rounded-r-full pointer-events-none transition-all duration-300 ease-out shadow-[0_0_8px_rgba(255,215,0,0.4)]"
             :style="{
               top: `${indicatorTop}px`,
               height: `${indicatorHeight}px`,
@@ -595,7 +595,7 @@
                 draggable="true"
                 class="group p-3 rounded-xl border bg-surface-dark/40 border-surface-border/60 hover:border-slate-700/80 transition-all duration-200 flex flex-col gap-2 shadow-sm"
                 :class="{
-                  'border-accent-500 shadow-[0_0_12px_rgba(207,255,80,0.15)]':
+                  'border-accent-500 shadow-[0_0_12px_rgba(255,215,0,0.15)]':
                     keyItem.activeFlash,
                   'opacity-30 border-dashed border-accent-500/50 bg-accent-500/5 cursor-grabbing':
                     index === draggedIndex

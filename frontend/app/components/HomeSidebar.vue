@@ -87,25 +87,56 @@
             >
               <NuxtLink
                 to="/"
-                class="flex items-center gap-2 min-w-0 group cursor-pointer overflow-hidden whitespace-nowrap"
+                class="flex items-center min-w-0 group cursor-pointer overflow-hidden whitespace-nowrap py-0.5"
+                title="Yonru — Home"
               >
-                <div
-                  class="w-6 h-6 rounded-[5.5px] bg-accent-500 flex items-center justify-center text-black font-black text-xs shadow-[0_0_12px_rgba(207,255,80,0.35)] group-hover:scale-105 transition-all shrink-0"
+                <!-- Full Horizontal Logo Lockup: [ | ] Yonru. -->
+                <svg
+                  viewBox="70 65 480 128"
+                  class="h-7 w-auto transition-transform duration-200 group-hover:scale-[1.03] select-none"
+                  fill="none"
+                  role="img"
+                  aria-label="Yonru."
                 >
-                  Y
-                </div>
-                <div class="overflow-hidden min-w-0">
-                  <div class="flex items-center gap-1.5">
-                    <span class="font-bold text-white tracking-wide text-xs"
-                      >YONRU</span
-                    >
-                  </div>
-                  <p
-                    class="text-[9px] text-accent-500 font-semibold tracking-wider whitespace-nowrap truncate"
+                  <!-- [ | ] Symbol -->
+                  <g transform="translate(48, 48) scale(0.625)">
+                    <path
+                      d="M 94 56 H 56 V 200 H 94"
+                      stroke="#FFFFFF"
+                      stroke-width="26"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M 162 56 H 200 V 200 H 162"
+                      stroke="#FFFFFF"
+                      stroke-width="26"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <rect
+                      x="114"
+                      y="68"
+                      width="28"
+                      height="120"
+                      rx="14"
+                      fill="#ffd700"
+                    />
+                  </g>
+                  <!-- Wordmark "Yonru." with Brand Gold Accent Dot -->
+                  <text
+                    x="215"
+                    y="160"
+                    font-family="'Outfit', system-ui, -apple-system, sans-serif"
+                    font-size="106"
+                    font-weight="700"
+                    letter-spacing="-2"
+                    fill="#FFFFFF"
                   >
-                    Short Video Clipper
-                  </p>
-                </div>
+                    Yonru
+                    <tspan fill="#ffd700">.</tspan>
+                  </text>
+                </svg>
               </NuxtLink>
             </div>
           </div>
@@ -161,7 +192,7 @@
               "
             >
               <button
-                class="w-full h-10 flex items-center justify-between px-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-accent-500/40 hover:shadow-[0_0_15px_rgba(207,255,80,0.06)] transition-all group cursor-pointer text-left whitespace-nowrap"
+                class="w-full h-10 flex items-center justify-between px-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-accent-500/40 hover:shadow-[0_0_15px_rgba(255,215,0,0.06)] transition-all group cursor-pointer text-left whitespace-nowrap"
                 title="Search (Cmd+K)"
                 @click="palette.open"
               >
@@ -218,7 +249,7 @@
               <!-- Persistent Single Sliding Active Pill Indicator -->
               <span
                 v-if="activeNavIndex >= 0"
-                class="absolute -left-3 w-1 rounded-r-full bg-accent-500 shadow-[0_0_8px_rgba(207,255,80,0.6)] transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] pointer-events-none z-10"
+                class="absolute -left-3 w-1 rounded-r-full bg-accent-500 shadow-[0_0_8px_rgba(255,215,0,0.6)] transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] pointer-events-none z-10"
                 :style="{
                   top: `${activeNavIndex * 48 + 10}px`,
                   height: '20px'
@@ -442,7 +473,7 @@
                   <!-- Active Notification Dot in Collapsed Mode (Unclipped Floating Badge) -->
                   <div
                     v-if="isCollapsed"
-                    class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-accent-500 rounded-full border-2 border-[#09090b] shadow-[0_0_8px_rgba(207,255,80,0.8)] z-20 pointer-events-none"
+                    class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-accent-500 rounded-full border-2 border-[#09090b] shadow-[0_0_8px_rgba(255,215,0,0.8)] z-20 pointer-events-none"
                   ></div>
                 </div>
 
@@ -843,10 +874,10 @@ const statusColor = computed(() => {
     downloading_audio: 'bg-sky-500 animate-pulse',
     transcribing: 'bg-violet-500 animate-pulse',
     generating_hooks: 'bg-fuchsia-500 animate-pulse',
-    hooks_ready: 'bg-accent-500 shadow-[0_0_8px_#CFFF50]',
+    hooks_ready: 'bg-accent-500 shadow-[0_0_8px_#ffd700]',
     extracting_video: 'bg-sky-500 animate-pulse',
     cutting: 'bg-sky-400 animate-pulse',
-    ready: 'bg-accent-500 shadow-[0_0_8px_#CFFF50]',
+    ready: 'bg-accent-500 shadow-[0_0_8px_#ffd700]',
     error: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]'
   };
   return map[status] || 'bg-slate-600';
@@ -953,7 +984,7 @@ function handleThumbnailError() {
 
 const navItemsConfig = [
   { id: 'home', label: 'Home', icon: 'lucide:home' },
-  { id: 'prompts', label: 'Prompts', icon: 'lucide:sparkles' },
+  { id: 'prompts', label: 'Prompts', icon: 'carbon:prompt-template' },
   { id: 'docs', label: 'Documentation', icon: 'lucide:book-open' },
   { id: 'settings', label: 'Settings', icon: 'lucide:settings' }
 ] as const;

@@ -125,7 +125,7 @@
                 class="group relative rounded-xl border p-3 text-left transition-all duration-150 flex flex-col justify-between gap-2.5 bg-surface-dark/50 hover:bg-surface-card hover:scale-[1.01]"
                 :class="
                   activePresetId === preset.id
-                    ? 'border-accent-500 ring-1 ring-accent-500/50 bg-accent-500/[0.04] shadow-[0_0_15px_rgba(207,255,80,0.1)]'
+                    ? 'border-accent-500 ring-1 ring-accent-500/50 bg-accent-500/[0.04] shadow-[0_0_15px_rgba(255,215,0,0.1)]'
                     : 'border-surface-border/80 hover:border-accent-500/40'
                 "
                 @click="handleSelect(preset)"

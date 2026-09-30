@@ -460,7 +460,7 @@ describe('HomeSidebar Component', () => {
       });
 
       const pill = wrapper.find(
-        '.bg-accent-500.shadow-\\[0_0_8px_rgba\\(207\\,255\\,80\\,0\\.6\\)\\]'
+        '.bg-accent-500.shadow-\\[0_0_8px_rgba\\(255\\,215\\,0\\,0\\.6\\)\\]'
       );
       expect(pill.exists()).toBe(true);
       expect(pill.attributes('style')).toContain(`top: ${item.expectedTop}`);
@@ -494,7 +494,7 @@ describe('HomeSidebar Component', () => {
       });
 
       const pill = wrapper.find(
-        '.bg-accent-500.shadow-\\[0_0_8px_rgba\\(207\\,255\\,80\\,0\\.6\\)\\]'
+        '.bg-accent-500.shadow-\\[0_0_8px_rgba\\(255\\,215\\,0\\,0\\.6\\)\\]'
       );
       expect(pill.exists()).toBe(true);
       expect(pill.attributes('style')).toContain(`top: ${item.expectedTop}`);
@@ -531,7 +531,7 @@ describe('HomeSidebar Component', () => {
 
     // Single active pill is present
     const pill = wrapper.find(
-      '.bg-accent-500.shadow-\\[0_0_8px_rgba\\(207\\,255\\,80\\,0\\.6\\)\\]'
+      '.bg-accent-500.shadow-\\[0_0_8px_rgba\\(255\\,215\\,0\\,0\\.6\\)\\]'
     );
     expect(pill.exists()).toBe(true);
 

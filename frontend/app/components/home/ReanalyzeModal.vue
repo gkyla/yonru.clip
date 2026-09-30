@@ -29,7 +29,7 @@
         <div class="flex items-start justify-between gap-4 mb-4">
           <div class="flex items-center gap-3.5">
             <div
-              class="w-12 h-12 rounded-2xl bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(207,255,80,0.15)]"
+              class="w-12 h-12 rounded-2xl bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(255,215,0,0.15)]"
             >
               <Icon name="ri:magic-line" class="text-2xl" />
             </div>
@@ -435,7 +435,7 @@
           </button>
           <button
             type="button"
-            class="px-6 py-2.5 bg-accent-500 text-black hover:bg-accent-400 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(207,255,80,0.25)] active:scale-95 flex items-center gap-2 cursor-pointer"
+            class="px-6 py-2.5 bg-accent-500 text-black hover:bg-accent-400 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(255,215,0,0.25)] active:scale-95 flex items-center gap-2 cursor-pointer"
             @click="handleReanalyze"
           >
             <Icon name="ri:magic-line" class="text-base" />

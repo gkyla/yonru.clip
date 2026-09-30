@@ -17,6 +17,7 @@
             placeholder="Paste YouTube video URL (e.g. https://youtube.com/watch?v=...)"
             class="w-full bg-surface-dark/80 border border-surface-border/80 text-white pl-10 sm:pl-11 pr-20 py-3 sm:py-3.5 rounded-xl focus:outline-none focus:border-slate-500/60 focus:ring-1 focus:ring-slate-500/20 transition-all font-medium text-xs sm:text-sm placeholder-slate-500"
             :disabled="isProcessing"
+            @keydown.enter="handleAnalyzeClick"
           />
           <div class="absolute right-2 sm:right-3 flex items-center gap-1.5">
             <button
@@ -61,16 +62,21 @@
         <!-- Primary CTA Button -->
         <button
           :disabled="!state.youtubeUrl.value || isProcessing"
-          class="px-5 sm:px-7 py-3 sm:py-3.5 bg-accent-500 text-black font-black uppercase tracking-widest text-xs rounded-xl hover:bg-accent-400 hover:shadow-[0_0_15px_rgba(207,255,80,0.5)] active:scale-[0.98] focus:outline-none disabled:opacity-50 disabled:hover:shadow-none transition-all duration-200 shrink-0 flex items-center gap-1.5 cursor-pointer"
+          class="w-11 h-11 sm:w-12 sm:h-12 bg-accent-500 hover:bg-accent-600 text-black rounded-xl border border-surface-border/80 flex items-center justify-center shrink-0 transition-all duration-200 cursor-pointer select-none active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111318] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+          title="Detect Hooks (Enter)"
+          aria-label="Detect Hooks (Enter)"
           @click="handleAnalyzeClick"
         >
           <Icon
             v-if="isProcessing"
             name="ri:loader-4-line"
-            class="text-sm animate-spin"
+            class="text-xl sm:text-2xl animate-spin text-black"
           />
-          <Icon v-else name="ri:flashlight-fill" class="text-sm" />
-          <span>{{ isProcessing ? 'WORKING...' : 'ANALYZE' }}</span>
+          <Icon
+            v-else
+            name="codicon:search-sparkle"
+            class="text-xl sm:text-2xl text-black"
+          />
         </button>
       </div>
 
@@ -92,7 +98,7 @@
               class="px-3 py-1.5 rounded-lg border transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
               :class="[
                 isPresetDropdownOpen
-                  ? 'bg-surface-panel border-accent-500/50 shadow-[0_0_10px_rgba(207,255,80,0.1)]'
+                  ? 'bg-surface-panel border-accent-500/50 shadow-[0_0_10px_rgba(255,215,0,0.1)]'
                   : currentPresetOption.isCustom
                     ? 'bg-purple-500/10 border-purple-500/40 text-purple-300 hover:border-purple-500'
                     : 'bg-surface-dark border-surface-border text-slate-300 hover:border-slate-600 hover:text-white'
@@ -305,7 +311,7 @@
               class="px-3 py-1.5 rounded-lg border transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
               :class="[
                 isLangDropdownOpen
-                  ? 'bg-surface-panel border-accent-500/50 shadow-[0_0_10px_rgba(207,255,80,0.1)]'
+                  ? 'bg-surface-panel border-accent-500/50 shadow-[0_0_10px_rgba(255,215,0,0.1)]'
                   : state.language.value && state.language.value !== 'auto'
                     ? 'bg-accent-500/10 border-accent-500/40 text-accent-400'
                     : 'bg-surface-dark border-surface-border text-slate-300 hover:border-slate-600 hover:text-white'
@@ -386,7 +392,7 @@
               class="px-3 py-1.5 rounded-lg border transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
               :class="[
                 isDurationDropdownOpen
-                  ? 'bg-surface-panel border-accent-500/50 shadow-[0_0_10px_rgba(207,255,80,0.1)]'
+                  ? 'bg-surface-panel border-accent-500/50 shadow-[0_0_10px_rgba(255,215,0,0.1)]'
                   : state.minDuration.value !== 30 ||
                       state.maxDuration.value !== 180
                     ? 'bg-accent-500/10 border-accent-500/40 text-accent-400'
@@ -461,7 +467,7 @@
               class="px-3 py-1.5 rounded-lg border transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
               :class="[
                 isTopicPopoverOpen
-                  ? 'bg-surface-panel border-accent-500/50 shadow-[0_0_10px_rgba(207,255,80,0.1)]'
+                  ? 'bg-surface-panel border-accent-500/50 shadow-[0_0_10px_rgba(255,215,0,0.1)]'
                   : state.focusTopic.value
                     ? 'bg-accent-500/10 border-accent-500/40 text-accent-400'
                     : 'bg-surface-dark border-surface-border text-slate-300 hover:border-slate-600 hover:text-white'
@@ -558,7 +564,7 @@
               type="button"
               :disabled="isProcessing"
               aria-label="Speech Transcriber settings and model information"
-              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 text-[10px] font-bold tracking-wider uppercase hover:border-accent-500/50 hover:text-white hover:shadow-[0_0_12px_rgba(207,255,80,0.1)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-dark border border-surface-border text-slate-400 text-[10px] font-bold tracking-wider uppercase hover:border-accent-500/50 hover:text-white hover:shadow-[0_0_12px_rgba(255,215,0,0.1)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               @click="
                 state.settingsScrollTarget.value = 'settings-whisper';
                 navigateTo('/settings');
@@ -591,7 +597,7 @@
               class="absolute bottom-full right-0 pb-2.5 w-72 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 translate-y-2 group-hover:translate-y-0 z-50"
             >
               <div
-                class="bg-[#0f1117] border border-accent-500/40 rounded-xl p-3.5 shadow-[0_0_24px_rgba(0,0,0,0.8),0_0_15px_rgba(207,255,80,0.12)] text-left cursor-pointer hover:border-accent-500/70 transition-all relative"
+                class="bg-[#0f1117] border border-accent-500/40 rounded-xl p-3.5 shadow-[0_0_24px_rgba(0,0,0,0.8),0_0_15px_rgba(255,215,0,0.12)] text-left cursor-pointer hover:border-accent-500/70 transition-all relative"
                 @click="
                   state.settingsScrollTarget.value = 'settings-whisper';
                   navigateTo('/settings');

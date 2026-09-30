@@ -1078,9 +1078,9 @@ const QUICK_PRESETS = [
   },
   {
     name: 'Accent Yellow',
-    previewClass: 'bg-[#CFFF50] text-black border-[#CFFF50]',
+    previewClass: 'bg-[#ffd700] text-black border-[#ffd700]',
     style: {
-      color: '#CFFF50',
+      color: '#ffd700',
       showStroke: true,
       strokeColor: '#000000',
       strokeWidth: 6,

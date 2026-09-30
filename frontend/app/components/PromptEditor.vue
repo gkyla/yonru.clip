@@ -396,9 +396,9 @@ onBeforeUnmount(() => {
   font-size: 13px !important;
   font-family: monospace;
   font-weight: 500;
-  color: #cfff50; /* accent-500 */
-  background: rgba(207, 255, 80, 0.08); /* accent-500/8 */
-  border: 1px dashed rgba(207, 255, 80, 0.35);
+  color: #ffd700; /* accent-500 */
+  background: rgba(255, 215, 0, 0.08); /* accent-500/8 */
+  border: 1px dashed rgba(255, 215, 0, 0.35);
   padding: 1px 4px;
   border-radius: 4px;
   margin: 0;
@@ -408,8 +408,8 @@ onBeforeUnmount(() => {
 }
 
 .tiptap-variable-badge:hover::before {
-  background: rgba(207, 255, 80, 0.16);
-  border-color: rgba(207, 255, 80, 0.65);
+  background: rgba(255, 215, 0, 0.16);
+  border-color: rgba(255, 215, 0, 0.65);
 }
 
 /* Premium Cinematic Tooltip */
@@ -423,7 +423,7 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.5),
-    0 0 15px rgba(207, 255, 80, 0.15);
+    0 0 15px rgba(255, 215, 0, 0.15);
   color: #f8fafc; /* slate-50 */
   padding: 6px 12px;
   border-radius: 8px;

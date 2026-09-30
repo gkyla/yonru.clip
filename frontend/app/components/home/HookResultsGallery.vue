@@ -1100,7 +1100,7 @@
 
                             <!-- Highlighted Active range -->
                             <div
-                              class="absolute h-2 bg-accent-500 rounded-full shadow-[0_0_12px_rgba(207,255,80,0.3)]"
+                              class="absolute h-2 bg-accent-500 rounded-full shadow-[0_0_12px_rgba(255,215,0,0.3)]"
                               :style="{
                                 left:
                                   ((Math.max(
@@ -1322,7 +1322,7 @@
 
               <div class="mt-8 pt-6 border-t border-surface-border/50">
                 <button
-                  class="w-full py-4 bg-accent-500 hover:bg-accent-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(207,255,80,0.2)] hover:shadow-[0_0_30px_rgba(207,255,80,0.4)] active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                  class="w-full py-4 bg-accent-500 hover:bg-accent-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(255,215,0,0.2)] hover:shadow-[0_0_30px_rgba(255,215,0,0.4)] active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                   @click="
                     () => {
                       if (selectedModalHook) {

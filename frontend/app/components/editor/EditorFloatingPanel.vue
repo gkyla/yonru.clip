@@ -26,7 +26,7 @@
                 class="h-8 px-2.5 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
                 :class="
                   isAutoScrollEnabled
-                    ? 'bg-accent-500/10 text-accent-500 border-accent-500/30 shadow-[0_0_10px_rgba(207,255,80,0.1)]'
+                    ? 'bg-accent-500/10 text-accent-500 border-accent-500/30 shadow-[0_0_10px_rgba(255,215,0,0.1)]'
                     : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'
                 "
                 :title="
@@ -180,7 +180,7 @@
                 class="bg-[#14141a]/80 border rounded-xl p-2 transition-all duration-200 flex items-center gap-2.5 group relative"
                 :class="[
                   activeSegIdx === i
-                    ? 'border-accent-500/60 bg-accent-500/[0.1] shadow-[0_2px_16px_rgba(207,255,80,0.12)] ring-1 ring-accent-500/30'
+                    ? 'border-accent-500/60 bg-accent-500/[0.1] shadow-[0_2px_16px_rgba(255,215,0,0.12)] ring-1 ring-accent-500/30'
                     : 'border-white/5 hover:border-white/20 hover:bg-[#1a1a24]/90'
                 ]"
               >

@@ -15,9 +15,9 @@
         <div
           class="absolute top-10 left-1/4 -translate-x-1/2 w-72 sm:w-96 h-48 bg-violet-600/10 rounded-full blur-[90px] mix-blend-screen pointer-events-none"
         ></div>
-        <div
-          class="absolute top-14 right-1/4 translate-x-1/2 w-64 sm:w-80 h-44 bg-emerald-500/10 rounded-full blur-[90px] mix-blend-screen pointer-events-none"
-        ></div>
+        <!-- <div
+          class="absolute top-10 right-1/4 translate-x-1/2 w-72 sm:w-96 h-48 bg-violet-600/10 rounded-full blur-[90px] mix-blend-screen pointer-events-none"
+        ></div> -->
 
         <!-- 2. Faded / Masked Linear Square Grid (1.5x Baseline Contrast & 48px Spacious Spacing) -->
         <div
@@ -31,7 +31,7 @@
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Star yonru.clip on GitHub"
-        class="group inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/10 backdrop-blur-md shadow-[0_0_20px_rgba(207,255,80,0.04)] mb-5 select-none hover:bg-white/[0.06] hover:border-accent-500/40 hover:shadow-[0_0_25px_rgba(207,255,80,0.1)] transition-all duration-300 cursor-pointer"
+        class="group inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/10 backdrop-blur-md shadow-[0_0_20px_rgba(255,215,0,0.04)] mb-5 select-none hover:bg-white/[0.06] hover:border-accent-500/40 hover:shadow-[0_0_25px_rgba(255,215,0,0.1)] transition-all duration-300 cursor-pointer"
       >
         <Icon
           name="ri:github-fill"
@@ -55,11 +55,11 @@
           >Turn Long Videos into</span
         >
         <span
-          class="inline-flex items-center justify-center min-h-[1.25em] text-transparent bg-clip-text bg-gradient-to-r from-accent-500 via-lime-300 to-accent-500 font-extrabold text-center"
+          class="inline-flex items-center justify-center min-h-[1.25em] text-transparent bg-clip-text bg-gradient-to-r from-accent-500 via-yellow-300 to-accent-500 font-extrabold text-center"
         >
           <span>{{ currentTypewriterText || '\u00A0' }}</span>
           <span
-            class="inline-block w-[3px] sm:w-[4px] h-[0.85em] bg-accent-500 ml-1.5 align-middle animate-pulse shadow-[0_0_8px_#CFFF50]"
+            class="inline-block w-[3px] sm:w-[4px] h-[0.85em] bg-accent-500 ml-1.5 align-middle animate-pulse shadow-[0_0_8px_#ffd700]"
           ></span>
         </span>
       </h1>

@@ -238,7 +238,7 @@
         <div
           v-for="(vid, idx) in cachedVideos"
           :key="vid.video_id"
-          class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-2xl flex flex-col group hover:border-accent-500/50 hover:shadow-[0_0_30px_rgba(207,255,80,0.05)] transition-all cursor-pointer relative overflow-hidden animate-fade-in-up"
+          class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-2xl flex flex-col group hover:border-accent-500/50 hover:shadow-[0_0_30px_rgba(255,215,0,0.05)] transition-all cursor-pointer relative overflow-hidden animate-fade-in-up"
           :class="{ 'opacity-50 pointer-events-none': isProcessing }"
           :style="{ animationDelay: `${idx * 40}ms` }"
         >
@@ -347,7 +347,7 @@
         <div
           v-for="(vid, idx) in cachedVideos"
           :key="vid.video_id"
-          class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-2xl p-2 flex items-center gap-5 group hover:border-accent-500/50 hover:shadow-[0_0_20px_rgba(207,255,80,0.05)] transition-all cursor-pointer relative overflow-hidden animate-fade-in-up"
+          class="bg-surface-panel/50 backdrop-blur-md border border-surface-border rounded-2xl p-2 flex items-center gap-5 group hover:border-accent-500/50 hover:shadow-[0_0_20px_rgba(255,215,0,0.05)] transition-all cursor-pointer relative overflow-hidden animate-fade-in-up"
           :class="{ 'opacity-50 pointer-events-none': isProcessing }"
           :style="{ animationDelay: `${idx * 40}ms` }"
         >
@@ -505,7 +505,7 @@
         ></div>
 
         <div
-          class="w-16 h-16 rounded-2xl bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(207,255,80,0.1)]"
+          class="w-16 h-16 rounded-2xl bg-accent-500/10 border border-accent-500/20 text-accent-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(255,215,0,0.1)]"
         >
           <Icon name="ri:information-fill" class="text-3xl" />
         </div>
@@ -521,7 +521,7 @@
 
         <div class="flex flex-col gap-3 w-full">
           <button
-            class="w-full py-3 bg-accent-500 text-black hover:bg-accent-400 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_30px_rgba(207,255,80,0.2)] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+            class="w-full py-3 bg-accent-500 text-black hover:bg-accent-400 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_30px_rgba(255,215,0,0.2)] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
             @click="
               () => {
                 duplicateModalOpen = false;

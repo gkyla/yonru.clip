@@ -90,7 +90,7 @@
                 ? 'shadow-[0_0_30px_#38bdf8_inset,0_0_50px_rgba(56,189,248,0.4)]'
                 : pipelineStep === 'transcribing'
                   ? 'shadow-[0_0_30px_#a78bfa_inset,0_0_50px_rgba(167,139,250,0.4)]'
-                  : 'shadow-[0_0_30px_#CFFF50_inset,0_0_50px_rgba(207,255,80,0.4)]'
+                  : 'shadow-[0_0_30px_#ffd700_inset,0_0_50px_rgba(255,215,0,0.4)]'
             "
           >
             <div

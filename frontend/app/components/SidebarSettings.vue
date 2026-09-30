@@ -220,7 +220,7 @@
                     class="bg-surface-dark/50 border border-surface-border rounded-lg px-2 py-1.5 text-left transition-all flex items-center justify-between gap-1 hover:bg-surface-card disabled:opacity-50 disabled:cursor-not-allowed group min-w-0"
                     :class="
                       state.subtitlePreset.value === preset.id
-                        ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)] font-bold'
+                        ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)] font-bold'
                         : 'text-slate-400 hover:border-accent-500/30 hover:text-white'
                     "
                     @click="applyPreset(preset)"
@@ -342,7 +342,7 @@
                   :class="
                     state.subtitleMode.value === mode.id &&
                     state.subtitlesEnabled?.value
-                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                       : 'text-slate-400 hover:border-accent-500/30 hover:text-white'
                   "
                   @click="state.subtitleMode.value = mode.id"
@@ -412,7 +412,7 @@
                   class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] transition-all flex flex-col items-center gap-0.5 hover:bg-surface-card"
                   :class="
                     state.subtitleAnimation.value === anim.id
-                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)] font-bold'
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)] font-bold'
                       : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                   "
                   @click="state.subtitleAnimation.value = anim.id"
@@ -445,7 +445,7 @@
                   class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold transition-all hover:bg-surface-card"
                   :class="
                     state.subtitleHighlightMode.value === hl.id
-                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                       : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                   "
                   @click="state.subtitleHighlightMode.value = hl.id"
@@ -495,7 +495,7 @@
                     class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold transition-all uppercase tracking-wider hover:bg-surface-card"
                     :class="
                       state.subtitleTextTransform.value === tt
-                        ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                        ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                         : 'text-slate-400 hover:border-accent-500/40'
                     "
                     @click="state.subtitleTextTransform.value = tt"
@@ -821,7 +821,7 @@
                   class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold transition-all hover:bg-surface-card"
                   :class="
                     state.subtitleBackground.value === bg.id
-                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                       : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                   "
                   @click="state.subtitleBackground.value = bg.id"
@@ -881,7 +881,7 @@
                   class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card"
                   :class="
                     (state.videoLayout?.value || 'vertical') === 'vertical'
-                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                       : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                   "
                   @click="
@@ -897,7 +897,7 @@
                   class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card"
                   :class="
                     state.videoLayout?.value === 'landscape'
-                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                       : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                   "
                   @click="
@@ -937,7 +937,7 @@
                       :class="
                         (state.landscapeBackground?.value || 'black') ===
                         'black'
-                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                           : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                       "
                       @click="
@@ -956,7 +956,7 @@
                       class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card cursor-pointer"
                       :class="
                         state.landscapeBackground?.value === 'blur'
-                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                           : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                       "
                       @click="
@@ -1045,7 +1045,7 @@
                       class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card"
                       :class="
                         state.cropMode.value === 'face_tracking'
-                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                           : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                       "
                       @click="state.cropMode.value = 'face_tracking'"
@@ -1057,7 +1057,7 @@
                       class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 hover:bg-surface-card"
                       :class="
                         state.cropMode.value === 'manual'
-                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                          ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                           : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                       "
                       @click="state.cropMode.value = 'manual'"
@@ -1472,7 +1472,7 @@
                     class="bg-surface-dark/50 border border-surface-border rounded-lg py-1.5 px-1 text-center text-[8.5px] font-bold uppercase tracking-wider transition-all grid place-items-center gap-1 hover:bg-surface-card"
                     :class="
                       activeSafeZone === platform.id
-                        ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                        ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                         : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                     "
                     @click="activeSafeZone = platform.id"
@@ -1567,7 +1567,7 @@
                   class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[9px] font-bold tracking-wider transition-all flex items-center justify-center capitalize hover:bg-surface-card disabled:opacity-50 disabled:cursor-not-allowed"
                   :class="
                     state.subtitlePosition.value === pos
-                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
+                      ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)]'
                       : 'text-slate-400 hover:border-accent-500/40 hover:text-white'
                   "
                   @click="state.subtitlePosition.value = pos"
@@ -1727,7 +1727,7 @@
             isOverlayVisible ||
             state?.renderStatus?.value === 'rendering'
           "
-          class="flex-1 bg-accent-500/80 text-black font-black uppercase tracking-wider rounded-xl py-2 px-2.5 text-xs hover:bg-accent-400 transition-all flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(207,255,80,0.18)] hover:shadow-[0_0_20px_rgba(207,255,80,0.3)] disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none min-w-0 truncate"
+          class="flex-1 bg-accent-500/80 text-black font-black uppercase tracking-wider rounded-xl py-2 px-2.5 text-xs hover:bg-accent-400 transition-all flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(255,215,0,0.18)] hover:shadow-[0_0_20px_rgba(255,215,0,0.3)] disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none min-w-0 truncate"
           @click="prepareRender"
         >
           <Icon
@@ -1756,8 +1756,8 @@
       @mousedown="startResize"
     >
       <div
-        class="absolute inset-y-0 right-0 w-[2px] bg-transparent group-hover:bg-accent-500 group-active:bg-accent-500 transition-all group-hover:shadow-[0_0_8px_#CFFF50]"
-        :class="{ 'bg-accent-500 shadow-[0_0_8px_#CFFF50]': isResizing }"
+        class="absolute inset-y-0 right-0 w-[2px] bg-transparent group-hover:bg-accent-500 group-active:bg-accent-500 transition-all group-hover:shadow-[0_0_8px_#ffd700]"
+        :class="{ 'bg-accent-500 shadow-[0_0_8px_#ffd700]': isResizing }"
       ></div>
     </div>
 
@@ -1824,7 +1824,7 @@
                   Cancel
                 </button>
                 <button
-                  class="flex-[1.5] bg-accent-500 hover:bg-accent-400 text-black px-4 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(207,255,80,0.2)]"
+                  class="flex-[1.5] bg-accent-500 hover:bg-accent-400 text-black px-4 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(255,215,0,0.2)]"
                   @click="startFinalRender"
                 >
                   Start Render
