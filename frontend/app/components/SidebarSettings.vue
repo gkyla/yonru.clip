@@ -243,14 +243,89 @@
 
             <hr class="border-surface-border/40" />
 
-            <!-- Display Mode -->
-            <div>
+            <!-- Subtitle Pacing -->
+            <div class="space-y-2">
               <h2
-                class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 flex items-center justify-between"
+                class="text-[10px] uppercase tracking-widest text-slate-500 font-bold flex items-center justify-between"
               >
-                <span>Display Mode</span>
-                <Icon name="ri:text-wrap" class="text-slate-400" />
+                <span>Subtitle Pacing</span>
+                <Icon name="ri:speed-line" class="text-slate-400" />
               </h2>
+
+              <!-- Subtitle Visibility Sub-row -->
+              <div
+                class="bg-surface-dark/40 border border-surface-border/80 rounded-xl p-2 flex items-center justify-between transition-all"
+                :class="{
+                  'border-accent-500/30 bg-accent-500/5':
+                    state.subtitlesEnabled?.value
+                }"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <div
+                    class="w-2 h-2 rounded-full shrink-0"
+                    :class="
+                      state.subtitlesEnabled?.value
+                        ? 'bg-accent-500'
+                        : 'bg-slate-600'
+                    "
+                  ></div>
+                  <div class="flex flex-col">
+                    <span
+                      class="text-[10px] font-bold"
+                      :class="
+                        state.subtitlesEnabled?.value
+                          ? 'text-white'
+                          : 'text-slate-400'
+                      "
+                    >
+                      {{
+                        state.subtitlesEnabled?.value
+                          ? 'Subtitles Active'
+                          : 'Subtitles Hidden'
+                      }}
+                    </span>
+                    <span class="text-[8.5px] text-slate-500 leading-tight">
+                      {{
+                        state.subtitlesEnabled?.value
+                          ? 'Visible in preview & export'
+                          : 'Hidden from preview & export'
+                      }}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  class="w-7 h-3.5 rounded-full transition-all relative shrink-0 cursor-pointer"
+                  :class="
+                    state.subtitlesEnabled?.value
+                      ? 'bg-accent-500'
+                      : 'bg-white/20'
+                  "
+                  :title="
+                    state.subtitlesEnabled?.value
+                      ? 'Disable Subtitles'
+                      : 'Enable Subtitles'
+                  "
+                  @click="
+                    state.toggleSubtitles
+                      ? state.toggleSubtitles()
+                      : (state.subtitlesEnabled.value =
+                          !state.subtitlesEnabled.value)
+                  "
+                >
+                  <div
+                    class="absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 shadow-sm"
+                    :class="
+                      state.subtitlesEnabled?.value
+                        ? 'translate-x-3.5'
+                        : 'translate-x-0'
+                    "
+                  ></div>
+                </button>
+              </div>
+
+              <!-- Pacing Mode Selector -->
               <div class="grid grid-cols-3 gap-1.5">
                 <button
                   v-for="mode in [
@@ -259,10 +334,14 @@
                     { id: '4_words', label: '4 Words' }
                   ]"
                   :key="mode.id"
-                  :disabled="state.renderStatus.value === 'rendering'"
-                  class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[10px] font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-card"
+                  :disabled="
+                    state.renderStatus.value === 'rendering' ||
+                    !state.subtitlesEnabled?.value
+                  "
+                  class="bg-surface-dark/50 border border-surface-border rounded-lg p-1.5 text-center text-[10px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-card"
                   :class="
-                    state.subtitleMode.value === mode.id
+                    state.subtitleMode.value === mode.id &&
+                    state.subtitlesEnabled?.value
                       ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(207,255,80,0.1)]'
                       : 'text-slate-400 hover:border-accent-500/30 hover:text-white'
                   "

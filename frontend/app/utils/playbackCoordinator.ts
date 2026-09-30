@@ -23,6 +23,7 @@ export interface PlaybackStateSnapshot {
 
   // Transcript & Subtitles
   fullTranscript: TranscriptSegment[];
+  subtitlesEnabled?: boolean;
   subtitleSyncOffset: number;
   subtitleMode: string;
   activeHook: Hook | null;
@@ -255,7 +256,8 @@ export class VideoPlaybackCoordinator {
       durationInFrames: Math.round(snapshot.timelineDuration * activeFps),
       fps: activeFps,
       hideSubtitles:
-        !!snapshot.outputUrl && snapshot.videoUrl === snapshot.outputUrl,
+        snapshot.subtitlesEnabled === false ||
+        (!!snapshot.outputUrl && snapshot.videoUrl === snapshot.outputUrl),
       showDebug: snapshot.showIframeDebug,
       volume: snapshot.volume,
       timelineTextItems: [],

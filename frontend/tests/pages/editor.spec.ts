@@ -12,6 +12,8 @@ const mockIsMediaLoading = ref(false);
 const mockActiveHook = ref<any>(null);
 const mockExtractClip = vi.fn();
 const mockSubtitleMode = ref('word');
+const mockSubtitlesEnabled = ref(true);
+const mockToggleSubtitles = vi.fn();
 const mockFolderName = ref('test_folder');
 const mockClipId = ref('');
 const mockSavedHooks = ref<any[]>([]);
@@ -58,6 +60,8 @@ vi.mock('../../app/composables/useClipperState', () => ({
     activeHook: mockActiveHook,
     extractClip: mockExtractClip,
     subtitleMode: mockSubtitleMode,
+    subtitlesEnabled: mockSubtitlesEnabled,
+    toggleSubtitles: mockToggleSubtitles,
     formatDuration: (sec: number) =>
       `${Math.floor(sec / 60)}:${Math.floor(sec % 60)
         .toString()
@@ -350,6 +354,19 @@ describe('Editor Page', () => {
     expect(panel.classes()).toContain('bottom-0');
     expect(panel.classes()).toContain('rounded-3xl');
     expect(panel.classes()).toContain('z-40');
+    expect(panel.text()).toContain('ON');
+
+    const toggleBtn = panel.find('button[title="Disable Subtitles"]');
+    expect(toggleBtn.exists()).toBe(true);
+    await toggleBtn.trigger('click');
+    expect(mockToggleSubtitles).toHaveBeenCalled();
+
+    mockSubtitlesEnabled.value = false;
+    await wrapper.vm.$nextTick();
+    expect(panel.text()).toContain('OFF');
+    expect(panel.text()).toContain(
+      'Subtitles are hidden from preview & export'
+    );
 
     // Simulate ESC key press to dismiss panel
     const escEvent = new KeyboardEvent('keydown', { key: 'Escape' });

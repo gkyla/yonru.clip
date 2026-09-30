@@ -49,6 +49,55 @@
                 >
               </button>
 
+              <!-- Subtitle Visibility Toggle Switch -->
+              <div
+                class="flex items-center gap-1.5 h-8 px-2.5 rounded-xl border transition-all shrink-0 select-none"
+                :class="
+                  state.subtitlesEnabled?.value
+                    ? 'bg-accent-500/10 border-accent-500/30'
+                    : 'bg-white/5 border-white/10'
+                "
+              >
+                <button
+                  class="w-7 h-3.5 rounded-full transition-all relative shrink-0"
+                  :class="
+                    state.subtitlesEnabled?.value
+                      ? 'bg-accent-500'
+                      : 'bg-white/20'
+                  "
+                  :title="
+                    state.subtitlesEnabled?.value
+                      ? 'Disable Subtitles'
+                      : 'Enable Subtitles'
+                  "
+                  @click="
+                    state.toggleSubtitles
+                      ? state.toggleSubtitles()
+                      : (state.subtitlesEnabled.value =
+                          !state.subtitlesEnabled.value)
+                  "
+                >
+                  <div
+                    class="absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 shadow-sm"
+                    :class="
+                      state.subtitlesEnabled?.value
+                        ? 'translate-x-3.5'
+                        : 'translate-x-0'
+                    "
+                  ></div>
+                </button>
+                <span
+                  class="text-[9px] font-black uppercase tracking-wider"
+                  :class="
+                    state.subtitlesEnabled?.value
+                      ? 'text-accent-400'
+                      : 'text-slate-400'
+                  "
+                >
+                  {{ state.subtitlesEnabled?.value ? 'ON' : 'OFF' }}
+                </span>
+              </div>
+
               <div
                 class="h-8 px-2.5 rounded-xl border border-white/10 bg-black/40 text-slate-400 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0"
               >
@@ -88,6 +137,32 @@
                 <Icon name="ri:close-line" class="text-base" />
               </button>
             </div>
+          </div>
+
+          <!-- Subtitle Disabled Notification Banner -->
+          <div
+            v-if="!state.subtitlesEnabled?.value"
+            class="mb-3 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] flex items-center justify-between gap-2 shrink-0 animate-fadeIn"
+          >
+            <div class="flex items-center gap-1.5 min-w-0 truncate">
+              <Icon
+                name="ri:eye-off-line"
+                class="text-xs shrink-0 text-amber-400"
+              />
+              <span class="truncate font-medium"
+                >Subtitles are hidden from preview & export</span
+              >
+            </div>
+            <button
+              class="text-[9px] font-bold underline hover:text-white shrink-0 uppercase tracking-wider"
+              @click="
+                state.toggleSubtitles
+                  ? state.toggleSubtitles()
+                  : (state.subtitlesEnabled.value = true)
+              "
+            >
+              Turn ON
+            </button>
           </div>
 
           <!-- Subtitle Segment List -->

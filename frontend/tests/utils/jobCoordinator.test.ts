@@ -34,19 +34,22 @@ describe('IngestionJobCoordinator Unit Tests', () => {
       expect(defaults.fontSize).toBe(50);
       expect(defaults.videoLayout).toBe('vertical');
       expect(defaults.subtitleMode).toBe('word');
+      expect(defaults.subtitlesEnabled).toBe(true);
     });
 
     it('correctly merges override styles onto baseline', () => {
       const merged = coordinator.mergeSubtitleStyles(DEFAULT_SUBTITLE_STYLES, {
         font: 'Roboto',
         fontSize: 32,
-        subtitleStrokeWidth: 5
+        subtitleStrokeWidth: 5,
+        subtitlesEnabled: false
       });
 
       expect(merged.font).toBe('Roboto');
       expect(merged.fontSize).toBe(32);
       expect(merged.subtitleStrokeWidth).toBe(5);
       expect(merged.videoLayout).toBe('vertical'); // Preserved from base
+      expect(merged.subtitlesEnabled).toBe(false);
     });
   });
 

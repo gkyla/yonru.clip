@@ -266,6 +266,7 @@ function createClipperState() {
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center');
   const subtitleOffset = useState<number>('subtitleOffset', () => 50);
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150); // Default 150ms offset
+  const subtitlesEnabled = useState<boolean>('subtitlesEnabled', () => true);
   const autoAdaptiveSubtitles = useState<boolean>(
     'autoAdaptiveSubtitles',
     () => true
@@ -745,6 +746,7 @@ function createClipperState() {
       subtitlePosition: subtitlePosition.value,
       subtitleOffset: subtitleOffset.value,
       subtitleSyncOffset: subtitleSyncOffset.value,
+      subtitlesEnabled: subtitlesEnabled.value,
       autoAdaptiveSubtitles: autoAdaptiveSubtitles.value,
       font: font.value,
       fontSize: fontSize.value,
@@ -778,6 +780,11 @@ function createClipperState() {
         body: { folder_name: folderName.value, clip_id: clipId.value, settings }
       });
     } catch {}
+  }
+
+  async function toggleSubtitles() {
+    subtitlesEnabled.value = !subtitlesEnabled.value;
+    await saveStyleSettings();
   }
 
   async function saveDefaultStyleSettings() {
@@ -966,6 +973,7 @@ function createClipperState() {
     subtitlePosition,
     subtitleOffset,
     subtitleSyncOffset,
+    subtitlesEnabled,
     autoAdaptiveSubtitles,
     font,
     fontSize,
@@ -1062,6 +1070,7 @@ function createClipperState() {
     deleteSavedHook,
     saveTranscript,
     saveStyleSettings,
+    toggleSubtitles,
     saveDefaultStyleSettings,
     updateHooks,
     runDeepAudit: auditor.runDeepAudit,

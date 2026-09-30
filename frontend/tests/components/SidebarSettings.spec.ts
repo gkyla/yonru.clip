@@ -28,6 +28,8 @@ const mockState = {
   subtitleStrokeColor: ref('#000000'),
   subtitleOffset: ref(50),
   subtitleSyncOffset: ref(0),
+  subtitlesEnabled: ref(true),
+  toggleSubtitles: vi.fn(),
   autoAdaptiveSubtitles: ref(true),
   subtitleBackgroundOpacity: ref(0.8),
   videoLayout: ref('vertical'),
@@ -358,5 +360,31 @@ describe('SidebarSettings Component', () => {
     await blackBtn?.trigger('click');
 
     expect(mockState.landscapeBackground.value).toBe('black');
+  });
+
+  it('toggles subtitle visibility in Subtitle Pacing section and disables mode buttons when off', async () => {
+    mockState.subtitlesEnabled.value = true;
+    const wrapper = mount(SidebarSettings, {
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, BlacklistSettings: true }
+      }
+    });
+    expect(wrapper.text()).toContain('Subtitle Pacing');
+    expect(wrapper.text()).toContain('Subtitles Active');
+
+    // Toggle subtitles off
+    const toggleBtn = wrapper.find('button[title="Disable Subtitles"]');
+    expect(toggleBtn.exists()).toBe(true);
+    await toggleBtn.trigger('click');
+    expect(mockState.toggleSubtitles).toHaveBeenCalled();
+
+    // Set mockState to false to simulate reactive update
+    mockState.subtitlesEnabled.value = false;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain('Subtitles Hidden');
+
+    // Verify 1 Word button is disabled when subtitles are off
+    const wordBtn = wrapper.findAll('button').find(b => b.text() === '1 Word');
+    expect(wordBtn?.attributes('disabled')).toBeDefined();
   });
 });

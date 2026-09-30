@@ -220,6 +220,7 @@ export interface SubtitleStyleSettings {
   subtitleWordSpacing?: number;
   volume?: number;
   subtitlePreset?: string;
+  subtitlesEnabled?: boolean;
 }
 
 export interface WhisperModelOption {

@@ -98,6 +98,7 @@ export const useClipperJob = () => {
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center');
   const subtitleOffset = useState<number>('subtitleOffset', () => 50);
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150);
+  const subtitlesEnabled = useState<boolean>('subtitlesEnabled', () => true);
   const font = useState<string>('font', () => 'Montserrat');
   const fontSize = useState<number>('fontSize', () => 50);
   const cropMode = useState<string>('cropMode', () => 'face_tracking');
@@ -239,6 +240,8 @@ export const useClipperJob = () => {
       subtitleWordSpacing.value = styles.subtitleWordSpacing;
     if (styles.volume !== undefined) volume.value = styles.volume;
     if (styles.subtitlePreset) subtitlePreset.value = styles.subtitlePreset;
+    if (styles.subtitlesEnabled !== undefined)
+      subtitlesEnabled.value = styles.subtitlesEnabled;
   }
 
   function resetThumbnailState(keepLocked = false) {

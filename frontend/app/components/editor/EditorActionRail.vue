@@ -19,8 +19,15 @@
         @mouseleave="hideTooltip"
       >
         <Icon
-          name="ri:edit-box-line"
+          :name="
+            isPanelOpen && editorTab === 'edit'
+              ? 'ri:closed-captioning-fill'
+              : 'ri:closed-captioning-line'
+          "
           class="text-lg transition-colors duration-200"
+          :class="
+            state?.subtitlesEnabled?.value === false ? 'text-amber-400/80' : ''
+          "
         />
       </button>
     </div>
@@ -91,7 +98,9 @@
         >
           {{
             hoveredTab === 'edit'
-              ? 'Subtitles'
+              ? state?.subtitlesEnabled?.value === false
+                ? 'Subtitles (OFF)'
+                : 'Subtitles'
               : hoveredTab === 'thumbnail'
                 ? 'Cover Slide'
                 : 'Raw Quote'
