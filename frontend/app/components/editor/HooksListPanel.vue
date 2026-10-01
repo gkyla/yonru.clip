@@ -99,27 +99,26 @@
           class="w-full text-left p-3 rounded-xl border transition-all text-xs group relative hover:z-30 overflow-visible"
           :class="[
             isActiveHook(hook)
-              ? 'border-accent-500/50 bg-surface-dark/50 text-white hook-item-active cursor-default'
+              ? 'border-accent-500/50 bg-surface-dark/50 text-white hook-item-active cursor-default shadow-sm'
               : 'bg-surface-dark/50 border-surface-border hover:border-accent-500/30 hover:bg-surface-card text-slate-300',
             isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
           ]"
           @click="emit('select-hook', hook)"
         >
-          <div class="flex justify-between items-center mb-1.5">
-            <div class="flex items-center gap-2">
-              <span
-                class="font-bold text-[10px] uppercase tracking-wider"
-                :class="
-                  isActiveHook(hook) ? 'text-accent-500' : 'text-slate-500'
-                "
-              >
-                HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}
-              </span>
+          <!-- Row 1: Header (Identity on left, Metrics & Duration on right) -->
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <span
+              class="font-bold text-[10px] uppercase tracking-wider shrink-0"
+              :class="isActiveHook(hook) ? 'text-accent-500' : 'text-slate-500'"
+            >
+              HOOK {{ String(Number(idx) + 1).padStart(2, '0') }}
+            </span>
 
+            <div class="flex items-center gap-1.5 shrink-0">
               <!-- Virality Score Badge -->
               <div
                 v-if="hook.virality_score !== undefined"
-                class="px-1.5 py-0.5 rounded text-[8.5px] font-bold tracking-wider flex items-center gap-0.5 border"
+                class="px-1.5 py-0.5 rounded text-[8.5px] font-bold tracking-wider flex items-center gap-0.5 border shrink-0"
                 :class="{
                   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30':
                     hook.virality_score >= 90,
@@ -132,68 +131,40 @@
                 <Icon
                   :name="
                     hook.virality_score >= 90
-                      ? 'ri:fire-fill'
+                      ? 'fluent-emoji-flat:fire'
                       : hook.virality_score >= 75
-                        ? 'ri:flashlight-fill'
+                        ? 'emojione-v1:lightning-mood'
                         : 'ri:bar-chart-2-fill'
                   "
-                  class="text-[9.5px]"
+                  class="text-[9.5px] mr-0.5"
                 />
                 <span>{{ hook.virality_score }}</span>
               </div>
 
-              <!-- Ready Tooltip -->
+              <!-- Duration Chip -->
               <div
-                v-if="isHookRendered(hook)"
-                class="relative group/tooltip flex items-center z-20"
+                class="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-dark/80 border border-surface-border/60 text-[9px] font-mono font-semibold"
+                :class="
+                  isActiveHook(hook)
+                    ? 'text-accent-500 border-accent-500/30'
+                    : 'text-slate-300'
+                "
               >
-                <div
-                  class="text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-help"
-                >
-                  <Icon name="ri:checkbox-circle-fill" class="text-[10px]" />
-                  Ready
-                </div>
-                <div
-                  class="absolute bottom-full ml-10 left-1/2 -translate-x-1/2 mb-2 w-64 bg-surface-dark/95 border border-emerald-500/30 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-[999] font-medium normal-case tracking-normal text-center backdrop-blur-sm"
-                >
-                  This clip has already been cut and transcribed, and is ready
-                  for editing!
-                  <div
-                    class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-surface-dark"
-                  ></div>
-                </div>
+                <Icon name="ri:time-line" class="text-[9.5px] opacity-70" />
+                <span>{{ formatTotalDuration(hook) }}</span>
               </div>
             </div>
-            <span
-              class="mono text-[10px]"
-              :class="
-                isActiveHook(hook)
-                  ? 'text-accent-500 font-bold'
-                  : 'text-slate-400'
-              "
-            >
-              {{ state.formatDuration(hook.start) }} -
-              {{ state.formatDuration(hook.end) }}
-              <span class="ml-1 text-accent-500 font-bold">
-                ({{
-                  Math.floor(hook.end - hook.start) >= 60
-                    ? Math.floor((hook.end - hook.start) / 60) +
-                      'm ' +
-                      Math.floor((hook.end - hook.start) % 60) +
-                      's'
-                    : Math.floor(hook.end - hook.start) + 's'
-                }})
-              </span>
-            </span>
           </div>
+
+          <!-- Row 2: Body (Theme Title & Transcript Quote) -->
           <p
-            class="font-bold truncate"
+            class="font-bold text-[12px] leading-snug truncate"
             :class="isActiveHook(hook) ? 'text-white' : 'text-slate-200'"
           >
             {{ hook.theme || 'Untitled' }}
           </p>
           <p
-            class="text-[10.5px] mt-1 line-clamp-2 italic text-slate-400 group-hover:text-slate-300"
+            class="text-[10.5px] mt-1 line-clamp-2 italic text-slate-400 group-hover:text-slate-300 leading-relaxed"
           >
             "{{
               (hook.transcript_quote || '').length > 80
@@ -201,6 +172,66 @@
                 : hook.transcript_quote || ''
             }}"
           </p>
+
+          <!-- Row 3: Footer Meta Bar (Start-End Timestamp Range on left, Ready/Active status on right) -->
+          <div
+            class="border-t border-surface-border/40 pt-1.5 mt-2 flex items-center justify-between text-[10px] font-mono"
+            :class="
+              isActiveHook(hook)
+                ? 'border-accent-500/20 text-slate-300'
+                : 'text-slate-400'
+            "
+          >
+            <div class="flex items-center gap-1.5">
+              <Icon name="ri:movie-2-line" class="text-[11px] text-slate-500" />
+              <span>{{ state.formatDuration(hook.start) }}</span>
+              <span class="text-slate-600 font-sans text-[9px]">→</span>
+              <span>{{ state.formatDuration(hook.end) }}</span>
+            </div>
+
+            <!-- Right Status Slot: Active, Ready Badge, or Select Link -->
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span
+                v-if="isActiveHook(hook)"
+                class="text-[9px] font-sans font-bold uppercase tracking-wider text-accent-500 flex items-center gap-1"
+              >
+                <span
+                  class="w-1.5 h-1.5 rounded-full bg-accent-500 animate-pulse"
+                ></span>
+                Active
+              </span>
+              <div
+                v-if="isHookRendered(hook)"
+                class="relative group/tooltip flex items-center z-20 shrink-0"
+              >
+                <div
+                  class="px-1.5 py-0.5 rounded text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-help"
+                >
+                  <Icon name="ri:checkbox-circle-fill" class="text-[9.5px]" />
+                  Ready
+                </div>
+                <div
+                  class="absolute bottom-full right-0 mb-2 w-52 bg-surface-dark/95 border border-emerald-500/30 text-[10px] text-slate-200 p-2 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-50 font-medium normal-case tracking-normal text-center backdrop-blur-sm"
+                >
+                  This clip has already been cut and transcribed, and is ready
+                  for editing!
+                  <div
+                    class="absolute top-full right-4 -mt-[5px] border-4 border-transparent border-t-surface-dark"
+                  ></div>
+                </div>
+              </div>
+              <span
+                v-if="!isActiveHook(hook) && !isHookRendered(hook)"
+                class="text-[9px] font-sans text-slate-500 group-hover:text-slate-300 flex items-center gap-0.5 transition-colors"
+              >
+                Select
+                <Icon
+                  name="ri:arrow-right-s-line"
+                  class="text-xs transition-transform group-hover:translate-x-0.5"
+                />
+              </span>
+            </div>
+          </div>
         </button>
       </div>
 
@@ -224,27 +255,26 @@
           class="w-full text-left p-3 rounded-xl border transition-all text-xs group relative hover:z-30 overflow-visible"
           :class="[
             isActiveHook(hook)
-              ? 'border-accent-500 bg-surface-dark/50 text-white hook-item-active cursor-default'
+              ? 'border-accent-500 bg-surface-dark/50 text-white hook-item-active cursor-default shadow-sm'
               : 'bg-surface-dark/50 border-surface-border hover:border-accent-500/30 hover:bg-surface-card text-slate-300',
             isOverlayVisible ? 'opacity-50 cursor-not-allowed' : ''
           ]"
           @click="emit('select-hook', hook)"
         >
-          <div class="flex justify-between items-center mb-1.5">
-            <div class="flex items-center gap-2">
-              <span
-                class="font-bold text-[10px] uppercase tracking-wider"
-                :class="
-                  isActiveHook(hook) ? 'text-accent-500' : 'text-slate-500'
-                "
-              >
-                SAVED {{ String(Number(idx) + 1).padStart(2, '0') }}
-              </span>
+          <!-- Row 1: Header (Identity on left, Metrics & Duration on right) -->
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <span
+              class="font-bold text-[10px] uppercase tracking-wider shrink-0"
+              :class="isActiveHook(hook) ? 'text-accent-500' : 'text-slate-500'"
+            >
+              SAVED {{ String(Number(idx) + 1).padStart(2, '0') }}
+            </span>
 
+            <div class="flex items-center gap-1.5 shrink-0">
               <!-- Virality Score Badge -->
               <div
                 v-if="hook.virality_score !== undefined"
-                class="px-1.5 py-0.5 rounded text-[8.5px] font-bold tracking-wider flex items-center gap-0.5 border"
+                class="px-1.5 py-0.5 rounded text-[8.5px] font-bold tracking-wider flex items-center gap-0.5 border shrink-0"
                 :class="{
                   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30':
                     hook.virality_score >= 90,
@@ -266,57 +296,31 @@
                 />
                 <span>{{ hook.virality_score }}</span>
               </div>
+
+              <!-- Duration Chip -->
               <div
-                v-if="isHookRendered(hook)"
-                class="relative group/tooltip flex items-center z-20"
+                class="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-dark/80 border border-surface-border/60 text-[9px] font-mono font-semibold"
+                :class="
+                  isActiveHook(hook)
+                    ? 'text-accent-500 border-accent-500/30'
+                    : 'text-slate-400'
+                "
               >
-                <div
-                  class="text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-help"
-                >
-                  <Icon name="ri:checkbox-circle-fill" class="text-[10px]" />
-                  Ready
-                </div>
-                <div
-                  class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-surface-dark/95 border border-emerald-500/30 text-[10px] text-slate-200 p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-50 font-medium normal-case tracking-normal text-center backdrop-blur-sm"
-                >
-                  This clip has already been cut and transcribed, and is ready
-                  for editing!
-                  <div
-                    class="absolute top-full left-1/2 -translate-x-1/2 -mt-[5px] border-4 border-transparent border-t-surface-dark"
-                  ></div>
-                </div>
+                <Icon name="ri:time-line" class="text-[9.5px] opacity-70" />
+                <span>{{ formatTotalDuration(hook) }}</span>
               </div>
             </div>
-            <span
-              class="mono text-[10px]"
-              :class="
-                isActiveHook(hook)
-                  ? 'text-accent-500 font-bold'
-                  : 'text-slate-400'
-              "
-            >
-              {{ state.formatDuration(hook.start) }} -
-              {{ state.formatDuration(hook.end) }}
-              <span class="ml-1 text-accent-500 font-bold">
-                ({{
-                  Math.floor(hook.end - hook.start) >= 60
-                    ? Math.floor((hook.end - hook.start) / 60) +
-                      'm ' +
-                      Math.floor((hook.end - hook.start) % 60) +
-                      's'
-                    : Math.floor(hook.end - hook.start) + 's'
-                }})
-              </span>
-            </span>
           </div>
+
+          <!-- Row 2: Body (Theme Title & Transcript Quote) -->
           <p
-            class="font-bold truncate"
+            class="font-bold text-[12px] leading-snug truncate"
             :class="isActiveHook(hook) ? 'text-white' : 'text-slate-200'"
           >
             {{ hook.theme || 'Untitled' }}
           </p>
           <p
-            class="text-[10.5px] mt-1 line-clamp-2 italic text-slate-400 group-hover:text-slate-300"
+            class="text-[10.5px] mt-1 line-clamp-2 italic text-slate-400 group-hover:text-slate-300 leading-relaxed"
           >
             "{{
               (hook.transcript_quote || '').length > 80
@@ -324,6 +328,66 @@
                 : hook.transcript_quote || ''
             }}"
           </p>
+
+          <!-- Row 3: Footer Meta Bar (Start-End Timestamp Range on left, Ready/Active status on right) -->
+          <div
+            class="border-t border-surface-border/40 pt-1.5 mt-2 flex items-center justify-between text-[10px] font-mono"
+            :class="
+              isActiveHook(hook)
+                ? 'border-accent-500/20 text-slate-300'
+                : 'text-slate-400'
+            "
+          >
+            <div class="flex items-center gap-1.5">
+              <Icon name="ri:movie-2-line" class="text-[11px] text-slate-500" />
+              <span>{{ state.formatDuration(hook.start) }}</span>
+              <span class="text-slate-600 font-sans text-[9px]">→</span>
+              <span>{{ state.formatDuration(hook.end) }}</span>
+            </div>
+
+            <!-- Right Status Slot: Active, Ready Badge, or Select Link -->
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span
+                v-if="isActiveHook(hook)"
+                class="text-[9px] font-sans font-bold uppercase tracking-wider text-accent-500 flex items-center gap-1"
+              >
+                <span
+                  class="w-1.5 h-1.5 rounded-full bg-accent-500 animate-pulse"
+                ></span>
+                Active
+              </span>
+              <div
+                v-if="isHookRendered(hook)"
+                class="relative group/tooltip flex items-center z-20 shrink-0"
+              >
+                <div
+                  class="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-help"
+                >
+                  <Icon name="ri:checkbox-circle-fill" class="text-[9.5px]" />
+                  Ready
+                </div>
+                <div
+                  class="absolute bottom-full right-0 mb-2 w-52 bg-surface-dark/95 border border-emerald-500/30 text-[10px] text-slate-200 p-2 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all translate-y-1 group-hover/tooltip:translate-y-0 z-50 font-medium normal-case tracking-normal text-center backdrop-blur-sm"
+                >
+                  This clip has already been cut and transcribed, and is ready
+                  for editing!
+                  <div
+                    class="absolute top-full right-4 -mt-[5px] border-4 border-transparent border-t-surface-dark"
+                  ></div>
+                </div>
+              </div>
+              <span
+                v-if="!isActiveHook(hook) && !isHookRendered(hook)"
+                class="text-[9px] font-sans text-slate-500 group-hover:text-slate-300 flex items-center gap-0.5 transition-colors"
+              >
+                Select
+                <Icon
+                  name="ri:arrow-right-s-line"
+                  class="text-xs transition-transform group-hover:translate-x-0.5"
+                />
+              </span>
+            </div>
+          </div>
         </button>
       </div>
     </Transition>
@@ -353,6 +417,13 @@ const emit = defineEmits<{
 const state = useClipperState();
 const isAuditExpanded = ref(false);
 const hooksContainer = ref<HTMLElement | null>(null);
+
+function formatTotalDuration(hook: { start: number; end: number }): string {
+  const diff = Math.max(0, Math.floor(hook.end - hook.start));
+  const m = Math.floor(diff / 60);
+  const s = diff % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
 
 watch(
   [

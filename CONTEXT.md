@@ -8,6 +8,10 @@ Yonru Clip is an AI-powered short video clipping and re-framing platform that de
 A high-virality timestamp interval extracted from a source video, containing start and end seconds, a theme title, a virality score, and a sharp extracted static thumbnail (`thumb_{start}.jpg`).
 _Avoid_: Segment, cut, highlight
 
+**Studio Hook Card**:
+The compact interactive card component within the Studio Editor Hooks Panel representing an extracted Hook candidate or Saved Hook, structured with a three-tier visual hierarchy (header status pills & duration chip, theme title & quote body, and dedicated timestamp footer).
+_Avoid_: Hook item, clip button, sidebar card, list row
+
 **Ready Clip**:
 A rendered or extracted standalone video clip derived from a Hook that is available in the library and ready for multi-track editing and subtitle customization.
 _Avoid_: Exported video, snippet, output file
@@ -115,6 +119,10 @@ _Avoid_: Global template, root config, editor defaults, initial layout preset
 **Landscape Background Treatment**:
 The visual presentation applied to the letterbox padding zones above and below horizontal footage when presented in the vertical 9:16 canvas, offering Solid Black or Blurred Video Fill with adjustable blur radius and dimming overlay.
 _Avoid_: Background color, bar blur, letterbox style, pad blur.
+
+**Platform Safe Zone Overlay**:
+The realistic platform simulation layer (such as TikTok) rendered directly over the 1080x1920 canvas in Video Preview, reproducing native mobile UI elements (status bar, interaction controls, creator metadata, and audio ticker) to verify visual occlusion, safe zone boundaries, and caption readability without modifying final rendered media.
+_Avoid_: Deadzone box, safe zone grid, mock overlay, fake tiktok, watermarked player
 
 
 **Preset Studio Viewport**:
