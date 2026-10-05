@@ -173,4 +173,64 @@ describe('VideoPreview Component', () => {
     const styleAttr = overlay.attributes('style') || '';
     expect(styleAttr).toContain('bottom: 85px');
   });
+
+  it('renders realistic TikTokSafeZoneOverlay when activeSafeZone is set to tiktok', async () => {
+    const state = useClipperState();
+    state.videoUrl.value = 'http://localhost:8000/sample.mp4';
+    state.activeSafeZone.value = 'tiktok';
+    state.safeZoneOpacity.value = 65;
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    const tikTokOverlay = wrapper.findComponent({
+      name: 'TikTokSafeZoneOverlay'
+    });
+    expect(tikTokOverlay.exists()).toBe(true);
+    expect(tikTokOverlay.props('opacity')).toBe(65);
+  });
+
+  it('renders realistic ReelsSafeZoneOverlay when activeSafeZone is set to reels', async () => {
+    const state = useClipperState();
+    state.videoUrl.value = 'http://localhost:8000/sample.mp4';
+    state.activeSafeZone.value = 'reels';
+    state.safeZoneOpacity.value = 70;
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    const reelsOverlay = wrapper.findComponent({
+      name: 'ReelsSafeZoneOverlay'
+    });
+    expect(reelsOverlay.exists()).toBe(true);
+    expect(reelsOverlay.props('opacity')).toBe(70);
+  });
 });
