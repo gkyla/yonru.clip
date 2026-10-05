@@ -21,7 +21,7 @@
       >
         <!-- Time (9:41) -->
         <div
-          class="status-time text-[46px] font-semibold text-white tracking-tight"
+          class="status-time text-[42px] font-semibold text-white tracking-tight"
         >
           9:41
         </div>
@@ -89,18 +89,18 @@
 
       <!-- Tier 2: Reels Header Row (Plus, Centered Reels ⌵ & Friends) (110px height) -->
       <div
-        class="reels-nav-bar-container relative w-full h-[110px] px-12 flex items-center justify-between pointer-events-none select-none"
+        class="reels-nav-bar-container relative w-full h-[110px] px-11 flex items-center justify-between pointer-events-none select-none"
       >
         <!-- Left: Create / Plus Icon -->
         <button
-          class="reels-plus-button flex items-center justify-center cursor-pointer z-20"
+          class="reels-plus-button flex items-center justify-center cursor-pointer z-20 w-[50px] h-[50px]"
         >
           <svg
-            class="w-8 h-8 text-white"
+            class="w-[42px] h-[42px] text-white"
             viewBox="0 0 24 24"
             fill="none"
             stroke="white"
-            stroke-width="2.8"
+            stroke-width="2.6"
             stroke-linecap="round"
             stroke-linejoin="round"
           >
@@ -111,15 +111,15 @@
 
         <!-- Center: Reels ⌵ & Friends Tab -->
         <div
-          class="absolute inset-0 flex items-center justify-center gap-7 pointer-events-none select-none"
+          class="absolute inset-0 flex items-center justify-center gap-8 pointer-events-none select-none"
         >
           <!-- Reels Dropdown Menu -->
-          <div class="reels-brand flex items-center gap-2 cursor-pointer">
-            <span class="text-[44px] font-bold text-white tracking-tight"
+          <div class="reels-brand flex items-center gap-2.5 cursor-pointer">
+            <span class="text-[52px] font-bold text-white tracking-tight"
               >Reels</span
             >
             <svg
-              class="reels-chevron-icon w-6 h-6 text-white mt-0.5"
+              class="reels-chevron-icon w-[30px] h-[30px] text-white mt-1"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -133,17 +133,17 @@
 
           <!-- Friends Tab with overlapping avatar bubbles (English) -->
           <div
-            class="friends-tab flex items-center gap-2.5 ml-2 cursor-pointer opacity-90"
+            class="friends-tab flex items-center gap-3 ml-2 cursor-pointer opacity-90"
           >
-            <span class="text-[40px] font-semibold text-white/90 tracking-tight"
+            <span class="text-[48px] font-semibold text-white/90 tracking-tight"
               >Friends</span
             >
-            <div class="flex items-center -space-x-2">
+            <div class="flex items-center -space-x-2.5">
               <div
-                class="w-7 h-7 rounded-full bg-slate-300 border-[1.5px] border-black overflow-hidden flex items-center justify-center"
+                class="w-[38px] h-[38px] rounded-full bg-slate-300 border-[2px] border-black overflow-hidden flex items-center justify-center"
               >
                 <svg
-                  class="w-5 h-5 text-slate-700"
+                  class="w-[26px] h-[26px] text-slate-700"
                   viewBox="0 0 24 24"
                   fill="currentColor"
                 >
@@ -153,10 +153,10 @@
                 </svg>
               </div>
               <div
-                class="w-7 h-7 rounded-full bg-neutral-800 border-[1.5px] border-black overflow-hidden flex items-center justify-center"
+                class="w-[38px] h-[38px] rounded-full bg-neutral-800 border-[2px] border-black overflow-hidden flex items-center justify-center"
               >
                 <svg
-                  class="w-5 h-5 text-slate-400"
+                  class="w-[26px] h-[26px] text-slate-400"
                   viewBox="0 0 24 24"
                   fill="currentColor"
                 >
@@ -170,7 +170,7 @@
         </div>
 
         <!-- Right: Empty balance spacer -->
-        <div class="w-8 h-8"></div>
+        <div class="w-[50px] h-[50px]"></div>
       </div>
     </header>
 
@@ -179,7 +179,7 @@
       class="video-overlay-container absolute inset-x-0 bottom-0 pointer-events-none z-10 flex flex-col justify-end"
     >
       <div
-        class="sidebar-metadata-container w-full pl-8 pr-5 pb-8 flex items-end justify-between relative"
+        class="sidebar-metadata-container w-full px-11 pb-9 flex items-end justify-between relative"
       >
         <!-- Meta Data (Creator Profile, Username + Sound Stack, Follow Button, Caption) -->
         <div
@@ -204,17 +204,17 @@
             <div class="flex flex-col justify-center min-w-0">
               <!-- Username (without @) -->
               <span
-                class="username text-[34px] font-bold tracking-tight text-white truncate"
+                class="username text-[36px] font-bold tracking-tight text-white truncate"
               >
                 {{ displayUsername }}
               </span>
 
               <!-- Sound / Music right beneath username -->
               <div
-                class="sound-container flex items-center gap-2 text-[26px] font-medium text-white/90 max-w-[460px] overflow-hidden mt-0.5"
+                class="sound-container flex items-center gap-2 text-[28px] font-medium text-white/90 max-w-[460px] overflow-hidden mt-0.5"
               >
                 <!-- Music Note SVG -->
-                <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="white">
+                <svg class="w-6 h-6 shrink-0" viewBox="0 0 24 24" fill="white">
                   <path
                     d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"
                   />
@@ -227,7 +227,7 @@
 
             <!-- Follow Pill Button -->
             <button
-              class="reels-follow-btn px-4 py-1 rounded-[10px] border-[2px] border-white/90 text-[26px] font-bold text-white tracking-wide backdrop-blur-sm cursor-pointer ml-1 self-center shrink-0"
+              class="reels-follow-btn px-5 py-1.5 min-w-[116px] h-[50px] rounded-[12px] border-[2px] border-white/90 text-[26px] font-bold text-white tracking-wide backdrop-blur-sm cursor-pointer ml-1 self-center shrink-0 flex items-center justify-center"
             >
               {{ followText || 'Follow' }}
             </button>
@@ -235,7 +235,7 @@
 
           <!-- Caption Container -->
           <div
-            class="caption text-[32px] font-normal leading-snug text-white/95 line-clamp-2"
+            class="caption text-[30px] font-normal leading-snug text-white/95 line-clamp-2"
           >
             {{ displayCaption }}
           </div>
@@ -243,18 +243,18 @@
 
         <!-- Overlay Sidebar (Like, Comment, Repost, Share, Bookmark, More, Audio Cover Square) -->
         <div
-          class="overlay-sidebar flex flex-col items-center gap-[34px] z-10 shrink-0"
+          class="overlay-sidebar flex flex-col items-center gap-[28px] z-10 shrink-0"
         >
           <!-- 1. Like Action (Instagram Heart Outline calibrated 1:1) -->
           <div
             class="action-item flex flex-col items-center gap-1 cursor-pointer"
           >
             <svg
-              class="w-[72px] h-[66px]"
+              class="w-[66px] h-[58px]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="white"
-              stroke-width="2.2"
+              stroke-width="2.3"
               stroke-linecap="round"
               stroke-linejoin="round"
             >
@@ -262,7 +262,7 @@
                 d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
               />
             </svg>
-            <span class="text-[26px] font-bold text-white tracking-tight">
+            <span class="text-[24px] font-bold text-white tracking-tight">
               211RB
             </span>
           </div>
@@ -272,17 +272,17 @@
             class="action-item flex flex-col items-center gap-1 cursor-pointer"
           >
             <svg
-              class="w-[70px] h-[70px]"
+              class="w-[62px] h-[62px]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="white"
-              stroke-width="2.2"
+              stroke-width="2.3"
               stroke-linecap="round"
               stroke-linejoin="round"
             >
               <path d="M 20.2 14.5 A 8.6 8.6 0 1 0 15 19.8 H 20.2 V 14.5 Z" />
             </svg>
-            <span class="text-[26px] font-bold text-white tracking-tight">
+            <span class="text-[24px] font-bold text-white tracking-tight">
               92
             </span>
           </div>
@@ -292,11 +292,11 @@
             class="action-item flex flex-col items-center gap-1 cursor-pointer"
           >
             <svg
-              class="w-[70px] h-[70px]"
+              class="w-[62px] h-[60px]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="white"
-              stroke-width="2.3"
+              stroke-width="2.4"
               stroke-linecap="round"
               stroke-linejoin="round"
             >
@@ -305,7 +305,7 @@
               <path d="M 17.5 13 V 15.5 A 2.5 2.5 0 0 1 15 18 H 7" />
               <polyline points="10.5 14.5 7 18 10.5 21.5" />
             </svg>
-            <span class="text-[26px] font-bold text-white tracking-tight">
+            <span class="text-[24px] font-bold text-white tracking-tight">
               17,3RB
             </span>
           </div>
@@ -315,7 +315,7 @@
             class="action-item flex flex-col items-center gap-1 cursor-pointer"
           >
             <svg
-              class="w-[72px] h-[72px]"
+              class="w-[62px] h-[62px]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="white"
@@ -328,7 +328,7 @@
               />
               <line x1="10.5" y1="13.5" x2="16.5" y2="8.5" />
             </svg>
-            <span class="text-[26px] font-bold text-white tracking-tight">
+            <span class="text-[24px] font-bold text-white tracking-tight">
               143RB
             </span>
           </div>
@@ -338,17 +338,17 @@
             class="action-item flex flex-col items-center gap-1 cursor-pointer"
           >
             <svg
-              class="w-[66px] h-[72px]"
+              class="w-[54px] h-[62px]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="white"
-              stroke-width="2.3"
+              stroke-width="2.4"
               stroke-linecap="round"
               stroke-linejoin="round"
             >
               <path d="M 5 4.5 H 19 V 20.5 L 12 14.5 L 5 20.5 Z" />
             </svg>
-            <span class="text-[26px] font-bold text-white tracking-tight">
+            <span class="text-[24px] font-bold text-white tracking-tight">
               15,6RB
             </span>
           </div>
@@ -358,7 +358,7 @@
             class="action-item flex flex-col items-center justify-center cursor-pointer py-1"
           >
             <svg
-              class="w-[56px] h-[26px]"
+              class="w-[48px] h-[24px]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="white"
@@ -372,7 +372,7 @@
 
           <!-- 7. Audio Album Artwork Square -->
           <div
-            class="reels-audio-square relative w-[76px] h-[76px] rounded-[14px] border-[3px] border-white overflow-hidden mt-0.5 bg-neutral-900 flex items-center justify-center"
+            class="reels-audio-square relative w-[68px] h-[68px] rounded-[13px] border-[2.5px] border-white overflow-hidden mt-0.5 bg-neutral-900 flex items-center justify-center"
           >
             <img
               :src="displayAvatar"
@@ -477,7 +477,7 @@ const onAvatarError = () => {
 .reels-page-layout {
   font-family:
     -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter',
-    'Helvetica Neue', Helvetica, Arial, sans-serif;
+    'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
