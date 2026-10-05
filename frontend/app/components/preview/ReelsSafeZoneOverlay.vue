@@ -133,12 +133,15 @@
 
           <!-- Friends Tab with overlapping avatar bubbles (English) -->
           <div
-            class="friends-tab flex items-center gap-3 ml-2 cursor-pointer opacity-90"
+            class="friends-tab relative flex items-center cursor-pointer opacity-90"
           >
             <span class="text-[48px] font-semibold text-white/90 tracking-tight"
               >Friends</span
             >
-            <div class="flex items-center -space-x-2.5">
+            <!-- Overlapping avatar bubbles floating beside text without shifting flexbox center -->
+            <div
+              class="flex items-center -space-x-2.5 absolute left-full ml-3 top-1/2 -translate-y-1/2 shrink-0 pointer-events-none"
+            >
               <div
                 class="w-[38px] h-[38px] rounded-full bg-slate-300 border-[2px] border-black overflow-hidden flex items-center justify-center"
               >

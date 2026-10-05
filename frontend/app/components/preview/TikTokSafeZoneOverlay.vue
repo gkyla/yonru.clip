@@ -185,7 +185,7 @@
       class="video-overlay-container absolute inset-x-0 bottom-0 pointer-events-none z-10 flex flex-col justify-end"
     >
       <div
-        class="sidebar-metadata-container w-full px-11 pb-14 flex items-end justify-between relative"
+        class="sidebar-metadata-container w-full px-11 pb-7 flex items-end justify-between relative"
       >
         <!-- Meta Data (Account Display Name, Caption, Sound Marquee) calibrated 1:1 to Vivo V29 -->
         <div
@@ -246,7 +246,7 @@
 
         <!-- Overlay Sidebar (Avatar, Follow, Interaction Vectors, Vinyl Disc) calibrated 1:1 -->
         <div
-          class="overlay-sidebar flex flex-col items-center gap-[34px] z-10 shrink-0"
+          class="overlay-sidebar flex flex-col items-center gap-[32px] z-10 shrink-0"
         >
           <!-- Avatar Container (118px calibrated to Vivo V29) -->
           <div class="avatar-container relative w-[118px] h-[118px] mb-1">
@@ -267,7 +267,7 @@
           </div>
 
           <!-- Interaction Column: Crisp Vector SVGs calibrated 1:1 to Vivo V29 -->
-          <div class="interaction-column flex flex-col items-center gap-[42px]">
+          <div class="interaction-column flex flex-col items-center gap-[36px]">
             <!-- 1. Like Action (Heart: 84x78px) -->
             <div
               class="action-item flex flex-col items-center gap-1 cursor-pointer"

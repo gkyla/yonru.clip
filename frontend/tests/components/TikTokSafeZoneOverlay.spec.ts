@@ -129,7 +129,7 @@ describe('TikTokSafeZoneOverlay Component', () => {
     const metadataContainer = wrapper.find('.sidebar-metadata-container');
     expect(metadataContainer.exists()).toBe(true);
     expect(metadataContainer.classes()).toContain('px-11');
-    expect(metadataContainer.classes()).toContain('pb-14');
+    expect(metadataContainer.classes()).toContain('pb-7');
 
     const bottomBar = wrapper.find('.bottom-nav-bar-container');
     expect(bottomBar.exists()).toBe(false);
