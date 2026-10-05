@@ -11,13 +11,13 @@
       class="absolute bottom-0 inset-x-0 h-[520px] bg-gradient-to-t from-black/85 via-black/40 to-transparent pointer-events-none"
     ></div>
 
-    <!-- Header Title Area (iOS Status Bar & Reels Navigation calibrated 1:1 to modern Instagram layout) -->
+    <!-- Header Title Area (iOS/Mobile Status Bar & Reels Navigation calibrated 1:1) -->
     <header
-      class="reels-header-container w-full flex flex-col items-center shrink-0 z-10 pointer-events-none pt-4"
+      class="reels-header-container w-full flex flex-col items-center shrink-0 z-10 pointer-events-none pt-3"
     >
-      <!-- Tier 1: Authentic Mobile Status Bar (110px height) -->
+      <!-- Tier 1: Authentic Mobile Status Bar (85px height unified) -->
       <div
-        class="status-bar-container w-full h-[110px] px-14 flex items-center justify-between pointer-events-none select-none"
+        class="status-bar-container w-full h-[85px] px-11 flex items-center justify-between pointer-events-none select-none"
       >
         <!-- Time (9:41) -->
         <div

@@ -5,23 +5,23 @@
   >
     <!-- Subtle Contrast Vignettes (Top & Bottom) -->
     <div
-      class="absolute top-0 inset-x-0 h-[290px] bg-gradient-to-b from-black/75 via-black/30 to-transparent pointer-events-none"
+      class="absolute top-0 inset-x-0 h-[260px] bg-gradient-to-b from-black/75 via-black/25 to-transparent pointer-events-none"
     ></div>
     <div
-      class="absolute bottom-0 inset-x-0 h-[520px] bg-gradient-to-t from-black/85 via-black/40 to-transparent pointer-events-none"
+      class="absolute bottom-0 inset-x-0 h-[500px] bg-gradient-to-t from-black/85 via-black/40 to-transparent pointer-events-none"
     ></div>
 
     <!-- Header Title Area (Status Bar & Top Navigation Bar calibrated 1:1 for 1080x1920 canvas) -->
     <header
-      class="tiktok-header-container w-full flex flex-col items-center shrink-0 z-10 pointer-events-none pt-4"
+      class="tiktok-header-container w-full flex flex-col items-center shrink-0 z-10 pointer-events-none pt-3"
     >
-      <!-- Tier 1: Authentic Mobile Status Bar (110px height) -->
+      <!-- Tier 1: Authentic Mobile Status Bar (85px height calibrated to Vivo V29) -->
       <div
-        class="status-bar-container w-full h-[110px] px-14 flex items-center justify-between pointer-events-none select-none"
+        class="status-bar-container w-full h-[85px] px-11 flex items-center justify-between pointer-events-none select-none"
       >
         <!-- Time (9:41) -->
         <div
-          class="status-time text-[46px] font-semibold text-white tracking-tight"
+          class="status-time text-[42px] font-semibold text-white tracking-tight"
         >
           9:41
         </div>
@@ -87,16 +87,16 @@
         </div>
       </div>
 
-      <!-- Tier 2: Top Navigation Bar (LIVE, Following, For You, Search) (130px height) -->
+      <!-- Tier 2: Top Navigation Bar (LIVE, Following, For You, Search) (115px height) -->
       <div
-        class="home-nav-bar-container w-full h-[130px] px-14 flex items-center justify-between pointer-events-none select-none"
+        class="home-nav-bar-container w-full h-[115px] px-11 flex items-center justify-between pointer-events-none select-none"
       >
         <!-- LIVE Broadcast Button -->
-        <div class="live-button flex items-center gap-3 cursor-pointer">
+        <div class="live-button flex items-center gap-2.5 cursor-pointer">
           <svg
-            class="w-[52px] h-[52px]"
-            width="52"
-            height="52"
+            class="w-[46px] h-[46px]"
+            width="46"
+            height="46"
             viewBox="0 0 28 28"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -124,27 +124,27 @@
               stroke-linecap="round"
             />
           </svg>
-          <span class="text-[34px] font-bold tracking-wider text-white"
+          <span class="text-[30px] font-bold tracking-wider text-white"
             >LIVE</span
           >
         </div>
 
         <!-- Center Tabs: Following & For You -->
-        <div class="nav-tabs flex items-center gap-12">
+        <div class="nav-tabs flex items-center gap-10">
           <div
-            class="tab-following text-[50px] font-semibold text-white/75 tracking-tight cursor-pointer"
+            class="tab-following text-[42px] font-semibold text-white/75 tracking-tight cursor-pointer"
           >
-            Following
+            {{ displayFollowingText }}
           </div>
           <div
             class="tab-foryou relative flex flex-col items-center cursor-pointer"
           >
-            <span class="text-[54px] font-bold text-white tracking-tight"
-              >For You</span
-            >
+            <span class="text-[46px] font-bold text-white tracking-tight">
+              {{ displayForYouText }}
+            </span>
             <!-- Authentic White Pill Underline Active Indicator -->
             <div
-              class="active-indicator w-16 h-2 bg-white rounded-full mt-2"
+              class="active-indicator w-14 h-1.5 bg-white rounded-full mt-1.5"
             ></div>
           </div>
         </div>
@@ -154,9 +154,9 @@
           class="search-button flex items-center justify-center cursor-pointer"
         >
           <svg
-            class="w-[52px] h-[52px]"
-            width="52"
-            height="52"
+            class="w-[46px] h-[46px]"
+            width="46"
+            height="46"
             viewBox="0 0 28 28"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -182,45 +182,42 @@
 
     <!-- Video Overlay Container (Metadata & Right Sidebar) positioned at the bottom of the screen -->
     <div
-      class="video-overlay-container absolute inset-x-0 bottom-7 pointer-events-none z-10 flex flex-col justify-end"
+      class="video-overlay-container absolute inset-x-0 bottom-0 pointer-events-none z-10 flex flex-col justify-end"
     >
       <div
-        class="sidebar-metadata-container w-full pl-10 pr-6 pb-2 flex items-end justify-between relative"
+        class="sidebar-metadata-container w-full px-11 pb-14 flex items-end justify-between relative"
       >
-        <!-- Meta Data (Username, Caption, Tags, Sound Marquee) from Figma Specs -->
+        <!-- Meta Data (Account Display Name, Caption, Sound Marquee) calibrated 1:1 to Vivo V29 -->
         <div
-          class="meta-data max-w-[760px] flex flex-col gap-3 text-white z-10 pb-1"
+          class="meta-data max-w-[760px] flex flex-col gap-3 text-white z-10"
         >
-          <div class="meta-data-top flex flex-col gap-2.5">
-            <!-- Username Container -->
+          <div class="meta-data-top flex flex-col gap-2">
+            <!-- Account Display Name Container (without @ per authentic TikTok mobile layout) -->
             <div class="username-container flex items-center gap-2">
               <div
-                class="username text-[44px] font-bold tracking-tight text-white"
+                class="username text-[40px] font-bold tracking-tight text-white"
               >
-                @{{ displayUsername }}
+                {{ displayUsername }}
               </div>
             </div>
 
             <!-- Caption Container -->
             <div
-              class="caption text-[38px] font-normal leading-snug text-white/95 line-clamp-3"
+              class="caption text-[34px] font-normal leading-snug text-white/95 line-clamp-2"
             >
               {{ displayCaption }}
             </div>
 
-            <!-- Tags Container -->
-            <div class="tags-container"></div>
-
             <!-- Sound Container with Infinite Scrolling Marquee -->
             <div
-              class="sound-container flex items-center gap-3 text-[34px] font-medium text-white/95 mt-0.5"
+              class="sound-container flex items-center gap-3 text-[30px] font-medium text-white/90 mt-0.5"
             >
-              <!-- Authentic Figma Music Note Icon (Node 1:277) -->
+              <!-- Authentic Music Note Icon -->
               <div
                 class="music-icon shrink-0 text-white flex items-center justify-center"
               >
                 <svg
-                  class="w-7 h-6"
+                  class="w-6 h-6"
                   viewBox="0 0 13 12"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
@@ -247,36 +244,36 @@
           </div>
         </div>
 
-        <!-- Overlay Sidebar (Avatar, Follow, Interaction Vectors, Vinyl Disc) from Figma Specs -->
+        <!-- Overlay Sidebar (Avatar, Follow, Interaction Vectors, Vinyl Disc) calibrated 1:1 -->
         <div
-          class="overlay-sidebar flex flex-col items-center gap-11 z-10 shrink-0"
+          class="overlay-sidebar flex flex-col items-center gap-[34px] z-10 shrink-0"
         >
-          <!-- Avatar Container (Figma 47px -> 136px) -->
-          <div class="avatar-container relative w-[136px] h-[136px] mb-2">
+          <!-- Avatar Container (118px calibrated to Vivo V29) -->
+          <div class="avatar-container relative w-[118px] h-[118px] mb-1">
             <img
               :src="displayAvatar"
               alt="creator avatar"
-              class="avatar w-full h-full rounded-full border-[3.5px] border-white object-cover bg-neutral-800"
+              class="avatar w-full h-full rounded-full border-[3px] border-white object-cover bg-neutral-800"
               crossorigin="anonymous"
               @error="onAvatarError"
             />
-            <!-- Follow Button (Figma Node 1:328 & 1:329) -->
+            <!-- Follow Button (Red circle with authentic white plus) -->
             <img
               :src="followBtnSrc"
               alt="follow button"
-              class="follow-btn absolute -bottom-3 left-1/2 -translate-x-1/2 w-[54px] h-[54px] rounded-full pointer-events-none"
+              class="follow-btn absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-[46px] h-[46px] rounded-full pointer-events-none"
               crossorigin="anonymous"
             />
           </div>
 
-          <!-- Interaction Column: Crisp Vector SVGs calibrated 1:1 to official TikTok interaction.png -->
-          <div class="interaction-column flex flex-col items-center gap-[54px]">
-            <!-- 1. Like Action (Heart: 44x41 in interaction.png -> 90x84px) -->
+          <!-- Interaction Column: Crisp Vector SVGs calibrated 1:1 to Vivo V29 -->
+          <div class="interaction-column flex flex-col items-center gap-[42px]">
+            <!-- 1. Like Action (Heart: 84x78px) -->
             <div
-              class="action-item flex flex-col items-center gap-2 cursor-pointer"
+              class="action-item flex flex-col items-center gap-1 cursor-pointer"
             >
               <svg
-                class="w-[90px] h-[84px]"
+                class="w-[84px] h-[78px]"
                 viewBox="0 0 36 33"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
@@ -286,39 +283,39 @@
                   fill="white"
                 />
               </svg>
-              <span class="text-[30px] font-bold text-white tracking-tight">
-                1.3M
+              <span class="text-[26px] font-bold text-white tracking-tight">
+                37,9 rb
               </span>
             </div>
 
-            <!-- 2. Comment Action (Chat Bubble: 44x43 in interaction.png -> 90x88px) -->
+            <!-- 2. Comment Action (Speech Bubble with 3 dots: 74x58px) -->
             <div
-              class="action-item flex flex-col items-center gap-2 cursor-pointer"
+              class="action-item flex flex-col items-center gap-1 cursor-pointer"
             >
               <svg
-                class="w-[90px] h-[88px]"
-                viewBox="0 0 35 34"
+                class="w-[74px] h-[58px]"
+                viewBox="0 0 35 30"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
               >
                 <path
                   fill-rule="evenodd"
                   clip-rule="evenodd"
-                  d="M35 15C35 17.2267 34.4339 19.3401 33.4185 21.2402C33.4103 21.2616 33.4013 21.283 33.3913 21.3043C31.514 25.3271 28.3888 28.6368 24.48 30.7415L20.1269 33.0855C19.0105 33.6867 17.6765 32.7936 17.807 31.5323L17.9661 29.9948C17.8112 29.9983 17.6558 30 17.5 30C7.83502 30 0 23.2843 0 15C0 6.71573 7.83502 0 17.5 0C27.165 0 35 6.71573 35 15ZM8.5 18C9.88071 18 11 16.8807 11 15.5C11 14.1193 9.88071 13 8.5 13C7.11929 13 6 14.1193 6 15.5C6 16.8807 7.11929 18 8.5 18ZM20 15.5C20 16.8807 18.8807 18 17.5 18C16.1193 18 15 16.8807 15 15.5C15 14.1193 16.1193 13 17.5 13C18.8807 13 20 14.1193 20 15.5ZM26.5 18C27.8807 18 29 16.8807 29 15.5C29 14.1193 27.8807 13 26.5 13C25.1193 13 24 14.1193 24 15.5C24 16.8807 25.1193 18 26.5 18Z"
+                  d="M35 13.5C35 20.9558 27.165 27 17.5 27C16.1432 27 14.8291 26.8821 13.5828 26.6617L7.84433 29.7428C6.98595 30.2038 5.95252 29.5121 6.05374 28.5342L6.37525 25.4286C2.39265 22.9099 0 18.5283 0 13.5C0 6.04416 7.83502 0 17.5 0C27.165 0 35 6.04416 35 13.5ZM9 15C10.1046 15 11 14.1046 11 13C11 11.8954 10.1046 11 9 11C7.89543 11 7 11.8954 7 13C7 14.1046 7.89543 15 9 15ZM17.5 15C18.6046 15 19.5 14.1046 19.5 13C19.5 11.8954 18.6046 11 17.5 11C16.3954 11 15.5 11.8954 15.5 13C15.5 14.1046 16.3954 15 17.5 15ZM26 15C27.1046 15 28 14.1046 28 13C28 11.8954 27.1046 11 26 11C24.8954 11 24 11.8954 24 13C24 14.1046 24.8954 15 26 15Z"
                   fill="white"
                 />
               </svg>
-              <span class="text-[30px] font-bold text-white tracking-tight">
-                10.7M
+              <span class="text-[26px] font-bold text-white tracking-tight">
+                330
               </span>
             </div>
 
-            <!-- 3. Bookmark / Favorite Action (Ribbon: 34x38 in interaction.png -> 70x78px) -->
+            <!-- 3. Bookmark / Favorite Action (Ribbon: 58x64px) -->
             <div
-              class="action-item flex flex-col items-center gap-2 cursor-pointer"
+              class="action-item flex flex-col items-center gap-1 cursor-pointer"
             >
               <svg
-                class="w-[70px] h-[78px]"
+                class="w-[58px] h-[64px]"
                 viewBox="0 0 34 38"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
@@ -328,17 +325,17 @@
                   fill="white"
                 />
               </svg>
-              <span class="text-[30px] font-bold text-white tracking-tight">
-                125.4K
+              <span class="text-[26px] font-bold text-white tracking-tight">
+                1.216
               </span>
             </div>
 
-            <!-- 4. Share Action (Curved Arrow: 46x36 in interaction.png -> 94x74px) -->
+            <!-- 4. Share Action (Curved Arrow: 72x60px) -->
             <div
-              class="action-item flex flex-col items-center gap-2 cursor-pointer"
+              class="action-item flex flex-col items-center gap-1 cursor-pointer"
             >
               <svg
-                class="w-[94px] h-[74px]"
+                class="w-[72px] h-[60px]"
                 viewBox="0 0 35 28"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
@@ -348,8 +345,8 @@
                   fill="white"
                 />
               </svg>
-              <span class="text-[30px] font-bold text-white tracking-tight">
-                30.9K
+              <span class="text-[26px] font-bold text-white tracking-tight">
+                3.041
               </span>
             </div>
 
@@ -364,20 +361,20 @@
             />
           </div>
 
-          <!-- Music Cover Container (Figma 48.5px -> 136px Animated Vinyl Disc) -->
+          <!-- Music Cover Container (104px Animated Vinyl Disc calibrated to Vivo V29) -->
           <div
-            class="music-cover-container relative w-[136px] h-[136px] rounded-full bg-[#111] border-[8px] border-[#222] flex items-center justify-center spinning-vinyl mt-2"
+            class="music-cover-container relative w-[104px] h-[104px] rounded-full bg-[#111] border-[6px] border-[#222] flex items-center justify-center spinning-vinyl mt-1"
           >
             <!-- Vinyl Inner Concentric Grooves -->
             <div
-              class="absolute inset-2.5 rounded-full border border-white/10 pointer-events-none"
+              class="absolute inset-2 rounded-full border border-white/10 pointer-events-none"
             ></div>
             <div
-              class="absolute inset-5 rounded-full border border-white/5 pointer-events-none"
+              class="absolute inset-4 rounded-full border border-white/5 pointer-events-none"
             ></div>
-            <!-- Center Album Artwork -->
+            <!-- Center Album Artwork (52px) -->
             <div
-              class="w-[68px] h-[68px] rounded-full overflow-hidden bg-black flex items-center justify-center"
+              class="w-[52px] h-[52px] rounded-full overflow-hidden bg-black flex items-center justify-center"
             >
               <img
                 :src="displayAvatar"
@@ -388,6 +385,14 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Playback Scrubber Progress Bar at the very bottom edge -->
+      <div class="tiktok-progress-bar w-full h-[4px] bg-white/20 relative">
+        <div
+          class="h-full bg-white/90 rounded-r-full transition-all duration-100 ease-linear"
+          :style="{ width: `${progressPercent}%` }"
+        ></div>
       </div>
     </div>
   </div>
@@ -408,13 +413,19 @@ const props = withDefaults(
     caption?: string;
     avatarUrl?: string;
     soundTitle?: string;
+    followingText?: string;
+    forYouText?: string;
+    progress?: number;
   }>(),
   {
     opacity: 100,
     username: '',
     caption: '',
     avatarUrl: '',
-    soundTitle: ''
+    soundTitle: '',
+    followingText: 'Following',
+    forYouText: 'For You',
+    progress: undefined
   }
 );
 
@@ -423,7 +434,7 @@ const state = useClipperState();
 const avatarFallback = ref(false);
 const showLegacyInteraction = ref(true);
 
-// Figma Node 1:328 & 1:329 (Red circle #EA4359 with authentic white plus)
+// Red circle #EA4359 with authentic white plus
 const followBtnSrc =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 21 21" fill="none"><circle cx="10.5" cy="10.5" r="10.5" fill="%23EA4359"/><path d="M14.5 9.5H11.5V6.5C11.5 5.95 11.05 5.5 10.5 5.5C9.95 5.5 9.5 5.95 9.5 6.5V9.5H6.5C5.95 9.5 5.5 9.95 5.5 10.5C5.5 11.05 5.95 11.5 6.5 11.5H9.5V14.5C9.5 15.05 9.95 15.5 10.5 15.5C11.05 15.5 11.5 15.05 11.5 14.5V11.5H14.5C15.05 11.5 15.5 11.05 15.5 10.5C15.5 9.95 15.05 9.5 14.5 9.5Z" fill="white"/></svg>';
 
@@ -434,6 +445,16 @@ const fallbackAvatar =
   'https://p16-common-sign.tiktokcdn.com/tos-alisg-avt-0068/d7f7b88ae256b2b09fd043a8bea92472~tplv-tiktokx-cropcenter:720:720.jpeg?dr=14579&refresh_token=42351ee0&x-expires=1791025200&x-signature=CIGbvjRlAwCvlcWIUhMtuMXlXUo%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=my2';
 
 // Dynamic Data Resolution
+const progressPercent = computed(() => {
+  if (typeof props.progress === 'number') {
+    return Math.min(100, Math.max(0, props.progress));
+  }
+  const current = state.currentTime?.value || 0;
+  const duration = state.timelineDuration?.value || 0;
+  if (duration <= 0) return 35;
+  return Math.min(100, Math.max(0, (current / duration) * 100));
+});
+
 const displayUsername = computed(() => {
   if (props.username) return props.username;
   return 'yonru.clip';
@@ -445,7 +466,7 @@ const displayCaption = computed(() => {
   if (theme) {
     return `${theme} #fyp #viral #yonruclip`;
   }
-  return 'Demam tinggi bisa menyebabkan kerusakan sel otak ?#drtirta #infokesehatan #sehat #kesehatan #fyp #myth';
+  return 'Demam tinggi bisa menyebabkan kerusakan sel otak ? #infokesehatan #sehat #fyp';
 });
 
 const displayAvatar = computed(() => {
@@ -458,6 +479,14 @@ const displaySoundTitle = computed(() => {
   if (props.soundTitle) return props.soundTitle;
   const rawTitle = state.videoTitle?.value || 'yonru.clip';
   return `Original sound - ${rawTitle}`;
+});
+
+const displayFollowingText = computed(() => {
+  return props.followingText || 'Following';
+});
+
+const displayForYouText = computed(() => {
+  return props.forYouText || 'For You';
 });
 
 const onAvatarError = () => {

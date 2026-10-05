@@ -26,8 +26,11 @@ describe('ReelsSafeZoneOverlay Component', () => {
   it('renders authentic 1:1 vector status bar and Reels top header', () => {
     const wrapper = mount(ReelsSafeZoneOverlay);
 
-    // Status bar metrics & elements
-    expect(wrapper.find('.status-bar-container').exists()).toBe(true);
+    // Status bar metrics & elements (85px height & px-11 padding unified with TikTok)
+    const statusBar = wrapper.find('.status-bar-container');
+    expect(statusBar.exists()).toBe(true);
+    expect(statusBar.classes()).toContain('h-[85px]');
+    expect(statusBar.classes()).toContain('px-11');
     expect(wrapper.text()).toContain('9:41');
     expect(wrapper.find('.status-icons').exists()).toBe(true);
 
