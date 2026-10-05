@@ -95,6 +95,10 @@ describe('TikTokSafeZoneOverlay Component', () => {
     expect(avatarContainer.classes()).toContain('w-[118px]');
     expect(avatarContainer.classes()).toContain('h-[118px]');
 
+    const avatarImg = wrapper.find('img[alt="creator avatar"]');
+    expect(avatarImg.exists()).toBe(true);
+    expect(avatarImg.attributes('src')).toBe('/favicon.svg');
+
     const followBtn = wrapper.find('img[alt="follow button"]');
     expect(followBtn.exists()).toBe(true);
     expect(followBtn.classes()).toContain('w-[46px]');

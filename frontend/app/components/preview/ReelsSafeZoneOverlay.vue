@@ -192,12 +192,12 @@
           <div class="creator-row flex items-center gap-3.5">
             <!-- Avatar (Clean circular profile picture) -->
             <div
-              class="avatar-container w-[92px] h-[92px] rounded-full overflow-hidden shrink-0 flex items-center justify-center bg-neutral-800 border-[2px] border-white/20"
+              class="avatar-container w-[72px] h-[72px] rounded-full overflow-hidden shrink-0 flex items-center justify-center bg-[#09090B] border-[2px] border-white/20 p-2.5"
             >
               <img
                 :src="displayAvatar"
                 alt="creator avatar"
-                class="w-full h-full object-cover"
+                class="w-full h-full object-contain"
                 crossorigin="anonymous"
                 @error="onAvatarError"
               />
@@ -378,7 +378,7 @@
             class="reels-audio-square relative w-[68px] h-[68px] rounded-[13px] border-[2.5px] border-white overflow-hidden mt-0.5 bg-neutral-900 flex items-center justify-center"
           >
             <img
-              :src="displayAvatar"
+              :src="displayAudioCover"
               alt="audio thumbnail"
               class="w-full h-full object-cover"
               crossorigin="anonymous"
@@ -431,8 +431,7 @@ const state = useClipperState();
 
 const avatarFallback = ref(false);
 
-const fallbackAvatar =
-  'https://p16-common-sign.tiktokcdn.com/tos-alisg-avt-0068/d7f7b88ae256b2b09fd043a8bea92472~tplv-tiktokx-cropcenter:720:720.jpeg?dr=14579&refresh_token=42351ee0&x-expires=1791025200&x-signature=CIGbvjRlAwCvlcWIUhMtuMXlXUo%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=my2';
+const yonruLogo = '/favicon.svg';
 
 // Dynamic Data Resolution
 const progressPercent = computed(() => {
@@ -460,9 +459,13 @@ const displayCaption = computed(() => {
 });
 
 const displayAvatar = computed(() => {
-  if (avatarFallback.value) return fallbackAvatar;
+  if (avatarFallback.value) return yonruLogo;
   if (props.avatarUrl) return props.avatarUrl;
-  return state.activeHook?.value?.thumbnail_url || fallbackAvatar;
+  return yonruLogo;
+});
+
+const displayAudioCover = computed(() => {
+  return state.activeHook?.value?.thumbnail_url || yonruLogo;
 });
 
 const displaySoundTitle = computed(() => {

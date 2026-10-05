@@ -96,6 +96,7 @@ describe('ReelsSafeZoneOverlay Component', () => {
 
     const avatar = wrapper.find('img[alt="creator avatar"]');
     expect(avatar.exists()).toBe(true);
+    expect(avatar.attributes('src')).toBe('/favicon.svg');
 
     const followBtn = wrapper.find('.reels-follow-btn');
     expect(followBtn.exists()).toBe(true);

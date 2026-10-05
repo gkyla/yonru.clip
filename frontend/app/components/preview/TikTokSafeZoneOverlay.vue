@@ -250,13 +250,17 @@
         >
           <!-- Avatar Container (118px calibrated to Vivo V29) -->
           <div class="avatar-container relative w-[118px] h-[118px] mb-1">
-            <img
-              :src="displayAvatar"
-              alt="creator avatar"
-              class="avatar w-full h-full rounded-full border-[3px] border-white object-cover bg-neutral-800"
-              crossorigin="anonymous"
-              @error="onAvatarError"
-            />
+            <div
+              class="w-full h-full rounded-full border-[3px] border-white overflow-hidden bg-[#09090B] flex items-center justify-center p-4"
+            >
+              <img
+                :src="displayAvatar"
+                alt="creator avatar"
+                class="avatar w-full h-full object-contain"
+                crossorigin="anonymous"
+                @error="onAvatarError"
+              />
+            </div>
             <!-- Follow Button (Red circle with authentic white plus) -->
             <img
               :src="followBtnSrc"
@@ -377,7 +381,7 @@
               class="w-[52px] h-[52px] rounded-full overflow-hidden bg-black flex items-center justify-center"
             >
               <img
-                :src="displayAvatar"
+                :src="displayAudioCover"
                 alt="sound cover"
                 class="w-full h-full object-cover"
                 crossorigin="anonymous"
@@ -441,8 +445,7 @@ const followBtnSrc =
 const interactionSrc =
   'https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/ies/creator_center/static/image/interaction.6ba1e539.png';
 
-const fallbackAvatar =
-  'https://p16-common-sign.tiktokcdn.com/tos-alisg-avt-0068/d7f7b88ae256b2b09fd043a8bea92472~tplv-tiktokx-cropcenter:720:720.jpeg?dr=14579&refresh_token=42351ee0&x-expires=1791025200&x-signature=CIGbvjRlAwCvlcWIUhMtuMXlXUo%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=my2';
+const yonruLogo = '/favicon.svg';
 
 // Dynamic Data Resolution
 const progressPercent = computed(() => {
@@ -470,9 +473,13 @@ const displayCaption = computed(() => {
 });
 
 const displayAvatar = computed(() => {
-  if (avatarFallback.value) return fallbackAvatar;
+  if (avatarFallback.value) return yonruLogo;
   if (props.avatarUrl) return props.avatarUrl;
-  return state.activeHook?.value?.thumbnail_url || fallbackAvatar;
+  return yonruLogo;
+});
+
+const displayAudioCover = computed(() => {
+  return state.activeHook?.value?.thumbnail_url || yonruLogo;
 });
 
 const displaySoundTitle = computed(() => {
