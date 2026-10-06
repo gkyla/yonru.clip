@@ -121,7 +121,7 @@ The visual presentation applied to the letterbox padding zones above and below h
 _Avoid_: Background color, bar blur, letterbox style, pad blur.
 
 **Platform Safe Zone Overlay**:
-The realistic platform simulation layer (such as TikTok) rendered directly over the 1080x1920 canvas in Video Preview, reproducing native mobile UI elements (status bar, interaction controls, creator metadata, and audio ticker) to verify visual occlusion, safe zone boundaries, and caption readability without modifying final rendered media.
+The realistic platform simulation layer (such as TikTok, Instagram Reels, or YouTube Shorts) rendered directly over the 1080x1920 canvas in Video Preview, reproducing native mobile UI elements (status bar, navigation header, interaction controls, creator metadata, and audio ticker) to verify visual occlusion, safe zone boundaries, and caption readability without modifying final rendered media.
 _Avoid_: Deadzone box, safe zone grid, mock overlay, fake tiktok, watermarked player
 
 
