@@ -23,10 +23,10 @@ describe('YouTubeShortsSafeZoneOverlay Component', () => {
     expect(wrapper.attributes('style')).toContain('opacity: 0.85');
   });
 
-  it('renders authentic 1:1 vector status bar and YouTube Shorts top navigation header', () => {
+  it('renders authentic 1:1 vector status bar, Shorts brand title, and category chips carousel', () => {
     const wrapper = mount(YouTubeShortsSafeZoneOverlay);
 
-    // Status bar metrics & elements (85px height unified across platforms)
+    // Status bar metrics & elements
     const statusBar = wrapper.find('.status-bar-container');
     expect(statusBar.exists()).toBe(true);
     expect(statusBar.classes()).toContain('h-[85px]');
@@ -34,16 +34,23 @@ describe('YouTubeShortsSafeZoneOverlay Component', () => {
     expect(wrapper.text()).toContain('9:41');
     expect(wrapper.find('.status-icons').exists()).toBe(true);
 
-    // Top Navigation header & controls (115px height, total 200px)
+    // Top Navigation header & controls ("Shorts" title, speaker, search, 3-dots)
     const headerNav = wrapper.find('.shorts-nav-bar-container');
     expect(headerNav.exists()).toBe(true);
-    expect(headerNav.classes()).toContain('h-[115px]');
-    expect(wrapper.find('.shorts-camera-button').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Shorts');
+    expect(wrapper.find('.shorts-speaker-button').exists()).toBe(true);
     expect(wrapper.find('.shorts-search-button').exists()).toBe(true);
     expect(wrapper.find('.shorts-more-button').exists()).toBe(true);
+
+    // Category Carousel Chips (Option A)
+    const chipsCarousel = wrapper.find('.shorts-chips-carousel');
+    expect(chipsCarousel.exists()).toBe(true);
+    expect(wrapper.text()).toContain('Subscription');
+    expect(wrapper.text()).toContain('Live');
+    expect(wrapper.text()).toContain('Lens');
   });
 
-  it('dynamically renders active hook theme and video title in channel metadata', () => {
+  it('dynamically renders active hook theme and video title in channel metadata with modern white subscribe pill', () => {
     const state = useClipperState();
     state.activeHook.value = {
       theme: 'Trik Psikologi Bicara Depan Umum',
@@ -55,11 +62,15 @@ describe('YouTubeShortsSafeZoneOverlay Component', () => {
     const wrapper = mount(YouTubeShortsSafeZoneOverlay);
 
     expect(wrapper.text()).toContain('Trik Psikologi Bicara Depan Umum');
-    expect(wrapper.text()).toContain(
-      'Original audio - Public Speaking Masterclass'
-    );
+    expect(wrapper.text()).toContain('Surface • Public Speaking Masterclass');
     expect(wrapper.find('.channel-handle').text()).toBe('@yonru.clip');
-    expect(wrapper.find('.subscribe-button').text()).toBe('Subscribe');
+
+    // Modern White Subscribe Pill Button
+    const subscribeBtn = wrapper.find('.subscribe-button');
+    expect(subscribeBtn.exists()).toBe(true);
+    expect(subscribeBtn.classes()).toContain('bg-white');
+    expect(subscribeBtn.classes()).toContain('text-black');
+    expect(subscribeBtn.text()).toBe('Subscribe');
   });
 
   it('prefers custom prop overrides over state defaults', () => {
@@ -69,10 +80,10 @@ describe('YouTubeShortsSafeZoneOverlay Component', () => {
         caption: '5 Tips Menguasai Algoritma YouTube Shorts 🚀',
         soundTitle: 'Audio Asli - Creator Space',
         subscribeText: 'Langganan',
-        likes: '250 rb',
-        dislikesText: 'Tidak suka',
-        comments: '3.890',
-        shareText: 'Bagikan',
+        likes: '95 rb',
+        comments: '4.120',
+        saveText: 'Saved',
+        shareText: 'Bagi',
         remixText: 'Remix',
         progress: 60
       }
@@ -84,31 +95,43 @@ describe('YouTubeShortsSafeZoneOverlay Component', () => {
     );
     expect(wrapper.text()).toContain('Audio Asli - Creator Space');
     expect(wrapper.find('.subscribe-button').text()).toBe('Langganan');
-    expect(wrapper.text()).toContain('250 rb');
-    expect(wrapper.text()).toContain('Tidak suka');
-    expect(wrapper.text()).toContain('3.890');
-    expect(wrapper.text()).toContain('Bagikan');
+    expect(wrapper.text()).toContain('95 rb');
+    expect(wrapper.text()).toContain('4.120');
+    expect(wrapper.text()).toContain('Saved');
+    expect(wrapper.text()).toContain('Bagi');
 
     const progressBarFill = wrapper.find('.shorts-progress-bar div');
     expect(progressBarFill.attributes('style')).toContain('width: 60%');
   });
 
-  it('renders iconic right action rail stack with 6 interaction items', () => {
+  it('renders modern 1:1 right action rail stack with 6 interaction items matching mobile screenshot', () => {
     const wrapper = mount(YouTubeShortsSafeZoneOverlay);
 
-    // Verify 5 Action buttons (Thumbs Up, Dislike, Comment, Share, Remix)
-    const actionItems = wrapper.findAll('.overlay-sidebar .action-item');
-    expect(actionItems.length).toBe(5);
+    // Verify 5 Action buttons (Heart, Comment, Simpan, Bagikan, Remix)
+    const heartAction = wrapper.find('.heart-action');
+    expect(heartAction.exists()).toBe(true);
+    expect(wrapper.text()).toContain('84 rb');
 
-    expect(wrapper.text()).toContain('120 rb');
-    expect(wrapper.text()).toContain('Dislike');
-    expect(wrapper.text()).toContain('1.428');
-    expect(wrapper.text()).toContain('Share');
+    const commentAction = wrapper.find('.comment-action');
+    expect(commentAction.exists()).toBe(true);
+    expect(wrapper.text()).toContain('3.621');
+
+    const saveAction = wrapper.find('.save-action');
+    expect(saveAction.exists()).toBe(true);
+    expect(wrapper.text()).toContain('Simpan');
+
+    const shareAction = wrapper.find('.share-action');
+    expect(shareAction.exists()).toBe(true);
+    expect(wrapper.text()).toContain('Bagikan');
+
+    const remixAction = wrapper.find('.remix-action');
+    expect(remixAction.exists()).toBe(true);
     expect(wrapper.text()).toContain('Remix');
 
-    // Verify Audio Cover Box exists
+    // Verify Audio Cover Box exists and is calibrated with rounded squircle
     const audioCoverBox = wrapper.find('.audio-cover-box');
     expect(audioCoverBox.exists()).toBe(true);
+    expect(audioCoverBox.classes()).toContain('rounded-[22px]');
     expect(audioCoverBox.find('img').exists()).toBe(true);
   });
 

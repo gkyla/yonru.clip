@@ -5,17 +5,17 @@
   >
     <!-- Subtle Contrast Vignettes (Top & Bottom) -->
     <div
-      class="absolute top-0 inset-x-0 h-[260px] bg-gradient-to-b from-black/75 via-black/25 to-transparent pointer-events-none"
+      class="absolute top-0 inset-x-0 h-[280px] bg-gradient-to-b from-black/80 via-black/30 to-transparent pointer-events-none"
     ></div>
     <div
       class="absolute bottom-0 inset-x-0 h-[520px] bg-gradient-to-t from-black/85 via-black/40 to-transparent pointer-events-none"
     ></div>
 
-    <!-- Header Title Area (Status Bar & Top Navigation Bar calibrated 1:1 for 1080x1920 canvas) -->
+    <!-- Header Title Area (Status Bar, Top Controls & Category Chips calibrated 1:1) -->
     <header
-      class="shorts-header-container w-full flex flex-col items-center shrink-0 z-10 pointer-events-none pt-3"
+      class="shorts-header-container w-full flex flex-col items-center shrink-0 z-10 pointer-events-none pt-3 gap-2"
     >
-      <!-- Tier 1: Authentic Mobile Status Bar (85px height calibrated to standard mobile) -->
+      <!-- Tier 1: Authentic Mobile Status Bar (85px height calibrated to Vivo V29 & unified across platforms) -->
       <div
         class="status-bar-container w-full h-[85px] px-11 flex items-center justify-between pointer-events-none select-none"
       >
@@ -87,38 +87,46 @@
         </div>
       </div>
 
-      <!-- Tier 2: YouTube Shorts Top Navigation Bar (115px height, Total Top 200px) -->
+      <!-- Tier 2: YouTube Shorts Top Navigation Bar ("Shorts" + Speaker + Search + 3-dots) -->
       <div
-        class="shorts-nav-bar-container w-full h-[115px] px-11 flex items-center justify-between pointer-events-none select-none"
+        class="shorts-nav-bar-container w-full h-[95px] px-11 flex items-center justify-between pointer-events-none select-none"
       >
-        <!-- Left: Camera Button (Create Shorts) -->
-        <div
-          class="shorts-camera-button flex items-center justify-center cursor-pointer"
-        >
-          <svg
-            class="w-[48px] h-[48px] text-white"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+        <!-- Left: "Shorts" Bold Header Title -->
+        <div class="shorts-title-brand flex items-center">
+          <span
+            class="text-[52px] font-bold text-white tracking-tight drop-shadow-md"
           >
-            <path
-              d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
-            />
-            <circle cx="12" cy="13" r="3" />
-          </svg>
+            Shorts
+          </span>
         </div>
 
-        <!-- Right Action Group: Search & More 3-dots -->
+        <!-- Right Action Group: Speaker Mute + Search + More Options (3-dots) -->
         <div class="header-right-actions flex items-center gap-7 text-white">
+          <!-- Audio / Speaker Toggle Button -->
+          <div
+            class="shorts-speaker-button flex items-center justify-center cursor-pointer"
+          >
+            <svg
+              class="w-[48px] h-[48px] text-white drop-shadow-md"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+            </svg>
+          </div>
+
           <!-- Search Icon Button -->
           <div
             class="shorts-search-button flex items-center justify-center cursor-pointer"
           >
             <svg
-              class="w-[46px] h-[46px]"
+              class="w-[46px] h-[46px] text-white drop-shadow-md"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -136,15 +144,79 @@
             class="shorts-more-button flex items-center justify-center cursor-pointer"
           >
             <svg
-              class="w-[46px] h-[46px]"
+              class="w-[46px] h-[46px] text-white drop-shadow-md"
               viewBox="0 0 24 24"
               fill="currentColor"
             >
-              <circle cx="12" cy="5" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="12" cy="19" r="2" />
+              <circle cx="12" cy="5" r="2.2" />
+              <circle cx="12" cy="12" r="2.2" />
+              <circle cx="12" cy="19" r="2.2" />
             </svg>
           </div>
+        </div>
+      </div>
+
+      <!-- Tier 3: Category Carousel Chips Bar ([Subscription], [Live], [Lens]) (Option A) -->
+      <div
+        class="shorts-chips-carousel w-full px-11 flex items-center gap-3 overflow-hidden pointer-events-none select-none pt-1"
+      >
+        <!-- Subscription Chip -->
+        <div
+          class="chip-item flex items-center gap-2.5 px-5 py-2 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white shadow-sm"
+        >
+          <!-- Subscription Play Box Icon -->
+          <svg
+            class="w-[28px] h-[28px]"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path
+              d="M20 7H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zm-10 9V11l5 2.5-5 2.5z"
+            />
+          </svg>
+          <span class="text-[26px] font-semibold text-white/95"
+            >Subscription</span
+          >
+        </div>
+
+        <!-- Live Chip -->
+        <div
+          class="chip-item flex items-center gap-2.5 px-5 py-2 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white shadow-sm"
+        >
+          <!-- Live ((•)) Broadcast Icon -->
+          <svg
+            class="w-[28px] h-[28px]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+          >
+            <path
+              d="M4.93 4.93a10 10 0 0 0 0 14.14M19.07 4.93a10 10 0 0 1 0 14.14M7.76 7.76a6 6 0 0 0 0 8.48M16.24 7.76a6 6 0 0 1 0 8.48M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"
+            />
+          </svg>
+          <span class="text-[26px] font-semibold text-white/95">Live</span>
+        </div>
+
+        <!-- Lens Chip -->
+        <div
+          class="chip-item flex items-center gap-2.5 px-5 py-2 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white shadow-sm"
+        >
+          <!-- Google Lens Camera Icon -->
+          <svg
+            class="w-[28px] h-[28px]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+          >
+            <path
+              d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"
+              stroke-linecap="round"
+            />
+            <circle cx="12" cy="12" r="3.5" />
+          </svg>
+          <span class="text-[26px] font-semibold text-white/95">Lens</span>
         </div>
       </div>
     </header>
@@ -158,9 +230,9 @@
       >
         <!-- Bottom Left: Channel Metadata & Title/Sound Info -->
         <div
-          class="meta-data max-w-[760px] flex flex-col gap-3.5 text-white z-10"
+          class="meta-data max-w-[760px] flex flex-col gap-3 text-white z-10"
         >
-          <!-- Creator Channel & Subscribe Row -->
+          <!-- Creator Channel & Modern White Subscribe Button Row -->
           <div class="channel-info-row flex items-center gap-3.5">
             <!-- Channel Avatar (calibrated with Yonru logo fallback) -->
             <div class="avatar-container relative w-[76px] h-[76px] shrink-0">
@@ -184,9 +256,9 @@
               {{ displayUsername }}
             </div>
 
-            <!-- Authentic Red Subscribe Pill Button -->
+            <!-- Authentic Modern White Subscribe Pill Button -->
             <div
-              class="subscribe-button px-5 py-2.5 rounded-full bg-[#CC0000] text-white text-[26px] font-bold tracking-wide shadow-lg flex items-center justify-center shrink-0 cursor-pointer"
+              class="subscribe-button px-5 py-2 rounded-full bg-white text-black text-[26px] font-bold tracking-tight shadow-md flex items-center justify-center shrink-0 cursor-pointer"
             >
               {{ displaySubscribeText }}
             </div>
@@ -199,51 +271,47 @@
             {{ displayCaption }}
           </div>
 
-          <!-- Sound / Audio Tag Track -->
+          <!-- Modern Translucent Audio Pill Tag (♪ Surface • Aero Chord) -->
           <div
-            class="sound-container flex items-center gap-3 text-[30px] font-medium text-white/90 drop-shadow-md"
+            class="sound-pill-container inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90 drop-shadow-md max-w-[560px] w-fit"
           >
             <!-- Music Note Icon -->
             <div
               class="music-icon shrink-0 text-white flex items-center justify-center"
             >
               <svg
-                class="w-[30px] h-[30px]"
+                class="w-[26px] h-[26px]"
                 viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.4"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                fill="currentColor"
               >
-                <path d="M9 18V5l12-2v13" />
-                <circle cx="6" cy="18" r="3" />
-                <circle cx="18" cy="16" r="3" />
+                <path
+                  d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"
+                />
               </svg>
             </div>
 
-            <!-- Sound Title (Scrolling / Truncated) -->
+            <!-- Sound Title (Truncated) -->
             <div
-              class="sound-title overflow-hidden w-[540px] whitespace-nowrap relative"
+              class="sound-title overflow-hidden whitespace-nowrap text-[26px] font-medium text-white/95"
             >
               <span class="truncate block">{{ displaySoundTitle }}</span>
             </div>
           </div>
         </div>
 
-        <!-- Bottom Right: YouTube Shorts Action Rail Stack (Thumbs Up, Dislike, Comments, Share, Remix, Audio Cover) -->
+        <!-- Bottom Right: Modern Action Rail Stack (Heart, Comment, Simpan, Bagikan, Remix, Audio Cover) -->
         <div
-          class="overlay-sidebar flex flex-col items-center gap-[30px] z-10 shrink-0 pb-1"
+          class="overlay-sidebar flex flex-col items-center gap-[28px] z-10 shrink-0 pb-1"
         >
-          <!-- 1. Like Button (Thumbs Up) -->
+          <!-- 1. Heart (Like) Button -->
           <div
-            class="action-item flex flex-col items-center gap-1.5 cursor-pointer"
+            class="action-item heart-action flex flex-col items-center gap-1 cursor-pointer"
           >
             <div
               class="icon-wrapper w-[64px] h-[64px] flex items-center justify-center"
             >
               <svg
-                class="w-[52px] h-[52px] text-white drop-shadow-md"
+                class="w-[54px] h-[54px] text-white drop-shadow-md"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -252,7 +320,7 @@
                 stroke-linejoin="round"
               >
                 <path
-                  d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"
+                  d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
                 />
               </svg>
             </div>
@@ -263,37 +331,9 @@
             </span>
           </div>
 
-          <!-- 2. Dislike Button (Thumbs Down) -->
+          <!-- 2. Comment Button (with 2 inner horizontal lines) -->
           <div
-            class="action-item flex flex-col items-center gap-1.5 cursor-pointer"
-          >
-            <div
-              class="icon-wrapper w-[64px] h-[64px] flex items-center justify-center"
-            >
-              <svg
-                class="w-[52px] h-[52px] text-white drop-shadow-md"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"
-                />
-              </svg>
-            </div>
-            <span
-              class="action-label text-[24px] font-semibold text-white tracking-tight drop-shadow-md"
-            >
-              {{ displayDislikesText }}
-            </span>
-          </div>
-
-          <!-- 3. Comments Button -->
-          <div
-            class="action-item flex flex-col items-center gap-1.5 cursor-pointer"
+            class="action-item comment-action flex flex-col items-center gap-1 cursor-pointer"
           >
             <div
               class="icon-wrapper w-[64px] h-[64px] flex items-center justify-center"
@@ -310,6 +350,8 @@
                 <path
                   d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
                 />
+                <line x1="8" y1="8" x2="16" y2="8" stroke-width="2.2" />
+                <line x1="8" y1="12" x2="13" y2="12" stroke-width="2.2" />
               </svg>
             </div>
             <span
@@ -319,9 +361,35 @@
             </span>
           </div>
 
-          <!-- 4. Share Button -->
+          <!-- 3. Simpan / Bookmark Button -->
           <div
-            class="action-item flex flex-col items-center gap-1.5 cursor-pointer"
+            class="action-item save-action flex flex-col items-center gap-1 cursor-pointer"
+          >
+            <div
+              class="icon-wrapper w-[64px] h-[64px] flex items-center justify-center"
+            >
+              <svg
+                class="w-[52px] h-[52px] text-white drop-shadow-md"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <span
+              class="action-label text-[24px] font-semibold text-white tracking-tight drop-shadow-md"
+            >
+              {{ displaySaveText }}
+            </span>
+          </div>
+
+          <!-- 4. Bagikan / Share Button -->
+          <div
+            class="action-item share-action flex flex-col items-center gap-1 cursor-pointer"
           >
             <div
               class="icon-wrapper w-[64px] h-[64px] flex items-center justify-center"
@@ -346,9 +414,9 @@
             </span>
           </div>
 
-          <!-- 5. Remix Button -->
+          <!-- 5. Remix Button (Circular loop cycle arrows) -->
           <div
-            class="action-item flex flex-col items-center gap-1.5 cursor-pointer"
+            class="action-item remix-action flex flex-col items-center gap-1 cursor-pointer"
           >
             <div
               class="icon-wrapper w-[64px] h-[64px] flex items-center justify-center"
@@ -362,11 +430,10 @@
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
-                <polyline points="16 3 21 3 21 8" />
-                <line x1="4" y1="20" x2="21" y2="3" />
-                <polyline points="21 16 21 21 16 21" />
-                <line x1="15" y1="15" x2="21" y2="21" />
-                <line x1="4" y1="4" x2="9" y2="9" />
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <polyline points="3 3 3 8 8 8" />
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                <polyline points="16 16 21 16 21 21" />
               </svg>
             </div>
             <span
@@ -376,21 +443,21 @@
             </span>
           </div>
 
-          <!-- 6. Audio Thumbnail Box -->
+          <!-- 6. Audio Thumbnail Box (Rounded squircle container calibrated to YouTube Shorts) -->
           <div
-            class="audio-cover-box relative w-[72px] h-[72px] rounded-xl overflow-hidden border-[2.5px] border-white/80 bg-[#09090B] flex items-center justify-center shadow-lg mt-1"
+            class="audio-cover-box relative w-[76px] h-[76px] rounded-[22px] overflow-hidden border-[3px] border-white/90 bg-[#09090B] flex items-center justify-center shadow-lg mt-1"
           >
             <img
               :src="displayAudioCover"
               alt="audio track thumbnail"
-              class="w-full h-full object-cover"
+              class="w-full h-full object-cover rounded-[18px]"
               crossorigin="anonymous"
             />
           </div>
         </div>
       </div>
 
-      <!-- Tier 3: Signature YouTube Red Scrubber Progress Line (4px height) -->
+      <!-- Tier 4: Signature YouTube Red Scrubber Progress Line (4px height) -->
       <div
         class="shorts-progress-bar w-full h-[5px] bg-white/25 relative overflow-hidden pointer-events-none"
       >
@@ -421,8 +488,8 @@ interface Props {
   avatarUrl?: string;
   progress?: number;
   likes?: string;
-  dislikesText?: string;
   comments?: string;
+  saveText?: string;
   shareText?: string;
   remixText?: string;
   subscribeText?: string;
@@ -435,10 +502,10 @@ const props = withDefaults(defineProps<Props>(), {
   soundTitle: '',
   avatarUrl: '',
   progress: undefined,
-  likes: '120 rb',
-  dislikesText: 'Dislike',
-  comments: '1.428',
-  shareText: 'Share',
+  likes: '84 rb',
+  comments: '3.621',
+  saveText: 'Simpan',
+  shareText: 'Bagikan',
   remixText: 'Remix',
   subscribeText: 'Subscribe'
 });
@@ -465,9 +532,9 @@ const displayCaption = computed(() => {
   if (props.caption) return props.caption;
   const theme = state.activeHook?.value?.theme;
   if (theme) {
-    return `${theme} #shorts #viral #yonruclip`;
+    return `"${theme}" #pcgaming #benchmark #shorts #yonruclip`;
   }
-  return 'Rahasia Meningkatkan Fokus dan Produktivitas Otak #shorts #tips #fokus';
+  return 'And yes my school pc indeed has a flipping RTX 3060 #pcgaming #benchmark #shorts';
 });
 
 const displayAvatar = computed(() => {
@@ -482,14 +549,17 @@ const displayAudioCover = computed(() => {
 
 const displaySoundTitle = computed(() => {
   if (props.soundTitle) return props.soundTitle;
-  const rawTitle = state.videoTitle?.value || 'yonru.clip';
-  return `Original audio - ${rawTitle}`;
+  const rawTitle = state.videoTitle?.value;
+  if (rawTitle) {
+    return `Surface • ${rawTitle}`;
+  }
+  return 'Surface • Aero Chord';
 });
 
-const displayLikes = computed(() => props.likes || '120 rb');
-const displayDislikesText = computed(() => props.dislikesText || 'Dislike');
-const displayComments = computed(() => props.comments || '1.428');
-const displayShareText = computed(() => props.shareText || 'Share');
+const displayLikes = computed(() => props.likes || '84 rb');
+const displayComments = computed(() => props.comments || '3.621');
+const displaySaveText = computed(() => props.saveText || 'Simpan');
+const displayShareText = computed(() => props.shareText || 'Bagikan');
 const displayRemixText = computed(() => props.remixText || 'Remix');
 const displaySubscribeText = computed(() => props.subscribeText || 'Subscribe');
 
