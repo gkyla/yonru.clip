@@ -124,6 +124,10 @@ _Avoid_: Background color, bar blur, letterbox style, pad blur.
 The realistic platform simulation layer (such as TikTok, Instagram Reels, or YouTube Shorts) rendered directly over the 1080x1920 canvas in Video Preview, reproducing native mobile UI elements (status bar, navigation header, interaction controls, creator metadata, and audio ticker) to verify visual occlusion, safe zone boundaries, and caption readability without modifying final rendered media.
 _Avoid_: Deadzone box, safe zone grid, mock overlay, fake tiktok, watermarked player
 
+**Canvas Snapping Guides**:
+Transient visual alignment axes and safe zone boundary lines rendered dynamically during drag-and-drop manipulation of Timeline Text Overlays and Cover Slide text, magnetically snapping text coordinates to canvas centers and platform-safe margins to prevent UI occlusion.
+_Avoid_: Static grid, magnet lines, drag ruler, alignment mesh
+
 
 **Preset Studio Viewport**:
 The cinematic live preview canvas within the active subtitle preset card that renders real-time typography, highlight effects, stroke, and background treatments against a dark studio backdrop simulating actual video output.

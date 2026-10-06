@@ -263,4 +263,41 @@ describe('VideoPreview Component', () => {
     expect(shortsOverlay.exists()).toBe(true);
     expect(shortsOverlay.props('opacity')).toBe(85);
   });
+
+  it('renders dynamic Canvas Snapping Guides SVG lines when snapping is active', async () => {
+    const snapping = useSnappingGuides();
+    snapping.isSnappingEnabled.value = true;
+    snapping.activeGuides.value = {
+      vertical: { position: 540, type: 'center' },
+      horizontal: { position: 1470, type: 'safe' }
+    };
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    const guidesSvg = wrapper.find('[data-testid="canvas-snapping-guides"]');
+    expect(guidesSvg.exists()).toBe(true);
+
+    const verticalLine = guidesSvg.find('line[data-guide="vertical"]');
+    expect(verticalLine.exists()).toBe(true);
+    expect(verticalLine.attributes('stroke')).toBe('#06b6d4');
+
+    const horizontalLine = guidesSvg.find('line[data-guide="horizontal"]');
+    expect(horizontalLine.exists()).toBe(true);
+    expect(horizontalLine.attributes('stroke')).toBe('#ffd700');
+  });
 });

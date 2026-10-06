@@ -1,10 +1,11 @@
-// useInteractiveText.ts - Encapsulates dynamic web font preloading, Konva stage text transformations, and contenteditable HTML inputs
 import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { useClipperState } from './useClipperState';
+import { useSnappingGuides } from './useSnappingGuides';
 import { getEditingStyle } from '../utils/styleHelpers';
 
 export const useInteractiveText = (transformerRef: { value: any }) => {
   const state = useClipperState();
+  const snapping = useSnappingGuides();
 
   // Font loading sync
   const fontsLoaded = ref(0);
@@ -68,9 +69,29 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     );
   });
 
+  function onTextDragMove(e: any, _item: any) {
+    const node = e.target;
+    const isAltPressed = !!(
+      e.evt &&
+      (e.evt.altKey || e.evt.metaKey || (e.evt as MouseEvent).altKey)
+    );
+    const { snappedX, snappedY } = snapping.calculateSnap({
+      x: node.x(),
+      y: node.y(),
+      width: node.width(),
+      height: node.height(),
+      isCentered: true,
+      platform: state.activeSafeZone.value,
+      isAltPressed
+    });
+    node.position({ x: snappedX, y: snappedY });
+  }
+
   function onTextDragEnd(e: any, item: any) {
     item.x = Math.round(e.target.x());
     item.y = Math.round(e.target.y());
+    snapping.clearGuides();
+    state.saveTimelineTracks();
   }
 
   function isCurrentItemActive(item: any) {
@@ -228,7 +249,9 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     originalContent,
     editingInputRef,
     setEditingInputRef,
+    onTextDragMove,
     onTextDragEnd,
+    snapping,
     updateTransformer,
     handleTransform,
     onLabelRender,
