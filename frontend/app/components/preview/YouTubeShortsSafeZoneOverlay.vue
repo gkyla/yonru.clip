@@ -158,15 +158,15 @@
 
       <!-- Tier 3: Category Carousel Chips Bar ([Subscription], [Live], [Lens]) (Option A) -->
       <div
-        class="shorts-chips-carousel w-full px-11 flex items-center gap-3 overflow-hidden pointer-events-none select-none pt-1"
+        class="shorts-chips-carousel w-full px-11 flex items-center gap-3.5 overflow-hidden pointer-events-none select-none pt-2"
       >
         <!-- Subscription Chip -->
         <div
-          class="chip-item flex items-center gap-2.5 px-5 py-2 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white shadow-sm"
+          class="chip-item flex items-center gap-3 h-[76px] px-6 rounded-full bg-black/45 backdrop-blur-md border border-white/25 text-white shadow-md shrink-0"
         >
           <!-- Subscription Play Box Icon -->
           <svg
-            class="w-[28px] h-[28px]"
+            class="w-[34px] h-[34px]"
             viewBox="0 0 24 24"
             fill="currentColor"
           >
@@ -174,18 +174,18 @@
               d="M20 7H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zm-10 9V11l5 2.5-5 2.5z"
             />
           </svg>
-          <span class="text-[26px] font-semibold text-white/95"
+          <span class="text-[30px] font-semibold text-white/95 tracking-tight"
             >Subscription</span
           >
         </div>
 
         <!-- Live Chip -->
         <div
-          class="chip-item flex items-center gap-2.5 px-5 py-2 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white shadow-sm"
+          class="chip-item flex items-center gap-3 h-[76px] px-6 rounded-full bg-black/45 backdrop-blur-md border border-white/25 text-white shadow-md shrink-0"
         >
           <!-- Live ((•)) Broadcast Icon -->
           <svg
-            class="w-[28px] h-[28px]"
+            class="w-[34px] h-[34px]"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -195,16 +195,18 @@
               d="M4.93 4.93a10 10 0 0 0 0 14.14M19.07 4.93a10 10 0 0 1 0 14.14M7.76 7.76a6 6 0 0 0 0 8.48M16.24 7.76a6 6 0 0 1 0 8.48M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"
             />
           </svg>
-          <span class="text-[26px] font-semibold text-white/95">Live</span>
+          <span class="text-[30px] font-semibold text-white/95 tracking-tight"
+            >Live</span
+          >
         </div>
 
         <!-- Lens Chip -->
         <div
-          class="chip-item flex items-center gap-2.5 px-5 py-2 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white shadow-sm"
+          class="chip-item flex items-center gap-3 h-[76px] px-6 rounded-full bg-black/45 backdrop-blur-md border border-white/25 text-white shadow-md shrink-0"
         >
           <!-- Google Lens Camera Icon -->
           <svg
-            class="w-[28px] h-[28px]"
+            class="w-[34px] h-[34px]"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -216,7 +218,9 @@
             />
             <circle cx="12" cy="12" r="3.5" />
           </svg>
-          <span class="text-[26px] font-semibold text-white/95">Lens</span>
+          <span class="text-[30px] font-semibold text-white/95 tracking-tight"
+            >Lens</span
+          >
         </div>
       </div>
     </header>
@@ -258,7 +262,7 @@
 
             <!-- Authentic Modern White Subscribe Pill Button -->
             <div
-              class="subscribe-button px-5 py-2 rounded-full bg-white text-black text-[26px] font-bold tracking-tight shadow-md flex items-center justify-center shrink-0 cursor-pointer"
+              class="subscribe-button h-[72px] px-7 rounded-full bg-white text-black text-[28px] font-bold tracking-tight shadow-md flex items-center justify-center shrink-0 cursor-pointer"
             >
               {{ displaySubscribeText }}
             </div>
@@ -273,14 +277,14 @@
 
           <!-- Modern Translucent Audio Pill Tag (♪ Surface • Aero Chord) -->
           <div
-            class="sound-pill-container inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90 drop-shadow-md max-w-[560px] w-fit"
+            class="sound-pill-container inline-flex items-center gap-3 h-[64px] px-5 rounded-full bg-black/40 backdrop-blur-md border border-white/15 text-white/90 drop-shadow-md max-w-[560px] w-fit"
           >
             <!-- Music Note Icon -->
             <div
               class="music-icon shrink-0 text-white flex items-center justify-center"
             >
               <svg
-                class="w-[26px] h-[26px]"
+                class="w-[28px] h-[28px]"
                 viewBox="0 0 24 24"
                 fill="currentColor"
               >
@@ -292,7 +296,7 @@
 
             <!-- Sound Title (Truncated) -->
             <div
-              class="sound-title overflow-hidden whitespace-nowrap text-[26px] font-medium text-white/95"
+              class="sound-title overflow-hidden whitespace-nowrap text-[28px] font-medium text-white/95"
             >
               <span class="truncate block">{{ displaySoundTitle }}</span>
             </div>

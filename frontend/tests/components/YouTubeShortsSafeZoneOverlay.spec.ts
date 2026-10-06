@@ -45,6 +45,7 @@ describe('YouTubeShortsSafeZoneOverlay Component', () => {
     // Category Carousel Chips (Option A)
     const chipsCarousel = wrapper.find('.shorts-chips-carousel');
     expect(chipsCarousel.exists()).toBe(true);
+    expect(chipsCarousel.find('.chip-item').classes()).toContain('h-[76px]');
     expect(wrapper.text()).toContain('Subscription');
     expect(wrapper.text()).toContain('Live');
     expect(wrapper.text()).toContain('Lens');
@@ -70,6 +71,7 @@ describe('YouTubeShortsSafeZoneOverlay Component', () => {
     expect(subscribeBtn.exists()).toBe(true);
     expect(subscribeBtn.classes()).toContain('bg-white');
     expect(subscribeBtn.classes()).toContain('text-black');
+    expect(subscribeBtn.classes()).toContain('h-[72px]');
     expect(subscribeBtn.text()).toBe('Subscribe');
   });
 
