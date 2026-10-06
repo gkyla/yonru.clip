@@ -187,7 +187,7 @@ function createClipperState() {
     'activeSafeZone',
     () => 'none'
   );
-  const safeZoneOpacity = useState<number>('safeZoneOpacity', () => 55);
+  const safeZoneOpacity = useState<number>('safeZoneOpacity', () => 100);
   const safeZoneColor = useState<string>('safeZoneColor', () => '#000000');
   const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
 

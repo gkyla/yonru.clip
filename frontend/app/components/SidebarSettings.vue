@@ -1501,7 +1501,7 @@
                       v-model.number="safeZoneOpacity"
                       type="range"
                       min="10"
-                      max="90"
+                      max="100"
                       step="5"
                       class="w-full accent-accent-500 h-1 bg-surface-border rounded-lg appearance-none cursor-pointer"
                     />
