@@ -233,4 +233,34 @@ describe('VideoPreview Component', () => {
     expect(reelsOverlay.exists()).toBe(true);
     expect(reelsOverlay.props('opacity')).toBe(70);
   });
+
+  it('renders realistic YouTubeShortsSafeZoneOverlay when activeSafeZone is set to shorts', async () => {
+    const state = useClipperState();
+    state.videoUrl.value = 'http://localhost:8000/sample.mp4';
+    state.activeSafeZone.value = 'shorts';
+    state.safeZoneOpacity.value = 85;
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    const shortsOverlay = wrapper.findComponent({
+      name: 'YouTubeShortsSafeZoneOverlay'
+    });
+    expect(shortsOverlay.exists()).toBe(true);
+    expect(shortsOverlay.props('opacity')).toBe(85);
+  });
 });

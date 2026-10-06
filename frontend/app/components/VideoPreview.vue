@@ -605,68 +605,11 @@
         :opacity="safeZoneOpacity"
       />
 
-      <!-- YouTube Shorts Overlay -->
-      <div
+      <!-- YouTube Shorts Safe Zone Simulation Overlay -->
+      <YouTubeShortsSafeZoneOverlay
         v-else-if="activeSafeZone === 'shorts'"
-        class="absolute inset-0 pointer-events-none z-[60] select-none"
-      >
-        <!-- Top Deadzone -->
-        <div
-          class="absolute top-0 left-0 right-0 h-[160px] border-b border-dashed border-white/20 flex items-center justify-center"
-          :style="{
-            backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100)
-          }"
-        >
-          <span
-            class="text-[20px] font-black tracking-widest text-white/70 uppercase relative transition-all translate-y-0"
-            :class="{
-              'translate-y-5':
-                (state.thumbnailEditMode.value || isInThumbnailWindow) &&
-                state.thumbnailUrl.value
-            }"
-            >Shorts Header Zone (160px)</span
-          >
-        </div>
-        <!-- Bottom Deadzone -->
-        <div
-          class="absolute bottom-0 left-0 right-0 h-[280px] border-t border-dashed border-white/20 flex items-center justify-center"
-          :style="{
-            backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100)
-          }"
-        >
-          <span
-            class="text-[20px] font-black tracking-widest text-white/70 uppercase"
-            >Shorts Info Area (280px)</span
-          >
-        </div>
-        <!-- Right Deadzone -->
-        <div
-          class="absolute top-[160px] bottom-[280px] right-0 w-[150px] border-l border-dashed border-white/20 flex items-center justify-center"
-          :style="{
-            backgroundColor: hexToRgba(safeZoneColor, safeZoneOpacity / 100)
-          }"
-        >
-          <span
-            class="text-[18px] font-black tracking-widest text-white/70 uppercase rotate-90 whitespace-nowrap"
-            >Shorts Controls (150px)</span
-          >
-        </div>
-        <!-- Left Buffer -->
-        <div
-          class="absolute top-[160px] bottom-[280px] left-0 w-[60px] border-r border-dashed border-white/10 flex items-center justify-center"
-          :style="{
-            backgroundColor: hexToRgba(
-              safeZoneColor,
-              (safeZoneOpacity * 0.55) / 100
-            )
-          }"
-        >
-          <span
-            class="text-[16px] font-black tracking-widest text-white/50 uppercase -rotate-90 whitespace-nowrap"
-            >Buffer (60px)</span
-          >
-        </div>
-      </div>
+        :opacity="safeZoneOpacity"
+      />
     </div>
   </div>
 </template>
@@ -682,6 +625,7 @@ import { transformText } from '../utils/styleHelpers';
 import RemotionPlayer from './RemotionPlayer.client.vue';
 import TikTokSafeZoneOverlay from './preview/TikTokSafeZoneOverlay.vue';
 import ReelsSafeZoneOverlay from './preview/ReelsSafeZoneOverlay.vue';
+import YouTubeShortsSafeZoneOverlay from './preview/YouTubeShortsSafeZoneOverlay.vue';
 
 const state = useClipperState();
 const { activeSafeZone, safeZoneOpacity, safeZoneColor } = state;
