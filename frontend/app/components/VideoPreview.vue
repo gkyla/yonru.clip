@@ -271,7 +271,7 @@
                   visible: editingItemId !== item.id
                 }"
                 @dragend="onTextDragEnd($event, item)"
-                @dragmove="onTextDragEnd($event, item)"
+                @dragmove="onTextDragMove($event, item)"
                 @transform="handleTransform($event, item)"
                 @click="selectItem(item)"
                 @tap="selectItem(item)"
@@ -428,6 +428,7 @@
                     @click="selectThumbnailOverlay(overlay)"
                     @tap="selectThumbnailOverlay(overlay)"
                     @dragstart="selectThumbnailOverlay(overlay)"
+                    @dragmove="onThumbnailLabelDragMove($event, overlay)"
                     @dragend="onThumbnailLabelDragEnd($event, overlay)"
                     @dblclick="startEditingThumbOverlay(overlay)"
                     @dbltap="startEditingThumbOverlay(overlay)"
@@ -610,6 +611,76 @@
         v-else-if="activeSafeZone === 'shorts'"
         :opacity="safeZoneOpacity"
       />
+
+      <!-- Canvas Snapping Guides (Dynamic Alignment & Boundaries) -->
+      <svg
+        v-if="snapping.isSnappingEnabled.value"
+        data-testid="canvas-snapping-guides"
+        class="absolute inset-0 w-full h-full pointer-events-none z-[70]"
+        viewBox="0 0 1080 1920"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <!-- Vertical Guide Line -->
+        <Transition
+          enter-active-class="transition-opacity duration-150 ease-out"
+          enter-from-class="opacity-0"
+          enter-to-class="opacity-100"
+          leave-active-class="transition-opacity duration-150 ease-in"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <line
+            v-if="snapping.activeGuides.value.vertical"
+            data-guide="vertical"
+            :x1="snapping.activeGuides.value.vertical.position"
+            y1="0"
+            :x2="snapping.activeGuides.value.vertical.position"
+            y2="1920"
+            :stroke="
+              snapping.activeGuides.value.vertical.type === 'center'
+                ? '#06b6d4'
+                : '#ffd700'
+            "
+            stroke-width="3"
+            :class="
+              snapping.activeGuides.value.vertical.type === 'center'
+                ? 'drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]'
+                : 'drop-shadow-[0_0_8px_rgba(255,215,0,0.8)]'
+            "
+          />
+        </Transition>
+
+        <!-- Horizontal Guide Line -->
+        <Transition
+          enter-active-class="transition-opacity duration-150 ease-out"
+          enter-from-class="opacity-0"
+          enter-to-class="opacity-100"
+          leave-active-class="transition-opacity duration-150 ease-in"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <line
+            v-if="snapping.activeGuides.value.horizontal"
+            data-guide="horizontal"
+            x1="0"
+            :y1="snapping.activeGuides.value.horizontal.position"
+            x2="1080"
+            :y2="snapping.activeGuides.value.horizontal.position"
+            :stroke="
+              snapping.activeGuides.value.horizontal.type === 'center'
+                ? '#06b6d4'
+                : '#ffd700'
+            "
+            stroke-width="3"
+            :class="
+              snapping.activeGuides.value.horizontal.type === 'center'
+                ? 'drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]'
+                : 'drop-shadow-[0_0_8px_rgba(255,215,0,0.8)]'
+            "
+          />
+        </Transition>
+      </svg>
     </div>
   </div>
 </template>
@@ -739,7 +810,9 @@ const {
   handleMouseEnterLabel,
   handleMouseLeaveLabel,
   handleStageClick,
+  onTextDragMove,
   onTextDragEnd,
+  snapping,
   handleTransform,
   selectItem,
   startEditing
@@ -980,10 +1053,29 @@ function selectThumbnailOverlay(overlay: any) {
   }
 }
 
+function onThumbnailLabelDragMove(e: any, _overlay: any) {
+  const node = e.target;
+  const isAltPressed = !!(
+    e.evt &&
+    (e.evt.altKey || e.evt.metaKey || (e.evt as MouseEvent).altKey)
+  );
+  const { snappedX, snappedY } = snapping.calculateSnap({
+    x: node.x(),
+    y: node.y(),
+    width: node.width(),
+    height: node.height(),
+    isCentered: false,
+    platform: activeSafeZone.value,
+    isAltPressed
+  });
+  node.position({ x: snappedX, y: snappedY });
+}
+
 function onThumbnailLabelDragEnd(e: any, overlay: any) {
   selectThumbnailOverlay(overlay);
   overlay.x = e.target.x();
   overlay.y = e.target.y();
+  snapping.clearGuides();
   state.saveThumbnailConfig();
 }
 
