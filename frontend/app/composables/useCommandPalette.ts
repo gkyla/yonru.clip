@@ -63,7 +63,7 @@ function createCommandPaletteState() {
       }
 
       const res = await safeFetch<{ videos: CachedVideo[]; total: number }>(
-        'http://localhost:8000/api/cached',
+        `${resolveApiBase()}/api/cached`,
         { params: queryParams }
       );
 

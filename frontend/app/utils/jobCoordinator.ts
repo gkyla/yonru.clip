@@ -1,4 +1,5 @@
 // jobCoordinator.ts - Ingestion Job Coordinator domain engine
+import { resolveApiBase } from './apiBase';
 import type {
   Hook,
   TranscriptSegment,
@@ -130,13 +131,17 @@ export class IngestionJobCoordinator {
   private pollIntervalMs: number;
 
   constructor(
-    apiBase: string = 'http://localhost:8000',
+    apiBase: string = resolveApiBase(),
     fetcher?: HttpFetcher,
     pollIntervalMs: number = 1000
   ) {
     this.apiBase = apiBase;
     this.fetcher = fetcher;
     this.pollIntervalMs = pollIntervalMs;
+  }
+
+  public getApiBase(): string {
+    return this.apiBase;
   }
 
   private async executeFetch<T>(

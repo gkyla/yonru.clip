@@ -1,4 +1,4 @@
-// playbackCoordinator.ts - Video Playback Coordinator domain engine (ADR-0004, ADR-0005)
+import { resolveApiBase } from './apiBase';
 import { parseSubtitleWords } from './remotionHelpers';
 import type { PlayerBridge } from './playerBridge';
 import type {
@@ -214,7 +214,13 @@ export class VideoPlaybackCoordinator {
     const cropXPixel = ((snapshot.cropPercentX ?? 50) / 100) * 1920;
 
     let videoSrc = snapshot.videoUrl || '';
-    if (videoSrc.includes('localhost:8000') && !videoSrc.includes('?t=')) {
+    if (
+      (videoSrc.includes('localhost') ||
+        videoSrc.startsWith('/') ||
+        videoSrc.includes(resolveApiBase())) &&
+      !videoSrc.includes('?t=') &&
+      !videoSrc.includes('&t=')
+    ) {
       videoSrc +=
         (videoSrc.includes('?') ? '&' : '?') +
         't=' +

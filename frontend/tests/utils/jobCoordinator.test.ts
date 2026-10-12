@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { resolveApiBase } from '../../app/utils/apiBase';
 import {
   IngestionJobCoordinator,
   DEFAULT_SUBTITLE_STYLES,
@@ -25,6 +26,13 @@ describe('IngestionJobCoordinator Unit Tests', () => {
     coordinator.stopPolling();
     vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  describe('API Base Resolution', () => {
+    it('defaults apiBase to resolveApiBase() when not explicitly provided', () => {
+      const defaultCoordinator = new IngestionJobCoordinator();
+      expect(defaultCoordinator.getApiBase()).toBe(resolveApiBase());
+    });
   });
 
   describe('Subtitle Style Management', () => {
