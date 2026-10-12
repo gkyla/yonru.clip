@@ -386,6 +386,44 @@ describe('IngestionJobCoordinator Unit Tests', () => {
       expect(bundle.cropMap).toHaveLength(2);
       expect(bundle.cropMap[0]?.x).toBe(800);
     });
+
+    it('encodes folderName and clipId with special characters and spaces when requesting static assets', async () => {
+      const requestedUrls: string[] = [];
+      mockFetcher.mockImplementation((url: string) => {
+        requestedUrls.push(url);
+        return Promise.resolve({});
+      });
+
+      const folder = '[SUARA BERKELAS] Title';
+      const clip = '587_755_Theme With Spaces';
+      const bundle = await coordinator.loadClipAssets(folder, clip);
+
+      const encodedFolder = encodeURIComponent(folder);
+      const encodedClip = encodeURIComponent(clip);
+
+      // Verify static asset URLs use encoded paths
+      const transcriptCall = requestedUrls.find(u =>
+        u.includes('transcript.json')
+      );
+      expect(transcriptCall).toBeDefined();
+      expect(transcriptCall).toContain(
+        `/assets/clips/${encodedFolder}/${encodedClip}/transcript.json`
+      );
+
+      // Verify cover config and saved hooks use encoded segments
+      const coverConfigCall = requestedUrls.find(u =>
+        u.includes('/api/cover/config')
+      );
+      expect(coverConfigCall).toBeDefined();
+      expect(coverConfigCall).toContain(
+        `/api/cover/config/${encodedFolder}/${encodedClip}`
+      );
+
+      // Verify assetUrl in returned bundle is encoded
+      expect(bundle.assetUrl).toBe(
+        `${coordinator.getApiBase()}/assets/clips/${encodedFolder}/${encodedClip}/video.mp4`
+      );
+    });
   });
 
   describe('loadReadyClip', () => {

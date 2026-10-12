@@ -374,6 +374,67 @@ def test_run_local_cut_whisper_fails(mock_dependencies, tmp_path):
     assert saved_transcript == []
 
 
+def test_run_local_cut_whisper_fails_fallback_to_global_transcript(mock_dependencies, tmp_path):
+    """Verify run_local_cut recovers and slices cached youtube-transcript.json when Whisper fails."""
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    
+    job_id = "test_job_fail_with_global"
+    video_dir = tmp_path / "video_source"
+    video_dir.mkdir()
+    video_file = video_dir / "full.mp4"
+    video_file.write_text("dummy")
+    
+    # Save a cached global youtube-transcript.json
+    global_transcript = [
+        {"start": 5.0, "duration": 2.0, "text": "Before clip"},
+        {"start": 12.0, "duration": 3.0, "text": "Inside segment one"},
+        {"start": 20.0, "duration": 4.0, "text": "Inside segment two"},
+        {"start": 35.0, "duration": 2.0, "text": "After clip"}
+    ]
+    (video_dir / "youtube-transcript.json").write_text(json.dumps(global_transcript))
+    
+    coordinator.jobs[job_id] = {
+        "status": "queued",
+        "full_video_path": str(video_file),
+        "video_info": {"fps": 30.0},
+        "clip": None
+    }
+    
+    clip_dir = tmp_path / "clip_10_30_recovered"
+    clip_dir.mkdir()
+    clip_file = clip_dir / "video.mp4"
+    clip_file.write_text("dummy clip")
+    
+    mock_dependencies["asset_repository"].create_clip.return_value = {
+        "file_path": str(clip_file),
+        "duration": 20.0
+    }
+    mock_dependencies["asset_repository"].extract_audio_from_local.return_value = "dummy_audio.wav"
+    mock_dependencies["speech_transcriber"].transcribe.side_effect = Exception("Whisper failed")
+    
+    coordinator.run_local_cut(job_id, 10.0, 30.0)
+    
+    assert coordinator.jobs[job_id]["status"] == "ready"
+    transcript_path = clip_dir / "transcript.json"
+    assert transcript_path.exists()
+    with open(transcript_path, "r") as f:
+        saved_transcript = json.load(f)
+        
+    assert len(saved_transcript) == 2
+    assert saved_transcript[0]["text"] == "Inside segment one"
+    assert saved_transcript[0]["start"] == 2.0  # 12.0 - 10.0
+    assert saved_transcript[1]["text"] == "Inside segment two"
+    assert saved_transcript[1]["start"] == 10.0  # 20.0 - 10.0
+
+
+
 def test_run_full_analysis_uses_cached_youtube_transcript(mock_dependencies, tmp_path):
     """Verify that run_full_analysis loads cached youtube-transcript.json and bypasses YouTube client fetch."""
     coordinator = ClipWorkflowCoordinator(
