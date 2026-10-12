@@ -843,7 +843,7 @@
 import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
 
 const state = useClipperState();
-const API_BASE = 'http://localhost:8000';
+const API_BASE = resolveApiBase();
 
 const editingId = ref<string | null>(null);
 const isCreatingNew = ref(false);

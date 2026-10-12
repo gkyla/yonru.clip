@@ -693,7 +693,7 @@ const emit = defineEmits<{
 }>();
 
 const state = useClipperState();
-const API_BASE = 'http://localhost:8000';
+const API_BASE = resolveApiBase();
 
 const viewMode = ref<'grid' | 'list'>('grid');
 const isSearchPending = ref(false);

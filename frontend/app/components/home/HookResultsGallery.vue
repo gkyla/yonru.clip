@@ -1363,7 +1363,7 @@ const emit = defineEmits<{
 }>();
 
 const state = useClipperState();
-const API_BASE = 'http://localhost:8000';
+const API_BASE = resolveApiBase();
 
 const activeTab = ref<'generated' | 'saved'>('generated');
 const hoveredHookIndex = ref<number | null>(null);

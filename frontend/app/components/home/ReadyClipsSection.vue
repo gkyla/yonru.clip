@@ -568,7 +568,7 @@ const emit = defineEmits<{
 }>();
 
 const state = useClipperState();
-const API_BASE = 'http://localhost:8000';
+const API_BASE = resolveApiBase();
 
 const showAllReadyClips = ref(false);
 const loadedClips = ref(new Set<string>());

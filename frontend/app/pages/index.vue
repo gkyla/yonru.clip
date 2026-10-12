@@ -146,7 +146,7 @@ import type {
 } from '../types/clipper';
 
 const state = useClipperState();
-const API_BASE = 'http://localhost:8000';
+const API_BASE = resolveApiBase();
 
 const cachedLibraryRef = ref<{
   openDuplicateModal: (videoId: string) => void;

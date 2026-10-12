@@ -1919,7 +1919,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 const state = useClipperState();
 const route = useRoute();
 const router = useRouter();
-const API_BASE = 'http://localhost:8000';
+const API_BASE = resolveApiBase();
 
 const navContainerRef = ref<HTMLElement | null>(null);
 const navButtonRefs = ref<Record<string, HTMLElement>>({});

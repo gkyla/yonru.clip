@@ -5,7 +5,7 @@ os.environ["OPENCV_VIDEOIO_PRIORITY_BACKEND"] = "FFMPEG"
 import json
 import asyncio
 from fastapi import FastAPI, BackgroundTasks, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -27,6 +27,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+frontend_dist = os.path.abspath(os.path.join(backend_dir, "../frontend/.output/public"))
+nuxt_dist = os.path.join(frontend_dist, "_nuxt")
+if os.path.isdir(nuxt_dist):
+    app.mount("/_nuxt", StaticFiles(directory=nuxt_dist), name="_nuxt")
+
 # Serve rendered output files
 os.makedirs("static/output", exist_ok=True)
 os.makedirs("temp_assets/sources", exist_ok=True)
@@ -39,7 +45,6 @@ from core.job_store import JSONFileJobStore
 jobs = JSONFileJobStore("temp_assets/jobs")
 
 from core.prompt_repository import FilePromptRepository
-backend_dir = os.path.dirname(os.path.abspath(__file__))
 prompts_dir = os.path.join(backend_dir, "prompts")
 prompt_repository = FilePromptRepository(prompts_dir)
 
@@ -256,7 +261,7 @@ class BatchDeleteClipsRequest(BaseModel):
 
 # --- Endpoints ---
 
-@app.get("/")
+@app.get("/api")
 def index():
     return {"status": "ok", "service": "Yonru API v2"}
 
@@ -814,4 +819,46 @@ async def track_face_for_clip(folder_name: str, clip_id: str):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Frontend SPA Serving and Route Fallback ---
+
+@app.get("/")
+async def serve_root():
+    index_file = os.path.join(frontend_dist, "index.html")
+    if os.path.isfile(index_file):
+        return FileResponse(index_file)
+    return {"status": "ok", "service": "Yonru API v2"}
+
+
+@app.get("/{full_path:path}")
+async def serve_spa_fallback(full_path: str):
+    # Strictly protect internal API, static, and assets routes from SPA fallback
+    if (
+        full_path == "api"
+        or full_path.startswith("api/")
+        or full_path == "static"
+        or full_path.startswith("static/")
+        or full_path == "assets"
+        or full_path.startswith("assets/")
+    ):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    # 1. Exact static file match (e.g. favicon.ico, robots.txt, saweria.png)
+    candidate = os.path.join(frontend_dist, full_path)
+    if os.path.isfile(candidate):
+        return FileResponse(candidate)
+
+    # 2. Directory index.html match (e.g. editor/index.html, settings/index.html)
+    dir_index = os.path.join(candidate, "index.html")
+    if os.path.isfile(dir_index):
+        return FileResponse(dir_index)
+
+    # 3. SPA Fallback: root index.html
+    index_file = os.path.join(frontend_dist, "index.html")
+    if os.path.isfile(index_file):
+        return FileResponse(index_file)
+
+    raise HTTPException(status_code=404, detail="Frontend build not found")
+
 
