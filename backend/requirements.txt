@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 yt-dlp>=2026.8.19
 faster-whisper
+av>=11.0.0,<19.0.0
 google-genai
 opencv-python-headless
 python-multipart

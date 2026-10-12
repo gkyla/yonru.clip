@@ -1081,6 +1081,32 @@ class ClipWorkflowCoordinator:
             except Exception as e:
                 print(f"[transcribe] Whisper failed for clip, falling back to global: {e}")
                 
+            if not precise_words:
+                source_dir = os.path.dirname(full_path) if full_path else ""
+                global_transcript_path = os.path.join(source_dir, "youtube-transcript.json")
+                if os.path.exists(global_transcript_path):
+                    try:
+                        with open(global_transcript_path, "r", encoding="utf-8") as f:
+                            global_segments = json.load(f)
+                        if isinstance(global_segments, list):
+                            fallback_words = []
+                            for seg in global_segments:
+                                s_start = float(seg.get("start", 0.0))
+                                s_dur = float(seg.get("duration", 0.0))
+                                s_end = s_start + s_dur
+                                if s_end > start_time and s_start < end_time:
+                                    rel_start = max(0.0, round(s_start - start_time, 3))
+                                    fallback_words.append({
+                                        "start": rel_start,
+                                        "duration": round(s_dur, 3),
+                                        "text": str(seg.get("text", "")).strip()
+                                    })
+                            if fallback_words:
+                                print(f"[transcribe] Recovered {len(fallback_words)} segments from global transcript fallback")
+                                precise_words = fallback_words
+                    except Exception as ge:
+                        print(f"[transcribe] Failed to parse global transcript fallback: {ge}")
+
             if precise_words:
                 # Save precise transcript
                 with open(transcript_path, "w", encoding="utf-8") as f:

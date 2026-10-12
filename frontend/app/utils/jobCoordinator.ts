@@ -545,10 +545,12 @@ export class IngestionJobCoordinator {
     clipId: string
   ): Promise<Array<{ time: number; x: number }>> {
     try {
+      const safeFolder = encodeURIComponent(folderName);
+      const safeClip = encodeURIComponent(clipId);
       const res = await this.executeFetch<{
         status: string;
         crop_map: Array<{ time: number; x: number }>;
-      }>(`${this.apiBase}/api/clips/${folderName}/${clipId}/track-face`, {
+      }>(`${this.apiBase}/api/clips/${safeFolder}/${safeClip}/track-face`, {
         method: 'POST'
       });
       return res?.crop_map && Array.isArray(res.crop_map) ? res.crop_map : [];
@@ -562,8 +564,10 @@ export class IngestionJobCoordinator {
     clipId: string,
     baseClipUrl?: string
   ): Promise<HydratedClipBundle> {
+    const safeFolder = encodeURIComponent(folderName);
+    const safeClip = encodeURIComponent(clipId);
     const targetBaseUrl =
-      baseClipUrl || `${this.apiBase}/assets/clips/${folderName}/${clipId}`;
+      baseClipUrl || `${this.apiBase}/assets/clips/${safeFolder}/${safeClip}`;
     const now = Date.now();
 
     // 1. Fetch all assets concurrently with Promise.allSettled
@@ -592,10 +596,10 @@ export class IngestionJobCoordinator {
         `${targetBaseUrl}/timeline.json?t=${now}`
       ).catch(() => null),
       this.executeFetch<{ config: ThumbnailConfig; cover_url?: string | null }>(
-        `${this.apiBase}/api/cover/config/${folderName}/${clipId}`
+        `${this.apiBase}/api/cover/config/${safeFolder}/${safeClip}`
       ).catch(() => null),
       this.executeFetch<{ saved_hooks: Hook[] }>(
-        `${this.apiBase}/api/cached/${folderName}/saved_hooks`
+        `${this.apiBase}/api/cached/${safeFolder}/saved_hooks`
       ).catch(() => null)
     ]);
 
