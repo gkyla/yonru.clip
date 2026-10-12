@@ -302,7 +302,7 @@ defineEmits<{
 }>();
 
 const state = useClipperState();
-const API_BASE = 'http://localhost:8000';
+const API_BASE = resolveApiBase();
 const thumbnailLoadError = ref(false);
 
 function extractYoutubeId(url: string): string | null {

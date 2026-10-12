@@ -45,7 +45,7 @@ import { ref, computed } from 'vue';
 
 const state = useClipperState();
 const route = useRoute();
-const API_BASE = 'http://localhost:8000';
+const API_BASE = resolveApiBase();
 
 const activeView = computed(() => {
   if (route.path === '/settings') return 'settings';

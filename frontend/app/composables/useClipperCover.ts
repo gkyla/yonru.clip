@@ -11,7 +11,7 @@ import type {
 } from '../types/clipper';
 
 export const useClipperCover = () => {
-  const API_BASE = 'http://localhost:8000';
+  const API_BASE = resolveApiBase();
   const timeline = useTimelineState();
 
   // Ingestion & basic states shared via useState keys

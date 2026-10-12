@@ -251,12 +251,12 @@ describe('HookResultsGallery Component (Cinematic Hook Cards)', () => {
     await wrapper.vm.$nextTick();
 
     expect(vm.modalVideoUrl).toBe(
-      'http://localhost:8000/assets/sources/fallback_folder/preview.mp4'
+      'http://localhost:8765/assets/sources/fallback_folder/preview.mp4'
     );
     const modalVideo = wrapper.find('video[controls]');
     expect(modalVideo.exists()).toBe(true);
     expect(modalVideo.attributes('src')).toBe(
-      'http://localhost:8000/assets/sources/fallback_folder/preview.mp4'
+      'http://localhost:8765/assets/sources/fallback_folder/preview.mp4'
     );
   });
 

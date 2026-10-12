@@ -3,7 +3,7 @@ import type { SystemHealth } from '../utils/systemDiagnostics';
 import type { HardwareProfile } from '../types/clipper';
 
 export const useSystemDiagnostics = () => {
-  const API_BASE = 'http://localhost:8000';
+  const API_BASE = resolveApiBase();
 
   const systemHealth = useState<SystemHealth | null>(
     'systemHealth',

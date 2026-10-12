@@ -83,7 +83,7 @@ def test_service_coordinator_spawn_and_shutdown(mocker):
 def test_service_coordinator_with_mock_sweeper(mocker):
     """
     TDD Test: Verify that ServiceCoordinator clean_ports delegates cleanly
-    to the injected MockPortSweeper without side-effects.
+    to the injected MockPortSweeper without side-effects in production mode.
     """
     mocker.patch("run.log_system")
     
@@ -92,16 +92,39 @@ def test_service_coordinator_with_mock_sweeper(mocker):
     
     coordinator.clean_ports()
     
-    # Assert that all core Yonru ports are captured by the MockPortSweeper
-    assert mock_sweeper.swept_ports == [8000, 3000]
+    # In production mode (default dev=False), only backend port 8765 is swept
+    assert mock_sweeper.swept_ports == [8765]
+
+
+def test_service_coordinator_clean_ports_dev_mode(mocker):
+    """Verify that in dev mode, both backend 8765 and frontend 3765 ports are swept."""
+    mocker.patch("run.log_system")
+    mock_sweeper = run.MockPortSweeper()
+    coordinator = run.ServiceCoordinator("all", sweeper=mock_sweeper, dev=True)
+    coordinator.clean_ports()
+    assert mock_sweeper.swept_ports == [8765, 3765]
+
+
+def test_service_coordinator_clean_ports_custom_and_no_sweep(mocker):
+    """Verify custom ports and --no-sweep flag behavior."""
+    mocker.patch("run.log_system")
+    mock_sweeper = run.MockPortSweeper()
+    coordinator = run.ServiceCoordinator("all", sweeper=mock_sweeper, dev=True, port=9000, frontend_port=4000)
+    coordinator.clean_ports()
+    assert mock_sweeper.swept_ports == [9000, 4000]
+
+    mock_sweeper_no_sweep = run.MockPortSweeper()
+    coordinator_no_sweep = run.ServiceCoordinator("all", sweeper=mock_sweeper_no_sweep, no_sweep=True)
+    coordinator_no_sweep.clean_ports()
+    assert mock_sweeper_no_sweep.swept_ports == []
 
 
 def test_backend_cmd_reload_exclude_no_globs(mocker):
     """
     Regression Test: Ensure backend_cmd does not pass unquoted glob wildcards
-    to --reload-exclude, preventing Click/MSVC CRT wildcard expansion crashes on Windows.
+    to --reload-exclude in development mode, preventing Click/MSVC CRT wildcard expansion crashes on Windows.
     """
-    launcher = run.BootstrappedLauncher(target="backend")
+    launcher = run.BootstrappedLauncher(target="backend", dev=True)
     launcher.venv_python = "python"
     
     # Mock all bootstrapping methods to inspect execution configuration
@@ -109,6 +132,7 @@ def test_backend_cmd_reload_exclude_no_globs(mocker):
     mocker.patch.object(launcher, "_bootstrap_backend", return_value="python")
     mocker.patch.object(launcher, "_bootstrap_fonts")
     mocker.patch.object(launcher, "_bootstrap_node_project")
+    mocker.patch.object(launcher, "_ensure_frontend_build")
     mocker.patch.object(launcher, "_setup_remotion_browser")
     
     spawned_services = []
@@ -131,6 +155,96 @@ def test_backend_cmd_reload_exclude_no_globs(mocker):
     for pattern in reload_excludes:
         assert "*" not in pattern, f"Pattern {pattern} contains wildcard * which causes Click glob expansion on Windows"
         assert "?" not in pattern, f"Pattern {pattern} contains wildcard ? which causes Click glob expansion on Windows"
+
+
+def test_backend_cmd_no_reload_in_production(mocker):
+    """
+    Verify that in production mode (default dev=False), backend_cmd does NOT include --reload
+    or --reload-exclude for optimal performance and zero file-watching overhead.
+    """
+    launcher = run.BootstrappedLauncher(target="backend", dev=False)
+    launcher.venv_python = "python"
+
+    mocker.patch.object(launcher, "_check_dependencies")
+    mocker.patch.object(launcher, "_bootstrap_backend", return_value="python")
+    mocker.patch.object(launcher, "_bootstrap_fonts")
+    mocker.patch.object(launcher, "_bootstrap_node_project")
+    mocker.patch.object(launcher, "_ensure_frontend_build")
+    mocker.patch.object(launcher, "_setup_remotion_browser")
+
+    spawned_services = []
+    mock_coordinator = mocker.MagicMock()
+    mock_coordinator.spawn.side_effect = lambda s: spawned_services.append(s)
+    mock_coordinator.run_loop.side_effect = KeyboardInterrupt
+    mocker.patch("run.ServiceCoordinator", return_value=mock_coordinator)
+
+    launcher.run()
+
+    assert len(spawned_services) == 1
+    cmd = spawned_services[0].cmd
+    assert "--reload" not in cmd
+    assert "--reload-exclude" not in cmd
+
+
+def test_production_mode_spawns_single_backend_service(mocker):
+    """
+    Verify that in production mode (target='all', dev=False), only the Backend service
+    is spawned because FastAPI serves the frontend SPA static build directly.
+    """
+    launcher = run.BootstrappedLauncher(target="all", dev=False)
+    launcher.venv_python = "python"
+
+    mocker.patch.object(launcher, "_check_dependencies")
+    mocker.patch.object(launcher, "_bootstrap_backend", return_value="python")
+    mocker.patch.object(launcher, "_bootstrap_fonts")
+    mocker.patch.object(launcher, "_ensure_frontend_build")
+    mocker.patch.object(launcher, "_bootstrap_node_project")
+    mocker.patch.object(launcher, "_setup_remotion_browser")
+
+    spawned_services = []
+    mock_coordinator = mocker.MagicMock()
+    mock_coordinator.spawn.side_effect = lambda s: spawned_services.append(s)
+    mock_coordinator.run_loop.side_effect = KeyboardInterrupt
+    mocker.patch("run.ServiceCoordinator", return_value=mock_coordinator)
+
+    launcher.run()
+
+    assert len(spawned_services) == 1
+    assert spawned_services[0].name == "Backend"
+
+
+def test_dev_mode_spawns_both_services(mocker):
+    """
+    Verify that in development mode (target='all', dev=True), both Backend and Frontend
+    services are spawned to enable Vite HMR.
+    """
+    launcher = run.BootstrappedLauncher(target="all", dev=True)
+    launcher.venv_python = "python"
+
+    mocker.patch.object(launcher, "_check_dependencies")
+    mocker.patch.object(launcher, "_bootstrap_backend", return_value="python")
+    mocker.patch.object(launcher, "_bootstrap_fonts")
+    mocker.patch.object(launcher, "_bootstrap_node_project")
+    mocker.patch.object(launcher, "_setup_remotion_browser")
+
+    spawned_services = []
+    mock_coordinator = mocker.MagicMock()
+    mock_coordinator.spawn.side_effect = lambda s: spawned_services.append(s)
+    mock_coordinator.run_loop.side_effect = KeyboardInterrupt
+    mocker.patch("run.ServiceCoordinator", return_value=mock_coordinator)
+
+    launcher.run()
+
+    assert len(spawned_services) == 2
+    service_names = [s.name for s in spawned_services]
+    assert "Backend" in service_names
+    assert "Frontend" in service_names
+    frontend_service = next(s for s in spawned_services if s.name == "Frontend")
+    assert frontend_service.env == {
+        "PORT": "3765",
+        "NUXT_PUBLIC_API_BASE": "http://localhost:8765"
+    }
+
 
 
 def test_bootstrap_node_project_opportunistic_bun(mocker, tmp_path):
@@ -237,4 +351,56 @@ def test_bootstrap_backend_skips_when_hash_matches(mocker):
         cmd = call[0][0]
         assert "pip" not in cmd, f"Expected pip not to be invoked, but got {cmd}"
         assert "install" not in cmd, f"Expected install not to be invoked, but got {cmd}"
+
+
+def test_ensure_frontend_build_skips_when_hash_matches(mocker, tmp_path):
+    """Verify that _ensure_frontend_build skips build execution when sentinel hash matches and index exists."""
+    mocker.patch("run.log_system")
+    mock_sub_run = mocker.patch("run.subprocess.run")
+
+    frontend_dir = tmp_path / "frontend"
+    output_dir = frontend_dir / ".output" / "public"
+    output_dir.mkdir(parents=True)
+    (output_dir / "index.html").write_text("ok")
+    sentinel = frontend_dir / ".output" / ".build.hash"
+    fake_hash = "hash_123"
+    sentinel.write_text(fake_hash)
+
+    launcher = run.BootstrappedLauncher(target="all", dev=False)
+    mocker.patch.object(launcher, "_compute_frontend_hash", return_value=fake_hash)
+    mocker.patch("os.path.abspath", return_value=str(frontend_dir))
+
+    launcher._ensure_frontend_build()
+
+    # Should not call subprocess.run for npm run generate
+    for call in mock_sub_run.call_args_list:
+        cmd = call[0][0]
+        assert "generate" not in cmd
+
+
+def test_ensure_frontend_build_triggers_when_hash_differs(mocker, tmp_path):
+    """Verify that _ensure_frontend_build executes npm run generate when sentinel hash differs."""
+    mocker.patch("run.log_system")
+    mock_sub_run = mocker.patch("run.subprocess.run")
+    mocker.patch.object(run.BootstrappedLauncher, "_bootstrap_node_project")
+
+    frontend_dir = tmp_path / "frontend"
+    output_dir = frontend_dir / ".output" / "public"
+    output_dir.mkdir(parents=True)
+    (output_dir / "index.html").write_text("ok")
+    sentinel = frontend_dir / ".output" / ".build.hash"
+    sentinel.write_text("old_hash")
+
+    launcher = run.BootstrappedLauncher(target="all", dev=False)
+    mocker.patch.object(launcher, "_compute_frontend_hash", return_value="new_hash")
+    mocker.patch("os.path.abspath", return_value=str(frontend_dir))
+
+    launcher._ensure_frontend_build()
+
+    # Must invoke npm run generate
+    assert mock_sub_run.call_count >= 1
+    generate_called = any("generate" in call[0][0] for call in mock_sub_run.call_args_list)
+    assert generate_called is True
+    assert sentinel.read_text() == "new_hash"
+
 

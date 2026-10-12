@@ -35,6 +35,14 @@ export default defineNuxtConfig({
   },
   telemetry: false,
   ssr: false,
+  runtimeConfig: {
+    public: {
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8765'
+    }
+  },
+  devServer: {
+    port: Number(process.env.PORT) || 3765
+  },
   vite: {
     plugins: [
       {

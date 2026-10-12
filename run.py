@@ -9,6 +9,10 @@ import signal
 import hashlib
 from abc import ABC, abstractmethod
 
+# --- Port Configuration Constants ---
+DEFAULT_PORT = 8765
+DEFAULT_FRONTEND_PORT = 3765
+
 # --- Formatting Helpers ---
 IS_WIN = (sys.platform == "win32")
 
@@ -38,7 +42,7 @@ def clear_console():
     else:
         os.system("clear")
 
-def print_dashboard(target):
+def print_dashboard(target, dev: bool = False, port: int = DEFAULT_PORT, frontend_port: int = DEFAULT_FRONTEND_PORT):
     """Prints a beautiful neon-lime green Doom-style Yonru.Clip ASCII logo and target-specific entrypoint links."""
     clear_console()
     
@@ -55,13 +59,15 @@ __   __                      _____ _ _
 
     print("\033[1;30m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m")
     print(" 🚀 \033[1;32mYonru Clip Studio is active and ready!\033[0m")
-    print(" \033[90mAccess the running service components below:\033[0m\n")
-    
-    if target in ["all", "frontend"]:
-        print("  • \033[1mWeb App (Frontend):\033[0m  \033[1;36mhttp://localhost:3000\033[0m  \033[1;33m👈 🌟 access Yonru UI\033[0m")
-        
-    if target in ["all", "backend"]:
-        print("  • \033[1mAPI Server (Backend):\033[0m \033[1;36mhttp://localhost:8000\033[0m")
+    if dev:
+        print(" \033[93m[DEVELOPMENT MODE]\033[0m \033[90mHot Module Replacement (HMR) & Reload Active:\033[0m\n")
+        if target in ["all", "frontend"]:
+            print(f"  • \033[1mWeb App (Frontend):\033[0m  \033[1;36mhttp://localhost:{frontend_port}\033[0m  \033[1;33m👈 🌟 access Yonru UI\033[0m")
+        if target in ["all", "backend"]:
+            print(f"  • \033[1mAPI Server (Backend):\033[0m \033[1;36mhttp://localhost:{port}\033[0m")
+    else:
+        print(" \033[92m[PRODUCTION MODE]\033[0m \033[90mSingle-server optimized build active:\033[0m\n")
+        print(f"  • \033[1mYonru Studio & API:\033[0m   \033[1;36mhttp://localhost:{port}\033[0m  \033[1;33m👈 🌟 access Yonru UI\033[0m")
         
     print("\033[1;30m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m")
     print(" \033[90mBackground logs will stream below. Press Ctrl+C to terminate.\033[0m\n")
@@ -70,13 +76,14 @@ __   __                      _____ _ _
 # --- Process Execution Modeling ---
 
 class ServiceDef:
-    def __init__(self, name, cmd, cwd, prefix, color_code, ready_signal):
+    def __init__(self, name, cmd, cwd, prefix, color_code, ready_signal, env: dict[str, str] | None = None):
         self.name = name
         self.cmd = cmd
         self.cwd = cwd
         self.prefix = prefix
         self.color_code = color_code
         self.ready_signal = ready_signal
+        self.env = env
 
 class PortSweeper(ABC):
     """Seam for sweeping ports and terminating zombie processes."""
@@ -137,9 +144,21 @@ class MockPortSweeper(PortSweeper):
 
 
 class ServiceCoordinator:
-    def __init__(self, target, sweeper: PortSweeper = None):
+    def __init__(
+        self, 
+        target: str, 
+        sweeper: PortSweeper | None = None, 
+        dev: bool = False,
+        port: int = DEFAULT_PORT,
+        frontend_port: int = DEFAULT_FRONTEND_PORT,
+        no_sweep: bool = False
+    ):
         self.target = target
         self.sweeper = sweeper or OSPortSweeper()
+        self.dev = dev
+        self.port = port
+        self.frontend_port = frontend_port
+        self.no_sweep = no_sweep
         self._procs = {}
         self._shutdown_initiated = False
         self._pending_ready = set()
@@ -148,11 +167,15 @@ class ServiceCoordinator:
         
     def clean_ports(self):
         """Scan and kill any zombie processes listening on core Yonru ports to ensure self-healing boots."""
+        if self.no_sweep:
+            log_system("Port sweeping skipped (--no-sweep active).")
+            return
+
         ports = []
-        if self.target in ["all", "backend"]:
-            ports.append(8000)
-        if self.target in ["all", "frontend"]:
-            ports.append(3000)
+        if self.target in ["all", "backend"] or not self.dev:
+            ports.append(self.port)
+        if self.dev and self.target in ["all", "frontend"]:
+            ports.append(self.frontend_port)
 
         log_system("Sweeping ports " + ", ".join(map(str, ports)) + " for any active zombie processes...")
         self.sweeper.clean_ports(ports)
@@ -182,7 +205,12 @@ class ServiceCoordinator:
                                 self._pending_ready.remove(service.name)
                                 if not self._pending_ready:
                                     self._dashboard_printed = True
-                                    print_dashboard(self.target)
+                                    print_dashboard(
+                                        self.target, 
+                                        dev=self.dev, 
+                                        port=self.port, 
+                                        frontend_port=self.frontend_port
+                                    )
         except Exception:
             pass
         finally:
@@ -203,9 +231,14 @@ class ServiceCoordinator:
         if not IS_WIN:
             preexec = os.setsid
 
+        env = os.environ.copy()
+        if service.env:
+            env.update(service.env)
+
         proc = subprocess.Popen(
             service.cmd,
             cwd=service.cwd,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -284,7 +317,12 @@ class ServiceCoordinator:
             with self._lock:
                 if not self._dashboard_printed:
                     self._dashboard_printed = True
-                    print_dashboard(self.target)
+                    print_dashboard(
+                        self.target, 
+                        dev=self.dev, 
+                        port=self.port, 
+                        frontend_port=self.frontend_port
+                    )
                     
         threading.Thread(target=fallback_timer, daemon=True).start()
 
@@ -307,9 +345,23 @@ class BootstrappedLauncher:
     Hides dependency checking, self-healing virtualenvs, offline font syncing,
     NPM packaging, zombie port sweeping, subprocess orchestration, and signal handling.
     """
-    def __init__(self, target: str = "all", force_fonts: bool = False):
+    def __init__(
+        self, 
+        target: str = "all", 
+        force_fonts: bool = False, 
+        dev: bool = False, 
+        force_build: bool = False,
+        port: int = DEFAULT_PORT,
+        frontend_port: int = DEFAULT_FRONTEND_PORT,
+        no_sweep: bool = False
+    ):
         self.target = target.lower()
         self.force_fonts = force_fonts
+        self.dev = dev
+        self.force_build = force_build
+        self.port = port
+        self.frontend_port = frontend_port
+        self.no_sweep = no_sweep
         self.coordinator = None
         self.venv_python = None
 
@@ -553,6 +605,88 @@ class BootstrappedLauncher:
         except Exception as e:
             log_system(f"\033[33m[WARNING] Remotion browser verification failed: {e}. Proceeding...\033[0m")
 
+    def _compute_frontend_hash(self, frontend_dir: str) -> str:
+        """
+        Computes a deterministic hash of frontend source files, configurations,
+        and dependencies to trigger smart production builds only when changes occur.
+        """
+        hasher = hashlib.sha256()
+
+        # 1. Configuration & Dependency files
+        for fname in ["package.json", "package-lock.json", "nuxt.config.ts"]:
+            fpath = os.path.join(frontend_dir, fname)
+            if os.path.isfile(fpath):
+                hasher.update(fname.encode("utf-8"))
+                try:
+                    with open(fpath, "rb") as f:
+                        hasher.update(f.read())
+                except Exception:
+                    pass
+
+        # 2. Source directories: app/ and public/
+        for subdir in ["app", "public"]:
+            dir_path = os.path.join(frontend_dir, subdir)
+            if os.path.isdir(dir_path):
+                file_entries = []
+                for root, _, files in os.walk(dir_path):
+                    for file in files:
+                        full_p = os.path.join(root, file)
+                        rel_p = os.path.relpath(full_p, frontend_dir)
+                        try:
+                            st = os.stat(full_p)
+                            file_entries.append((rel_p, st.st_size, st.st_mtime))
+                        except Exception:
+                            pass
+                file_entries.sort()
+                for rel_p, size, mtime in file_entries:
+                    hasher.update(f"{rel_p}:{size}:{mtime}".encode("utf-8"))
+
+        return hasher.hexdigest()
+
+    def _ensure_frontend_build(self):
+        """
+        Ensures the production SPA bundle exists in frontend/.output/public.
+        Rebuilds if .output/public is missing, hash sentinel differs, or force_build is True.
+        """
+        frontend_dir = os.path.abspath("frontend")
+        output_dir = os.path.join(frontend_dir, ".output", "public")
+        index_file = os.path.join(output_dir, "index.html")
+        sentinel_file = os.path.join(frontend_dir, ".output", ".build.hash")
+
+        current_hash = self._compute_frontend_hash(frontend_dir)
+        stored_hash = ""
+        if os.path.exists(sentinel_file):
+            try:
+                with open(sentinel_file, "r", encoding="utf-8") as f:
+                    stored_hash = f.read().strip()
+            except Exception:
+                pass
+
+        build_needed = (
+            self.force_build
+            or (not os.path.exists(index_file))
+            or (not stored_hash)
+            or (stored_hash != current_hash)
+        )
+
+        if build_needed:
+            log_system("Frontend production bundle missing or changes detected. Building frontend...")
+            self._bootstrap_node_project(frontend_dir, "Frontend")
+            cmd = ["npm", "run", "generate"]
+            log_system("Executing 'npm run generate' under Node.js LTS...")
+            subprocess.run(cmd, cwd=frontend_dir, shell=IS_WIN, check=True)
+
+            try:
+                os.makedirs(os.path.dirname(sentinel_file), exist_ok=True)
+                with open(sentinel_file, "w", encoding="utf-8") as f:
+                    f.write(current_hash)
+            except Exception as e:
+                log_system(f"Warning: Failed to write frontend build hash sentinel: {e}")
+
+            log_system("\033[32mFrontend production bundle generated successfully.\033[0m")
+        else:
+            log_system("Frontend production bundle is up to date (<1s instant start).")
+
     def run(self):
         global coordinator
         
@@ -564,7 +698,10 @@ class BootstrappedLauncher:
         
         if self.target in ["all", "frontend"]:
             self._bootstrap_fonts()
-            self._bootstrap_node_project("frontend", "Frontend")
+            if self.dev:
+                self._bootstrap_node_project("frontend", "Frontend")
+            else:
+                self._ensure_frontend_build()
             
         if self.target in ["all", "backend"]:
             self._bootstrap_node_project("shared/remotion", "Shared Remotion")
@@ -575,19 +712,30 @@ class BootstrappedLauncher:
             self.venv_python, "-m", "uvicorn", "main:app", 
             "--env-file", ".env", 
             "--host", "0.0.0.0", 
-            "--port", "8000", 
-            "--reload",
-            "--reload-exclude", "temp_assets",
-            "--reload-exclude", "static"
+            "--port", str(self.port)
         ]
+        if self.dev:
+            backend_cmd.extend([
+                "--reload",
+                "--reload-exclude", "temp_assets",
+                "--reload-exclude", "static"
+            ])
+
         frontend_cmd = ["npm", "run", "dev"]
 
         # 4. Spawn Active Services
-        self.coordinator = ServiceCoordinator(self.target)
+        self.coordinator = ServiceCoordinator(
+            self.target, 
+            dev=self.dev, 
+            port=self.port, 
+            frontend_port=self.frontend_port, 
+            no_sweep=self.no_sweep
+        )
         coordinator = self.coordinator # Maintain global reference for signals and testing
         self.coordinator.clean_ports()
         
-        log_system(f"Starting services in target mode: '{self.target}'")
+        mode_label = "development" if self.dev else "production"
+        log_system(f"Starting services in {mode_label} mode (target: '{self.target}')")
         
         try:
             if self.target in ["all", "backend"]:
@@ -600,15 +748,30 @@ class BootstrappedLauncher:
                     ready_signal="Application startup complete"
                 )
                 self.coordinator.spawn(backend_def)
+
+            if not self.dev and self.target == "frontend":
+                backend_def = ServiceDef(
+                    name="Backend",
+                    cmd=backend_cmd,
+                    cwd="backend",
+                    prefix="[SERVER]",
+                    color_code="32",
+                    ready_signal="Application startup complete"
+                )
+                self.coordinator.spawn(backend_def)
                 
-            if self.target in ["all", "frontend"]:
+            if self.dev and self.target in ["all", "frontend"]:
                 frontend_def = ServiceDef(
                     name="Frontend",
                     cmd=frontend_cmd,
                     cwd="frontend",
                     prefix="[FRONTEND]",
                     color_code="32",
-                    ready_signal=["ready in", "local:", "http://localhost"]
+                    ready_signal=["ready in", "local:", "http://localhost"],
+                    env={
+                        "PORT": str(self.frontend_port),
+                        "NUXT_PUBLIC_API_BASE": f"http://localhost:{self.port}"
+                    }
                 )
                 self.coordinator.spawn(frontend_def)
 
@@ -650,6 +813,33 @@ def main():
         help="Target service to run (all, backend, frontend, release)"
     )
     parser.add_argument(
+        "--dev",
+        action="store_true",
+        help=f"Run in development mode (spawns Vite dev server on port {DEFAULT_FRONTEND_PORT} with HMR and Uvicorn on port {DEFAULT_PORT} with reload)"
+    )
+    parser.add_argument(
+        "--build",
+        action="store_true",
+        help="Force rebuild frontend production bundle"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help=f"Backend/production server port (default: {DEFAULT_PORT})"
+    )
+    parser.add_argument(
+        "--frontend-port",
+        type=int,
+        default=DEFAULT_FRONTEND_PORT,
+        help=f"Frontend dev server port in --dev mode (default: {DEFAULT_FRONTEND_PORT})"
+    )
+    parser.add_argument(
+        "--no-sweep",
+        action="store_true",
+        help="Skip automatic zombie process port sweeping before service boot"
+    )
+    parser.add_argument(
         "--force-fonts", 
         action="store_true", 
         help="Force redownload of offline fonts"
@@ -672,7 +862,15 @@ def main():
             log_error(f"Failed to execute release script: {e}")
             sys.exit(1)
             
-    launcher = BootstrappedLauncher(target=args.target, force_fonts=args.force_fonts)
+    launcher = BootstrappedLauncher(
+        target=args.target, 
+        force_fonts=args.force_fonts,
+        dev=args.dev,
+        force_build=args.build,
+        port=args.port,
+        frontend_port=args.frontend_port,
+        no_sweep=args.no_sweep
+    )
     launcher.run()
 
 

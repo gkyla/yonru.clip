@@ -14,7 +14,7 @@ import type {
 
 export const useTimelineState = () => {
   const historyManager = new TimelineTransactionEngine(50);
-  const API_BASE = 'http://localhost:8000';
+  const API_BASE = resolveApiBase();
 
   const timelineTracks = useState<TimelineTrack[]>('timelineTracks', () => [
     { id: 'video', name: 'Main Video', type: 'video', items: [] },

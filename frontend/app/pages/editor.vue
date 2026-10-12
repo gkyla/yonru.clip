@@ -173,7 +173,7 @@ const isEditorLocked = computed(
 );
 
 const readyClips = useState<ReadyClip[]>('readyClips', () => []);
-const API_BASE = 'http://localhost:8000';
+const API_BASE = resolveApiBase();
 
 const isCurrentHookSaved = computed(() => {
   if (!state?.activeHook?.value || !state?.savedHooks?.value?.length)
