@@ -82,7 +82,7 @@ export const useClipperState = () => {
 
 function createClipperState() {
   // API Base
-  const API_BASE = 'http://localhost:8000';
+  const API_BASE = resolveApiBase();
 
   // Instantiate Sub-composables for separated concerns
   const diagnostics = useSystemDiagnostics();

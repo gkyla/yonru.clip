@@ -84,9 +84,7 @@ describe('useClipperExport Composable', () => {
     expect(capturedBody.thumbnail_enabled).toBeDefined();
 
     expect(renderStatus.value).toBe('done');
-    expect(outputUrl.value).toBe(
-      'http://localhost:8000/static/output/clip.mp4'
-    );
+    expect(outputUrl.value).toBe(`${resolveApiBase()}/static/output/clip.mp4`);
   });
 
   it('sets error status when jobId is missing rather than failing silently', async () => {

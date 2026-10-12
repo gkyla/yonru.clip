@@ -17,7 +17,7 @@ import type {
 } from '../types/clipper';
 
 export const useClipperJob = () => {
-  const API_BASE = 'http://localhost:8000';
+  const API_BASE = resolveApiBase();
   const timeline = useTimelineState();
   const coordinator = new IngestionJobCoordinator(API_BASE, undefined, 2000);
 

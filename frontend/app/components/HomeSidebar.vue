@@ -896,11 +896,12 @@ const props = withDefaults(
     processingTitle?: string;
     lastVideo?: any;
     lastClip?: any;
-    API_BASE: string;
+    API_BASE?: string;
     defaultCollapsed?: boolean;
     isFloating?: boolean;
   }>(),
   {
+    API_BASE: () => resolveApiBase(),
     defaultCollapsed: true,
     isFloating: false
   }

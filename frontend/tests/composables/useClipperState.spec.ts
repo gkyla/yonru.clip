@@ -146,7 +146,7 @@ describe('useClipperState Composable', () => {
     expect(state.cachedVideos.value[0]!.video_id).toBe('vid1');
     expect(state.cachedVideosTotal.value).toBe(4);
     expect(state.cachedVideosHasMore.value).toBe(true);
-    expect(mockFetch).toHaveBeenCalledWith('http://localhost:8000/api/cached', {
+    expect(mockFetch).toHaveBeenCalledWith(`${resolveApiBase()}/api/cached`, {
       params: {
         page: 1,
         limit: 2,

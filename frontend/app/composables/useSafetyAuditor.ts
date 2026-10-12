@@ -22,7 +22,7 @@ import type {
 } from '../types/clipper';
 
 export const useSafetyAuditor = () => {
-  const API_BASE = 'http://localhost:8000';
+  const API_BASE = resolveApiBase();
 
   // Reactive State
   const customBlacklist = useState<string[]>('customBlacklist', () => []);

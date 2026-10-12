@@ -388,7 +388,28 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     await analyzeCached('cached-123');
 
     expect(videoUrl.value).toBe(
-      'http://localhost:8000/assets/sources/sample_folder/full.mp4'
+      `${resolveApiBase()}/assets/sources/sample_folder/full.mp4`
     );
+  });
+
+  it('calls loadReadyClip using dynamic resolveApiBase instead of hardcoded 8000', async () => {
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: {
+        port: '8765',
+        origin: 'http://localhost:8765'
+      }
+    });
+
+    const job = useClipperJob();
+    await job.loadReadyClipIntoEditor('test_folder', 'clip_1');
+
+    const fetchMock = (globalThis as any).$fetch;
+    const calls = fetchMock.mock.calls;
+    const readyClipCall = calls.find((c: any) =>
+      String(c[0]).includes('/api/load-ready-clip')
+    );
+    expect(readyClipCall).toBeDefined();
+    expect(readyClipCall[0]).toBe('http://localhost:8765/api/load-ready-clip');
   });
 });
