@@ -1,5 +1,9 @@
 // jobCoordinator.ts - Ingestion Job Coordinator domain engine
 import { resolveApiBase } from './apiBase';
+import {
+  DEFAULT_SUBTITLE_STYLES,
+  SubtitleStyleCoordinator
+} from './subtitleStyleCoordinator';
 import type {
   Hook,
   TranscriptSegment,
@@ -93,36 +97,6 @@ export interface JobUpdateCallbacks {
   onError?: (error: string) => void;
 }
 
-export const DEFAULT_SUBTITLE_STYLES: Partial<SubtitleStyleSettings> = {
-  videoLayout: 'vertical',
-  landscapeBackground: 'black',
-  landscapeBlurRadius: 25,
-  landscapeDarkness: 35,
-  subtitlePosition: 'center',
-  subtitleOffset: 50,
-  subtitleSyncOffset: 150,
-  font: 'Montserrat',
-  fontSize: 50,
-  cropMode: 'face_tracking',
-  cropMap: [],
-  cropPercentX: 50,
-  subtitleMode: 'word',
-  subtitleAnimation: 'pop',
-  subtitleHighlightMode: 'color',
-  subtitleHighlightColor: '#CFFF50',
-  subtitleTextColor: '#FFFFFF',
-  subtitleStrokeColor: '#000000',
-  subtitleStrokeWidth: 0,
-  subtitleFontWeight: 900,
-  subtitleTextTransform: 'uppercase',
-  subtitleBackground: 'none',
-  subtitleBackgroundOpacity: 0.7,
-  subtitleWordSpacing: 0,
-  volume: 0.5,
-  subtitlePreset: 'bold-podcast',
-  subtitlesEnabled: true
-};
-
 export class IngestionJobCoordinator {
   private apiBase: string;
   private fetcher?: HttpFetcher;
@@ -171,80 +145,17 @@ export class IngestionJobCoordinator {
   }
 
   public resetSubtitleStyles(): Partial<SubtitleStyleSettings> {
-    return { ...DEFAULT_SUBTITLE_STYLES };
+    return new SubtitleStyleCoordinator().reset();
   }
 
   public mergeSubtitleStyles(
     base: Partial<SubtitleStyleSettings>,
     overrides?: Partial<SubtitleStyleSettings> | null
   ): Partial<SubtitleStyleSettings> {
-    if (!overrides) return { ...base };
-    return {
-      videoLayout: overrides.videoLayout ?? base.videoLayout,
-      landscapeBackground:
-        overrides.landscapeBackground ?? base.landscapeBackground,
-      landscapeBlurRadius:
-        overrides.landscapeBlurRadius !== undefined
-          ? overrides.landscapeBlurRadius
-          : base.landscapeBlurRadius,
-      landscapeDarkness:
-        overrides.landscapeDarkness !== undefined
-          ? overrides.landscapeDarkness
-          : base.landscapeDarkness,
-      subtitlePosition: overrides.subtitlePosition ?? base.subtitlePosition,
-      subtitleOffset:
-        overrides.subtitleOffset !== undefined
-          ? overrides.subtitleOffset
-          : base.subtitleOffset,
-      subtitleSyncOffset:
-        overrides.subtitleSyncOffset !== undefined
-          ? overrides.subtitleSyncOffset
-          : base.subtitleSyncOffset,
-      font: overrides.font ?? base.font,
-      fontSize:
-        overrides.fontSize !== undefined ? overrides.fontSize : base.fontSize,
-      cropMode: overrides.cropMode ?? base.cropMode,
-      cropMap: overrides.cropMap ?? base.cropMap,
-      cropPercentX:
-        overrides.cropPercentX !== undefined
-          ? overrides.cropPercentX
-          : base.cropPercentX,
-      subtitleMode: overrides.subtitleMode ?? base.subtitleMode,
-      subtitleAnimation: overrides.subtitleAnimation ?? base.subtitleAnimation,
-      subtitleHighlightMode:
-        overrides.subtitleHighlightMode ?? base.subtitleHighlightMode,
-      subtitleHighlightColor:
-        overrides.subtitleHighlightColor ?? base.subtitleHighlightColor,
-      subtitleTextColor: overrides.subtitleTextColor ?? base.subtitleTextColor,
-      subtitleStrokeColor:
-        overrides.subtitleStrokeColor ?? base.subtitleStrokeColor,
-      subtitleStrokeWidth:
-        overrides.subtitleStrokeWidth !== undefined
-          ? overrides.subtitleStrokeWidth
-          : base.subtitleStrokeWidth,
-      subtitleFontWeight:
-        overrides.subtitleFontWeight !== undefined
-          ? overrides.subtitleFontWeight
-          : base.subtitleFontWeight,
-      subtitleTextTransform:
-        overrides.subtitleTextTransform ?? base.subtitleTextTransform,
-      subtitleBackground:
-        overrides.subtitleBackground ?? base.subtitleBackground,
-      subtitleBackgroundOpacity:
-        overrides.subtitleBackgroundOpacity !== undefined
-          ? overrides.subtitleBackgroundOpacity
-          : base.subtitleBackgroundOpacity,
-      subtitleWordSpacing:
-        overrides.subtitleWordSpacing !== undefined
-          ? overrides.subtitleWordSpacing
-          : base.subtitleWordSpacing,
-      volume: overrides.volume !== undefined ? overrides.volume : base.volume,
-      subtitlePreset: overrides.subtitlePreset ?? base.subtitlePreset,
-      subtitlesEnabled:
-        overrides.subtitlesEnabled !== undefined
-          ? overrides.subtitlesEnabled
-          : (base.subtitlesEnabled ?? true)
-    };
+    return new SubtitleStyleCoordinator().merge(
+      base as SubtitleStyleSettings,
+      overrides
+    );
   }
 
   public isPolling(): boolean {

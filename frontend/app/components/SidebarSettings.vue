@@ -2238,17 +2238,24 @@ const backgrounds = [
 const presets = SUBTITLE_PRESETS;
 
 function applyPreset(preset) {
-  state.subtitlePreset.value = preset.id;
-  state.font.value = preset.font;
-  state.fontSize.value = preset.fontSize;
-  state.subtitleFontWeight.value = preset.fontWeight;
-  state.subtitleTextColor.value = preset.color;
-  state.subtitleHighlightColor.value = preset.highlightColor;
-  state.subtitleAnimation.value = preset.animation;
-  state.subtitleHighlightMode.value = preset.highlightMode;
-  state.subtitleBackground.value = preset.background;
-  state.subtitleStrokeWidth.value = preset.strokeWidth;
-  state.subtitleTextTransform.value = preset.textTransform;
+  if (state.applyPreset) {
+    state.applyPreset(preset);
+  } else {
+    state.subtitlePreset.value = preset.id;
+    state.font.value = preset.font;
+    state.fontSize.value = preset.fontSize;
+    state.subtitleFontWeight.value = preset.fontWeight;
+    state.subtitleTextColor.value = preset.color;
+    state.subtitleHighlightColor.value = preset.highlightColor;
+    state.subtitleAnimation.value = preset.animation;
+    state.subtitleHighlightMode.value = preset.highlightMode;
+    state.subtitleBackground.value = preset.background;
+    state.subtitleStrokeWidth.value = preset.strokeWidth;
+    state.subtitleTextTransform.value = preset.textTransform;
+  }
+  if (state.saveStyleSettings) {
+    state.saveStyleSettings();
+  }
 }
 
 function handleSaveDefaultStyle() {

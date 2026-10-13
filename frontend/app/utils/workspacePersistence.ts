@@ -67,6 +67,7 @@ export interface WorkspaceReactivityContext {
     isHydratingHistory: Ref<boolean>;
     hasUnsavedHistory: Ref<boolean>;
     isSavingHistory: Ref<boolean>;
+    isSavingLocked?: Ref<boolean>;
     saveTimelineTracks: () => void;
     saveHistoryToBackend: () => void;
     syncGlobalStylesToItem: (item: TimelineTrackItem) => void;
@@ -83,6 +84,22 @@ export interface WorkspaceReactivityContext {
   subtitleBackground: Ref<string>;
   subtitleBackgroundOpacity: Ref<number>;
   subtitleWordSpacing: Ref<number>;
+
+  subtitlePreset?: Ref<string>;
+  subtitlePosition?: Ref<string>;
+  subtitleOffset?: Ref<number>;
+  subtitleSyncOffset?: Ref<number>;
+  subtitleAnimation?: Ref<string>;
+  subtitleHighlightMode?: Ref<string>;
+  subtitleHighlightColor?: Ref<string>;
+  subtitleMode?: Ref<string>;
+  subtitlesEnabled?: Ref<boolean>;
+  videoLayout?: Ref<string>;
+  landscapeBackground?: Ref<string>;
+  landscapeBlurRadius?: Ref<number>;
+  landscapeDarkness?: Ref<number>;
+  autoAdaptiveSubtitles?: Ref<boolean>;
+  saveStyleSettings?: () => Promise<void> | void;
 }
 
 export class WorkspacePersistenceCoordinator {
@@ -346,8 +363,55 @@ export class WorkspacePersistenceCoordinator {
       )
     );
 
-    // 5. BeforeUnload Guard
+    // Debounced persistence for subtitle styles (800ms)
+    let styleDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    if (ctx.saveStyleSettings) {
+      const watchedStyleRefs = [
+        ctx.font,
+        ctx.fontSize,
+        ctx.subtitleFontWeight,
+        ctx.subtitleTextTransform,
+        ctx.subtitleTextColor,
+        ctx.subtitleStrokeColor,
+        ctx.subtitleStrokeWidth,
+        ctx.subtitleBackground,
+        ctx.subtitleBackgroundOpacity,
+        ctx.subtitleWordSpacing,
+        ctx.subtitlePreset,
+        ctx.subtitlePosition,
+        ctx.subtitleOffset,
+        ctx.subtitleSyncOffset,
+        ctx.subtitleAnimation,
+        ctx.subtitleHighlightMode,
+        ctx.subtitleHighlightColor,
+        ctx.subtitleMode,
+        ctx.subtitlesEnabled,
+        ctx.videoLayout,
+        ctx.landscapeBackground,
+        ctx.landscapeBlurRadius,
+        ctx.landscapeDarkness,
+        ctx.autoAdaptiveSubtitles
+      ].filter(Boolean) as Array<Ref<any>>;
+
+      unwatchList.push(
+        watch(watchedStyleRefs, () => {
+          if (ctx.timeline.isSavingLocked?.value) return;
+          if (!ctx.folderName.value || !ctx.clipId.value) return;
+          if (styleDebounceTimer) clearTimeout(styleDebounceTimer);
+          styleDebounceTimer = setTimeout(() => {
+            ctx.saveStyleSettings?.();
+          }, 800);
+        })
+      );
+    }
+
+    // 5. BeforeUnload Guard & Flush
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (styleDebounceTimer) {
+        clearTimeout(styleDebounceTimer);
+        styleDebounceTimer = null;
+        ctx.saveStyleSettings?.();
+      }
       if (
         ctx.timeline.hasUnsavedHistory.value ||
         ctx.timeline.isSavingHistory.value
@@ -363,6 +427,10 @@ export class WorkspacePersistenceCoordinator {
       if (historyDebounceTimer) {
         clearTimeout(historyDebounceTimer);
         historyDebounceTimer = null;
+      }
+      if (styleDebounceTimer) {
+        clearTimeout(styleDebounceTimer);
+        styleDebounceTimer = null;
       }
       unwatchList.forEach(unwatch => unwatch());
     };

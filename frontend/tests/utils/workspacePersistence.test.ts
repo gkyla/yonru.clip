@@ -120,4 +120,67 @@ describe('WorkspacePersistenceCoordinator Unit Tests', () => {
     // Cleanup
     unbind();
   });
+
+  it('triggers debounced saveStyleSettings when subtitle styling ref changes while clip is active', async () => {
+    vi.useFakeTimers();
+    const saveStyleSettingsSpy = vi.fn();
+    const mockContext: WorkspaceReactivityContext = {
+      selectedPrompt: ref(''),
+      extractionMode: ref('preset'),
+      selectedPresetId: ref('auto'),
+      focusTopic: ref(''),
+      minDuration: ref(30),
+      maxDuration: ref(180),
+      whisperModel: ref('base'),
+      language: ref('id'),
+      lastAccessedVideoId: ref(null),
+      lastAccessedVideoStored: ref(null),
+      lastAccessedClip: ref(null),
+      folderName: ref('folder1'),
+      clipId: ref('clip1'),
+      jobStatus: ref('ready'),
+      activeHook: ref(null),
+      setLastClip: vi.fn(),
+      auditor: { loadBlacklistFromStorage: vi.fn() },
+      timeline: {
+        defaultTimelineTextStyle: ref(null),
+        timelineTracks: ref([]),
+        timelineUndoStack: ref([]),
+        timelineRedoStack: ref([]),
+        isHydratingHistory: ref(false),
+        hasUnsavedHistory: ref(false),
+        isSavingHistory: ref(false),
+        isSavingLocked: ref(false),
+        saveTimelineTracks: vi.fn(),
+        saveHistoryToBackend: vi.fn(),
+        syncGlobalStylesToItem: vi.fn()
+      },
+      loadDefaultThumbnailStyle: vi.fn(),
+      font: ref('Montserrat'),
+      fontSize: ref(24),
+      subtitleFontWeight: ref(900),
+      subtitleTextTransform: ref('uppercase'),
+      subtitleTextColor: ref('#FFFFFF'),
+      subtitleStrokeColor: ref('#000000'),
+      subtitleStrokeWidth: ref(4),
+      subtitleBackground: ref('none'),
+      subtitleBackgroundOpacity: ref(0.7),
+      subtitleWordSpacing: ref(0),
+      saveStyleSettings: saveStyleSettingsSpy
+    };
+
+    const unbind = WorkspacePersistenceCoordinator.bindReactivity(mockContext);
+
+    // Mutate font ref
+    mockContext.font.value = 'Bebas Neue';
+    await vi.advanceTimersByTimeAsync(100);
+    expect(saveStyleSettingsSpy).not.toHaveBeenCalled();
+
+    // Advance full debounce time (800ms)
+    await vi.advanceTimersByTimeAsync(800);
+    expect(saveStyleSettingsSpy).toHaveBeenCalledTimes(1);
+
+    unbind();
+    vi.useRealTimers();
+  });
 });

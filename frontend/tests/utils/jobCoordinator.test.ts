@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { resolveApiBase } from '../../app/utils/apiBase';
 import {
   IngestionJobCoordinator,
-  DEFAULT_SUBTITLE_STYLES,
   type AnalysisSpec,
   type CachedAnalysisSpec,
   type ClipExtractSpec
 } from '../../app/utils/jobCoordinator';
+import { DEFAULT_SUBTITLE_STYLES } from '../../app/utils/subtitleStyleCoordinator';
 
 describe('IngestionJobCoordinator Unit Tests', () => {
   let mockFetcher: ReturnType<typeof vi.fn>;

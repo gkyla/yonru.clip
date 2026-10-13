@@ -101,7 +101,7 @@ The millisecond adjustment applied to subtitle timestamps to synchronize caption
 _Avoid_: Audio delay, subtitle delay, speech lag
 
 **Subtitle Style Preset**:
-A preconfigured collection of typography, color palette, highlight animation, stroke, and background treatments applied to subtitles for viral video pacing and visual branding.
+A preconfigured collection of typography, color palette, highlight animation, stroke, and background treatments applied to subtitles for visual branding. Applying a preset is strictly isolated to these aesthetic properties and preserves Canvas Layout, Camera Framing, Subtitle Pacing, Subtitle Position, and Timing Offsets intact.
 _Avoid_: Template, subtitle theme, font style, caption design
 
 **Subtitle Visibility Toggle**:

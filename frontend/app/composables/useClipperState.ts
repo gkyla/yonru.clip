@@ -9,6 +9,7 @@ import { useTimelineState } from './useTimelineState';
 import { useClipperJob } from './useClipperJob';
 import { useClipperThumbnail } from './useClipperThumbnail';
 import { useClipperExport } from './useClipperExport';
+import { useSubtitleStyle } from './useSubtitleStyle';
 
 import fontsManifest from '../../../shared/fonts_manifest.json';
 import type {
@@ -90,6 +91,7 @@ function createClipperState() {
   const timeline = useTimelineState();
   const job = useClipperJob();
   const thumbnailState = useClipperThumbnail();
+  const subtitleStyle = useSubtitleStyle();
 
   // Job state delegated from useClipperJob sub-composable
   const {
@@ -737,47 +739,14 @@ function createClipperState() {
 
   async function saveStyleSettings() {
     if (!folderName.value || !clipId.value) return;
-    const settings = {
-      videoLayout: videoLayout.value,
-      landscapeBackground: landscapeBackground.value,
-      landscapeBlurRadius: landscapeBlurRadius.value,
-      landscapeDarkness: landscapeDarkness.value,
-      subtitlePreset: subtitlePreset.value,
-      subtitlePosition: subtitlePosition.value,
-      subtitleOffset: subtitleOffset.value,
-      subtitleSyncOffset: subtitleSyncOffset.value,
-      subtitlesEnabled: subtitlesEnabled.value,
-      autoAdaptiveSubtitles: autoAdaptiveSubtitles.value,
-      font: font.value,
-      fontSize: fontSize.value,
-      cropMode: cropMode.value,
-      cropPercentX: cropPercentX.value,
-      cropPercentXTop: cropPercentXTop.value,
-      cropPercentXBottom: cropPercentXBottom.value,
-      splitZoomTop: splitZoomTop.value,
-      splitZoomBottom: splitZoomBottom.value,
-      splitOffsetXTop: splitOffsetXTop.value,
-      splitOffsetYTop: splitOffsetYTop.value,
-      splitOffsetXBottom: splitOffsetXBottom.value,
-      splitOffsetYBottom: splitOffsetYBottom.value,
-      subtitleMode: subtitleMode.value,
-      subtitleAnimation: subtitleAnimation.value,
-      subtitleHighlightMode: subtitleHighlightMode.value,
-      subtitleHighlightColor: subtitleHighlightColor.value,
-      subtitleTextColor: subtitleTextColor.value,
-      subtitleStrokeColor: subtitleStrokeColor.value,
-      subtitleStrokeWidth: subtitleStrokeWidth.value,
-      subtitleFontWeight: subtitleFontWeight.value,
-      subtitleTextTransform: subtitleTextTransform.value,
-      subtitleBackground: subtitleBackground.value,
-      subtitleBackgroundOpacity: subtitleBackgroundOpacity.value,
-      subtitleWordSpacing: subtitleWordSpacing.value,
-      volume: volume.value
-    };
     try {
       await $fetch(`${API_BASE}/api/style-settings`, {
         method: 'PUT',
-        body: { folder_name: folderName.value, clip_id: clipId.value, settings }
+        body: {
+          folder_name: folderName.value,
+          clip_id: clipId.value,
+          settings: subtitleStyle.getStyleSnapshot()
+        }
       });
     } catch {}
   }
@@ -788,46 +757,19 @@ function createClipperState() {
   }
 
   async function saveDefaultStyleSettings() {
-    const settings = {
-      videoLayout: videoLayout.value,
-      landscapeBackground: landscapeBackground.value,
-      landscapeBlurRadius: landscapeBlurRadius.value,
-      landscapeDarkness: landscapeDarkness.value,
-      subtitlePreset: subtitlePreset.value,
-      subtitlePosition: subtitlePosition.value,
-      subtitleOffset: subtitleOffset.value,
-      subtitleSyncOffset: subtitleSyncOffset.value,
-      autoAdaptiveSubtitles: autoAdaptiveSubtitles.value,
-      font: font.value,
-      fontSize: fontSize.value,
-      cropMode: cropMode.value,
-      cropPercentX: cropPercentX.value,
-      splitZoomTop: splitZoomTop.value,
-      splitZoomBottom: splitZoomBottom.value,
-      splitOffsetXTop: splitOffsetXTop.value,
-      splitOffsetYTop: splitOffsetYTop.value,
-      splitOffsetXBottom: splitOffsetXBottom.value,
-      splitOffsetYBottom: splitOffsetYBottom.value,
-      subtitleMode: subtitleMode.value,
-      subtitleAnimation: subtitleAnimation.value,
-      subtitleHighlightMode: subtitleHighlightMode.value,
-      subtitleHighlightColor: subtitleHighlightColor.value,
-      subtitleTextColor: subtitleTextColor.value,
-      subtitleStrokeColor: subtitleStrokeColor.value,
-      subtitleStrokeWidth: subtitleStrokeWidth.value,
-      subtitleFontWeight: subtitleFontWeight.value,
-      subtitleTextTransform: subtitleTextTransform.value,
-      subtitleBackground: subtitleBackground.value,
-      subtitleBackgroundOpacity: subtitleBackgroundOpacity.value,
-      subtitleWordSpacing: subtitleWordSpacing.value,
-      volume: volume.value
-    };
     try {
       await $fetch(`${API_BASE}/api/default-style-settings`, {
         method: 'PUT',
-        body: { settings }
+        body: { settings: subtitleStyle.getStyleSnapshot() }
       });
     } catch {}
+  }
+
+  function applyPreset(
+    presetOrId: Parameters<typeof subtitleStyle.applyPreset>[0]
+  ) {
+    subtitleStyle.applyPreset(presetOrId);
+    saveStyleSettings();
   }
 
   function initPersistence() {
@@ -863,7 +805,22 @@ function createClipperState() {
       subtitleStrokeWidth,
       subtitleBackground,
       subtitleBackgroundOpacity,
-      subtitleWordSpacing
+      subtitleWordSpacing,
+      subtitlePreset,
+      subtitlePosition,
+      subtitleOffset,
+      subtitleSyncOffset,
+      subtitleAnimation,
+      subtitleHighlightMode,
+      subtitleHighlightColor,
+      subtitleMode,
+      subtitlesEnabled,
+      videoLayout,
+      landscapeBackground,
+      landscapeBlurRadius,
+      landscapeDarkness,
+      autoAdaptiveSubtitles,
+      saveStyleSettings
     });
   }
 
@@ -1070,6 +1027,8 @@ function createClipperState() {
     deleteSavedHook,
     saveTranscript,
     saveStyleSettings,
+    applyPreset,
+    subtitleStyle,
     toggleSubtitles,
     saveDefaultStyleSettings,
     updateHooks,

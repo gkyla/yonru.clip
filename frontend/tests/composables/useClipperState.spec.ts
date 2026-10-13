@@ -490,4 +490,34 @@ describe('useClipperState Composable', () => {
       })
     );
   });
+
+  it('delegates applyPreset to subtitleStyle and automatically persists via saveStyleSettings', async () => {
+    const state = useClipperState();
+    const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
+    vi.stubGlobal('$fetch', mockFetch);
+
+    state.folderName.value = 'folderPreset';
+    state.clipId.value = 'clipPreset';
+
+    state.applyPreset('clean-vlog');
+
+    expect(state.subtitlePreset.value).toBe('clean-vlog');
+    expect(state.font.value).toBe('Outfit');
+    expect(state.subtitleStrokeWidth.value).toBe(0);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/style-settings'),
+      expect.objectContaining({
+        method: 'PUT',
+        body: expect.objectContaining({
+          folder_name: 'folderPreset',
+          clip_id: 'clipPreset',
+          settings: expect.objectContaining({
+            subtitlePreset: 'clean-vlog',
+            font: 'Outfit'
+          })
+        })
+      })
+    );
+  });
 });
