@@ -3,6 +3,7 @@
 
 import { useTimelineState } from './useTimelineState';
 import { useSafetyAuditor } from './useSafetyAuditor';
+import { useSubtitleStyle } from './useSubtitleStyle';
 import { parseRenderEvent } from '../utils/renderEventParser';
 
 interface ExportDeps {
@@ -17,6 +18,7 @@ export const useClipperExport = (deps: ExportDeps) => {
 
   const timeline = useTimelineState();
   const safety = useSafetyAuditor();
+  const subtitleStyle = useSubtitleStyle();
 
   // --- Render state (global useState keys) ---
   const renderStatus = useState<string>('renderStatus', () => 'idle');
@@ -38,65 +40,6 @@ export const useClipperExport = (deps: ExportDeps) => {
   const videoFps = useState<number>('videoFps', () => 30);
   const volume = useState<number>('volume', () => 0.5);
   const fullTranscript = useState<any[]>('fullTranscript', () => []);
-
-  // Subtitle style states (read via shared useState keys)
-  const videoLayout = useState<string>('videoLayout', () => 'vertical');
-  const landscapeBackground = useState<string>(
-    'landscapeBackground',
-    () => 'black'
-  );
-  const landscapeBlurRadius = useState<number>('landscapeBlurRadius', () => 25);
-  const landscapeDarkness = useState<number>('landscapeDarkness', () => 35);
-  const subtitlePosition = useState<string>('subtitlePosition', () => 'center');
-  const subtitleOffset = useState<number>('subtitleOffset', () => 50);
-  const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150);
-  const subtitlesEnabled = useState<boolean>('subtitlesEnabled', () => true);
-  const font = useState<string>('font', () => 'Montserrat');
-  const fontSize = useState<number>('fontSize', () => 100);
-  const cropMode = useState<string>('cropMode', () => 'manual');
-  const cropPercentX = useState<number>('cropPercentX', () => 50);
-  const splitZoomTop = useState<number>('splitZoomTop', () => 1.0);
-  const splitZoomBottom = useState<number>('splitZoomBottom', () => 1.0);
-  const splitOffsetXTop = useState<number>('splitOffsetXTop', () => 0);
-  const splitOffsetYTop = useState<number>('splitOffsetYTop', () => 0);
-  const splitOffsetXBottom = useState<number>('splitOffsetXBottom', () => 0);
-  const splitOffsetYBottom = useState<number>('splitOffsetYBottom', () => 0);
-  const subtitleMode = useState<'word' | '3_words' | '4_words'>(
-    'subtitleMode',
-    () => 'word'
-  );
-  const subtitleAnimation = useState<string>('subtitleAnimation', () => 'pop');
-  const subtitleHighlightMode = useState<string>(
-    'subtitleHighlightMode',
-    () => 'color'
-  );
-  const subtitleHighlightColor = useState<string>(
-    'subtitleHighlightColor',
-    () => '#CFFF50'
-  );
-  const subtitleTextColor = useState<string>(
-    'subtitleTextColor',
-    () => '#FFFFFF'
-  );
-  const subtitleStrokeColor = useState<string>(
-    'subtitleStrokeColor',
-    () => '#000000'
-  );
-  const subtitleStrokeWidth = useState<number>('subtitleStrokeWidth', () => 4);
-  const subtitleFontWeight = useState<number>('subtitleFontWeight', () => 900);
-  const subtitleTextTransform = useState<string>(
-    'subtitleTextTransform',
-    () => 'uppercase'
-  );
-  const subtitleBackground = useState<string>(
-    'subtitleBackground',
-    () => 'none'
-  );
-  const subtitleBackgroundOpacity = useState<number>(
-    'subtitleBackgroundOpacity',
-    () => 0.7
-  );
-  const subtitleWordSpacing = useState<number>('subtitleWordSpacing', () => 0);
 
   // Cover & Thumbnail states (read via shared useState keys)
   const coverEnabled = useState<boolean>('coverEnabled', () => false);
@@ -171,37 +114,16 @@ export const useClipperExport = (deps: ExportDeps) => {
     return {
       job_id: jobId.value,
       hook_index: hookIndex,
-      video_layout: videoLayout.value,
-      landscape_background: landscapeBackground.value,
-      landscape_blur_radius: landscapeBlurRadius.value,
-      landscape_darkness: landscapeDarkness.value,
-      subtitle_position: subtitlePosition.value,
-      subtitle_offset: subtitleOffset.value,
-      font: font.value,
-      font_size: fontSize.value,
-      face_tracking: cropMode.value === 'face_tracking',
-      crop_percent_x: cropPercentX.value,
-      split_zoom_top: splitZoomTop.value,
-      split_zoom_bottom: splitZoomBottom.value,
-      split_offset_x_top: splitOffsetXTop.value,
-      split_offset_y_top: splitOffsetYTop.value,
-      split_offset_x_bottom: splitOffsetXBottom.value,
-      split_offset_y_bottom: splitOffsetYBottom.value,
-      subtitle_sync_offset: subtitleSyncOffset.value,
-      subtitle_mode: subtitleMode.value,
+      ...subtitleStyle.toRenderPayload(),
+      face_tracking: subtitleStyle.cropMode.value === 'face_tracking',
+      crop_percent_x: subtitleStyle.cropPercentX.value,
+      split_zoom_top: subtitleStyle.splitZoomTop.value,
+      split_zoom_bottom: subtitleStyle.splitZoomBottom.value,
+      split_offset_x_top: subtitleStyle.splitOffsetXTop.value,
+      split_offset_y_top: subtitleStyle.splitOffsetYTop.value,
+      split_offset_x_bottom: subtitleStyle.splitOffsetXBottom.value,
+      split_offset_y_bottom: subtitleStyle.splitOffsetYBottom.value,
       timeline_tracks: timeline.timelineTracks.value,
-      subtitle_animation: subtitleAnimation.value,
-      subtitle_highlight_mode: subtitleHighlightMode.value,
-      subtitle_highlight_color: subtitleHighlightColor.value,
-      subtitle_text_color: subtitleTextColor.value,
-      subtitle_stroke_color: subtitleStrokeColor.value,
-      subtitle_stroke_width: subtitleStrokeWidth.value,
-      subtitle_font_weight: subtitleFontWeight.value,
-      subtitle_text_transform: subtitleTextTransform.value,
-      subtitle_background: subtitleBackground.value,
-      subtitle_background_opacity: subtitleBackgroundOpacity.value,
-      subtitle_word_spacing: subtitleWordSpacing.value,
-      subtitles_enabled: subtitlesEnabled.value,
       volume: volume.value,
       fps: videoFps.value,
       transcript: fullTranscript.value.map((seg: any) => ({

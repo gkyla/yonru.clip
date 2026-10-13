@@ -56,6 +56,7 @@ const mockState = {
   seekTo: vi.fn(),
   showToast: vi.fn(),
   saveDefaultStyleSettings: vi.fn(),
+  saveStyleSettings: vi.fn(),
   renderClip: vi.fn()
 };
 
@@ -386,5 +387,21 @@ describe('SidebarSettings Component', () => {
     // Verify 1 Word button is disabled when subtitles are off
     const wordBtn = wrapper.findAll('button').find(b => b.text() === '1 Word');
     expect(wordBtn?.attributes('disabled')).toBeDefined();
+  });
+
+  it('persists style settings via state.saveStyleSettings when a preset is selected', async () => {
+    const wrapper = mount(SidebarSettings, {
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, BlacklistSettings: true }
+      }
+    });
+
+    const presetBtn = wrapper
+      .findAll('button')
+      .find(b => b.text().includes('Hormozi Bold'));
+    expect(presetBtn?.exists()).toBe(true);
+    await presetBtn?.trigger('click');
+
+    expect(mockState.saveStyleSettings).toHaveBeenCalled();
   });
 });

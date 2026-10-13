@@ -1,5 +1,6 @@
 import { resolveApiBase } from './apiBase';
 import { parseSubtitleWords } from './remotionHelpers';
+import { SubtitleStyleCoordinator } from './subtitleStyleCoordinator';
 import type { PlayerBridge } from './playerBridge';
 import type {
   Hook,
@@ -229,6 +230,8 @@ export class VideoPlaybackCoordinator {
 
     const activeFps = snapshot.videoFps || 30;
 
+    const styleBundle = SubtitleStyleCoordinator.extractRemotionProps(snapshot);
+
     return {
       videoPath: videoSrc,
       words: wordsData,
@@ -252,13 +255,13 @@ export class VideoPlaybackCoordinator {
           : [],
       sourceWidth: sourceDimensions.width,
       sourceHeight: sourceDimensions.height,
-      position: snapshot.subtitlePosition,
-      videoLayout: snapshot.videoLayout || 'vertical',
-      landscapeBackground: snapshot.landscapeBackground || 'black',
-      landscapeBlurRadius: snapshot.landscapeBlurRadius ?? 25,
-      landscapeDarkness: snapshot.landscapeDarkness ?? 35,
-      subtitleOffset: snapshot.subtitleOffset,
-      autoAdaptiveSubtitles: snapshot.autoAdaptiveSubtitles ?? true,
+      position: styleBundle.position,
+      videoLayout: styleBundle.videoLayout,
+      landscapeBackground: styleBundle.landscapeBackground,
+      landscapeBlurRadius: styleBundle.landscapeBlurRadius,
+      landscapeDarkness: styleBundle.landscapeDarkness,
+      subtitleOffset: styleBundle.subtitleOffset,
+      autoAdaptiveSubtitles: styleBundle.autoAdaptiveSubtitles,
       durationInFrames: Math.round(snapshot.timelineDuration * activeFps),
       fps: activeFps,
       hideSubtitles:
@@ -289,21 +292,7 @@ export class VideoPlaybackCoordinator {
         snapshot.audioBleepEnabled && snapshot.audioBleepSource === 'custom'
           ? snapshot.customBleepData || '/audio/bleep.wav'
           : undefined,
-      subtitleStyle: {
-        fontFamily: snapshot.font,
-        fontSize: snapshot.fontSize,
-        fontWeight: snapshot.subtitleFontWeight,
-        color: snapshot.subtitleTextColor,
-        highlightColor: snapshot.subtitleHighlightColor,
-        strokeColor: snapshot.subtitleStrokeColor,
-        strokeWidth: snapshot.subtitleStrokeWidth,
-        textTransform: snapshot.subtitleTextTransform,
-        animation: snapshot.subtitleAnimation,
-        highlightMode: snapshot.subtitleHighlightMode,
-        background: snapshot.subtitleBackground,
-        backgroundOpacity: snapshot.subtitleBackgroundOpacity,
-        wordSpacing: snapshot.subtitleWordSpacing
-      }
+      subtitleStyle: styleBundle.subtitleStyle
     };
   }
 
