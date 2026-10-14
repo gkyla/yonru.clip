@@ -303,7 +303,7 @@ import {
   PRESET_CATEGORIES,
   type SubtitlePreset
 } from '../../constants/subtitlePresets';
-import { getOuterStrokeShadow } from '../../utils/styleHelpers';
+import { getOuterStrokeShadow } from '../../utils/subtitleStyleCoordinator';
 
 const props = defineProps<{
   show: boolean;

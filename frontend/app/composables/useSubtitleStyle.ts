@@ -317,6 +317,13 @@ export const useSubtitleStyle = () => {
     return SubtitleStyleCoordinator.extractRenderPayload(getStyleSnapshot());
   }
 
+  function getOuterStrokeShadow(): string {
+    return SubtitleStyleCoordinator.getOuterStrokeShadow(
+      subtitleStrokeWidth.value,
+      subtitleStrokeColor.value
+    );
+  }
+
   async function saveStyleSettings(
     folderName: string,
     clipId: string
@@ -393,6 +400,7 @@ export const useSubtitleStyle = () => {
     getStyleSnapshot,
     toRemotionProps,
     toRenderPayload,
+    getOuterStrokeShadow,
 
     // Actions
     loadStyleSettings,

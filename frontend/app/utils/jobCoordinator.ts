@@ -144,20 +144,6 @@ export class IngestionJobCoordinator {
     return res.json();
   }
 
-  public resetSubtitleStyles(): Partial<SubtitleStyleSettings> {
-    return new SubtitleStyleCoordinator().reset();
-  }
-
-  public mergeSubtitleStyles(
-    base: Partial<SubtitleStyleSettings>,
-    overrides?: Partial<SubtitleStyleSettings> | null
-  ): Partial<SubtitleStyleSettings> {
-    return new SubtitleStyleCoordinator().merge(
-      base as SubtitleStyleSettings,
-      overrides
-    );
-  }
-
   public isPolling(): boolean {
     return this.pollInterval !== null;
   }
@@ -519,12 +505,12 @@ export class IngestionJobCoordinator {
     if (defaultStyleRes.status === 'fulfilled' && defaultStyleRes.value) {
       const rawDefault = (defaultStyleRes.value.settings ||
         defaultStyleRes.value) as Partial<SubtitleStyleSettings>;
-      styles = this.mergeSubtitleStyles(styles, rawDefault);
+      styles = SubtitleStyleCoordinator.merge(styles, rawDefault);
     }
     if (clipStyleRes.status === 'fulfilled' && clipStyleRes.value) {
       const rawClip = (clipStyleRes.value.settings ||
         clipStyleRes.value) as Partial<SubtitleStyleSettings>;
-      styles = this.mergeSubtitleStyles(styles, rawClip);
+      styles = SubtitleStyleCoordinator.merge(styles, rawClip);
     }
 
     // Resolve transcript

@@ -1875,7 +1875,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { FONT_OPTIONS } from '../composables/useClipperState';
 import { SUBTITLE_PRESETS } from '../constants/subtitlePresets';
-import { getOuterStrokeShadow } from '../utils/styleHelpers';
+import { getOuterStrokeShadow } from '../utils/subtitleStyleCoordinator';
 import PresetStudioModal from './editor/PresetStudioModal.vue';
 
 const state = useClipperState();

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   SubtitleStyleCoordinator,
-  DEFAULT_SUBTITLE_STYLES
+  DEFAULT_SUBTITLE_STYLES,
+  getOuterStrokeShadow
 } from '../../app/utils/subtitleStyleCoordinator';
 import { SUBTITLE_PRESETS } from '../../app/constants/subtitlePresets';
 
@@ -200,5 +201,39 @@ describe('SubtitleStyleCoordinator Domain Engine', () => {
     expect(payload.font).toBe('Roboto');
     expect(payload.font_size).toBe(42);
     expect(payload.video_layout).toBe('vertical');
+  });
+
+  describe('getOuterStrokeShadow calculation & projection', () => {
+    it('returns subtle ambient shadow when strokeWidth is 0 or undefined', () => {
+      expect(getOuterStrokeShadow(0)).toBe('0 1px 3px rgba(0,0,0,0.8)');
+      expect(getOuterStrokeShadow(undefined)).toBe('0 1px 3px rgba(0,0,0,0.8)');
+    });
+
+    it('generates multi-directional outer shadow rays when strokeWidth > 0', () => {
+      const shadow = SubtitleStyleCoordinator.getOuterStrokeShadow(
+        3,
+        '#000000'
+      );
+      expect(shadow).toContain('-1.4px -1.4px 0 #000000');
+      expect(shadow).toContain('1.4px 1.4px 0 #000000');
+      expect(shadow).toContain('0 0 1.4px #000000');
+      expect(shadow).toContain('0 2px 4px rgba(0,0,0,0.95)');
+    });
+
+    it('supports custom stroke colors', () => {
+      const shadow = getOuterStrokeShadow(2, '#FFFFFF');
+      expect(shadow).toContain('0 #FFFFFF');
+    });
+
+    it('instance method getOuterStrokeShadow uses coordinator settings', () => {
+      const coordinator = new SubtitleStyleCoordinator({
+        subtitleStrokeWidth: 4,
+        subtitleStrokeColor: '#FF0000'
+      });
+
+      const shadow = coordinator.getOuterStrokeShadow();
+      expect(shadow).toContain('#FF0000');
+      expect(shadow).toContain('-1.8px -1.8px 0 #FF0000');
+    });
   });
 });
