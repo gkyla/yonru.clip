@@ -127,6 +127,12 @@ class ClipSessionStore:
         # 1. Style settings
         clip_style_path = os.path.join(clip_dir, "style_settings.json")
         default_style_path = os.path.join(self.output_dir, "default_style_settings.json")
+        if not os.path.exists(default_style_path):
+            try:
+                self._atomic_write_json(default_style_path, CANONICAL_DEFAULT_STYLE_SETTINGS)
+            except Exception:
+                pass
+
         if not os.path.exists(clip_style_path):
             style_data = CANONICAL_DEFAULT_STYLE_SETTINGS
             if os.path.exists(default_style_path):
@@ -137,11 +143,6 @@ class ClipSessionStore:
                             style_data = loaded
                 except Exception:
                     style_data = CANONICAL_DEFAULT_STYLE_SETTINGS
-            else:
-                try:
-                    self._atomic_write_json(default_style_path, CANONICAL_DEFAULT_STYLE_SETTINGS)
-                except Exception:
-                    pass
             self._atomic_write_json(clip_style_path, style_data)
 
         # 2. Cover / thumbnail config

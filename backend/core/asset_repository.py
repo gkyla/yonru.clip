@@ -9,6 +9,7 @@ import time
 from typing import Optional, Dict, Any, List
 from abc import ABC, abstractmethod
 from core.youtube_client import YouTubeClient
+from core.clip_session_store import ClipSessionStore
 
 class AssetStore(ABC):
     @abstractmethod
@@ -121,13 +122,15 @@ class AssetStore(ABC):
         return filtered
 
 class AssetRepository(AssetStore):
-    def __init__(self, output_dir="temp_assets", youtube_client=None, config_store=None):
+    def __init__(self, output_dir="temp_assets", youtube_client=None, config_store=None, clip_session_store=None):
         self.output_dir = output_dir
         self.source_dir = os.path.join(output_dir, "sources")
         self.clips_dir = os.path.join(output_dir, "clips")
         
         os.makedirs(self.source_dir, exist_ok=True)
         os.makedirs(self.clips_dir, exist_ok=True)
+        
+        self.clip_session_store = clip_session_store or ClipSessionStore(clips_dir=self.clips_dir, output_dir=self.output_dir)
         
         self.cookie_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "cookies.txt"))
         self.client = youtube_client or YouTubeClient(cookie_path=self.cookie_path)
@@ -963,11 +966,7 @@ class AssetRepository(AssetStore):
         return target
 
     def save_clip_transcript(self, folder_name: str, clip_id: str, transcript: list) -> bool:
-        clip_transcript_path = self._resolve_clip_path(folder_name, clip_id, "transcript.json")
-        os.makedirs(os.path.dirname(clip_transcript_path), exist_ok=True)
-        with open(clip_transcript_path, "w", encoding="utf-8") as f:
-            json.dump(transcript, f, ensure_ascii=False, indent=2)
-        return True
+        return self.clip_session_store.save_transcript(folder_name, clip_id, transcript)
 
     def update_source_hooks(self, folder_name: str, hooks: list) -> bool:
         base = os.path.realpath(self.source_dir)
@@ -981,25 +980,13 @@ class AssetRepository(AssetStore):
         return True
 
     def save_clip_style_settings(self, folder_name: str, clip_id: str, settings: dict) -> bool:
-        style_path = self._resolve_clip_path(folder_name, clip_id, "style_settings.json")
-        os.makedirs(os.path.dirname(style_path), exist_ok=True)
-        with open(style_path, "w", encoding="utf-8") as f:
-            json.dump(settings, f, ensure_ascii=False, indent=2)
-        return True
+        return self.clip_session_store.save_style_settings(folder_name, clip_id, settings)
 
     def save_clip_timeline(self, folder_name: str, clip_id: str, timeline_tracks: list) -> bool:
-        timeline_path = self._resolve_clip_path(folder_name, clip_id, "timeline.json")
-        os.makedirs(os.path.dirname(timeline_path), exist_ok=True)
-        with open(timeline_path, "w", encoding="utf-8") as f:
-            json.dump(timeline_tracks, f, ensure_ascii=False, indent=2)
-        return True
+        return self.clip_session_store.save_timeline(folder_name, clip_id, timeline_tracks)
 
     def save_clip_history(self, folder_name: str, clip_id: str, undo_stack: list, redo_stack: list) -> bool:
-        history_path = self._resolve_clip_path(folder_name, clip_id, "history.json")
-        os.makedirs(os.path.dirname(history_path), exist_ok=True)
-        with open(history_path, "w", encoding="utf-8") as f:
-            json.dump({"undo_stack": undo_stack, "redo_stack": redo_stack}, f, ensure_ascii=False)
-        return True
+        return self.clip_session_store.save_history(folder_name, clip_id, undo_stack, redo_stack)
 
     def save_default_style_settings(self, settings: dict) -> bool:
         default_style_path = os.path.join(self.output_dir, "default_style_settings.json")
@@ -1053,65 +1040,16 @@ class AssetRepository(AssetStore):
         return None
 
     def save_cover_config(self, folder_name: str, clip_id: str, config: dict) -> bool:
-        cover_path = self._resolve_clip_path(folder_name, clip_id, "cover_config.json")
-        thumb_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail_config.json")
-        os.makedirs(os.path.dirname(cover_path), exist_ok=True)
-        try:
-            with open(cover_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, ensure_ascii=False, indent=2)
-            # Sync with thumbnail_config.json for seamless backward compatibility
-            with open(thumb_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, ensure_ascii=False, indent=2)
-            return True
-        except Exception as e:
-            print(f"[asset_repository] Failed to save cover config: {e}")
-            return False
+        return self.clip_session_store.save_cover_config(folder_name, clip_id, config)
 
     def get_cover_config(self, folder_name: str, clip_id: str) -> Optional[dict]:
-        cover_path = self._resolve_clip_path(folder_name, clip_id, "cover_config.json")
-        if os.path.exists(cover_path):
-            try:
-                with open(cover_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        
-        # Backward compatibility fallback: read legacy thumbnail_config.json
-        thumb_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail_config.json")
-        if os.path.exists(thumb_path):
-            try:
-                with open(thumb_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return None
+        return self.clip_session_store.get_cover_config(folder_name, clip_id)
 
     def delete_cover(self, folder_name: str, clip_id: str) -> bool:
-        cover_path = self._resolve_clip_path(folder_name, clip_id, "cover.jpg")
-        if os.path.exists(cover_path):
-            try:
-                os.remove(cover_path)
-            except Exception:
-                pass
-        # Note: Clip Thumbnail (thumbnail.jpg) is strictly preserved and never deleted
-        return True
+        return self.clip_session_store.delete_cover(folder_name, clip_id)
 
     def migrate_legacy_cover_if_needed(self, folder_name: str, clip_id: str) -> Optional[str]:
-        cover_path = self._resolve_clip_path(folder_name, clip_id, "cover.jpg")
-        if os.path.exists(cover_path):
-            return f"/assets/clips/{folder_name}/{clip_id}/cover.jpg"
-
-        config = self.get_cover_config(folder_name, clip_id)
-        if config and config.get("enabled"):
-            thumb_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail.jpg")
-            if os.path.exists(thumb_path):
-                try:
-                    import shutil
-                    shutil.copy2(thumb_path, cover_path)
-                    return f"/assets/clips/{folder_name}/{clip_id}/cover.jpg"
-                except Exception as e:
-                    print(f"[asset_repository] Failed to auto-migrate legacy cover: {e}")
-        return None
+        return self.clip_session_store.migrate_legacy_cover_if_needed(folder_name, clip_id)
 
     def save_thumbnail_config(self, folder_name: str, clip_id: str, config: dict) -> bool:
         return self.save_cover_config(folder_name, clip_id, config)

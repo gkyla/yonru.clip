@@ -55,8 +55,11 @@ cookie_path = os.path.abspath(os.path.join(backend_dir, "cookies.txt"))
 from core.system_repository import SystemRepository
 system_repository = SystemRepository(config_store=config_store, cookies_path=cookie_path)
 
+from core.clip_session_store import ClipSessionStore
+clip_session_store = ClipSessionStore("temp_assets/clips", output_dir="temp_assets")
+
 youtube_client = YouTubeClient(cookie_path=cookie_path)
-asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store)
+asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store, clip_session_store=clip_session_store)
 render_engine = RemotionRenderEngine(output_dir="static/output", config_store=config_store)
 speech_transcriber = FasterWhisperSpeechTranscriber(model_size="base")
 
@@ -67,7 +70,8 @@ workflow_coordinator = ClipWorkflowCoordinator(
     youtube_client=youtube_client,
     speech_transcriber=speech_transcriber,
     prompt_repository=prompt_repository,
-    config_store=config_store
+    config_store=config_store,
+    clip_session_store=clip_session_store
 )
 
 
@@ -537,11 +541,43 @@ def remove_saved_hook(folder_name: str, hook_id: str):
     hooks = asset_repository.delete_saved_hook(folder_name, hook_id)
     return {"saved_hooks": hooks}
 
+# --- Unified Clip Session Endpoints ---
+
+@app.get("/api/clip-session/{folder_name}/{clip_id}")
+async def get_clip_session(folder_name: str, clip_id: str):
+    """Retrieve complete aggregate clip session (transcript, styles, timeline, history, cover, crop map)."""
+    try:
+        session = clip_session_store.get_clip_session(folder_name, clip_id)
+        return {
+            "status": "ok",
+            "session": session,
+            **session
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/clip-session/{folder_name}/{clip_id}")
+async def update_clip_session(folder_name: str, clip_id: str, payload: dict):
+    """Atomically update partial or complete clip session manifests."""
+    try:
+        session = clip_session_store.save_clip_session(folder_name, clip_id, payload)
+        return {
+            "status": "ok",
+            "session": session,
+            **session
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.put("/api/transcript")
 async def update_transcript(req: TranscriptEditRequest):
     """Manually update the transcript for a specific clip."""
     try:
-        asset_repository.save_clip_transcript(req.folder_name, req.clip_id, req.transcript)
+        clip_session_store.save_transcript(req.folder_name, req.clip_id, req.transcript)
         print(f"[edit] Updated isolated clip transcript for {req.folder_name}/{req.clip_id} ({len(req.transcript)} words)")
         return {"status": "ok"}
     except ValueError as e:
@@ -574,7 +610,7 @@ async def update_hooks(req: HookUpdateRequest):
 async def update_style_settings(req: StyleSettingsRequest):
     """Persist style settings for a specific clip."""
     try:
-        asset_repository.save_clip_style_settings(req.folder_name, req.clip_id, req.settings)
+        clip_session_store.save_style_settings(req.folder_name, req.clip_id, req.settings)
         print(f"[edit] Updated style settings for {req.folder_name}/{req.clip_id}")
         return {"status": "ok"}
     except ValueError as e:
@@ -587,7 +623,7 @@ async def update_style_settings(req: StyleSettingsRequest):
 async def update_timeline(req: TimelineSaveRequest):
     """Persist timeline tracks for a specific clip."""
     try:
-        asset_repository.save_clip_timeline(req.folder_name, req.clip_id, req.timeline_tracks)
+        clip_session_store.save_timeline(req.folder_name, req.clip_id, req.timeline_tracks)
         print(f"[edit] Updated timeline tracks for {req.folder_name}/{req.clip_id}")
         return {"status": "ok"}
     except ValueError as e:
@@ -600,7 +636,7 @@ async def update_timeline(req: TimelineSaveRequest):
 async def update_timeline_history(req: TimelineHistoryRequest):
     """Persist undo/redo history stacks for a specific clip."""
     try:
-        asset_repository.save_clip_history(req.folder_name, req.clip_id, req.undo_stack, req.redo_stack)
+        clip_session_store.save_history(req.folder_name, req.clip_id, req.undo_stack, req.redo_stack)
         print(f"[edit] Saved timeline history for {req.folder_name}/{req.clip_id}")
         return {"status": "ok"}
     except ValueError as e:
@@ -729,7 +765,7 @@ async def cover_screenshot(req: ThumbnailScreenshotRequest):
 async def save_cover_config(req: ThumbnailConfigRequest):
     """Save Cover Slide configuration for a clip."""
     try:
-        asset_repository.save_cover_config(req.folder_name, req.clip_id, req.config)
+        clip_session_store.save_cover_config(req.folder_name, req.clip_id, req.config)
         return {"status": "ok"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -741,8 +777,8 @@ async def save_cover_config(req: ThumbnailConfigRequest):
 async def get_cover_config(folder_name: str, clip_id: str):
     """Load Cover Slide configuration for a clip with backward-compatible fallback."""
     try:
-        config = asset_repository.get_cover_config(folder_name, clip_id)
-        cover_url = asset_repository.migrate_legacy_cover_if_needed(folder_name, clip_id)
+        config = clip_session_store.get_cover_config(folder_name, clip_id)
+        cover_url = clip_session_store.migrate_legacy_cover_if_needed(folder_name, clip_id)
         if config is not None:
             return {"config": config, "cover_url": cover_url}
         
@@ -756,7 +792,7 @@ async def get_cover_config(folder_name: str, clip_id: str):
                 "textOverlays": [],
                 "xOffset": 50
             }
-            asset_repository.save_cover_config(folder_name, clip_id, initial_config)
+            clip_session_store.save_cover_config(folder_name, clip_id, initial_config)
             return {"config": initial_config, "cover_url": cover_url}
         return {"config": None, "cover_url": cover_url}
     except ValueError as e:
@@ -769,7 +805,7 @@ async def get_cover_config(folder_name: str, clip_id: str):
 async def delete_cover(folder_name: str, clip_id: str):
     """Reset/delete cover image (cover.jpg) while strictly preserving Clip Thumbnail (thumbnail.jpg)."""
     try:
-        asset_repository.delete_cover(folder_name, clip_id)
+        clip_session_store.delete_cover(folder_name, clip_id)
         return {"status": "ok"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
