@@ -403,12 +403,16 @@ const loadingLabel = computed(() => {
 
 async function handleSave(isSilent = false) {
   const silent = isSilent === true;
-  await Promise.all([
-    state.saveTranscript(silent),
-    state.saveStyleSettings(),
-    state.saveTimelineTracks(),
-    state.saveThumbnailConfig()
-  ]);
+  if (state?.saveClipSession) {
+    await state.saveClipSession(undefined, silent);
+  } else {
+    await Promise.all([
+      state.saveTranscript(silent),
+      state.saveStyleSettings(),
+      state.saveTimelineTracks(),
+      state.saveThumbnailConfig()
+    ]);
+  }
 }
 
 async function selectSidebarHook(hook: Hook) {

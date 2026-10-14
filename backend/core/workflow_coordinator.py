@@ -4,6 +4,7 @@ import shutil
 import re
 import uuid
 from typing import Optional, Dict, Any, List
+from core.clip_session_store import ClipSessionStore, CANONICAL_DEFAULT_STYLE_SETTINGS, CANONICAL_DEFAULT_COVER_CONFIG
 
 CANONICAL_DEFAULT_STYLE_SETTINGS: Dict[str, Any] = {
     "videoLayout": "vertical",
@@ -31,7 +32,7 @@ CANONICAL_DEFAULT_STYLE_SETTINGS: Dict[str, Any] = {
 }
 
 class ClipWorkflowCoordinator:
-    def __init__(self, job_store, asset_repository, youtube_client, speech_transcriber, prompt_repository, config_store, face_tracker=None):
+    def __init__(self, job_store, asset_repository, youtube_client, speech_transcriber, prompt_repository, config_store, face_tracker=None, clip_session_store=None):
         self.jobs = job_store
         self.asset_repository = asset_repository
         self.youtube_client = youtube_client
@@ -39,6 +40,28 @@ class ClipWorkflowCoordinator:
         self.prompt_repository = prompt_repository
         self.config_store = config_store
         self.face_tracker = face_tracker
+        self.clip_session_store = clip_session_store
+
+    def _get_clip_session_store(self, clip_dir: Optional[str] = None) -> ClipSessionStore:
+        if self.clip_session_store and isinstance(self.clip_session_store, ClipSessionStore):
+            return self.clip_session_store
+
+        repo_store = getattr(self.asset_repository, "clip_session_store", None)
+        if repo_store and isinstance(repo_store, ClipSessionStore):
+            return repo_store
+
+        output_dir = getattr(self.asset_repository, "output_dir", None)
+        if not isinstance(output_dir, str) or not output_dir:
+            output_dir = "temp_assets"
+
+        clips_dir = getattr(self.asset_repository, "clips_dir", None)
+        if not isinstance(clips_dir, str) or not clips_dir:
+            if clip_dir:
+                clips_dir = os.path.dirname(os.path.dirname(os.path.abspath(clip_dir)))
+            else:
+                clips_dir = os.path.join(output_dir, "clips")
+
+        return ClipSessionStore(clips_dir=clips_dir, output_dir=output_dir)
 
     def save_jobs(self):
         try:
@@ -48,86 +71,34 @@ class ClipWorkflowCoordinator:
 
     def _ensure_defaults(self, clip_dir: str):
         """Ensures default style settings and thumbnail config are seeded in clip directory."""
-        output_dir = getattr(self.asset_repository, "output_dir", None)
-        if not isinstance(output_dir, str) or not output_dir:
-            output_dir = "temp_assets"
+        clip_id = os.path.basename(clip_dir)
+        folder_name = os.path.basename(os.path.dirname(clip_dir))
+        store = self._get_clip_session_store(clip_dir)
 
-        # 1. Check for default style settings
-        clip_style_path = os.path.join(clip_dir, "style_settings.json")
-        default_style_path = os.path.join(output_dir, "default_style_settings.json")
+        # Delegate defaults seeding (style settings, cover config, thumbnail config, poster->thumbnail)
+        store.ensure_clip_defaults(folder_name, clip_id)
 
-        if not os.path.exists(default_style_path):
-            try:
-                os.makedirs(output_dir, exist_ok=True)
-                with open(default_style_path, "w", encoding="utf-8") as f:
-                    json.dump(CANONICAL_DEFAULT_STYLE_SETTINGS, f, ensure_ascii=False, indent=2)
-                print(f"[defaults] Seeded canonical default style settings to {default_style_path}")
-            except Exception as e:
-                print(f"[defaults] Failed to seed canonical default style settings: {e}")
-
-        if not os.path.exists(clip_style_path) and os.path.exists(default_style_path):
-            try:
-                shutil.copy(default_style_path, clip_style_path)
-                print(f"[defaults] Populated default style settings to {clip_style_path}")
-            except Exception as e:
-                print(f"[defaults] Failed to copy default style settings: {e}")
-
-        # 2. Check for default thumbnail/cover config
-        clip_cover_config_path = os.path.join(clip_dir, "cover_config.json")
-        clip_thumb_config_path = os.path.join(clip_dir, "thumbnail_config.json")
-        default_thumb_style_path = os.path.join(output_dir, "default_thumbnail_style.json")
-        if not os.path.exists(clip_cover_config_path) and not os.path.exists(clip_thumb_config_path) and os.path.exists(default_thumb_style_path):
-            try:
-                with open(default_thumb_style_path, "r", encoding="utf-8") as f:
-                    default_style = json.load(f)
-                duration = default_style.get("thumbnailDuration", 1.0)
-                initial_config = {
-                    "enabled": False,
-                    "duration": duration,
-                    "screenshotTime": 0,
-                    "textOverlays": [],
-                    "xOffset": 50
-                }
-                os.makedirs(clip_dir, exist_ok=True)
-                with open(clip_cover_config_path, "w", encoding="utf-8") as f:
-                    json.dump(initial_config, f, ensure_ascii=False, indent=2)
-                with open(clip_thumb_config_path, "w", encoding="utf-8") as f:
-                    json.dump(initial_config, f, ensure_ascii=False, indent=2)
-                print(f"[defaults] Populated default cover config to {clip_cover_config_path}")
-            except Exception as e:
-                print(f"[defaults] Failed to populate default cover config: {e}")
-
-        # 3. Check for default Clip Thumbnail image (thumbnail.jpg)
+        # Check for fallback Clip Thumbnail image generation from video if thumbnail.jpg is still missing
         clip_thumb_img_path = os.path.join(clip_dir, "thumbnail.jpg")
-        clip_poster_img_path = os.path.join(clip_dir, "poster.jpg")
         clip_video_path = os.path.join(clip_dir, "video.mp4")
-        if not os.path.exists(clip_thumb_img_path):
-            if os.path.exists(clip_poster_img_path):
-                try:
-                    shutil.copy2(clip_poster_img_path, clip_thumb_img_path)
-                    print(f"[defaults] Auto-healed Clip Thumbnail from poster at {clip_thumb_img_path}")
-                except Exception as e:
-                    print(f"[defaults] Failed to copy Clip Thumbnail from poster: {e}")
-            elif os.path.exists(clip_video_path):
-                try:
-                    self.asset_repository.extract_clip_screenshot(clip_video_path, 0.0, clip_thumb_img_path)
-                    print(f"[defaults] Generated initial Clip Thumbnail at {clip_thumb_img_path}")
-                except Exception as e:
-                    print(f"[defaults] Failed to generate initial Clip Thumbnail: {e}")
+        if not os.path.exists(clip_thumb_img_path) and os.path.exists(clip_video_path):
+            try:
+                self.asset_repository.extract_clip_screenshot(clip_video_path, 0.0, clip_thumb_img_path)
+                print(f"[defaults] Generated initial Clip Thumbnail at {clip_thumb_img_path}")
+            except Exception as e:
+                print(f"[defaults] Failed to generate initial Clip Thumbnail: {e}")
 
     def _compute_and_cache_crop_map(
         self, clip_dir: str, video_path: str, tracker: Optional[Any] = None
     ) -> List[Dict[str, Any]]:
         """Internal helper to load or compute Auto-Reframe crop map keyframes for a clip directory."""
-        crop_map_path = os.path.join(clip_dir, "crop_map.json")
-        if os.path.exists(crop_map_path):
-            try:
-                with open(crop_map_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, list) and len(data) > 0:
-                        return data
-            except Exception:
-                pass
+        clip_id = os.path.basename(clip_dir)
+        folder_name = os.path.basename(os.path.dirname(clip_dir))
+        store = self._get_clip_session_store(clip_dir)
+
+        existing = store.get_crop_map(folder_name, clip_id)
+        if existing and len(existing) > 0:
+            return existing
 
         if tracker is None:
             tracker = getattr(self, "face_tracker", None)
@@ -149,9 +120,8 @@ class ClipWorkflowCoordinator:
             crop_map_points = [{"time": 0.0, "x": 960}]
 
         try:
-            with open(crop_map_path, "w", encoding="utf-8") as f:
-                json.dump(crop_map_points, f, ensure_ascii=False, indent=2)
-            print(f"[workflow] Saved auto-reframe crop map ({len(crop_map_points)} points) to {crop_map_path}")
+            store.save_crop_map(folder_name, clip_id, crop_map_points)
+            print(f"[workflow] Saved auto-reframe crop map ({len(crop_map_points)} points) to {clip_dir}/crop_map.json")
         except Exception as e:
             print(f"[workflow] Failed to write crop_map.json: {e}")
 
@@ -169,11 +139,8 @@ class ClipWorkflowCoordinator:
         Generates, caches, and returns Auto-Reframe crop_map.json for a clip.
         Validates path traversal on folder_name and clip_id.
         """
-        clips_dir = getattr(self.asset_repository, "clips_dir", os.path.join("temp_assets", "clips"))
-        clip_dir = os.path.abspath(os.path.join(clips_dir, folder_name, clip_id))
-        base_dir = os.path.abspath(clips_dir)
-        if os.path.commonpath([base_dir, clip_dir]) != base_dir:
-            raise ValueError(f"Path traversal detected: {folder_name}/{clip_id}")
+        store = self._get_clip_session_store()
+        clip_dir = store.resolve_clip_dir(folder_name, clip_id)
 
         video_path = os.path.join(clip_dir, "video.mp4")
         if not os.path.exists(video_path):
@@ -232,21 +199,17 @@ class ClipWorkflowCoordinator:
             clip_path = job.get("clip_path")
             if clip_path:
                 clip_dir = os.path.dirname(clip_path)
-                transcript_path = os.path.join(clip_dir, "transcript.json")
-                if os.path.exists(transcript_path):
-                    try:
-                        with open(transcript_path, "r", encoding="utf-8") as f:
-                            clip_data["transcript"] = json.load(f)
-                    except Exception:
-                        pass
-
-                history_path = os.path.join(clip_dir, "history.json")
-                if os.path.exists(history_path):
-                    try:
-                        with open(history_path, "r", encoding="utf-8") as f:
-                            response["history"] = json.load(f)
-                    except Exception as e:
-                        print(f"[workflow] Failed to read history for job {job_id}: {e}")
+                clip_id = os.path.basename(clip_dir)
+                folder_name = os.path.basename(os.path.dirname(clip_dir))
+                try:
+                    store = self._get_clip_session_store(clip_dir)
+                    session = store.get_clip_session(folder_name, clip_id)
+                    if session.get("transcript"):
+                        clip_data["transcript"] = session["transcript"]
+                    if session.get("history"):
+                        response["history"] = session["history"]
+                except Exception:
+                    pass
 
             response["clip"] = clip_data
 
@@ -696,52 +659,29 @@ class ClipWorkflowCoordinator:
                 t.daemon = True
                 t.start()
 
-        # Load persisted history if present
-        history_data = None
-        history_path = os.path.join(clip_dir, "history.json")
-        if os.path.exists(history_path):
-            try:
-                with open(history_path, "r", encoding="utf-8") as f:
-                    history_data = json.load(f)
-            except Exception as e:
-                print(f"[load-ready-clip] Failed to read history: {e}")
+        # Load persisted session manifests via ClipSessionStore
+        store = self._get_clip_session_store(clip_dir)
+        session = store.get_clip_session(folder_name, clip_id)
 
-        # Load persisted style settings if present
-        style_data = None
-        style_path = os.path.join(clip_dir, "style_settings.json")
-        if os.path.exists(style_path):
-            try:
-                with open(style_path, "r", encoding="utf-8") as f:
-                    style_data = json.load(f)
-            except Exception as e:
-                print(f"[load-ready-clip] Failed to read style settings: {e}")
-
-        # Load persisted crop map
-        crop_map_data = None
-        crop_map_path = os.path.join(clip_dir, "crop_map.json")
-        if os.path.exists(crop_map_path):
-            try:
-                with open(crop_map_path, "r", encoding="utf-8") as f:
-                    crop_map_data = json.load(f)
-            except Exception as e:
-                print(f"[load-ready-clip] Failed to read crop map: {e}")
-
-        # Load cover config and thumbnail/cover URLs
         cover_config_data = self.asset_repository.get_cover_config(folder_name, clip_id)
+        if cover_config_data is None:
+            cover_config_data = session.get("cover_config")
         cover_url = self.asset_repository.migrate_legacy_cover_if_needed(folder_name, clip_id)
+        if not cover_url:
+            cover_url = session.get("cover_url")
         if not cover_url:
             cover_path = os.path.join(clip_dir, "cover.jpg")
             cover_url = f"/assets/clips/{folder_name}/{clip_id}/cover.jpg" if os.path.exists(cover_path) else None
         thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
-        thumbnail_url = f"/assets/clips/{folder_name}/{clip_id}/thumbnail.jpg" if os.path.exists(thumb_path) else None
+        thumbnail_url = f"/assets/clips/{folder_name}/{clip_id}/thumbnail.jpg" if os.path.exists(thumb_path) else session.get("thumbnail_url")
 
         return {
             "job_id": job_id,
             "status": status,
             "job": job_data,
-            "style_settings": style_data,
-            "history": history_data,
-            "crop_map": crop_map_data,
+            "style_settings": session.get("style_settings"),
+            "history": session.get("history"),
+            "crop_map": session.get("crop_map"),
             "cover_config": cover_config_data,
             "cover_url": cover_url,
             "thumbnail_config": cover_config_data,
@@ -1107,10 +1047,14 @@ class ClipWorkflowCoordinator:
                     except Exception as ge:
                         print(f"[transcribe] Failed to parse global transcript fallback: {ge}")
 
+            clip_dir = os.path.dirname(clip["file_path"])
+            clip_id = os.path.basename(clip_dir)
+            folder_name = os.path.basename(os.path.dirname(clip_dir))
+            store = self._get_clip_session_store(clip_dir)
+
             if precise_words:
-                # Save precise transcript
-                with open(transcript_path, "w", encoding="utf-8") as f:
-                    json.dump(precise_words, f, ensure_ascii=False, indent=2)
+                # Save precise transcript atomically via ClipSessionStore
+                store.save_transcript(folder_name, clip_id, precise_words)
                 print(f"[transcribe] Saved high-precision clip transcript ({len(precise_words)} words)")
                 
                 c_quote = " ".join([s.get("text", "") for s in precise_words]).strip()
@@ -1124,14 +1068,8 @@ class ClipWorkflowCoordinator:
                     self.jobs[job_id] = job
                     print(f"[transcribe] Updated in-memory clip quote for job {job_id}")
             else:
-                # Fallback: save empty transcript.json if missing
-                if not os.path.exists(transcript_path):
-                    try:
-                        with open(transcript_path, "w", encoding="utf-8") as f:
-                            json.dump([], f, ensure_ascii=False, indent=2)
-                        print(f"[transcribe] Saved fallback empty clip transcript")
-                    except Exception as fe:
-                        print(f"[transcribe] Failed to write fallback empty transcript: {fe}")
+                # Fallback: ensure defaults seeds empty transcript if missing
+                store.ensure_clip_defaults(folder_name, clip_id)
 
             clip_dir = os.path.dirname(clip["file_path"])
             self._ensure_defaults(clip_dir)

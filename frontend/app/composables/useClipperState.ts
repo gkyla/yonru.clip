@@ -156,6 +156,7 @@ function createClipperState() {
 
   // Export state delegated from useClipperExport sub-composable
   const exportState = useClipperExport({
+    saveClipSession: () => saveClipSession(undefined, true),
     saveTranscript,
     saveStyleSettings,
     saveTimelineTracks: () => timeline.saveTimelineTracks(),
@@ -735,6 +736,71 @@ function createClipperState() {
     }
   }
 
+  async function saveClipSession(
+    customPayload?: Record<string, any>,
+    isSilent = false
+  ) {
+    if (!folderName.value || !clipId.value) return;
+    const silent = isSilent === true;
+
+    const cleanTranscript = (fullTranscript.value || []).map(
+      (seg: TranscriptSegment) => ({
+        start:
+          typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start,
+        duration:
+          typeof seg.duration === 'string'
+            ? parseFloat(seg.duration)
+            : seg.duration,
+        text: seg.text
+      })
+    );
+
+    const defaultPayload = {
+      transcript: cleanTranscript,
+      style_settings: subtitleStyle.getStyleSnapshot(),
+      timeline: timeline.timelineTracks.value,
+      cover_config: {
+        enabled: coverEnabled.value ?? thumbnailEnabled.value ?? false,
+        duration: coverDuration.value ?? thumbnailDuration.value ?? 1.0,
+        screenshotTime:
+          coverScreenshotTime.value ?? thumbnailScreenshotTime.value ?? 0,
+        textOverlays:
+          coverTextOverlays.value?.length > 0
+            ? coverTextOverlays.value
+            : thumbnailTextOverlays.value || [],
+        xOffset: coverXOffset.value ?? thumbnailXOffset.value ?? 50
+      },
+      history: {
+        undo_stack: timeline.timelineUndoStack.value,
+        redo_stack: timeline.timelineRedoStack.value
+      },
+      ...(cropMap.value?.length > 0 ? { crop_map: cropMap.value } : {})
+    };
+
+    const payload = customPayload
+      ? { ...defaultPayload, ...customPayload }
+      : defaultPayload;
+
+    try {
+      const res = await $fetch<{ status: string; session?: any }>(
+        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`,
+        {
+          method: 'PUT',
+          body: payload
+        }
+      );
+      if (!silent) {
+        showToast('Edits saved successfully!', 'success');
+      }
+      return res;
+    } catch (e) {
+      if (!silent) {
+        showToast('Failed to save clip session', 'error');
+      }
+      throw e;
+    }
+  }
+
   // --- Timeline Actions ---
 
   async function saveStyleSettings() {
@@ -820,7 +886,8 @@ function createClipperState() {
       landscapeBlurRadius,
       landscapeDarkness,
       autoAdaptiveSubtitles,
-      saveStyleSettings
+      saveStyleSettings,
+      saveClipSession: () => saveClipSession(undefined, true)
     });
   }
 
@@ -1025,6 +1092,7 @@ function createClipperState() {
     fetchSavedHooks,
     saveHook,
     deleteSavedHook,
+    saveClipSession,
     saveTranscript,
     saveStyleSettings,
     applyPreset,

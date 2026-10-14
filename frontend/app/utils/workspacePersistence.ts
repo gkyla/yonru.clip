@@ -100,6 +100,7 @@ export interface WorkspaceReactivityContext {
   landscapeDarkness?: Ref<number>;
   autoAdaptiveSubtitles?: Ref<boolean>;
   saveStyleSettings?: () => Promise<void> | void;
+  saveClipSession?: () => Promise<void> | void;
 }
 
 export class WorkspacePersistenceCoordinator {

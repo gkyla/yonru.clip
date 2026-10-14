@@ -520,4 +520,34 @@ describe('useClipperState Composable', () => {
       })
     );
   });
+
+  it('persists unified session payload atomically to PUT /api/clip-session', async () => {
+    const state = useClipperState();
+    const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
+    vi.stubGlobal('$fetch', mockFetch);
+
+    state.folderName.value = 'sessionFolder';
+    state.clipId.value = 'sessionClip';
+    state.fullTranscript.value = [
+      { start: 1.0, duration: 2.0, text: 'Consolidated test caption' }
+    ];
+
+    await state.saveClipSession(undefined, true);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/clip-session/sessionFolder/sessionClip'),
+      expect.objectContaining({
+        method: 'PUT',
+        body: expect.objectContaining({
+          transcript: [
+            { start: 1, duration: 2, text: 'Consolidated test caption' }
+          ],
+          style_settings: expect.any(Object),
+          timeline: expect.any(Array),
+          cover_config: expect.any(Object),
+          history: expect.any(Object)
+        })
+      })
+    );
+  });
 });
