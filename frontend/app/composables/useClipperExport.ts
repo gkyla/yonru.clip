@@ -6,14 +6,15 @@ import { useSafetyAuditor } from './useSafetyAuditor';
 import { useSubtitleStyle } from './useSubtitleStyle';
 import { parseRenderEvent } from '../utils/renderEventParser';
 
-interface ExportDeps {
-  saveTranscript: (isSilent?: boolean) => Promise<void>;
-  saveStyleSettings: () => Promise<void>;
-  saveTimelineTracks: () => Promise<void>;
-  saveThumbnailConfig: () => Promise<void>;
+export interface ExportDeps {
+  saveClipSession?: () => Promise<void>;
+  saveTranscript?: (isSilent?: boolean) => Promise<void>;
+  saveStyleSettings?: () => Promise<void>;
+  saveTimelineTracks?: () => Promise<void>;
+  saveThumbnailConfig?: () => Promise<void>;
 }
 
-export const useClipperExport = (deps: ExportDeps) => {
+export const useClipperExport = (deps?: ExportDeps) => {
   const API_BASE = resolveApiBase();
 
   const timeline = useTimelineState();
@@ -36,16 +37,23 @@ export const useClipperExport = (deps: ExportDeps) => {
   // --- Shared states read from other domains (via matching useState keys) ---
   const jobId = useState<string | null>('jobId', () => null);
   const jobError = useState<string>('jobError', () => '');
+  const folderName = useState<string | null>('folderName', () => null);
+  const clipId = useState<string | null>('clipId', () => null);
   const videoUrl = useState<string | null>('videoUrl', () => null);
   const videoFps = useState<number>('videoFps', () => 30);
   const volume = useState<number>('volume', () => 0.5);
   const fullTranscript = useState<any[]>('fullTranscript', () => []);
+  const cropMap = useState<Array<{ time: number; x: number }>>(
+    'cropMap',
+    () => []
+  );
 
   // Cover & Thumbnail states (read via shared useState keys)
   const coverEnabled = useState<boolean>('coverEnabled', () => false);
   const coverDuration = useState<number>('coverDuration', () => 1.0);
   const coverTextOverlays = useState<any[]>('coverTextOverlays', () => []);
   const coverXOffset = useState<number>('coverXOffset', () => 50);
+  const coverScreenshotTime = useState<number>('coverScreenshotTime', () => 0);
 
   const thumbnailEnabled = useState<boolean>(
     'thumbnailEnabled',
@@ -62,6 +70,10 @@ export const useClipperExport = (deps: ExportDeps) => {
   const thumbnailXOffset = useState<number>(
     'thumbnailXOffset',
     () => coverXOffset.value
+  );
+  const thumbnailScreenshotTime = useState<number>(
+    'thumbnailScreenshotTime',
+    () => coverScreenshotTime.value
   );
 
   // Safety/Censorship configuration states
@@ -165,6 +177,77 @@ export const useClipperExport = (deps: ExportDeps) => {
     };
   }
 
+  // --- Session persistence helper ---
+  function buildSessionPayload() {
+    const cleanTranscript = (fullTranscript.value || []).map((seg: any) => ({
+      start: typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start,
+      duration:
+        typeof seg.duration === 'string'
+          ? parseFloat(seg.duration)
+          : seg.duration,
+      text: seg.text
+    }));
+
+    return {
+      transcript: cleanTranscript,
+      style_settings: subtitleStyle.getStyleSnapshot(),
+      timeline: timeline.timelineTracks.value,
+      cover_config: {
+        enabled: coverEnabled.value ?? thumbnailEnabled.value ?? false,
+        duration: coverDuration.value ?? thumbnailDuration.value ?? 1.0,
+        screenshotTime:
+          coverScreenshotTime.value ?? thumbnailScreenshotTime.value ?? 0,
+        textOverlays:
+          coverTextOverlays.value?.length > 0
+            ? coverTextOverlays.value
+            : thumbnailTextOverlays.value || [],
+        xOffset: coverXOffset.value ?? thumbnailXOffset.value ?? 50
+      },
+      history: {
+        undo_stack: timeline.timelineUndoStack?.value || [],
+        redo_stack: timeline.timelineRedoStack?.value || []
+      },
+      ...(cropMap.value?.length > 0 ? { crop_map: cropMap.value } : {})
+    };
+  }
+
+  async function saveClipSession(): Promise<void> {
+    if (deps?.saveClipSession) {
+      await deps.saveClipSession();
+      return;
+    }
+
+    if (!folderName.value || !clipId.value) {
+      if (
+        deps?.saveTranscript ||
+        deps?.saveStyleSettings ||
+        deps?.saveTimelineTracks ||
+        deps?.saveThumbnailConfig
+      ) {
+        await Promise.all([
+          deps.saveTranscript?.(true),
+          deps.saveStyleSettings?.(),
+          deps.saveTimelineTracks?.(),
+          deps.saveThumbnailConfig?.()
+        ]);
+      }
+      return;
+    }
+
+    const payload = buildSessionPayload();
+    const url = `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`;
+
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to save clip session: ${response.status}`);
+    }
+  }
+
   // --- Public: trigger render ---
   async function renderClip(hookIndex = 0, outputName?: string) {
     if (!jobId.value) {
@@ -183,12 +266,7 @@ export const useClipperExport = (deps: ExportDeps) => {
     outputUrl.value = null;
 
     try {
-      await Promise.all([
-        deps.saveTranscript(true),
-        deps.saveStyleSettings(),
-        deps.saveTimelineTracks(),
-        deps.saveThumbnailConfig()
-      ]);
+      await saveClipSession();
 
       const body = buildRenderBody(hookIndex, outputName);
 
@@ -249,6 +327,8 @@ export const useClipperExport = (deps: ExportDeps) => {
     renderTotalFrames,
     renderStartTime,
     // Actions
-    renderClip
+    renderClip,
+    saveClipSession,
+    buildSessionPayload
   };
 };
