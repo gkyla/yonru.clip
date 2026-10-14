@@ -1,5 +1,5 @@
 import { resolveApiBase } from './apiBase';
-import { parseSubtitleWords } from './remotionHelpers';
+import { SubtitleLayoutEngine } from './subtitleChunker';
 import { SubtitleStyleCoordinator } from './subtitleStyleCoordinator';
 import type { PlayerBridge } from './playerBridge';
 import type {
@@ -206,11 +206,12 @@ export class VideoPlaybackCoordinator {
     const syncOffsetMs = snapshot.subtitleSyncOffset;
     const mode = snapshot.subtitleMode || 'word';
 
-    const { wordsData, allWordTimings } = parseSubtitleWords(
-      snapshot.fullTranscript || [],
-      syncOffsetMs,
-      mode
-    );
+    const { wordsData, allWordTimings } =
+      SubtitleLayoutEngine.extractRemotionProps(
+        snapshot.fullTranscript || [],
+        mode,
+        syncOffsetMs
+      );
 
     const cropXPixel = ((snapshot.cropPercentX ?? 50) / 100) * 1920;
 

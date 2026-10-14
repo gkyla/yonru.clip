@@ -313,4 +313,177 @@ describe('Subtitle Chunker & LayoutEngine Unit Tests', () => {
       expect(exported[0]!.words![0]!.start).toBe(0.1);
     });
   });
+
+  describe('Remotion Timing Projections (Deep Interface)', () => {
+    it('flattens transcript segments into individual words with default mode', () => {
+      const transcript: TranscriptSegment[] = [
+        { text: 'hello world', start: 1.0, duration: 2.0 }
+      ];
+      const result = SubtitleLayoutEngine.extractRemotionProps(
+        transcript,
+        'word',
+        0
+      );
+
+      expect(result.words).toHaveLength(2);
+      expect(result.words[0]).toEqual({ word: 'hello', start: 1.0, end: 2.0 });
+      expect(result.words[1]).toEqual({ word: 'world', start: 2.0, end: 3.0 });
+      expect(result.wordTimings).toEqual(result.words);
+    });
+
+    it('shifts word timings accurately based on syncOffsetMs', () => {
+      const transcript: TranscriptSegment[] = [
+        { text: 'test offset', start: 5.0, duration: 1.0 }
+      ];
+      const result = SubtitleLayoutEngine.extractRemotionProps(
+        transcript,
+        'word',
+        -500
+      );
+
+      expect(result.words).toHaveLength(2);
+      expect(result.words[0]!.start).toBeCloseTo(4.5);
+      expect(result.words[0]!.end).toBeCloseTo(5.0);
+      expect(result.words[1]!.start).toBeCloseTo(5.0);
+      expect(result.words[1]!.end).toBeCloseTo(5.5);
+    });
+
+    it('supports chunking multiple words based on mode (e.g. 3_words)', () => {
+      const transcript: TranscriptSegment[] = [
+        { text: 'one two three four five six', start: 10.0, duration: 6.0 }
+      ];
+      const result = SubtitleLayoutEngine.extractRemotionProps(
+        transcript,
+        '3_words',
+        0
+      );
+
+      expect(result.wordTimings).toHaveLength(6);
+      expect(result.wordTimings[0]!.word).toBe('one');
+      expect(result.words).toHaveLength(2);
+      expect(result.words[0]).toEqual({
+        word: 'one two three',
+        start: 10.0,
+        end: 13.0
+      });
+      expect(result.words[1]).toEqual({
+        word: 'four five six',
+        start: 13.0,
+        end: 16.0
+      });
+    });
+
+    it('handles uneven multi-word chunking gracefully', () => {
+      const transcript: TranscriptSegment[] = [
+        { text: 'one two three four', start: 10.0, duration: 4.0 }
+      ];
+      const result = SubtitleLayoutEngine.extractRemotionProps(
+        transcript,
+        '3_words',
+        0
+      );
+
+      expect(result.words).toHaveLength(2);
+      expect(result.words[0]!.word).toBe('one two three');
+      expect(result.words[1]!.word).toBe('four');
+      expect(result.words[1]!.start).toBeCloseTo(13.0);
+      expect(result.words[1]!.end).toBeCloseTo(14.0);
+    });
+
+    it('handles empty, null, or invalid inputs safely without throwing', () => {
+      expect(SubtitleLayoutEngine.extractRemotionProps([], 'word', 0)).toEqual({
+        words: [],
+        wordTimings: [],
+        wordsData: [],
+        allWordTimings: []
+      });
+      expect(
+        SubtitleLayoutEngine.extractRemotionProps(null, 'word', 100)
+      ).toEqual({
+        words: [],
+        wordTimings: [],
+        wordsData: [],
+        allWordTimings: []
+      });
+      expect(
+        SubtitleLayoutEngine.extractRemotionProps(undefined, '3_words', 0)
+      ).toEqual({
+        words: [],
+        wordTimings: [],
+        wordsData: [],
+        allWordTimings: []
+      });
+    });
+
+    it('skips empty whitespace segments and non-positive durations', () => {
+      const transcript: TranscriptSegment[] = [
+        { text: '   ', start: 1.0, duration: 2.0 },
+        { text: 'valid segment', start: 3.0, duration: 0 },
+        { text: 'hello  world', start: 4.0, duration: 2.0 }
+      ];
+      const result = SubtitleLayoutEngine.extractRemotionProps(
+        transcript,
+        'word',
+        0
+      );
+      expect(result.words).toHaveLength(2);
+      expect(result.words[0]!.word).toBe('hello');
+      expect(result.words[1]!.word).toBe('world');
+    });
+
+    it('strictly preserves true acoustic Whisper word timestamps (seg.words) over uniform distribution', () => {
+      const transcript: TranscriptSegment[] = [
+        {
+          text: 'precise acoustic timing',
+          start: 2.0,
+          duration: 3.0,
+          words: [
+            { text: 'precise', start: 2.1, duration: 0.5 },
+            { text: 'acoustic', start: 2.8, duration: 1.1 },
+            { text: 'timing', start: 4.2, duration: 0.6 }
+          ]
+        }
+      ];
+
+      const result = SubtitleLayoutEngine.extractRemotionProps(
+        transcript,
+        '1_word',
+        100
+      );
+
+      expect(result.words).toHaveLength(3);
+      // 2.1 + 0.1s offset = 2.2
+      expect(result.words[0]!.start).toBeCloseTo(2.2);
+      expect(result.words[0]!.end).toBeCloseTo(2.7);
+      // 2.8 + 0.1s offset = 2.9
+      expect(result.words[1]!.start).toBeCloseTo(2.9);
+      expect(result.words[1]!.end).toBeCloseTo(4.0);
+      // 4.2 + 0.1s offset = 4.3
+      expect(result.words[2]!.start).toBeCloseTo(4.3);
+      expect(result.words[2]!.end).toBeCloseTo(4.9);
+    });
+
+    it('supports instance method getRemotionTimings on SubtitleLayoutEngine', () => {
+      const transcript: TranscriptSegment[] = [
+        { text: 'instance test', start: 0.0, duration: 2.0 }
+      ];
+      const engine = new SubtitleLayoutEngine(transcript, 'word');
+      const timings = engine.getRemotionTimings({ syncOffsetMs: 200 });
+
+      expect(timings.words).toHaveLength(2);
+      expect(timings.words[0]!.start).toBeCloseTo(0.2);
+      expect(timings.words[0]!.end).toBeCloseTo(1.2);
+      expect(timings.words[1]!.start).toBeCloseTo(1.2);
+      expect(timings.words[1]!.end).toBeCloseTo(2.2);
+    });
+
+    it('works identically via parseSubtitleWords procedural bridge', () => {
+      const transcript: TranscriptSegment[] = [
+        { text: 'bridge test', start: 1.0, duration: 2.0 }
+      ];
+      const bridged = parseSubtitleWords(transcript, 0, 'word');
+      expect(bridged.wordsData).toHaveLength(2);
+      expect(bridged.wordsData[0]!.word).toBe('bridge');
+    });
+  });
 });

@@ -32,6 +32,21 @@ export interface ChunkLookupOptions {
   thumbnailDuration?: number;
 }
 
+export interface RemotionWord {
+  word: string;
+  start: number;
+  end: number;
+}
+
+export interface RemotionSubtitleTiming {
+  words: RemotionWord[];
+  wordTimings: RemotionWord[];
+  wordsData: RemotionWord[];
+  allWordTimings: RemotionWord[];
+}
+
+export type RemotionTranscriptSegment = TranscriptSegment;
+
 /**
  * Deep Subtitle Layout Engine encapsulating transcript grouping,
  * sequence alignment, duration scaling, and time searches.
@@ -76,6 +91,172 @@ export class SubtitleLayoutEngine {
   public setTranscript(segments: TranscriptSegment[]): void {
     this._masterTranscript = segments || [];
     this._rebuildChunks();
+  }
+
+  /**
+   * Project Remotion words (chunked display) and wordTimings (flat word-level timings)
+   * honoring syncOffsetMs and prioritizing true acoustic Whisper timestamps when present.
+   */
+  public getRemotionTimings(options?: {
+    syncOffsetMs?: number;
+  }): RemotionSubtitleTiming {
+    return SubtitleLayoutEngine.extractRemotionProps(
+      this._masterTranscript,
+      this._mode,
+      options?.syncOffsetMs ?? 0
+    );
+  }
+
+  /**
+   * Static entry point: projects Remotion words and wordTimings from a transcript snapshot.
+   * If seg.words exists (Whisper word-level timestamps), acoustic timestamps are strictly preserved.
+   * If missing, words are cleanly synthesized from whitespace distribution across segment duration.
+   */
+  public static extractRemotionProps(
+    transcript: TranscriptSegment[] | null | undefined,
+    mode: string = 'word',
+    syncOffsetMs: number = 0
+  ): RemotionSubtitleTiming {
+    const wordsData: RemotionWord[] = [];
+    const allWordTimings: RemotionWord[] = [];
+
+    const syncOffsetSec = (syncOffsetMs || 0) / 1000;
+
+    const flatWords: Array<{
+      text: string;
+      start: number;
+      duration: number;
+      end: number;
+    }> = [];
+
+    if (transcript && Array.isArray(transcript)) {
+      transcript.forEach(seg => {
+        if (!seg) return;
+        const segText = (seg.text || '').trim();
+        if (!segText) return;
+
+        const segmentDuration =
+          typeof seg.duration === 'string'
+            ? parseFloat(seg.duration)
+            : seg.duration;
+        const segmentStart =
+          typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start;
+        if (segmentDuration <= 0) return;
+
+        const relativeStart = segmentStart + syncOffsetSec;
+
+        // 1. Acoustic Whisper timestamps take absolute priority
+        if (seg.words && Array.isArray(seg.words) && seg.words.length > 0) {
+          seg.words.forEach(w => {
+            const wText = (w.text || '').trim();
+            if (!wText) return;
+            const wStartRaw =
+              typeof w.start === 'string' ? parseFloat(w.start) : w.start;
+            const wDurRaw =
+              typeof w.duration === 'string'
+                ? parseFloat(w.duration)
+                : w.duration;
+            const wStart = (wStartRaw || 0) + syncOffsetSec;
+            const wDur = wDurRaw || 0;
+            const wEnd =
+              w.end !== undefined
+                ? (typeof w.end === 'string' ? parseFloat(w.end) : w.end) +
+                  syncOffsetSec
+                : wStart + wDur;
+
+            flatWords.push({
+              text: wText,
+              start: wStart,
+              duration: wDur,
+              end: wEnd
+            });
+
+            allWordTimings.push({
+              word: wText,
+              start: wStart,
+              end: wEnd
+            });
+          });
+        } else {
+          // 2. Synthesized fallback: uniform distribution across segment duration
+          const rawWords = segText.split(/\s+/).filter(w => w.length > 0);
+          if (rawWords.length === 0) return;
+
+          const wordDur = segmentDuration / rawWords.length;
+
+          rawWords.forEach((w: string, idx: number) => {
+            const wStart = relativeStart + idx * wordDur;
+            const wEnd = relativeStart + (idx + 1) * wordDur;
+
+            flatWords.push({
+              text: w,
+              start: wStart,
+              duration: wordDur,
+              end: wEnd
+            });
+
+            allWordTimings.push({
+              word: w,
+              start: wStart,
+              end: wEnd
+            });
+          });
+        }
+      });
+    }
+
+    if (flatWords.length > 0) {
+      const activeMode = mode || 'word';
+
+      if (activeMode === 'word' || activeMode === '1_word') {
+        flatWords.forEach(w => {
+          wordsData.push({
+            word: w.text,
+            start: w.start,
+            end: w.end
+          });
+        });
+      } else if (activeMode.endsWith('_words')) {
+        let numWords = 1;
+        const match = activeMode.match(/^(\d+)_(?:word|words)$/);
+        if (match && match[1]) {
+          numWords = parseInt(match[1], 10) || 1;
+        }
+
+        for (let i = 0; i < flatWords.length; i += numWords) {
+          const chunk = flatWords.slice(i, i + numWords);
+          if (chunk.length > 0) {
+            const first = chunk[0];
+            const last = chunk[chunk.length - 1];
+            if (first && last) {
+              const start = first.start;
+              const end = last.end;
+              const text = chunk.map(w => w.text).join(' ');
+              wordsData.push({
+                word: text,
+                start,
+                end
+              });
+            }
+          }
+        }
+      } else {
+        flatWords.forEach(w => {
+          wordsData.push({
+            word: w.text,
+            start: w.start,
+            end: w.end
+          });
+        });
+      }
+    }
+
+    return {
+      words: wordsData,
+      wordTimings: allWordTimings,
+      wordsData,
+      allWordTimings
+    };
   }
 
   // --- Chunk Building & Layout Logic ---
@@ -779,4 +960,19 @@ export function redistributeTranscript(
     seg.text = words.slice(wordIdx, wordIdx + quota).join(' ');
     wordIdx += quota;
   });
+}
+
+/**
+ * Procedural bridge for parseSubtitleWords delegating directly to SubtitleLayoutEngine.
+ */
+export function parseSubtitleWords(
+  transcript: TranscriptSegment[] | null | undefined,
+  syncOffsetMs: number,
+  subtitleMode: string
+): RemotionSubtitleTiming {
+  return SubtitleLayoutEngine.extractRemotionProps(
+    transcript,
+    subtitleMode,
+    syncOffsetMs
+  );
 }
