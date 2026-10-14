@@ -6,7 +6,6 @@ import {
   type CachedAnalysisSpec,
   type ClipExtractSpec
 } from '../../app/utils/jobCoordinator';
-import { DEFAULT_SUBTITLE_STYLES } from '../../app/utils/subtitleStyleCoordinator';
 
 describe('IngestionJobCoordinator Unit Tests', () => {
   let mockFetcher: ReturnType<typeof vi.fn>;
@@ -32,32 +31,6 @@ describe('IngestionJobCoordinator Unit Tests', () => {
     it('defaults apiBase to resolveApiBase() when not explicitly provided', () => {
       const defaultCoordinator = new IngestionJobCoordinator();
       expect(defaultCoordinator.getApiBase()).toBe(resolveApiBase());
-    });
-  });
-
-  describe('Subtitle Style Management', () => {
-    it('returns default subtitle styles', () => {
-      const defaults = coordinator.resetSubtitleStyles();
-      expect(defaults.font).toBe('Montserrat');
-      expect(defaults.fontSize).toBe(50);
-      expect(defaults.videoLayout).toBe('vertical');
-      expect(defaults.subtitleMode).toBe('word');
-      expect(defaults.subtitlesEnabled).toBe(true);
-    });
-
-    it('correctly merges override styles onto baseline', () => {
-      const merged = coordinator.mergeSubtitleStyles(DEFAULT_SUBTITLE_STYLES, {
-        font: 'Roboto',
-        fontSize: 32,
-        subtitleStrokeWidth: 5,
-        subtitlesEnabled: false
-      });
-
-      expect(merged.font).toBe('Roboto');
-      expect(merged.fontSize).toBe(32);
-      expect(merged.subtitleStrokeWidth).toBe(5);
-      expect(merged.videoLayout).toBe('vertical'); // Preserved from base
-      expect(merged.subtitlesEnabled).toBe(false);
     });
   });
 

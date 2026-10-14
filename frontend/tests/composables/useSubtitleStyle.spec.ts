@@ -67,4 +67,19 @@ describe('useSubtitleStyle Composable - Persistence & HTTP Semantics', () => {
     expect(subtitleStyle.subtitleSyncOffset.value).toBe(220);
     expect(subtitleStyle.subtitleMode.value).toBe('3_words');
   });
+
+  it('derives getOuterStrokeShadow correctly from reactive properties', () => {
+    const subtitleStyle = useSubtitleStyle();
+
+    subtitleStyle.subtitleStrokeWidth.value = 0;
+    expect(subtitleStyle.getOuterStrokeShadow()).toBe(
+      '0 1px 3px rgba(0,0,0,0.8)'
+    );
+
+    subtitleStyle.subtitleStrokeWidth.value = 4;
+    subtitleStyle.subtitleStrokeColor.value = '#00FF00';
+    const shadow = subtitleStyle.getOuterStrokeShadow();
+    expect(shadow).toContain('#00FF00');
+    expect(shadow).toContain('-1.8px -1.8px 0 #00FF00');
+  });
 });
