@@ -982,217 +982,23 @@
                     </div>
 
                     <!-- Two-Tier Hook Timing Slider -->
-                    <div class="space-y-3 pt-1">
-                      <!-- Tier 1: Macro Source Video Overview -->
-                      <div class="space-y-1">
-                        <div
-                          class="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-wider"
-                        >
-                          <span
-                            class="flex items-center gap-1.5 text-slate-400"
-                          >
-                            <Icon
-                              name="ri:film-line"
-                              class="text-xs text-accent-500"
-                            />
-                            Full Video Overview
-                          </span>
-                          <span class="font-mono text-slate-500">
-                            {{ state.formatDuration(0) }} /
-                            {{
-                              state.formatDuration(
-                                state.videoDuration.value || 0
-                              )
-                            }}
-                          </span>
-                        </div>
-                        <div
-                          class="relative w-full h-3 px-1.5 flex items-center select-none bg-black/50 border border-white/5 rounded-lg overflow-hidden"
-                        >
-                          <!-- Full Track -->
-                          <div
-                            class="relative w-full h-1 bg-surface-dark border border-surface-border/40 rounded-full overflow-hidden"
-                          >
-                            <!-- Macro Active Hook Range -->
-                            <div
-                              class="absolute h-full bg-accent-500 rounded-full"
-                              :style="{
-                                left:
-                                  (Math.max(
-                                    0,
-                                    selectedModalHook.start -
-                                      state.startSafetyBuffer.value
-                                  ) /
-                                    (state.videoDuration.value || 100)) *
-                                    100 +
-                                  '%',
-                                width:
-                                  Math.max(
-                                    0.5,
-                                    ((selectedModalHook.end -
-                                      Math.max(
-                                        0,
-                                        selectedModalHook.start -
-                                          state.startSafetyBuffer.value
-                                      )) /
-                                      (state.videoDuration.value || 100)) *
-                                      100
-                                  ) + '%'
-                              }"
-                            ></div>
-                          </div>
-                          <!-- Zoom Window Viewport Bracket -->
-                          <div
-                            class="absolute top-0 bottom-0 border-x-2 border-accent-500/60 bg-accent-500/10 pointer-events-none transition-all duration-75"
-                            :style="{
-                              left:
-                                (microWindowStart /
-                                  (state.videoDuration.value || 100)) *
-                                  100 +
-                                '%',
-                              width:
-                                Math.max(
-                                  1,
-                                  ((microWindowEnd - microWindowStart) /
-                                    (state.videoDuration.value || 100)) *
-                                    100
-                                ) + '%'
-                            }"
-                          ></div>
-                        </div>
-                      </div>
-
-                      <!-- Tier 2: Micro Context Timeline (Zoomed Boundary Adjustment) -->
-                      <div class="space-y-1.5">
-                        <div
-                          class="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider"
-                        >
-                          <span
-                            class="flex items-center gap-1.5 text-slate-300"
-                          >
-                            <Icon
-                              name="ri:scissors-cut-line"
-                              class="text-xs text-accent-500"
-                            />
-                            Adjust Hook Boundaries
-                          </span>
-                          <span
-                            class="text-[9px] font-mono text-accent-400 font-bold bg-accent-500/10 border border-accent-500/20 px-1.5 py-0.5 rounded"
-                          >
-                            Zoomed Window
-                          </span>
-                        </div>
-
-                        <div
-                          class="relative w-full h-10 px-2.5 flex items-center select-none bg-black/60 border border-surface-border/80 rounded-xl"
-                        >
-                          <div
-                            ref="modalHookSliderRef"
-                            id="modal-hook-slider"
-                            class="relative w-full h-full flex items-center cursor-pointer"
-                            @mousedown="onSliderClick"
-                            @touchstart="onSliderClick"
-                          >
-                            <!-- Slider Track -->
-                            <div
-                              class="absolute left-0 right-0 h-2 bg-surface-dark border border-surface-border/60 rounded-full"
-                            ></div>
-
-                            <!-- Highlighted Active range -->
-                            <div
-                              class="absolute h-2 bg-accent-500 rounded-full shadow-[0_0_12px_rgba(255,215,0,0.3)]"
-                              :style="{
-                                left:
-                                  ((Math.max(
-                                    0,
-                                    selectedModalHook.start -
-                                      state.startSafetyBuffer.value
-                                  ) -
-                                    microWindowStart) /
-                                    microDuration) *
-                                    100 +
-                                  '%',
-                                width:
-                                  ((selectedModalHook.end -
-                                    Math.max(
-                                      0,
-                                      selectedModalHook.start -
-                                        state.startSafetyBuffer.value
-                                    )) /
-                                    microDuration) *
-                                    100 +
-                                  '%'
-                              }"
-                            ></div>
-
-                            <!-- Start Handle -->
-                            <div
-                              class="absolute w-5 h-5 rounded-full bg-accent-500 border-2 border-white cursor-ew-resize -translate-x-1/2 flex items-center justify-center shadow-lg hover:scale-125 active:scale-125 transition-transform z-10"
-                              :style="{
-                                left:
-                                  ((Math.max(
-                                    0,
-                                    selectedModalHook.start -
-                                      state.startSafetyBuffer.value
-                                  ) -
-                                    microWindowStart) /
-                                    microDuration) *
-                                    100 +
-                                  '%'
-                              }"
-                              @mousedown.stop="startDrag('start')"
-                              @touchstart.stop="startDrag('start')"
-                            >
-                              <div
-                                class="w-1.5 h-1.5 bg-black rounded-full"
-                              ></div>
-                            </div>
-
-                            <!-- End Handle -->
-                            <div
-                              class="absolute w-5 h-5 rounded-full bg-accent-500 border-2 border-white cursor-ew-resize -translate-x-1/2 flex items-center justify-center shadow-lg hover:scale-125 active:scale-125 transition-transform z-10"
-                              :style="{
-                                left:
-                                  ((selectedModalHook.end - microWindowStart) /
-                                    microDuration) *
-                                    100 +
-                                  '%'
-                              }"
-                              @mousedown.stop="startDrag('end')"
-                              @touchstart.stop="startDrag('end')"
-                            >
-                              <div
-                                class="w-1.5 h-1.5 bg-black rounded-full"
-                              ></div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <!-- Time markers for micro window -->
-                        <div
-                          class="flex items-center justify-between text-[9px] text-slate-500 font-mono px-1"
-                        >
-                          <span>{{ formatMMSS(microWindowStart) }}</span>
-                          <span class="text-slate-400 font-bold">
-                            Clip Duration:
-                            {{
-                              formatMMSS(
-                                Math.max(
-                                  0,
-                                  selectedModalHook.end -
-                                    Math.max(
-                                      0,
-                                      selectedModalHook.start -
-                                        state.startSafetyBuffer.value
-                                    )
-                                )
-                              )
-                            }}
-                          </span>
-                          <span>{{ formatMMSS(microWindowEnd) }}</span>
-                        </div>
-                      </div>
-                    </div>
+                    <TwoTierTimingSlider
+                      ref="timingSliderRef"
+                      :start="
+                        Math.max(
+                          0,
+                          selectedModalHook.start -
+                            state.startSafetyBuffer.value
+                        )
+                      "
+                      :end="selectedModalHook.end"
+                      :video-duration="state.videoDuration.value || 0"
+                      :current-time="modalCurrentTime"
+                      @update:start="onSliderUpdateStart"
+                      @update:end="onSliderUpdateEnd"
+                      @seek="onSliderSeek"
+                      @drag-end="onSliderDragEnd"
+                    />
 
                     <div class="flex justify-end pt-1">
                       <button
@@ -1350,7 +1156,8 @@
 </template>
 
 <script setup lang="ts">
-import type { Hook, ReadyClip, PromptTemplate } from '../../types/clipper';
+import type { Hook, ReadyClip } from '../../types/clipper';
+import TwoTierTimingSlider from './TwoTierTimingSlider.vue';
 import {
   findMatchingClip as matchClipDomain,
   isHookRendered as checkHookRenderedDomain
@@ -1361,7 +1168,7 @@ const props = defineProps<{
   readyClips: ReadyClip[];
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
   (e: 'select-hook', hook: Hook): void;
   (e: 'back-to-library'): void;
 }>();
@@ -1424,34 +1231,125 @@ const modalVideoUrl = computed(() => {
   return null;
 });
 
+const timingSliderRef = ref<InstanceType<typeof TwoTierTimingSlider> | null>(
+  null
+);
+const modalCurrentTime = ref(0);
 const showAdjustDuration = ref(false);
 const timingPanelRef = ref<HTMLElement | null>(null);
 const timingTriggerBtnRef = ref<HTMLElement | null>(null);
-const modalHookSliderRef = ref<HTMLElement | null>(null);
-const dragMode = ref<'start' | 'end' | null>(null);
-const dragInitialStart = ref(0);
-const dragInitialEnd = ref(0);
 const isPreviewingDelta = ref(false);
-const microWindowStart = ref(0);
-const microWindowEnd = ref(100);
 const startInputStr = ref('00:00');
 const endInputStr = ref('00:00');
 const activeModalTab = ref<'breakdown' | 'transcript'>('breakdown');
 
-const microDuration = computed(() => {
-  return Math.max(1, microWindowEnd.value - microWindowStart.value);
+// Backward compatibility & delegation for tests and internal accessors
+const modalHookSliderRef = computed(
+  () => timingSliderRef.value?.modalHookSliderRef ?? null
+);
+const dragMode = computed(() => timingSliderRef.value?.dragMode ?? null);
+const dragInitialStart = computed(
+  () => timingSliderRef.value?.dragInitialStart ?? 0
+);
+const dragInitialEnd = computed(
+  () => timingSliderRef.value?.dragInitialEnd ?? 0
+);
+const microWindowStart = computed({
+  get: () => timingSliderRef.value?.microWindowStart ?? 0,
+  set: v => {
+    if (timingSliderRef.value) timingSliderRef.value.microWindowStart = v;
+  }
 });
+const microWindowEnd = computed({
+  get: () => timingSliderRef.value?.microWindowEnd ?? 100,
+  set: v => {
+    if (timingSliderRef.value) timingSliderRef.value.microWindowEnd = v;
+  }
+});
+const edgeScrollDirection = computed(
+  () => timingSliderRef.value?.edgeScrollDirection ?? 0
+);
 
 function updateMicroWindow(start: number, end: number, padding = 30) {
-  const total = state.videoDuration.value || 3600;
-  microWindowStart.value = Math.max(
-    0,
-    parseFloat((start - padding).toFixed(1))
+  timingSliderRef.value?.updateMicroWindow(start, end, padding);
+}
+
+function startDrag(
+  mode: 'start' | 'end',
+  initialStart?: number,
+  initialEnd?: number
+) {
+  timingSliderRef.value?.startDrag(mode, initialStart, initialEnd);
+}
+
+function stopDragging() {
+  timingSliderRef.value?.stopDragging();
+}
+
+function stepEdgeAutoScroll(timestamp: number) {
+  timingSliderRef.value?.stepEdgeAutoScroll(timestamp);
+}
+
+function onSliderUpdateStart(newStart: number) {
+  if (!selectedModalHook.value) return;
+  selectedModalHook.value.start = parseFloat(
+    (newStart + state.startSafetyBuffer.value).toFixed(1)
   );
-  microWindowEnd.value = Math.min(
-    total,
-    parseFloat((end + padding).toFixed(1))
-  );
+  startInputStr.value = formatMMSS(newStart);
+}
+
+function onSliderUpdateEnd(newEnd: number) {
+  if (!selectedModalHook.value) return;
+  selectedModalHook.value.end = parseFloat(newEnd.toFixed(1));
+  endInputStr.value = formatMMSS(newEnd);
+}
+
+function onSliderSeek(time: number) {
+  if (modalVideoPlayer.value) {
+    modalVideoPlayer.value.currentTime = time;
+    modalCurrentTime.value = time;
+  }
+}
+
+function onSliderDragEnd(payload: {
+  mode: 'start' | 'end';
+  initialStart: number;
+  initialEnd: number;
+  start: number;
+  end: number;
+}) {
+  const currentEnd = selectedModalHook.value?.end ?? payload.end;
+  const effectiveStart = selectedModalHook.value
+    ? Math.max(0, selectedModalHook.value.start - state.startSafetyBuffer.value)
+    : payload.start;
+  const initialEnd = payload.initialEnd;
+
+  if (payload.mode === 'end') {
+    if (modalVideoPlayer.value) {
+      if (currentEnd > initialEnd) {
+        // Extended: play delta from old end to new end
+        isPreviewingDelta.value = true;
+        modalVideoPlayer.value.currentTime = initialEnd;
+        modalVideoPlayer.value.play().catch(() => {});
+      } else if (currentEnd < initialEnd) {
+        // Shortened: play tail context
+        isPreviewingDelta.value = true;
+        modalVideoPlayer.value.currentTime = Math.max(
+          effectiveStart,
+          currentEnd - 3
+        );
+        modalVideoPlayer.value.play().catch(() => {});
+      } else {
+        modalVideoPlayer.value.currentTime = effectiveStart;
+        modalVideoPlayer.value.play().catch(() => {});
+      }
+    }
+  } else if (payload.mode === 'start') {
+    if (modalVideoPlayer.value) {
+      modalVideoPlayer.value.currentTime = effectiveStart;
+      modalVideoPlayer.value.play().catch(() => {});
+    }
+  }
 }
 
 function onHookCardClick(hook: Hook) {
@@ -1558,6 +1456,7 @@ function onModalLoadedMetadata(e: Event) {
       selectedModalHook.value.start - state.startSafetyBuffer.value
     );
   }
+  modalCurrentTime.value = videoEl.currentTime;
   restoreModalVolume(videoEl);
 }
 
@@ -1653,245 +1552,6 @@ function resetToDefaultDuration() {
     startInputStr.value = formatMMSS(effectiveStart);
     endInputStr.value = formatMMSS(selectedModalHook.value.end);
     updateMicroWindow(effectiveStart, selectedModalHook.value.end);
-    if (modalVideoPlayer.value) {
-      modalVideoPlayer.value.currentTime = effectiveStart;
-      modalVideoPlayer.value.play().catch(() => {});
-    }
-  }
-}
-
-function startDrag(
-  mode: 'start' | 'end',
-  initialStart?: number,
-  initialEnd?: number
-) {
-  if (!selectedModalHook.value) return;
-  dragMode.value = mode;
-  dragInitialStart.value =
-    initialStart !== undefined
-      ? initialStart
-      : Math.max(
-          0,
-          selectedModalHook.value.start - state.startSafetyBuffer.value
-        );
-  dragInitialEnd.value =
-    initialEnd !== undefined ? initialEnd : selectedModalHook.value.end;
-
-  window.addEventListener('mousemove', onDragging);
-  window.addEventListener('mouseup', stopDragging);
-  window.addEventListener('touchmove', onDragging, { passive: false });
-  window.addEventListener('touchend', stopDragging);
-}
-
-let edgeScrollRaf: number | null = null;
-let lastScrollTimestamp: number | null = null;
-const edgeScrollDirection = ref<-1 | 1 | 0>(0);
-
-function stepEdgeAutoScroll(timestamp: number) {
-  if (
-    !edgeScrollDirection.value ||
-    !dragMode.value ||
-    !selectedModalHook.value
-  ) {
-    stopEdgeAutoScroll();
-    return;
-  }
-
-  if (lastScrollTimestamp === null) {
-    lastScrollTimestamp = timestamp;
-  }
-  const elapsedSec = Math.min(0.1, (timestamp - lastScrollTimestamp) / 1000);
-  lastScrollTimestamp = timestamp;
-
-  const scrollRate = 8; // 8 seconds of footage per second of dwell
-  const delta = scrollRate * elapsedSec;
-  const totalDuration = state.videoDuration.value || 3600;
-
-  if (edgeScrollDirection.value === 1 && dragMode.value === 'end') {
-    if (selectedModalHook.value.end < totalDuration) {
-      const newEnd = Math.min(
-        totalDuration,
-        selectedModalHook.value.end + delta
-      );
-      const actualDelta = newEnd - selectedModalHook.value.end;
-      selectedModalHook.value.end = parseFloat(newEnd.toFixed(2));
-      endInputStr.value = formatMMSS(selectedModalHook.value.end);
-
-      microWindowEnd.value = Math.min(
-        totalDuration,
-        parseFloat((microWindowEnd.value + actualDelta).toFixed(2))
-      );
-      microWindowStart.value = Math.max(
-        0,
-        parseFloat((microWindowStart.value + actualDelta).toFixed(2))
-      );
-
-      if (modalVideoPlayer.value) {
-        modalVideoPlayer.value.currentTime = selectedModalHook.value.end;
-      }
-    } else {
-      stopEdgeAutoScroll();
-      return;
-    }
-  } else if (edgeScrollDirection.value === -1 && dragMode.value === 'start') {
-    const effectiveStart =
-      selectedModalHook.value.start - state.startSafetyBuffer.value;
-    if (effectiveStart > 0) {
-      const newEffectiveStart = Math.max(0, effectiveStart - delta);
-      const actualDelta = effectiveStart - newEffectiveStart;
-      selectedModalHook.value.start = parseFloat(
-        (newEffectiveStart + state.startSafetyBuffer.value).toFixed(2)
-      );
-      startInputStr.value = formatMMSS(newEffectiveStart);
-
-      microWindowStart.value = Math.max(
-        0,
-        parseFloat((microWindowStart.value - actualDelta).toFixed(2))
-      );
-      microWindowEnd.value = Math.max(
-        microWindowStart.value + 10,
-        parseFloat((microWindowEnd.value - actualDelta).toFixed(2))
-      );
-
-      if (modalVideoPlayer.value) {
-        modalVideoPlayer.value.currentTime = newEffectiveStart;
-      }
-    } else {
-      stopEdgeAutoScroll();
-      return;
-    }
-  }
-
-  if (typeof window !== 'undefined') {
-    edgeScrollRaf = requestAnimationFrame(stepEdgeAutoScroll);
-  }
-}
-
-function startEdgeAutoScroll(direction: -1 | 1) {
-  if (edgeScrollDirection.value === direction && edgeScrollRaf !== null) return;
-  edgeScrollDirection.value = direction;
-  lastScrollTimestamp = null;
-  if (edgeScrollRaf === null && typeof window !== 'undefined') {
-    edgeScrollRaf = requestAnimationFrame(stepEdgeAutoScroll);
-  }
-}
-
-function stopEdgeAutoScroll() {
-  edgeScrollDirection.value = 0;
-  lastScrollTimestamp = null;
-  if (edgeScrollRaf !== null && typeof window !== 'undefined') {
-    cancelAnimationFrame(edgeScrollRaf);
-    edgeScrollRaf = null;
-  }
-}
-
-function onDragging(e: MouseEvent | TouchEvent) {
-  if (!dragMode.value || !selectedModalHook.value) return;
-
-  const slider =
-    modalHookSliderRef.value || document.getElementById('modal-hook-slider');
-  if (!slider) return;
-
-  const rect = slider.getBoundingClientRect();
-  const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? 0) : e.clientX;
-  const percentage = Math.max(
-    0,
-    Math.min(1, (clientX - rect.left) / rect.width)
-  );
-  const totalDuration = state.videoDuration.value || 3600;
-  const microDur = microDuration.value;
-  const rawVal = microWindowStart.value + percentage * microDur;
-  const newVal = parseFloat(rawVal.toFixed(1));
-
-  const isAtRightEdge = percentage >= 0.98 || clientX >= rect.right - 4;
-  const isAtLeftEdge = percentage <= 0.02 || clientX <= rect.left + 4;
-
-  if (dragMode.value === 'start') {
-    const minStart = microWindowStart.value;
-    const maxStart = selectedModalHook.value.end - 1.0;
-    if (newVal <= maxStart) {
-      const clampedStart = Math.max(minStart, newVal);
-      selectedModalHook.value.start = parseFloat(
-        (clampedStart + state.startSafetyBuffer.value).toFixed(1)
-      );
-      startInputStr.value = formatMMSS(clampedStart);
-
-      if (modalVideoPlayer.value) {
-        modalVideoPlayer.value.currentTime = clampedStart;
-      }
-    }
-
-    if (isAtLeftEdge) {
-      startEdgeAutoScroll(-1);
-    } else {
-      stopEdgeAutoScroll();
-    }
-  } else if (dragMode.value === 'end') {
-    const effectiveStart = Math.max(
-      0,
-      selectedModalHook.value.start - state.startSafetyBuffer.value
-    );
-    const minEnd = effectiveStart + 1.0;
-    const maxEnd = Math.min(totalDuration, microWindowEnd.value);
-    if (newVal >= minEnd) {
-      const clampedEnd = Math.min(maxEnd, newVal);
-      selectedModalHook.value.end = parseFloat(clampedEnd.toFixed(1));
-      endInputStr.value = formatMMSS(selectedModalHook.value.end);
-
-      if (modalVideoPlayer.value) {
-        modalVideoPlayer.value.currentTime = selectedModalHook.value.end;
-      }
-    }
-
-    if (isAtRightEdge) {
-      startEdgeAutoScroll(1);
-    } else {
-      stopEdgeAutoScroll();
-    }
-  }
-}
-
-function stopDragging() {
-  stopEdgeAutoScroll();
-  const currentDrag = dragMode.value;
-  dragMode.value = null;
-  window.removeEventListener('mousemove', onDragging);
-  window.removeEventListener('mouseup', stopDragging);
-  window.removeEventListener('touchmove', onDragging);
-  window.removeEventListener('touchend', stopDragging);
-
-  if (!currentDrag || !selectedModalHook.value) return;
-
-  const effectiveStart = Math.max(
-    0,
-    selectedModalHook.value.start - state.startSafetyBuffer.value
-  );
-  const currentEnd = selectedModalHook.value.end;
-
-  // Re-center micro window with fresh context padding once drag finishes
-  updateMicroWindow(effectiveStart, currentEnd);
-
-  if (currentDrag === 'end') {
-    if (modalVideoPlayer.value) {
-      if (currentEnd > dragInitialEnd.value) {
-        // Extended: play delta from old end to new end
-        isPreviewingDelta.value = true;
-        modalVideoPlayer.value.currentTime = dragInitialEnd.value;
-        modalVideoPlayer.value.play().catch(() => {});
-      } else if (currentEnd < dragInitialEnd.value) {
-        // Shortened: play tail context
-        isPreviewingDelta.value = true;
-        modalVideoPlayer.value.currentTime = Math.max(
-          effectiveStart,
-          currentEnd - 3
-        );
-        modalVideoPlayer.value.play().catch(() => {});
-      } else {
-        modalVideoPlayer.value.currentTime = effectiveStart;
-        modalVideoPlayer.value.play().catch(() => {});
-      }
-    }
-  } else if (currentDrag === 'start') {
     if (modalVideoPlayer.value) {
       modalVideoPlayer.value.currentTime = effectiveStart;
       modalVideoPlayer.value.play().catch(() => {});
@@ -2043,66 +1703,13 @@ function onTimeInputStep(mode: 'start' | 'end', delta: number) {
   }
 }
 
-function onSliderClick(e: MouseEvent | TouchEvent) {
-  if (!selectedModalHook.value) return;
-  const slider =
-    modalHookSliderRef.value || document.getElementById('modal-hook-slider');
-  if (!slider) return;
-
-  const rect = slider.getBoundingClientRect();
-  const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? 0) : e.clientX;
-  const percentage = Math.max(
-    0,
-    Math.min(1, (clientX - rect.left) / rect.width)
-  );
-  const microDur = microDuration.value;
-  const clickVal = parseFloat(
-    (microWindowStart.value + percentage * microDur).toFixed(1)
-  );
-
-  const effectiveStart = Math.max(
-    0,
-    selectedModalHook.value.start - state.startSafetyBuffer.value
-  );
-  const distStart = Math.abs(clickVal - effectiveStart);
-  const distEnd = Math.abs(clickVal - selectedModalHook.value.end);
-
-  const mode = distStart < distEnd ? 'start' : 'end';
-  const initialStart = effectiveStart;
-  const initialEnd = selectedModalHook.value.end;
-
-  if (mode === 'start') {
-    if (clickVal <= selectedModalHook.value.end - 1.0) {
-      const clampedStart = Math.max(0, clickVal);
-      selectedModalHook.value.start = parseFloat(
-        (clampedStart + state.startSafetyBuffer.value).toFixed(1)
-      );
-      startInputStr.value = formatMMSS(clampedStart);
-      if (modalVideoPlayer.value) {
-        modalVideoPlayer.value.currentTime = clampedStart;
-      }
-    }
-  } else {
-    const totalDuration = state.videoDuration.value || 3600;
-    if (clickVal >= effectiveStart + 1.0) {
-      const clampedEnd = Math.min(totalDuration, clickVal);
-      selectedModalHook.value.end = parseFloat(clampedEnd.toFixed(1));
-      endInputStr.value = formatMMSS(selectedModalHook.value.end);
-      if (modalVideoPlayer.value) {
-        modalVideoPlayer.value.currentTime = selectedModalHook.value.end;
-      }
-    }
-  }
-
-  startDrag(mode, initialStart, initialEnd);
-}
-
 function onModalTimeUpdate(e: Event) {
   if (!selectedModalHook.value) return;
+  const player = e.target as HTMLVideoElement;
+  modalCurrentTime.value = player.currentTime;
   // If actively dragging slider, do not interrupt smooth frame scrubbing
   if (dragMode.value) return;
 
-  const player = e.target as HTMLVideoElement;
   const effectiveStart = Math.max(
     0,
     selectedModalHook.value.start - state.startSafetyBuffer.value
@@ -2137,10 +1744,31 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  stopEdgeAutoScroll();
   if (typeof window !== 'undefined') {
     window.removeEventListener('mousedown', handleClickOutsideTiming);
   }
+});
+
+defineExpose({
+  modalHookSliderRef,
+  dragMode,
+  dragInitialStart,
+  dragInitialEnd,
+  microWindowStart,
+  microWindowEnd,
+  edgeScrollDirection,
+  startDrag,
+  stopDragging,
+  stepEdgeAutoScroll,
+  updateMicroWindow,
+  selectedModalHook,
+  showAdjustDuration,
+  modalVideoPlayer,
+  startInputStr,
+  endInputStr,
+  isPreviewingDelta,
+  onModalTimeUpdate,
+  findMatchingClip
 });
 </script>
 
