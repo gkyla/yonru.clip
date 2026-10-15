@@ -1351,6 +1351,10 @@
 
 <script setup lang="ts">
 import type { Hook, ReadyClip, PromptTemplate } from '../../types/clipper';
+import {
+  findMatchingClip as matchClipDomain,
+  isHookRendered as checkHookRenderedDomain
+} from '../../utils/hookClipMatcher';
 
 const props = defineProps<{
   previewVideoUrl: string | null;
@@ -1497,113 +1501,24 @@ function isHookSaved(hook: Hook) {
 }
 
 function findMatchingClip(hook: Hook | null): ReadyClip | undefined {
-  if (!props.readyClips?.length || !state.folderName.value || !hook)
-    return undefined;
-  return props.readyClips.find(c => {
-    if (c.folder_name !== state.folderName.value) return false;
-    const parts = c.clip_id.split('_');
-    const part0 = parts[0];
-    const part1 = parts[1];
-    if (part0 === undefined || part1 === undefined) return false;
-    const cStart = parseFloat(part0);
-    const cEnd = parseFloat(part1);
-    if (isNaN(cStart) || isNaN(cEnd)) return false;
-
-    const safetyBuffer = state.startSafetyBuffer?.value ?? 2.0;
-    const expectedStart = Math.max(0, Math.floor(hook.start - safetyBuffer));
-    const expectedEnd = Math.ceil(hook.end);
-    if (
-      Math.abs(cStart - expectedStart) < 1.5 &&
-      Math.abs(cEnd - expectedEnd) < 1.5
-    ) {
-      return true;
-    }
-
-    const expectedStartDefault = Math.max(0, Math.floor(hook.start - 2.0));
-    if (
-      Math.abs(cStart - expectedStartDefault) < 1.5 &&
-      Math.abs(cEnd - expectedEnd) < 1.5
-    ) {
-      return true;
-    }
-    const expectedStartNone = Math.max(0, Math.floor(hook.start));
-    if (
-      Math.abs(cStart - expectedStartNone) < 1.5 &&
-      Math.abs(cEnd - expectedEnd) < 1.5
-    ) {
-      return true;
-    }
-
-    const hookDuration = hook.end - hook.start;
-    if (hookDuration <= 0) return false;
-    const overlapStart = Math.max(cStart, hook.start);
-    const overlapEnd = Math.min(cEnd, hook.end);
-    const overlap = overlapEnd - overlapStart;
-    if (overlap > 0 && overlap / hookDuration >= 0.8) {
-      return true;
-    }
-
-    if (hook.theme && parts.length >= 3) {
-      const cleanHookTheme = hook.theme
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-      const clipThemeStr = parts.slice(2).join(' ').replace(/_/g, ' ');
-      const cleanClipTheme = clipThemeStr
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-      if (
-        cleanHookTheme &&
-        cleanClipTheme &&
-        (cleanClipTheme.includes(cleanHookTheme) ||
-          cleanHookTheme.includes(cleanClipTheme))
-      ) {
-        return true;
-      }
-    }
-
-    return false;
-  });
+  return matchClipDomain(
+    hook,
+    props.readyClips,
+    state.folderName.value,
+    state.startSafetyBuffer?.value ?? 2.0
+  );
 }
 
-function isHookRendered(hook: Hook | null) {
-  if (!hook) return false;
-
-  const status = state.jobStatus.value;
-  if (['cutting', 'transcribing', 'queued'].includes(status)) {
-    if (state.activeHook.value) {
-      const hStart =
-        typeof hook.start === 'string' ? parseFloat(hook.start) : hook.start;
-      const hEnd =
-        typeof hook.end === 'string' ? parseFloat(hook.end) : hook.end;
-      const aStart =
-        typeof state.activeHook.value.start === 'string'
-          ? parseFloat(state.activeHook.value.start)
-          : state.activeHook.value.start;
-      const aEnd =
-        typeof state.activeHook.value.end === 'string'
-          ? parseFloat(state.activeHook.value.end)
-          : state.activeHook.value.end;
-      if (Math.abs(aStart - hStart) < 0.1 && Math.abs(aEnd - hEnd) < 0.1) {
-        return false;
-      }
-    }
-  }
-
-  const matchingClip = findMatchingClip(hook);
-  if (!matchingClip) return false;
-
-  if (
-    ['cutting', 'transcribing', 'queued'].includes(status) &&
-    state.clipId.value === matchingClip.clip_id
-  ) {
-    return false;
-  }
-
-  return true;
+function isHookRendered(hook: Hook | null): boolean {
+  return checkHookRenderedDomain(
+    hook,
+    props.readyClips,
+    state.folderName.value,
+    state.jobStatus.value,
+    state.activeHook.value,
+    state.clipId.value,
+    state.startSafetyBuffer?.value ?? 2.0
+  );
 }
 
 async function toggleSaveHook(hook: Hook) {
