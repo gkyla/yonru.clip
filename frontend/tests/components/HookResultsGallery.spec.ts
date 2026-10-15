@@ -49,7 +49,9 @@ const mockState = {
   activeHook: ref(null),
   hdReady: ref(false),
   downloadPercent: ref(0),
-  videoUrl: ref('http://localhost:8000/static/test_folder/full.mp4'),
+  videoUrl: ref<string | null>(
+    'http://localhost:8000/static/test_folder/full.mp4'
+  ),
   hasPreview: ref(true),
   videoDuration: ref(300),
   startSafetyBuffer: ref(2),
