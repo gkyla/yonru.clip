@@ -11,6 +11,8 @@ import { useClipperThumbnail } from './useClipperThumbnail';
 import { useClipperExport } from './useClipperExport';
 import type { RenderSpec } from '../types/render';
 import { useSubtitleStyle } from './useSubtitleStyle';
+import { useAppNotifier } from './useAppNotifier';
+import { usePromptRepository } from './usePromptRepository';
 
 import fontsManifest from '../../../shared/fonts_manifest.json';
 import type {
@@ -18,12 +20,6 @@ import type {
   CachedVideo,
   LastAccessedClip,
   TranscriptSegment,
-  PromptTemplate,
-  SubtitleStyleSettings,
-  TimelineTrack,
-  TimelineTrackItem,
-  HookExtractionMode,
-  HookIntentPreset,
   CropMapPoint
 } from '../types/clipper';
 
@@ -93,6 +89,27 @@ function createClipperState() {
   const job = useClipperJob();
   const thumbnailState = useClipperThumbnail();
   const subtitleStyle = useSubtitleStyle();
+  const notifier = useAppNotifier();
+  const promptRepo = usePromptRepository(notifier);
+
+  // Application Notification state delegated from useAppNotifier sub-composable
+  const { toast, showToast, dismissToast } = notifier;
+
+  // Prompts & presets state delegated from usePromptRepository sub-composable
+  const {
+    promptsList,
+    selectedPrompt,
+    extractionMode,
+    selectedPresetId,
+    focusTopic,
+    minDuration,
+    maxDuration,
+    fetchPrompts,
+    createPrompt,
+    addPrompt,
+    editPrompt,
+    deletePrompt
+  } = promptRepo;
 
   // Job state delegated from useClipperJob sub-composable
   const {
@@ -190,29 +207,6 @@ function createClipperState() {
   const safeZoneColor = useState<string>('safeZoneColor', () => '#000000');
   const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
 
-  // Toast state
-  const toast = useState<{
-    message: string;
-    type: 'success' | 'error' | 'info';
-  } | null>('clipperToast', () => null);
-  let toastTimeout: ReturnType<typeof setTimeout> | null = null;
-
-  // Centralized reactive timeout mediator for decoupled shared reactivity
-  watch(toast, newVal => {
-    if (newVal) {
-      if (toastTimeout) clearTimeout(toastTimeout);
-      toastTimeout = setTimeout(() => {
-        toast.value = null;
-      }, 3000);
-    }
-  });
-
-  function showToast(
-    message: string,
-    type: 'success' | 'error' | 'info' = 'success'
-  ) {
-    toast.value = { message, type };
-  }
   const segmentPadding = 2; // Match backend YouTubeParser safe_start buffer
 
   const folderName = useState<string | null>('folderName', () => null);
@@ -221,33 +215,6 @@ function createClipperState() {
     'fullTranscript',
     () => []
   );
-
-  // Prompts & Smart Presets
-  const promptsList = useState<
-    {
-      id: string;
-      name: string;
-      suitableFor: string[];
-      prompt?: string;
-      numHooks?: number;
-      autoHooks?: boolean;
-    }[]
-  >('promptsList', () => []);
-  const selectedPrompt = useState<string>(
-    'selectedPrompt',
-    () => 'prompt.json'
-  );
-  const extractionMode = useState<HookExtractionMode>(
-    'extractionMode',
-    () => 'preset'
-  );
-  const selectedPresetId = useState<HookIntentPreset>(
-    'selectedPresetId',
-    () => 'auto'
-  );
-  const focusTopic = useState<string>('focusTopic', () => '');
-  const minDuration = useState<number>('minDuration', () => 30);
-  const maxDuration = useState<number>('maxDuration', () => 180);
 
   // Settings
   const youtubeUrl = useState<string>('youtubeUrl', () => '');
@@ -568,66 +535,6 @@ function createClipperState() {
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
-  }
-
-  async function fetchPrompts() {
-    try {
-      const res = await $fetch<{
-        prompts: {
-          id: string;
-          name: string;
-          suitableFor: string[];
-          prompt?: string;
-        }[];
-      }>(`${API_BASE}/api/prompts`);
-      promptsList.value = res.prompts || [];
-      if (
-        promptsList.value.length > 0 &&
-        !promptsList.value.find(p => p.id === selectedPrompt.value)
-      ) {
-        const firstPrompt = promptsList.value[0];
-        if (firstPrompt) {
-          selectedPrompt.value = firstPrompt.id;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to fetch prompts', e);
-    }
-  }
-
-  async function editPrompt(
-    id: string,
-    name: string,
-    suitableFor: string[],
-    prompt: string,
-    numHooks: number = 10,
-    autoHooks: boolean = false
-  ) {
-    try {
-      await $fetch(`${API_BASE}/api/prompts/edit`, {
-        method: 'PUT',
-        body: { id, promptName: name, suitableFor, prompt, numHooks, autoHooks }
-      });
-      await fetchPrompts();
-      showToast('Prompt updated successfully', 'success');
-      return true;
-    } catch (e) {
-      showToast('Failed to update prompt', 'error');
-      return false;
-    }
-  }
-  async function deletePrompt(id: string) {
-    try {
-      await $fetch(`${API_BASE}/api/prompts/${id}`, {
-        method: 'DELETE'
-      });
-      await fetchPrompts();
-      showToast('Prompt template removed', 'success');
-      return true;
-    } catch (e) {
-      showToast('Failed to remove prompt template', 'error');
-      return false;
-    }
   }
 
   async function fetchSavedHooks() {
@@ -1159,6 +1066,8 @@ function createClipperState() {
     detectHardwareProfile: diagnostics.detectHardwareProfile,
     formatDuration,
     fetchPrompts,
+    createPrompt,
+    addPrompt,
     editPrompt,
     deletePrompt,
     fetchSavedHooks,
@@ -1211,6 +1120,7 @@ function createClipperState() {
     resetWorkspace,
     toast,
     showToast,
+    dismissToast,
     initPersistence,
     loadDefaultThumbnailStyle,
     saveDefaultThumbnailStyle,

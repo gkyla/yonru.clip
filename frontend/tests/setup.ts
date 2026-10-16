@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+
 const raf = (callback: FrameRequestCallback): number => {
   return setTimeout(() => {
     try {
@@ -8,6 +10,9 @@ const raf = (callback: FrameRequestCallback): number => {
 const caf = (id: number): void => {
   clearTimeout(id);
 };
+
+vi.stubGlobal('requestAnimationFrame', raf);
+vi.stubGlobal('cancelAnimationFrame', caf);
 
 Object.defineProperty(globalThis, 'requestAnimationFrame', {
   value: raf,

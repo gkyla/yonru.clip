@@ -12,6 +12,7 @@ const mockRaf = (cb: any) => {
   return 0;
 };
 (globalThis as any).requestAnimationFrame = mockRaf;
+vi.stubGlobal('requestAnimationFrame', mockRaf);
 if (typeof window !== 'undefined')
   (window as any).requestAnimationFrame = mockRaf;
 if (typeof global !== 'undefined')

@@ -1,5 +1,6 @@
 // useClipperCover.ts - Lean reactive composable delegating to CoverCompositionCoordinator
 import { useTimelineState } from './useTimelineState';
+import { useAppNotifier } from './useAppNotifier';
 import {
   CoverCompositionCoordinator,
   mapCoverOverlays
@@ -138,22 +139,7 @@ export const useClipperCover = () => {
   });
 
   // Toast notification state
-  const toast = useState<{
-    message: string;
-    type: 'success' | 'error' | 'info';
-  } | null>('clipperToast');
-  let toastTimeout: ReturnType<typeof setTimeout> | null = null;
-
-  function showToast(
-    message: string,
-    type: 'success' | 'error' | 'info' = 'success'
-  ) {
-    toast.value = { message, type };
-    if (toastTimeout) clearTimeout(toastTimeout);
-    toastTimeout = setTimeout(() => {
-      toast.value = null;
-    }, 3000);
-  }
+  const { toast, showToast } = useAppNotifier();
 
   // --- Watch Handlers for Cover side-effects ---
   let prevDuration = coverDuration.value;

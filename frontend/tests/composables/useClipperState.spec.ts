@@ -618,4 +618,71 @@ describe('useClipperState Composable', () => {
     ]);
     expect(state.renderStatus.value).toBe('done');
   });
+
+  describe('Domain Composable Delegation Facade', () => {
+    it('delegates toast notification methods and state to useAppNotifier', () => {
+      const state = useClipperState();
+      expect(state.toast).toBeDefined();
+      expect(typeof state.showToast).toBe('function');
+      expect(typeof state.dismissToast).toBe('function');
+
+      state.showToast('Test notification', 'info');
+      expect(state.toast.value).toEqual({
+        message: 'Test notification',
+        type: 'info'
+      });
+
+      state.dismissToast();
+      expect(state.toast.value).toBeNull();
+    });
+
+    it('delegates prompt repository state and operations to usePromptRepository', async () => {
+      const state = useClipperState();
+      expect(state.promptsList).toBeDefined();
+      expect(state.selectedPrompt).toBeDefined();
+      expect(state.extractionMode).toBeDefined();
+      expect(state.selectedPresetId).toBeDefined();
+      expect(state.focusTopic).toBeDefined();
+      expect(state.minDuration).toBeDefined();
+      expect(state.maxDuration).toBeDefined();
+      expect(typeof state.fetchPrompts).toBe('function');
+      expect(typeof state.createPrompt).toBe('function');
+      expect(typeof state.addPrompt).toBe('function');
+      expect(typeof state.editPrompt).toBe('function');
+      expect(typeof state.deletePrompt).toBe('function');
+
+      vi.stubGlobal(
+        '$fetch',
+        vi.fn().mockImplementation((url: string, opts?: any) => {
+          if (url.includes('/api/prompts/add')) {
+            return Promise.resolve({ status: 'ok' });
+          }
+          if (url.includes('/api/prompts')) {
+            return Promise.resolve({
+              prompts: [
+                {
+                  id: 'facade-test.json',
+                  name: 'Facade Test',
+                  suitableFor: ['test']
+                }
+              ]
+            });
+          }
+          return Promise.resolve({});
+        })
+      );
+
+      await state.fetchPrompts();
+      expect(state.promptsList.value.length).toBe(1);
+      expect(state.promptsList.value[0].id).toBe('facade-test.json');
+
+      const created = await state.createPrompt(
+        'New Facade Prompt',
+        ['facade'],
+        'Prompt text'
+      );
+      expect(created).toBe(true);
+      expect(state.toast.value?.message).toBe('Prompt saved successfully');
+    });
+  });
 });
