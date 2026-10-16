@@ -684,5 +684,69 @@ describe('useClipperState Composable', () => {
       expect(created).toBe(true);
       expect(state.toast.value?.message).toBe('Prompt saved successfully');
     });
+
+    it('delegates cached video library state and operations to useCachedLibrary', async () => {
+      const state = useClipperState();
+      expect(state.cachedVideos).toBeDefined();
+      expect(state.isCachedLoading).toBeDefined();
+      expect(state.isCachedMoreLoading).toBeDefined();
+      expect(state.cachedVideosFetchError).toBeDefined();
+      expect(state.cachedVideosTotal).toBeDefined();
+      expect(state.cachedVideosPage).toBeDefined();
+      expect(state.cachedVideosLimit).toBeDefined();
+      expect(state.cachedVideosSearch).toBeDefined();
+      expect(state.cachedVideosSortBy).toBeDefined();
+      expect(state.cachedVideosSortOrder).toBeDefined();
+      expect(state.cachedVideosHasMore).toBeDefined();
+      expect(state.lastAccessedVideoId).toBeDefined();
+      expect(state.lastAccessedClip).toBeDefined();
+      expect(state.lastAccessedVideoStored).toBeDefined();
+      expect(state.lastAccessedVideo).toBeDefined();
+      expect(state.savedHooks).toBeDefined();
+      expect(typeof state.fetchCached).toBe('function');
+      expect(typeof state.setLastAccessed).toBe('function');
+      expect(typeof state.setLastClip).toBe('function');
+      expect(typeof state.fetchSavedHooks).toBe('function');
+      expect(typeof state.saveHook).toBe('function');
+      expect(typeof state.deleteSavedHook).toBe('function');
+
+      const mockSavedHooks = [{ start: 1, end: 10, theme: 'Facade Hook' }];
+      vi.stubGlobal(
+        '$fetch',
+        vi.fn().mockImplementation((url: string) => {
+          if (url.includes('/api/cached/saved_hooks')) {
+            return Promise.resolve({ saved_hooks: mockSavedHooks });
+          }
+          if (url.includes('/api/cached')) {
+            return Promise.resolve({
+              videos: [
+                {
+                  video_id: 'facade_vid',
+                  title: 'Facade Video',
+                  duration: 60,
+                  folder_name: 'facade_folder'
+                }
+              ],
+              total: 1,
+              has_more: false
+            });
+          }
+          return Promise.resolve({});
+        })
+      );
+
+      await state.fetchCached(true);
+      expect(state.cachedVideos.value.length).toBe(1);
+      expect(state.cachedVideos.value[0]!.video_id).toBe('facade_vid');
+
+      state.folderName.value = 'facade_folder';
+      const saved = await state.saveHook({
+        start: 1,
+        end: 10,
+        theme: 'Facade Hook'
+      });
+      expect(saved).toBe(true);
+      expect(state.savedHooks.value).toEqual(mockSavedHooks);
+    });
   });
 });
