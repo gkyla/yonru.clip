@@ -550,4 +550,72 @@ describe('useClipperState Composable', () => {
       })
     );
   });
+
+  it('builds RenderSpec and orchestrates atomic save before calling exportClip', async () => {
+    const state = useClipperState();
+    const mock$Fetch = vi.fn().mockResolvedValue({ status: 'ok' });
+    vi.stubGlobal('$fetch', mock$Fetch);
+
+    let capturedRenderBody: any = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, opts: any) => {
+        if (url.includes('/api/render-stream')) {
+          if (opts?.body) {
+            try {
+              capturedRenderBody = JSON.parse(opts.body);
+            } catch {}
+          }
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            body: {
+              getReader: () => {
+                let done = false;
+                return {
+                  read: () => {
+                    if (done)
+                      return Promise.resolve({ done: true, value: undefined });
+                    done = true;
+                    const sse =
+                      'data: {"stage":"done","percent":100,"outputUrl":"/test.mp4"}\n\n';
+                    return Promise.resolve({
+                      done: false,
+                      value: new TextEncoder().encode(sse)
+                    });
+                  }
+                };
+              }
+            }
+          });
+        }
+        return Promise.resolve({ ok: true, status: 200 });
+      })
+    );
+
+    state.jobId.value = 'job-render-xyz';
+    state.folderName.value = 'myFolder';
+    state.clipId.value = 'myClip';
+    state.fullTranscript.value = [
+      { start: 0, duration: 3, text: 'Hello stream' }
+    ];
+
+    await state.renderClip(1, 'Exported Clip');
+
+    // 1. Session save called
+    expect(mock$Fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/clip-session/myFolder/myClip'),
+      expect.objectContaining({ method: 'PUT' })
+    );
+
+    // 2. Export stream called with RenderSpec mapped data
+    expect(capturedRenderBody).not.toBeNull();
+    expect(capturedRenderBody.job_id).toBe('job-render-xyz');
+    expect(capturedRenderBody.hook_index).toBe(1);
+    expect(capturedRenderBody.output_name).toBe('Exported Clip');
+    expect(capturedRenderBody.transcript).toEqual([
+      { start: 0, duration: 3, text: 'Hello stream' }
+    ]);
+    expect(state.renderStatus.value).toBe('done');
+  });
 });
