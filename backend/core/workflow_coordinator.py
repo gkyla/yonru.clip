@@ -6,31 +6,6 @@ import uuid
 from typing import Optional, Dict, Any, List
 from core.clip_session_store import ClipSessionStore, CANONICAL_DEFAULT_STYLE_SETTINGS, CANONICAL_DEFAULT_COVER_CONFIG
 
-CANONICAL_DEFAULT_STYLE_SETTINGS: Dict[str, Any] = {
-    "videoLayout": "vertical",
-    "subtitlePreset": "bold-podcast",
-    "subtitlePosition": "center",
-    "subtitleOffset": 50,
-    "subtitleSyncOffset": 150,
-    "font": "Montserrat",
-    "fontSize": 50,
-    "cropMode": "face_tracking",
-    "cropPercentX": 50,
-    "subtitleMode": "word",
-    "subtitleAnimation": "pop",
-    "subtitleHighlightMode": "color",
-    "subtitleHighlightColor": "#CFFF50",
-    "subtitleTextColor": "#FFFFFF",
-    "subtitleStrokeColor": "#000000",
-    "subtitleStrokeWidth": 0,
-    "subtitleFontWeight": 900,
-    "subtitleTextTransform": "uppercase",
-    "subtitleBackground": "none",
-    "subtitleBackgroundOpacity": 0.7,
-    "subtitleWordSpacing": 0,
-    "volume": 0.5
-}
-
 class ClipWorkflowCoordinator:
     def __init__(self, job_store, asset_repository, youtube_client, speech_transcriber, prompt_repository, config_store, face_tracker=None, clip_session_store=None):
         self.jobs = job_store
@@ -40,28 +15,49 @@ class ClipWorkflowCoordinator:
         self.prompt_repository = prompt_repository
         self.config_store = config_store
         self.face_tracker = face_tracker
-        self.clip_session_store = clip_session_store
+
+        if clip_session_store and isinstance(clip_session_store, ClipSessionStore):
+            self.clip_session_store = clip_session_store
+        elif hasattr(asset_repository, "clip_session_store") and isinstance(getattr(asset_repository, "clip_session_store", None), ClipSessionStore):
+            self.clip_session_store = asset_repository.clip_session_store
+        else:
+            raw_out = getattr(asset_repository, "output_dir", None)
+            output_dir = raw_out if isinstance(raw_out, str) and raw_out else "temp_assets"
+            raw_clips = getattr(asset_repository, "clips_dir", None)
+            clips_dir = raw_clips if isinstance(raw_clips, str) and raw_clips else os.path.join(output_dir, "clips")
+            self.clip_session_store = ClipSessionStore(clips_dir=clips_dir, output_dir=output_dir, config_store=config_store)
 
     def _get_clip_session_store(self, clip_dir: Optional[str] = None) -> ClipSessionStore:
-        if self.clip_session_store and isinstance(self.clip_session_store, ClipSessionStore):
-            return self.clip_session_store
-
-        repo_store = getattr(self.asset_repository, "clip_session_store", None)
-        if repo_store and isinstance(repo_store, ClipSessionStore):
-            return repo_store
-
         output_dir = getattr(self.asset_repository, "output_dir", None)
         if not isinstance(output_dir, str) or not output_dir:
             output_dir = "temp_assets"
 
         clips_dir = getattr(self.asset_repository, "clips_dir", None)
-        if not isinstance(clips_dir, str) or not clips_dir:
-            if clip_dir:
-                clips_dir = os.path.dirname(os.path.dirname(os.path.abspath(clip_dir)))
-            else:
-                clips_dir = os.path.join(output_dir, "clips")
+        if isinstance(clips_dir, str) and clips_dir:
+            target_clips_dir = clips_dir
+        elif clip_dir:
+            target_clips_dir = os.path.dirname(os.path.dirname(os.path.abspath(clip_dir)))
+        else:
+            target_clips_dir = os.path.join(output_dir, "clips")
 
-        return ClipSessionStore(clips_dir=clips_dir, output_dir=output_dir)
+        repo_store = getattr(self.asset_repository, "clip_session_store", None)
+        if (
+            repo_store
+            and isinstance(repo_store, ClipSessionStore)
+            and os.path.abspath(repo_store.clips_dir) == os.path.abspath(target_clips_dir)
+            and os.path.abspath(repo_store.output_dir) == os.path.abspath(output_dir)
+        ):
+            return repo_store
+
+        if (
+            self.clip_session_store
+            and isinstance(self.clip_session_store, ClipSessionStore)
+            and os.path.abspath(self.clip_session_store.clips_dir) == os.path.abspath(target_clips_dir)
+            and os.path.abspath(self.clip_session_store.output_dir) == os.path.abspath(output_dir)
+        ):
+            return self.clip_session_store
+
+        return ClipSessionStore(clips_dir=target_clips_dir, output_dir=output_dir, config_store=self.config_store)
 
     def save_jobs(self):
         try:
@@ -74,8 +70,6 @@ class ClipWorkflowCoordinator:
         clip_id = os.path.basename(clip_dir)
         folder_name = os.path.basename(os.path.dirname(clip_dir))
         store = self._get_clip_session_store(clip_dir)
-
-        # Delegate defaults seeding (style settings, cover config, thumbnail config, poster->thumbnail)
         store.ensure_clip_defaults(folder_name, clip_id)
 
         # Check for fallback Clip Thumbnail image generation from video if thumbnail.jpg is still missing

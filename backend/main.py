@@ -446,14 +446,14 @@ async def list_ready_clips():
     except Exception as e:
         print(f"[api] Error reading active jobs for ready-clips: {e}")
         
-    filtered_clips = asset_repository.list_ready_clips(active_clip_ids=active_clip_ids)
+    filtered_clips = clip_session_store.list_ready_clips(active_clip_ids=active_clip_ids)
     return {"clips": filtered_clips}
 
 @app.delete("/api/ready-clips/{folder_name}/{clip_id}")
 async def delete_ready_clip(folder_name: str, clip_id: str):
     """Delete a specific clip folder."""
     try:
-        success = asset_repository.delete_clip_with_job(folder_name, clip_id, job_store=jobs)
+        success = clip_session_store.delete_clip_with_job(folder_name, clip_id, job_store=jobs)
         if not success:
             raise HTTPException(status_code=404, detail="Clip not found")
         return {"status": "deleted", "clip_id": clip_id}
@@ -463,18 +463,7 @@ async def delete_ready_clip(folder_name: str, clip_id: str):
 @app.post("/api/ready-clips/delete-batch")
 async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
     """Delete multiple clips in one go."""
-    results = []
-    for item in req.clips:
-        folder_name = item.get("folder_name")
-        clip_id = item.get("clip_id")
-        if folder_name and clip_id:
-            try:
-                success = asset_repository.delete_clip_with_job(folder_name, clip_id, job_store=jobs)
-                results.append({"clip_id": clip_id, "success": success})
-            except ValueError as e:
-                print(f"[delete-batch] Validation failed for {folder_name}/{clip_id}: {e}")
-                results.append({"clip_id": clip_id, "success": False, "error": str(e)})
-    return {"status": "ok", "results": results}
+    return {"status": "ok", "results": clip_session_store.delete_batch(req.clips, job_store=jobs)}
 
 @app.delete("/api/cached/{folder_name}")
 async def delete_cached(folder_name: str):
@@ -649,7 +638,7 @@ async def update_timeline_history(req: TimelineHistoryRequest):
 async def update_default_style_settings(req: DefaultStyleSettingsRequest):
     """Persist default style settings for all future clips."""
     try:
-        asset_repository.save_default_style_settings(req.settings)
+        clip_session_store.save_default_style_settings(req.settings)
         print(f"[edit] Updated default style settings")
         return {"status": "ok"}
     except Exception as e:
@@ -660,7 +649,7 @@ async def update_default_style_settings(req: DefaultStyleSettingsRequest):
 @app.get("/api/default-thumbnail-style")
 async def get_default_cover_style():
     """Retrieve default cover style settings."""
-    style = asset_repository.get_default_cover_style()
+    style = clip_session_store.get_default_cover_style()
     return {"style": style}
 
 @app.put("/api/default-cover-style")
@@ -668,7 +657,7 @@ async def get_default_cover_style():
 async def update_default_cover_style(req: DefaultThumbnailStyleRequest):
     """Persist default cover style settings for all future clips."""
     try:
-        asset_repository.save_default_cover_style(req.style)
+        clip_session_store.save_default_cover_style(req.style)
         print(f"[edit] Updated default cover style")
         return {"status": "ok"}
     except Exception as e:
@@ -782,7 +771,7 @@ async def get_cover_config(folder_name: str, clip_id: str):
         if config is not None:
             return {"config": config, "cover_url": cover_url}
         
-        default_style = asset_repository.get_default_thumbnail_style()
+        default_style = clip_session_store.get_default_cover_style()
         if default_style:
             duration = default_style.get("thumbnailDuration", 1.0)
             initial_config = {

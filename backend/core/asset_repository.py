@@ -725,112 +725,19 @@ class AssetRepository(AssetStore):
         }
 
     def list_all_clips(self) -> list:
-        """Scan all clips subfolders for ready videos (video.mp4 + transcript.json)."""
-        results = []
-        if not os.path.exists(self.clips_dir):
-            return []
-        
-        for video_entry in os.scandir(self.clips_dir):
-            if not video_entry.is_dir():
-                continue
-            
-            for clip_entry in os.scandir(video_entry.path):
-                if not clip_entry.is_dir():
-                    continue
-                
-                video_path = os.path.join(clip_entry.path, "video.mp4")
-                transcript_path = os.path.join(clip_entry.path, "transcript.json")
-                thumb_path = os.path.join(clip_entry.path, "thumbnail.jpg")
-                
-                if os.path.exists(video_path):
-                    if not os.path.exists(transcript_path):
-                        try:
-                            with open(transcript_path, "w", encoding="utf-8") as f:
-                                json.dump([], f, ensure_ascii=False, indent=2)
-                            print(f"[asset_repository] Auto-healed missing transcript at {transcript_path}")
-                        except Exception as e:
-                            print(f"[asset_repository] Failed to auto-heal missing transcript at {transcript_path}: {e}")
-                    
-                    thumb_path = os.path.join(clip_entry.path, "thumbnail.jpg")
-                    if not os.path.exists(thumb_path):
-                        poster_path = os.path.join(clip_entry.path, "poster.jpg")
-                        if os.path.exists(poster_path):
-                            try:
-                                shutil.copy2(poster_path, thumb_path)
-                                print(f"[asset_repository] Auto-healed thumbnail from poster at {thumb_path}")
-                            except Exception as e:
-                                print(f"[asset_repository] Failed to copy thumbnail from poster: {e}")
-                        else:
-                            try:
-                                self.extract_clip_screenshot(video_path, 0.0, thumb_path)
-                                print(f"[asset_repository] Auto-healed missing thumbnail at {thumb_path}")
-                            except Exception as e:
-                                print(f"[asset_repository] Failed to auto-heal missing thumbnail at {thumb_path}: {e}")
-                    
-                    mtime = os.path.getmtime(video_path)
-                    clip_id = clip_entry.name
-                    duration = self.get_video_duration(video_path)
-                    
-                    parent_name = video_entry.name
-                    title = "Unknown Clip"
-                    meta_path = os.path.join(self.source_dir, parent_name, "metadata.json")
-                    if os.path.exists(meta_path):
-                        try:
-                            with open(meta_path, "r", encoding="utf-8") as mf:
-                                meta = json.load(mf)
-                                title = meta.get("title") or meta.get("raw_title") or "Unknown Clip"
-                        except Exception:
-                            pass
-                    if title == "Unknown Clip" and "_" in parent_name:
-                        raw_p = " ".join(parent_name.split("_")[:-1])
-                        if raw_p.startswith("[") and "] " in raw_p:
-                            raw_p = raw_p.split("] ", 1)[1]
-                        title = raw_p
-                    
-                    theme = ""
-                    start_time = 0.0
-                    end_time = 0.0
-                    parts = clip_id.split("_")
-                    if len(parts) >= 2:
-                        try:
-                            start_time = float(parts[0])
-                            end_time = float(parts[1])
-                            if len(parts) >= 3:
-                                theme = " ".join(parts[2:])
-                            else:
-                                m1, s1 = divmod(int(start_time), 60)
-                                m2, s2 = divmod(int(end_time), 60)
-                                theme = f"Clip {m1:02d}:{s1:02d} - {m2:02d}:{s2:02d}"
-                        except:
-                            pass
-                    
-                    thumbnail_url = f"/assets/clips/{parent_name}/{clip_id}/thumbnail.jpg"
-                    cover_path = os.path.join(clip_entry.path, "cover.jpg")
-                    cover_url = f"/assets/clips/{parent_name}/{clip_id}/cover.jpg" if os.path.exists(cover_path) else None
-                    results.append({
-                        "clip_id": clip_id,
-                        "folder_name": parent_name,
-                        "title": title,
-                        "theme": theme.replace("_", " "),
-                        "start_time": start_time,
-                        "end_time": end_time,
-                        "duration": duration,
-                        "mtime": mtime,
-                        "asset_url": f"/assets/clips/{parent_name}/{clip_id}/video.mp4",
-                        "thumbnail_url": thumbnail_url,
-                        "poster_url": thumbnail_url,
-                        "cover_url": cover_url
-                    })
-        
-        results.sort(key=lambda x: x["mtime"], reverse=True)
-        return results
+        """Scan all clips subfolders for ready videos via ClipSessionStore."""
+        return self.clip_session_store.list_all_clips(
+            screenshot_fn=self.extract_clip_screenshot,
+            duration_fn=self.get_video_duration
+        )
 
     def list_ready_clips(self, active_clip_ids: Optional[set] = None) -> list:
-        """List all ready clips, filtering out clips currently being processed."""
-        clips = self.list_all_clips()
-        if not active_clip_ids:
-            return clips
-        return [c for c in clips if c.get("clip_id") not in active_clip_ids]
+        """List all ready clips via ClipSessionStore, filtering out clips currently being processed."""
+        return self.clip_session_store.list_ready_clips(
+            active_clip_ids,
+            screenshot_fn=self.extract_clip_screenshot,
+            duration_fn=self.get_video_duration
+        )
 
     def delete_cached_video(self, folder_name: str) -> int:
         """Delete titled folders in sources and clips securely with validation."""
@@ -864,35 +771,12 @@ class AssetRepository(AssetStore):
         return count
 
     def delete_clip(self, folder_name: str, clip_id: str) -> bool:
-        """Delete a specific clip folder securely."""
-        if not folder_name or ".." in folder_name or not re.match(r"^[\w\s.\-\[\]]+$", folder_name):
-            raise ValueError(f"Invalid folder name: {folder_name}")
-        if not clip_id or ".." in clip_id or not re.match(r"^[\w\s.-]+$", clip_id):
-            raise ValueError(f"Invalid clip ID: {clip_id}")
-
-        base_clips = os.path.abspath(self.clips_dir)
-        clip_dir = os.path.abspath(os.path.join(base_clips, folder_name, clip_id))
-        
-        if os.path.commonpath([base_clips, clip_dir]) != base_clips:
-            raise ValueError(f"Path traversal detected: {folder_name}/{clip_id}")
-
-        if os.path.exists(clip_dir) and os.path.isdir(clip_dir):
-            shutil.rmtree(clip_dir)
-            return True
-        return False
+        """Delete a specific clip folder securely via ClipSessionStore."""
+        return self.clip_session_store.delete_clip(folder_name, clip_id)
 
     def delete_clip_with_job(self, folder_name: str, clip_id: str, job_store: Any = None) -> bool:
-        """Delete a specific clip folder and clean up any associated JobStore session."""
-        success = self.delete_clip(folder_name, clip_id)
-        if success and job_store is not None:
-            import hashlib
-            hash_input = f"{folder_name}_{clip_id}"
-            derived_job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
-            if hasattr(job_store, "delete_job"):
-                job_store.delete_job(derived_job_id)
-            elif isinstance(job_store, dict) and derived_job_id in job_store:
-                del job_store[derived_job_id]
-        return success
+        """Delete a specific clip folder and clean up any associated JobStore session via ClipSessionStore."""
+        return self.clip_session_store.delete_clip_with_job(folder_name, clip_id, job_store)
 
     def delete_cached_video_with_jobs(self, folder_name: str, job_store: Any = None) -> int:
         """Cancel active background jobs matching folder/video_id and purge source & clip assets."""
@@ -989,55 +873,22 @@ class AssetRepository(AssetStore):
         return self.clip_session_store.save_history(folder_name, clip_id, undo_stack, redo_stack)
 
     def save_default_style_settings(self, settings: dict) -> bool:
-        default_style_path = os.path.join(self.output_dir, "default_style_settings.json")
-        with open(default_style_path, "w", encoding="utf-8") as f:
-            json.dump(settings, f, ensure_ascii=False, indent=2)
-        return True
+        return self.clip_session_store.save_default_style_settings(settings)
 
     def get_default_style_settings(self) -> Optional[dict]:
-        default_style_path = os.path.join(self.output_dir, "default_style_settings.json")
-        if os.path.exists(default_style_path):
-            try:
-                with open(default_style_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return None
+        return self.clip_session_store.get_default_style_settings()
 
     def save_default_cover_style(self, style: dict) -> bool:
-        default_cover_path = os.path.join(self.output_dir, "default_cover_style.json")
-        default_thumb_path = os.path.join(self.output_dir, "default_thumbnail_style.json")
-        try:
-            with open(default_cover_path, "w", encoding="utf-8") as f:
-                json.dump(style, f, ensure_ascii=False, indent=2)
-            with open(default_thumb_path, "w", encoding="utf-8") as f:
-                json.dump(style, f, ensure_ascii=False, indent=2)
-            return True
-        except Exception:
-            return False
+        return self.clip_session_store.save_default_cover_style(style)
 
     def get_default_cover_style(self) -> Optional[dict]:
-        default_cover_path = os.path.join(self.output_dir, "default_cover_style.json")
-        if os.path.exists(default_cover_path):
-            try:
-                with open(default_cover_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return self.get_default_thumbnail_style()
+        return self.clip_session_store.get_default_cover_style()
 
     def save_default_thumbnail_style(self, style: dict) -> bool:
-        return self.save_default_cover_style(style)
+        return self.clip_session_store.save_default_thumbnail_style(style)
 
     def get_default_thumbnail_style(self) -> Optional[dict]:
-        default_thumb_path = os.path.join(self.output_dir, "default_thumbnail_style.json")
-        if os.path.exists(default_thumb_path):
-            try:
-                with open(default_thumb_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return None
+        return self.clip_session_store.get_default_thumbnail_style()
 
     def save_cover_config(self, folder_name: str, clip_id: str, config: dict) -> bool:
         return self.clip_session_store.save_cover_config(folder_name, clip_id, config)
@@ -1074,7 +925,7 @@ class AssetRepository(AssetStore):
             output_path
         ]
         res = self._run_ffmpeg(cmd)
-        return res and os.path.exists(output_path)
+        return bool(res and os.path.exists(output_path))
 
 
 class MockAssetStore(AssetStore):
