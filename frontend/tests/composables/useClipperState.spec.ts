@@ -748,5 +748,51 @@ describe('useClipperState Composable', () => {
       expect(saved).toBe(true);
       expect(state.savedHooks.value).toEqual(mockSavedHooks);
     });
+
+    it('delegates clip editor session state and operations to useClipEditorSession', async () => {
+      const state = useClipperState();
+      expect(state.folderName).toBeDefined();
+      expect(state.clipId).toBeDefined();
+      expect(state.fullTranscript).toBeDefined();
+      expect(state.hooks).toBeDefined();
+      expect(state.activeHook).toBeDefined();
+      expect(state.videoFps).toBeDefined();
+      expect(state.cropMode).toBeDefined();
+      expect(state.cropMap).toBeDefined();
+      expect(state.subtitlesEnabled).toBeDefined();
+      expect(state.autoAdaptiveSubtitles).toBeDefined();
+
+      expect(typeof state.loadReadyClipIntoEditor).toBe('function');
+      expect(typeof state.saveTranscript).toBe('function');
+      expect(typeof state.saveClipSession).toBe('function');
+      expect(typeof state.updateHooks).toBe('function');
+      expect(typeof state.saveStyleSettings).toBe('function');
+      expect(typeof state.saveDefaultStyleSettings).toBe('function');
+      expect(typeof state.toggleSubtitles).toBe('function');
+      expect(typeof state.applyPreset).toBe('function');
+      expect(typeof state.buildRenderSpec).toBe('function');
+      expect(typeof state.renderClip).toBe('function');
+      expect(typeof state.undo).toBe('function');
+      expect(typeof state.redo).toBe('function');
+
+      const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
+      vi.stubGlobal('$fetch', mockFetch);
+
+      state.folderName.value = 'facadeFolder';
+      state.hooks.value = [{ theme: 'Facade Hook Updated', start: 0, end: 10 }];
+      await state.updateHooks();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/hooks'),
+        expect.objectContaining({
+          method: 'PUT',
+          body: {
+            folder_name: 'facadeFolder',
+            hooks: [{ theme: 'Facade Hook Updated', start: 0, end: 10 }]
+          }
+        })
+      );
+      expect(state.toast.value?.message).toBe('Hook names updated');
+    });
   });
 });
