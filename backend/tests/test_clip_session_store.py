@@ -229,5 +229,98 @@ def test_convenience_methods_and_adapters():
         assert os.path.exists(os.path.join(clip_dir, "thumbnail.jpg"))
 
 
+def test_global_default_style_settings_and_cover_style():
+    """Verify global default style settings and cover style getters/setters."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        store = ClipSessionStore(clips_dir=os.path.join(temp_dir, "clips"), output_dir=temp_dir)
+
+        # 1. Default style settings
+        custom_style = {"font": "Montserrat", "fontSize": 54, "videoLayout": "vertical"}
+        assert store.save_default_style_settings(custom_style)
+        assert store.get_default_style_settings() == custom_style
+
+        # 2. Default cover style
+        custom_cover_style = {"thumbnailDuration": 2.5, "fontSize": 64}
+        assert store.save_default_cover_style(custom_cover_style)
+        assert store.get_default_cover_style() == custom_cover_style
+        # Backward compatibility alias
+        assert store.get_default_thumbnail_style() == custom_cover_style
 
 
+def test_list_all_and_ready_clips():
+    """Verify list_all_clips and list_ready_clips scan directory and auto-heal manifests."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        # Create two ready clips in different folders
+        c1_dir = os.path.join(clips_dir, "folder_a", "10_20_hook_a")
+        c2_dir = os.path.join(clips_dir, "folder_b", "30_45_hook_b")
+        os.makedirs(c1_dir, exist_ok=True)
+        os.makedirs(c2_dir, exist_ok=True)
+
+        open(os.path.join(c1_dir, "video.mp4"), "w").close()
+        open(os.path.join(c2_dir, "video.mp4"), "w").close()
+
+        # Mock duration function
+        def mock_duration(path):
+            return 10.0 if "10_20" in path else 15.0
+
+        all_clips = store.list_all_clips(duration_fn=mock_duration)
+        assert len(all_clips) == 2
+        clip_ids = {c["clip_id"] for c in all_clips}
+        assert clip_ids == {"10_20_hook_a", "30_45_hook_b"}
+
+        # Filtering active clips
+        ready = store.list_ready_clips(active_clip_ids={"10_20_hook_a"}, duration_fn=mock_duration)
+        assert len(ready) == 1
+        assert ready[0]["clip_id"] == "30_45_hook_b"
+        assert ready[0]["duration"] == 15.0
+
+
+def test_delete_clip_and_delete_with_job():
+    """Verify single clip deletion and job state cleanup."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        folder_name = "test_source"
+        clip_id = "0_10"
+        clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+        open(os.path.join(clip_dir, "video.mp4"), "w").close()
+
+        import hashlib
+        job_id = hashlib.md5(f"{folder_name}_{clip_id}".encode("utf-8")).hexdigest()[:8]
+        fake_jobs = {job_id: {"status": "ready"}}
+
+        assert os.path.exists(clip_dir)
+        success = store.delete_clip_with_job(folder_name, clip_id, job_store=fake_jobs)
+        assert success is True
+        assert not os.path.exists(clip_dir)
+        assert job_id not in fake_jobs
+
+
+def test_delete_batch():
+    """Verify batch deletion across multiple clips."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        # Create 3 clips
+        for cid in ["clip_1", "clip_2", "clip_3"]:
+            cdir = os.path.join(clips_dir, "common_folder", cid)
+            os.makedirs(cdir, exist_ok=True)
+            open(os.path.join(cdir, "video.mp4"), "w").close()
+
+        items_to_delete = [
+            {"folder_name": "common_folder", "clip_id": "clip_1"},
+            {"folder_name": "common_folder", "clip_id": "clip_2"},
+        ]
+
+        result = store.delete_batch(items_to_delete)
+        assert len(result) == 2
+        assert all(r["success"] for r in result)
+        assert not os.path.exists(os.path.join(clips_dir, "common_folder", "clip_1"))
+        assert not os.path.exists(os.path.join(clips_dir, "common_folder", "clip_2"))
+        assert os.path.exists(os.path.join(clips_dir, "common_folder", "clip_3"))
