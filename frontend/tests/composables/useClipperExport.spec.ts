@@ -1,68 +1,64 @@
 // @vitest-environment nuxt
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useClipperExport } from '../../app/composables/useClipperExport';
+import type { RenderSpec } from '../../app/types/render';
 
-// Mock useTimelineState
-vi.mock('../../app/composables/useTimelineState', () => ({
-  useTimelineState: () => ({
-    timelineTracks: { value: [{ id: 'video', name: 'Main Video', items: [] }] },
-    timelineUndoStack: { value: [] },
-    timelineRedoStack: { value: [] }
-  })
-}));
-
-describe('useClipperExport Composable', () => {
-  let mockDeps: any;
-  let capturedSessionBody: any = null;
+describe('useClipperExport — Deep Render Pipeline', () => {
   let capturedRenderBody: any = null;
   let fetchCalls: Array<{ url: string; opts: any }> = [];
 
+  const validTestSpec: RenderSpec = {
+    jobId: 'test-job-123',
+    hookIndex: 0,
+    outputName: 'Test Viral Clip',
+    fps: 30,
+    volume: 0.8,
+    videoLayout: 'vertical',
+    cropMode: 'face_tracking',
+    cropPercentX: 50,
+    timelineTracks: [
+      { id: 'video', name: 'Main Video', type: 'video', items: [] }
+    ],
+    transcript: [{ start: 0, duration: 2.5, text: 'Amazing hook' }],
+    cover: {
+      enabled: true,
+      duration: 1.5,
+      xOffset: 50,
+      textOverlays: [
+        {
+          id: 't1',
+          text: 'Viral Hook',
+          fontFamily: 'Inter',
+          fontSize: 32,
+          fontWeight: 700,
+          color: '#fff',
+          x: 50,
+          y: 50
+        }
+      ]
+    },
+    safety: {
+      audioBleepEnabled: true,
+      audioBleepSource: 'mute',
+      bleepMode: 'full',
+      safetySensitivity: 'strict',
+      censoredSegments: [{ start: 1.0, end: 1.5, word: 'badword' }]
+    }
+  };
+
   beforeEach(() => {
-    capturedSessionBody = null;
     capturedRenderBody = null;
     fetchCalls = [];
 
-    mockDeps = {
-      saveClipSession: vi.fn().mockResolvedValue(undefined),
-      saveTranscript: vi.fn().mockResolvedValue(undefined),
-      saveStyleSettings: vi.fn().mockResolvedValue(undefined),
-      saveTimelineTracks: vi.fn().mockResolvedValue(undefined),
-      saveThumbnailConfig: vi.fn().mockResolvedValue(undefined)
-    };
-
-    const jobId = useState<string | null>('jobId');
-    const jobError = useState<string>('jobError');
     const renderStatus = useState<string>('renderStatus');
-    const videoLayout = useState<string>('videoLayout');
-    const folderName = useState<string | null>('folderName');
-    const clipId = useState<string | null>('clipId');
-    const fullTranscript = useState<any[]>('fullTranscript');
-
-    jobId.value = 'test-job-id';
-    jobError.value = '';
+    const jobError = useState<string>('jobError');
     renderStatus.value = 'idle';
-    videoLayout.value = 'landscape';
-    folderName.value = 'test-folder';
-    clipId.value = 'test-clip';
-    fullTranscript.value = [{ start: 0, duration: 2.5, text: 'Hello world' }];
+    jobError.value = '';
 
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string, opts: any) => {
         fetchCalls.push({ url, opts });
-
-        if (url.includes('/api/clip-session/')) {
-          if (opts?.body) {
-            try {
-              capturedSessionBody = JSON.parse(opts.body);
-            } catch {}
-          }
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve({ status: 'ok' })
-          });
-        }
 
         if (url.includes('/api/render-stream')) {
           if (opts?.body) {
@@ -75,18 +71,28 @@ describe('useClipperExport Composable', () => {
             status: 200,
             body: {
               getReader: () => {
-                let done = false;
+                let step = 0;
                 return {
                   read: () => {
-                    if (done)
-                      return Promise.resolve({ done: true, value: undefined });
-                    done = true;
-                    const sse =
-                      'data: {"stage":"done","percent":100,"outputUrl":"/static/output/clip.mp4"}\n\n';
-                    return Promise.resolve({
-                      done: false,
-                      value: new TextEncoder().encode(sse)
-                    });
+                    step++;
+                    if (step === 1) {
+                      const sse =
+                        'data: {"stage":"starting","percent":0}\n\n' +
+                        'data: {"stage":"rendering","percent":50,"frame":150,"totalFrames":300,"etaSeconds":10}\n\n';
+                      return Promise.resolve({
+                        done: false,
+                        value: new TextEncoder().encode(sse)
+                      });
+                    }
+                    if (step === 2) {
+                      const sse =
+                        'data: {"stage":"done","percent":100,"outputUrl":"/static/output/test.mp4"}\n\n';
+                      return Promise.resolve({
+                        done: false,
+                        value: new TextEncoder().encode(sse)
+                      });
+                    }
+                    return Promise.resolve({ done: true, value: undefined });
                   }
                 };
               }
@@ -99,117 +105,142 @@ describe('useClipperExport Composable', () => {
     );
   });
 
-  it('saves clip session in one unified PUT /api/clip-session request before triggering /api/render-stream', async () => {
-    // Call without mockDeps to verify built-in unified persistence
-    const { renderClip, renderStatus, outputUrl } = useClipperExport();
+  it('exports clip via pure RenderSpec seam without reading ambient global state', async () => {
+    const {
+      exportClip,
+      renderStatus,
+      renderProgress,
+      outputUrl,
+      renderFrame,
+      renderTotalFrames
+    } = useClipperExport();
 
-    await renderClip(0, 'My Test Output');
+    await exportClip(validTestSpec);
 
-    // 1. Verify single atomic session persistence call occurred first
-    expect(fetchCalls.length).toBe(2);
-    expect(fetchCalls[0].url).toContain(
-      '/api/clip-session/test-folder/test-clip'
-    );
-    expect(fetchCalls[0].opts.method).toBe('PUT');
+    // 1. Verify single POST /api/render-stream call
+    expect(fetchCalls.length).toBe(1);
+    expect(fetchCalls[0].url).toContain('/api/render-stream');
+    expect(fetchCalls[0].opts.method).toBe('POST');
 
-    expect(capturedSessionBody).not.toBeNull();
-    expect(capturedSessionBody.transcript).toEqual([
-      { start: 0, duration: 2.5, text: 'Hello world' }
-    ]);
-    expect(capturedSessionBody.style_settings).toBeDefined();
-    expect(capturedSessionBody.timeline).toBeDefined();
-    expect(capturedSessionBody.cover_config).toBeDefined();
-
-    // 2. Verify render stream call followed
-    expect(fetchCalls[1].url).toContain('/api/render-stream');
-    expect(fetchCalls[1].opts.method).toBe('POST');
+    // 2. Verify payload formatted strictly from RenderSpec
     expect(capturedRenderBody).not.toBeNull();
-    expect(capturedRenderBody.job_id).toBe('test-job-id');
-    expect(capturedRenderBody.output_name).toBe('My Test Output');
-    expect(capturedRenderBody.video_layout).toBe('landscape');
+    expect(capturedRenderBody.job_id).toBe('test-job-123');
+    expect(capturedRenderBody.output_name).toBe('Test Viral Clip');
+    expect(capturedRenderBody.fps).toBe(30);
+    expect(capturedRenderBody.volume).toBe(0.8);
+    expect(capturedRenderBody.face_tracking).toBe(true);
+    expect(capturedRenderBody.transcript).toEqual([
+      { start: 0, duration: 2.5, text: 'Amazing hook' }
+    ]);
+    expect(capturedRenderBody.cover_enabled).toBe(true);
+    expect(capturedRenderBody.audio_bleep_enabled).toBe(true);
+    expect(capturedRenderBody.safety_sensitivity).toBe('conservative');
 
+    // 3. Verify final state
     expect(renderStatus.value).toBe('done');
-    expect(outputUrl.value).toBe(`${resolveApiBase()}/static/output/clip.mp4`);
+    expect(renderProgress.value).toBe(100);
+    expect(outputUrl.value).toBe(`${resolveApiBase()}/static/output/test.mp4`);
+    expect(renderFrame.value).toBe(300);
+    expect(renderTotalFrames.value).toBe(300);
   });
 
-  it('gracefully halts render initiation if pre-render session save fails', async () => {
-    // Mock fetch to simulate failure on PUT /api/clip-session
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string, opts: any) => {
-        fetchCalls.push({ url, opts });
-        if (url.includes('/api/clip-session/')) {
-          return Promise.resolve({
-            ok: false,
-            status: 500,
-            statusText: 'Internal Server Error'
-          });
-        }
-        return Promise.resolve({ ok: true, status: 200 });
-      })
-    );
+  it('sets error status when jobId is missing in RenderSpec', async () => {
+    const { exportClip, renderStatus } = useClipperExport();
+    const invalidSpec = { ...validTestSpec, jobId: '' };
 
-    const { renderClip, renderStatus } = useClipperExport();
-    await renderClip(0, 'Failed Output');
-
-    // Session save was attempted
-    expect(fetchCalls.some(c => c.url.includes('/api/clip-session/'))).toBe(
-      true
-    );
-
-    // Render stream was NOT called (graceful halt)
-    expect(fetchCalls.some(c => c.url.includes('/api/render-stream'))).toBe(
-      false
-    );
-
-    expect(renderStatus.value).toBe('error');
-    const jobError = useState<string>('jobError');
-    expect(jobError.value).toContain('Failed to save clip session: 500');
-  });
-
-  it('delegates to deps.saveClipSession when custom handler is provided in deps', async () => {
-    const { renderClip } = useClipperExport(mockDeps);
-    await renderClip(0, 'Custom Save');
-
-    expect(mockDeps.saveClipSession).toHaveBeenCalled();
-    // Render stream should still execute after custom saveClipSession resolves
-    expect(fetchCalls.some(c => c.url.includes('/api/render-stream'))).toBe(
-      true
-    );
-  });
-
-  it('falls back to discrete save deps when folderName or clipId is absent', async () => {
-    const folderName = useState<string | null>('folderName');
-    folderName.value = null;
-
-    const legacyDeps = {
-      saveTranscript: vi.fn().mockResolvedValue(undefined),
-      saveStyleSettings: vi.fn().mockResolvedValue(undefined),
-      saveTimelineTracks: vi.fn().mockResolvedValue(undefined),
-      saveThumbnailConfig: vi.fn().mockResolvedValue(undefined)
-    };
-
-    const { renderClip } = useClipperExport(legacyDeps);
-    await renderClip(0, 'Legacy Fallback');
-
-    expect(legacyDeps.saveTranscript).toHaveBeenCalledWith(true);
-    expect(legacyDeps.saveStyleSettings).toHaveBeenCalled();
-    expect(legacyDeps.saveTimelineTracks).toHaveBeenCalled();
-    expect(legacyDeps.saveThumbnailConfig).toHaveBeenCalled();
-    expect(fetchCalls.some(c => c.url.includes('/api/render-stream'))).toBe(
-      true
-    );
-  });
-
-  it('sets error status when jobId is missing rather than failing silently', async () => {
-    const jobId = useState<string | null>('jobId');
-    jobId.value = null;
-
-    const { renderClip, renderStatus } = useClipperExport(mockDeps);
-    await renderClip(0, 'Test Output');
+    await exportClip(invalidSpec);
 
     expect(renderStatus.value).toBe('error');
     const jobError = useState<string>('jobError');
     expect(jobError.value).toContain('job ID');
+    expect(fetchCalls.length).toBe(0);
+  });
+
+  it('handles HTTP error responses from /api/render-stream', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error'
+      })
+    );
+
+    const { exportClip, renderStatus } = useClipperExport();
+    await exportClip(validTestSpec);
+
+    expect(renderStatus.value).toBe('error');
+    const jobError = useState<string>('jobError');
+    expect(jobError.value).toContain('Render failed: 500');
+  });
+
+  it('handles backend SSE error stage events', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => {
+            let done = false;
+            return {
+              read: () => {
+                if (done)
+                  return Promise.resolve({ done: true, value: undefined });
+                done = true;
+                const sse =
+                  'data: {"stage":"error","message":"Out of memory during encoding"}\n\n';
+                return Promise.resolve({
+                  done: false,
+                  value: new TextEncoder().encode(sse)
+                });
+              }
+            };
+          }
+        }
+      })
+    );
+
+    const { exportClip, renderStatus } = useClipperExport();
+    await exportClip(validTestSpec);
+
+    expect(renderStatus.value).toBe('error');
+    const jobError = useState<string>('jobError');
+    expect(jobError.value).toContain('Out of memory');
+  });
+
+  it('supports cancelling active render via cancelRender()', async () => {
+    let abortSignalCaptured: AbortSignal | null = null;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((_url: string, opts: any) => {
+        abortSignalCaptured = opts.signal;
+        return new Promise((_, reject) => {
+          if (opts.signal?.aborted) {
+            const err: any = new Error('The user aborted a request.');
+            err.name = 'AbortError';
+            reject(err);
+            return;
+          }
+          opts.signal?.addEventListener('abort', () => {
+            const err: any = new Error('The user aborted a request.');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        });
+      })
+    );
+
+    const { exportClip, cancelRender, renderStatus } = useClipperExport();
+    const renderPromise = exportClip(validTestSpec);
+
+    expect(renderStatus.value).toBe('rendering');
+    cancelRender();
+
+    await renderPromise;
+
+    expect(abortSignalCaptured?.aborted).toBe(true);
+    expect(renderStatus.value).toBe('cancelled');
   });
 });

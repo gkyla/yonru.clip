@@ -9,6 +9,7 @@ import { useTimelineState } from './useTimelineState';
 import { useClipperJob } from './useClipperJob';
 import { useClipperThumbnail } from './useClipperThumbnail';
 import { useClipperExport } from './useClipperExport';
+import type { RenderSpec } from '../types/render';
 import { useSubtitleStyle } from './useSubtitleStyle';
 
 import fontsManifest from '../../../shared/fonts_manifest.json';
@@ -155,13 +156,7 @@ function createClipperState() {
   } = thumbnailState;
 
   // Export state delegated from useClipperExport sub-composable
-  const exportState = useClipperExport({
-    saveClipSession: () => saveClipSession(undefined, true),
-    saveTranscript,
-    saveStyleSettings,
-    saveTimelineTracks: () => timeline.saveTimelineTracks(),
-    saveThumbnailConfig
-  });
+  const exportState = useClipperExport();
   const {
     renderStatus,
     renderProgress,
@@ -171,7 +166,8 @@ function createClipperState() {
     renderFrame,
     renderTotalFrames,
     renderStartTime,
-    renderClip
+    exportClip,
+    cancelRender
   } = exportState;
 
   // Video info
@@ -801,6 +797,79 @@ function createClipperState() {
     }
   }
 
+  // --- Render & Export Pipeline Coordination ---
+
+  function buildRenderSpec(hookIndex = 0, outputName?: string): RenderSpec {
+    return {
+      jobId: jobId.value || '',
+      hookIndex,
+      outputName,
+      fps: videoFps.value,
+      volume: volume.value,
+      videoLayout: subtitleStyle.videoLayout.value,
+      cropMode: subtitleStyle.cropMode.value,
+      cropPercentX: subtitleStyle.cropPercentX.value,
+      splitZoomTop: subtitleStyle.splitZoomTop.value,
+      splitZoomBottom: subtitleStyle.splitZoomBottom.value,
+      splitOffsetXTop: subtitleStyle.splitOffsetXTop.value,
+      splitOffsetYTop: subtitleStyle.splitOffsetYTop.value,
+      splitOffsetXBottom: subtitleStyle.splitOffsetXBottom.value,
+      splitOffsetYBottom: subtitleStyle.splitOffsetYBottom.value,
+      subtitlePayload: subtitleStyle.toRenderPayload(),
+      timelineTracks: timeline.timelineTracks.value,
+      transcript: fullTranscript.value || [],
+      cover: {
+        enabled: coverEnabled.value ?? thumbnailEnabled.value ?? false,
+        duration: coverDuration.value ?? thumbnailDuration.value ?? 1.0,
+        screenshotTime:
+          coverScreenshotTime.value ?? thumbnailScreenshotTime.value ?? 0,
+        textOverlays:
+          coverTextOverlays.value?.length > 0
+            ? coverTextOverlays.value
+            : thumbnailTextOverlays.value || [],
+        xOffset: coverXOffset.value ?? thumbnailXOffset.value ?? 50
+      },
+      safety: {
+        audioBleepEnabled: auditor.audioBleepEnabled.value,
+        audioBleepSource: auditor.audioBleepSource.value,
+        customBleepFile: auditor.customBleepFile.value,
+        censoredSegments: auditor.contentAudit.value?.flaggedSegments || [],
+        bleepPaddingOffset: auditor.bleepPaddingOffset.value,
+        bleepMode: auditor.bleepMode.value,
+        safetySensitivity: auditor.safetySensitivity.value,
+        maskingStyle: auditor.maskingStyle.value
+      }
+    };
+  }
+
+  async function renderClip(hookIndex = 0, outputName?: string) {
+    if (!jobId.value) {
+      renderStatus.value = 'error';
+      jobError.value =
+        'No active job ID found for render. Please reload the clip.';
+      return;
+    }
+
+    try {
+      if (folderName.value && clipId.value) {
+        await saveClipSession(undefined, true);
+      } else {
+        await Promise.all([
+          saveTranscript(true),
+          saveStyleSettings(),
+          timeline.saveTimelineTracks(),
+          saveThumbnailConfig()
+        ]);
+      }
+
+      const spec = buildRenderSpec(hookIndex, outputName);
+      await exportClip(spec);
+    } catch (e: any) {
+      renderStatus.value = 'error';
+      jobError.value = e.message || 'Render initiation failed';
+    }
+  }
+
   // --- Timeline Actions ---
 
   async function saveStyleSettings() {
@@ -1081,6 +1150,9 @@ function createClipperState() {
     extractClip,
     loadReadyClipIntoEditor,
     renderClip,
+    buildRenderSpec,
+    exportClip,
+    cancelRender,
     startPolling,
     stopPolling,
     checkSystemHealth: diagnostics.checkSystemHealth,

@@ -1,25 +1,10 @@
 // Deep composable: render & export pipeline
-// Encapsulates SSE stream parsing, progress tracking, ETA, and render lifecycle
+// Encapsulates SSE stream parsing, progress tracking, ETA, cancellation, and render lifecycle
 
-import { useTimelineState } from './useTimelineState';
-import { useSafetyAuditor } from './useSafetyAuditor';
-import { useSubtitleStyle } from './useSubtitleStyle';
-import { parseRenderEvent } from '../utils/renderEventParser';
+import type { RenderSpec } from '../types/render';
 
-export interface ExportDeps {
-  saveClipSession?: () => Promise<void>;
-  saveTranscript?: (isSilent?: boolean) => Promise<void>;
-  saveStyleSettings?: () => Promise<void>;
-  saveTimelineTracks?: () => Promise<void>;
-  saveThumbnailConfig?: () => Promise<void>;
-}
-
-export const useClipperExport = (deps?: ExportDeps) => {
+export const useClipperExport = () => {
   const API_BASE = resolveApiBase();
-
-  const timeline = useTimelineState();
-  const safety = useSafetyAuditor();
-  const subtitleStyle = useSubtitleStyle();
 
   // --- Render state (global useState keys) ---
   const renderStatus = useState<string>('renderStatus', () => 'idle');
@@ -33,153 +18,59 @@ export const useClipperExport = (deps?: ExportDeps) => {
     'renderStartTime',
     () => null
   );
-
-  // --- Shared states read from other domains (via matching useState keys) ---
-  const jobId = useState<string | null>('jobId', () => null);
   const jobError = useState<string>('jobError', () => '');
-  const folderName = useState<string | null>('folderName', () => null);
-  const clipId = useState<string | null>('clipId', () => null);
-  const videoUrl = useState<string | null>('videoUrl', () => null);
-  const videoFps = useState<number>('videoFps', () => 30);
-  const volume = useState<number>('volume', () => 0.5);
-  const fullTranscript = useState<any[]>('fullTranscript', () => []);
-  const cropMap = useState<Array<{ time: number; x: number }>>(
-    'cropMap',
-    () => []
-  );
 
-  // Cover & Thumbnail states (read via shared useState keys)
-  const coverEnabled = useState<boolean>('coverEnabled', () => false);
-  const coverDuration = useState<number>('coverDuration', () => 1.0);
-  const coverTextOverlays = useState<any[]>('coverTextOverlays', () => []);
-  const coverXOffset = useState<number>('coverXOffset', () => 50);
-  const coverScreenshotTime = useState<number>('coverScreenshotTime', () => 0);
+  // Internal active abort controller for clean cancellation
+  let activeAbortController: AbortController | null = null;
 
-  const thumbnailEnabled = useState<boolean>(
-    'thumbnailEnabled',
-    () => coverEnabled.value
-  );
-  const thumbnailDuration = useState<number>(
-    'thumbnailDuration',
-    () => coverDuration.value
-  );
-  const thumbnailTextOverlays = useState<any[]>(
-    'thumbnailTextOverlays',
-    () => coverTextOverlays.value
-  );
-  const thumbnailXOffset = useState<number>(
-    'thumbnailXOffset',
-    () => coverXOffset.value
-  );
-  const thumbnailScreenshotTime = useState<number>(
-    'thumbnailScreenshotTime',
-    () => coverScreenshotTime.value
-  );
+  // --- Private: process individual SSE stream events ---
+  function processSSEEvent(data: any, apiBase: string) {
+    if (!data) return;
 
-  // Safety/Censorship configuration states
-  const audioBleepEnabled = useState<boolean>('audioBleepEnabled', () => false);
-  const audioBleepSource = useState<'mute' | 'custom'>(
-    'audioBleepSource',
-    () => 'mute'
-  );
-  const customBleepFile = useState<{ name: string; data: string } | null>(
-    'customBleepFile',
-    () => null
-  );
-  const bleepPaddingOffset = useState<number>('bleepPaddingOffset', () => 0);
-  const bleepMode = useState<'full' | 'partial_end'>('bleepMode', () => 'full');
-  const safetySensitivity = useState<string>(
-    'safetySensitivity',
-    () => 'moderate'
-  );
-  const maskingStyle = useState<string>('maskingStyle', () => 'asterisk');
+    if (data.totalFrames !== undefined) {
+      renderTotalFrames.value = data.totalFrames;
+    }
+    if (data.frame !== undefined) {
+      renderFrame.value = data.frame;
+    }
 
-  // --- Private SSE stream parser ---
-  function handleSSEData(data: any) {
-    const currentState = {
-      progress: renderProgress.value,
-      stage: renderStage.value,
-      eta: renderEta.value,
-      status: renderStatus.value,
-      outputUrl: outputUrl.value,
-      videoUrl: videoUrl.value,
-      jobError: jobError.value,
-      frame: renderFrame.value,
-      totalFrames: renderTotalFrames.value
-    };
-    const nextState = parseRenderEvent(data, currentState, API_BASE);
-
-    renderProgress.value = nextState.progress;
-    renderStage.value = nextState.stage;
-    renderEta.value = nextState.eta;
-    renderStatus.value = nextState.status;
-    outputUrl.value = nextState.outputUrl;
-    videoUrl.value = nextState.videoUrl;
-    jobError.value = nextState.jobError;
-    if (nextState.frame !== undefined) renderFrame.value = nextState.frame;
-    if (nextState.totalFrames !== undefined)
-      renderTotalFrames.value = nextState.totalFrames;
+    if (data.stage === 'bundling') {
+      renderProgress.value = data.percent || 0;
+      renderStage.value = 'bundling';
+      renderEta.value = 0;
+    } else if (data.stage === 'rendering') {
+      renderProgress.value = data.percent || 0;
+      renderStage.value = 'rendering';
+      renderEta.value = data.etaSeconds || 0;
+    } else if (data.stage === 'encoding') {
+      renderStage.value = 'encoding';
+      renderProgress.value = data.percent || 96;
+      renderEta.value = 0;
+    } else if (data.stage === 'starting') {
+      renderStage.value = 'starting';
+      renderProgress.value = 0;
+      renderFrame.value = 0;
+    } else if (data.stage === 'done') {
+      renderStatus.value = 'done';
+      renderProgress.value = 100;
+      renderStage.value = '';
+      renderEta.value = 0;
+      outputUrl.value = `${apiBase}${data.outputUrl || ''}`;
+      if (renderTotalFrames.value) {
+        renderFrame.value = renderTotalFrames.value;
+      }
+    } else if (data.stage === 'error') {
+      renderStatus.value = 'error';
+      jobError.value = data.message || 'Render failed';
+      renderProgress.value = 0;
+      renderStage.value = '';
+      renderEta.value = 0;
+    }
   }
 
-  // --- Private: build render request body ---
-  function buildRenderBody(hookIndex: number, outputName?: string) {
-    return {
-      job_id: jobId.value,
-      hook_index: hookIndex,
-      ...subtitleStyle.toRenderPayload(),
-      face_tracking: subtitleStyle.cropMode.value === 'face_tracking',
-      crop_percent_x: subtitleStyle.cropPercentX.value,
-      split_zoom_top: subtitleStyle.splitZoomTop.value,
-      split_zoom_bottom: subtitleStyle.splitZoomBottom.value,
-      split_offset_x_top: subtitleStyle.splitOffsetXTop.value,
-      split_offset_y_top: subtitleStyle.splitOffsetYTop.value,
-      split_offset_x_bottom: subtitleStyle.splitOffsetXBottom.value,
-      split_offset_y_bottom: subtitleStyle.splitOffsetYBottom.value,
-      timeline_tracks: timeline.timelineTracks.value,
-      volume: volume.value,
-      fps: videoFps.value,
-      transcript: fullTranscript.value.map((seg: any) => ({
-        start:
-          typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start,
-        duration:
-          typeof seg.duration === 'string'
-            ? parseFloat(seg.duration)
-            : seg.duration,
-        text: seg.text
-      })),
-      cover_enabled: coverEnabled.value ?? thumbnailEnabled.value,
-      cover_duration: coverDuration.value ?? thumbnailDuration.value,
-      cover_text_overlays:
-        coverTextOverlays.value?.length > 0
-          ? coverTextOverlays.value
-          : thumbnailTextOverlays.value,
-      cover_x_offset: coverXOffset.value ?? thumbnailXOffset.value,
-      thumbnail_enabled: thumbnailEnabled.value,
-      thumbnail_duration: thumbnailDuration.value,
-      thumbnail_text_overlays: thumbnailTextOverlays.value,
-      thumbnail_x_offset: thumbnailXOffset.value,
-      audio_bleep_enabled: audioBleepEnabled.value,
-      audio_bleep_source: audioBleepSource.value,
-      custom_bleep_file: customBleepFile.value
-        ? { name: customBleepFile.value.name, data: customBleepFile.value.data }
-        : null,
-      censored_segments: safety.contentAudit.value?.flaggedSegments || [],
-      bleep_padding_offset: bleepPaddingOffset.value,
-      bleep_mode: bleepMode.value,
-      safety_sensitivity:
-        safetySensitivity.value === 'strict'
-          ? 'conservative'
-          : safetySensitivity.value === 'standard'
-            ? 'moderate'
-            : 'relaxed',
-      masking_style: maskingStyle.value,
-      output_name: outputName
-    };
-  }
-
-  // --- Session persistence helper ---
-  function buildSessionPayload() {
-    const cleanTranscript = (fullTranscript.value || []).map((seg: any) => ({
+  // --- Private: map pure RenderSpec into backend /api/render-stream payload ---
+  function formatRenderBody(spec: RenderSpec) {
+    const transcript = (spec.transcript || []).map((seg: any) => ({
       start: typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start,
       duration:
         typeof seg.duration === 'string'
@@ -188,74 +79,65 @@ export const useClipperExport = (deps?: ExportDeps) => {
       text: seg.text
     }));
 
+    const sensitivity =
+      spec.safety?.safetySensitivity === 'strict'
+        ? 'conservative'
+        : spec.safety?.safetySensitivity === 'standard'
+          ? 'moderate'
+          : spec.safety?.safetySensitivity || 'moderate';
+
     return {
-      transcript: cleanTranscript,
-      style_settings: subtitleStyle.getStyleSnapshot(),
-      timeline: timeline.timelineTracks.value,
-      cover_config: {
-        enabled: coverEnabled.value ?? thumbnailEnabled.value ?? false,
-        duration: coverDuration.value ?? thumbnailDuration.value ?? 1.0,
-        screenshotTime:
-          coverScreenshotTime.value ?? thumbnailScreenshotTime.value ?? 0,
-        textOverlays:
-          coverTextOverlays.value?.length > 0
-            ? coverTextOverlays.value
-            : thumbnailTextOverlays.value || [],
-        xOffset: coverXOffset.value ?? thumbnailXOffset.value ?? 50
-      },
-      history: {
-        undo_stack: timeline.timelineUndoStack?.value || [],
-        redo_stack: timeline.timelineRedoStack?.value || []
-      },
-      ...(cropMap.value?.length > 0 ? { crop_map: cropMap.value } : {})
+      job_id: spec.jobId,
+      hook_index: spec.hookIndex ?? 0,
+      output_name: spec.outputName,
+      fps: spec.fps ?? 30,
+      volume: spec.volume ?? 0.5,
+      video_layout: spec.videoLayout ?? 'vertical',
+      landscape_background: spec.landscapeBackground ?? 'black',
+      landscape_blur_radius: spec.landscapeBlurRadius ?? 25,
+      landscape_darkness: spec.landscapeDarkness ?? 35,
+      face_tracking: spec.cropMode === 'face_tracking',
+      crop_percent_x: spec.cropPercentX ?? 50,
+      split_zoom_top: spec.splitZoomTop ?? 1.0,
+      split_zoom_bottom: spec.splitZoomBottom ?? 1.0,
+      split_offset_x_top: spec.splitOffsetXTop ?? 0.0,
+      split_offset_y_top: spec.splitOffsetYTop ?? 0.0,
+      split_offset_x_bottom: spec.splitOffsetXBottom ?? 0.0,
+      split_offset_y_bottom: spec.splitOffsetYBottom ?? 0.0,
+      timeline_tracks: spec.timelineTracks ?? [],
+      transcript,
+      ...(spec.subtitlePayload || {}),
+      // Cover slide
+      cover_enabled: spec.cover?.enabled ?? false,
+      cover_duration: spec.cover?.duration ?? 1.0,
+      cover_text_overlays: spec.cover?.textOverlays ?? [],
+      cover_x_offset: spec.cover?.xOffset ?? 50,
+      // Backward-compatible Thumbnail fields
+      thumbnail_enabled: spec.cover?.enabled ?? false,
+      thumbnail_duration: spec.cover?.duration ?? 1.0,
+      thumbnail_text_overlays: spec.cover?.textOverlays ?? [],
+      thumbnail_x_offset: spec.cover?.xOffset ?? 50,
+      // Censorship safety
+      audio_bleep_enabled: spec.safety?.audioBleepEnabled ?? false,
+      audio_bleep_source: spec.safety?.audioBleepSource ?? 'mute',
+      custom_bleep_file: spec.safety?.customBleepFile ?? null,
+      censored_segments: spec.safety?.censoredSegments ?? [],
+      bleep_padding_offset: spec.safety?.bleepPaddingOffset ?? 0,
+      bleep_mode: spec.safety?.bleepMode ?? 'full',
+      safety_sensitivity: sensitivity,
+      masking_style: spec.safety?.maskingStyle ?? 'asterisk'
     };
   }
 
-  async function saveClipSession(): Promise<void> {
-    if (deps?.saveClipSession) {
-      await deps.saveClipSession();
-      return;
-    }
-
-    if (!folderName.value || !clipId.value) {
-      if (
-        deps?.saveTranscript ||
-        deps?.saveStyleSettings ||
-        deps?.saveTimelineTracks ||
-        deps?.saveThumbnailConfig
-      ) {
-        await Promise.all([
-          deps.saveTranscript?.(true),
-          deps.saveStyleSettings?.(),
-          deps.saveTimelineTracks?.(),
-          deps.saveThumbnailConfig?.()
-        ]);
-      }
-      return;
-    }
-
-    const payload = buildSessionPayload();
-    const url = `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`;
-
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to save clip session: ${response.status}`);
-    }
-  }
-
-  // --- Public: trigger render ---
-  async function renderClip(hookIndex = 0, outputName?: string) {
-    if (!jobId.value) {
+  // --- Public: trigger render stream with explicit RenderSpec ---
+  async function exportClip(spec: RenderSpec): Promise<void> {
+    if (!spec || !spec.jobId) {
       renderStatus.value = 'error';
       jobError.value =
         'No active job ID found for render. Please reload the clip.';
       return;
     }
+
     renderStatus.value = 'rendering';
     renderProgress.value = 0;
     renderStage.value = 'starting';
@@ -264,16 +146,18 @@ export const useClipperExport = (deps?: ExportDeps) => {
     renderTotalFrames.value = 0;
     renderStartTime.value = Date.now();
     outputUrl.value = null;
+    jobError.value = '';
+
+    activeAbortController = new AbortController();
 
     try {
-      await saveClipSession();
-
-      const body = buildRenderBody(hookIndex, outputName);
+      const body = formatRenderBody(spec);
 
       const response = await fetch(`${API_BASE}/api/render-stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: activeAbortController.signal
       });
 
       if (!response.ok) {
@@ -298,7 +182,7 @@ export const useClipperExport = (deps?: ExportDeps) => {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-              handleSSEData(data);
+              processSSEEvent(data, API_BASE);
             } catch {}
           }
         }
@@ -309,11 +193,28 @@ export const useClipperExport = (deps?: ExportDeps) => {
         jobError.value = 'Render stream ended unexpectedly';
       }
     } catch (e: any) {
+      if (e?.name === 'AbortError' || activeAbortController?.signal.aborted) {
+        renderStatus.value = 'cancelled';
+        renderProgress.value = 0;
+        renderStage.value = '';
+        return;
+      }
       renderStatus.value = 'error';
       jobError.value = e.message || 'Render failed';
       renderProgress.value = 0;
       renderStage.value = '';
+    } finally {
+      activeAbortController = null;
     }
+  }
+
+  // --- Public: cancel an active render stream ---
+  function cancelRender() {
+    if (activeAbortController) {
+      activeAbortController.abort();
+      activeAbortController = null;
+    }
+    renderStatus.value = 'cancelled';
   }
 
   return {
@@ -326,9 +227,11 @@ export const useClipperExport = (deps?: ExportDeps) => {
     renderFrame,
     renderTotalFrames,
     renderStartTime,
+    jobError,
     // Actions
-    renderClip,
-    saveClipSession,
-    buildSessionPayload
+    exportClip,
+    renderClip: exportClip,
+    cancelRender,
+    formatRenderBody
   };
 };

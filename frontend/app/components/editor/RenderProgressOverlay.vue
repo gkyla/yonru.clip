@@ -706,6 +706,9 @@ function downloadVideo() {
 }
 
 function dismissOverlay() {
+  if (state?.cancelRender) {
+    state.cancelRender();
+  }
   if (state?.renderStatus) {
     state.renderStatus.value = 'idle';
   }
