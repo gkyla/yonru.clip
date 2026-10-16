@@ -14,6 +14,7 @@ import { useSubtitleStyle } from './useSubtitleStyle';
 import { useAppNotifier } from './useAppNotifier';
 import { usePromptRepository } from './usePromptRepository';
 import { useCachedLibrary } from './useCachedLibrary';
+import { useClipEditorSession } from './useClipEditorSession';
 
 import fontsManifest from '../../../shared/fonts_manifest.json';
 import type {
@@ -80,9 +81,6 @@ export const useClipperState = () => {
 };
 
 function createClipperState() {
-  // API Base
-  const API_BASE = resolveApiBase();
-
   // Instantiate Sub-composables for separated concerns
   const diagnostics = useSystemDiagnostics();
   const auditor = useSafetyAuditor();
@@ -112,7 +110,6 @@ function createClipperState() {
     deletePrompt
   } = promptRepo;
 
-  const folderName = useState<string | null>('folderName', () => null);
   const library = useCachedLibrary();
 
   // Cached video library & saved hooks state delegated from useCachedLibrary sub-composable
@@ -217,17 +214,51 @@ function createClipperState() {
     cancelRender
   } = exportState;
 
+  // Clip editor session state delegated from useClipEditorSession sub-composable
+  const editorSession = useClipEditorSession({
+    notifier,
+    library,
+    timeline,
+    subtitleStyle,
+    auditor,
+    job,
+    thumbnailState,
+    exportState
+  });
+
+  const {
+    folderName,
+    clipId,
+    fullTranscript,
+    hooks,
+    activeHook,
+    videoFps,
+    volume,
+    cropMode,
+    cropMap,
+    subtitlesEnabled,
+    autoAdaptiveSubtitles,
+    loadReadyClipIntoEditor,
+    saveTranscript,
+    saveClipSession,
+    updateHooks,
+    saveStyleSettings,
+    saveDefaultStyleSettings,
+    toggleSubtitles,
+    applyPreset,
+    buildRenderSpec,
+    renderClip,
+    undo,
+    redo
+  } = editorSession;
+
   // Video info
   const videoTitle = useState<string>('videoTitle', () => '');
   const videoDuration = useState<number>('videoDuration', () => 0);
   const hasHeatmap = useState<boolean>('hasHeatmap', () => false);
   const hasPreview = useState<boolean>('hasPreview', () => false);
   const videoUrl = useState<string | null>('videoUrl', () => null);
-  const videoFps = useState<number>('videoFps', () => 30);
 
-  // Hooks
-  const hooks = useState<Hook[]>('hooks', () => []);
-  const activeHook = useState<Hook | null>('activeHook', () => null);
   const activeSafeZone = useState<'none' | 'tiktok' | 'reels' | 'shorts'>(
     'activeSafeZone',
     () => 'none'
@@ -237,12 +268,6 @@ function createClipperState() {
   const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
 
   const segmentPadding = 2; // Match backend YouTubeParser safe_start buffer
-
-  const clipId = useState<string | null>('clipId', () => null);
-  const fullTranscript = useState<TranscriptSegment[]>(
-    'fullTranscript',
-    () => []
-  );
 
   // Settings
   const youtubeUrl = useState<string>('youtubeUrl', () => '');
@@ -260,16 +285,9 @@ function createClipperState() {
   const subtitlePosition = useState<string>('subtitlePosition', () => 'center');
   const subtitleOffset = useState<number>('subtitleOffset', () => 50);
   const subtitleSyncOffset = useState<number>('subtitleSyncOffset', () => 150); // Default 150ms offset
-  const subtitlesEnabled = useState<boolean>('subtitlesEnabled', () => true);
-  const autoAdaptiveSubtitles = useState<boolean>(
-    'autoAdaptiveSubtitles',
-    () => true
-  );
   const font = useState<string>('font', () => 'Montserrat');
   const fontSize = useState<number>('fontSize', () => 50);
   const faceTracking = useState<boolean>('faceTracking', () => false);
-  const cropMode = useState<string>('cropMode', () => 'face_tracking'); // 'manual' | 'face_tracking'
-  const cropMap = useState<Array<CropMapPoint>>('cropMap', () => []);
   const cropPercentX = useState<number>('cropPercentX', () => 50); // 0=left, 50=center, 100=right
   const cropPercentXTop = useState<number>('cropPercentXTop', () => 50);
   const cropPercentXBottom = useState<number>('cropPercentXBottom', () => 50);
@@ -286,7 +304,6 @@ function createClipperState() {
   const whisperModel = useState<string>('whisperModel', () => 'base');
   const useNativePlayer = useState<boolean>('useNativePlayer', () => false);
   const showIframeDebug = useState<boolean>('showIframeDebug', () => false);
-  const volume = useState<number>('volume', () => 0.5);
 
   // Subtitle style
   const subtitleAnimation = useState<string>('subtitleAnimation', () => 'pop');
@@ -336,24 +353,6 @@ function createClipperState() {
   const { analyzeUrl, analyzeCached, startPolling, stopPolling, extractClip } =
     job;
 
-  async function loadReadyClipIntoEditor(folder: string, id: string) {
-    await job.loadReadyClipIntoEditor(folder, id);
-    const parentVideo = cachedVideos.value.find(
-      v => v.folder_name === folder || v.video_id === folder
-    );
-    const videoTitle = parentVideo?.title;
-    const theme =
-      activeHook.value?.theme || activeHook.value?.title || 'Current Clip';
-    setLastClip(
-      folder,
-      id,
-      theme,
-      activeHook.value?.thumbnail_url,
-      theme,
-      videoTitle
-    );
-  }
-
   function formatDuration(sec: number) {
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
@@ -368,296 +367,29 @@ function createClipperState() {
     currentTime.value = sanitized;
   }
 
-  async function updateHooks() {
-    if (!folderName.value || !hooks.value) return;
-    try {
-      await $fetch(`${API_BASE}/api/hooks`, {
-        method: 'PUT',
-        body: {
-          folder_name: folderName.value,
-          hooks: hooks.value
-        }
-      });
-      showToast('Hook names updated', 'success');
-    } catch (e: any) {
-      showToast('Failed to update hook names', 'error');
-    }
-  }
-
-  async function saveTranscript(isSilent = false) {
-    if (!folderName.value || !fullTranscript.value) return;
-    const silent = isSilent === true;
-
-    // Sanitize transcript data to strip out non-serializable circular references (such as flatWords)
-    const cleanTranscript = fullTranscript.value.map(
-      (seg: TranscriptSegment) => ({
-        start:
-          typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start,
-        duration:
-          typeof seg.duration === 'string'
-            ? parseFloat(seg.duration)
-            : seg.duration,
-        text: seg.text
-      })
-    );
-
-    try {
-      await $fetch(`${API_BASE}/api/transcript`, {
-        method: 'PUT',
-        body: {
-          folder_name: folderName.value,
-          clip_id: clipId.value,
-          transcript: cleanTranscript
-        }
-      });
-      if (!silent) {
-        showToast('Edits saved successfully!', 'success');
-      }
-    } catch (e) {
-      if (!silent) {
-        showToast('Failed to save edits', 'error');
-      }
-    }
-  }
-
-  async function saveClipSession(
-    customPayload?: Record<string, any>,
-    isSilent = false
-  ) {
-    if (!folderName.value || !clipId.value) return;
-    const silent = isSilent === true;
-
-    const cleanTranscript = (fullTranscript.value || []).map(
-      (seg: TranscriptSegment) => ({
-        start:
-          typeof seg.start === 'string' ? parseFloat(seg.start) : seg.start,
-        duration:
-          typeof seg.duration === 'string'
-            ? parseFloat(seg.duration)
-            : seg.duration,
-        text: seg.text
-      })
-    );
-
-    const defaultPayload = {
-      transcript: cleanTranscript,
-      style_settings: subtitleStyle.getStyleSnapshot(),
-      timeline: timeline.timelineTracks.value,
-      cover_config: {
-        enabled: coverEnabled.value ?? thumbnailEnabled.value ?? false,
-        duration: coverDuration.value ?? thumbnailDuration.value ?? 1.0,
-        screenshotTime:
-          coverScreenshotTime.value ?? thumbnailScreenshotTime.value ?? 0,
-        textOverlays:
-          coverTextOverlays.value?.length > 0
-            ? coverTextOverlays.value
-            : thumbnailTextOverlays.value || [],
-        xOffset: coverXOffset.value ?? thumbnailXOffset.value ?? 50
-      },
-      history: {
-        undo_stack: timeline.timelineUndoStack.value,
-        redo_stack: timeline.timelineRedoStack.value
-      },
-      ...(cropMap.value?.length > 0 ? { crop_map: cropMap.value } : {})
-    };
-
-    const payload = customPayload
-      ? { ...defaultPayload, ...customPayload }
-      : defaultPayload;
-
-    try {
-      const res = await $fetch<{ status: string; session?: any }>(
-        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`,
-        {
-          method: 'PUT',
-          body: payload
-        }
-      );
-      if (!silent) {
-        showToast('Edits saved successfully!', 'success');
-      }
-      return res;
-    } catch (e) {
-      if (!silent) {
-        showToast('Failed to save clip session', 'error');
-      }
-      throw e;
-    }
-  }
-
-  // --- Render & Export Pipeline Coordination ---
-
-  function buildRenderSpec(hookIndex = 0, outputName?: string): RenderSpec {
-    return {
-      jobId: jobId.value || '',
-      hookIndex,
-      outputName,
-      fps: videoFps.value,
-      volume: volume.value,
-      videoLayout: subtitleStyle.videoLayout.value,
-      cropMode: subtitleStyle.cropMode.value,
-      cropPercentX: subtitleStyle.cropPercentX.value,
-      splitZoomTop: subtitleStyle.splitZoomTop.value,
-      splitZoomBottom: subtitleStyle.splitZoomBottom.value,
-      splitOffsetXTop: subtitleStyle.splitOffsetXTop.value,
-      splitOffsetYTop: subtitleStyle.splitOffsetYTop.value,
-      splitOffsetXBottom: subtitleStyle.splitOffsetXBottom.value,
-      splitOffsetYBottom: subtitleStyle.splitOffsetYBottom.value,
-      subtitlePayload: subtitleStyle.toRenderPayload(),
-      timelineTracks: timeline.timelineTracks.value,
-      transcript: fullTranscript.value || [],
-      cover: {
-        enabled: coverEnabled.value ?? thumbnailEnabled.value ?? false,
-        duration: coverDuration.value ?? thumbnailDuration.value ?? 1.0,
-        screenshotTime:
-          coverScreenshotTime.value ?? thumbnailScreenshotTime.value ?? 0,
-        textOverlays:
-          coverTextOverlays.value?.length > 0
-            ? coverTextOverlays.value
-            : thumbnailTextOverlays.value || [],
-        xOffset: coverXOffset.value ?? thumbnailXOffset.value ?? 50
-      },
-      safety: {
-        audioBleepEnabled: auditor.audioBleepEnabled.value,
-        audioBleepSource: auditor.audioBleepSource.value,
-        customBleepFile: auditor.customBleepFile.value,
-        censoredSegments: auditor.contentAudit.value?.flaggedSegments || [],
-        bleepPaddingOffset: auditor.bleepPaddingOffset.value,
-        bleepMode: auditor.bleepMode.value,
-        safetySensitivity: auditor.safetySensitivity.value,
-        maskingStyle: auditor.maskingStyle.value
-      }
-    };
-  }
-
-  async function renderClip(hookIndex = 0, outputName?: string) {
-    if (!jobId.value) {
-      renderStatus.value = 'error';
-      jobError.value =
-        'No active job ID found for render. Please reload the clip.';
-      return;
-    }
-
-    try {
-      if (folderName.value && clipId.value) {
-        await saveClipSession(undefined, true);
-      } else {
-        await Promise.all([
-          saveTranscript(true),
-          saveStyleSettings(),
-          timeline.saveTimelineTracks(),
-          saveThumbnailConfig()
-        ]);
-      }
-
-      const spec = buildRenderSpec(hookIndex, outputName);
-      await exportClip(spec);
-    } catch (e: any) {
-      renderStatus.value = 'error';
-      jobError.value = e.message || 'Render initiation failed';
-    }
-  }
-
-  // --- Timeline Actions ---
-
-  async function saveStyleSettings() {
-    if (!folderName.value || !clipId.value) return;
-    try {
-      await $fetch(`${API_BASE}/api/style-settings`, {
-        method: 'PUT',
-        body: {
-          folder_name: folderName.value,
-          clip_id: clipId.value,
-          settings: subtitleStyle.getStyleSnapshot()
-        }
-      });
-    } catch {}
-  }
-
-  async function toggleSubtitles() {
-    subtitlesEnabled.value = !subtitlesEnabled.value;
-    await saveStyleSettings();
-  }
-
-  async function saveDefaultStyleSettings() {
-    try {
-      await $fetch(`${API_BASE}/api/default-style-settings`, {
-        method: 'PUT',
-        body: { settings: subtitleStyle.getStyleSnapshot() }
-      });
-    } catch {}
-  }
-
-  function applyPreset(
-    presetOrId: Parameters<typeof subtitleStyle.applyPreset>[0]
-  ) {
-    subtitleStyle.applyPreset(presetOrId);
-    saveStyleSettings();
-  }
-
   function initPersistence() {
     if (import.meta.server || isPersistenceInitialized) return;
     isPersistenceInitialized = true;
 
     WorkspacePersistenceCoordinator.bindReactivity({
-      selectedPrompt,
-      extractionMode,
-      selectedPresetId,
-      focusTopic,
-      minDuration,
-      maxDuration,
-      whisperModel,
-      language,
-      lastAccessedVideoId,
-      lastAccessedVideoStored,
-      lastAccessedClip,
-      folderName,
-      clipId,
-      jobStatus,
-      activeHook,
-      setLastClip,
+      promptRepo,
+      library,
+      editorSession,
       auditor,
       timeline,
-      loadDefaultThumbnailStyle,
-      font,
-      fontSize,
-      subtitleFontWeight,
-      subtitleTextTransform,
-      subtitleTextColor,
-      subtitleStrokeColor,
-      subtitleStrokeWidth,
-      subtitleBackground,
-      subtitleBackgroundOpacity,
-      subtitleWordSpacing,
-      subtitlePreset,
-      subtitlePosition,
-      subtitleOffset,
-      subtitleSyncOffset,
-      subtitleAnimation,
-      subtitleHighlightMode,
-      subtitleHighlightColor,
-      subtitleMode,
-      subtitlesEnabled,
-      videoLayout,
-      landscapeBackground,
-      landscapeBlurRadius,
-      landscapeDarkness,
-      autoAdaptiveSubtitles,
-      saveStyleSettings,
-      saveClipSession: () => saveClipSession(undefined, true)
+      thumbnail: {
+        loadDefaultThumbnailStyle: thumbnailState.loadDefaultThumbnailStyle
+      },
+      subtitleStyle
     });
   }
 
   function resetWorkspace() {
     stopPolling();
-    folderName.value = null;
-    clipId.value = null;
+    editorSession.resetSession();
     jobId.value = null;
     jobStatus.value = 'idle';
-    hooks.value = [];
     savedHooks.value = [];
-    activeHook.value = null;
-    fullTranscript.value = [];
     if (timeline.timelineTracks.value && timeline.timelineTracks.value[0]) {
       timeline.timelineTracks.value[0].items = [];
     }
@@ -883,14 +615,8 @@ function createClipperState() {
     commitToHistory: timeline.commitToHistory,
     isSavingHistory: timeline.isSavingHistory,
     hasUnsavedHistory: timeline.hasUnsavedHistory,
-    undo: () => {
-      timeline.undo();
-      saveTranscript(true);
-    },
-    redo: () => {
-      timeline.redo();
-      saveTranscript(true);
-    },
+    undo,
+    redo,
     captureScreenshot,
     addThumbnailText,
     removeThumbnailText,

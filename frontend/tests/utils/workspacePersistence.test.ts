@@ -105,11 +105,11 @@ describe('WorkspacePersistenceCoordinator Unit Tests', () => {
     };
 
     const unbind = WorkspacePersistenceCoordinator.bindReactivity(mockContext);
-    expect(mockContext.auditor.loadBlacklistFromStorage).toHaveBeenCalled();
+    expect(mockContext.auditor!.loadBlacklistFromStorage).toHaveBeenCalled();
     expect(mockContext.loadDefaultThumbnailStyle).toHaveBeenCalled();
 
     // Mutate ref
-    mockContext.selectedPrompt.value = 'New Reactive Prompt';
+    mockContext.selectedPrompt!.value = 'New Reactive Prompt';
     // Vue watch triggers asynchronously on next tick or immediate in testing
     await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -172,11 +172,71 @@ describe('WorkspacePersistenceCoordinator Unit Tests', () => {
     const unbind = WorkspacePersistenceCoordinator.bindReactivity(mockContext);
 
     // Mutate font ref
-    mockContext.font.value = 'Bebas Neue';
+    mockContext.font!.value = 'Bebas Neue';
     await vi.advanceTimersByTimeAsync(100);
     expect(saveStyleSettingsSpy).not.toHaveBeenCalled();
 
     // Advance full debounce time (800ms)
+    await vi.advanceTimersByTimeAsync(800);
+    expect(saveStyleSettingsSpy).toHaveBeenCalledTimes(1);
+
+    unbind();
+    vi.useRealTimers();
+  });
+
+  it('supports domain-scoped contexts (promptRepo, library, editorSession, subtitleStyle)', async () => {
+    vi.useFakeTimers();
+    const saveStyleSettingsSpy = vi.fn();
+    const mockContext: WorkspaceReactivityContext = {
+      promptRepo: {
+        selectedPrompt: ref(''),
+        extractionMode: ref('preset'),
+        selectedPresetId: ref('auto'),
+        focusTopic: ref(''),
+        minDuration: ref(30),
+        maxDuration: ref(180)
+      },
+      library: {
+        whisperModel: ref('base'),
+        language: ref('id'),
+        lastAccessedVideoId: ref(null),
+        lastAccessedVideoStored: ref(null),
+        lastAccessedClip: ref(null)
+      },
+      editorSession: {
+        folderName: ref('domainFolder'),
+        clipId: ref('domainClip'),
+        saveStyleSettings: saveStyleSettingsSpy
+      },
+      auditor: {
+        loadBlacklistFromStorage: vi.fn()
+      },
+      thumbnail: {
+        loadDefaultThumbnailStyle: vi.fn()
+      },
+      timeline: {
+        timelineTracks: ref([]),
+        saveTimelineTracks: vi.fn()
+      },
+      subtitleStyle: {
+        font: ref('Montserrat'),
+        fontSize: ref(32)
+      }
+    };
+
+    const unbind = WorkspacePersistenceCoordinator.bindReactivity(mockContext);
+    expect(mockContext.auditor?.loadBlacklistFromStorage).toHaveBeenCalled();
+    expect(mockContext.thumbnail?.loadDefaultThumbnailStyle).toHaveBeenCalled();
+
+    // Mutate prompt in promptRepo
+    mockContext.promptRepo!.selectedPrompt!.value = 'Domain Prompt';
+    await vi.advanceTimersByTimeAsync(10);
+    expect(
+      localStorage.getItem(WorkspacePersistenceCoordinator.KEYS.PROMPT)
+    ).toBe('Domain Prompt');
+
+    // Mutate font in subtitleStyle
+    mockContext.subtitleStyle!.font!.value = 'Inter';
     await vi.advanceTimersByTimeAsync(800);
     expect(saveStyleSettingsSpy).toHaveBeenCalledTimes(1);
 
