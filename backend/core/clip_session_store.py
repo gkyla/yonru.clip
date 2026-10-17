@@ -710,6 +710,41 @@ class ClipSessionStore:
                     results.append({"folder_name": f_name, "clip_id": c_id, "success": False, "error": str(e)})
         return results
 
+    def delete_source_clips(self, folder_name: str, job_store: Any = None) -> int:
+        """Delete all clips under a source folder securely and clean up associated JobStore sessions."""
+        if not folder_name or "/" in folder_name or "\\" in folder_name or "\0" in folder_name:
+            raise ValueError(f"Path traversal detected: {folder_name}")
+        if folder_name.strip() in {".", ".."} or ".." in folder_name or os.path.isabs(folder_name):
+            raise ValueError(f"Path traversal detected: {folder_name}")
+
+        base_clips = os.path.abspath(self.clips_dir)
+        source_clips_dir = os.path.abspath(os.path.join(base_clips, folder_name))
+        if os.path.commonpath([base_clips, source_clips_dir]) != base_clips:
+            raise ValueError(f"Path traversal detected: {folder_name}")
+
+        deleted_count = 0
+        if os.path.exists(source_clips_dir) and os.path.isdir(source_clips_dir):
+            if job_store is not None:
+                jobs_dict = job_store.items() if hasattr(job_store, "items") else []
+                for j_id, j_info in list(jobs_dict):
+                    if isinstance(j_info, dict):
+                        clip_info = j_info.get("clip") or {}
+                        if j_info.get("folder_name") == folder_name or clip_info.get("folder_name") == folder_name:
+                            j_info["status"] = "cancelled"
+                            j_info["error"] = "Clip deleted by user."
+                            job_store[j_id] = j_info
+                if hasattr(job_store, "save"):
+                    try:
+                        job_store.save()
+                    except Exception:
+                        pass
+
+            clip_dirs = [d for d in os.listdir(source_clips_dir) if os.path.isdir(os.path.join(source_clips_dir, d))]
+            deleted_count = len(clip_dirs) or 1
+            shutil.rmtree(source_clips_dir)
+
+        return deleted_count
+
     # ── Global Default Style Settings ───────────────────────────────
 
     def get_default_style_settings(self) -> Dict[str, Any]:

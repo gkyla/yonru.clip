@@ -16,48 +16,42 @@ class ClipWorkflowCoordinator:
         self.config_store = config_store
         self.face_tracker = face_tracker
 
-        if clip_session_store and isinstance(clip_session_store, ClipSessionStore):
-            self.clip_session_store = clip_session_store
-        elif hasattr(asset_repository, "clip_session_store") and isinstance(getattr(asset_repository, "clip_session_store", None), ClipSessionStore):
-            self.clip_session_store = asset_repository.clip_session_store
-        else:
-            raw_out = getattr(asset_repository, "output_dir", None)
-            output_dir = raw_out if isinstance(raw_out, str) and raw_out else "temp_assets"
-            raw_clips = getattr(asset_repository, "clips_dir", None)
-            clips_dir = raw_clips if isinstance(raw_clips, str) and raw_clips else os.path.join(output_dir, "clips")
-            self.clip_session_store = ClipSessionStore(clips_dir=clips_dir, output_dir=output_dir, config_store=config_store)
+        self._clip_session_store = clip_session_store
 
     def _get_clip_session_store(self, clip_dir: Optional[str] = None) -> ClipSessionStore:
-        output_dir = getattr(self.asset_repository, "output_dir", None)
-        if not isinstance(output_dir, str) or not output_dir:
-            output_dir = "temp_assets"
+        if self._clip_session_store and not isinstance(self._clip_session_store, ClipSessionStore):
+            return self._clip_session_store
 
-        clips_dir = getattr(self.asset_repository, "clips_dir", None)
-        if isinstance(clips_dir, str) and clips_dir:
-            target_clips_dir = clips_dir
+        raw_out = getattr(self.asset_repository, "output_dir", None)
+        output_dir = raw_out if isinstance(raw_out, str) and raw_out else "temp_assets"
+
+        raw_clips = getattr(self.asset_repository, "clips_dir", None)
+        if isinstance(raw_clips, str) and raw_clips:
+            target_clips_dir = raw_clips
         elif clip_dir:
             target_clips_dir = os.path.dirname(os.path.dirname(os.path.abspath(clip_dir)))
         else:
             target_clips_dir = os.path.join(output_dir, "clips")
 
-        repo_store = getattr(self.asset_repository, "clip_session_store", None)
         if (
-            repo_store
-            and isinstance(repo_store, ClipSessionStore)
-            and os.path.abspath(repo_store.clips_dir) == os.path.abspath(target_clips_dir)
-            and os.path.abspath(repo_store.output_dir) == os.path.abspath(output_dir)
+            self._clip_session_store
+            and isinstance(self._clip_session_store, ClipSessionStore)
+            and os.path.abspath(self._clip_session_store.clips_dir) == os.path.abspath(target_clips_dir)
+            and os.path.abspath(self._clip_session_store.output_dir) == os.path.abspath(output_dir)
         ):
-            return repo_store
-
-        if (
-            self.clip_session_store
-            and isinstance(self.clip_session_store, ClipSessionStore)
-            and os.path.abspath(self.clip_session_store.clips_dir) == os.path.abspath(target_clips_dir)
-            and os.path.abspath(self.clip_session_store.output_dir) == os.path.abspath(output_dir)
-        ):
-            return self.clip_session_store
+            return self._clip_session_store
 
         return ClipSessionStore(clips_dir=target_clips_dir, output_dir=output_dir, config_store=self.config_store)
+
+    @property
+    def clip_session_store(self) -> ClipSessionStore:
+        if self._clip_session_store and not isinstance(self._clip_session_store, ClipSessionStore):
+            return self._clip_session_store
+        return self._get_clip_session_store()
+
+    @clip_session_store.setter
+    def clip_session_store(self, value: Any) -> None:
+        self._clip_session_store = value
 
     def save_jobs(self):
         try:
@@ -89,7 +83,6 @@ class ClipWorkflowCoordinator:
         clip_id = os.path.basename(clip_dir)
         folder_name = os.path.basename(os.path.dirname(clip_dir))
         store = self._get_clip_session_store(clip_dir)
-
         existing = store.get_crop_map(folder_name, clip_id)
         if existing and len(existing) > 0:
             return existing
@@ -253,6 +246,40 @@ class ClipWorkflowCoordinator:
     def extract_clip_thumbnail(self, job_id: str, timestamp: Optional[float] = None) -> Dict[str, Any]:
         """Backward compatibility alias for extract_clip_cover."""
         return self.extract_clip_cover(job_id=job_id, timestamp=timestamp)
+
+    def delete_source_video(self, folder_name: str) -> Dict[str, Any]:
+        """Cancel active background jobs matching folder/video_id and purge source & clip assets."""
+        if not folder_name:
+            raise ValueError("Folder name must not be empty")
+
+        target_video_id = None
+        if len(folder_name) >= 12 and folder_name[-12] == "_":
+            target_video_id = folder_name[-11:]
+
+        jobs_dict = self.jobs.items() if hasattr(self.jobs, "items") else []
+        for j_id, j_info in list(jobs_dict):
+            is_match = False
+            if isinstance(j_info, dict):
+                if j_info.get("video_info") and j_info["video_info"].get("folder_name") == folder_name:
+                    is_match = True
+                elif target_video_id and j_info.get("url") and target_video_id in j_info["url"]:
+                    is_match = True
+
+                if is_match:
+                    current_status = j_info.get("status")
+                    if current_status in ["queued", "downloading", "processing", "checking_transcript", "extracting_audio", "generating_hooks"]:
+                        print(f"[delete] Cancelling active background job {j_id} for deleted source {folder_name}")
+                        j_info["status"] = "cancelled"
+                        j_info["error"] = "Source video deleted by user."
+                        self.jobs[j_id] = j_info
+
+        self.save_jobs()
+
+        source_deleted = 1 if self.asset_repository.delete_cached_video(folder_name) else 0
+        clips_deleted = self.clip_session_store.delete_source_clips(folder_name, job_store=self.jobs)
+        total_deleted = source_deleted + (1 if clips_deleted > 0 else 0)
+
+        return {"deleted": total_deleted, "folder": folder_name}
 
     def replay_cached_analysis(
         self,
@@ -657,10 +684,10 @@ class ClipWorkflowCoordinator:
         store = self._get_clip_session_store(clip_dir)
         session = store.get_clip_session(folder_name, clip_id)
 
-        cover_config_data = self.asset_repository.get_cover_config(folder_name, clip_id)
+        cover_config_data = store.get_cover_config(folder_name, clip_id)
         if cover_config_data is None:
             cover_config_data = session.get("cover_config")
-        cover_url = self.asset_repository.migrate_legacy_cover_if_needed(folder_name, clip_id)
+        cover_url = store.migrate_legacy_cover_if_needed(folder_name, clip_id)
         if not cover_url:
             cover_url = session.get("cover_url")
         if not cover_url:

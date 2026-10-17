@@ -48,8 +48,9 @@ def test_mock_asset_store_purges_and_clips():
     assert clip["duration"] == 20.0
     assert clip["theme"] == "test"
     
-    # Test delete_clip mock flow
-    assert store.delete_clip("mock_folder", "mock_clip") is True
+    # Test delete_cached_video mock flow
+    assert store.delete_cached_video("mock_folder") == 1
     
     # Assert logs record calls properly
     assert ("create_clip", "mock_path/full.mp4", 10.0, 30.0, "test") in store.calls
+    assert ("delete_cached_video", "mock_folder") in store.calls

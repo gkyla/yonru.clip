@@ -742,7 +742,6 @@ def test_load_ready_clip_success(mock_dependencies, tmp_path):
     assert res["job"]["clip"]["theme"] == "awesome clip"
     assert len(res["job"]["hooks"]) == 1
     assert (clip_dir / "crop_map.json").exists()
-    mock_dependencies["asset_repository"].migrate_legacy_cover_if_needed.assert_called_once_with("vid_folder_1", "10_25_awesome_clip")
 
 
 def test_replay_cached_analysis_instant_ready(mock_dependencies, tmp_path):
@@ -1008,7 +1007,35 @@ def test_ensure_defaults_auto_seeds_canonical_style(mock_dependencies, tmp_path)
     assert clip_data["cropMode"] == "face_tracking"
 
 
+def test_delete_source_video_cascading(mock_dependencies):
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"]
+    )
+    mock_store = MagicMock()
+    coordinator.clip_session_store = mock_store
+    mock_store.delete_source_clips.return_value = 3
+    mock_dependencies["asset_repository"].delete_cached_video.return_value = True
 
+    # Setup active jobs
+    coordinator.jobs["job_src"] = {
+        "status": "processing",
+        "video_info": {"folder_name": "target_folder"}
+    }
+    coordinator.jobs["job_other"] = {
+        "status": "processing",
+        "video_info": {"folder_name": "other_folder"}
+    }
 
+    result = coordinator.delete_source_video("target_folder")
 
-
+    assert result["deleted"] == 2
+    assert result["folder"] == "target_folder"
+    assert coordinator.jobs["job_src"]["status"] == "cancelled"
+    assert coordinator.jobs["job_other"]["status"] == "processing"
+    mock_store.delete_source_clips.assert_called_once_with("target_folder", job_store=coordinator.jobs)
+    mock_dependencies["asset_repository"].delete_cached_video.assert_called_once_with("target_folder")

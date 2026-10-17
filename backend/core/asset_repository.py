@@ -9,7 +9,6 @@ import time
 from typing import Optional, Dict, Any, List
 from abc import ABC, abstractmethod
 from core.youtube_client import YouTubeClient
-from core.clip_session_store import ClipSessionStore
 
 class AssetStore(ABC):
     @abstractmethod
@@ -41,27 +40,7 @@ class AssetStore(ABC):
         pass
 
     @abstractmethod
-    def list_all_clips(self) -> list:
-        pass
-
-    @abstractmethod
-    def list_ready_clips(self, active_clip_ids: Optional[set] = None) -> list:
-        pass
-
-    @abstractmethod
     def delete_cached_video(self, folder_name: str) -> int:
-        pass
-
-    @abstractmethod
-    def delete_clip(self, folder_name: str, clip_id: str) -> bool:
-        pass
-
-    @abstractmethod
-    def delete_clip_with_job(self, folder_name: str, clip_id: str, job_store: Any = None) -> bool:
-        pass
-
-    @abstractmethod
-    def delete_cached_video_with_jobs(self, folder_name: str, job_store: Any = None) -> int:
         pass
 
     @abstractmethod
@@ -122,15 +101,13 @@ class AssetStore(ABC):
         return filtered
 
 class AssetRepository(AssetStore):
-    def __init__(self, output_dir="temp_assets", youtube_client=None, config_store=None, clip_session_store=None):
+    def __init__(self, output_dir="temp_assets", youtube_client=None, config_store=None):
         self.output_dir = output_dir
         self.source_dir = os.path.join(output_dir, "sources")
         self.clips_dir = os.path.join(output_dir, "clips")
         
         os.makedirs(self.source_dir, exist_ok=True)
         os.makedirs(self.clips_dir, exist_ok=True)
-        
-        self.clip_session_store = clip_session_store or ClipSessionStore(clips_dir=self.clips_dir, output_dir=self.output_dir)
         
         self.cookie_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "cookies.txt"))
         self.client = youtube_client or YouTubeClient(cookie_path=self.cookie_path)
@@ -724,29 +701,11 @@ class AssetRepository(AssetStore):
             "has_more": has_more
         }
 
-    def list_all_clips(self) -> list:
-        """Scan all clips subfolders for ready videos via ClipSessionStore."""
-        return self.clip_session_store.list_all_clips(
-            screenshot_fn=self.extract_clip_screenshot,
-            duration_fn=self.get_video_duration
-        )
-
-    def list_ready_clips(self, active_clip_ids: Optional[set] = None) -> list:
-        """List all ready clips via ClipSessionStore, filtering out clips currently being processed."""
-        return self.clip_session_store.list_ready_clips(
-            active_clip_ids,
-            screenshot_fn=self.extract_clip_screenshot,
-            duration_fn=self.get_video_duration
-        )
-
     def delete_cached_video(self, folder_name: str) -> int:
-        """Delete titled folders in sources and clips securely with validation."""
+        """Delete titled source folder securely with validation."""
         if not folder_name or not re.match(r"^[\w\s.\-\[\]]+$", folder_name) or ".." in folder_name:
             raise ValueError(f"Invalid or unsafe folder name: {folder_name}")
 
-        count = 0
-        
-        # 1. Source folder absolute validation & deletion
         base_src = os.path.abspath(self.source_dir)
         src_path = os.path.abspath(os.path.join(base_src, folder_name))
         
@@ -755,59 +714,9 @@ class AssetRepository(AssetStore):
 
         if os.path.exists(src_path) and os.path.isdir(src_path):
             shutil.rmtree(src_path)
-            count += 1
+            return 1
 
-        # 2. Clips folder absolute validation & deletion
-        base_clips = os.path.abspath(self.clips_dir)
-        clip_path = os.path.abspath(os.path.join(base_clips, folder_name))
-
-        if os.path.commonpath([base_clips, clip_path]) != base_clips:
-            raise ValueError(f"Path traversal detected: {folder_name}")
-
-        if os.path.exists(clip_path) and os.path.isdir(clip_path):
-            shutil.rmtree(clip_path)
-            count += 1
-
-        return count
-
-    def delete_clip(self, folder_name: str, clip_id: str) -> bool:
-        """Delete a specific clip folder securely via ClipSessionStore."""
-        return self.clip_session_store.delete_clip(folder_name, clip_id)
-
-    def delete_clip_with_job(self, folder_name: str, clip_id: str, job_store: Any = None) -> bool:
-        """Delete a specific clip folder and clean up any associated JobStore session via ClipSessionStore."""
-        return self.clip_session_store.delete_clip_with_job(folder_name, clip_id, job_store)
-
-    def delete_cached_video_with_jobs(self, folder_name: str, job_store: Any = None) -> int:
-        """Cancel active background jobs matching folder/video_id and purge source & clip assets."""
-        if job_store is not None:
-            target_video_id = None
-            if len(folder_name) >= 12 and folder_name[-12] == "_":
-                target_video_id = folder_name[-11:]
-            
-            jobs_dict = job_store.items() if hasattr(job_store, "items") else []
-            for j_id, j_info in list(jobs_dict):
-                is_match = False
-                if isinstance(j_info, dict):
-                    if j_info.get("video_info") and j_info["video_info"].get("folder_name") == folder_name:
-                        is_match = True
-                    elif target_video_id and j_info.get("url") and target_video_id in j_info["url"]:
-                        is_match = True
-                    
-                    if is_match:
-                        current_status = j_info.get("status")
-                        if current_status in ["queued", "downloading", "processing", "checking_transcript", "extracting_audio", "generating_hooks"]:
-                            print(f"[delete] Cancelling active background job {j_id} for deleted source {folder_name}")
-                            j_info["status"] = "cancelled"
-                            j_info["error"] = "Source video deleted by user."
-                            job_store[j_id] = j_info
-            
-            if hasattr(job_store, "save") or hasattr(job_store, "save_jobs"):
-                save_fn = getattr(job_store, "save", None) or getattr(job_store, "save_jobs", None)
-                if callable(save_fn):
-                    save_fn()
-
-        return self.delete_cached_video(folder_name)
+        return 0
 
 
     # ── Hooks DB/JSON Operations ──────────────────────────────────
@@ -840,18 +749,6 @@ class AssetRepository(AssetStore):
             json.dump(hooks, f, indent=4)
         return hooks
 
-    # ── Clip Artifacts & Config Persistence ───────────────────────
-
-    def _resolve_clip_path(self, folder_name: str, clip_id: str, filename: str) -> str:
-        base = os.path.realpath(self.clips_dir)
-        target = os.path.realpath(os.path.join(self.clips_dir, folder_name, clip_id, filename))
-        if os.path.commonpath([base, target]) != base:
-            raise ValueError(f"Path traversal detected: {folder_name}/{clip_id}/{filename}")
-        return target
-
-    def save_clip_transcript(self, folder_name: str, clip_id: str, transcript: list) -> bool:
-        return self.clip_session_store.save_transcript(folder_name, clip_id, transcript)
-
     def update_source_hooks(self, folder_name: str, hooks: list) -> bool:
         base = os.path.realpath(self.source_dir)
         hooks_path = os.path.realpath(os.path.join(self.source_dir, folder_name, "hooks.json"))
@@ -862,55 +759,6 @@ class AssetRepository(AssetStore):
         with open(hooks_path, "w", encoding="utf-8") as f:
             json.dump(hooks, f, ensure_ascii=False, indent=2)
         return True
-
-    def save_clip_style_settings(self, folder_name: str, clip_id: str, settings: dict) -> bool:
-        return self.clip_session_store.save_style_settings(folder_name, clip_id, settings)
-
-    def save_clip_timeline(self, folder_name: str, clip_id: str, timeline_tracks: list) -> bool:
-        return self.clip_session_store.save_timeline(folder_name, clip_id, timeline_tracks)
-
-    def save_clip_history(self, folder_name: str, clip_id: str, undo_stack: list, redo_stack: list) -> bool:
-        return self.clip_session_store.save_history(folder_name, clip_id, undo_stack, redo_stack)
-
-    def save_default_style_settings(self, settings: dict) -> bool:
-        return self.clip_session_store.save_default_style_settings(settings)
-
-    def get_default_style_settings(self) -> Optional[dict]:
-        return self.clip_session_store.get_default_style_settings()
-
-    def save_default_cover_style(self, style: dict) -> bool:
-        return self.clip_session_store.save_default_cover_style(style)
-
-    def get_default_cover_style(self) -> Optional[dict]:
-        return self.clip_session_store.get_default_cover_style()
-
-    def save_default_thumbnail_style(self, style: dict) -> bool:
-        return self.clip_session_store.save_default_thumbnail_style(style)
-
-    def get_default_thumbnail_style(self) -> Optional[dict]:
-        return self.clip_session_store.get_default_thumbnail_style()
-
-    def save_cover_config(self, folder_name: str, clip_id: str, config: dict) -> bool:
-        return self.clip_session_store.save_cover_config(folder_name, clip_id, config)
-
-    def get_cover_config(self, folder_name: str, clip_id: str) -> Optional[dict]:
-        return self.clip_session_store.get_cover_config(folder_name, clip_id)
-
-    def delete_cover(self, folder_name: str, clip_id: str) -> bool:
-        return self.clip_session_store.delete_cover(folder_name, clip_id)
-
-    def migrate_legacy_cover_if_needed(self, folder_name: str, clip_id: str) -> Optional[str]:
-        return self.clip_session_store.migrate_legacy_cover_if_needed(folder_name, clip_id)
-
-    def save_thumbnail_config(self, folder_name: str, clip_id: str, config: dict) -> bool:
-        return self.save_cover_config(folder_name, clip_id, config)
-
-    def get_thumbnail_config(self, folder_name: str, clip_id: str) -> Optional[dict]:
-        return self.get_cover_config(folder_name, clip_id)
-
-    def delete_thumbnail(self, folder_name: str, clip_id: str) -> bool:
-        """Backward compatibility alias: delegates to delete_cover, preserving Clip Thumbnail (thumbnail.jpg)."""
-        return self.delete_cover(folder_name, clip_id)
 
     def extract_clip_screenshot(self, clip_path: str, timestamp: float, output_path: str) -> bool:
         if not os.path.exists(clip_path):
@@ -1006,31 +854,9 @@ class MockAssetStore(AssetStore):
             return {"videos": self.cached_videos, "total": len(self.cached_videos), "has_more": False}
         return self.cached_videos
 
-    def list_all_clips(self) -> list:
-        self.calls.append(("list_all_clips",))
-        return self.ready_clips
-
-    def list_ready_clips(self, active_clip_ids: Optional[set] = None) -> list:
-        self.calls.append(("list_ready_clips", active_clip_ids))
-        if not active_clip_ids:
-            return self.ready_clips
-        return [c for c in self.ready_clips if c.get("clip_id") not in active_clip_ids]
-
     def delete_cached_video(self, folder_name: str) -> int:
         self.calls.append(("delete_cached_video", folder_name))
         return 1
-
-    def delete_clip(self, folder_name: str, clip_id: str) -> bool:
-        self.calls.append(("delete_clip", folder_name, clip_id))
-        return True
-
-    def delete_clip_with_job(self, folder_name: str, clip_id: str, job_store: Any = None) -> bool:
-        self.calls.append(("delete_clip_with_job", folder_name, clip_id, job_store))
-        return self.delete_clip(folder_name, clip_id)
-
-    def delete_cached_video_with_jobs(self, folder_name: str, job_store: Any = None) -> int:
-        self.calls.append(("delete_cached_video_with_jobs", folder_name, job_store))
-        return self.delete_cached_video(folder_name)
 
     def get_saved_hooks(self, folder_name: str) -> list:
         self.calls.append(("get_saved_hooks", folder_name))
