@@ -501,90 +501,13 @@ class AssetRepository(AssetStore):
                 return None
 
     def create_clip(self, video_path: str, start_time: float, end_time: float, theme: Optional[str] = None) -> Optional[dict]:
-        """Cut video segment into a unique clips subfolder."""
-        folder_name = os.path.basename(os.path.dirname(video_path))
-        
-        safe_theme = ""
-        if theme:
-            safe_theme = re.sub(r'[^\w\s-]', '', theme).strip().replace(' ', '_')[:50]
-            
-        if safe_theme:
-            clip_id = f"{int(start_time)}_{int(end_time)}_{safe_theme}"
-        else:
-            clip_id = f"{int(start_time)}_{int(end_time)}"
-            
-        target_dir = os.path.join(self.clips_dir, folder_name, clip_id)
-        os.makedirs(target_dir, exist_ok=True)
-        
-        out_name = "video.mp4"
-        out_path = os.path.join(target_dir, out_name)
-        
-        duration = end_time - start_time
-        thumb_name = "thumbnail.jpg"
-        thumb_path = os.path.join(target_dir, thumb_name)
-        thumbnail_url = f"/assets/clips/{folder_name}/{clip_id}/{thumb_name}"
-        cover_path = os.path.join(target_dir, "cover.jpg")
-        cover_url = f"/assets/clips/{folder_name}/{clip_id}/cover.jpg" if os.path.exists(cover_path) else None
+        """Backward-compatible delegate: routes to deepened ClipSessionStore."""
+        from core.clip_session_store import ClipSessionStore
+        store = ClipSessionStore(clips_dir=self.clips_dir, output_dir=self.output_dir, config_store=self.config_store)
+        store._run_ffmpeg = self._run_ffmpeg
+        store._ffprobe_info = self._ffprobe_info
+        return store.create_clip(video_path, start_time, end_time, theme)
 
-        if os.path.exists(out_path):
-            if not os.path.exists(thumb_path):
-                poster_path = os.path.join(target_dir, "poster.jpg")
-                if os.path.exists(poster_path):
-                    try:
-                        shutil.copy2(poster_path, thumb_path)
-                    except Exception:
-                        pass
-                else:
-                    try:
-                        self.extract_clip_screenshot(out_path, 0.0, thumb_path)
-                    except Exception as e:
-                        print(f"[asset_repository] Failed to extract thumbnail for existing clip: {e}")
-            return {
-                "file_path": out_path, 
-                "asset_url": f"/assets/clips/{folder_name}/{clip_id}/{out_name}", 
-                "thumbnail_url": thumbnail_url,
-                "poster_url": thumbnail_url,
-                "cover_url": cover_url,
-                "duration": duration,
-                "clip_id": clip_id,
-                "start": start_time,
-                "end": end_time,
-                "theme": theme
-            }
-        
-        try:
-            self._run_ffmpeg([
-                "-accurate_seek",
-                "-ss", str(start_time),
-                "-i", video_path, 
-                "-t", str(duration),
-                "-c:v", "libx264", 
-                "-preset", "superfast", 
-                "-crf", "23", 
-                "-c:a", "aac", 
-                "-avoid_negative_ts", "auto",
-                "-y", out_path
-            ])
-            try:
-                self.extract_clip_screenshot(out_path, 0.0, thumb_path)
-            except Exception as e:
-                print(f"[asset_repository] Failed to extract thumbnail for new clip: {e}")
-        except Exception as e:
-            print(f"Error cutting segment: {e}")
-            raise e
-            
-        return {
-            "file_path": out_path, 
-            "asset_url": f"/assets/clips/{folder_name}/{clip_id}/{out_name}", 
-            "thumbnail_url": thumbnail_url,
-            "poster_url": thumbnail_url,
-            "cover_url": cover_url,
-            "duration": duration,
-            "clip_id": clip_id,
-            "start": start_time,
-            "end": end_time,
-            "theme": theme
-        }
 
     def list_cached_videos(
         self,
@@ -761,19 +684,12 @@ class AssetRepository(AssetStore):
         return True
 
     def extract_clip_screenshot(self, clip_path: str, timestamp: float, output_path: str) -> bool:
-        if not os.path.exists(clip_path):
-            return False
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        cmd = [
-            "-y",
-            "-ss", str(timestamp),
-            "-i", clip_path,
-            "-vframes", "1",
-            "-q:v", "2",
-            output_path
-        ]
-        res = self._run_ffmpeg(cmd)
-        return bool(res and os.path.exists(output_path))
+        """Backward-compatible delegate: routes to deepened ClipSessionStore."""
+        from core.clip_session_store import ClipSessionStore
+        store = ClipSessionStore(clips_dir=self.clips_dir, output_dir=self.output_dir, config_store=self.config_store)
+        store._run_ffmpeg = self._run_ffmpeg
+        return store.extract_clip_screenshot(clip_path, timestamp, output_path)
+
 
 
 class MockAssetStore(AssetStore):

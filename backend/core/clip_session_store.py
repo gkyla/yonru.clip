@@ -505,6 +505,169 @@ class ClipSessionStore:
 
     # ── Media Operations & Video Information ─────────────────────────
 
+    def derive_clip_id(self, start_time: float, end_time: float, theme: Optional[str] = None) -> str:
+        """Derives a deterministic, filesystem-safe clip_id from boundaries and theme."""
+        safe_theme = ""
+        if theme:
+            safe_theme = re.sub(r'[^\w\s-]', '', theme).strip().replace(' ', '_')[:50]
+        if safe_theme:
+            return f"{int(start_time)}_{int(end_time)}_{safe_theme}"
+        return f"{int(start_time)}_{int(end_time)}"
+
+    def create_clip(
+        self,
+        video_path: str,
+        start_time: float,
+        end_time: float,
+        theme: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Cuts a Ready Clip (video.mp4) from a Source Video interval, auto-generates the static
+        Clip Thumbnail (thumbnail.jpg), and seeds default manifests (style, cover, timeline, history).
+        """
+        if not video_path or not os.path.exists(video_path):
+            raise FileNotFoundError(f"Source video not found: {video_path}")
+        if start_time < 0 or end_time <= start_time:
+            raise ValueError(f"Invalid clip boundaries: start={start_time}, end={end_time}")
+
+        folder_name = os.path.basename(os.path.dirname(video_path))
+        clip_id = self.derive_clip_id(start_time, end_time, theme)
+        target_dir = self.resolve_clip_dir(folder_name, clip_id)
+        os.makedirs(target_dir, exist_ok=True)
+
+        out_name = "video.mp4"
+        out_path = os.path.join(target_dir, out_name)
+        duration = round(end_time - start_time, 2)
+        thumb_name = "thumbnail.jpg"
+        thumb_path = os.path.join(target_dir, thumb_name)
+        thumbnail_url = f"/assets/clips/{folder_name}/{clip_id}/{thumb_name}"
+        cover_path = os.path.join(target_dir, "cover.jpg")
+        cover_url = f"/assets/clips/{folder_name}/{clip_id}/cover.jpg" if os.path.exists(cover_path) else None
+
+        if os.path.exists(out_path):
+            if not os.path.exists(thumb_path):
+                poster_path = os.path.join(target_dir, "poster.jpg")
+                if os.path.exists(poster_path):
+                    try:
+                        shutil.copy2(poster_path, thumb_path)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        self.extract_clip_screenshot(out_path, 0.0, thumb_path)
+                    except Exception as e:
+                        print(f"[clip_session_store] Failed to extract thumbnail for existing clip: {e}")
+            self.ensure_clip_defaults(folder_name, clip_id)
+            return {
+                "file_path": out_path,
+                "asset_url": f"/assets/clips/{folder_name}/{clip_id}/{out_name}",
+                "thumbnail_url": thumbnail_url,
+                "poster_url": thumbnail_url,
+                "cover_url": cover_url,
+                "duration": duration,
+                "clip_id": clip_id,
+                "folder_name": folder_name,
+                "start": start_time,
+                "end": end_time,
+                "theme": theme
+            }
+
+        cmd = [
+            "-accurate_seek",
+            "-ss", str(start_time),
+            "-i", video_path,
+            "-t", str(duration),
+            "-c:v", "libx264",
+            "-preset", "superfast",
+            "-crf", "23",
+            "-c:a", "aac",
+            "-avoid_negative_ts", "auto",
+            "-y", out_path
+        ]
+        self._run_ffmpeg(cmd)
+
+        try:
+            self.extract_clip_screenshot(out_path, 0.0, thumb_path)
+        except Exception as e:
+            print(f"[clip_session_store] Failed to extract thumbnail for new clip: {e}")
+
+        self.ensure_clip_defaults(folder_name, clip_id)
+
+        return {
+            "file_path": out_path,
+            "asset_url": f"/assets/clips/{folder_name}/{clip_id}/{out_name}",
+            "thumbnail_url": thumbnail_url,
+            "poster_url": thumbnail_url,
+            "cover_url": cover_url,
+            "duration": duration,
+            "clip_id": clip_id,
+            "folder_name": folder_name,
+            "start": start_time,
+            "end": end_time,
+            "theme": theme
+        }
+
+    def extract_clip_audio(self, clip_path_or_folder: str, clip_id: Optional[str] = None) -> str:
+        """
+        Extracts high-stability 16kHz mono WAV audio (audio_v2.wav) from the Ready Clip
+        for speech transcription. Accepts either absolute clip_path or (folder_name, clip_id).
+        """
+        if clip_id is not None:
+            clip_dir = self.resolve_clip_dir(clip_path_or_folder, clip_id)
+            clip_path = os.path.join(clip_dir, "video.mp4")
+        else:
+            clip_path = clip_path_or_folder
+            clip_dir = os.path.dirname(clip_path)
+
+        if not os.path.exists(clip_path):
+            raise FileNotFoundError(f"Clip video not found at: {clip_path}")
+
+        audio_path = os.path.join(clip_dir, "audio_v2.wav")
+        if os.path.exists(audio_path):
+            return audio_path
+
+        self._run_ffmpeg([
+            "-i", clip_path,
+            "-vn",
+            "-acodec", "pcm_s16le",
+            "-ar", "16000",
+            "-ac", "1",
+            "-y", audio_path
+        ])
+        return audio_path
+
+    def extract_cover_frame(
+        self,
+        folder_name: str,
+        clip_id: str,
+        timestamp: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Extracts a single frame from the Ready Clip as a custom Cover Slide frame (cover.jpg),
+        with timestamp bounds clamping, strictly leaving the Clip Thumbnail (thumbnail.jpg) intact.
+        """
+        clip_dir = self.resolve_clip_dir(folder_name, clip_id)
+        clip_path = os.path.join(clip_dir, "video.mp4")
+        if not os.path.exists(clip_path):
+            raise ValueError(f"No clip video available at {clip_path}. Extract a clip first.")
+
+        clip_duration = float(self.get_video_duration(clip_path) or 10.0)
+
+        if timestamp is not None:
+            ts = max(0.0, min(float(timestamp), max(0.0, clip_duration - 0.1)))
+        else:
+            import random
+            ts = random.uniform(0.5, max(0.6, clip_duration * 0.8))
+
+        cover_path = os.path.join(clip_dir, "cover.jpg")
+        success = self.extract_clip_screenshot(clip_path, ts, cover_path)
+        if not success:
+            raise RuntimeError("Failed to extract cover frame")
+
+        asset_url = f"/assets/clips/{folder_name}/{clip_id}/cover.jpg"
+        print(f"[cover] Captured frame at {ts:.3f}s -> {cover_path}")
+        return {"status": "ok", "timestamp": round(ts, 3), "cover_url": asset_url, "thumbnail_url": asset_url}
+
     def _run_ffmpeg(self, args: list) -> bool:
         clean_args = list(args)
         if clean_args and clean_args[0] == "ffmpeg":

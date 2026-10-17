@@ -357,3 +357,138 @@ def test_delete_source_clips_and_job_cancellation():
         with pytest.raises(ValueError, match="Path traversal detected"):
             store.delete_source_clips("../etc")
 
+
+def test_derive_clip_id():
+    """Verify derive_clip_id generates deterministic, safe clip IDs."""
+    store = ClipSessionStore()
+    assert store.derive_clip_id(10.0, 25.0) == "10_25"
+    assert store.derive_clip_id(0.0, 15.0, theme="Funny Moment") == "0_15_Funny_Moment"
+    assert store.derive_clip_id(12.5, 30.2, theme="Crazy / Epic & Wild?!") == "12_30_Crazy__Epic__Wild"
+
+
+def test_create_clip_executes_ffmpeg_and_seeds_defaults():
+    """Verify create_clip cuts Ready Clip via FFmpeg, extracts thumbnail, and seeds all default manifests."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        # Create dummy source video
+        source_dir = os.path.join(temp_dir, "sources", "my_video_123")
+        os.makedirs(source_dir, exist_ok=True)
+        video_path = os.path.join(source_dir, "full.mp4")
+        with open(video_path, "w") as f:
+            f.write("dummy source video content")
+
+        ffmpeg_calls = []
+        def mock_run_ffmpeg(args):
+            ffmpeg_calls.append(list(args))
+            # If target out file is in args, create dummy output file
+            out_file = args[-1]
+            os.makedirs(os.path.dirname(out_file), exist_ok=True)
+            with open(out_file, "w") as f:
+                f.write("generated file")
+            return True
+
+        store._run_ffmpeg = mock_run_ffmpeg
+
+        res = store.create_clip(video_path, start_time=10.0, end_time=25.0, theme="Best Part")
+
+        assert res["clip_id"] == "10_25_Best_Part"
+        assert res["folder_name"] == "my_video_123"
+        assert res["duration"] == 15.0
+        assert res["start"] == 10.0
+        assert res["end"] == 25.0
+        assert res["theme"] == "Best Part"
+        assert res["asset_url"] == "/assets/clips/my_video_123/10_25_Best_Part/video.mp4"
+        assert res["thumbnail_url"] == "/assets/clips/my_video_123/10_25_Best_Part/thumbnail.jpg"
+
+        clip_dir = store.resolve_clip_dir("my_video_123", "10_25_Best_Part")
+        assert os.path.exists(os.path.join(clip_dir, "video.mp4"))
+        assert os.path.exists(os.path.join(clip_dir, "thumbnail.jpg"))
+        assert os.path.exists(os.path.join(clip_dir, "style_settings.json"))
+        assert os.path.exists(os.path.join(clip_dir, "cover_config.json"))
+        assert os.path.exists(os.path.join(clip_dir, "thumbnail_config.json"))
+        assert os.path.exists(os.path.join(clip_dir, "transcript.json"))
+
+        # Verify ffmpeg arguments used -avoid_negative_ts auto and -accurate_seek
+        cut_call = next(c for c in ffmpeg_calls if "-avoid_negative_ts" in c)
+        assert "-accurate_seek" in cut_call
+        idx = cut_call.index("-avoid_negative_ts")
+        assert cut_call[idx + 1] == "auto"
+
+
+def test_extract_clip_audio():
+    """Verify extract_clip_audio extracts 16kHz mono WAV audio and caches result."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        clip_dir = os.path.join(clips_dir, "folder_1", "clip_1")
+        os.makedirs(clip_dir, exist_ok=True)
+        clip_path = os.path.join(clip_dir, "video.mp4")
+        with open(clip_path, "w") as f:
+            f.write("dummy clip video")
+
+        ffmpeg_calls = []
+        def mock_run_ffmpeg(args):
+            ffmpeg_calls.append(list(args))
+            out_file = args[-1]
+            with open(out_file, "w") as f:
+                f.write("dummy wav audio")
+            return True
+
+        store._run_ffmpeg = mock_run_ffmpeg
+
+        audio_path = store.extract_clip_audio(clip_path)
+        assert audio_path == os.path.join(clip_dir, "audio_v2.wav")
+        assert os.path.exists(audio_path)
+        assert len(ffmpeg_calls) == 1
+        assert "-ar" in ffmpeg_calls[0]
+        assert "16000" in ffmpeg_calls[0]
+
+        # Calling again should reuse cached wav without calling ffmpeg
+        cached_audio = store.extract_clip_audio("folder_1", "clip_1")
+        assert cached_audio == audio_path
+        assert len(ffmpeg_calls) == 1
+
+
+def test_extract_cover_frame():
+    """Verify extract_cover_frame extracts custom frame, clamps timestamp, and leaves thumbnail intact."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        clip_dir = os.path.join(clips_dir, "folder_2", "clip_2")
+        os.makedirs(clip_dir, exist_ok=True)
+        clip_path = os.path.join(clip_dir, "video.mp4")
+        with open(clip_path, "w") as f:
+            f.write("dummy clip video")
+
+        # Static clip thumbnail
+        thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
+        with open(thumb_path, "w") as f:
+            f.write("initial thumbnail")
+
+        store.get_video_duration = lambda file_path: 20.0
+
+        ffmpeg_calls = []
+        def mock_run_ffmpeg(args):
+            ffmpeg_calls.append(list(args))
+            out_file = args[-1]
+            with open(out_file, "w") as f:
+                f.write("dummy cover image")
+            return True
+
+        store._run_ffmpeg = mock_run_ffmpeg
+
+        res = store.extract_cover_frame("folder_2", "clip_2", timestamp=14.5)
+        assert res["status"] == "ok"
+        assert res["timestamp"] == 14.5
+        assert res["cover_url"] == "/assets/clips/folder_2/clip_2/cover.jpg"
+
+        # Verify cover.jpg was created and thumbnail.jpg remained untouched
+        assert os.path.exists(os.path.join(clip_dir, "cover.jpg"))
+        with open(thumb_path, "r") as f:
+            assert f.read() == "initial thumbnail"
+
+
