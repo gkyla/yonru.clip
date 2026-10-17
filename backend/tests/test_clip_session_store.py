@@ -324,3 +324,36 @@ def test_delete_batch():
         assert not os.path.exists(os.path.join(clips_dir, "common_folder", "clip_1"))
         assert not os.path.exists(os.path.join(clips_dir, "common_folder", "clip_2"))
         assert os.path.exists(os.path.join(clips_dir, "common_folder", "clip_3"))
+
+
+def test_delete_source_clips_and_job_cancellation():
+    """Verify delete_source_clips purges folder and cancels associated background jobs."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        folder_name = "sample_source_vid"
+        source_clips_dir = os.path.join(clips_dir, folder_name)
+        for cid in ["clip_a", "clip_b"]:
+            cdir = os.path.join(source_clips_dir, cid)
+            os.makedirs(cdir, exist_ok=True)
+            open(os.path.join(cdir, "video.mp4"), "w").close()
+
+        fake_jobs = {
+            "job1": {"status": "cutting", "clip": {"folder_name": folder_name, "clip_id": "clip_a"}},
+            "job2": {"status": "transcribing", "folder_name": folder_name},
+            "job3": {"status": "ready", "clip": {"folder_name": "other_folder", "clip_id": "clip_c"}},
+        }
+
+        assert os.path.exists(source_clips_dir)
+        count = store.delete_source_clips(folder_name, job_store=fake_jobs)
+        assert count == 2
+        assert not os.path.exists(source_clips_dir)
+        assert fake_jobs["job1"]["status"] == "cancelled"
+        assert fake_jobs["job2"]["status"] == "cancelled"
+        assert fake_jobs["job3"]["status"] == "ready"
+
+        # Traversal protection
+        with pytest.raises(ValueError, match="Path traversal detected"):
+            store.delete_source_clips("../etc")
+

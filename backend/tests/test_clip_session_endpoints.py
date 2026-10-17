@@ -24,7 +24,6 @@ def client_with_temp_storage(tmp_path, monkeypatch):
     # Monkeypatch the module-level instances in main
     monkeypatch.setattr(main, "clip_session_store", test_store)
     if hasattr(main, "asset_repository"):
-        monkeypatch.setattr(main.asset_repository, "clip_session_store", test_store)
         monkeypatch.setattr(main.asset_repository, "clips_dir", str(clips_dir))
         monkeypatch.setattr(main.asset_repository, "output_dir", str(output_dir))
     if hasattr(main, "workflow_coordinator"):

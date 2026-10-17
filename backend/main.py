@@ -59,7 +59,7 @@ from core.clip_session_store import ClipSessionStore
 clip_session_store = ClipSessionStore("temp_assets/clips", output_dir="temp_assets")
 
 youtube_client = YouTubeClient(cookie_path=cookie_path)
-asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store, clip_session_store=clip_session_store)
+asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store)
 render_engine = RemotionRenderEngine(output_dir="static/output", config_store=config_store)
 speech_transcriber = FasterWhisperSpeechTranscriber(model_size="base")
 
@@ -469,10 +469,10 @@ async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
 async def delete_cached(folder_name: str):
     """Delete titled folders in sources and clips with graceful job cancellation and strict security checks."""
     try:
-        count = asset_repository.delete_cached_video_with_jobs(folder_name, job_store=jobs)
-        if count == 0:
+        res = workflow_coordinator.delete_source_video(folder_name)
+        if res.get("deleted", 0) == 0:
             raise HTTPException(status_code=404, detail="Folder not found or already deleted")
-        return {"deleted": count, "folder": folder_name}
+        return res
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

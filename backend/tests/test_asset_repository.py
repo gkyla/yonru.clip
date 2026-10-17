@@ -77,9 +77,6 @@ class TestAssetRepository(unittest.TestCase):
     def test_invalid_path_traversal_throws_error(self):
         with self.assertRaises(ValueError):
             self.repo.delete_cached_video("../../unsafe_path")
-            
-        with self.assertRaises(ValueError):
-            self.repo.delete_clip("../../unsafe_folder", "clip_1")
 
     @patch('core.asset_repository.AssetRepository._run_ffmpeg')
     @patch('core.asset_repository.AssetRepository._ffprobe_info')
@@ -139,30 +136,6 @@ class TestAssetRepository(unittest.TestCase):
         cleared = self.repo.delete_saved_hook(folder_name, hook_id)
         self.assertEqual(len(cleared), 0)
 
-    @patch('core.asset_repository.AssetRepository.get_video_duration')
-    def test_list_all_clips_auto_healing(self, mock_duration):
-        mock_duration.return_value = 10.0
-        
-        clip_dir = os.path.join(self.output_dir, "clips", "test_video_123", "10_20_test")
-        os.makedirs(clip_dir, exist_ok=True)
-        
-        video_path = os.path.join(clip_dir, "video.mp4")
-        with open(video_path, "w") as f:
-            f.write("dummy video data")
-            
-        transcript_path = os.path.join(clip_dir, "transcript.json")
-        self.assertFalse(os.path.exists(transcript_path))
-        
-        clips = self.repo.list_all_clips()
-        
-        self.assertEqual(len(clips), 1)
-        self.assertEqual(clips[0]["clip_id"], "10_20_test")
-        self.assertEqual(clips[0]["folder_name"], "test_video_123")
-        self.assertTrue(os.path.exists(transcript_path))
-        
-        with open(transcript_path, "r", encoding="utf-8") as f:
-            saved_transcript = json.load(f)
-        self.assertEqual(saved_transcript, [])
 
     @patch('core.asset_repository.AssetRepository._generate_thumbnail')
     @patch('core.asset_repository.AssetRepository.get_video_duration')
@@ -184,111 +157,6 @@ class TestAssetRepository(unittest.TestCase):
         self.assertEqual(videos[0]["video_id"], "abc12345678")
         self.assertIn("mtime", videos[0])
         self.assertIsInstance(videos[0]["mtime"], float)
-
-    def test_save_clip_transcript_and_security(self):
-        folder_name = "test_video_123"
-        clip_id = "10_20"
-        transcript = [{"text": "hello", "start": 0.0, "duration": 1.0}]
-        
-        success = self.repo.save_clip_transcript(folder_name, clip_id, transcript)
-        self.assertTrue(success)
-        
-        saved_file = os.path.join(self.output_dir, "clips", folder_name, clip_id, "transcript.json")
-        self.assertTrue(os.path.exists(saved_file))
-        with open(saved_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.assertEqual(data, transcript)
-
-        # Test path traversal prevention
-        with self.assertRaises(ValueError):
-            self.repo.save_clip_transcript("../../unsafe", clip_id, transcript)
-
-    def test_save_clip_style_and_timeline(self):
-        folder_name = "test_video_123"
-        clip_id = "10_20"
-        settings = {"fontSize": 32, "font": "Impact"}
-        timeline = [{"id": "video", "items": []}]
-        
-        self.assertTrue(self.repo.save_clip_style_settings(folder_name, clip_id, settings))
-        self.assertTrue(self.repo.save_clip_timeline(folder_name, clip_id, timeline))
-        self.assertTrue(self.repo.save_clip_history(folder_name, clip_id, ["undo1"], ["redo1"]))
-
-        style_file = os.path.join(self.output_dir, "clips", folder_name, clip_id, "style_settings.json")
-        timeline_file = os.path.join(self.output_dir, "clips", folder_name, clip_id, "timeline.json")
-        history_file = os.path.join(self.output_dir, "clips", folder_name, clip_id, "history.json")
-
-        self.assertTrue(os.path.exists(style_file))
-        self.assertTrue(os.path.exists(timeline_file))
-        self.assertTrue(os.path.exists(history_file))
-
-    def test_default_styles_persistence(self):
-        style = {"font": "Roboto", "fontSize": 48}
-        thumb_style = {"thumbnailDuration": 2.0}
-
-        self.assertTrue(self.repo.save_default_style_settings(style))
-        self.assertEqual(self.repo.get_default_style_settings(), style)
-
-        self.assertTrue(self.repo.save_default_thumbnail_style(thumb_style))
-        self.assertEqual(self.repo.get_default_thumbnail_style(), thumb_style)
-
-    def test_thumbnail_config_and_deletion(self):
-        folder_name = "test_video_123"
-        clip_id = "10_20"
-        config = {"enabled": True, "duration": 1.5}
-        
-        self.assertTrue(self.repo.save_thumbnail_config(folder_name, clip_id, config))
-        self.assertEqual(self.repo.get_thumbnail_config(folder_name, clip_id), config)
-
-        # Create dummy thumbnail image (Clip Thumbnail) and cover image (Cover Slide)
-        clip_dir = os.path.join(self.output_dir, "clips", folder_name, clip_id)
-        os.makedirs(clip_dir, exist_ok=True)
-        thumb_img = os.path.join(clip_dir, "thumbnail.jpg")
-        cover_img = os.path.join(clip_dir, "cover.jpg")
-        with open(thumb_img, "w") as f:
-            f.write("thumbnail card data")
-        with open(cover_img, "w") as f:
-            f.write("cover slide data")
-        self.assertTrue(os.path.exists(thumb_img))
-        self.assertTrue(os.path.exists(cover_img))
-
-        # Deleting cover in editor removes cover.jpg, but strictly preserves thumbnail.jpg (Clip Thumbnail)
-        self.assertTrue(self.repo.delete_cover(folder_name, clip_id))
-        self.assertFalse(os.path.exists(cover_img))
-        self.assertTrue(os.path.exists(thumb_img), "Clip Thumbnail (thumbnail.jpg) must never be deleted when cover is reset")
-
-    def test_cover_slide_decoupling_and_fallback(self):
-        folder_name = "test_video_fallback"
-        clip_id = "20_30"
-        clip_dir = os.path.join(self.output_dir, "clips", folder_name, clip_id)
-        os.makedirs(clip_dir, exist_ok=True)
-
-        # 1. Legacy fallback: only thumbnail_config.json exists
-        legacy_config = {"enabled": True, "duration": 2.0, "textOverlays": [{"text": "Legacy"}]}
-        legacy_path = os.path.join(clip_dir, "thumbnail_config.json")
-        with open(legacy_path, "w", encoding="utf-8") as f:
-            json.dump(legacy_config, f)
-
-        # get_cover_config should seamlessly fall back to legacy thumbnail_config.json
-        self.assertEqual(self.repo.get_cover_config(folder_name, clip_id), legacy_config)
-
-        # 2. Modern cover_config.json takes precedence
-        modern_config = {"enabled": True, "duration": 1.0, "textOverlays": [{"text": "Modern"}]}
-        self.assertTrue(self.repo.save_cover_config(folder_name, clip_id, modern_config))
-        self.assertEqual(self.repo.get_cover_config(folder_name, clip_id), modern_config)
-
-        # 3. Legacy auto-migration of frame
-        thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
-        with open(thumb_path, "w") as f:
-            f.write("legacy poster")
-        cover_path = os.path.join(clip_dir, "cover.jpg")
-        if os.path.exists(cover_path):
-            os.remove(cover_path)
-
-        migrated_url = self.repo.migrate_legacy_cover_if_needed(folder_name, clip_id)
-        self.assertIsNotNone(migrated_url)
-        self.assertTrue(os.path.exists(cover_path))
-        with open(cover_path, "r") as f:
-            self.assertEqual(f.read(), "legacy poster")
 
     @patch('core.asset_repository.AssetRepository._generate_thumbnail')
     @patch('core.asset_repository.AssetRepository.get_video_duration')
@@ -339,78 +207,19 @@ class TestAssetRepository(unittest.TestCase):
         self.assertFalse(page2["has_more"])
         self.assertEqual(page2["videos"][0]["title"], "Gamma Video")
 
-    @patch('core.asset_repository.AssetRepository.get_video_duration')
-    def test_list_ready_clips_filters_active(self, mock_dur):
-        mock_dur.return_value = 10.0
-        
-        for clip_id in ["1_10_c1", "10_20_c2"]:
-            clip_dir = os.path.join(self.output_dir, "clips", "src_video", clip_id)
-            os.makedirs(clip_dir, exist_ok=True)
-            with open(os.path.join(clip_dir, "video.mp4"), "w") as f:
-                f.write("data")
-            with open(os.path.join(clip_dir, "transcript.json"), "w") as f:
-                f.write("[]")
-
-        all_clips = self.repo.list_ready_clips()
-        self.assertEqual(len(all_clips), 2)
-
-        filtered = self.repo.list_ready_clips(active_clip_ids={"1_10_c1"})
-        self.assertEqual(len(filtered), 1)
-        self.assertEqual(filtered[0]["clip_id"], "10_20_c2")
-
-    @patch('core.asset_repository.AssetRepository.get_video_duration')
-    def test_list_ready_clips_auto_heals_thumbnail_and_fallback_theme(self, mock_dur):
-        mock_dur.return_value = 10.0
-        clip_dir = os.path.join(self.output_dir, "clips", "src_video", "10_20")
-        os.makedirs(clip_dir, exist_ok=True)
-        clip_path = os.path.join(clip_dir, "video.mp4")
-        with open(clip_path, "w") as f:
-            f.write("data")
-
-        with patch.object(self.repo, 'extract_clip_screenshot') as mock_extract:
-            def side_effect(vid, ts, out):
-                with open(out, "w") as f:
-                    f.write("thumb")
-                return True
-            mock_extract.side_effect = side_effect
-            
-            clips = self.repo.list_ready_clips()
-            self.assertEqual(len(clips), 1)
-            self.assertEqual(clips[0]["clip_id"], "10_20")
-            self.assertEqual(clips[0]["theme"], "Clip 00:10 - 00:20")
-            self.assertEqual(clips[0]["poster_url"], "/assets/clips/src_video/10_20/thumbnail.jpg")
-            self.assertEqual(clips[0]["thumbnail_url"], "/assets/clips/src_video/10_20/thumbnail.jpg")
-            mock_extract.assert_called_once_with(clip_path, 0.0, os.path.join(clip_dir, "thumbnail.jpg"))
-
-    def test_delete_clip_with_job(self):
-        clip_dir = os.path.join(self.output_dir, "clips", "test_folder", "1_10")
-        os.makedirs(clip_dir, exist_ok=True)
-        with open(os.path.join(clip_dir, "video.mp4"), "w") as f:
-            f.write("data")
-
-        import hashlib
-        job_id = hashlib.md5("test_folder_1_10".encode('utf-8')).hexdigest()[:8]
-        fake_jobs = {job_id: {"status": "ready"}}
-
-        success = self.repo.delete_clip_with_job("test_folder", "1_10", job_store=fake_jobs)
-        self.assertTrue(success)
-        self.assertFalse(os.path.exists(clip_dir))
-        self.assertNotIn(job_id, fake_jobs)
-
-    def test_delete_cached_video_with_jobs(self):
+    def test_delete_cached_video(self):
         source_dir = os.path.join(self.output_dir, "sources", "Test_Video_12345678901")
         os.makedirs(source_dir, exist_ok=True)
+        with open(os.path.join(source_dir, "full.mp4"), "w") as f:
+            f.write("content")
 
-        fake_jobs = {
-            "job1": {
-                "status": "processing",
-                "video_info": {"folder_name": "Test_Video_12345678901"}
-            }
-        }
+        self.assertTrue(os.path.exists(source_dir))
+        success = self.repo.delete_cached_video("Test_Video_12345678901")
+        self.assertTrue(success)
+        self.assertFalse(os.path.exists(source_dir))
 
-        count = self.repo.delete_cached_video_with_jobs("Test_Video_12345678901", job_store=fake_jobs)
-        self.assertEqual(count, 1)
-        self.assertEqual(fake_jobs["job1"]["status"], "cancelled")
+        # Deleting non-existent returns False
+        self.assertFalse(self.repo.delete_cached_video("Non_Existent"))
 
     def test_extract_clip_screenshot_ffmpeg_command_args(self):
         clip_dir = os.path.join(self.output_dir, "clips", "test_folder", "1_10")
