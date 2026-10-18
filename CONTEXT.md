@@ -60,6 +60,10 @@ _Avoid_: App icon, site logo, avatar, monogram, logo badge
 The scrollable horizontal canvas displaying multi-track media segments (video, audio, subtitle, text) across time, enabling independent navigation and panning without mutating the current playback time.
 _Avoid_: Scroll track, timeline window, seek pane
 
+**Timeline Properties Inspector**:
+The focused contextual floating panel in Studio Editor displaying and editing selected track item properties (typography, colors, custom vs linked global styles, animations, timing, and audio) decoupled from horizontal canvas scrubbing and playback.
+_Avoid_: Item modal, style popup, properties dialog, track inspector
+
 **Playhead**:
 The visual marker and time-tracking line indicating the exact frame/second currently displayed in the video preview workspace.
 _Avoid_: Time bar, scrub line, cursor indicator
