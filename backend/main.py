@@ -401,7 +401,7 @@ async def render_clip(req: RenderRequest):
     if req.job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    result = render_engine.render(jobs[req.job_id], req, asset_repository, output_name=req.output_name)
+    result = render_engine.render(jobs[req.job_id], req, output_name=req.output_name)
     if result:
         return {"status": "done", "output_url": result["output_url"]}
     else:
@@ -414,7 +414,7 @@ async def render_clip_stream(req: RenderRequest):
         raise HTTPException(status_code=404, detail="Job not found")
     
     def sse_generator():
-        for progress in render_engine.render_stream(jobs[req.job_id], req, asset_repository, output_name=req.output_name):
+        for progress in render_engine.render_stream(jobs[req.job_id], req, output_name=req.output_name):
             yield f"data: {json.dumps(progress)}\n\n"
     
     return StreamingResponse(sse_generator(), media_type="text/event-stream", headers={

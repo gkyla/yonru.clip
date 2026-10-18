@@ -354,6 +354,16 @@ class RenderEngine(ABC):
         else:
             return f"{job_id}_clip_{hook_index}.mp4"
 
+    def __init__(
+        self,
+        media_transcoder: Optional[Any] = None,
+        face_tracker: Optional[Any] = None,
+        subtitle_engine: Optional[Any] = None
+    ):
+        self.media_transcoder = media_transcoder
+        self.face_tracker = face_tracker
+        self.subtitle_engine = subtitle_engine
+
     @abstractmethod
     def _render_comp(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
         """Internal synchronous render method for RenderComposition."""
@@ -364,24 +374,42 @@ class RenderEngine(ABC):
         """Asynchronously render and yield progress dictionaries."""
         pass
 
-    def render(self, target: Any, out_filename_or_req: Any = None, asset_repository: Any = None, output_name: Optional[str] = None) -> Any:
+    def render(
+        self,
+        target: Any,
+        out_filename_or_req: Any = None,
+        asset_repository: Any = None,
+        output_name: Optional[str] = None,
+        media_transcoder: Optional[Any] = None
+    ) -> Any:
         """
         Unified render entrypoint.
         Can be called with:
           render(comp, out_filename) -> str (legacy DTO path)
-          render(job, req, asset_repository, output_name=...) -> dict
+          render(job, req, output_name=...) -> dict (decoupled from asset_repository)
+          render(job, req, asset_repository, output_name=...) -> dict (legacy compatibility)
         """
         if isinstance(target, RenderComposition):
             return self._render_comp(target, out_filename_or_req)
 
         job = target
         req = out_filename_or_req
+
+        if isinstance(asset_repository, str) and output_name is None:
+            output_name = asset_repository
+            asset_repository = None
+
         job_id = req.job_id if hasattr(req, "job_id") else job.get("job_id", "job")
         hook_index = getattr(req, "hook_index", 0)
         resolved_name = output_name or getattr(req, "output_name", None)
         out_filename = self.resolve_output_filename(resolved_name, job_id, hook_index)
 
-        comp = self.compile_composition(job, req, asset_repository)
+        comp = self.compile_composition(
+            job,
+            req,
+            asset_repository=asset_repository,
+            media_transcoder=media_transcoder
+        )
         output_path = self._render_comp(comp, out_filename)
         if output_path:
             return {
@@ -392,17 +420,39 @@ class RenderEngine(ABC):
             }
         return None
 
-    def render_stream(self, job: dict, req: Any, asset_repository: Any, output_name: Optional[str] = None) -> Generator[dict, None, None]:
-        """Unified SSE progress streaming entrypoint."""
+    def render_stream(
+        self,
+        job: dict,
+        req: Any,
+        asset_repository: Any = None,
+        output_name: Optional[str] = None,
+        media_transcoder: Optional[Any] = None
+    ) -> Generator[dict, None, None]:
+        """Unified SSE progress streaming entrypoint decoupled from asset_repository."""
+        if isinstance(asset_repository, str) and output_name is None:
+            output_name = asset_repository
+            asset_repository = None
+
         job_id = req.job_id if hasattr(req, "job_id") else job.get("job_id", "job")
         hook_index = getattr(req, "hook_index", 0)
         resolved_name = output_name or getattr(req, "output_name", None)
         out_filename = self.resolve_output_filename(resolved_name, job_id, hook_index)
 
-        comp = self.compile_composition(job, req, asset_repository)
+        comp = self.compile_composition(
+            job,
+            req,
+            asset_repository=asset_repository,
+            media_transcoder=media_transcoder
+        )
         yield from self.render_streaming(comp, out_filename)
 
-    def compile_composition(self, job: dict, req: Any, asset_repository: Any) -> RenderComposition:
+    def compile_composition(
+        self,
+        job: dict,
+        req: Any,
+        asset_repository: Any = None,
+        media_transcoder: Optional[Any] = None
+    ) -> RenderComposition:
         """
         Translates raw timestamps, subtitle grouping modes, face tracking paths, 
         and thumbnail options directly from job metadata and request options 
@@ -475,8 +525,10 @@ class RenderEngine(ABC):
 
         is_relative = "/clips/" in transcript_path.replace("\\", "/") or req.transcript is not None
 
-        from core.subtitle_engine import DefaultSubtitleEngine
-        subtitle_engine = DefaultSubtitleEngine()
+        subtitle_engine = getattr(self, "subtitle_engine", None)
+        if subtitle_engine is None:
+            from core.subtitle_engine import DefaultSubtitleEngine
+            subtitle_engine = DefaultSubtitleEngine()
         words_data = subtitle_engine.format_subtitles(
             segments=segments,
             subtitle_mode=req.subtitle_mode,
@@ -486,7 +538,20 @@ class RenderEngine(ABC):
             is_relative=is_relative
         )
 
-        w, h = asset_repository.get_video_resolution(video_path) if asset_repository else (1920, 1080)
+        w, h = 0, 0
+        transcoder = media_transcoder or getattr(self, "media_transcoder", None)
+        if transcoder and hasattr(transcoder, "get_video_resolution"):
+            try:
+                w, h = transcoder.get_video_resolution(video_path)
+            except Exception:
+                w, h = 0, 0
+
+        if (w <= 0 or h <= 0) and asset_repository and hasattr(asset_repository, "get_video_resolution"):
+            try:
+                w, h = asset_repository.get_video_resolution(video_path)
+            except Exception:
+                w, h = 0, 0
+
         source_width = w if w > 0 else 1920
         source_height = h if h > 0 else 1080
 
@@ -604,14 +669,38 @@ class RenderEngine(ABC):
             hide_subtitles=not getattr(req, "subtitles_enabled", True),
         )
 
-    def compile_and_render(self, job: dict, req: Any, asset_repository: Any, out_filename: str) -> Optional[str]:
+    def compile_and_render(
+        self,
+        job: dict,
+        req: Any,
+        asset_repository: Any = None,
+        out_filename: str = "",
+        media_transcoder: Optional[Any] = None
+    ) -> Optional[str]:
         """Legacy helper: compiles composition properties and triggers rendering."""
-        comp = self.compile_composition(job, req, asset_repository)
+        comp = self.compile_composition(
+            job,
+            req,
+            asset_repository=asset_repository,
+            media_transcoder=media_transcoder
+        )
         return self._render_comp(comp, out_filename)
 
-    def compile_and_render_streaming(self, job: dict, req: Any, asset_repository: Any, out_filename: str) -> Generator[dict, None, None]:
+    def compile_and_render_streaming(
+        self,
+        job: dict,
+        req: Any,
+        asset_repository: Any = None,
+        out_filename: str = "",
+        media_transcoder: Optional[Any] = None
+    ) -> Generator[dict, None, None]:
         """Legacy helper: compiles composition properties and yields progress dicts streaming."""
-        comp = self.compile_composition(job, req, asset_repository)
+        comp = self.compile_composition(
+            job,
+            req,
+            asset_repository=asset_repository,
+            media_transcoder=media_transcoder
+        )
         yield from self.render_streaming(comp, out_filename)
 
 
@@ -620,10 +709,21 @@ class RenderPipelineCoordinator(RenderEngine):
     Deep coordinator managing composition compilation, asset staging,
     Remotion subprocess lifecycle, and SSE progress streaming.
     """
-    def __init__(self, output_dir: str = "static/output", config_store: Any = None, face_tracker: Any = None):
+    def __init__(
+        self,
+        output_dir: str = "static/output",
+        config_store: Any = None,
+        face_tracker: Any = None,
+        media_transcoder: Optional[Any] = None,
+        subtitle_engine: Optional[Any] = None
+    ):
+        super().__init__(
+            media_transcoder=media_transcoder,
+            face_tracker=face_tracker,
+            subtitle_engine=subtitle_engine
+        )
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
-        self.face_tracker = face_tracker
 
         if config_store is None:
             try:
@@ -634,6 +734,13 @@ class RenderPipelineCoordinator(RenderEngine):
                 pass
 
         self.config_store = config_store
+
+        if self.media_transcoder is None:
+            try:
+                from core.media_transcoder import MediaTranscoder
+                self.media_transcoder = MediaTranscoder(config_store=self.config_store)
+            except Exception:
+                self.media_transcoder = None
 
         # Setup and verify FFmpeg binary path
         env_path = os.environ.get("PATH", "")
@@ -814,7 +921,25 @@ RemotionRenderEngine = RenderPipelineCoordinator
 
 
 class FakeRenderEngine(RenderEngine):
-    def __init__(self, output_dir: str = "static/output", should_fail: bool = False):
+    def __init__(
+        self,
+        output_dir: str = "static/output",
+        should_fail: bool = False,
+        media_transcoder: Optional[Any] = None,
+        face_tracker: Optional[Any] = None,
+        subtitle_engine: Optional[Any] = None
+    ):
+        if media_transcoder is None:
+            try:
+                from core.media_transcoder import MediaTranscoder, FakeMediaAdapter
+                media_transcoder = MediaTranscoder(adapter=FakeMediaAdapter())
+            except Exception:
+                media_transcoder = None
+        super().__init__(
+            media_transcoder=media_transcoder,
+            face_tracker=face_tracker,
+            subtitle_engine=subtitle_engine
+        )
         self.output_dir = output_dir
         self.should_fail = should_fail
 
