@@ -213,4 +213,7 @@ _Avoid_: Clip repository, media manager, unified asset store
 The backend aggregate store responsible for cutting Ready Clips from source video intervals, extracting clip audio and thumbnails, and managing individual clip session manifests (transcripts, style settings, timeline tracks, undo/redo history, cover slide configuration, and auto-reframe crop maps).
 _Avoid_: Asset repository, clip manager, clip file handler
 
+**Home Settings & Preference Panes**:
+The modular configuration workspace and dedicated preference pane components (`HealthDiagnosticsPane`, `GeminiKeysPane`, `TranscriptionEnginePane`, `YouTubeCookiesPane`, `EnvironmentPathsPane`) responsible for system diagnostics, API failover key pools, Whisper transcription models, YouTube authentication cookies, and binary execution paths.
+_Avoid_: Settings modal, monolith config, options tab
 
