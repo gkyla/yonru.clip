@@ -9,8 +9,10 @@ import time
 from typing import Optional, Dict, Any, List
 from abc import ABC, abstractmethod
 from core.youtube_client import YouTubeClient
+from core.media_transcoder import MediaTranscoder
 
 class AssetStore(ABC):
+
     @abstractmethod
     def get_cached_video(self, url: str) -> Optional[dict]:
         pass
@@ -101,7 +103,7 @@ class AssetStore(ABC):
         return filtered
 
 class AssetRepository(AssetStore):
-    def __init__(self, output_dir="temp_assets", youtube_client=None, config_store=None):
+    def __init__(self, output_dir="temp_assets", youtube_client=None, config_store=None, media_transcoder=None):
         self.output_dir = output_dir
         self.source_dir = os.path.join(output_dir, "sources")
         self.clips_dir = os.path.join(output_dir, "clips")
@@ -112,36 +114,12 @@ class AssetRepository(AssetStore):
         self.cookie_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "cookies.txt"))
         self.client = youtube_client or YouTubeClient(cookie_path=self.cookie_path)
         self.config_store = config_store
+        self.transcoder = media_transcoder or MediaTranscoder(config_store=self.config_store)
+        self._env = getattr(self.transcoder.adapter, "_env", os.environ.copy())
         
         import threading
         self._download_locks = {}
         self._repo_lock = threading.Lock()
-        
-        self._env = os.environ.copy()
-        
-        # Update execution PATH securely
-        extra_paths = []
-        custom_ffmpeg = self.config_store.get("FFMPEG_PATH") if self.config_store else os.environ.get("FFMPEG_PATH")
-        if custom_ffmpeg:
-            if os.path.isdir(custom_ffmpeg):
-                extra_paths.append(custom_ffmpeg)
-            else:
-                extra_paths.append(os.path.dirname(custom_ffmpeg))
-                
-        if sys.platform.startswith("win"):
-            extra_paths.extend(["C:\\Program Files\\ffmpeg\\bin", "C:\\ffmpeg\\bin", "C:\\Program Files\\nodejs"])
-        else:
-            extra_paths.extend(["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"])
-            
-        current_path = self._env.get("PATH", "")
-        sep = ";" if sys.platform.startswith("win") else ":"
-        
-        for p in extra_paths:
-            if os.path.exists(p) and p not in current_path.split(sep):
-                current_path = f"{p}{sep}{current_path}" if current_path else p
-                
-        self._env["PATH"] = current_path
-
 
     def _sanitize_filename(self, title: str) -> str:
         """Sanitize title for folder naming, truncating to 50 chars."""
@@ -161,48 +139,36 @@ class AssetRepository(AssetStore):
         return clean or "Unknown Channel"
 
     def _run_ffmpeg(self, args: list) -> bool:
-        clean_args = list(args)
-        if clean_args and clean_args[0] == "ffmpeg":
-            clean_args = clean_args[1:]
-        cmd = ["ffmpeg"] + clean_args
-        print(f"[ffmpeg] Running: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, env=self._env, encoding="utf-8")
-        if result.returncode != 0:
-            error_msg = result.stderr.strip()[-500:] or f"ffmpeg failed with code {result.returncode}"
-            print(f"[ffmpeg] Error: {error_msg}")
-            raise RuntimeError(f"FFmpeg Error: {error_msg}")
-        return True
+        return self.transcoder.run_ffmpeg(args)
 
     def _ffprobe_info(self, file_path: str) -> dict:
         """Get video metadata via ffprobe."""
-        cmd = [
-            "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-show_format", "-show_streams", file_path
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, env=self._env, encoding="utf-8")
-        if result.returncode != 0:
-            return {}
-        try:
-            return json.loads(result.stdout)
-        except:
-            return {}
+        return self.transcoder.adapter.ffprobe_info(file_path)
 
     def get_video_resolution(self, file_path: str) -> tuple:
         """Returns (width, height)."""
         info = self._ffprobe_info(file_path)
         for stream in info.get("streams", []):
             if stream.get("codec_type") == "video":
-                return (stream.get("width", 0), stream.get("height", 0))
+                return (int(stream.get("width", 0)), int(stream.get("height", 0)))
         return (0, 0)
 
     def get_video_duration(self, file_path: str) -> float:
         """Returns duration in seconds."""
         info = self._ffprobe_info(file_path)
+        for stream in info.get("streams", []):
+            if stream.get("codec_type") == "video" and stream.get("duration"):
+                try:
+                    return float(stream["duration"])
+                except Exception:
+                    pass
         fmt = info.get("format", {})
         try:
             return float(fmt.get("duration", 0))
-        except:
+        except (ValueError, TypeError):
             return 0.0
+
+
 
     def _get_video_fps(self, file_path: str) -> float:
         """Returns frame rate as float."""
@@ -457,56 +423,23 @@ class AssetRepository(AssetStore):
         audio_path = video_path.replace("full.mp4", "audio_v2.wav").replace("preview.mp4", "audio_v2.wav").replace("video.mp4", "audio_v2.wav")
         if audio_path == video_path:
             audio_path = os.path.splitext(video_path)[0] + "_audio_v2.wav"
-        if os.path.exists(audio_path):
-            return audio_path
-        
-        self._run_ffmpeg([
-            "-i", video_path, 
-            "-vn", 
-            "-acodec", "pcm_s16le", 
-            "-ar", "16000", 
-            "-ac", "1", 
-            "-y", audio_path
-        ])
-        return audio_path
+        return self.transcoder.extract_audio(video_path, audio_path)
 
     def extract_hook_thumbnail(self, video_path: str, timestamp: float, output_path: str) -> Optional[str]:
         """Extract a single frame at a specific timestamp and save as JPEG."""
         if os.path.exists(output_path):
             return output_path
-            
-        try:
-            self._run_ffmpeg([
-                "-ss", str(timestamp),
-                "-i", video_path,
-                "-vframes", "1",
-                "-s", "640x360",
-                "-q:v", "2",
-                "-y", output_path
-            ])
-            return output_path
-        except Exception as e:
-            print(f"[asset-repository] Failed to extract thumbnail at {timestamp}: {e}")
-            try:
-                self._run_ffmpeg([
-                    "-i", video_path,
-                    "-vframes", "1",
-                    "-s", "640x360",
-                    "-q:v", "2",
-                    "-y", output_path
-                ])
-                return output_path
-            except Exception as e2:
-                print(f"[asset-repository] Double fallback thumbnail extraction failed: {e2}")
-                return None
+        success = self.transcoder.extract_frame(video_path, timestamp, output_path)
+        return output_path if success else None
 
     def create_clip(self, video_path: str, start_time: float, end_time: float, theme: Optional[str] = None) -> Optional[dict]:
         """Backward-compatible delegate: routes to deepened ClipSessionStore."""
         from core.clip_session_store import ClipSessionStore
-        store = ClipSessionStore(clips_dir=self.clips_dir, output_dir=self.output_dir, config_store=self.config_store)
+        store = ClipSessionStore(clips_dir=self.clips_dir, output_dir=self.output_dir, config_store=self.config_store, media_transcoder=self.transcoder)
         store._run_ffmpeg = self._run_ffmpeg
         store._ffprobe_info = self._ffprobe_info
         return store.create_clip(video_path, start_time, end_time, theme)
+
 
 
     def list_cached_videos(
@@ -686,9 +619,10 @@ class AssetRepository(AssetStore):
     def extract_clip_screenshot(self, clip_path: str, timestamp: float, output_path: str) -> bool:
         """Backward-compatible delegate: routes to deepened ClipSessionStore."""
         from core.clip_session_store import ClipSessionStore
-        store = ClipSessionStore(clips_dir=self.clips_dir, output_dir=self.output_dir, config_store=self.config_store)
+        store = ClipSessionStore(clips_dir=self.clips_dir, output_dir=self.output_dir, config_store=self.config_store, media_transcoder=self.transcoder)
         store._run_ffmpeg = self._run_ffmpeg
         return store.extract_clip_screenshot(clip_path, timestamp, output_path)
+
 
 
 

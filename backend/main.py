@@ -55,12 +55,16 @@ cookie_path = os.path.abspath(os.path.join(backend_dir, "cookies.txt"))
 from core.system_repository import SystemRepository
 system_repository = SystemRepository(config_store=config_store, cookies_path=cookie_path)
 
+from core.media_transcoder import MediaTranscoder
+media_transcoder = MediaTranscoder(config_store=config_store)
+
 from core.clip_session_store import ClipSessionStore
-clip_session_store = ClipSessionStore("temp_assets/clips", output_dir="temp_assets")
+clip_session_store = ClipSessionStore("temp_assets/clips", output_dir="temp_assets", config_store=config_store, media_transcoder=media_transcoder)
 
 youtube_client = YouTubeClient(cookie_path=cookie_path)
-asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store)
+asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store, media_transcoder=media_transcoder)
 render_engine = RemotionRenderEngine(output_dir="static/output", config_store=config_store)
+
 speech_transcriber = FasterWhisperSpeechTranscriber(model_size="base")
 
 from core.workflow_coordinator import ClipWorkflowCoordinator

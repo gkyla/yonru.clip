@@ -7,8 +7,10 @@ import shutil
 import hashlib
 import subprocess
 from typing import Optional, Dict, Any, List, Set
+from core.media_transcoder import MediaTranscoder, MediaProcessAdapter
 
 CANONICAL_DEFAULT_STYLE_SETTINGS: Dict[str, Any] = {
+
     "videoLayout": "vertical",
     "subtitlePreset": "bold-podcast",
     "subtitlePosition": "center",
@@ -48,36 +50,22 @@ class ClipSessionStore:
     atomic persistence, defaults healing, and path traversal defense.
     """
 
-    def __init__(self, clips_dir: str = "temp_assets/clips", output_dir: Optional[str] = None, config_store: Optional[Any] = None):
+    def __init__(
+        self,
+        clips_dir: str = "temp_assets/clips",
+        output_dir: Optional[str] = None,
+        config_store: Optional[Any] = None,
+        media_transcoder: Optional[MediaTranscoder] = None
+    ):
         self.clips_dir = clips_dir
         self.output_dir = output_dir if output_dir else os.path.dirname(self.clips_dir)
         self.source_dir = os.path.join(self.output_dir, "sources")
         self.config_store = config_store
-
-        self._env = os.environ.copy()
-        extra_paths = []
-        custom_ffmpeg = self.config_store.get("FFMPEG_PATH") if self.config_store else os.environ.get("FFMPEG_PATH")
-        if custom_ffmpeg:
-            if os.path.isdir(custom_ffmpeg):
-                extra_paths.append(custom_ffmpeg)
-            else:
-                extra_paths.append(os.path.dirname(custom_ffmpeg))
-
-        if sys.platform.startswith("win"):
-            extra_paths.extend(["C:\\Program Files\\ffmpeg\\bin", "C:\\ffmpeg\\bin", "C:\\Program Files\\nodejs"])
-        else:
-            extra_paths.extend(["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"])
-
-        current_path = self._env.get("PATH", "")
-        sep = ";" if sys.platform.startswith("win") else ":"
-
-        for p in extra_paths:
-            if os.path.exists(p) and p not in current_path.split(sep):
-                current_path = f"{p}{sep}{current_path}" if current_path else p
-
-        self._env["PATH"] = current_path
+        self.transcoder = media_transcoder or MediaTranscoder(config_store=self.config_store)
+        self._env = getattr(self.transcoder.adapter, "_env", os.environ.copy())
 
     def resolve_clip_dir(self, folder_name: str, clip_id: str) -> str:
+
         """
         Validates folder_name and clip_id against path traversal and resolves
         the canonical clip directory path.
@@ -640,7 +628,8 @@ class ClipSessionStore:
         self,
         folder_name: str,
         clip_id: str,
-        timestamp: Optional[float] = None
+        timestamp: Optional[float] = None,
+        screenshot_fn: Optional[Any] = None
     ) -> Dict[str, Any]:
         """
         Extracts a single frame from the Ready Clip as a custom Cover Slide frame (cover.jpg),
@@ -660,7 +649,8 @@ class ClipSessionStore:
             ts = random.uniform(0.5, max(0.6, clip_duration * 0.8))
 
         cover_path = os.path.join(clip_dir, "cover.jpg")
-        success = self.extract_clip_screenshot(clip_path, ts, cover_path)
+        extract_fn = screenshot_fn or self.extract_clip_screenshot
+        success = extract_fn(clip_path, ts, cover_path)
         if not success:
             raise RuntimeError("Failed to extract cover frame")
 
@@ -669,25 +659,21 @@ class ClipSessionStore:
         return {"status": "ok", "timestamp": round(ts, 3), "cover_url": asset_url, "thumbnail_url": asset_url}
 
     def _run_ffmpeg(self, args: list) -> bool:
-        clean_args = list(args)
-        if clean_args and clean_args[0] == "ffmpeg":
-            clean_args = clean_args[1:]
-        cmd = ["ffmpeg"] + clean_args
-        result = subprocess.run(cmd, capture_output=True, text=True, env=self._env, encoding="utf-8")
-        if result.returncode != 0:
-            error_msg = result.stderr.strip()[-500:] or f"ffmpeg failed with code {result.returncode}"
-            print(f"[ffmpeg] Error: {error_msg}")
-            raise RuntimeError(f"FFmpeg Error: {error_msg}")
-        return True
+        return self.transcoder.run_ffmpeg(args)
 
     def extract_clip_screenshot(self, clip_path: str, timestamp: float, output_path: str) -> bool:
         """Extract a single frame screenshot from video at timestamp."""
         if not os.path.exists(clip_path):
             return False
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        dur = self.get_video_duration(clip_path)
+        if dur > 0:
+            ts = max(0.0, min(float(timestamp), max(0.0, dur - 0.1)))
+        else:
+            ts = max(0.0, float(timestamp))
         cmd = [
             "-y",
-            "-ss", str(timestamp),
+            "-ss", str(round(ts, 3)),
             "-i", clip_path,
             "-vframes", "1",
             "-q:v", "2",
@@ -702,26 +688,24 @@ class ClipSessionStore:
 
     def _ffprobe_info(self, file_path: str) -> dict:
         """Get video metadata via ffprobe."""
-        cmd = [
-            "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-show_format", "-show_streams", file_path
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, env=self._env, encoding="utf-8")
-        if result.returncode != 0:
-            return {}
-        try:
-            return json.loads(result.stdout)
-        except Exception:
-            return {}
+        return self.transcoder.adapter.ffprobe_info(file_path)
 
     def get_video_duration(self, file_path: str) -> float:
         """Returns video duration in seconds."""
         info = self._ffprobe_info(file_path)
+        for stream in info.get("streams", []):
+            if stream.get("codec_type") == "video" and stream.get("duration"):
+                try:
+                    return float(stream["duration"])
+                except Exception:
+                    pass
         fmt = info.get("format", {})
         try:
             return float(fmt.get("duration", 0))
         except (ValueError, TypeError):
             return 0.0
+
+
 
     # ── Ready Clips Discovery & Lifecycle ────────────────────────────
 
