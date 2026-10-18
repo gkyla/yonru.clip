@@ -45,7 +45,12 @@ class ClipWorkflowCoordinator:
             output_dir = raw_out if isinstance(raw_out, str) and raw_out else "temp_assets"
             raw_clips = getattr(self.asset_repository, "clips_dir", None)
             clips_dir = raw_clips if isinstance(raw_clips, str) and raw_clips else os.path.join(output_dir, "clips")
-            self._clip_session_store = ClipSessionStore(clips_dir=clips_dir, output_dir=output_dir, config_store=self.config_store)
+            self._clip_session_store = ClipSessionStore(
+                clips_dir=clips_dir,
+                output_dir=output_dir,
+                config_store=self.config_store,
+                face_tracker=self.face_tracker,
+            )
 
     def _get_clip_session_store(self, clip_dir: Optional[str] = None) -> ClipSessionStore:
         if self._clip_session_store and not isinstance(self._clip_session_store, ClipSessionStore):
@@ -70,7 +75,12 @@ class ClipWorkflowCoordinator:
         ):
             return self._clip_session_store
 
-        return ClipSessionStore(clips_dir=target_clips_dir, output_dir=output_dir, config_store=self.config_store)
+        return ClipSessionStore(
+            clips_dir=target_clips_dir,
+            output_dir=output_dir,
+            config_store=self.config_store,
+            face_tracker=getattr(self, "face_tracker", None),
+        )
 
     @property
     def clip_session_store(self) -> ClipSessionStore:
@@ -109,45 +119,33 @@ class ClipWorkflowCoordinator:
     def _compute_and_cache_crop_map(
         self, clip_dir: str, video_path: str, tracker: Optional[Any] = None
     ) -> List[Dict[str, Any]]:
-        """Internal helper to load or compute Auto-Reframe crop map keyframes for a clip directory."""
+        """Internal helper delegating Auto-Reframe crop map computation to ClipSessionStore."""
         clip_id = os.path.basename(clip_dir)
         folder_name = os.path.basename(os.path.dirname(clip_dir))
         store = self._get_clip_session_store(clip_dir)
-        existing = store.get_crop_map(folder_name, clip_id)
-        if existing and len(existing) > 0:
-            return existing
+        active_tracker = tracker or getattr(self, "face_tracker", None)
+        return store.ensure_crop_map(
+            folder_name,
+            clip_id,
+            video_path=video_path,
+            tracker=active_tracker,
+        )
 
-        if tracker is None:
-            tracker = getattr(self, "face_tracker", None)
-        if not tracker:
-            from core.face_tracker import FaceTracker
-            tracker = FaceTracker()
-
-        crop_map_points = None
-        try:
-            crop_data = tracker.analyze_video(video_path)
-            if isinstance(crop_data, (int, float)):
-                crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
-            elif isinstance(crop_data, list) and len(crop_data) > 0:
-                crop_map_points = crop_data
-            else:
-                crop_map_points = [{"time": 0.0, "x": 960}]
-        except Exception as e:
-            print(f"[workflow] Face tracking failed for {video_path}, falling back to center: {e}")
-            crop_map_points = [{"time": 0.0, "x": 960}]
-
-        try:
-            store.save_crop_map(folder_name, clip_id, crop_map_points)
-            print(f"[workflow] Saved auto-reframe crop map ({len(crop_map_points)} points) to {clip_dir}/crop_map.json")
-        except Exception as e:
-            print(f"[workflow] Failed to write crop_map.json: {e}")
-
-        return crop_map_points
-
-    def _ensure_crop_map(self, clip_path: str):
+    def _ensure_crop_map(
+        self, clip_path: str, tracker: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
         """Generates and caches Auto-Reframe crop_map.json for the clip if not already present."""
         clip_dir = os.path.dirname(clip_path)
-        self._compute_and_cache_crop_map(clip_dir, clip_path)
+        clip_id = os.path.basename(clip_dir)
+        folder_name = os.path.basename(os.path.dirname(clip_dir))
+        store = self._get_clip_session_store(clip_dir)
+        active_tracker = tracker or getattr(self, "face_tracker", None)
+        return store.ensure_crop_map(
+            folder_name,
+            clip_id,
+            video_path=clip_path,
+            tracker=active_tracker,
+        )
 
     def get_or_create_crop_map(
         self, folder_name: str, clip_id: str, tracker: Optional[Any] = None
@@ -163,7 +161,13 @@ class ClipWorkflowCoordinator:
         if not os.path.exists(video_path):
             raise FileNotFoundError("Clip video not found")
 
-        points = self._compute_and_cache_crop_map(clip_dir, video_path, tracker=tracker)
+        active_tracker = tracker or getattr(self, "face_tracker", None)
+        points = store.ensure_crop_map(
+            folder_name,
+            clip_id,
+            video_path=video_path,
+            tracker=active_tracker,
+        )
         return {"status": "ready", "crop_map": points}
 
     def get_job_summary(self, job_id: str) -> Dict[str, Any]:
@@ -492,7 +496,13 @@ class ClipWorkflowCoordinator:
             if os.path.exists(video_file) and is_transcript_valid:
                 print(f"[provision] Clip {clip_id} already ready on disk. Ensuring defaults and crop map...")
                 self._ensure_defaults(target_dir)
-                self._ensure_crop_map(video_file)
+                store = self._get_clip_session_store(target_dir)
+                store.ensure_crop_map(
+                    folder_name,
+                    clip_id,
+                    video_path=video_file,
+                    tracker=getattr(self, "face_tracker", None),
+                )
 
                 job["status"] = "ready"
                 job["clip_path"] = video_file
@@ -661,7 +671,13 @@ class ClipWorkflowCoordinator:
 
         # Ensure defaults and crop map
         self._ensure_defaults(clip_dir)
-        self._ensure_crop_map(clip_path)
+        store = self._get_clip_session_store(clip_dir)
+        store.ensure_crop_map(
+            folder_name,
+            clip_id,
+            video_path=clip_path,
+            tracker=getattr(self, "face_tracker", None),
+        )
 
         status = "ready" if is_transcript_valid else "queued"
         job_data = {
@@ -988,8 +1004,16 @@ class ClipWorkflowCoordinator:
                 print(f"[transcribe] Reuse existing transcript at {transcript_path}")
                 
                 clip_dir = os.path.dirname(clip["file_path"])
+                clip_id = os.path.basename(clip_dir)
+                folder_name = os.path.basename(os.path.dirname(clip_dir))
                 self._ensure_defaults(clip_dir)
-                self._ensure_crop_map(clip["file_path"])
+                store = self._get_clip_session_store(clip_dir)
+                store.ensure_crop_map(
+                    folder_name,
+                    clip_id,
+                    video_path=clip["file_path"],
+                    tracker=getattr(self, "face_tracker", None),
+                )
 
                 job = self.jobs[job_id]
                 job["clip"] = clip 
@@ -1068,7 +1092,12 @@ class ClipWorkflowCoordinator:
 
             clip_dir = os.path.dirname(clip["file_path"])
             self._ensure_defaults(clip_dir)
-            self._ensure_crop_map(clip["file_path"])
+            store.ensure_crop_map(
+                folder_name,
+                clip_id,
+                video_path=clip["file_path"],
+                tracker=getattr(self, "face_tracker", None),
+            )
 
             # Store full clip metadata
             job = self.jobs[job_id]
