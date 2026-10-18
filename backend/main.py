@@ -13,7 +13,7 @@ from typing import Optional
 
 from core.youtube_client import YouTubeClient
 from core.asset_repository import AssetRepository
-from core.hook_generator import HookGenerator
+from core.hook_discovery_engine import HookDiscoveryEngine
 from core.render_engine import RemotionRenderEngine
 from core.speech_transcriber import FasterWhisperSpeechTranscriber
 
@@ -66,6 +66,11 @@ asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=yout
 render_engine = RemotionRenderEngine(output_dir="static/output", config_store=config_store)
 
 speech_transcriber = FasterWhisperSpeechTranscriber(model_size="base")
+hook_discovery_engine = HookDiscoveryEngine(
+    config_store=config_store,
+    prompt_repository=prompt_repository,
+    media_transcoder=media_transcoder,
+)
 
 from core.workflow_coordinator import ClipWorkflowCoordinator
 workflow_coordinator = ClipWorkflowCoordinator(
@@ -75,7 +80,8 @@ workflow_coordinator = ClipWorkflowCoordinator(
     speech_transcriber=speech_transcriber,
     prompt_repository=prompt_repository,
     config_store=config_store,
-    clip_session_store=clip_session_store
+    clip_session_store=clip_session_store,
+    hook_discovery_engine=hook_discovery_engine,
 )
 
 

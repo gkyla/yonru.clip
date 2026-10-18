@@ -7,7 +7,18 @@ from typing import Optional, Dict, Any, List
 from core.clip_session_store import ClipSessionStore, CANONICAL_DEFAULT_STYLE_SETTINGS, CANONICAL_DEFAULT_COVER_CONFIG
 
 class ClipWorkflowCoordinator:
-    def __init__(self, job_store, asset_repository, youtube_client, speech_transcriber, prompt_repository, config_store, face_tracker=None, clip_session_store=None):
+    def __init__(
+        self,
+        job_store,
+        asset_repository,
+        youtube_client,
+        speech_transcriber,
+        prompt_repository,
+        config_store,
+        face_tracker=None,
+        clip_session_store=None,
+        hook_discovery_engine=None,
+    ):
         self.jobs = job_store
         self.asset_repository = asset_repository
         self.youtube_client = youtube_client
@@ -15,6 +26,17 @@ class ClipWorkflowCoordinator:
         self.prompt_repository = prompt_repository
         self.config_store = config_store
         self.face_tracker = face_tracker
+
+        if hook_discovery_engine is not None:
+            self.hook_discovery_engine = hook_discovery_engine
+        else:
+            from core.hook_discovery_engine import HookDiscoveryEngine
+            transcoder = getattr(self.asset_repository, "transcoder", None)
+            self.hook_discovery_engine = HookDiscoveryEngine(
+                config_store=self.config_store,
+                prompt_repository=self.prompt_repository,
+                media_transcoder=transcoder,
+            )
 
         if clip_session_store is not None:
             self._clip_session_store = clip_session_store
@@ -300,13 +322,9 @@ class ClipWorkflowCoordinator:
         # If force is False, and hooks.json exists, load it immediately and return status ready/hooks_ready
         if not force and cached.get("file_path"):
             folder_name = os.path.basename(os.path.dirname(cached["file_path"]))
-            hooks_cache_path = os.path.join(os.path.dirname(cached["file_path"]), "hooks.json")
-            if os.path.exists(hooks_cache_path):
+            filtered = self.hook_discovery_engine.load_cached_hooks(cached)
+            if filtered is not None:
                 try:
-                    with open(hooks_cache_path, "r", encoding="utf-8") as f:
-                        hooks_json = f.read()
-                    raw_hooks = json.loads(hooks_json)
-                    filtered = self.asset_repository.sanitize_and_prepare_hooks(raw_hooks, cached)
                     job_id = str(uuid.uuid4())[:8]
                     is_hd_ready = cached.get("hd_ready", False)
                     job_status = "ready" if is_hd_ready else "hooks_ready"
@@ -600,10 +618,17 @@ class ClipWorkflowCoordinator:
         # Load generated hooks from sources folder if present
         ready_hooks = []
         sources_dir = getattr(self.asset_repository, "source_dir", os.path.join("temp_assets", "sources"))
-        source_hooks_path = os.path.join(sources_dir, folder_name, "hooks.json")
-        if os.path.exists(source_hooks_path):
+        source_video_path = os.path.join(sources_dir, folder_name, "video.mp4")
+        cached_hooks = self.hook_discovery_engine.load_cached_hooks({
+            "file_path": source_video_path,
+            "folder_name": folder_name,
+            "duration": duration,
+        })
+        if cached_hooks:
+            ready_hooks = cached_hooks
+        elif os.path.exists(os.path.join(sources_dir, folder_name, "hooks.json")):
             try:
-                with open(source_hooks_path, "r", encoding="utf-8") as f:
+                with open(os.path.join(sources_dir, folder_name, "hooks.json"), "r", encoding="utf-8") as f:
                     ready_hooks = json.load(f)
             except Exception as e:
                 print(f"[load-ready-clip] Failed to read source hooks: {e}")
@@ -734,40 +759,30 @@ class ClipWorkflowCoordinator:
             if not force_reanalyze:
                 cached_video = self.asset_repository.get_cached_video(url)
                 if cached_video and cached_video.get("file_path"):
-                    hooks_cache_path = os.path.join(os.path.dirname(cached_video["file_path"]), "hooks.json")
-                    if os.path.exists(hooks_cache_path):
+                    filtered = self.hook_discovery_engine.load_cached_hooks(cached_video)
+                    if filtered is not None:
                         print(f"[cache] Video and hooks found locally for {url}. Skipping YouTube network calls.")
                         job = self.jobs[job_id]
                         job["video_info"] = cached_video
                         job["full_video_path"] = cached_video["file_path"]
                         job["fps"] = cached_video.get("fps", 30.0)
-                        
-                        with open(hooks_cache_path, "r", encoding="utf-8") as f:
-                            hooks_json = f.read()
-                        
-                        try:
-                            raw_hooks = json.loads(hooks_json)
-                            filtered = self.asset_repository.sanitize_and_prepare_hooks(raw_hooks, cached_video)
+                        job["hooks"] = filtered
+                        if cached_video.get("hd_ready"):
+                            job["status"] = "ready"
+                            job["download_percent"] = 100.0
+                            self.jobs[job_id] = job
+                        else:
+                            job["status"] = "hooks_ready"
+                            job["download_percent"] = 0.0
+                            self.jobs[job_id] = job
+                            # Trigger background HD prefetch
+                            import threading
+                            t = threading.Thread(target=self.run_source_download, args=(job_id, url))
+                            t.daemon = True
+                            t.start()
                             
-                            job["hooks"] = filtered
-                            if cached_video.get("hd_ready"):
-                                job["status"] = "ready"
-                                job["download_percent"] = 100.0
-                                self.jobs[job_id] = job
-                            else:
-                                job["status"] = "hooks_ready"
-                                job["download_percent"] = 0.0
-                                self.jobs[job_id] = job
-                                # Trigger background HD prefetch
-                                import threading
-                                t = threading.Thread(target=self.run_source_download, args=(job_id, url))
-                                t.daemon = True
-                                t.start()
-                                
-                            print(f"[cache] successfully load from cache")
-                            return
-                        except Exception as e:
-                            print(f"[cache] Failed to load cached hooks: {e}")
+                        print(f"[cache] successfully load from cache")
+                        return
 
             # Step 0: Check Transcript FIRST
             job = self.jobs[job_id]
@@ -839,80 +854,36 @@ class ClipWorkflowCoordinator:
             job["full_video_path"] = video_info["file_path"]
             job["status"] = "generating_hooks"
             self.jobs[job_id] = job
-            hooks_cache_path = os.path.join(os.path.dirname(video_info["file_path"]), "hooks.json")
-            hooks_json = None
-            
-            # Step 3: Check for cached hooks or use Transcript-First approach (fallback to Audio)
-            if not force_reanalyze and os.path.exists(hooks_cache_path):
-                print(f"[cache] Found existing hooks.json at {hooks_cache_path}")
-                with open(hooks_cache_path, "r", encoding="utf-8") as f:
-                    hooks_json = f.read()
-            else:
-                if force_reanalyze:
-                    print(f"[cache] Force reanalyze requested, bypassing {hooks_cache_path}...")
-                
-                api_key = self.config_store.get("GEMINI_API_KEY")
-                if api_key:
-                    from core.hook_generator import HookGenerator
-                    generator = HookGenerator(api_key=api_key, prompt_repository=self.prompt_repository)
-                    
-                    # Generate from transcript
-                    if transcript_segments and len(transcript_segments) > 0:
-                        print(f"[pipeline] Using Transcript-First approach ({len(transcript_segments)} segments)")
-                        hooks_json = generator.find_hooks_from_transcript(
-                            transcript_segments=transcript_segments,
-                            num_hooks=num_hooks,
-                            auto_hooks=auto_hooks,
-                            video_duration=video_info.get("duration"),
-                            prompt_file=prompt_file,
-                            extraction_mode=extraction_mode,
-                            preset_id=preset_id,
-                            focus_topic=focus_topic,
-                            min_duration=min_duration,
-                            max_duration=max_duration
-                        )
-                    
-                    if not hooks_json:
-                        job = self.jobs[job_id]
-                        job["status"] = "error"
-                        job["error"] = "Gemini failed to generate hooks from the transcript."
-                        self.jobs[job_id] = job
-                        return
-                    if hooks_json:
-                        try:
-                            # Validate before saving
-                            json.loads(hooks_json)
-                            with open(hooks_cache_path, "w", encoding="utf-8") as f:
-                                f.write(hooks_json)
-                            print(f"[cache] Saved hooks to {hooks_cache_path}")
-                        except Exception as e:
-                            print(f"[cache] Failed to cache hooks: {e}")
-            
+
+            from core.hook_discovery_engine import HookDiscoveryOptions
+            options = HookDiscoveryOptions(
+                num_hooks=num_hooks or 10,
+                auto_hooks=auto_hooks or False,
+                preset_id=preset_id,
+                extraction_mode=extraction_mode,
+                prompt_file=prompt_file,
+                focus_topic=focus_topic,
+                min_duration=min_duration or 15,
+                max_duration=max_duration or 180,
+            )
+
+            filtered = self.hook_discovery_engine.get_or_discover_hooks(
+                video_info=video_info,
+                transcript_segments=transcript_segments,
+                options=options,
+                force_reanalyze=force_reanalyze,
+            )
+
             job = self.jobs[job_id]
-            if hooks_json:
-                try:
-                    raw_hooks = json.loads(hooks_json)
-                    
-                    filtered = self.asset_repository.sanitize_and_prepare_hooks(raw_hooks, video_info)
-                    
-                    print(f"[filter] {len(filtered)}/{len(raw_hooks)} hooks valid for video ({video_info.get('duration', 0.0):.1f}s)")
-                    
-                    # Write filtered hooks back to cache so it stays clean
-                    if len(filtered) != len(raw_hooks) and os.path.exists(hooks_cache_path):
-                        try:
-                            with open(hooks_cache_path, "w", encoding="utf-8") as f:
-                                json.dump(filtered, f, ensure_ascii=False, indent=2)
-                            print(f"[filter] Overwrote cache with {len(filtered)} clean hooks")
-                        except Exception as e:
-                            print(f"[filter] Failed to overwrite cache: {e}")
-                    
-                    job["hooks"] = filtered
-                except Exception as e:
-                    print(f"[hooks] Parse error: {e}")
-                    job["hooks"] = []
-            else:
-                job["hooks"] = []
-                    
+            if not filtered and transcript_segments and len(transcript_segments) > 0 and (force_reanalyze or not self.hook_discovery_engine.load_cached_hooks(video_info)):
+                api_key = self.config_store.get("GEMINI_API_KEY") if self.config_store else None
+                if api_key:
+                    job["status"] = "error"
+                    job["error"] = "Gemini failed to generate hooks from the transcript."
+                    self.jobs[job_id] = job
+                    return
+
+            job["hooks"] = filtered or []
             job["status"] = "hooks_ready"
             job["download_percent"] = 0.0
             self.jobs[job_id] = job

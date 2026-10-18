@@ -193,3 +193,8 @@ _Avoid_: Loading screen, wait modal, editor spinner, cinematic loading overlay
 The unified backend media processing module responsible for isolated subprocess execution of FFmpeg and ffprobe, media duration and dimension probing, millisecond-clamped frame extraction for Clip Thumbnails and Cover Slides, audio track extraction, and video segment slicing.
 _Avoid_: Video tool, ffmpeg wrapper, transcode script, media converter
 
+**Hook Discovery Engine**:
+The unified backend module responsible for AI-assisted hook detection from speech transcripts, prompt orchestration (presets and custom archetypes), virality scoring, hook boundary and duration sanitization, thumbnail extraction coordination via MediaTranscoder, and hook cache lifecycle management.
+_Avoid_: Hook script, AI helper, hook fetcher, virality detector
+
+

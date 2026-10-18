@@ -288,6 +288,16 @@ class MediaTranscoder:
             print(f"[media_transcoder] Failed to extract frame at {ts}s: {e}")
             return False
 
+    def capture_screenshot(
+        self,
+        video_path: str,
+        timestamp: float,
+        output_path: str,
+        quality: int = 2
+    ) -> bool:
+        """Convenience alias for extract_frame."""
+        return self.extract_frame(video_path, timestamp, output_path, quality)
+
     def slice_video(
         self,
         video_path: str,
