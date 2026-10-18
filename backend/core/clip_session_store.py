@@ -134,7 +134,7 @@ class ClipSessionStore:
                 except OSError:
                     pass
 
-    def ensure_clip_defaults(self, folder_name: str, clip_id: str, screenshot_fn: Optional[Any] = None) -> None:
+    def ensure_clip_defaults(self, folder_name: str, clip_id: str) -> None:
         """
         Auto-heals missing manifests (style_settings, cover_config, transcript,
         timeline, history, thumbnail) in the clip directory using canonical defaults.
@@ -211,10 +211,7 @@ class ClipSessionStore:
             video_path = os.path.join(clip_dir, "video.mp4")
             if os.path.exists(video_path):
                 try:
-                    if screenshot_fn:
-                        screenshot_fn(video_path, 0.0, thumb_img_path)
-                    else:
-                        self.extract_clip_screenshot(video_path, 0.0, thumb_img_path)
+                    self.extract_clip_screenshot(video_path, 0.0, thumb_img_path)
                 except Exception:
                     pass
 
@@ -676,8 +673,7 @@ class ClipSessionStore:
         self,
         folder_name: str,
         clip_id: str,
-        timestamp: Optional[float] = None,
-        screenshot_fn: Optional[Any] = None
+        timestamp: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Extracts a single frame from the Ready Clip as a custom Cover Slide frame (cover.jpg),
@@ -697,8 +693,7 @@ class ClipSessionStore:
             ts = random.uniform(0.5, max(0.6, clip_duration * 0.8))
 
         cover_path = os.path.join(clip_dir, "cover.jpg")
-        extract_fn = screenshot_fn or self.extract_clip_screenshot
-        success = extract_fn(clip_path, ts, cover_path)
+        success = self.extract_clip_screenshot(clip_path, ts, cover_path)
         if not success:
             raise RuntimeError("Failed to extract cover frame")
 
@@ -706,13 +701,20 @@ class ClipSessionStore:
         print(f"[cover] Captured frame at {ts:.3f}s -> {cover_path}")
         return {"status": "ok", "timestamp": round(ts, 3), "cover_url": asset_url, "thumbnail_url": asset_url}
 
-    def _run_ffmpeg(self, args: list) -> bool:
-        return self.transcoder.run_ffmpeg(args)
+    @property
+    def _run_ffmpeg(self):
+        return self.transcoder.run_ffmpeg
+
+    @_run_ffmpeg.setter
+    def _run_ffmpeg(self, fn):
+        self.transcoder.run_ffmpeg = fn
 
     def extract_clip_screenshot(self, clip_path: str, timestamp: float, output_path: str) -> bool:
         """Extract a single frame screenshot from video at timestamp."""
         if not os.path.exists(clip_path):
             return False
+        if self.transcoder and hasattr(self.transcoder, "capture_screenshot"):
+            return self.transcoder.capture_screenshot(clip_path, timestamp, output_path)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         dur = self.get_video_duration(clip_path)
         if dur > 0:
@@ -740,6 +742,13 @@ class ClipSessionStore:
 
     def get_video_duration(self, file_path: str) -> float:
         """Returns video duration in seconds."""
+        if self.transcoder and hasattr(self.transcoder, "get_video_duration"):
+            try:
+                dur = self.transcoder.get_video_duration(file_path)
+                if dur > 0:
+                    return float(dur)
+            except Exception:
+                pass
         info = self._ffprobe_info(file_path)
         for stream in info.get("streams", []):
             if stream.get("codec_type") == "video" and stream.get("duration"):
@@ -757,11 +766,7 @@ class ClipSessionStore:
 
     # ── Ready Clips Discovery & Lifecycle ────────────────────────────
 
-    def list_all_clips(
-        self,
-        screenshot_fn: Optional[Any] = None,
-        duration_fn: Optional[Any] = None
-    ) -> List[Dict[str, Any]]:
+    def list_all_clips(self) -> List[Dict[str, Any]]:
         """Scans the clips directory and returns metadata for all ready clips."""
         results = []
         if not os.path.exists(self.clips_dir):
@@ -790,12 +795,12 @@ class ClipSessionStore:
 
                     # Ensure defaults / thumbnail auto-healing
                     try:
-                        self.ensure_clip_defaults(parent_name, clip_id, screenshot_fn=screenshot_fn)
+                        self.ensure_clip_defaults(parent_name, clip_id)
                     except Exception:
                         pass
 
                     mtime = os.path.getmtime(video_path)
-                    duration = duration_fn(video_path) if duration_fn else self.get_video_duration(video_path)
+                    duration = self.get_video_duration(video_path)
 
                     title = "Unknown Clip"
                     meta_path = os.path.join(self.source_dir, parent_name, "metadata.json")
@@ -853,12 +858,10 @@ class ClipSessionStore:
 
     def list_ready_clips(
         self,
-        active_clip_ids: Optional[Set[str]] = None,
-        screenshot_fn: Optional[Any] = None,
-        duration_fn: Optional[Any] = None
+        active_clip_ids: Optional[Set[str]] = None
     ) -> List[Dict[str, Any]]:
         """List all ready clips, filtering out clips currently being processed."""
-        clips = self.list_all_clips(screenshot_fn=screenshot_fn, duration_fn=duration_fn)
+        clips = self.list_all_clips()
         if not active_clip_ids:
             return clips
         return [c for c in clips if c.get("clip_id") not in active_clip_ids]
