@@ -25,17 +25,6 @@ class AssetStore(ABC):
     def get_or_create_source(self, url: str, force_download: bool = False, quality: str = "1080p", progress_callback = None) -> Optional[dict]:
         pass
 
-    @abstractmethod
-    def extract_hook_thumbnail(self, video_path: str, timestamp: float, output_path: str) -> Optional[str]:
-        pass
-
-    @abstractmethod
-    def extract_audio_from_local(self, video_path: str) -> str:
-        pass
-
-    @abstractmethod
-    def create_clip(self, video_path: str, start_time: float, end_time: float, theme: Optional[str] = None) -> Optional[dict]:
-        pass
 
     @abstractmethod
     def list_cached_videos(self, page: Optional[int] = None, limit: int = 6, search: Optional[str] = None, sort_by: str = "date", order: str = "desc") -> Any:
@@ -380,27 +369,6 @@ class AssetRepository(AssetStore):
                 "heatmap": []
             }
 
-    def extract_audio_from_local(self, video_path: str) -> str:
-        """Extract high-stability WAV for AI analysis."""
-        audio_path = video_path.replace("full.mp4", "audio_v2.wav").replace("preview.mp4", "audio_v2.wav").replace("video.mp4", "audio_v2.wav")
-        if audio_path == video_path:
-            audio_path = os.path.splitext(video_path)[0] + "_audio_v2.wav"
-        return self.transcoder.extract_audio(video_path, audio_path)
-
-    def extract_hook_thumbnail(self, video_path: str, timestamp: float, output_path: str) -> Optional[str]:
-        """Extract a single frame at a specific timestamp and save as JPEG."""
-        if os.path.exists(output_path):
-            return output_path
-        success = self.transcoder.extract_frame(video_path, timestamp, output_path)
-        return output_path if success else None
-
-    def create_clip(self, video_path: str, start_time: float, end_time: float, theme: Optional[str] = None) -> Optional[dict]:
-        """Backward-compatible delegate: routes to deepened ClipSessionStore."""
-        from core.clip_session_store import ClipSessionStore
-        store = ClipSessionStore(clips_dir=self.clips_dir, output_dir=self.output_dir, config_store=self.config_store, media_transcoder=self.transcoder)
-        store._run_ffmpeg = self._run_ffmpeg
-        store._ffprobe_info = self._ffprobe_info
-        return store.create_clip(video_path, start_time, end_time, theme)
 
 
 
@@ -640,25 +608,6 @@ class MockAssetStore(AssetStore):
             progress_callback(100.0)
         return mock_source
 
-    def extract_hook_thumbnail(self, video_path: str, timestamp: float, output_path: str) -> Optional[str]:
-        self.calls.append(("extract_hook_thumbnail", video_path, timestamp, output_path))
-        return output_path
-
-    def extract_audio_from_local(self, video_path: str) -> str:
-        self.calls.append(("extract_audio_from_local", video_path))
-        return video_path.replace("full.mp4", "audio_v2.wav")
-
-    def create_clip(self, video_path: str, start_time: float, end_time: float, theme: Optional[str] = None) -> Optional[dict]:
-        self.calls.append(("create_clip", video_path, start_time, end_time, theme))
-        return {
-            "file_path": video_path.replace("full.mp4", "video.mp4"),
-            "asset_url": "/assets/clips/mock_folder/mock_clip/video.mp4",
-            "duration": end_time - start_time,
-            "clip_id": "mock_clip",
-            "start": start_time,
-            "end": end_time,
-            "theme": theme
-        }
 
     def list_cached_videos(self, page: Optional[int] = None, limit: int = 6, search: Optional[str] = None, sort_by: str = "date", order: str = "desc") -> Any:
         self.calls.append(("list_cached_videos", page, limit, search, sort_by, order))

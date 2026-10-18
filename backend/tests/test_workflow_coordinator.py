@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core.workflow_coordinator import ClipWorkflowCoordinator
+from core.clip_session_store import ClipSessionStore
 
 class MockJobStore(dict):
     def save(self):
@@ -203,11 +204,6 @@ def test_run_local_cut_success_flow(mock_dependencies, tmp_path):
     clip_file = clip_dir / "video.mp4"
     clip_file.write_text("dummy clip")
     
-    mock_dependencies["asset_repository"].create_clip.return_value = {
-        "file_path": str(clip_file),
-        "duration": 20.0
-    }
-    mock_dependencies["asset_repository"].extract_audio_from_local.return_value = "dummy_audio.wav"
     mock_dependencies["speech_transcriber"].transcribe.return_value = [
         {"start": 0.5, "duration": 1.0, "text": "Hello"}
     ]
@@ -237,7 +233,9 @@ def test_run_local_cut_success_flow(mock_dependencies, tmp_path):
         json.dump({"thumbnailDuration": 2.5, "fontSize": 80}, f)
         
     try:
-        coordinator.run_local_cut(job_id, 10.0, 30.0)
+        with patch.object(ClipSessionStore, "create_clip", return_value={"file_path": str(clip_file), "duration": 20.0}), \
+             patch.object(ClipSessionStore, "extract_clip_audio", return_value="dummy_audio.wav"):
+            coordinator.run_local_cut(job_id, 10.0, 30.0)
         
         # Assertions
         assert coordinator.jobs[job_id]["status"] == "ready"
@@ -312,12 +310,8 @@ def test_run_local_cut_reuse_transcript(mock_dependencies, tmp_path):
         {"start": 0.5, "duration": 1.0, "text": "Reused"}
     ]))
     
-    mock_dependencies["asset_repository"].create_clip.return_value = {
-        "file_path": str(clip_file),
-        "duration": 20.0
-    }
-    
-    coordinator.run_local_cut(job_id, 10.0, 30.0)
+    with patch.object(ClipSessionStore, "create_clip", return_value={"file_path": str(clip_file), "duration": 20.0}):
+        coordinator.run_local_cut(job_id, 10.0, 30.0)
     
     # Assertions
     assert coordinator.jobs[job_id]["status"] == "ready"
@@ -353,14 +347,11 @@ def test_run_local_cut_whisper_fails(mock_dependencies, tmp_path):
     clip_file = clip_dir / "video.mp4"
     clip_file.write_text("dummy clip")
     
-    mock_dependencies["asset_repository"].create_clip.return_value = {
-        "file_path": str(clip_file),
-        "duration": 20.0
-    }
-    mock_dependencies["asset_repository"].extract_audio_from_local.return_value = "dummy_audio.wav"
     mock_dependencies["speech_transcriber"].transcribe.side_effect = Exception("Whisper failed")
     
-    coordinator.run_local_cut(job_id, 10.0, 30.0)
+    with patch.object(ClipSessionStore, "create_clip", return_value={"file_path": str(clip_file), "duration": 20.0}), \
+         patch.object(ClipSessionStore, "extract_clip_audio", return_value="dummy_audio.wav"):
+        coordinator.run_local_cut(job_id, 10.0, 30.0)
     
     # Assertions
     assert coordinator.jobs[job_id]["status"] == "ready"
@@ -412,14 +403,11 @@ def test_run_local_cut_whisper_fails_fallback_to_global_transcript(mock_dependen
     clip_file = clip_dir / "video.mp4"
     clip_file.write_text("dummy clip")
     
-    mock_dependencies["asset_repository"].create_clip.return_value = {
-        "file_path": str(clip_file),
-        "duration": 20.0
-    }
-    mock_dependencies["asset_repository"].extract_audio_from_local.return_value = "dummy_audio.wav"
     mock_dependencies["speech_transcriber"].transcribe.side_effect = Exception("Whisper failed")
     
-    coordinator.run_local_cut(job_id, 10.0, 30.0)
+    with patch.object(ClipSessionStore, "create_clip", return_value={"file_path": str(clip_file), "duration": 20.0}), \
+         patch.object(ClipSessionStore, "extract_clip_audio", return_value="dummy_audio.wav"):
+        coordinator.run_local_cut(job_id, 10.0, 30.0)
     
     assert coordinator.jobs[job_id]["status"] == "ready"
     transcript_path = clip_dir / "transcript.json"
@@ -1039,3 +1027,46 @@ def test_delete_source_video_cascading(mock_dependencies):
     assert coordinator.jobs["job_other"]["status"] == "processing"
     mock_store.delete_source_clips.assert_called_once_with("target_folder", job_store=coordinator.jobs)
     mock_dependencies["asset_repository"].delete_cached_video.assert_called_once_with("target_folder")
+
+
+def test_run_local_cut_uses_injected_clip_session_store(mock_dependencies, tmp_path):
+    """Verify run_local_cut delegates directly to injected clip_session_store without touching asset_repository."""
+    mock_clip_store = MagicMock()
+    clip_file = tmp_path / "mock_video.mp4"
+    clip_file.write_text("mock")
+    mock_clip_store.create_clip.return_value = {
+        "file_path": str(clip_file),
+        "duration": 15.0
+    }
+    mock_clip_store.extract_clip_audio.return_value = "dummy.wav"
+
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+        clip_session_store=mock_clip_store
+    )
+    
+    job_id = "test_injected_store_job"
+    video_file = tmp_path / "video.mp4"
+    video_file.write_text("dummy source")
+    coordinator.jobs[job_id] = {
+        "status": "queued",
+        "full_video_path": str(video_file),
+        "video_info": {"fps": 30.0},
+        "clip": None
+    }
+    mock_dependencies["speech_transcriber"].transcribe.return_value = [
+        {"start": 0.0, "duration": 1.0, "text": "Injected Store"}
+    ]
+    
+    coordinator.run_local_cut(job_id, 5.0, 20.0)
+    
+    assert coordinator.jobs[job_id]["status"] == "ready"
+    assert coordinator.jobs[job_id]["clip_duration"] == 15.0
+    mock_clip_store.create_clip.assert_called_once_with(str(video_file), 5.0, 20.0, theme=None)
+    mock_clip_store.extract_clip_audio.assert_called_once_with(str(clip_file))
+

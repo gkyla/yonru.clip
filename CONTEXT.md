@@ -205,4 +205,12 @@ _Avoid_: Video tool, ffmpeg wrapper, transcode script, media converter
 The unified backend module responsible for AI-assisted hook detection from speech transcripts, prompt orchestration (presets and custom archetypes), virality scoring, hook boundary and duration sanitization, thumbnail extraction coordination via MediaTranscoder, and hook cache lifecycle management.
 _Avoid_: Hook script, AI helper, hook fetcher, virality detector
 
+**Asset Repository**:
+The backend data access module strictly responsible for ingesting, caching, querying, and managing Source Videos and their raw metadata on disk. It does not perform clip cutting, clip manifest serialization, or clip audio extraction.
+_Avoid_: Clip repository, media manager, unified asset store
+
+**Clip Session Store**:
+The backend aggregate store responsible for cutting Ready Clips from source video intervals, extracting clip audio and thumbnails, and managing individual clip session manifests (transcripts, style settings, timeline tracks, undo/redo history, cover slide configuration, and auto-reframe crop maps).
+_Avoid_: Asset repository, clip manager, clip file handler
+
 

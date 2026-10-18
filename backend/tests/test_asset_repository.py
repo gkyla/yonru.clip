@@ -78,41 +78,6 @@ class TestAssetRepository(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.repo.delete_cached_video("../../unsafe_path")
 
-    @patch('core.asset_repository.AssetRepository._run_ffmpeg')
-    @patch('core.asset_repository.AssetRepository._ffprobe_info')
-    def test_create_clip_executes_ffmpeg(self, mock_ffprobe, mock_ffmpeg):
-        mock_ffprobe.return_value = {
-            "streams": [{"codec_type": "video", "width": 1080, "height": 1920}],
-            "format": {"duration": "10.0"}
-        }
-        
-        # Staging a dummy file so exists() returns True
-        video_dir = os.path.join(self.output_dir, "sources", "test_video_123")
-        os.makedirs(video_dir, exist_ok=True)
-        video_path = os.path.join(video_dir, "full.mp4")
-        with open(video_path, "w") as f:
-            f.write("content")
-
-        clip = self.repo.create_clip(video_path, start_time=5.0, end_time=15.0, theme="Funny Moment")
-        
-        assert clip is not None
-        self.assertEqual(clip["clip_id"], "5_15_Funny_Moment")
-        self.assertEqual(clip["start"], 5.0)
-        self.assertEqual(clip["end"], 15.0)
-        self.assertEqual(clip["theme"], "Funny Moment")
-        self.assertTrue(mock_ffmpeg.called)
-
-        # Regression check: verify ffmpeg uses -avoid_negative_ts auto (never make_zero)
-        # to avoid B-frame lookahead container PTS shifts that break Remotion seeking
-        called_args = mock_ffmpeg.call_args[0][0]
-        self.assertIn("-avoid_negative_ts", called_args)
-        idx = called_args.index("-avoid_negative_ts")
-        self.assertEqual(called_args[idx + 1], "auto")
-        self.assertNotIn("make_zero", called_args)
-        # Verify -ss precedes -i for fast accurate input seeking
-        ss_idx = called_args.index("-ss")
-        i_idx = called_args.index("-i")
-        self.assertLess(ss_idx, i_idx)
 
     def test_hooks_saving_and_deletion(self):
         folder_name = "test_video_123"
