@@ -69,47 +69,89 @@ class HookDiscoveryEngine:
             else:
                 self._client = None
 
-    def _get_hook_generator(self):
-        if self._hook_generator is not None:
-            if self._client and hasattr(self._hook_generator, "client"):
-                self._hook_generator.client = self._client
-            return self._hook_generator
-
-        from core.hook_generator import HookGenerator
-        api_key = None
-        if self.config_store:
-            raw_key = self.config_store.get("GEMINI_API_KEY")
-            if isinstance(raw_key, str):
-                api_key = raw_key
-            elif raw_key is not None:
-                api_key = str(raw_key)
-        if not api_key:
-            api_key = os.environ.get("GEMINI_API_KEY")
-
-        return HookGenerator(
-            api_key=api_key,
-            genai_client=self._client,
-            prompt_repository=self.repository,
-            modular_builder=self.modular_builder,
-        )
-
-    @property
-    def hook_generator(self):
-        return self._get_hook_generator()
-
     @property
     def client(self) -> Optional[GenAIClient]:
-        if self._client is None and self.config_store:
-            api_key = self.config_store.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if self._client is None:
+            api_key = None
+            if self.config_store:
+                raw_key = self.config_store.get("GEMINI_API_KEY")
+                if isinstance(raw_key, str):
+                    api_key = raw_key
+                elif raw_key is not None:
+                    api_key = str(raw_key)
+            if not api_key:
+                api_key = os.environ.get("GEMINI_API_KEY")
             if api_key:
                 self._client = GeminiGenAIClient(api_key=api_key)
         return self._client
 
+    @client.setter
+    def client(self, value: Optional[GenAIClient]) -> None:
+        self._client = value
+
+    @property
+    def hook_generator(self):
+        """Backward-compatible self-reference for legacy consumers expecting hook_generator."""
+        return self
+
     def _group_words_into_sentences(self, segments: list, max_words: int = 15, max_silence: float = 1.5) -> list:
-        gen = self._get_hook_generator()
-        if hasattr(gen, "_group_words_into_sentences"):
-            return gen._group_words_into_sentences(segments, max_words=max_words, max_silence=max_silence)
-        return []
+        grouped = []
+        current_words = []
+        current_start = None
+        current_end = None
+
+        for s in segments:
+            start = float(s.get("start", 0.0))
+            dur = float(s.get("duration", 0.0))
+            end = start + dur
+            text = s.get("text", "").strip()
+            if not text:
+                continue
+
+            words = text.split()
+            word_dur = dur / len(words) if len(words) > 0 else 0.0
+
+            for i, w in enumerate(words):
+                w_start = start + (i * word_dur)
+                w_end = w_start + word_dur
+
+                if not current_words:
+                    current_start = w_start
+                    current_end = w_end
+                    current_words.append(w)
+                else:
+                    silence = w_start - current_end if current_end is not None else 0.0
+                    if silence > max_silence or len(current_words) >= max_words:
+                        grouped.append({
+                            "start": current_start,
+                            "duration": float(current_end) - float(current_start) if current_end is not None and current_start is not None else 0.0,
+                            "text": " ".join(current_words),
+                        })
+                        current_start = w_start
+                        current_end = w_end
+                        current_words = [w]
+                    else:
+                        current_words.append(w)
+                        current_end = w_end
+
+                if w.endswith((".", "?", "!", "\"", "”", ":", ";")):
+                    grouped.append({
+                        "start": current_start,
+                        "duration": float(current_end) - float(current_start) if current_end is not None and current_start is not None else 0.0,
+                        "text": " ".join(current_words),
+                    })
+                    current_words = []
+                    current_start = None
+                    current_end = None
+
+        if current_words:
+            grouped.append({
+                "start": current_start,
+                "duration": float(current_end) - float(current_start) if current_end is not None and current_start is not None else 0.0,
+                "text": " ".join(current_words),
+            })
+
+        return grouped
 
     def _get_cache_path(self, video_info: dict) -> Optional[str]:
         file_path = video_info.get("file_path")
@@ -139,35 +181,107 @@ class HookDiscoveryEngine:
         video_info: Optional[dict] = None,
         options: Optional[HookDiscoveryOptions] = None,
     ) -> List[Dict[str, Any]]:
-        """Direct AI transcript hook discovery delegating to hook_generator."""
+        """Direct AI transcript hook discovery with sentence grouping, retries, and scoring."""
         opts = options or HookDiscoveryOptions()
         video_duration = video_info.get("duration") if video_info else None
 
-        gen = self._get_hook_generator()
-        if self._client and hasattr(gen, "client"):
-            gen.client = self._client
+        client = self.client
+        if not client:
+            print("[hook-discovery-engine] No GenAI client or GEMINI_API_KEY available.")
+            return []
 
-        raw_json = gen.find_hooks_from_transcript(
-            transcript_segments=transcript_segments,
-            num_hooks=opts.num_hooks,
-            auto_hooks=opts.auto_hooks,
-            video_duration=video_duration,
-            prompt_file=opts.prompt_file,
-            extraction_mode=opts.extraction_mode,
+        grouped_segments = self._group_words_into_sentences(transcript_segments)
+        print(
+            f"[hook-discovery-engine] Requesting transcript-based analysis for {len(transcript_segments)} "
+            f"segments grouped into {len(grouped_segments)} sentences "
+            f"(mode={opts.extraction_mode}, preset={opts.preset_id}, auto={opts.auto_hooks}, num={opts.num_hooks})..."
+        )
+
+        transcript_text = ""
+        for s in grouped_segments:
+            start = float(s["start"])
+            dur = float(s["duration"])
+            transcript_text += f"[{start:.2f}s - {start+dur:.2f}s] {s['text']}\n"
+
+        custom_archetype = None
+        if opts.extraction_mode == "custom" and opts.prompt_file:
+            custom_archetype = self.repository.get_prompt_text(opts.prompt_file)
+            if custom_archetype is None:
+                print(f"[hook-discovery-engine] Failed to load prompt file {opts.prompt_file} via repository, falling back to preset builder")
+
+        prompt = self.modular_builder.build_prompt(
+            transcript_text=transcript_text,
             preset_id=opts.preset_id,
+            custom_archetype=custom_archetype,
             focus_topic=opts.focus_topic,
             min_duration=opts.min_duration,
             max_duration=opts.max_duration,
+            num_hooks=opts.num_hooks,
+            auto_hooks=True,
+            video_duration=video_duration,
         )
 
-        if raw_json:
+        max_retries = 3
+        for attempt in range(max_retries):
+            print(f"[hook-discovery-engine] Requesting text analysis (Attempt {attempt + 1}/{max_retries})...")
             try:
+                raw_json = client.generate_json(prompt, self.model_name)
                 parsed = json.loads(raw_json)
-                if isinstance(parsed, list):
+                if isinstance(parsed, list) and len(parsed) > 0:
+                    for idx, hook in enumerate(parsed):
+                        if not isinstance(hook, dict):
+                            continue
+                        v_score = hook.get("virality_score")
+                        if not isinstance(v_score, (int, float)) or v_score < 0 or v_score > 100:
+                            hook["virality_score"] = 85 - (idx * 2)
+                        else:
+                            hook["virality_score"] = int(round(v_score))
+
+                        if not hook.get("virality_reason"):
+                            hook["virality_reason"] = "Compelling opening hook with natural narrative pacing."
+
+                    parsed.sort(key=lambda h: h.get("virality_score", 0), reverse=True)
+                    print(f"[hook-discovery-engine] Successfully discovered {len(parsed)} hooks from transcript.")
                     return parsed
             except Exception as e:
-                print(f"[hook-discovery-engine] Failed to parse hook generator response: {e}")
+                print(f"[hook-discovery-engine] Error analyzing transcript (Retry {attempt+1}): {e}")
+                code = getattr(e, "code", None) or getattr(e, "status_code", None)
+                if code and code in [400, 401, 403, 404]:
+                    print(f"[hook-discovery-engine] Fatal error {code}. Failing fast without retry.")
+                    break
+
         return []
+
+    def find_hooks_from_transcript(
+        self,
+        transcript_segments: list,
+        num_hooks: int = 10,
+        auto_hooks: bool = False,
+        video_duration: Optional[float] = None,
+        prompt_file: Optional[str] = None,
+        extraction_mode: str = "preset",
+        preset_id: str = "auto",
+        focus_topic: Optional[str] = None,
+        min_duration: int = 30,
+        max_duration: int = 180,
+    ) -> Optional[str]:
+        """Backward-compatible string JSON entry point for callers expecting HookGenerator.find_hooks_from_transcript."""
+        opts = HookDiscoveryOptions(
+            num_hooks=num_hooks,
+            auto_hooks=auto_hooks,
+            prompt_file=prompt_file,
+            extraction_mode=extraction_mode,
+            preset_id=preset_id,
+            focus_topic=focus_topic,
+            min_duration=min_duration,
+            max_duration=max_duration,
+        )
+        hooks = self.discover_from_transcript(
+            transcript_segments=transcript_segments,
+            video_info={"duration": video_duration} if video_duration else None,
+            options=opts,
+        )
+        return json.dumps(hooks) if hooks else None
 
     def get_or_discover_hooks(
         self,

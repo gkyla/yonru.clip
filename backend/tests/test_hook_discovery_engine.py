@@ -275,3 +275,100 @@ def test_fatal_error_fails_immediately(sample_transcript, fake_transcoder):
     hooks = engine.discover_from_transcript(sample_transcript)
     assert len(hooks) == 0
     assert client.calls == 1
+
+
+def test_retry_exhaustion_on_transient_rate_limit(sample_transcript, fake_transcoder):
+    """Verify that a persistent transient failure retries exactly 3 times and returns empty list."""
+    class PersistentFailureMockClient(GenAIClient):
+        def __init__(self):
+            self.call_count = 0
+        def generate_json(self, prompt, model_name):
+            self.call_count += 1
+            raise MockAPIError("Service Unavailable", 503)
+
+    mock_client = PersistentFailureMockClient()
+    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+    
+    result = engine.discover_from_transcript(sample_transcript)
+    
+    assert result == []
+    assert mock_client.call_count == 3
+
+
+def test_group_words_into_sentences(fake_transcoder):
+    """Verify that _group_words_into_sentences correctly groups word-level and sentence-level inputs."""
+    engine = HookDiscoveryEngine(genai_client=MockGenAIClient(), media_transcoder=fake_transcoder)
+    
+    # 1. Test word-level input
+    word_level = [
+        {"start": 0.0, "duration": 0.5, "text": "Hello"},
+        {"start": 0.5, "duration": 0.5, "text": "world."},
+        {"start": 1.0, "duration": 0.5, "text": "This"},
+        {"start": 1.5, "duration": 0.5, "text": "is"},
+        {"start": 2.0, "duration": 0.5, "text": "a"},
+        {"start": 2.5, "duration": 0.5, "text": "test."},
+    ]
+    grouped = engine._group_words_into_sentences(word_level)
+    assert len(grouped) == 2
+    assert grouped[0]["text"] == "Hello world."
+    assert grouped[0]["start"] == 0.0
+    assert abs(grouped[0]["duration"] - 1.0) < 1e-5
+    
+    assert grouped[1]["text"] == "This is a test."
+    assert grouped[1]["start"] == 1.0
+    assert abs(grouped[1]["duration"] - 2.0) < 1e-5
+
+    # 2. Test max_words limit
+    many_words = [{"start": float(i), "duration": 1.0, "text": f"word{i}"} for i in range(25)]
+    grouped_limit = engine._group_words_into_sentences(many_words, max_words=10)
+    assert len(grouped_limit) == 3
+    assert len(grouped_limit[0]["text"].split()) == 10
+    assert len(grouped_limit[1]["text"].split()) == 10
+    assert len(grouped_limit[2]["text"].split()) == 5
+
+    # 3. Test silence gap limit
+    silence_input = [
+        {"start": 0.0, "duration": 1.0, "text": "first"},
+        {"start": 1.0, "duration": 1.0, "text": "second"},
+        {"start": 5.0, "duration": 1.0, "text": "third"},
+    ]
+    grouped_silence = engine._group_words_into_sentences(silence_input, max_silence=2.0)
+    assert len(grouped_silence) == 2
+    assert grouped_silence[0]["text"] == "first second"
+    assert grouped_silence[1]["text"] == "third"
+
+
+def test_hook_discovery_virality_score_fallback(sample_transcript, fake_transcoder):
+    """Verify fallback defaults if LLM output omits virality_score or virality_reason."""
+    raw_response = json.dumps([
+        {
+            "start": 0.0,
+            "end": 30.0,
+            "duration_seconds": 30.0,
+            "transcript_quote": "Hook without virality quote",
+            "theme": "Fallback Hook",
+        }
+    ])
+    
+    mock_client = MockGenAIClient(raw_response)
+    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+    
+    result = engine.discover_from_transcript(sample_transcript)
+    assert len(result) == 1
+    assert result[0]["virality_score"] >= 0
+    assert "virality_reason" in result[0]
+
+
+def test_find_hooks_from_transcript_backward_compat(sample_transcript, sample_gemini_response, fake_transcoder):
+    """Verify backward-compatible find_hooks_from_transcript string JSON output and hook_generator property."""
+    mock_client = MockGenAIClient(sample_gemini_response)
+    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+    
+    assert engine.hook_generator is engine
+    
+    raw_json = engine.find_hooks_from_transcript(sample_transcript)
+    assert raw_json is not None
+    parsed = json.loads(raw_json)
+    assert len(parsed) == 2
+    assert parsed[0]["theme"] == "Top Viral Intro"
+
