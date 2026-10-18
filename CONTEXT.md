@@ -149,6 +149,10 @@ _Avoid_: Cut backfill, frame snap, layout jump
 The hybrid video presentation architecture in Remotion Engine that routes playback rendering through a single-decoder HTML5 `<canvas>` compositor in the editor preview (preventing hardware decoder duplication and backwards scrubbing glitches), while switching to native `<OffthreadVideo>` extraction during headless MP4 rendering for frame-accurate output.
 _Avoid_: Dual player mode, render switch, canvas exporter
 
+**Render Composition**:
+The immutable, self-contained specification DTO containing complete visual layout, multi-track timeline items, typography, audio levels, and frame bounds passed across the Remotion engine seam to execute headless MP4 video rendering without coupling to data repositories or disk assets.
+_Avoid_: Render job dict, composition settings, render options, export config
+
 
 
 **Word-Level Audio Censorship**:

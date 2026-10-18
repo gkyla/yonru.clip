@@ -105,8 +105,14 @@ class TestRenderEngine(unittest.TestCase):
 
         with patch("os.path.exists", return_value=False):
             engine = FakeRenderEngine()
-            comp = engine.compile_composition(mock_job, mock_req, mock_asset_repo)
 
+            # Test decoupled compile_composition without asset_repository
+            comp_decoupled = engine.compile_composition(mock_job, mock_req)
+            self.assertEqual(comp_decoupled.original_video, "temp_assets/sources/video.mp4")
+            self.assertEqual(comp_decoupled.crop_center_x, 960)  # 50% of default 1920
+
+            # Test backwards-compatible compile_composition with asset_repository
+            comp = engine.compile_composition(mock_job, mock_req, mock_asset_repo)
             self.assertEqual(comp.original_video, "temp_assets/sources/video.mp4")
             self.assertEqual(comp.crop_center_x, 960)  # 50% of 1920
             self.assertEqual(comp.volume, 0.5)
@@ -116,7 +122,7 @@ class TestRenderEngine(unittest.TestCase):
 
             # Test with subtitles_enabled=False
             mock_req.subtitles_enabled = False
-            comp_no_sub = engine.compile_composition(mock_job, mock_req, mock_asset_repo)
+            comp_no_sub = engine.compile_composition(mock_job, mock_req)
             self.assertTrue(comp_no_sub.hide_subtitles)
 
     def test_compile_and_render_methods(self):
@@ -159,11 +165,19 @@ class TestRenderEngine(unittest.TestCase):
         with patch("os.path.exists", return_value=False):
             engine = FakeRenderEngine()
             
-            # Test compile_and_render
+            # Test compile_and_render decoupled from asset_repository
+            path_decoupled = engine.compile_and_render(mock_job, mock_req, out_filename="output.mp4")
+            self.assertEqual(path_decoupled, "static/output/output.mp4")
+
+            # Test legacy compile_and_render with asset_repository
             path = engine.compile_and_render(mock_job, mock_req, mock_asset_repo, "output.mp4")
             self.assertEqual(path, "static/output/output.mp4")
 
-            # Test compile_and_render_streaming
+            # Test compile_and_render_streaming decoupled
+            yields_decoupled = list(engine.compile_and_render_streaming(mock_job, mock_req, out_filename="output.mp4"))
+            self.assertEqual(yields_decoupled[-1]["stage"], "done")
+
+            # Test compile_and_render_streaming legacy
             yields = list(engine.compile_and_render_streaming(mock_job, mock_req, mock_asset_repo, "output.mp4"))
             self.assertEqual(yields[-1]["stage"], "done")
 
@@ -343,12 +357,22 @@ class TestRenderEngine(unittest.TestCase):
         with patch("os.path.exists", return_value=False):
             engine = FakeRenderEngine()
             
-            # Unified render
+            # Unified render decoupled from asset_repository
+            res_decoupled = engine.render(mock_job, mock_req, output_name=mock_req.output_name)
+            self.assertEqual(res_decoupled["out_filename"], "Epic_Reel.mp4")
+            self.assertEqual(res_decoupled["output_url"], "/static/output/Epic_Reel.mp4")
+
+            # Unified render legacy with asset_repository
             res = engine.render(mock_job, mock_req, mock_asset_repo, output_name=mock_req.output_name)
             self.assertEqual(res["out_filename"], "Epic_Reel.mp4")
             self.assertEqual(res["output_url"], "/static/output/Epic_Reel.mp4")
 
-            # Unified render_stream
+            # Unified render_stream decoupled from asset_repository
+            events_decoupled = list(engine.render_stream(mock_job, mock_req, output_name=mock_req.output_name))
+            self.assertEqual(events_decoupled[-1]["stage"], "done")
+            self.assertEqual(events_decoupled[-1]["outputUrl"], "/static/output/Epic_Reel.mp4")
+
+            # Unified render_stream legacy with asset_repository
             events = list(engine.render_stream(mock_job, mock_req, mock_asset_repo, output_name=mock_req.output_name))
             self.assertEqual(events[-1]["stage"], "done")
             self.assertEqual(events[-1]["outputUrl"], "/static/output/Epic_Reel.mp4")
@@ -627,6 +651,65 @@ class TestRenderEngine(unittest.TestCase):
             err_msg = error_events[0]["message"]
             self.assertIn("Remotion exited with code 1", err_msg)
             self.assertIn("GPU process launch failed", err_msg)
+
+    def test_render_engine_decoupled_from_asset_repository(self):
+        from core.media_transcoder import MediaTranscoder, FakeMediaAdapter
+
+        mock_req = MagicMock()
+        mock_req.fps = 30.0
+        mock_req.hook_index = 0
+        mock_req.timeline_tracks = []
+        mock_req.transcript = [{"text": "Hello world", "start": 0.0, "duration": 1.0}]
+        mock_req.subtitle_mode = "word"
+        mock_req.subtitle_sync_offset = 0.0
+        mock_req.font = "Arial"
+        mock_req.font_size = 24
+        mock_req.subtitle_offset = 50
+        mock_req.subtitle_font_weight = 900
+        mock_req.subtitle_text_color = "#FFFFFF"
+        mock_req.subtitle_highlight_color = "#CFFF50"
+        mock_req.subtitle_stroke_color = "#000000"
+        mock_req.subtitle_stroke_width = 4.0
+        mock_req.subtitle_text_transform = "uppercase"
+        mock_req.subtitle_animation = "pop"
+        mock_req.subtitle_highlight_mode = "color"
+        mock_req.subtitle_background = "none"
+        mock_req.subtitle_background_opacity = 0.7
+        mock_req.subtitle_word_spacing = 0
+        mock_req.volume = 0.5
+        mock_req.thumbnail_enabled = False
+        mock_req.face_tracking = False
+        mock_req.crop_percent_x = 50.0
+        mock_req.subtitle_position = "bottom"
+        mock_req.output_name = "Decoupled_Clip"
+
+        mock_job = {
+            "clip_path": "temp_assets/sources/video.mp4",
+            "video_info": {"file_path": "temp_assets/sources/video.mp4", "duration": 10.0, "fps": 30.0},
+            "hooks": []
+        }
+
+        fake_adapter = FakeMediaAdapter(default_width=1280, default_height=720)
+        fake_transcoder = MediaTranscoder(adapter=fake_adapter)
+
+        with patch("os.path.exists", return_value=False):
+            engine = FakeRenderEngine(media_transcoder=fake_transcoder)
+
+            # 1. compile_composition without asset_repository
+            comp = engine.compile_composition(mock_job, mock_req)
+            self.assertEqual(comp.source_width, 1280)
+            self.assertEqual(comp.source_height, 720)
+            self.assertEqual(comp.crop_center_x, 640)  # 50% of 1280
+
+            # 2. render without asset_repository
+            res = engine.render(mock_job, mock_req, output_name="Decoupled_Clip")
+            self.assertIsNotNone(res)
+            self.assertEqual(res["out_filename"], "Decoupled_Clip.mp4")
+
+            # 3. render_stream without asset_repository
+            events = list(engine.render_stream(mock_job, mock_req, output_name="Decoupled_Clip"))
+            self.assertEqual(events[-1]["stage"], "done")
+            self.assertEqual(events[-1]["outputUrl"], "/static/output/Decoupled_Clip.mp4")
 
 
 
