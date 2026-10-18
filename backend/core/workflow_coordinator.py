@@ -51,10 +51,10 @@ class ClipWorkflowCoordinator:
         if self._clip_session_store and not isinstance(self._clip_session_store, ClipSessionStore):
             return self._clip_session_store
 
-        raw_out = getattr(self.asset_repository, "output_dir", None)
+        raw_out = getattr(self.asset_repository, "output_dir", None) or getattr(self._clip_session_store, "output_dir", None)
         output_dir = raw_out if isinstance(raw_out, str) and raw_out else "temp_assets"
 
-        raw_clips = getattr(self.asset_repository, "clips_dir", None)
+        raw_clips = getattr(self.asset_repository, "clips_dir", None) or getattr(self._clip_session_store, "clips_dir", None)
         if clip_dir:
             target_clips_dir = os.path.dirname(os.path.dirname(os.path.abspath(clip_dir)))
         elif isinstance(raw_clips, str) and raw_clips:
@@ -963,11 +963,7 @@ class ClipWorkflowCoordinator:
                 self.jobs[job_id] = job
                 return
             
-            from unittest.mock import MagicMock
-            if isinstance(getattr(self.asset_repository, "create_clip", None), MagicMock):
-                clip = self.asset_repository.create_clip(full_path, start_time, end_time, theme=theme)
-            else:
-                clip = self.clip_session_store.create_clip(full_path, start_time, end_time, theme=theme)
+            clip = self.clip_session_store.create_clip(full_path, start_time, end_time, theme=theme)
             
             if not clip:
                 job = self.jobs[job_id]
@@ -1012,11 +1008,8 @@ class ClipWorkflowCoordinator:
             precise_words = None
             try:
                 # Extract audio from clip
-                if isinstance(getattr(self.asset_repository, "extract_audio_from_local", None), MagicMock):
-                    clip_audio = self.asset_repository.extract_audio_from_local(clip["file_path"])
-                else:
-                    store = self._get_clip_session_store(os.path.dirname(clip["file_path"]))
-                    clip_audio = store.extract_clip_audio(clip["file_path"])
+                store = self._get_clip_session_store(os.path.dirname(clip["file_path"]))
+                clip_audio = store.extract_clip_audio(clip["file_path"])
                 print(f"[transcribe] Transcribing clip audio...")
                 precise_words = self.speech_transcriber.transcribe(clip_audio, model_size=whisper_model)
             except Exception as e:

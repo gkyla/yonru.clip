@@ -38,7 +38,7 @@ We adopt a **Compositor Engine (Hybrid Split-Engine & Native Source Rate Alignme
    - Viewport transforms (`translateX`, `translateY`, `topTranslateX`, `topTranslateY`, `bottomTranslateX`, `bottomTranslateY`, and zoom) are mathematically identical between the Preview Canvas and Render Offthread viewports.
 
 3. **Native Source Frame Rate Alignment**:
-   - **Preserve Source FPS**: `AssetRepository.create_clip` preserves the exact native frame rate of the source video without forced CFR resampling (`-r 30` removed).
+   - **Preserve Source FPS**: `ClipSessionStore.create_clip` preserves the exact native frame rate of the source video without forced CFR resampling (`-r 30` removed).
    - **True Float Propagation**: The unrounded native FPS (e.g. `29.97002997...`) is passed consistently across backend metadata, `crop_map` timestamping ($t = \text{frame\_idx} / \text{native\_fps}$), frontend state `videoFps`, Remotion `<Player fps={videoFps}>`, and Remotion render CLI `--fps=${comp.fps}`.
    - **Timeline Origin Anchor**: `OpenCVFrameSource` anchors timestamps strictly to $t = \text{frame\_idx} / \text{fps}$ from $0.000\text{s}$, matching W3C HTML5 `<video>` and Remotion media timelines.
    - **Sub-Frame Keyframe Epsilon**: `Composition.tsx` evaluates `cropMap` keyframes using a half-frame tolerance window ($\epsilon = 0.5 / \text{fps}$), guaranteeing that keyframe transitions snap on the exact integer frame without floating point rounding delays.

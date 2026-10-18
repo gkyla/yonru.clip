@@ -35,12 +35,6 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
         with open(clip_video_path, "w") as f:
             f.write("dummy video")
 
-        mock_asset_repo.create_clip.return_value = {
-            "file_path": clip_video_path,
-            "duration": 10.0,
-            "start": 10.0,
-            "end": 20.0
-        }
         mock_speech_transcriber.transcribe.return_value = [
             {"start": 0.0, "duration": 1.0, "text": "hello"}
         ]
@@ -68,7 +62,14 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
             "full_video_path": full_video_path
         }
 
-        coordinator.run_local_cut(job_id, 10.0, 20.0)
+        from core.clip_session_store import ClipSessionStore
+        with patch.object(ClipSessionStore, "create_clip", return_value={
+            "file_path": clip_video_path,
+            "duration": 10.0,
+            "start": 10.0,
+            "end": 20.0
+        }), patch.object(ClipSessionStore, "extract_clip_audio", return_value="dummy_audio.wav"):
+            coordinator.run_local_cut(job_id, 10.0, 20.0)
 
         # Verify crop_map.json was saved in clip_dir
         crop_map_path = os.path.join(clip_dir, "crop_map.json")

@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { afterEach, afterAll } from 'vitest';
 
 const raf = (callback: FrameRequestCallback): number => {
   return setTimeout(() => {
@@ -11,42 +11,21 @@ const caf = (id: number): void => {
   clearTimeout(id);
 };
 
-vi.stubGlobal('requestAnimationFrame', raf);
-vi.stubGlobal('cancelAnimationFrame', caf);
+const defineGlobals = () => {
+  const targets = [
+    globalThis,
+    typeof global !== 'undefined' ? global : null,
+    typeof window !== 'undefined' ? window : null
+  ];
+  for (const target of targets) {
+    if (!target) continue;
+    try {
+      (target as any).requestAnimationFrame = raf;
+      (target as any).cancelAnimationFrame = caf;
+    } catch {}
+  }
+};
 
-Object.defineProperty(globalThis, 'requestAnimationFrame', {
-  value: raf,
-  writable: true,
-  configurable: true
-});
-Object.defineProperty(globalThis, 'cancelAnimationFrame', {
-  value: caf,
-  writable: true,
-  configurable: true
-});
-
-if (typeof global !== 'undefined') {
-  Object.defineProperty(global, 'requestAnimationFrame', {
-    value: raf,
-    writable: true,
-    configurable: true
-  });
-  Object.defineProperty(global, 'cancelAnimationFrame', {
-    value: caf,
-    writable: true,
-    configurable: true
-  });
-}
-
-if (typeof window !== 'undefined') {
-  Object.defineProperty(window, 'requestAnimationFrame', {
-    value: raf,
-    writable: true,
-    configurable: true
-  });
-  Object.defineProperty(window, 'cancelAnimationFrame', {
-    value: caf,
-    writable: true,
-    configurable: true
-  });
-}
+defineGlobals();
+afterEach(defineGlobals);
+afterAll(defineGlobals);

@@ -33,8 +33,8 @@ def test_mock_asset_store_caching_and_lookups():
     assert cached_by_folder is not None
     assert cached_by_folder["duration"] == 120.0
 
-def test_mock_asset_store_purges_and_clips():
-    """Verify clip cuts and purges on the mock store."""
+def test_mock_asset_store_purges_and_sources():
+    """Verify source fetching and purges on the mock store."""
     store = MockAssetStore()
     
     # Test get_or_create_source mock flow
@@ -42,15 +42,8 @@ def test_mock_asset_store_purges_and_clips():
     assert source is not None
     assert source["video_id"] == "mock_id"
     
-    # Test create_clip mock flow
-    clip = store.create_clip("mock_path/full.mp4", 10.0, 30.0, theme="test")
-    assert clip is not None
-    assert clip["duration"] == 20.0
-    assert clip["theme"] == "test"
-    
     # Test delete_cached_video mock flow
     assert store.delete_cached_video("mock_folder") == 1
     
     # Assert logs record calls properly
-    assert ("create_clip", "mock_path/full.mp4", 10.0, 30.0, "test") in store.calls
     assert ("delete_cached_video", "mock_folder") in store.calls
