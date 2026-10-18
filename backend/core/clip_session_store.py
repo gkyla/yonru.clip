@@ -489,6 +489,8 @@ class ClipSessionStore:
             active_tracker = FaceTracker()
 
         resolved_video_path = video_path or self._resolve_clip_path(folder_name, clip_id, "video.mp4")
+        if not os.path.exists(resolved_video_path):
+            raise FileNotFoundError(f"Clip video not found at: {resolved_video_path}")
 
         crop_map_points: List[Dict[str, Any]]
         try:

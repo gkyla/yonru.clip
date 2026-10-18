@@ -210,7 +210,7 @@ The backend data access module strictly responsible for ingesting, caching, quer
 _Avoid_: Clip repository, media manager, unified asset store
 
 **Clip Session Store**:
-The backend aggregate store responsible for cutting Ready Clips from source video intervals, extracting clip audio and thumbnails, and managing individual clip session manifests (transcripts, style settings, timeline tracks, undo/redo history, cover slide configuration, and auto-reframe crop maps).
+The backend aggregate store responsible for cutting Ready Clips from source video intervals, extracting clip audio and thumbnails, managing individual clip session manifests (transcripts, style settings, timeline tracks, undo/redo history, and cover slide configuration), and executing auto-reframe face tracking via `ensure_crop_map` to compute, normalize, and cache pre-computed `crop_map.json` keyframes (per [ADR-0008](docs/adr/0008-precomputed-auto-reframe-and-default-face-tracking.md)).
 _Avoid_: Asset repository, clip manager, clip file handler
 
 **Home Settings & Preference Panes**:
