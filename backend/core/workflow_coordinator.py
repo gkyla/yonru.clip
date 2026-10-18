@@ -230,31 +230,10 @@ class ClipWorkflowCoordinator:
         clip_id = os.path.basename(clip_dir)
         folder_name = os.path.basename(os.path.dirname(clip_dir))
 
-        # Check if asset_repository.extract_clip_screenshot was explicitly mocked in tests
-        from unittest.mock import MagicMock
-        if isinstance(getattr(self.asset_repository, "extract_clip_screenshot", None), MagicMock):
-            clip_duration = float(job.get("clip_duration") or 10.0)
-            if timestamp is not None:
-                ts = max(0.0, min(float(timestamp), max(0.0, clip_duration - 0.1)))
-            else:
-                import random
-                ts = random.uniform(0.5, max(0.6, clip_duration * 0.8))
-
-            cover_path = os.path.join(clip_dir, "cover.jpg")
-            success = self.asset_repository.extract_clip_screenshot(clip_path, ts, cover_path)
-            if not success:
-                raise RuntimeError("Failed to extract cover frame")
-            parts = clip_path.replace("\\", "/").split("/")
-            try:
-                clips_idx = parts.index("clips")
-                relative = "/".join(parts[clips_idx:])
-                asset_url = f"/assets/{relative.rsplit('/', 1)[0]}/cover.jpg"
-            except Exception:
-                asset_url = "/assets/clips/cover.jpg"
-            return {"status": "ok", "timestamp": round(ts, 3), "cover_url": asset_url, "thumbnail_url": asset_url}
-
         store = self._get_clip_session_store(clip_dir)
-        return store.extract_cover_frame(folder_name, clip_id, timestamp=timestamp)
+        screenshot_fn = getattr(self.asset_repository, "extract_clip_screenshot", None)
+        return store.extract_cover_frame(folder_name, clip_id, timestamp=timestamp, screenshot_fn=screenshot_fn)
+
 
     def extract_clip_thumbnail(self, job_id: str, timestamp: Optional[float] = None) -> Dict[str, Any]:
         """Backward compatibility alias for extract_clip_cover."""

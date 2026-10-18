@@ -188,3 +188,8 @@ _Avoid_: Download history, video cache list, saved files
 **Editor Transition Overlay**:
 The transient full-screen loading state displayed while preparing media assets, timeline tracks, and studio components when transitioning from the Home workspace to the Studio Editor.
 _Avoid_: Loading screen, wait modal, editor spinner, cinematic loading overlay
+
+**Media Transcoder Engine**:
+The unified backend media processing module responsible for isolated subprocess execution of FFmpeg and ffprobe, media duration and dimension probing, millisecond-clamped frame extraction for Clip Thumbnails and Cover Slides, audio track extraction, and video segment slicing.
+_Avoid_: Video tool, ffmpeg wrapper, transcode script, media converter
+
