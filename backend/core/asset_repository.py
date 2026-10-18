@@ -59,48 +59,10 @@ class AssetStore(ABC):
 
 
     def sanitize_and_prepare_hooks(self, raw_hooks: list, video_info: dict) -> list:
-        """Filter, format, and ensure thumbnails exist for a list of hooks."""
-        video_duration = video_info.get("duration", float("inf"))
-        file_path = video_info.get("file_path")
-        if not file_path:
-            return []
-            
-        folder_name = video_info.get("folder_name") or os.path.basename(os.path.dirname(file_path))
-        
-        MIN_DUR, MAX_DUR = 15, 180
-        filtered = []
-        for h in raw_hooks:
-            try:
-                h_start = float(h.get("start", 0))
-                h_end = float(h.get("end", 0))
-                h_dur = h_end - h_start
-                
-                # Check for out of bounds timestamps
-                if h_start < 0 or h_start >= video_duration or h_end > (video_duration + 5):
-                    continue
-                    
-                if h_dur < MIN_DUR:
-                    h_end = h_start + MIN_DUR
-                if (h_end - h_start) > MAX_DUR:
-                    h_end = h_start + MAX_DUR
-                
-                h["start"] = round(h_start, 2)
-                h["end"] = round(h_end, 2)
-                h["duration"] = round(h_end - h_start, 2)
-                
-                # Ensure static sharp thumbnail exists and is linked
-                thumb_name = f"thumb_{int(h_start)}.jpg"
-                thumb_local_path = os.path.join(os.path.dirname(file_path), thumb_name)
-                self.extract_hook_thumbnail(
-                    video_path=file_path,
-                    timestamp=h_start,
-                    output_path=thumb_local_path
-                )
-                h["thumbnail_url"] = f"/assets/sources/{folder_name}/{thumb_name}"
-                filtered.append(h)
-            except Exception as e:
-                print(f"[asset-store] Failed to sanitize hook: {e}")
-        return filtered
+        """Backward-compatible delegate: routes to deepened HookDiscoveryEngine."""
+        from core.hook_discovery_engine import HookDiscoveryEngine
+        engine = HookDiscoveryEngine(media_transcoder=getattr(self, "transcoder", None))
+        return engine.sanitize_and_prepare_hooks(raw_hooks, video_info)
 
 class AssetRepository(AssetStore):
     def __init__(self, output_dir="temp_assets", youtube_client=None, config_store=None, media_transcoder=None):
