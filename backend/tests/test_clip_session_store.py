@@ -1,6 +1,7 @@
 import os
 import json
 import tempfile
+from unittest.mock import MagicMock
 import pytest
 from core.clip_session_store import ClipSessionStore
 
@@ -262,20 +263,57 @@ def test_list_all_and_ready_clips():
         open(os.path.join(c1_dir, "video.mp4"), "w").close()
         open(os.path.join(c2_dir, "video.mp4"), "w").close()
 
-        # Mock duration function
-        def mock_duration(path):
-            return 10.0 if "10_20" in path else 15.0
+        # Mock duration function directly on store/transcoder seam
+        store.get_video_duration = lambda file_path: 10.0 if "10_20" in file_path else 15.0
 
-        all_clips = store.list_all_clips(duration_fn=mock_duration)
+        all_clips = store.list_all_clips()
         assert len(all_clips) == 2
         clip_ids = {c["clip_id"] for c in all_clips}
         assert clip_ids == {"10_20_hook_a", "30_45_hook_b"}
 
         # Filtering active clips
-        ready = store.list_ready_clips(active_clip_ids={"10_20_hook_a"}, duration_fn=mock_duration)
+        ready = store.list_ready_clips(active_clip_ids={"10_20_hook_a"})
         assert len(ready) == 1
         assert ready[0]["clip_id"] == "30_45_hook_b"
         assert ready[0]["duration"] == 15.0
+
+
+def test_clip_session_store_media_delegations():
+    """Verify ClipSessionStore media probing and screenshotting delegate directly to internal methods without leaky callbacks."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        mock_transcoder = MagicMock()
+        mock_transcoder.get_video_duration.return_value = 18.5
+        mock_transcoder.capture_screenshot.return_value = True
+
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, media_transcoder=mock_transcoder)
+
+        # 1. get_video_duration delegates directly to transcoder
+        dummy_video = os.path.join(temp_dir, "test.mp4")
+        open(dummy_video, "w").close()
+        dur = store.get_video_duration(dummy_video)
+        assert dur == 18.5
+        mock_transcoder.get_video_duration.assert_called_once_with(dummy_video)
+
+        # 2. ensure_clip_defaults generates thumbnail via extract_clip_screenshot directly
+        clip_dir = os.path.join(clips_dir, "f1", "c1")
+        os.makedirs(clip_dir, exist_ok=True)
+        clip_vid = os.path.join(clip_dir, "video.mp4")
+        open(clip_vid, "w").close()
+
+        store.ensure_clip_defaults("f1", "c1")
+        mock_transcoder.capture_screenshot.assert_called_with(
+            clip_vid, 0.0, os.path.join(clip_dir, "thumbnail.jpg")
+        )
+
+        # 3. extract_cover_frame captures cover image directly
+        mock_transcoder.capture_screenshot.reset_mock()
+        res = store.extract_cover_frame("f1", "c1", timestamp=12.0)
+        assert res["status"] == "ok"
+        assert res["timestamp"] == 12.0
+        mock_transcoder.capture_screenshot.assert_called_once_with(
+            clip_vid, 12.0, os.path.join(clip_dir, "cover.jpg")
+        )
 
 
 def test_delete_clip_and_delete_with_job():

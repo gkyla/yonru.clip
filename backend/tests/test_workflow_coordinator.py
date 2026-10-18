@@ -859,13 +859,21 @@ def test_get_job_summary_hydration(mock_dependencies, tmp_path):
 
 
 def test_extract_clip_thumbnail_bounds_clamping(mock_dependencies, tmp_path):
+    mock_clip_store = MagicMock()
+    mock_clip_store.extract_cover_frame.return_value = {
+        "status": "ok",
+        "timestamp": 9.9,
+        "cover_url": "/assets/clips/my_folder/clip_1/cover.jpg",
+        "thumbnail_url": "/assets/clips/my_folder/clip_1/cover.jpg"
+    }
     coordinator = ClipWorkflowCoordinator(
         job_store=mock_dependencies["job_store"],
         asset_repository=mock_dependencies["asset_repository"],
         youtube_client=mock_dependencies["youtube_client"],
         speech_transcriber=mock_dependencies["speech_transcriber"],
         prompt_repository=mock_dependencies["prompt_repository"],
-        config_store=mock_dependencies["config_store"]
+        config_store=mock_dependencies["config_store"],
+        clip_session_store=mock_clip_store,
     )
     
     clip_dir = tmp_path / "clips" / "my_folder" / "clip_1"
@@ -880,18 +888,36 @@ def test_extract_clip_thumbnail_bounds_clamping(mock_dependencies, tmp_path):
         "clip_duration": 10.0
     }
     
-    mock_dependencies["asset_repository"].extract_clip_screenshot.return_value = True
-    
-    # Request timestamp 25.0 beyond duration 10.0 -> clamped to 9.9
+    # Request timestamp 25.0
     res = coordinator.extract_clip_cover(job_id, timestamp=25.0)
     assert res["status"] == "ok"
     assert res["timestamp"] == 9.9
     assert "cover.jpg" in res["cover_url"]
     
-    # Verify mock was called targeting cover.jpg (Clip Thumbnail thumbnail.jpg preserved)
-    mock_dependencies["asset_repository"].extract_clip_screenshot.assert_called_with(
-        str(clip_path), 9.9, str(clip_dir / "cover.jpg")
+    # Verify coordinator delegates directly to clip_session_store without callback leaks
+    mock_clip_store.extract_cover_frame.assert_called_once_with(
+        "my_folder", "clip_1", timestamp=25.0
     )
+
+
+def test_coordinator_injects_transcoder_into_session_store(mock_dependencies, tmp_path):
+    """Verify ClipWorkflowCoordinator injects asset_repository.transcoder into ClipSessionStore."""
+    mock_transcoder = MagicMock()
+    mock_dependencies["asset_repository"].transcoder = mock_transcoder
+    mock_dependencies["asset_repository"].clips_dir = str(tmp_path / "clips")
+    mock_dependencies["asset_repository"].output_dir = str(tmp_path)
+
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+    )
+
+    store = coordinator._get_clip_session_store()
+    assert store.transcoder is mock_transcoder
 
 
 def test_get_or_create_crop_map_workflow(mock_dependencies, tmp_path):

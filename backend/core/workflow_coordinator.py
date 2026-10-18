@@ -50,6 +50,7 @@ class ClipWorkflowCoordinator:
                 output_dir=output_dir,
                 config_store=self.config_store,
                 face_tracker=self.face_tracker,
+                media_transcoder=getattr(self.asset_repository, "transcoder", None),
             )
 
     def _get_clip_session_store(self, clip_dir: Optional[str] = None) -> ClipSessionStore:
@@ -80,6 +81,7 @@ class ClipWorkflowCoordinator:
             output_dir=output_dir,
             config_store=self.config_store,
             face_tracker=getattr(self, "face_tracker", None),
+            media_transcoder=getattr(self.asset_repository, "transcoder", None),
         )
 
     @property
@@ -257,8 +259,7 @@ class ClipWorkflowCoordinator:
         folder_name = os.path.basename(os.path.dirname(clip_dir))
 
         store = self._get_clip_session_store(clip_dir)
-        screenshot_fn = getattr(self.asset_repository, "extract_clip_screenshot", None)
-        return store.extract_cover_frame(folder_name, clip_id, timestamp=timestamp, screenshot_fn=screenshot_fn)
+        return store.extract_cover_frame(folder_name, clip_id, timestamp=timestamp)
 
 
     def extract_clip_thumbnail(self, job_id: str, timestamp: Optional[float] = None) -> Dict[str, Any]:
