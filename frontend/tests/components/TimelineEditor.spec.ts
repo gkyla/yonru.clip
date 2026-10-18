@@ -53,7 +53,8 @@ const mockState = {
 };
 
 vi.mock('../../app/composables/useClipperState', () => ({
-  useClipperState: () => mockState
+  useClipperState: () => mockState,
+  FONT_OPTIONS: ['Inter', 'Montserrat', 'Roboto', 'Arial']
 }));
 
 describe('TimelineEditor Component', () => {
