@@ -492,3 +492,167 @@ def test_extract_cover_frame():
             assert f.read() == "initial thumbnail"
 
 
+def test_ensure_crop_map_cache_hit():
+    """Verify ensure_crop_map returns cached keyframes without running face tracker."""
+    from core.face_tracker import MockFaceTracker
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        mock_tracker = MockFaceTracker(mock_result=960)
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, face_tracker=mock_tracker)
+
+        folder_name = "test_vid"
+        clip_id = "0_15_hook"
+        clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+
+        cached_crop_map = [{"time": 0.0, "x": 720}, {"time": 2.5, "x": 840}]
+        store.save_crop_map(folder_name, clip_id, cached_crop_map)
+
+        result = store.ensure_crop_map(folder_name, clip_id)
+        assert result == cached_crop_map
+        assert len(mock_tracker.analyzed_paths) == 0
+
+
+def test_ensure_crop_map_cache_miss_scalar_normalization():
+    """Verify ensure_crop_map runs tracker on cache miss, normalizes scalar coordinates, and persists."""
+    from core.face_tracker import MockFaceTracker
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        mock_tracker = MockFaceTracker(mock_result=960.8)
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, face_tracker=mock_tracker)
+
+        folder_name = "test_source_vid"
+        clip_id = "10_20_part"
+        clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+        video_path = os.path.join(clip_dir, "video.mp4")
+        with open(video_path, "w") as f:
+            f.write("dummy video content")
+
+        result = store.ensure_crop_map(folder_name, clip_id)
+        expected = [{"time": 0.0, "x": 960}]
+        assert result == expected
+        assert mock_tracker.analyzed_paths == [video_path]
+
+        # Verify persisted atomically to disk
+        assert store.get_crop_map(folder_name, clip_id) == expected
+
+
+def test_ensure_crop_map_cache_miss_list_keyframes_and_overrides():
+    """Verify ensure_crop_map with list keyframes respects tracker and video_path overrides."""
+    from core.face_tracker import MockFaceTracker
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        default_tracker = MockFaceTracker(mock_result=960)
+        custom_tracker = MockFaceTracker(mock_result=[{"time": 0.0, "x": 600}, {"time": 3.0, "x": 800}])
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, face_tracker=default_tracker)
+
+        folder_name = "custom_folder"
+        clip_id = "0_30"
+        clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+
+        custom_video_path = os.path.join(temp_dir, "alternative_video.mp4")
+        with open(custom_video_path, "w") as f:
+            f.write("custom video")
+
+        result = store.ensure_crop_map(folder_name, clip_id, video_path=custom_video_path, tracker=custom_tracker)
+        expected = [{"time": 0.0, "x": 600}, {"time": 3.0, "x": 800}]
+
+        assert result == expected
+        assert len(default_tracker.analyzed_paths) == 0
+        assert custom_tracker.analyzed_paths == [custom_video_path]
+        assert store.get_crop_map(folder_name, clip_id) == expected
+
+
+def test_ensure_crop_map_fallback_on_empty_and_exceptions():
+    """Verify ensure_crop_map safely falls back to x=960 center framing on empty results or exceptions."""
+    from core.face_tracker import MockFaceTracker
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+
+        # 1. Fallback on empty list
+        empty_tracker = MockFaceTracker(mock_result=[])
+        store_empty = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, face_tracker=empty_tracker)
+        clip_dir_1 = os.path.join(clips_dir, "vid_1", "c_1")
+        os.makedirs(clip_dir_1, exist_ok=True)
+        with open(os.path.join(clip_dir_1, "video.mp4"), "w") as f:
+            f.write("video")
+
+        res_empty = store_empty.ensure_crop_map("vid_1", "c_1")
+        assert res_empty == [{"time": 0.0, "x": 960}]
+        assert store_empty.get_crop_map("vid_1", "c_1") == [{"time": 0.0, "x": 960}]
+
+        # 2. Fallback on None return
+        none_tracker = MockFaceTracker(mock_result=None)
+        store_none = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, face_tracker=none_tracker)
+        clip_dir_2 = os.path.join(clips_dir, "vid_2", "c_2")
+        os.makedirs(clip_dir_2, exist_ok=True)
+        with open(os.path.join(clip_dir_2, "video.mp4"), "w") as f:
+            f.write("video")
+
+        res_none = store_none.ensure_crop_map("vid_2", "c_2")
+        assert res_none == [{"time": 0.0, "x": 960}]
+        assert store_none.get_crop_map("vid_2", "c_2") == [{"time": 0.0, "x": 960}]
+
+        # 3. Fallback on Tracker Exception
+        class FailingTracker:
+            def analyze_video(self, video_path, words_data=None):
+                raise RuntimeError("Face detection pipeline crashed")
+
+        store_error = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, face_tracker=FailingTracker())
+        clip_dir_3 = os.path.join(clips_dir, "vid_3", "c_3")
+        os.makedirs(clip_dir_3, exist_ok=True)
+        with open(os.path.join(clip_dir_3, "video.mp4"), "w") as f:
+            f.write("video")
+
+        res_error = store_error.ensure_crop_map("vid_3", "c_3")
+        assert res_error == [{"time": 0.0, "x": 960}]
+        assert store_error.get_crop_map("vid_3", "c_3") == [{"time": 0.0, "x": 960}]
+
+
+def test_ensure_crop_map_path_traversal():
+    """Verify ensure_crop_map defends against path traversal in folder_name or clip_id."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        with pytest.raises(ValueError, match="Path traversal detected"):
+            store.ensure_crop_map("../malicious", "clip_1")
+
+        with pytest.raises(ValueError, match="Path traversal detected"):
+            store.ensure_crop_map("folder_1", "../etc/passwd")
+
+
+def test_ensure_crop_map_lazy_tracker_instantiation():
+    """Verify ensure_crop_map lazily instantiates FaceTracker when none is injected."""
+    from unittest.mock import patch, MagicMock
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, face_tracker=None)
+
+        clip_dir = os.path.join(clips_dir, "vid_lazy", "c_lazy")
+        os.makedirs(clip_dir, exist_ok=True)
+        with open(os.path.join(clip_dir, "video.mp4"), "w") as f:
+            f.write("video")
+
+        mock_lazy_instance = MagicMock()
+        mock_lazy_instance.analyze_video.return_value = [{"time": 0.0, "x": 960}]
+
+        with patch("core.face_tracker.FaceTracker", return_value=mock_lazy_instance) as mock_ft_cls:
+            result = store.ensure_crop_map("vid_lazy", "c_lazy")
+            assert result == [{"time": 0.0, "x": 960}]
+            mock_ft_cls.assert_called_once()
+            mock_lazy_instance.analyze_video.assert_called_once_with(os.path.join(clip_dir, "video.mp4"))
+
+
+
+
+
+
+
