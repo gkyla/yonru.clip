@@ -650,9 +650,14 @@ def test_ensure_crop_map_lazy_tracker_instantiation():
             mock_ft_cls.assert_called_once()
             mock_lazy_instance.analyze_video.assert_called_once_with(os.path.join(clip_dir, "video.mp4"))
 
+def test_ensure_crop_map_missing_video_raises_filenotfound():
+    """Verify ensure_crop_map raises FileNotFoundError when video.mp4 does not exist."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
 
-
-
+        with pytest.raises(FileNotFoundError, match="Clip video not found"):
+            store.ensure_crop_map("nonexistent_folder", "nonexistent_clip")
 
 
 

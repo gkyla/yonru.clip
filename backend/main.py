@@ -847,7 +847,8 @@ async def load_ready_clip(req: LoadReadyClipRequest, background_tasks: Backgroun
 async def track_face_for_clip(folder_name: str, clip_id: str):
     """Generates, saves, and returns Auto-Reframe crop_map.json for a clip."""
     try:
-        return workflow_coordinator.get_or_create_crop_map(folder_name=folder_name, clip_id=clip_id)
+        points = clip_session_store.ensure_crop_map(folder_name=folder_name, clip_id=clip_id)
+        return {"status": "ready", "crop_map": points}
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:

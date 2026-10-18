@@ -236,3 +236,63 @@ def test_legacy_endpoints_backward_compatibility(client_with_temp_storage):
     assert res7.status_code == 200
     assert not os.path.exists(os.path.join(clip_dir, "cover.jpg"))
     assert os.path.exists(os.path.join(clip_dir, "thumbnail.jpg"))
+
+
+def test_track_face_endpoint_existing_clip_and_cache(client_with_temp_storage, monkeypatch):
+    """POST /api/clips/{folder_name}/{clip_id}/track-face generates and caches crop_map.json."""
+    from unittest.mock import MagicMock
+    client, clips_dir, _ = client_with_temp_storage
+    folder_name = "test_vid_tf"
+    clip_id = "clip_tf_1"
+    clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+    os.makedirs(clip_dir, exist_ok=True)
+
+    with open(os.path.join(clip_dir, "video.mp4"), "w") as f:
+        f.write("dummy video data")
+
+    mock_tracker = MagicMock()
+    mock_tracker.analyze_video.return_value = [
+        {"time": 0.0, "x": 550},
+        {"time": 1.0, "x": 650}
+    ]
+    monkeypatch.setattr(main.clip_session_store, "face_tracker", mock_tracker)
+
+    # 1. First invocation: computes, saves, and returns crop_map
+    res1 = client.post(f"/api/clips/{folder_name}/{clip_id}/track-face")
+    assert res1.status_code == 200
+    data1 = res1.json()
+    assert data1["status"] == "ready"
+    assert data1["crop_map"] == [
+        {"time": 0.0, "x": 550},
+        {"time": 1.0, "x": 650}
+    ]
+    assert mock_tracker.analyze_video.call_count == 1
+    assert os.path.exists(os.path.join(clip_dir, "crop_map.json"))
+
+    # 2. Second invocation: reads from cached crop_map.json without re-running tracker
+    res2 = client.post(f"/api/clips/{folder_name}/{clip_id}/track-face")
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["status"] == "ready"
+    assert data2["crop_map"] == [
+        {"time": 0.0, "x": 550},
+        {"time": 1.0, "x": 650}
+    ]
+    assert mock_tracker.analyze_video.call_count == 1
+
+
+def test_track_face_endpoint_missing_clip_404(client_with_temp_storage):
+    """POST /api/clips/{folder_name}/{clip_id}/track-face returns 404 on missing clip or video."""
+    client, _, _ = client_with_temp_storage
+    res = client.post("/api/clips/nonexistent_folder/nonexistent_clip/track-face")
+    assert res.status_code == 404
+    assert "Clip video not found" in res.json()["detail"]
+
+
+def test_track_face_endpoint_path_traversal_400(client_with_temp_storage):
+    """POST /api/clips/{folder_name}/{clip_id}/track-face returns 400 on path traversal."""
+    client, _, _ = client_with_temp_storage
+    for f_name, c_id in [("folder..", "clip_1"), ("folder_1", "clip.."), ("nul", "clip_1"), ("folder_1", "con")]:
+        res = client.post(f"/api/clips/{f_name}/{c_id}/track-face")
+        assert res.status_code == 400
+        assert "Path traversal detected" in res.json()["detail"]
