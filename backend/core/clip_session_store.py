@@ -55,7 +55,8 @@ class ClipSessionStore:
         clips_dir: str = "temp_assets/clips",
         output_dir: Optional[str] = None,
         config_store: Optional[Any] = None,
-        media_transcoder: Optional[MediaTranscoder] = None
+        media_transcoder: Optional[MediaTranscoder] = None,
+        face_tracker: Optional[Any] = None
     ):
         self.clips_dir = clips_dir
         self.output_dir = output_dir if output_dir else os.path.dirname(self.clips_dir)
@@ -63,6 +64,7 @@ class ClipSessionStore:
         self.config_store = config_store
         self.transcoder = media_transcoder or MediaTranscoder(config_store=self.config_store)
         self._env = getattr(self.transcoder.adapter, "_env", os.environ.copy())
+        self.face_tracker = face_tracker
 
     def resolve_clip_dir(self, folder_name: str, clip_id: str) -> str:
 
@@ -463,6 +465,50 @@ class ClipSessionStore:
             except Exception:
                 pass
         return None
+
+    def ensure_crop_map(
+        self,
+        folder_name: str,
+        clip_id: str,
+        video_path: Optional[str] = None,
+        tracker: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieves cached Auto-Reframe crop map if present, or executes face tracking
+        to compute, normalize, and atomically persist crop_map.json.
+        Falls back to centered framing ([{"time": 0.0, "x": 960}]) on empty results
+        or tracker exceptions.
+        """
+        existing = self.get_crop_map(folder_name, clip_id)
+        if existing and len(existing) > 0:
+            return existing
+
+        active_tracker = tracker or self.face_tracker
+        if not active_tracker:
+            from core.face_tracker import FaceTracker
+            active_tracker = FaceTracker()
+
+        resolved_video_path = video_path or self._resolve_clip_path(folder_name, clip_id, "video.mp4")
+
+        crop_map_points: List[Dict[str, Any]]
+        try:
+            crop_data = active_tracker.analyze_video(resolved_video_path)
+            if isinstance(crop_data, (int, float)):
+                crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
+            elif isinstance(crop_data, list) and len(crop_data) > 0:
+                crop_map_points = crop_data
+            else:
+                crop_map_points = [{"time": 0.0, "x": 960}]
+        except Exception as e:
+            print(f"[session] Face tracking failed for {resolved_video_path}, falling back to center: {e}")
+            crop_map_points = [{"time": 0.0, "x": 960}]
+
+        try:
+            self.save_crop_map(folder_name, clip_id, crop_map_points)
+        except Exception as e:
+            print(f"[session] Failed to write crop_map.json: {e}")
+
+        return crop_map_points
 
     def delete_cover(self, folder_name: str, clip_id: str) -> bool:
         """Safely removes custom cover image (cover.jpg) while strictly preserving thumbnail.jpg."""
