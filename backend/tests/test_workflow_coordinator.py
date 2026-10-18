@@ -128,14 +128,11 @@ def test_run_full_analysis_success_flow(mock_dependencies, tmp_path):
     
     mock_dependencies["config_store"].get.return_value = "fake-gemini-key"
     
-    mock_hooks_response = json.dumps([
+    mock_hooks_response = [
         {"start": 5.0, "end": 25.0, "title": "Mock Hook"}
-    ])
+    ]
     
-    with patch("core.hook_generator.HookGenerator") as MockHookGenerator:
-        mock_generator_instance = MockHookGenerator.return_value
-        mock_generator_instance.find_hooks_from_transcript.return_value = mock_hooks_response
-        
+    with patch.object(coordinator.hook_discovery_engine, "discover_from_transcript", return_value=mock_hooks_response):
         coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=new123", "id", force_reanalyze=False)
     
     # Assertions
@@ -474,21 +471,18 @@ def test_run_full_analysis_uses_cached_youtube_transcript(mock_dependencies, tmp
     mock_dependencies["youtube_client"].extract_video_id.return_value = "cachedtrans123"
     mock_dependencies["config_store"].get.return_value = "fake-gemini-key"
     
-    # Mock HookGenerator
-    mock_hooks_response = json.dumps([
+    # Mock HookDiscoveryEngine
+    mock_hooks_response = [
         {"start": 0.0, "end": 3.0, "title": "Hook from cache"}
-    ])
+    ]
     
-    with patch("core.hook_generator.HookGenerator") as MockHookGenerator:
-        mock_generator_instance = MockHookGenerator.return_value
-        mock_generator_instance.find_hooks_from_transcript.return_value = mock_hooks_response
-        
+    with patch.object(coordinator.hook_discovery_engine, "discover_from_transcript", return_value=mock_hooks_response) as mock_discover:
         # Run analysis (force_reanalyze=True to bypass step -1, but it should still hit Step 0 transcript cache)
         coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=cachedtrans123", "id", force_reanalyze=True)
         
-        # Verify HookGenerator was called with the cached transcript segment
-        called_args = mock_generator_instance.find_hooks_from_transcript.call_args[1]
-        assert called_args["transcript_segments"] == [
+        # Verify hook_discovery_engine was called with the cached transcript segment
+        called_segments = mock_discover.call_args[0][0] if mock_discover.call_args[0] else mock_discover.call_args[1].get("transcript_segments")
+        assert called_segments == [
             {"text": "Cached transcript hello", "start": 0.0, "duration": 3.0}
         ]
         
