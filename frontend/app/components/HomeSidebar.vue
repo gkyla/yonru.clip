@@ -224,102 +224,15 @@
             "
           ></div>
 
-          <!-- Section 2: Main Navigation Items & Persistent Single Active Pill -->
-          <div
-            class="flex flex-col gap-1 shrink-0"
-            :class="isCollapsed ? '-mt-[19px]' : ''"
-          >
-            <!-- Header Label (Synchronous 0ms Delay, Fixed Height) -->
-            <div
-              class="overflow-hidden whitespace-nowrap transition-all duration-150 ease-out h-5 flex items-center"
-              :class="
-                isCollapsed
-                  ? 'max-w-0 opacity-0 pointer-events-none'
-                  : 'max-w-[200px] opacity-100 pointer-events-auto'
-              "
-            >
-              <span
-                class="px-2 text-[10px] font-bold uppercase tracking-wider text-white/50"
-                >Main Navigation</span
-              >
-            </div>
-
-            <!-- Navigation Buttons Stack -->
-            <div class="relative flex flex-col gap-2 w-full mt-0.5">
-              <!-- Persistent Single Sliding Active Pill Indicator -->
-              <span
-                v-if="activeNavIndex >= 0"
-                class="absolute -left-3 w-1 rounded-r-full bg-accent-500 shadow-[0_0_8px_rgba(255,215,0,0.6)] transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] pointer-events-none z-10"
-                :style="{
-                  top: `${activeNavIndex * 48 + 10}px`,
-                  height: '20px'
-                }"
-              ></span>
-
-              <!-- Persistent Navigation Item Hitboxes -->
-              <div
-                v-for="item in navItemsConfig"
-                :key="item.id"
-                class="relative group w-full"
-              >
-                <button
-                  class="h-10 flex items-center rounded-xl transition-colors duration-200 cursor-pointer w-full overflow-hidden"
-                  :class="[
-                    activeView === item.id
-                      ? 'bg-white/[0.06] text-white font-semibold'
-                      : 'text-white/70 hover:text-white hover:bg-white/[0.04]'
-                  ]"
-                  :title="isCollapsed ? item.label : undefined"
-                  @click="handleNav(item.id)"
-                >
-                  <!-- 40px Stationary Icon Hitbox -->
-                  <div
-                    class="w-10 h-10 shrink-0 flex items-center justify-center relative"
-                  >
-                    <Icon
-                      :name="item.icon"
-                      class="text-lg group-hover:scale-105 transition-transform"
-                      :class="
-                        activeView === item.id
-                          ? 'text-accent-500'
-                          : 'text-white/70 group-hover:text-white'
-                      "
-                    />
-                    <div
-                      v-if="
-                        item.id === 'settings' &&
-                        state?.isAnyPrerequisiteMissing?.value
-                      "
-                      class="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse-amber"
-                      title="Prerequisite setup requires attention in Settings"
-                    ></div>
-                  </div>
-
-                  <!-- Horizontally Collapsing Label -->
-                  <div
-                    class="overflow-hidden whitespace-nowrap transition-all ease-in-out min-w-0"
-                    :class="
-                      isCollapsed
-                        ? 'max-w-0 opacity-0 duration-80 -translate-x-1 pointer-events-none'
-                        : 'max-w-[160px] opacity-100 duration-200 delay-75 translate-x-0'
-                    "
-                  >
-                    <span class="text-sm font-medium pr-3">{{
-                      item.label
-                    }}</span>
-                  </div>
-                </button>
-
-                <!-- Collapsed Flyout Tooltip -->
-                <div
-                  v-if="isCollapsed"
-                  class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-[#121216] border border-white/10 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-[100] whitespace-nowrap"
-                >
-                  {{ item.label }}
-                </div>
-              </div>
-            </div>
-          </div>
+          <!-- Section 2: Main Navigation Items -->
+          <SidebarNavList
+            :is-collapsed="isCollapsed"
+            :active-view="activeView"
+            :is-any-prerequisite-missing="
+              state?.isAnyPrerequisiteMissing?.value
+            "
+            @navigate="handleNav"
+          />
 
           <!-- Divider -->
           <div
@@ -327,347 +240,19 @@
             :class="isCollapsed ? 'w-7 mx-auto my-0.5' : 'hidden'"
           ></div>
 
-          <!-- Section 3: Workspace (Unified Anchor & Horizontal Unfold) -->
-          <div
-            class="flex flex-col gap-1 shrink-0 relative w-full"
-            :class="isCollapsed ? '-mt-[19px]' : ''"
-          >
-            <!-- Header Label (Synchronous 0ms Delay, Fixed Height, Identical to Main Navigation) -->
-            <div
-              class="overflow-hidden whitespace-nowrap transition-all duration-150 ease-out h-5 flex items-center"
-              :class="
-                isCollapsed
-                  ? 'max-w-0 opacity-0 pointer-events-none'
-                  : 'max-w-[200px] opacity-100 pointer-events-auto'
-              "
-            >
-              <span
-                class="px-2 text-[10px] font-bold uppercase tracking-wider text-white/50"
-                >Workspace</span
-              >
-            </div>
-
-            <!-- Unified Workspace Card Container -->
-            <div class="relative group w-full">
-              <!-- Case 1: Active Job Processing -->
-              <div
-                v-if="isProcessing"
-                class="border border-transparent flex items-center gap-2.5 rounded-xl transition-all duration-200 ease-out w-full overflow-hidden"
-                :class="
-                  isCollapsed
-                    ? 'h-10 p-0 bg-transparent border-transparent duration-80 ease-in'
-                    : 'h-[68px] p-2 bg-amber-500/5 border-amber-500/20 delay-75'
-                "
-              >
-                <!-- Stationary Left Anchor -->
-                <div
-                  class="rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0 animate-pulse-subtle transition-all duration-200 ease-out"
-                  :class="
-                    isCollapsed
-                      ? 'w-10 h-10 rounded-xl'
-                      : 'w-12 h-12 rounded-lg'
-                  "
-                >
-                  <Icon
-                    name="lucide:loader-2"
-                    class="animate-spin text-amber-400"
-                    :class="isCollapsed ? 'text-base' : 'text-lg'"
-                  />
-                </div>
-
-                <!-- Right Details (Horizontal Unfold) -->
-                <div
-                  class="overflow-hidden whitespace-nowrap transition-all ease-in-out min-w-0 flex-1"
-                  :class="
-                    isCollapsed
-                      ? 'max-w-0 opacity-0 duration-80 -translate-x-1 pointer-events-none'
-                      : 'max-w-[240px] opacity-100 duration-200 delay-75 translate-x-0'
-                  "
-                >
-                  <div class="flex flex-col justify-center min-w-0 pr-1">
-                    <div class="flex items-center gap-1.5 leading-none">
-                      <span
-                        class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0"
-                      ></span>
-                      <span
-                        class="text-[9.5px] font-bold text-amber-400 tracking-wider uppercase"
-                        >Active Job</span
-                      >
-                    </div>
-                    <p
-                      class="text-xs text-white font-semibold truncate leading-tight mt-1"
-                    >
-                      {{ processingTitle }}
-                    </p>
-                    <p
-                      class="text-[10px] text-amber-300/70 uppercase tracking-wider font-mono truncate mt-0.5"
-                    >
-                      {{ processingStatus }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Case 2: Continue Editing / Last Accessed Clip Available -->
-              <button
-                v-else-if="lastClip && (lastVideo || lastClip.video_title)"
-                :disabled="isCurrentClipActive"
-                class="border border-transparent flex items-center gap-2.5 rounded-xl transition-all duration-200 ease-out group w-full text-left"
-                :class="[
-                  isCurrentClipActive
-                    ? 'cursor-default opacity-85'
-                    : 'cursor-pointer hover:border-accent-500/40 hover:bg-white/[0.06]',
-                  isCollapsed
-                    ? 'h-10 p-0 bg-transparent border-transparent duration-80 ease-in overflow-visible'
-                    : 'h-[68px] p-2 bg-white/[0.03] border-white/[0.08] delay-75 overflow-hidden'
-                ]"
-                :title="
-                  isCollapsed
-                    ? `${lastClip.theme || lastClip.title || 'Last Accessed Clip'}${lastClip.video_title || lastVideo?.title ? ' • ' + (lastClip.video_title || lastVideo?.title) : ''}`
-                    : undefined
-                "
-                @click="
-                  isCurrentClipActive ? null : handleContinueEditingClick()
-                "
-              >
-                <!-- Media Anchor Wrapper (overflow-visible for unclipped badge) -->
-                <div
-                  class="shrink-0 relative flex items-center justify-center transition-all duration-200 ease-out"
-                  :class="isCollapsed ? 'w-10 h-10' : 'w-12 h-12'"
-                >
-                  <!-- Inner Thumbnail Box (overflow-hidden to round the image) -->
-                  <div
-                    class="w-full h-full bg-[#141419] overflow-hidden border border-white/[0.08] relative flex items-center justify-center transition-all duration-200 ease-out group-hover:border-accent-500/30"
-                    :class="isCollapsed ? 'rounded-xl' : 'rounded-lg'"
-                  >
-                    <img
-                      v-if="lastClipThumbnail"
-                      :src="lastClipThumbnail"
-                      class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      alt="Clip Thumbnail"
-                      @error="handleThumbnailError"
-                    />
-                    <Icon
-                      v-else
-                      name="lucide:clapperboard"
-                      class="text-white/60"
-                      :class="isCollapsed ? 'text-base' : 'text-lg'"
-                    />
-
-                    <!-- Hover Play Overlay in Expanded Mode -->
-                    <div
-                      v-if="!isCurrentClipActive && !isCollapsed"
-                      class="absolute inset-0 bg-black/45 backdrop-blur-[1px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                    >
-                      <div
-                        class="w-6 h-6 rounded-full bg-accent-500 flex items-center justify-center shadow-lg shadow-accent-500/30"
-                      >
-                        <Icon
-                          name="lucide:play"
-                          class="text-black text-xs fill-black"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Active Notification Dot in Collapsed Mode (Unclipped Floating Badge) -->
-                  <div
-                    v-if="isCollapsed"
-                    class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-accent-500 rounded-full border-2 border-[#09090b] shadow-[0_0_8px_rgba(255,215,0,0.8)] z-20 pointer-events-none"
-                  ></div>
-                </div>
-
-                <!-- Right Details (Horizontal Unfold) -->
-                <div
-                  class="overflow-hidden whitespace-nowrap transition-all ease-in-out min-w-0 flex-1"
-                  :class="
-                    isCollapsed
-                      ? 'max-w-0 opacity-0 duration-80 -translate-x-1 pointer-events-none'
-                      : 'max-w-[240px] opacity-100 duration-200 delay-75 translate-x-0'
-                  "
-                >
-                  <div class="flex flex-col justify-center min-w-0 pr-1">
-                    <div class="flex items-center gap-1.5 leading-none">
-                      <span
-                        v-if="isCurrentClipActive"
-                        class="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"
-                      ></span>
-                      <p
-                        class="text-[9.5px] font-bold uppercase tracking-wider"
-                        :class="
-                          isCurrentClipActive
-                            ? 'text-indigo-400'
-                            : 'text-accent-500'
-                        "
-                      >
-                        {{
-                          isCurrentClipActive
-                            ? 'ON EDITING'
-                            : 'CONTINUE EDITING'
-                        }}
-                      </p>
-                    </div>
-                    <p
-                      class="text-xs text-white font-semibold truncate leading-tight mt-1"
-                    >
-                      {{ lastClip.theme || lastClip.title || 'Untitled Clip' }}
-                    </p>
-                    <p class="text-[10px] text-white/50 truncate mt-0.5">
-                      {{
-                        lastClip.video_title ||
-                        lastVideo?.title ||
-                        'Untitled Video'
-                      }}
-                    </p>
-                  </div>
-                </div>
-              </button>
-
-              <!-- Case 3: Empty State (No Recent Clip) -->
-              <div
-                v-else
-                class="border border-transparent flex items-center gap-2.5 rounded-xl transition-all duration-200 ease-out w-full overflow-hidden"
-                :class="
-                  isCollapsed
-                    ? 'h-10 p-0 bg-transparent border-transparent duration-80 ease-in'
-                    : 'h-[68px] p-2 bg-white/[0.02] border-dashed border-white/[0.08] delay-75'
-                "
-              >
-                <!-- Media Anchor -->
-                <div
-                  class="bg-white/[0.03] border border-white/[0.08] text-white/35 flex items-center justify-center shrink-0 transition-all duration-200 ease-out"
-                  :class="
-                    isCollapsed
-                      ? 'w-10 h-10 rounded-xl'
-                      : 'w-12 h-12 rounded-lg'
-                  "
-                >
-                  <Icon
-                    name="lucide:clapperboard"
-                    :class="isCollapsed ? 'text-base' : 'text-lg'"
-                  />
-                </div>
-
-                <!-- Right Details (Horizontal Unfold) -->
-                <div
-                  class="overflow-hidden whitespace-nowrap transition-all ease-in-out min-w-0 flex-1"
-                  :class="
-                    isCollapsed
-                      ? 'max-w-0 opacity-0 duration-80 -translate-x-1 pointer-events-none'
-                      : 'max-w-[240px] opacity-100 duration-200 delay-75 translate-x-0'
-                  "
-                >
-                  <div class="flex flex-col justify-center min-w-0 pr-1">
-                    <p
-                      class="text-[9.5px] font-bold uppercase tracking-wider text-white/40 leading-none"
-                    >
-                      Last Accessed Clip
-                    </p>
-                    <p class="text-xs text-white/60 font-medium truncate mt-1">
-                      No recent clip
-                    </p>
-                    <p class="text-[10px] text-white/35 truncate mt-0.5">
-                      Open a clip to begin
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Collapsed Mode Workspace Hover Card Drawer -->
-              <div
-                v-if="isCollapsed"
-                class="absolute left-full top-0 ml-3 bg-[#121216] border border-white/10 backdrop-blur-xl rounded-2xl shadow-2xl p-3 w-64 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all translate-x-1 group-hover:translate-x-0 z-[100] flex flex-col gap-2 cursor-default"
-              >
-                <span
-                  class="text-[9px] font-bold uppercase tracking-wider text-white/50 pb-1 border-b border-white/[0.06]"
-                  >Workspace</span
-                >
-
-                <div
-                  v-if="isProcessing"
-                  class="bg-amber-500/5 rounded-xl p-2.5 border border-amber-500/10"
-                >
-                  <div class="flex items-center gap-1.5 mb-1">
-                    <Icon
-                      name="lucide:loader-2"
-                      class="text-xs text-amber-400 animate-spin"
-                    />
-                    <span class="text-[9px] font-bold text-amber-400 uppercase"
-                      >Active Job</span
-                    >
-                  </div>
-                  <p class="text-xs text-white font-medium line-clamp-1">
-                    {{ processingTitle }}
-                  </p>
-                  <p class="text-[9px] text-amber-300/70 font-mono mt-0.5">
-                    {{ processingStatus }}
-                  </p>
-                </div>
-
-                <div
-                  v-else-if="lastClip && (lastVideo || lastClip.video_title)"
-                  class="flex items-center gap-2.5 p-1 rounded-xl transition-all"
-                  :class="
-                    !isCurrentClipActive
-                      ? 'hover:bg-white/[0.04] cursor-pointer'
-                      : ''
-                  "
-                  @click="!isCurrentClipActive && handleContinueEditingClick()"
-                >
-                  <div
-                    class="w-11 h-11 rounded-lg bg-[#141419] overflow-hidden shrink-0 border border-white/[0.08] relative flex items-center justify-center"
-                  >
-                    <img
-                      v-if="lastClipThumbnail"
-                      :src="lastClipThumbnail"
-                      class="w-full h-full object-cover"
-                      alt="Clip Thumbnail"
-                      @error="handleThumbnailError"
-                    />
-                    <Icon
-                      v-else
-                      name="lucide:clapperboard"
-                      class="text-white/60 text-sm"
-                    />
-                  </div>
-                  <div class="flex flex-col gap-0.5 min-w-0 flex-1">
-                    <p
-                      class="text-[9px] font-bold uppercase tracking-wider"
-                      :class="
-                        isCurrentClipActive
-                          ? 'text-indigo-400'
-                          : 'text-accent-500'
-                      "
-                    >
-                      {{
-                        isCurrentClipActive
-                          ? 'ON EDITING'
-                          : 'LAST ACCESSED CLIP'
-                      }}
-                    </p>
-                    <p
-                      class="text-xs text-white font-medium truncate leading-tight"
-                    >
-                      {{ lastClip.theme || lastClip.title || 'Untitled Clip' }}
-                    </p>
-                    <p class="text-[9px] text-white/60 truncate">
-                      {{
-                        lastClip.video_title ||
-                        lastVideo?.title ||
-                        'Untitled Video'
-                      }}
-                    </p>
-                  </div>
-                </div>
-                <div
-                  v-else
-                  class="text-[10px] text-white/45 italic text-center py-1"
-                >
-                  No last accessed clip.
-                </div>
-              </div>
-            </div>
-          </div>
+          <!-- Section 3: Workspace Card -->
+          <SidebarWorkspaceCard
+            :is-collapsed="isCollapsed"
+            :is-processing="isProcessing"
+            :processing-title="processingTitle"
+            :processing-status="processingStatus"
+            :last-clip="lastClip"
+            :last-video="lastVideo"
+            :last-clip-thumbnail="lastClipThumbnail"
+            :is-current-clip-active="isCurrentClipActive"
+            @continue-editing="handleContinueEditingClick"
+            @thumbnail-error="handleThumbnailError"
+          />
 
           <!-- Section 4: Changelog (Persistent 40px Hitbox) -->
           <div class="relative group w-full mt-auto pt-2 shrink-0">
@@ -703,152 +288,12 @@
           </div>
         </div>
 
-        <!-- Section 5: Utility Footer (Dual-Layer Fixed Anchor) -->
-        <div
-          class="border-t border-white/[0.08] shrink-0 relative overflow-visible p-3 h-[116px] flex flex-col justify-center"
-        >
-          <!-- Collapsed Footer Layer (Vertical Stack) -->
-          <div
-            class="w-10 mx-auto flex flex-col items-center gap-1 overflow-visible transition-all ease-in-out"
-            :class="
-              isCollapsed
-                ? 'opacity-100 duration-150 delay-100 pointer-events-auto'
-                : 'opacity-0 duration-80 pointer-events-none absolute inset-x-0 top-3'
-            "
-          >
-            <!-- Saweria Button -->
-            <div class="relative group">
-              <a
-                href="https://saweria.co/gitkyla"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="w-8 h-8 rounded-xl flex items-center justify-center transition-all group/saweria hover:bg-white/[0.06] hover:scale-105 cursor-pointer"
-                title="Support @gitkyla on Saweria"
-              >
-                <img
-                  :src="SAWERIA_LOGO"
-                  alt="Saweria"
-                  class="w-4 h-4 object-contain group-hover/saweria:scale-110 transition-transform"
-                />
-              </a>
-              <div
-                class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-[#121216]/95 border border-[#FAAE2B]/30 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-[100] whitespace-nowrap flex items-center gap-1.5"
-              >
-                <span class="w-1.5 h-1.5 rounded-full bg-[#FAAE2B]"></span>
-                <span>Saweria (@gitkyla)</span>
-              </div>
-            </div>
-
-            <!-- Trakteer Button -->
-            <div class="relative group">
-              <a
-                href="https://trakteer.id/gitkyla"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="w-8 h-8 rounded-xl flex items-center justify-center transition-all group/trakteer hover:bg-white/[0.06] hover:scale-105 cursor-pointer"
-                title="Support @gitkyla on Trakteer"
-              >
-                <img
-                  :src="TRAKTEER_LOGO"
-                  alt="Trakteer"
-                  class="w-4 h-4 object-contain group-hover/trakteer:scale-110 transition-transform"
-                />
-              </a>
-              <div
-                class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-[#121216]/95 border border-[#BE1E2D]/30 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-[100] whitespace-nowrap flex items-center gap-1.5"
-              >
-                <span class="w-1.5 h-1.5 rounded-full bg-[#FF5A65]"></span>
-                <span>Trakteer (@gitkyla)</span>
-              </div>
-            </div>
-
-            <!-- Divider -->
-            <div class="w-6 border-t border-white/[0.08] my-0.5"></div>
-
-            <!-- Status Dot -->
-            <div class="flex justify-center relative group py-0.5">
-              <div
-                class="w-2.5 h-2.5 rounded-full cursor-help"
-                :class="statusColor"
-              ></div>
-              <div
-                class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#121216] border border-white/10 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0 z-[100] whitespace-nowrap flex items-center gap-1.5"
-              >
-                <span
-                  class="w-1.5 h-1.5 rounded-full"
-                  :class="statusColor"
-                ></span>
-                <span>{{ statusLabel }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Expanded Footer Layer (2-Column Grid) -->
-          <div
-            class="w-full flex flex-col gap-2.5 overflow-hidden transition-all ease-in-out"
-            :class="
-              isCollapsed
-                ? 'opacity-0 duration-80 pointer-events-none max-w-0 max-h-0'
-                : 'opacity-100 duration-200 delay-100 pointer-events-auto max-w-full max-h-32'
-            "
-          >
-            <!-- Support on Section -->
-            <div class="flex flex-col gap-1.5">
-              <div class="flex items-center justify-between px-1">
-                <span
-                  class="text-[9px] font-bold uppercase tracking-wider text-white/50"
-                  >Support on</span
-                >
-                <span class="text-[10px] text-accent-500 font-semibold"
-                  >@gitkyla</span
-                >
-              </div>
-              <div class="grid grid-cols-2 gap-1.5">
-                <a
-                  href="https://saweria.co/gitkyla"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-white/[0.03] hover:bg-[#FAAE2B]/15 border border-white/[0.06] hover:border-[#FAAE2B]/30 text-white/90 hover:text-white text-[11px] font-bold transition-all group shadow-sm hover:scale-[1.02] cursor-pointer"
-                  title="Support @gitkyla on Saweria"
-                >
-                  <img
-                    :src="SAWERIA_LOGO"
-                    alt="Saweria"
-                    class="w-4 h-4 object-contain shrink-0 group-hover:scale-110 transition-transform"
-                  />
-                  <span>Saweria</span>
-                </a>
-                <a
-                  href="https://trakteer.id/gitkyla"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-white/[0.03] hover:bg-[#BE1E2D]/20 border border-white/[0.06] hover:border-[#BE1E2D]/40 text-white/90 hover:text-white text-[11px] font-bold transition-all group shadow-sm hover:scale-[1.02] cursor-pointer"
-                  title="Support @gitkyla on Trakteer"
-                >
-                  <img
-                    :src="TRAKTEER_LOGO"
-                    alt="Trakteer"
-                    class="w-4 h-4 object-contain shrink-0 group-hover:scale-110 transition-transform"
-                  />
-                  <span>Trakteer</span>
-                </a>
-              </div>
-            </div>
-
-            <!-- Status & Version Row -->
-            <div
-              class="flex items-center justify-between px-1 pt-2 border-t border-white/[0.06]"
-            >
-              <div class="flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full" :class="statusColor"></span>
-                <span class="text-[10px] font-medium text-white/80">{{
-                  statusLabel
-                }}</span>
-              </div>
-              <span class="text-[9px] text-white/45 font-mono">v0.4.2</span>
-            </div>
-          </div>
-        </div>
+        <!-- Section 5: Utility Footer -->
+        <SidebarUtilityFooter
+          :is-collapsed="isCollapsed"
+          :status-color="statusColor"
+          :status-label="statusLabel"
+        />
       </div>
     </aside>
   </div>
@@ -856,8 +301,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
-import { SAWERIA_LOGO, TRAKTEER_LOGO } from '~/utils/donationLogos';
 import { useCommandPalette } from '~/composables/useCommandPalette';
+import SidebarNavList from './sidebar/SidebarNavList.vue';
+import SidebarWorkspaceCard from './sidebar/SidebarWorkspaceCard.vue';
+import SidebarUtilityFooter from './sidebar/SidebarUtilityFooter.vue';
 
 const state = useClipperState();
 const palette = useCommandPalette();
@@ -982,17 +429,6 @@ const lastClipThumbnail = computed(() => {
 function handleThumbnailError() {
   thumbnailFallbackStage.value += 1;
 }
-
-const navItemsConfig = [
-  { id: 'home', label: 'Home', icon: 'lucide:home' },
-  { id: 'prompts', label: 'Prompts', icon: 'carbon:prompt-template' },
-  { id: 'docs', label: 'Documentation', icon: 'lucide:book-open' },
-  { id: 'settings', label: 'Settings', icon: 'lucide:settings' }
-] as const;
-const navItemsList = ['home', 'prompts', 'docs', 'settings'] as const;
-const activeNavIndex = computed(() => {
-  return navItemsList.indexOf(props.activeView as any);
-});
 
 const emit = defineEmits<{
   (e: 'update:activeView', view: string): void;
@@ -1226,36 +662,5 @@ onUnmounted(() => {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.08);
   border-radius: 9999px;
-}
-
-@keyframes pulse-subtle {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.85;
-  }
-}
-
-.animate-pulse-subtle {
-  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-@keyframes pulse-amber {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
-  }
-  50% {
-    transform: scale(1.2);
-    opacity: 0.7;
-    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0);
-  }
-}
-.animate-pulse-amber {
-  animation: pulse-amber 2s infinite;
 }
 </style>
