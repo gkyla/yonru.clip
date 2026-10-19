@@ -171,6 +171,11 @@ _Avoid_: Fixed flag, ignored warning, masked audit
 The keyword detection threshold (`Strict`, `Standard`, `Custom Only`) that determines which sensitive words and profanities are flagged from transcripts, strictly decoupled from remediation actions (subtitle masking and audio bleeping).
 _Avoid_: Safety sensitivity, censor level, sensitivity mode, manual mode
 
+**Content Safety Configuration Modal**:
+The modal dialog (`BlacklistSettings.vue`) orchestrating detection thresholds, censoring styles, and dictionary terms. Structured as a thin modal coordinator delegating across four focused pane modules (`SafetyGeneralPane`, `SafetyCategoriesPane`, `SafetyBlacklistPane`, `SafetyWhitelistPane`), isolating audio preview playback, platform category policies, and lexical parsing into testable units.
+_Avoid_: Blacklist popup, censor dialog, safety modal monolith
+
+
 
 
 **Prompt Editor**:
