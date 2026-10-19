@@ -49,7 +49,7 @@ The expected speech-to-text processing time for a standard 60-second video clip 
 _Avoid_: Speed score, processing percentage
 
 **Navigation Sidebar**:
-The primary collapsible navigation panel on the left rail containing global views (Home, Prompts, Docs, Settings), quick video access, and hardware health indicator. Defaults to a collapsed rail (64px) for maximum workspace focus and expands on demand or via `⌘B` / `Ctrl+B`.
+The primary collapsible navigation panel on the left rail containing global views (Home, Prompts, Docs, Settings), quick video access, and hardware health indicator. Defaults to a collapsed rail (64px) for maximum workspace focus and expands on demand or via `⌘B` / `Ctrl+B`. Structured across focused sub-modules (`SidebarNavList`, `SidebarWorkspaceCard`, `SidebarUtilityFooter`) decoupling layout coordination from active clip states and creator support.
 _Avoid_: Navbar, menu drawer, left bar
 
 **Brand Mark**:
