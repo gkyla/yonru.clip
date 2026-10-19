@@ -361,3 +361,28 @@ def test_system_repository_detect_hardware_profile_nvidia_gpu():
         assert profile["recommended_model"] == "medium"
         assert profile["model_capacities"]["medium"]["status"] == "optimal"
 
+
+def test_system_repository_detect_hardware_profile_custom_profiler_injection():
+    """Verify SystemRepository delegates cleanly to an injected HardwareProfiler instance."""
+    from core.hardware_profiler import HardwareProfiler, FakeHardwareMetricsSource
+
+    fake_source = FakeHardwareMetricsSource(
+        cpu_brand="Injected CPU",
+        cpu_arch="arm64",
+        cpu_cores=10,
+        system_os="Darwin",
+        total_ram_gb=32.0,
+        gpu_type="apple_silicon",
+        gpu_name="Injected Apple M3 (Unified Memory)",
+        gpu_vram_gb=32.0,
+    )
+    custom_profiler = HardwareProfiler(metrics_source=fake_source)
+    config_store = InMemoryConfigStore()
+    repo = SystemRepository(config_store=config_store, hardware_profiler=custom_profiler)
+
+    profile = repo.detect_hardware_profile()
+    assert profile["cpu"]["brand"] == "Injected CPU"
+    assert profile["memory"]["total_gb"] == 32.0
+    assert profile["recommended_model"] == "large-v3"
+
+
