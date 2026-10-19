@@ -37,7 +37,7 @@ A global modal overlay triggered via `⌘K` / `Ctrl+K` or the sidebar search bar
 _Avoid_: Search modal, quick finder, spotlight bar
 
 **Hardware Capability Profile**:
-The host computer's hardware metrics (CPU cores, physical RAM, and GPU/VRAM capacity) evaluated to calculate realistic local transcription processing times and memory safety guardrails without prescriptive recommendations.
+The host computer's hardware metrics (CPU cores, physical RAM, and GPU/VRAM capacity) evaluated to calculate realistic local transcription processing times and memory safety guardrails without prescriptive recommendations. Encapsulated in the `HardwareProfiler` deep module behind the `HardwareMetricsSource` seam (`PlatformHardwareMetricsSource` / `FakeHardwareMetricsSource`), decoupling low-level OS probing from configuration persistence.
 _Avoid_: System specs, PC benchmark, machine diagnostics
 
 **Transcription Engine Preset**:
