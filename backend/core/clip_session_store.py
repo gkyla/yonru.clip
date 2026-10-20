@@ -180,17 +180,10 @@ class ClipSessionStore:
                 except Exception:
                     pass
             self._atomic_write_json(clip_cover_path, cover_data)
-            self._atomic_write_json(clip_thumb_path, cover_data)
         elif not os.path.exists(clip_cover_path) and os.path.exists(clip_thumb_path):
-            # Sync cover from thumbnail config
+            # Sync cover from legacy thumbnail config
             try:
                 shutil.copy2(clip_thumb_path, clip_cover_path)
-            except Exception:
-                pass
-        elif os.path.exists(clip_cover_path) and not os.path.exists(clip_thumb_path):
-            # Sync thumbnail config from cover
-            try:
-                shutil.copy2(clip_cover_path, clip_thumb_path)
             except Exception:
                 pass
 
@@ -366,13 +359,10 @@ class ClipSessionStore:
 
         if "cover_config" in payload:
             updates["cover_config.json"] = payload["cover_config"]
-            updates["thumbnail_config.json"] = payload["cover_config"]
         elif "thumbnail_config" in payload:
             updates["cover_config.json"] = payload["thumbnail_config"]
-            updates["thumbnail_config.json"] = payload["thumbnail_config"]
         elif "config" in payload:
             updates["cover_config.json"] = payload["config"]
-            updates["thumbnail_config.json"] = payload["config"]
 
         if "crop_map" in payload:
             updates["crop_map.json"] = payload["crop_map"]
@@ -425,7 +415,7 @@ class ClipSessionStore:
         return True
 
     def save_cover_config(self, folder_name: str, clip_id: str, config: Dict[str, Any]) -> bool:
-        """Saves clip cover configuration atomically (and syncs thumbnail_config.json)."""
+        """Saves clip cover configuration atomically."""
         self.save_clip_session(folder_name, clip_id, {"cover_config": config})
         return True
 
@@ -990,12 +980,10 @@ class ClipSessionStore:
         return dict(CANONICAL_DEFAULT_COVER_CONFIG)
 
     def save_default_cover_style(self, style: Dict[str, Any]) -> bool:
-        """Atomically saves global default cover style settings and syncs thumbnail style."""
+        """Atomically saves global default cover style settings."""
         default_cover_path = os.path.join(self.output_dir, "default_cover_style.json")
-        default_thumb_path = os.path.join(self.output_dir, "default_thumbnail_style.json")
         try:
             self._atomic_write_json(default_cover_path, style)
-            self._atomic_write_json(default_thumb_path, style)
             return True
         except Exception:
             return False

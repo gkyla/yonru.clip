@@ -75,7 +75,7 @@ def test_get_clip_session_and_defaults_auto_healing():
         # Verify files were healed on disk
         assert os.path.exists(os.path.join(clip_dir, "style_settings.json"))
         assert os.path.exists(os.path.join(clip_dir, "cover_config.json"))
-        assert os.path.exists(os.path.join(clip_dir, "thumbnail_config.json"))
+        assert not os.path.exists(os.path.join(clip_dir, "thumbnail_config.json"))
         assert os.path.exists(os.path.join(clip_dir, "transcript.json"))
         # Verify poster was copied to thumbnail.jpg
         assert os.path.exists(os.path.join(clip_dir, "thumbnail.jpg"))
@@ -124,10 +124,10 @@ def test_atomic_partial_and_complete_persistence():
         })
         assert res3["history"] == {"undo_stack": ["state1"], "redo_stack": ["state2"]}
         assert res3["cover_config"]["enabled"] is True
-        assert res3["cover_config"]["duration"] == 3.0
-        # Check thumbnail_config synced
-        with open(os.path.join(clip_dir, "thumbnail_config.json"), "r") as f:
+        # Check cover_config saved and no dual write of thumbnail_config
+        with open(os.path.join(clip_dir, "cover_config.json"), "r") as f:
             assert json.load(f)["duration"] == 3.0
+        assert not os.path.exists(os.path.join(clip_dir, "thumbnail_config.json"))
 
         # 4. Partial save: crop_map
         crop_points = [{"time": 0.0, "x": 800}, {"time": 1.5, "x": 920}]
@@ -445,7 +445,7 @@ def test_create_clip_executes_ffmpeg_and_seeds_defaults():
         assert os.path.exists(os.path.join(clip_dir, "thumbnail.jpg"))
         assert os.path.exists(os.path.join(clip_dir, "style_settings.json"))
         assert os.path.exists(os.path.join(clip_dir, "cover_config.json"))
-        assert os.path.exists(os.path.join(clip_dir, "thumbnail_config.json"))
+        assert not os.path.exists(os.path.join(clip_dir, "thumbnail_config.json"))
         assert os.path.exists(os.path.join(clip_dir, "transcript.json"))
 
         # Verify ffmpeg arguments used -avoid_negative_ts auto and -accurate_seek

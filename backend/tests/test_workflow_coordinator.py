@@ -254,13 +254,14 @@ def test_run_local_cut_success_flow(mock_dependencies, tmp_path):
         style_settings_path = clip_dir / "style_settings.json"
         assert style_settings_path.exists()
 
-        # Verify default thumbnail config populated
-        thumbnail_config_path = clip_dir / "thumbnail_config.json"
-        assert thumbnail_config_path.exists()
-        with open(thumbnail_config_path, "r") as f:
-            thumb_config = json.load(f)
-        assert thumb_config["duration"] == 2.5
-        assert thumb_config["enabled"] is False
+        # Verify default cover config populated
+        cover_config_path = clip_dir / "cover_config.json"
+        assert cover_config_path.exists()
+        with open(cover_config_path, "r") as f:
+            cover_config = json.load(f)
+        assert cover_config["duration"] == 2.5
+        assert cover_config["enabled"] is False
+        assert not (clip_dir / "thumbnail_config.json").exists()
     finally:
         # Restore backups or clean up
         if style_settings_backup is not None:
@@ -561,7 +562,8 @@ def test_provision_clip_cached_ready(mock_dependencies, tmp_path):
     
     # Verify default files and crop_map were seeded
     assert (clip_dir / "style_settings.json").exists()
-    assert (clip_dir / "thumbnail_config.json").exists()
+    assert (clip_dir / "cover_config.json").exists()
+    assert not (clip_dir / "thumbnail_config.json").exists()
     assert (clip_dir / "crop_map.json").exists()
 
 
