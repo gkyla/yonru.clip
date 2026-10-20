@@ -149,7 +149,7 @@ describe('useClipEditorSession Composable', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('sanitizes and sends transcript to PUT /api/transcript with toast on success', async () => {
+    it('sanitizes and sends transcript to PUT /api/clip-session with toast on success', async () => {
       const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
       vi.stubGlobal('$fetch', mockFetch);
       const mockNotifier = { showToast: vi.fn() };
@@ -164,12 +164,10 @@ describe('useClipEditorSession Composable', () => {
       await session.saveTranscript(false);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE}/api/transcript`,
+        `${API_BASE}/api/clip-session/my-folder/my-clip`,
         expect.objectContaining({
           method: 'PUT',
           body: {
-            folder_name: 'my-folder',
-            clip_id: 'my-clip',
             transcript: [{ start: 1.5, duration: 3.0, text: 'Sanitized edit' }]
           }
         })
@@ -369,13 +367,11 @@ describe('useClipEditorSession Composable', () => {
 
       await session.saveStyleSettings();
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE}/api/style-settings`,
+        `${API_BASE}/api/clip-session/f1/c1`,
         expect.objectContaining({
           method: 'PUT',
           body: {
-            folder_name: 'f1',
-            clip_id: 'c1',
-            settings: { fontSize: 48 }
+            style_settings: { fontSize: 48 }
           }
         })
       );
@@ -402,7 +398,7 @@ describe('useClipEditorSession Composable', () => {
       await session.toggleSubtitles();
       expect(session.subtitlesEnabled.value).toBe(false);
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE}/api/style-settings`,
+        `${API_BASE}/api/clip-session/f1/c1`,
         expect.anything()
       );
     });
@@ -570,7 +566,7 @@ describe('useClipEditorSession Composable', () => {
 
       expect(mockTimeline.undo).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE}/api/transcript`,
+        `${API_BASE}/api/clip-session/fUndo/cUndo`,
         expect.anything()
       );
     });
@@ -591,7 +587,7 @@ describe('useClipEditorSession Composable', () => {
 
       expect(mockTimeline.redo).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE}/api/transcript`,
+        `${API_BASE}/api/clip-session/fRedo/cRedo`,
         expect.anything()
       );
     });

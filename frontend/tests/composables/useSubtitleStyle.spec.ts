@@ -10,17 +10,16 @@ describe('useSubtitleStyle Composable - Persistence & HTTP Semantics', () => {
     vi.stubGlobal('$fetch', mockFetch);
   });
 
-  it('calls PUT /api/style-settings when saving clip style settings', async () => {
+  it('calls PUT /api/clip-session when saving clip style settings', async () => {
     const subtitleStyle = useSubtitleStyle();
     await subtitleStyle.saveStyleSettings('test_folder', 'test_clip_1');
 
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/style-settings'),
+      expect.stringContaining('/api/clip-session/test_folder/test_clip_1'),
       expect.objectContaining({
         method: 'PUT',
         body: expect.objectContaining({
-          folder_name: 'test_folder',
-          clip_id: 'test_clip_1'
+          style_settings: expect.any(Object)
         })
       })
     );

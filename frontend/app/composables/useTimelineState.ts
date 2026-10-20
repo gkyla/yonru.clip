@@ -74,15 +74,16 @@ export const useTimelineState = () => {
       (timelineUndoStack.value.length > 0 || timelineRedoStack.value.length > 0)
     ) {
       try {
-        await $fetch(`${API_BASE}/api/timeline-history`, {
-          method: 'PUT',
-          body: {
-            folder_name: oldFolder,
-            clip_id: oldClip,
-            undo_stack: timelineUndoStack.value,
-            redo_stack: timelineRedoStack.value
+        await $fetch(
+          `${API_BASE}/api/clip-session/${encodeURIComponent(oldFolder)}/${encodeURIComponent(oldClip)}`,
+          {
+            method: 'PUT',
+            body: {
+              undo_stack: timelineUndoStack.value,
+              redo_stack: timelineRedoStack.value
+            }
           }
-        });
+        );
       } catch (e) {
         console.error(
           '[timeline] Failed to save history before clip switch:',
@@ -160,15 +161,16 @@ export const useTimelineState = () => {
     if (!folderName.value || !clipId.value) return;
     isSavingHistory.value = true;
     try {
-      await $fetch(`${API_BASE}/api/timeline-history`, {
-        method: 'PUT',
-        body: {
-          folder_name: folderName.value,
-          clip_id: clipId.value,
-          undo_stack: timelineUndoStack.value,
-          redo_stack: timelineRedoStack.value
+      await $fetch(
+        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`,
+        {
+          method: 'PUT',
+          body: {
+            undo_stack: timelineUndoStack.value,
+            redo_stack: timelineRedoStack.value
+          }
         }
-      });
+      );
       hasUnsavedHistory.value = false;
       console.log('[timeline] Saved history to backend');
     } catch (e) {
@@ -234,14 +236,15 @@ export const useTimelineState = () => {
     );
 
     try {
-      await $fetch(`${API_BASE}/api/timeline`, {
-        method: 'PUT',
-        body: {
-          folder_name: folderName.value,
-          clip_id: clipId.value,
-          timeline_tracks: timelineTracks.value
+      await $fetch(
+        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`,
+        {
+          method: 'PUT',
+          body: {
+            timeline_tracks: timelineTracks.value
+          }
         }
-      });
+      );
       console.log('[clipper] Saved timeline tracks successfully');
     } catch (e) {
       console.error('[clipper] Failed to save timeline tracks:', e);
