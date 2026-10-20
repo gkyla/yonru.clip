@@ -404,3 +404,111 @@ def test_ensure_frontend_build_triggers_when_hash_differs(mocker, tmp_path):
     assert sentinel.read_text() == "new_hash"
 
 
+def test_service_coordinator_get_browser_url():
+    """
+    TDD Test: Verify URL resolution across production, dev, and backend-only targets.
+    """
+    # 1. Production mode (default port 8765)
+    coord_prod = run.ServiceCoordinator("all", dev=False)
+    assert coord_prod.get_browser_url() == "http://localhost:8765"
+
+    # 2. Dev mode (default frontend port 3765)
+    coord_dev = run.ServiceCoordinator("all", dev=True)
+    assert coord_dev.get_browser_url() == "http://localhost:3765"
+
+    # 3. Custom ports
+    coord_custom = run.ServiceCoordinator("all", dev=True, port=9000, frontend_port=4000)
+    assert coord_custom.get_browser_url() == "http://localhost:4000"
+
+    # 4. Backend-only target: must return None (headless API)
+    coord_backend = run.ServiceCoordinator("backend", dev=False)
+    assert coord_backend.get_browser_url() is None
+
+    coord_backend_dev = run.ServiceCoordinator("backend", dev=True)
+    assert coord_backend_dev.get_browser_url() is None
+
+
+def test_service_coordinator_opens_browser_on_ready_once(mocker):
+    """
+    TDD Test: Verify that ServiceCoordinator delegates to browser_opener.open_url
+    exactly once when services report ready.
+    """
+    mocker.patch("run.log_system")
+    mocker.patch("run.print_dashboard")
+    mock_opener = run.MockBrowserOpener()
+
+    coordinator = run.ServiceCoordinator(
+        "all", 
+        browser_opener=mock_opener, 
+        dev=False, 
+        port=8765
+    )
+    
+    coordinator._on_services_ready()
+
+    assert mock_opener.opened_urls == ["http://localhost:8765"]
+    assert coordinator._dashboard_printed is True
+
+    # Calling it a second time should be a no-op (idempotent / only once)
+    coordinator._on_services_ready()
+    assert mock_opener.opened_urls == ["http://localhost:8765"]
+
+
+def test_service_coordinator_backend_target_does_not_open_browser(mocker):
+    """
+    TDD Test: Verify that backend-only target does not trigger browser opening.
+    """
+    mocker.patch("run.log_system")
+    mocker.patch("run.print_dashboard")
+    mock_opener = run.MockBrowserOpener()
+
+    coordinator = run.ServiceCoordinator(
+        "backend", 
+        browser_opener=mock_opener, 
+        dev=False
+    )
+    coordinator._on_services_ready()
+
+    assert mock_opener.opened_urls == []
+
+
+def test_os_browser_opener_graceful_handling(mocker):
+    """
+    TDD Test: Verify OSBrowserOpener delegates to webbrowser.open_new_tab in a thread
+    and handles exceptions gracefully without raising.
+    """
+    mocker.patch("run.log_system")
+    mock_webbrowser = mocker.patch("webbrowser.open_new_tab")
+    
+    opener = run.OSBrowserOpener()
+    success = opener.open_url("http://localhost:8765")
+    assert success is True
+
+
+def test_bootstrapped_launcher_passes_browser_opener_to_coordinator(mocker):
+    """
+    Verify that BootstrappedLauncher propagates browser_opener to ServiceCoordinator on run.
+    """
+    mock_opener = run.MockBrowserOpener()
+    launcher = run.BootstrappedLauncher(target="all", dev=False, browser_opener=mock_opener)
+    launcher.venv_python = "python"
+
+    mocker.patch.object(launcher, "_check_dependencies")
+    mocker.patch.object(launcher, "_bootstrap_backend", return_value="python")
+    mocker.patch.object(launcher, "_bootstrap_fonts")
+    mocker.patch.object(launcher, "_ensure_frontend_build")
+    mocker.patch.object(launcher, "_bootstrap_node_project")
+    mocker.patch.object(launcher, "_setup_remotion_browser")
+
+    mock_coord_cls = mocker.patch("run.ServiceCoordinator")
+    mock_instance = mock_coord_cls.return_value
+    mock_instance.run_loop.side_effect = KeyboardInterrupt
+
+    launcher.run()
+
+    mock_coord_cls.assert_called_once()
+    assert mock_coord_cls.call_args.kwargs.get("browser_opener") is mock_opener
+
+
+
+

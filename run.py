@@ -143,11 +143,43 @@ class MockPortSweeper(PortSweeper):
         self.swept_ports.extend(ports)
 
 
+class BrowserOpener(ABC):
+    """Seam for opening URLs in the default browser."""
+    @abstractmethod
+    def open_url(self, url: str) -> bool:
+        pass
+
+
+class OSBrowserOpener(BrowserOpener):
+    """Production adapter opening browser tabs via Python's webbrowser standard library."""
+    def open_url(self, url: str) -> bool:
+        import webbrowser
+        try:
+            log_system(f"Opening Yonru Studio in your browser: \033[1;36m{url}\033[0m")
+            t = threading.Thread(target=webbrowser.open_new_tab, args=(url,), daemon=True)
+            t.start()
+            return True
+        except Exception as e:
+            log_system(f"Note: Could not automatically open browser ({e}). Please open {url} manually.")
+            return False
+
+
+class MockBrowserOpener(BrowserOpener):
+    """Mock adapter recording opened URLs for testing without opening real browser tabs."""
+    def __init__(self):
+        self.opened_urls = []
+
+    def open_url(self, url: str) -> bool:
+        self.opened_urls.append(url)
+        return True
+
+
 class ServiceCoordinator:
     def __init__(
         self, 
         target: str, 
         sweeper: PortSweeper | None = None, 
+        browser_opener: BrowserOpener | None = None,
         dev: bool = False,
         port: int = DEFAULT_PORT,
         frontend_port: int = DEFAULT_FRONTEND_PORT,
@@ -155,6 +187,7 @@ class ServiceCoordinator:
     ):
         self.target = target
         self.sweeper = sweeper or OSPortSweeper()
+        self.browser_opener = browser_opener or OSBrowserOpener()
         self.dev = dev
         self.port = port
         self.frontend_port = frontend_port
@@ -164,6 +197,33 @@ class ServiceCoordinator:
         self._pending_ready = set()
         self._dashboard_printed = False
         self._lock = threading.Lock()
+
+    def get_browser_url(self) -> str | None:
+        """Determines the UI URL to open in the browser based on target and mode."""
+        if self.target == "backend":
+            return None
+        if self.dev:
+            return f"http://localhost:{self.frontend_port}"
+        return f"http://localhost:{self.port}"
+
+    def _on_services_ready(self):
+        """Triggers the dashboard and automatically opens the browser tab exactly once."""
+        with self._lock:
+            if self._dashboard_printed:
+                return
+            self._dashboard_printed = True
+
+        print_dashboard(
+            self.target, 
+            dev=self.dev, 
+            port=self.port, 
+            frontend_port=self.frontend_port
+        )
+
+        url = self.get_browser_url()
+        if url:
+            self.browser_opener.open_url(url)
+
         
     def clean_ports(self):
         """Scan and kill any zombie processes listening on core Yonru ports to ensure self-healing boots."""
@@ -200,17 +260,14 @@ class ServiceCoordinator:
                         is_ready = any(sig in line or sig.lower() in line.lower() for sig in signals)
                         
                     if is_ready:
+                        should_notify = False
                         with self._lock:
                             if service.name in self._pending_ready:
                                 self._pending_ready.remove(service.name)
                                 if not self._pending_ready:
-                                    self._dashboard_printed = True
-                                    print_dashboard(
-                                        self.target, 
-                                        dev=self.dev, 
-                                        port=self.port, 
-                                        frontend_port=self.frontend_port
-                                    )
+                                    should_notify = True
+                        if should_notify:
+                            self._on_services_ready()
         except Exception:
             pass
         finally:
@@ -314,15 +371,7 @@ class ServiceCoordinator:
         
         def fallback_timer():
             time.sleep(5.0)
-            with self._lock:
-                if not self._dashboard_printed:
-                    self._dashboard_printed = True
-                    print_dashboard(
-                        self.target, 
-                        dev=self.dev, 
-                        port=self.port, 
-                        frontend_port=self.frontend_port
-                    )
+            self._on_services_ready()
                     
         threading.Thread(target=fallback_timer, daemon=True).start()
 
@@ -353,7 +402,8 @@ class BootstrappedLauncher:
         force_build: bool = False,
         port: int = DEFAULT_PORT,
         frontend_port: int = DEFAULT_FRONTEND_PORT,
-        no_sweep: bool = False
+        no_sweep: bool = False,
+        browser_opener: BrowserOpener | None = None
     ):
         self.target = target.lower()
         self.force_fonts = force_fonts
@@ -362,6 +412,7 @@ class BootstrappedLauncher:
         self.port = port
         self.frontend_port = frontend_port
         self.no_sweep = no_sweep
+        self.browser_opener = browser_opener
         self.coordinator = None
         self.venv_python = None
 
@@ -726,6 +777,7 @@ class BootstrappedLauncher:
         # 4. Spawn Active Services
         self.coordinator = ServiceCoordinator(
             self.target, 
+            browser_opener=self.browser_opener,
             dev=self.dev, 
             port=self.port, 
             frontend_port=self.frontend_port, 

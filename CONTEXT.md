@@ -222,3 +222,8 @@ _Avoid_: Asset repository, clip manager, clip file handler
 The modular configuration workspace and dedicated preference pane components (`HealthDiagnosticsPane`, `GeminiKeysPane`, `TranscriptionEnginePane`, `YouTubeCookiesPane`, `EnvironmentPathsPane`) responsible for system diagnostics, API failover key pools, Whisper transcription models, YouTube authentication cookies, and binary execution paths.
 _Avoid_: Settings modal, monolith config, options tab
 
+**Unified Launcher**:
+The self-healing cross-platform bootstrap orchestrator (`run.py`) responsible for preparing runtimes, validating dependencies, executing port sweeps, managing service processes, and automatically opening creator access in the browser upon service readiness.
+_Avoid_: Startup script, run script, dev runner, bootstrapper
+
+
