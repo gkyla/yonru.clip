@@ -149,20 +149,21 @@ export const useClipEditorSession = (
   }
 
   async function saveTranscript(isSilent = false) {
-    if (!folderName.value || !fullTranscript.value) return;
+    if (!folderName.value || !fullTranscript.value || !clipId.value) return;
     const silent = isSilent === true;
 
     const cleanTranscript = sanitizeTranscript(fullTranscript.value);
 
     try {
-      await $fetch(`${API_BASE}/api/transcript`, {
-        method: 'PUT',
-        body: {
-          folder_name: folderName.value,
-          clip_id: clipId.value,
-          transcript: cleanTranscript
+      await $fetch(
+        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`,
+        {
+          method: 'PUT',
+          body: {
+            transcript: cleanTranscript
+          }
         }
-      });
+      );
       if (!silent) {
         notifier.showToast('Edits saved successfully!', 'success');
       }
@@ -243,14 +244,15 @@ export const useClipEditorSession = (
   async function saveStyleSettings() {
     if (!folderName.value || !clipId.value) return;
     try {
-      await $fetch(`${API_BASE}/api/style-settings`, {
-        method: 'PUT',
-        body: {
-          folder_name: folderName.value,
-          clip_id: clipId.value,
-          settings: subtitleStyle.getStyleSnapshot()
+      await $fetch(
+        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`,
+        {
+          method: 'PUT',
+          body: {
+            style_settings: subtitleStyle.getStyleSnapshot()
+          }
         }
-      });
+      );
     } catch {}
   }
 

@@ -330,14 +330,15 @@ export const useSubtitleStyle = () => {
   ): Promise<void> {
     if (!folderName || !clipId) return;
     try {
-      await $fetch(`${API_BASE}/api/style-settings`, {
-        method: 'PUT',
-        body: {
-          folder_name: folderName,
-          clip_id: clipId,
-          settings: getStyleSnapshot()
+      await $fetch(
+        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName)}/${encodeURIComponent(clipId)}`,
+        {
+          method: 'PUT',
+          body: {
+            style_settings: getStyleSnapshot()
+          }
         }
-      });
+      );
     } catch (e) {
       console.error('Failed to save style settings', e);
     }

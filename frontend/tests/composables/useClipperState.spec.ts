@@ -442,11 +442,11 @@ describe('useClipperState Composable', () => {
     await state.saveStyleSettings();
 
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/style-settings'),
+      expect.stringContaining('/api/clip-session/folderX/clipX'),
       expect.objectContaining({
         method: 'PUT',
         body: expect.objectContaining({
-          settings: expect.objectContaining({
+          style_settings: expect.objectContaining({
             videoLayout: 'landscape',
             landscapeBackground: 'blur',
             landscapeBlurRadius: 30,
@@ -479,11 +479,11 @@ describe('useClipperState Composable', () => {
     await state.saveStyleSettings();
 
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/style-settings'),
+      expect.stringContaining('/api/clip-session/folderSub/clipSub'),
       expect.objectContaining({
         method: 'PUT',
         body: expect.objectContaining({
-          settings: expect.objectContaining({
+          style_settings: expect.objectContaining({
             subtitlesEnabled: false
           })
         })
@@ -506,13 +506,11 @@ describe('useClipperState Composable', () => {
     expect(state.subtitleStrokeWidth.value).toBe(0);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/style-settings'),
+      expect.stringContaining('/api/clip-session/folderPreset/clipPreset'),
       expect.objectContaining({
         method: 'PUT',
         body: expect.objectContaining({
-          folder_name: 'folderPreset',
-          clip_id: 'clipPreset',
-          settings: expect.objectContaining({
+          style_settings: expect.objectContaining({
             subtitlePreset: 'clean-vlog',
             font: 'Outfit'
           })

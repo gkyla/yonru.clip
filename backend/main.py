@@ -574,7 +574,7 @@ async def update_clip_session(folder_name: str, clip_id: str, payload: dict):
 
 @app.put("/api/transcript")
 async def update_transcript(req: TranscriptEditRequest):
-    """Manually update the transcript for a specific clip."""
+    """(Deprecated backward-compatible adapter) Manually update the transcript for a specific clip."""
     try:
         clip_session_store.save_transcript(req.folder_name, req.clip_id, req.transcript)
         print(f"[edit] Updated isolated clip transcript for {req.folder_name}/{req.clip_id} ({len(req.transcript)} words)")
@@ -607,7 +607,7 @@ async def update_hooks(req: HookUpdateRequest):
 
 @app.put("/api/style-settings")
 async def update_style_settings(req: StyleSettingsRequest):
-    """Persist style settings for a specific clip."""
+    """(Deprecated backward-compatible adapter) Persist style settings via ClipSessionStore."""
     try:
         clip_session_store.save_style_settings(req.folder_name, req.clip_id, req.settings)
         print(f"[edit] Updated style settings for {req.folder_name}/{req.clip_id}")
@@ -620,7 +620,7 @@ async def update_style_settings(req: StyleSettingsRequest):
 
 @app.put("/api/timeline")
 async def update_timeline(req: TimelineSaveRequest):
-    """Persist timeline tracks for a specific clip."""
+    """(Deprecated backward-compatible adapter) Persist timeline tracks via ClipSessionStore."""
     try:
         clip_session_store.save_timeline(req.folder_name, req.clip_id, req.timeline_tracks)
         print(f"[edit] Updated timeline tracks for {req.folder_name}/{req.clip_id}")
@@ -633,7 +633,7 @@ async def update_timeline(req: TimelineSaveRequest):
 
 @app.put("/api/timeline-history")
 async def update_timeline_history(req: TimelineHistoryRequest):
-    """Persist undo/redo history stacks for a specific clip."""
+    """(Deprecated backward-compatible adapter) Persist undo/redo history stacks via ClipSessionStore."""
     try:
         clip_session_store.save_history(req.folder_name, req.clip_id, req.undo_stack, req.redo_stack)
         print(f"[edit] Saved timeline history for {req.folder_name}/{req.clip_id}")
