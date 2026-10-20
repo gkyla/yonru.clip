@@ -7,7 +7,7 @@ import {
 } from '../utils/safetyEngine';
 import { useTimelineState } from './useTimelineState';
 import { useClipperJob } from './useClipperJob';
-import { useClipperThumbnail } from './useClipperThumbnail';
+import { useClipperCover } from './useClipperCover';
 import { useClipperExport } from './useClipperExport';
 import type { RenderSpec } from '../types/render';
 import { useSubtitleStyle } from './useSubtitleStyle';
@@ -86,7 +86,8 @@ function createClipperState() {
   const auditor = useSafetyAuditor();
   const timeline = useTimelineState();
   const job = useClipperJob();
-  const thumbnailState = useClipperThumbnail();
+  const coverState = useClipperCover();
+  const thumbnailState = coverState;
   const subtitleStyle = useSubtitleStyle();
   const notifier = useAppNotifier();
   const promptRepo = usePromptRepository(notifier);
@@ -151,7 +152,7 @@ function createClipperState() {
     hdReady
   } = job;
 
-  // Cover & Thumbnail state delegated from useClipperThumbnail / useClipperCover sub-composable
+  // Cover & Thumbnail state delegated from useClipperCover sub-composable
   const {
     coverEnabled,
     coverUrl,
@@ -197,7 +198,7 @@ function createClipperState() {
     loadDefaultThumbnailStyle,
     saveDefaultThumbnailStyle,
     applyDefaultThumbnailStyle
-  } = thumbnailState;
+  } = coverState;
 
   // Export state delegated from useClipperExport sub-composable
   const exportState = useClipperExport();
@@ -222,7 +223,7 @@ function createClipperState() {
     subtitleStyle,
     auditor,
     job,
-    thumbnailState,
+    coverState,
     exportState
   });
 

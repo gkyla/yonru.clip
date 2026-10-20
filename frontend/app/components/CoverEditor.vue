@@ -24,9 +24,7 @@
           <div
             class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform duration-200 shadow-sm"
             :class="
-              (state.coverEnabled?.value ?? state.thumbnailEnabled?.value)
-                ? 'translate-x-4'
-                : 'translate-x-0'
+              state.coverEnabled?.value ? 'translate-x-4' : 'translate-x-0'
             "
           ></div>
         </button>
@@ -87,7 +85,7 @@
     <div class="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-2.5">
       <!-- Screenshot Capture & Overlays -->
       <div
-        v-if="state.thumbnailEnabled.value"
+        v-if="state.coverEnabled.value"
         class="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300"
       >
         <!-- Two Column Layout: Preview on Left, Sliders on Right -->
@@ -97,13 +95,13 @@
             class="w-[95px] shrink-0 relative rounded-xl overflow-hidden border border-surface-border/50 bg-black aspect-[9/16] h-[170px]"
           >
             <img
-              v-if="state.thumbnailUrl.value"
-              :src="state.thumbnailUrl.value"
+              v-if="state.coverUrl.value"
+              :src="state.coverUrl.value"
               class="w-full h-full object-cover"
               :style="{
-                objectPosition: `${state.thumbnailXOffset.value}% center`
+                objectPosition: `${state.coverXOffset.value}% center`
               }"
-              @error="state.thumbnailUrl.value = null"
+              @error="state.coverUrl.value = null"
             />
             <div
               v-else
@@ -117,10 +115,10 @@
 
             <!-- Screenshot time badge -->
             <div
-              v-if="state.thumbnailUrl.value"
+              v-if="state.coverUrl.value"
               class="absolute bottom-1 right-1 bg-black/70 backdrop-blur-md px-1 py-0.5 rounded text-[8px] mono text-emerald-400 font-bold border border-emerald-500/30 z-20"
             >
-              {{ state.thumbnailScreenshotTime.value.toFixed(1) }}s
+              {{ state.coverScreenshotTime.value.toFixed(1) }}s
             </div>
           </div>
 
@@ -139,7 +137,7 @@
                   class="flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20"
                 >
                   <input
-                    v-model.number="state.thumbnailDuration.value"
+                    v-model.number="state.coverDuration.value"
                     type="number"
                     min="0"
                     max="5"
@@ -150,10 +148,9 @@
                     <button
                       class="text-[6px] text-emerald-400/50 hover:text-emerald-400 transition-colors leading-none"
                       @click="
-                        state.thumbnailDuration.value =
+                        state.coverDuration.value =
                           Math.round(
-                            Math.min(5, state.thumbnailDuration.value + 0.1) *
-                              10
+                            Math.min(5, state.coverDuration.value + 0.1) * 10
                           ) / 10
                       "
                     >
@@ -162,10 +159,9 @@
                     <button
                       class="text-[6px] text-emerald-400/50 hover:text-emerald-400 transition-colors leading-none"
                       @click="
-                        state.thumbnailDuration.value =
+                        state.coverDuration.value =
                           Math.round(
-                            Math.max(0, state.thumbnailDuration.value - 0.1) *
-                              10
+                            Math.max(0, state.coverDuration.value - 0.1) * 10
                           ) / 10
                       "
                     >
@@ -179,14 +175,14 @@
               </div>
               <input
                 type="range"
-                :value="state.thumbnailDuration.value"
+                :value="state.coverDuration.value"
                 min="0.5"
                 max="5"
                 step="0.5"
                 class="w-full accent-emerald-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
                 @input="
                   (e: any) =>
-                    (state.thumbnailDuration.value = parseFloat(e.target.value))
+                    (state.coverDuration.value = parseFloat(e.target.value))
                 "
               />
               <div class="flex justify-between text-[10px] text-slate-300 mt-1">
@@ -201,7 +197,7 @@
             <!-- Horizontal Position Slider -->
             <div
               class="bg-surface-dark/50 border border-surface-border/50 rounded-xl p-2.5 flex-1 flex flex-col justify-center"
-              :class="{ 'opacity-50': !state.thumbnailUrl.value }"
+              :class="{ 'opacity-50': !state.coverUrl.value }"
             >
               <div class="flex justify-between items-center mb-1">
                 <label
@@ -212,14 +208,14 @@
                   class="flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20"
                 >
                   <input
-                    v-model.number="state.thumbnailXOffset.value"
+                    v-model.number="state.coverXOffset.value"
                     type="number"
                     min="0"
                     max="100"
                     step="1"
-                    :disabled="!state.thumbnailUrl.value"
+                    :disabled="!state.coverUrl.value"
                     class="bg-transparent text-[9px] mono text-emerald-400 font-bold w-6 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:cursor-not-allowed"
-                    @input="state.saveThumbnailConfig()"
+                    @input="state.saveCoverConfig()"
                   />
                   <span class="text-[10px] mono text-emerald-400/60 font-bold"
                     >%</span
@@ -227,14 +223,14 @@
                 </div>
               </div>
               <input
-                v-model.number="state.thumbnailXOffset.value"
+                v-model.number="state.coverXOffset.value"
                 type="range"
                 min="0"
                 max="100"
                 step="1"
-                :disabled="!state.thumbnailUrl.value"
+                :disabled="!state.coverUrl.value"
                 class="w-full accent-emerald-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed"
-                @change="state.saveThumbnailConfig()"
+                @change="state.saveCoverConfig()"
               />
               <div class="flex justify-between text-[10px] text-slate-300 mt-1">
                 <span>L</span>
@@ -248,42 +244,40 @@
         <!-- Capture & Delete Buttons -->
         <div class="flex gap-3">
           <button
-            :disabled="state.isCapturingThumbnail.value"
+            :disabled="state.isCapturingCover.value"
             class="flex-1 h-8 rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1.5 active:scale-95 text-[9px] font-black uppercase tracking-wider"
             @click="state.captureScreenshot()"
           >
             <Icon
               :name="
-                state.isCapturingThumbnail.value
+                state.isCapturingCover.value
                   ? 'ri:loader-4-line'
                   : 'ri:refresh-line'
               "
               class="text-sm"
-              :class="{ 'animate-spin': state.isCapturingThumbnail.value }"
+              :class="{ 'animate-spin': state.isCapturingCover.value }"
             />
             Random Frame
           </button>
           <button
-            :disabled="state.isCapturingThumbnail.value"
+            :disabled="state.isCapturingCover.value"
             class="flex-1 h-8 rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1.5 active:scale-95 text-[9px] font-black uppercase tracking-wider"
             @click="state.captureScreenshot(state.videoTime.value)"
           >
             <Icon
               :name="
-                state.isCapturingThumbnail.value
+                state.isCapturingCover.value
                   ? 'ri:loader-4-line'
                   : 'ri:focus-3-line'
               "
               class="text-sm"
-              :class="{ 'animate-spin': state.isCapturingThumbnail.value }"
+              :class="{ 'animate-spin': state.isCapturingCover.value }"
             />
             Current Frame
           </button>
           <button
-            v-if="state.coverUrl.value || state.thumbnailUrl.value"
-            :disabled="
-              state.isCapturingCover.value || state.isCapturingThumbnail.value
-            "
+            v-if="state.coverUrl.value"
+            :disabled="state.isCapturingCover.value"
             class="h-8 px-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center active:scale-95"
             title="Delete Cover Slide"
             @click="state.deleteCover()"
@@ -306,21 +300,21 @@
                 >Text Overlays</span
               >
               <span
-                v-if="state.thumbnailTextOverlays.value.length > 0"
+                v-if="state.coverTextOverlays.value.length > 0"
                 class="text-[9px] mono font-bold text-slate-400 bg-white/5 px-1.5 py-0.5 rounded-full border border-white/5"
               >
-                {{ state.thumbnailTextOverlays.value.length }}
+                {{ state.coverTextOverlays.value.length }}
               </span>
             </div>
             <div class="flex items-center gap-1.5">
               <button
                 v-if="
-                  state.defaultThumbnailStyle.value &&
-                  state.thumbnailTextOverlays.value.length > 0
+                  state.defaultCoverStyle.value &&
+                  state.coverTextOverlays.value.length > 0
                 "
                 class="flex items-center gap-1 bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 h-7 px-2.5 rounded-lg text-[9px] font-bold tracking-wider transition-all active:scale-95 hover:text-white"
                 title="Reset overlay styles to default template"
-                @click="state.applyDefaultThumbnailStyle()"
+                @click="state.applyDefaultCoverStyle()"
               >
                 <Icon name="ri:refresh-line" class="text-xs text-slate-400" />
                 <span>Default Style</span>
@@ -337,11 +331,11 @@
 
           <!-- Segmented Overlay Selector Bar (Option B) -->
           <div
-            v-if="state.thumbnailTextOverlays.value.length > 0"
+            v-if="state.coverTextOverlays.value.length > 0"
             class="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar-horizontal select-none"
           >
             <button
-              v-for="(overlay, idx) in state.thumbnailTextOverlays.value"
+              v-for="(overlay, idx) in state.coverTextOverlays.value"
               :key="overlay.id"
               class="h-7 px-2.5 rounded-xl text-[10px] font-bold transition-colors border flex items-center gap-1.5 shrink-0 active:scale-95 shadow-sm max-w-[130px] focus:outline-none"
               :class="
@@ -853,7 +847,7 @@
 
           <!-- Empty State -->
           <div
-            v-if="state.thumbnailTextOverlays.value.length === 0"
+            v-if="state.coverTextOverlays.value.length === 0"
             class="text-center py-8 px-4 text-slate-400 border border-dashed border-white/15 rounded-2xl bg-surface-dark/30 flex flex-col items-center justify-center"
           >
             <div
@@ -867,7 +861,7 @@
               No Text Overlays Added
             </p>
             <p class="text-[9px] text-slate-500 max-w-[200px] mb-3">
-              Add text overlays to render custom headings on your thumbnail
+              Add text overlays to render custom headings on your cover slide
               frame
             </p>
             <button
@@ -970,37 +964,37 @@ const activeOverlayId = computed({
 
 // Auto-select first overlay if none is currently selected
 watch(
-  () => state.thumbnailTextOverlays.value,
+  () => state.coverTextOverlays.value,
   newOverlays => {
     if (newOverlays && newOverlays.length > 0) {
       const exists = newOverlays.some(
-        (o: any) => o.id === state.activeThumbnailTextId.value
+        (o: any) => o.id === state.activeCoverTextId.value
       );
       if (!exists && newOverlays[0]?.id) {
-        state.activeThumbnailTextId.value = newOverlays[0].id;
+        state.activeCoverTextId.value = newOverlays[0].id;
       }
-    } else if (state?.activeThumbnailTextId) {
-      state.activeThumbnailTextId.value = null;
+    } else if (state?.activeCoverTextId) {
+      state.activeCoverTextId.value = null;
     }
   },
   { immediate: true }
 );
 
 const activeOverlay = computed(() => {
-  if (!state?.thumbnailTextOverlays?.value?.length) return null;
+  if (!state?.coverTextOverlays?.value?.length) return null;
   return (
-    state.thumbnailTextOverlays.value.find(
+    state.coverTextOverlays.value.find(
       (o: any) => o.id === activeOverlayId.value
     ) ||
-    state.thumbnailTextOverlays.value[0] ||
+    state.coverTextOverlays.value[0] ||
     null
   );
 });
 
 const activeOverlayIndex = computed(() => {
   const currentId = activeOverlay.value?.id;
-  if (!currentId || !state?.thumbnailTextOverlays?.value) return -1;
-  return state.thumbnailTextOverlays.value.findIndex(
+  if (!currentId || !state?.coverTextOverlays?.value) return -1;
+  return state.coverTextOverlays.value.findIndex(
     (o: any) => o.id === currentId
   );
 });
@@ -1014,12 +1008,10 @@ function getOverlayLabel(overlay: any, idx: number): string {
 }
 
 function handleAddTextOverlay() {
-  state.addThumbnailText();
-  if (state.thumbnailTextOverlays.value.length > 0) {
+  state.addCoverText();
+  if (state.coverTextOverlays.value.length > 0) {
     const newlyAdded =
-      state.thumbnailTextOverlays.value[
-        state.thumbnailTextOverlays.value.length - 1
-      ];
+      state.coverTextOverlays.value[state.coverTextOverlays.value.length - 1];
     if (newlyAdded?.id) {
       activeOverlayId.value = newlyAdded.id;
     }
@@ -1027,9 +1019,9 @@ function handleAddTextOverlay() {
 }
 
 function handleRemoveTextOverlay(id: string) {
-  state.removeThumbnailText(id);
+  state.removeCoverText(id);
   if (activeOverlayId.value === id) {
-    activeOverlayId.value = state.thumbnailTextOverlays.value[0]?.id || null;
+    activeOverlayId.value = state.coverTextOverlays.value[0]?.id || null;
   }
 }
 
@@ -1155,36 +1147,36 @@ function handleClickOutside(event: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
-  if (state?.thumbnailEnabled?.value) {
-    state.thumbnailEditMode.value = true;
+  if (state?.coverEnabled?.value) {
+    state.coverEditMode.value = true;
   }
 });
 
 watch(
-  () => state?.thumbnailEnabled?.value,
+  () => state?.coverEnabled?.value,
   enabled => {
     if (enabled) {
-      state.thumbnailEditMode.value = true;
+      state.coverEditMode.value = true;
     } else {
-      state.thumbnailEditMode.value = false;
+      state.coverEditMode.value = false;
     }
   }
 );
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
-  if (state?.thumbnailEditMode) {
-    state.thumbnailEditMode.value = false;
+  if (state?.coverEditMode) {
+    state.coverEditMode.value = false;
   }
 });
 
 async function handleSave() {
-  await state.saveThumbnailConfig();
-  state.showToast('Thumbnail config saved!', 'success');
+  await state.saveCoverConfig();
+  state.showToast('Cover slide config saved!', 'success');
 }
 
 async function handleSaveDefault() {
   isDropdownOpen.value = false;
-  await state.saveDefaultThumbnailStyle();
+  await state.saveDefaultCoverStyle();
 }
 </script>

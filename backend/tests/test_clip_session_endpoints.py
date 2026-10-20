@@ -117,8 +117,7 @@ def test_put_clip_session_endpoint_partial_and_complete(client_with_temp_storage
 
     with open(os.path.join(clip_dir, "cover_config.json"), "r") as f:
         assert json.load(f)["duration"] == 2.5
-    with open(os.path.join(clip_dir, "thumbnail_config.json"), "r") as f:
-        assert json.load(f)["duration"] == 2.5
+    assert not os.path.exists(os.path.join(clip_dir, "thumbnail_config.json"))
     with open(os.path.join(clip_dir, "crop_map.json"), "r") as f:
         assert json.load(f) == sample_crop
 

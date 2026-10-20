@@ -219,10 +219,10 @@ class TimelineHistoryRequest(BaseModel):
 class DefaultStyleSettingsRequest(BaseModel):
     settings: dict
 
-class DefaultThumbnailStyleRequest(BaseModel):
+class DefaultCoverStyleRequest(BaseModel):
     style: dict
 
-DefaultCoverStyleRequest = DefaultThumbnailStyleRequest
+DefaultThumbnailStyleRequest = DefaultCoverStyleRequest
 
 class SystemSettingsRequest(BaseModel):
     GEMINI_API_KEY: Optional[str] = None
@@ -254,18 +254,18 @@ class EditPromptRequest(BaseModel):
     numHooks: Optional[int] = 10
     autoHooks: Optional[bool] = False
 
-class ThumbnailScreenshotRequest(BaseModel):
+class CoverScreenshotRequest(BaseModel):
     job_id: str
     timestamp: Optional[float] = None  # None = random
 
-CoverScreenshotRequest = ThumbnailScreenshotRequest
+ThumbnailScreenshotRequest = CoverScreenshotRequest
 
-class ThumbnailConfigRequest(BaseModel):
+class CoverConfigRequest(BaseModel):
     folder_name: str
     clip_id: str
     config: dict  # { enabled, duration, screenshotTime, textOverlays }
 
-CoverConfigRequest = ThumbnailConfigRequest
+ThumbnailConfigRequest = CoverConfigRequest
 
 class BatchDeleteClipsRequest(BaseModel):
     clips: list[dict] # list of {folder_name, clip_id}
@@ -656,15 +656,13 @@ async def update_default_style_settings(req: DefaultStyleSettingsRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/default-cover-style")
-@app.get("/api/default-thumbnail-style")
 async def get_default_cover_style():
     """Retrieve default cover style settings."""
     style = clip_session_store.get_default_cover_style()
     return {"style": style}
 
 @app.put("/api/default-cover-style")
-@app.put("/api/default-thumbnail-style")
-async def update_default_cover_style(req: DefaultThumbnailStyleRequest):
+async def update_default_cover_style(req: DefaultCoverStyleRequest):
     """Persist default cover style settings for all future clips."""
     try:
         clip_session_store.save_default_cover_style(req.style)
@@ -744,11 +742,10 @@ async def hardware_profile():
     """Detect host machine hardware specs and recommend optimal Whisper transcription model."""
     return system_repository.detect_hardware_profile()
 
-# --- Thumbnail Endpoints ---
+# --- Cover Slide Endpoints ---
 
 @app.post("/api/cover/screenshot")
-@app.post("/api/thumbnail/screenshot")
-async def cover_screenshot(req: ThumbnailScreenshotRequest):
+async def cover_screenshot(req: CoverScreenshotRequest):
     """Extract a single frame from the clip video as Cover Slide frame (cover.jpg)."""
     try:
         return workflow_coordinator.extract_clip_cover(job_id=req.job_id, timestamp=req.timestamp)
@@ -760,8 +757,7 @@ async def cover_screenshot(req: ThumbnailScreenshotRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/cover/config")
-@app.put("/api/thumbnail/config")
-async def save_cover_config(req: ThumbnailConfigRequest):
+async def save_cover_config(req: CoverConfigRequest):
     """Save Cover Slide configuration for a clip."""
     try:
         clip_session_store.save_cover_config(req.folder_name, req.clip_id, req.config)
@@ -772,7 +768,6 @@ async def save_cover_config(req: ThumbnailConfigRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/cover/config/{folder_name}/{clip_id}")
-@app.get("/api/thumbnail/config/{folder_name}/{clip_id}")
 async def get_cover_config(folder_name: str, clip_id: str):
     """Load Cover Slide configuration for a clip with backward-compatible fallback."""
     try:
@@ -800,7 +795,6 @@ async def get_cover_config(folder_name: str, clip_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/cover/{folder_name}/{clip_id}")
-@app.delete("/api/thumbnail/{folder_name}/{clip_id}")
 async def delete_cover(folder_name: str, clip_id: str):
     """Reset/delete cover image (cover.jpg) while strictly preserving Clip Thumbnail (thumbnail.jpg)."""
     try:

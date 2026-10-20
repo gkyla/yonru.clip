@@ -37,8 +37,8 @@ export const useTimelineState = () => {
   );
 
   // External states synced globally via useState
-  const thumbnailEnabled = useState<boolean>('thumbnailEnabled');
-  const thumbnailDuration = useState<number>('thumbnailDuration');
+  const coverEnabled = useState<boolean>('coverEnabled', () => false);
+  const coverDuration = useState<number>('coverDuration', () => 1.0);
   const videoDuration = useState<number>('videoDuration');
   const currentTime = useState<number>('currentTime');
   const folderName = useState<string | null>('folderName');
@@ -201,8 +201,8 @@ export const useTimelineState = () => {
   const timelineDuration = computed(() => {
     return calculateTimelineDuration(
       timelineTracks.value,
-      thumbnailEnabled.value,
-      thumbnailDuration.value,
+      coverEnabled.value,
+      coverDuration.value,
       videoDuration.value
     );
   });
@@ -210,8 +210,8 @@ export const useTimelineState = () => {
   const videoTime = computed(() => {
     return calculateVideoTime(
       currentTime.value,
-      thumbnailEnabled.value,
-      thumbnailDuration.value,
+      coverEnabled.value,
+      coverDuration.value,
       timelineTracks.value
     );
   });

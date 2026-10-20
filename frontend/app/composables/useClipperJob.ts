@@ -167,19 +167,6 @@ export const useClipperJob = () => {
   const coverEditMode = useState<boolean>('coverEditMode', () => false);
   const coverXOffset = useState<number>('coverXOffset', () => 50);
 
-  const thumbnailEnabled = useState<boolean>('thumbnailEnabled', () => false);
-  const thumbnailUrl = useState<string | null>('thumbnailUrl', () => null);
-  const thumbnailDuration = useState<number>('thumbnailDuration', () => 1.0);
-  const thumbnailScreenshotTime = useState<number>(
-    'thumbnailScreenshotTime',
-    () => 0
-  );
-  const thumbnailTextOverlays = useState<ThumbnailTextOverlay[]>(
-    'thumbnailTextOverlays',
-    () => []
-  );
-  const thumbnailEditMode = useState<boolean>('thumbnailEditMode', () => false);
-  const thumbnailXOffset = useState<number>('thumbnailXOffset', () => 50);
   const outputUrl = useState<string | null>('outputUrl', () => null);
   const renderStatus = useState<string>('renderStatus', () => 'idle');
 
@@ -255,14 +242,6 @@ export const useClipperJob = () => {
     coverXOffset.value = 50;
     coverTextOverlays.value = [];
     coverEditMode.value = false;
-
-    thumbnailEnabled.value = false;
-    thumbnailUrl.value = null;
-    thumbnailDuration.value = 1.0;
-    thumbnailScreenshotTime.value = 0;
-    thumbnailXOffset.value = 50;
-    thumbnailTextOverlays.value = [];
-    thumbnailEditMode.value = false;
     if (!keepLocked) {
       nextTick(() => {
         timeline.isSavingLocked.value = false;
@@ -325,18 +304,9 @@ export const useClipperJob = () => {
       coverXOffset.value = xOffset;
       coverTextOverlays.value = overlays;
       coverUrl.value = resolvedCoverUrl;
-
-      thumbnailEnabled.value = enabled;
-      thumbnailDuration.value = duration;
-      thumbnailScreenshotTime.value = screenshotTime;
-      thumbnailXOffset.value = xOffset;
-      thumbnailTextOverlays.value = overlays;
-      thumbnailUrl.value = resolvedCoverUrl;
     } else {
       coverEnabled.value = false;
       coverUrl.value = null;
-      thumbnailEnabled.value = false;
-      thumbnailUrl.value = null;
     }
 
     if (bundle.savedHooks && bundle.savedHooks.length > 0) {

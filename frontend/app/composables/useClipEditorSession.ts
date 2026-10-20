@@ -8,8 +8,7 @@ import { useCachedLibrary } from './useCachedLibrary';
 import { useTimelineState } from './useTimelineState';
 import { useSubtitleStyle } from './useSubtitleStyle';
 import { useSafetyAuditor } from './useSafetyAuditor';
-import { useClipperJob } from './useClipperJob';
-import { useClipperThumbnail } from './useClipperThumbnail';
+import { useClipperCover } from './useClipperCover';
 import { useClipperExport } from './useClipperExport';
 
 /**
@@ -85,7 +84,8 @@ export interface ClipEditorSessionDependencies {
   subtitleStyle?: ReturnType<typeof useSubtitleStyle>;
   auditor?: ReturnType<typeof useSafetyAuditor>;
   job?: ReturnType<typeof useClipperJob>;
-  thumbnailState?: ReturnType<typeof useClipperThumbnail>;
+  coverState?: ReturnType<typeof useClipperCover>;
+  thumbnailState?: ReturnType<typeof useClipperCover>;
   exportState?: ReturnType<typeof useClipperExport>;
 }
 
@@ -101,7 +101,9 @@ export const useClipEditorSession = (
   const subtitleStyle = deps.subtitleStyle ?? useSubtitleStyle();
   const auditor = deps.auditor ?? useSafetyAuditor();
   const job = deps.job ?? useClipperJob();
-  const thumbnailState = deps.thumbnailState ?? useClipperThumbnail();
+  const coverState =
+    deps.coverState ?? deps.thumbnailState ?? useClipperCover();
+  const thumbnailState = coverState;
   const exportState = deps.exportState ?? useClipperExport();
 
   // Active clip & editor session state
@@ -185,26 +187,11 @@ export const useClipEditorSession = (
       style_settings: subtitleStyle.getStyleSnapshot(),
       timeline: timeline.timelineTracks.value,
       cover_config: {
-        enabled:
-          thumbnailState.coverEnabled.value ??
-          thumbnailState.thumbnailEnabled.value ??
-          false,
-        duration:
-          thumbnailState.coverDuration.value ??
-          thumbnailState.thumbnailDuration.value ??
-          1.0,
-        screenshotTime:
-          thumbnailState.coverScreenshotTime.value ??
-          thumbnailState.thumbnailScreenshotTime.value ??
-          0,
-        textOverlays:
-          thumbnailState.coverTextOverlays.value?.length > 0
-            ? thumbnailState.coverTextOverlays.value
-            : thumbnailState.thumbnailTextOverlays.value || [],
-        xOffset:
-          thumbnailState.coverXOffset.value ??
-          thumbnailState.thumbnailXOffset.value ??
-          50
+        enabled: coverState.coverEnabled.value ?? false,
+        duration: coverState.coverDuration.value ?? 1.0,
+        screenshotTime: coverState.coverScreenshotTime.value ?? 0,
+        textOverlays: coverState.coverTextOverlays.value || [],
+        xOffset: coverState.coverXOffset.value ?? 50
       },
       history: {
         undo_stack: timeline.timelineUndoStack.value,
@@ -308,26 +295,11 @@ export const useClipEditorSession = (
       timelineTracks: timeline.timelineTracks.value,
       transcript: fullTranscript.value || [],
       cover: {
-        enabled:
-          thumbnailState.coverEnabled.value ??
-          thumbnailState.thumbnailEnabled.value ??
-          false,
-        duration:
-          thumbnailState.coverDuration.value ??
-          thumbnailState.thumbnailDuration.value ??
-          1.0,
-        screenshotTime:
-          thumbnailState.coverScreenshotTime.value ??
-          thumbnailState.thumbnailScreenshotTime.value ??
-          0,
-        textOverlays:
-          thumbnailState.coverTextOverlays.value?.length > 0
-            ? thumbnailState.coverTextOverlays.value
-            : thumbnailState.thumbnailTextOverlays.value || [],
-        xOffset:
-          thumbnailState.coverXOffset.value ??
-          thumbnailState.thumbnailXOffset.value ??
-          50
+        enabled: coverState.coverEnabled.value ?? false,
+        duration: coverState.coverDuration.value ?? 1.0,
+        screenshotTime: coverState.coverScreenshotTime.value ?? 0,
+        textOverlays: coverState.coverTextOverlays.value || [],
+        xOffset: coverState.coverXOffset.value ?? 50
       },
       safety: {
         audioBleepEnabled: auditor.audioBleepEnabled.value,
@@ -358,7 +330,7 @@ export const useClipEditorSession = (
           saveTranscript(true),
           saveStyleSettings(),
           timeline.saveTimelineTracks(),
-          thumbnailState.saveThumbnailConfig()
+          coverState.saveCoverConfig()
         ]);
       }
 
