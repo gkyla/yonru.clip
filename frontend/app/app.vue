@@ -144,40 +144,52 @@
       </div>
     </Transition>
 
-    <!-- Toast Notifications -->
+    <!-- Application Toast -->
     <div
-      class="fixed bottom-32 left-1/2 -translate-x-1/2 z-[100] pointer-events-none"
+      class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] pointer-events-none flex flex-col items-center transition-all duration-300"
     >
       <Transition
-        enter-active-class="transition duration-500 ease-out transform"
+        enter-active-class="transition duration-200 ease-out transform"
         enter-from-class="translate-y-4 opacity-0 scale-95"
         enter-to-class="translate-y-0 opacity-100 scale-100"
-        leave-active-class="transition duration-300 ease-in transform"
+        leave-active-class="transition duration-150 ease-in transform"
         leave-from-class="translate-y-0 opacity-100 scale-100"
-        leave-to-class="translate-y-4 opacity-0 scale-95"
+        leave-to-class="translate-y-2 opacity-0 scale-95"
       >
         <div
           v-if="state.toast.value"
-          class="pointer-events-auto flex items-center gap-3 px-6 py-3 rounded-2xl border backdrop-blur-xl shadow-2xl min-w-[300px]"
-          :class="[
-            state.toast.value.type === 'success'
-              ? 'bg-accent-500/10 border-accent-500/20 text-accent-500'
-              : state.toast.value.type === 'error'
-                ? 'bg-red-500/10 border-red-500/20 text-red-500'
-                : 'bg-white/10 border-white/20 text-white'
-          ]"
+          role="status"
+          aria-live="polite"
+          class="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-[12px] border border-surface-border bg-surface-card/95 backdrop-blur-md shadow-xl shadow-black/50 min-w-[280px] max-w-md"
         >
           <Icon
             :name="
               state.toast.value.type === 'success'
                 ? 'ri:checkbox-circle-fill'
-                : 'ri:error-warning-fill'
+                : state.toast.value.type === 'error'
+                  ? 'ri:error-warning-fill'
+                  : 'ri:information-fill'
             "
-            class="text-xl shrink-0"
+            :class="[
+              'text-lg shrink-0',
+              state.toast.value.type === 'success'
+                ? 'text-accent-500'
+                : state.toast.value.type === 'error'
+                  ? 'text-rose-400'
+                  : 'text-sky-400'
+            ]"
           />
-          <span class="text-sm font-bold tracking-wide uppercase">{{
-            state.toast.value.message
-          }}</span>
+          <span class="text-sm font-medium text-slate-200 flex-1 leading-snug">
+            {{ state.toast.value.message }}
+          </span>
+          <button
+            type="button"
+            aria-label="Dismiss notification"
+            class="text-slate-400 hover:text-white p-1 rounded-[6px] hover:bg-white/5 transition-colors shrink-0"
+            @click="state.dismissToast"
+          >
+            <Icon name="ri:close-line" class="text-base" />
+          </button>
         </div>
       </Transition>
     </div>
