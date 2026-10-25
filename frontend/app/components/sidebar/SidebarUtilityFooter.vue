@@ -138,7 +138,7 @@
             statusLabel
           }}</span>
         </div>
-        <span class="text-[9px] text-white/45 font-mono">v0.4.2</span>
+        <span class="text-[9px] text-white/45 font-mono">v0.1.0</span>
       </div>
     </div>
   </div>

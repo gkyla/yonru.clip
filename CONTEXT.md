@@ -230,4 +230,9 @@ _Avoid_: Settings modal, monolith config, options tab
 The self-healing cross-platform bootstrap orchestrator (`run.py`) responsible for preparing runtimes, validating dependencies, executing port sweeps, managing service processes, and automatically opening creator access in the browser upon service readiness.
 _Avoid_: Startup script, run script, dev runner, bootstrapper
 
+**Changelog View**:
+The dedicated release notes workspace displaying chronological version milestones, feature highlights, improvements, and bug fixes parsed from curated markdown release documents.
+_Avoid_: Commit log, update history, version list, release modal
+
+
 

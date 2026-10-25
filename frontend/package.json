@@ -1,5 +1,6 @@
 {
   "name": "frontend",
+  "version": "0.1.0",
   "type": "module",
   "private": true,
   "scripts": {
@@ -15,9 +16,11 @@
     "lint-staged": "lint-staged",
     "test": "vitest run",
     "test:watch": "vitest",
+    "release": "node ../scripts/release.js",
     "prepare": "cd .. && husky frontend/.husky"
   },
   "dependencies": {
+    "@nuxt/content": "^3.16.2",
     "@nuxt/icon": "^2.2.1",
     "@nuxtjs/tailwindcss": "^6.14.0",
     "@remotion/player": "^4.0.529",
@@ -26,6 +29,7 @@
     "@tiptap/vue-3": "^3.22.5",
     "@vitejs/plugin-react": "^5.2.0",
     "@yonru/remotion": "file:../shared/remotion",
+    "better-sqlite3": "^13.0.3",
     "konva": "^10.2.5",
     "nuxt": "^4.4.2",
     "react": "^18.3.1",

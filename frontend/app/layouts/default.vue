@@ -51,6 +51,7 @@ const activeView = computed(() => {
   if (route.path === '/settings') return 'settings';
   if (route.path === '/prompts') return 'prompts';
   if (route.path === '/docs') return 'docs';
+  if (route.path === '/changelog') return 'changelog';
   return 'home';
 });
 
