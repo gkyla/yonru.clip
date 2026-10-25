@@ -257,7 +257,12 @@
           <!-- Section 4: Changelog (Persistent 40px Hitbox) -->
           <div class="relative group w-full mt-auto pt-2 shrink-0">
             <button
-              class="h-10 flex items-center rounded-xl text-white/80 hover:text-white hover:bg-white/[0.04] transition-colors duration-200 cursor-pointer w-full overflow-hidden"
+              class="h-10 flex items-center rounded-xl transition-colors duration-200 cursor-pointer w-full overflow-hidden"
+              :class="[
+                activeView === 'changelog'
+                  ? 'bg-white/[0.06] text-white font-semibold'
+                  : 'text-white/80 hover:text-white hover:bg-white/[0.04]'
+              ]"
               :title="isCollapsed ? 'Changelog' : undefined"
               @click="handleNav('changelog')"
             >
@@ -265,6 +270,11 @@
                 <Icon
                   name="lucide:history"
                   class="text-lg group-hover:scale-105 transition-transform"
+                  :class="
+                    activeView === 'changelog'
+                      ? 'text-accent-500'
+                      : 'text-white/70 group-hover:text-white'
+                  "
                 />
               </div>
               <div

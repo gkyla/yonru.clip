@@ -8,6 +8,7 @@ const FRONTEND_PKG_PATH = path.join(ROOT_DIR, 'frontend', 'package.json');
 const REMOTION_PKG_PATH = path.join(ROOT_DIR, 'shared', 'remotion', 'package.json');
 const BACKEND_MAIN_PATH = path.join(ROOT_DIR, 'backend', 'main.py');
 const CHANGELOG_PATH = path.join(ROOT_DIR, 'CHANGELOG.md');
+const CONTENT_CHANGELOG_DIR = path.join(ROOT_DIR, 'frontend', 'content', 'changelog');
 
 // Dry run option
 const dryRun = process.argv.includes('--dry-run');
@@ -210,6 +211,89 @@ function updateChangelog(entry) {
   }
 }
 
+function formatCommitLine(msg) {
+  // Turn feat(scope): message into **Scope**: message
+  const match = msg.match(/^([a-z]+)(?:\(([^)]+)\))?:\s*(.*)$/);
+  if (match) {
+    const scope = match[2];
+    const text = match[3];
+    if (scope) {
+      const capitalizedScope = scope.charAt(0).toUpperCase() + scope.slice(1);
+      return `**${capitalizedScope}**: ${text}`;
+    }
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+  return msg;
+}
+
+function writeModularChangelog(version, groups) {
+  if (!fs.existsSync(CONTENT_CHANGELOG_DIR)) {
+    fs.mkdirSync(CONTENT_CHANGELOG_DIR, { recursive: true });
+  }
+
+  // Clear isLatest on existing files
+  const existingFiles = fs.readdirSync(CONTENT_CHANGELOG_DIR).filter(f => f.endsWith('.md'));
+  existingFiles.forEach(file => {
+    const filePath = path.join(CONTENT_CHANGELOG_DIR, file);
+    const content = fs.readFileSync(filePath, 'utf8');
+    if (content.includes('isLatest: true')) {
+      fs.writeFileSync(filePath, content.replace(/isLatest:\s*true/g, 'isLatest: false'), 'utf8');
+    }
+  });
+
+  const date = new Date().toISOString().split('T')[0];
+  let frontmatter = `---
+version: "${version}"
+date: "${date}"
+title: "Release v${version}"
+isLatest: true
+githubReleaseUrl: "https://github.com/gkyla/yonru.clip/releases/tag/v${version}"
+---
+
+`;
+
+  let body = '';
+  if (groups.features.length > 0) {
+    body += `### Features\n\n`;
+    groups.features.forEach(msg => {
+      body += `- ${formatCommitLine(msg)}\n`;
+    });
+    body += `\n`;
+  }
+
+  if (groups.performance.length > 0 || groups.docs.length > 0) {
+    body += `### Improvements\n\n`;
+    [...groups.performance, ...groups.docs].forEach(msg => {
+      body += `- ${formatCommitLine(msg)}\n`;
+    });
+    body += `\n`;
+  }
+
+  if (groups.fixes.length > 0) {
+    body += `### Bug Fixes\n\n`;
+    groups.fixes.forEach(msg => {
+      body += `- ${formatCommitLine(msg)}\n`;
+    });
+    body += `\n`;
+  }
+
+  if (!body) {
+    body += `### Improvements\n\n`;
+    groups.others.slice(0, 10).forEach(msg => {
+      body += `- ${formatCommitLine(msg)}\n`;
+    });
+    body += `\n`;
+  }
+
+  const filePath = path.join(CONTENT_CHANGELOG_DIR, `${version}.md`);
+  if (dryRun) {
+    console.log(`[DRY RUN] Would write to ${path.relative(ROOT_DIR, filePath)}:\n${frontmatter + body}`);
+  } else {
+    fs.writeFileSync(filePath, frontmatter + body, 'utf8');
+    console.log(`Created modular changelog: ${path.relative(ROOT_DIR, filePath)}`);
+  }
+}
+
 function main() {
   console.log('--- Starting Yonru Release Script ---');
   const latestTag = getLatestTag();
@@ -237,6 +321,7 @@ function main() {
   updatePackageJson(REMOTION_PKG_PATH, nextVersion);
   updateBackendVersion(BACKEND_MAIN_PATH, nextVersion);
   updateChangelog(changelogEntry);
+  writeModularChangelog(nextVersion, groups);
 
   if (dryRun) {
     console.log('\n[DRY RUN] Run without --dry-run to apply changes.');

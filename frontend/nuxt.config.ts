@@ -2,7 +2,12 @@ import { fileURLToPath } from 'node:url';
 import { defineNuxtConfig } from 'nuxt/config';
 
 export default defineNuxtConfig({
-  modules: ['@nuxtjs/tailwindcss', '@nuxt/icon', '@nuxt/eslint'],
+  modules: [
+    '@nuxtjs/tailwindcss',
+    '@nuxt/icon',
+    '@nuxt/eslint',
+    '@nuxt/content'
+  ],
   eslint: {
     config: {
       standalone: true,

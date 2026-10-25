@@ -230,7 +230,7 @@ describe('Sidebar Sub-Modules Isolated Unit Tests', () => {
       expect(wrapper.text()).toContain('Saweria');
       expect(wrapper.text()).toContain('Trakteer');
       expect(wrapper.text()).toContain('IDLE');
-      expect(wrapper.text()).toContain('v0.4.2');
+      expect(wrapper.text()).toContain('v0.1.0');
 
       const saweriaLink = wrapper.find('a[title*="Saweria"]');
       expect(saweriaLink.attributes('href')).toBe('https://saweria.co/gitkyla');

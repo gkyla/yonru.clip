@@ -17,7 +17,7 @@ from core.hook_discovery_engine import HookDiscoveryEngine
 from core.render_engine import RemotionRenderEngine
 from core.speech_transcriber import FasterWhisperSpeechTranscriber
 
-app = FastAPI(title="Yonru API", version="2.0.0")
+app = FastAPI(title="Yonru API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
