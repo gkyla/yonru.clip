@@ -204,7 +204,7 @@ function updateTypewriter() {
 const { cachedVideos, isCachedLoading, isNavigatingToEditor } = state;
 
 const readyClips = useState<ReadyClip[]>('readyClips', () => []);
-const isReadyClipsLoading = ref(false);
+const isReadyClipsLoading = ref(readyClips.value.length === 0);
 const showProcessingOverlay = ref(false);
 const isReanalyzingCached = ref(false);
 let processingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -549,8 +549,7 @@ async function resetToStart() {
   state.resetWorkspace();
   state.youtubeUrl.value = '';
   isReanalyzingCached.value = false;
-  await state.fetchCached(true);
-  await fetchReadyClips();
+  await Promise.allSettled([state.fetchCached(true), fetchReadyClips()]);
 }
 
 async function fetchReadyClips() {
@@ -735,10 +734,12 @@ async function initDashboard() {
 
   state.activeHook.value = null;
 
-  await state.fetchPrompts();
-  await state.fetchSavedHooks();
-  await state.fetchCached(true);
-  await fetchReadyClips();
+  await Promise.allSettled([
+    state.fetchPrompts(),
+    state.fetchSavedHooks(),
+    state.fetchCached(true),
+    fetchReadyClips()
+  ]);
   state.initPersistence();
   state.checkSystemHealth();
 

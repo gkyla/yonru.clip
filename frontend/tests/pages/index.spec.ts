@@ -822,4 +822,55 @@ describe('Index Page & Sub-Modules', () => {
       'http://localhost:8000/assets/sources/sample/full.mp4'
     );
   });
+
+  it('initializes isReadyClipsLoading to true on first load and shows skeleton instead of empty state until loaded', async () => {
+    let resolveClips: (val: any) => void = () => {};
+    const clipsPromise = new Promise(resolve => {
+      resolveClips = resolve;
+    });
+
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn().mockImplementation(url => {
+        const urlStr = String(url);
+        if (urlStr.includes('/api/ready-clips')) {
+          return clipsPromise;
+        }
+        return Promise.resolve({});
+      })
+    );
+
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    });
+
+    // Before clipsPromise resolves:
+    // ReadyClipsSection should receive isReadyClipsLoading = true
+    // And empty state MUST NOT be shown!
+    const readySection = wrapper.findComponent({
+      name: 'HomeReadyClipsSection'
+    });
+    expect(readySection.exists()).toBe(true);
+    expect(readySection.props('isReadyClipsLoading')).toBe(true);
+    expect(
+      wrapper.find('[data-testid="ready-clips-empty-state"]').exists()
+    ).toBe(false);
+
+    // Now resolve the fetch with empty clips
+    resolveClips({ clips: [] });
+    await clipsPromise;
+    await wrapper.vm.$nextTick();
+
+    // Now confirmed empty: isReadyClipsLoading should be false and empty state should show
+    expect(readySection.props('isReadyClipsLoading')).toBe(false);
+    expect(
+      wrapper.find('[data-testid="ready-clips-empty-state"]').exists()
+    ).toBe(true);
+  });
 });

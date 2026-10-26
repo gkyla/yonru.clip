@@ -22,6 +22,7 @@
       <!-- Skeletons -->
       <div
         v-if="isReadyClipsLoading"
+        data-testid="ready-clips-skeletons"
         class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
       >
         <div
@@ -54,6 +55,7 @@
       <!-- Empty State -->
       <div
         v-else-if="readyClips.length === 0"
+        data-testid="ready-clips-empty-state"
         class="bg-surface-panel/30 border border-surface-border/50 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center text-center"
       >
         <div
