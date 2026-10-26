@@ -14,6 +14,9 @@ const mockState = {
   renderStartTime: ref<number | null>(null),
   jobError: ref(''),
   selectedHookIndex: ref(0),
+  shouldPlayRendered: ref(false),
+  openRenderFolder: vi.fn(),
+  showToast: vi.fn(),
   renderClip: vi.fn()
 };
 
@@ -92,13 +95,21 @@ describe('RenderProgressOverlay Component', () => {
     expect(wrapper.find('[data-testid="render-overlay"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('Clip Rendered Successfully!');
     expect(wrapper.find('[data-testid="download-btn"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="open-folder-btn"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="preview-close-btn"]').exists()).toBe(
       true
     );
 
-    // Clicking close resets renderStatus to idle
+    // Clicking open folder calls openRenderFolder
+    await wrapper.find('[data-testid="open-folder-btn"]').trigger('click');
+    expect(mockState.openRenderFolder).toHaveBeenCalledWith(
+      'http://localhost:8000/static/output/sample.mp4'
+    );
+
+    // Clicking close resets renderStatus to idle and activates shouldPlayRendered
     await wrapper.find('[data-testid="preview-close-btn"]').trigger('click');
     expect(mockState.renderStatus.value).toBe('idle');
+    expect(mockState.shouldPlayRendered.value).toBe(true);
   });
 
   it('renders in-overlay error diagnostics when renderStatus is error and allows retry', async () => {

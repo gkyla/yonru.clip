@@ -1,5 +1,7 @@
 import os
+import sys
 import shutil
+import subprocess
 import json
 import datetime
 from typing import Optional, Dict, Any, List
@@ -321,4 +323,59 @@ class SystemRepository:
     def detect_hardware_profile(self) -> Dict[str, Any]:
         """Detect local CPU, physical RAM, and GPU capability to recommend an optimal Whisper model."""
         return self.hardware_profiler.detect()
+
+    def reveal_in_file_manager(self, target_path: str, base_dir: str = "static/output") -> Dict[str, Any]:
+        """Safely reveal a file or directory in the native OS file manager with anti-traversal validation."""
+        try:
+            abs_base = os.path.abspath(base_dir)
+            os.makedirs(abs_base, exist_ok=True)
+
+            # Extract clean filename to strictly prevent directory traversal
+            clean_name = os.path.basename(target_path.strip().replace("\\", "/"))
+            resolved_target = os.path.abspath(os.path.join(abs_base, clean_name))
+
+            # Security: Validate with commonpath
+            if os.path.commonpath([abs_base, resolved_target]) != abs_base:
+                return {
+                    "status": "error",
+                    "message": "Invalid target path: directory traversal attempt blocked.",
+                    "revealed_target": abs_base,
+                    "fallback_directory": True
+                }
+
+            is_file = os.path.isfile(resolved_target)
+            fallback = not is_file
+            path_to_open = resolved_target if is_file else abs_base
+
+            current_platform = sys.platform
+            if current_platform == "darwin":
+                if is_file:
+                    subprocess.run(["open", "-R", path_to_open], check=True)
+                else:
+                    subprocess.run(["open", path_to_open], check=True)
+            elif current_platform == "win32":
+                norm_path = os.path.normpath(path_to_open)
+                if is_file:
+                    subprocess.run(["explorer", f"/select,{norm_path}"], check=True)
+                else:
+                    subprocess.run(["explorer", norm_path], check=True)
+            else:
+                # Linux or other POSIX
+                open_target = os.path.dirname(path_to_open) if is_file else path_to_open
+                subprocess.run(["xdg-open", open_target], check=True)
+
+            return {
+                "status": "ok",
+                "message": f"Revealed {'file' if is_file else 'directory'} in file manager.",
+                "revealed_target": path_to_open,
+                "fallback_directory": fallback
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Could not open file manager: {str(e)}",
+                "revealed_target": "",
+                "fallback_directory": False
+            }
+
 

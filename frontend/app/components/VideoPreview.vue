@@ -10,25 +10,229 @@
       class="absolute top-1/2 left-1/2 w-[1080px] h-[1920px] overflow-hidden rounded-[36px] bg-black"
       :style="contentStyle"
     >
-      <!-- Rendered video output -->
+      <!-- Rendered video output (Rendered Clip Preview Canvas) -->
       <div
         v-if="state?.outputUrl?.value"
-        class="absolute inset-0 z-30 bg-black flex items-center justify-center"
+        data-testid="rendered-clip-preview"
+        class="absolute inset-0 z-30 bg-black flex flex-col items-center justify-center select-none overflow-hidden"
+        @mousemove="onPlayerMouseMove"
+        @mouseleave="onPlayerMouseLeave"
       >
+        <!-- The Rendered Video Element -->
         <video
+          ref="renderedVideo"
+          data-testid="rendered-video-element"
           :src="state?.outputUrl?.value"
-          class="w-full h-full object-contain"
-          autoplay
+          class="w-full h-full object-contain cursor-pointer"
+          playsinline
+          preload="auto"
+          @timeupdate="onRenderedTimeUpdate"
+          @loadedmetadata="onRenderedLoadedMetadata"
+          @ended="onRenderedEnded"
+          @click="toggleRenderedPlayback"
         ></video>
-        <div class="absolute top-12 right-12 z-40">
-          <a
-            :href="state?.outputUrl?.value"
-            download
-            class="bg-accent-500 text-black text-[36px] font-bold px-8 py-4 rounded-xl flex items-center gap-3 hover:bg-accent-600 transition-colors shadow-2xl"
+
+        <!-- Center Play/Pause Flash Indicator -->
+        <Transition
+          enter-active-class="transition duration-150 ease-out"
+          enter-from-class="opacity-0 scale-75"
+          enter-to-class="opacity-100 scale-100"
+          leave-active-class="transition duration-300 ease-in"
+          leave-from-class="opacity-100 scale-100"
+          leave-to-class="opacity-0 scale-125"
+        >
+          <div
+            v-if="showCenterPlayFlash"
+            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-40 w-36 h-36 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white"
           >
-            <Icon name="ri:download-line" />
-            DOWNLOAD
-          </a>
+            <Icon
+              :name="isRenderedPlaying ? 'ri:play-fill' : 'ri:pause-fill'"
+              class="text-6xl text-white ml-1"
+            />
+          </div>
+        </Transition>
+
+        <!-- Top Floating Header Action Bar -->
+        <div
+          class="absolute top-10 left-10 right-10 z-40 flex items-center justify-between pointer-events-auto transition-opacity duration-300 ease-out"
+          :class="
+            isControlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          "
+        >
+          <!-- Back to Editor button -->
+          <button
+            data-testid="back-to-editor-btn"
+            class="bg-surface-dark/90 hover:bg-surface-panel/90 border border-surface-border text-white text-[28px] font-bold px-7 py-3.5 rounded-2xl flex items-center gap-3 transition-all backdrop-blur-md shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+            @click="exitRenderPreview"
+          >
+            <Icon
+              name="ri:arrow-left-line"
+              class="text-[32px] text-accent-500"
+            />
+            <span>Back to Editor</span>
+          </button>
+
+          <!-- Right Action Pill: Open Folder & Download -->
+          <div class="flex items-center gap-4">
+            <button
+              data-testid="open-folder-canvas-btn"
+              class="bg-surface-dark/90 hover:bg-surface-panel/90 border border-surface-border text-slate-200 hover:text-white text-[28px] font-bold px-7 py-3.5 rounded-2xl flex items-center gap-3 transition-all backdrop-blur-md shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+              @click="openRenderFolder"
+            >
+              <Icon
+                name="ri:folder-open-line"
+                class="text-[32px] text-accent-400"
+              />
+              <span>Open Folder</span>
+            </button>
+            <a
+              data-testid="download-canvas-btn"
+              :href="state?.outputUrl?.value"
+              download
+              class="bg-accent-500 hover:bg-accent-400 text-black text-[28px] font-extrabold px-8 py-3.5 rounded-2xl flex items-center gap-3 transition-all shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Icon name="ri:download-2-fill" class="text-[32px]" />
+              <span>Download</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Studio Playback Control Deck (Bottom Floating Deck) -->
+        <div
+          data-testid="studio-control-deck"
+          class="absolute bottom-10 left-8 right-8 z-40 bg-[#060608]/90 backdrop-blur-2xl border border-white/10 rounded-[32px] px-8 py-5 flex items-center gap-6 shadow-2xl transition-opacity duration-300 ease-out pointer-events-auto"
+          :class="
+            isControlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          "
+        >
+          <!-- Play / Pause Button -->
+          <button
+            data-testid="player-play-btn"
+            class="text-white hover:text-accent-500 transition-colors shrink-0 flex items-center justify-center p-2 rounded-xl active:scale-95"
+            @click.stop="toggleRenderedPlayback"
+          >
+            <Icon
+              :name="isRenderedPlaying ? 'ri:pause-fill' : 'ri:play-fill'"
+              class="text-[44px]"
+            />
+          </button>
+
+          <!-- Scrubber Container -->
+          <div
+            ref="scrubberTrackRef"
+            data-testid="player-scrubber"
+            class="flex-1 relative flex items-center h-12 cursor-pointer group/scrub"
+            @mousedown="startRenderedScrub"
+            @touchstart.passive="startRenderedScrubTouch"
+          >
+            <!-- Background Track -->
+            <div
+              class="w-full h-3 bg-white/20 rounded-full overflow-hidden group-hover/scrub:h-4 transition-all"
+            >
+              <!-- Filled Progress Track (Matte Gold, NO glow) -->
+              <div
+                class="h-full bg-accent-500 rounded-full"
+                :style="{ width: `${renderedProgressPercent}%` }"
+              ></div>
+            </div>
+
+            <!-- Scrubber Thumb (White circle) -->
+            <div
+              class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-white border-2 border-black/40 shadow-md group-hover/scrub:scale-125 transition-transform pointer-events-none"
+              :style="{ left: `${renderedProgressPercent}%` }"
+            ></div>
+          </div>
+
+          <!-- Time Display (Sans-serif, Tabular Nums, NO Monospace) -->
+          <div
+            data-testid="player-time-display"
+            class="text-slate-300 font-sans font-medium tabular-nums text-[26px] tracking-normal shrink-0 select-none whitespace-nowrap"
+          >
+            {{ formatTimeDisplay(renderedCurrentTime) }} /
+            {{ formatTimeDisplay(renderedDuration) }}
+          </div>
+
+          <!-- Volume Control with Vertical Slider Popover -->
+          <div
+            data-testid="player-volume-control"
+            class="relative shrink-0 flex items-center justify-center group/volume"
+            @mouseenter="onVolumeMouseEnter"
+            @mouseleave="onVolumeMouseLeave"
+          >
+            <!-- Vertical Volume Slider Popover -->
+            <div
+              data-testid="player-volume-popover"
+              class="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-[#060608]/95 backdrop-blur-2xl border border-white/10 rounded-[24px] py-4 px-3 flex flex-col items-center gap-3 shadow-2xl select-none z-50 w-16 transition-all duration-200"
+              :class="
+                isVolumePopoverOpen
+                  ? 'opacity-100 translate-y-0 pointer-events-auto'
+                  : 'opacity-0 translate-y-2 pointer-events-none group-hover/volume:opacity-100 group-hover/volume:translate-y-0 group-hover/volume:pointer-events-auto'
+              "
+            >
+              <!-- Percentage text (clean sans-serif, tabular-nums, no monospace) -->
+              <span
+                data-testid="player-volume-percent"
+                class="text-[20px] font-sans font-medium tabular-nums text-slate-300"
+              >
+                {{ Math.round((isRenderedMuted ? 0 : renderedVolume) * 100) }}%
+              </span>
+
+              <!-- Vertical Track Container -->
+              <div
+                ref="volumeTrackRef"
+                data-testid="player-vertical-volume-bar"
+                class="w-8 h-36 relative flex items-center justify-center cursor-pointer group/vtrack py-1"
+                @mousedown="startVolumeScrub"
+                @touchstart.passive="startVolumeScrubTouch"
+              >
+                <!-- Background Track -->
+                <div
+                  class="w-2.5 h-full bg-white/20 rounded-full relative overflow-hidden group-hover/vtrack:w-3.5 transition-all flex flex-col justify-end"
+                >
+                  <!-- Filled Level Track (Matte Gold) -->
+                  <div
+                    class="w-full bg-accent-500 rounded-full transition-all"
+                    :style="{
+                      height: `${isRenderedMuted ? 0 : renderedVolume * 100}%`
+                    }"
+                  ></div>
+                </div>
+
+                <!-- Volume Thumb Handle -->
+                <div
+                  class="absolute left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-black/40 shadow-md group-hover/vtrack:scale-125 transition-transform pointer-events-none"
+                  :style="{
+                    bottom: `calc(${isRenderedMuted ? 0 : renderedVolume * 100}% - 12px)`
+                  }"
+                ></div>
+              </div>
+            </div>
+
+            <!-- Mute / Unmute Button -->
+            <button
+              data-testid="player-mute-btn"
+              class="text-slate-300 hover:text-white transition-colors p-2 rounded-xl active:scale-95 flex items-center justify-center"
+              @click.stop="toggleRenderedMute"
+            >
+              <Icon :name="renderedVolumeIcon" class="text-[36px]" />
+            </button>
+          </div>
+
+          <!-- Fullscreen Button -->
+          <button
+            data-testid="player-fullscreen-btn"
+            class="text-slate-300 hover:text-white transition-colors shrink-0 p-2 rounded-xl active:scale-95"
+            @click.stop="toggleRenderedFullscreen"
+          >
+            <Icon
+              :name="
+                isRenderedFullscreen
+                  ? 'ri:fullscreen-exit-line'
+                  : 'ri:fullscreen-line'
+              "
+              class="text-[36px]"
+            />
+          </button>
         </div>
       </div>
 
@@ -702,8 +906,376 @@ const state = useClipperState();
 const { activeSafeZone, safeZoneOpacity, safeZoneColor } = state;
 
 const previewVideo = ref<HTMLVideoElement | null>(null);
+const renderedVideo = ref<HTMLVideoElement | null>(null);
 const transformerRef = ref<any>(null);
 const stableVideoBuster = ref<string>(Date.now().toString());
+
+// --- RENDERED VIDEO CUSTOM STUDIO PLAYBACK DECK ---
+const isRenderedPlaying = ref(false);
+const renderedCurrentTime = ref(0);
+const renderedDuration = ref(0);
+const renderedVolume = ref(1);
+const lastUnmutedVolume = ref(1);
+const isRenderedMuted = ref(false);
+const isRenderedFullscreen = ref(false);
+const isControlsVisible = ref(true);
+const isVolumePopoverOpen = ref(false);
+const showCenterPlayFlash = ref(false);
+const isScrubbingRendered = ref(false);
+const scrubberTrackRef = ref<HTMLElement | null>(null);
+const isScrubbingVolume = ref(false);
+const volumeTrackRef = ref<HTMLElement | null>(null);
+
+let controlsHideTimer: ReturnType<typeof setTimeout> | null = null;
+let centerFlashTimer: ReturnType<typeof setTimeout> | null = null;
+let volumePopoverTimer: ReturnType<typeof setTimeout> | null = null;
+
+function onVolumeMouseEnter() {
+  isVolumePopoverOpen.value = true;
+  if (volumePopoverTimer) {
+    clearTimeout(volumePopoverTimer);
+    volumePopoverTimer = null;
+  }
+}
+
+function onVolumeMouseLeave() {
+  volumePopoverTimer = setTimeout(() => {
+    if (!isScrubbingVolume.value) {
+      isVolumePopoverOpen.value = false;
+    }
+  }, 350);
+}
+
+const renderedVolumeIcon = computed(() => {
+  if (isRenderedMuted.value || renderedVolume.value === 0) {
+    return 'ri:volume-mute-fill';
+  }
+  if (renderedVolume.value < 0.5) {
+    return 'ri:volume-down-fill';
+  }
+  return 'ri:volume-up-fill';
+});
+
+function resetControlsHideTimer() {
+  isControlsVisible.value = true;
+  if (controlsHideTimer) {
+    clearTimeout(controlsHideTimer);
+    controlsHideTimer = null;
+  }
+  if (isRenderedPlaying.value) {
+    controlsHideTimer = setTimeout(() => {
+      isControlsVisible.value = false;
+    }, 2500);
+  }
+}
+
+function onPlayerMouseMove() {
+  resetControlsHideTimer();
+}
+
+function onPlayerMouseLeave() {
+  if (isRenderedPlaying.value) {
+    isControlsVisible.value = false;
+  }
+}
+
+function triggerCenterFlash() {
+  showCenterPlayFlash.value = true;
+  if (centerFlashTimer) clearTimeout(centerFlashTimer);
+  centerFlashTimer = setTimeout(() => {
+    showCenterPlayFlash.value = false;
+  }, 350);
+}
+
+function toggleRenderedPlayback() {
+  if (!renderedVideo.value) return;
+  if (renderedVideo.value.paused) {
+    renderedVideo.value
+      .play()
+      .then(() => {
+        isRenderedPlaying.value = true;
+        triggerCenterFlash();
+        resetControlsHideTimer();
+      })
+      .catch(() => {});
+  } else {
+    renderedVideo.value.pause();
+    isRenderedPlaying.value = false;
+    triggerCenterFlash();
+    isControlsVisible.value = true;
+    if (controlsHideTimer) {
+      clearTimeout(controlsHideTimer);
+      controlsHideTimer = null;
+    }
+  }
+}
+
+function onRenderedTimeUpdate() {
+  if (!renderedVideo.value || isScrubbingRendered.value) return;
+  renderedCurrentTime.value = renderedVideo.value.currentTime;
+}
+
+function onRenderedLoadedMetadata() {
+  if (!renderedVideo.value) return;
+  renderedDuration.value = renderedVideo.value.duration || 0;
+  isRenderedMuted.value = renderedVideo.value.muted;
+  renderedVolume.value = renderedVideo.value.volume;
+}
+
+function onRenderedEnded() {
+  isRenderedPlaying.value = false;
+  isControlsVisible.value = true;
+  if (controlsHideTimer) {
+    clearTimeout(controlsHideTimer);
+    controlsHideTimer = null;
+  }
+}
+
+function toggleRenderedMute() {
+  if (!renderedVideo.value) return;
+  if (isRenderedMuted.value) {
+    renderedVideo.value.muted = false;
+    isRenderedMuted.value = false;
+    if (renderedVolume.value === 0) {
+      renderedVolume.value = lastUnmutedVolume.value || 0.8;
+      renderedVideo.value.volume = renderedVolume.value;
+    }
+  } else {
+    lastUnmutedVolume.value = renderedVolume.value;
+    renderedVideo.value.muted = true;
+    isRenderedMuted.value = true;
+  }
+  resetControlsHideTimer();
+}
+
+function calculateVolumeFromY(clientY: number): number {
+  if (!volumeTrackRef.value) return 1;
+  const rect = volumeTrackRef.value.getBoundingClientRect();
+  if (!rect.height) return 1;
+  const pct = (rect.bottom - clientY) / rect.height;
+  return Math.max(0, Math.min(1, pct));
+}
+
+function setVolumeFromEvent(clientY: number) {
+  const newVol = calculateVolumeFromY(clientY);
+  renderedVolume.value = newVol;
+  if (renderedVideo.value) {
+    renderedVideo.value.volume = newVol;
+    if (newVol > 0 && isRenderedMuted.value) {
+      renderedVideo.value.muted = false;
+      isRenderedMuted.value = false;
+    }
+  }
+}
+
+function startVolumeScrub(e: MouseEvent) {
+  isScrubbingVolume.value = true;
+  isVolumePopoverOpen.value = true;
+  setVolumeFromEvent(e.clientY);
+  window.addEventListener('mousemove', onVolumeScrubMove);
+  window.addEventListener('mouseup', stopVolumeScrub);
+}
+
+function onVolumeScrubMove(e: MouseEvent) {
+  if (!isScrubbingVolume.value) return;
+  setVolumeFromEvent(e.clientY);
+}
+
+function stopVolumeScrub() {
+  isScrubbingVolume.value = false;
+  window.removeEventListener('mousemove', onVolumeScrubMove);
+  window.removeEventListener('mouseup', stopVolumeScrub);
+  resetControlsHideTimer();
+}
+
+function startVolumeScrubTouch(e: TouchEvent) {
+  if (!e.touches[0]) return;
+  isScrubbingVolume.value = true;
+  isVolumePopoverOpen.value = true;
+  setVolumeFromEvent(e.touches[0].clientY);
+  window.addEventListener('touchmove', onVolumeScrubTouchMove, {
+    passive: false
+  });
+  window.addEventListener('touchend', stopVolumeScrubTouch);
+}
+
+function onVolumeScrubTouchMove(e: TouchEvent) {
+  if (!isScrubbingVolume.value || !e.touches[0]) return;
+  setVolumeFromEvent(e.touches[0].clientY);
+}
+
+function stopVolumeScrubTouch() {
+  isScrubbingVolume.value = false;
+  window.removeEventListener('touchmove', onVolumeScrubTouchMove);
+  window.removeEventListener('touchend', stopVolumeScrubTouch);
+  resetControlsHideTimer();
+}
+
+function toggleRenderedFullscreen() {
+  if (!renderedVideo.value) return;
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+    isRenderedFullscreen.value = false;
+  } else {
+    renderedVideo.value.requestFullscreen?.().catch(() => {});
+    isRenderedFullscreen.value = true;
+  }
+  resetControlsHideTimer();
+}
+
+const renderedProgressPercent = computed(() => {
+  if (!renderedDuration.value || renderedDuration.value <= 0) return 0;
+  return Math.min(
+    100,
+    Math.max(0, (renderedCurrentTime.value / renderedDuration.value) * 100)
+  );
+});
+
+function formatTimeDisplay(seconds: number): string {
+  if (!seconds || isNaN(seconds) || seconds < 0) return '00:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+function calculateScrubTime(clientX: number): number {
+  if (!scrubberTrackRef.value || !renderedDuration.value) return 0;
+  const rect = scrubberTrackRef.value.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  return pct * renderedDuration.value;
+}
+
+function startRenderedScrub(e: MouseEvent) {
+  isScrubbingRendered.value = true;
+  const newTime = calculateScrubTime(e.clientX);
+  renderedCurrentTime.value = newTime;
+  if (renderedVideo.value) {
+    renderedVideo.value.currentTime = newTime;
+  }
+  window.addEventListener('mousemove', onRenderedScrubMove);
+  window.addEventListener('mouseup', stopRenderedScrub);
+}
+
+function onRenderedScrubMove(e: MouseEvent) {
+  if (!isScrubbingRendered.value) return;
+  const newTime = calculateScrubTime(e.clientX);
+  renderedCurrentTime.value = newTime;
+  if (renderedVideo.value) {
+    renderedVideo.value.currentTime = newTime;
+  }
+}
+
+function stopRenderedScrub() {
+  isScrubbingRendered.value = false;
+  window.removeEventListener('mousemove', onRenderedScrubMove);
+  window.removeEventListener('mouseup', stopRenderedScrub);
+  resetControlsHideTimer();
+}
+
+function startRenderedScrubTouch(e: TouchEvent) {
+  if (!e.touches[0]) return;
+  isScrubbingRendered.value = true;
+  const newTime = calculateScrubTime(e.touches[0].clientX);
+  renderedCurrentTime.value = newTime;
+  if (renderedVideo.value) {
+    renderedVideo.value.currentTime = newTime;
+  }
+  window.addEventListener('touchmove', onRenderedScrubTouchMove, {
+    passive: false
+  });
+  window.addEventListener('touchend', stopRenderedScrubTouch);
+}
+
+function onRenderedScrubTouchMove(e: TouchEvent) {
+  if (!isScrubbingRendered.value || !e.touches[0]) return;
+  const newTime = calculateScrubTime(e.touches[0].clientX);
+  renderedCurrentTime.value = newTime;
+  if (renderedVideo.value) {
+    renderedVideo.value.currentTime = newTime;
+  }
+}
+
+function stopRenderedScrubTouch() {
+  isScrubbingRendered.value = false;
+  window.removeEventListener('touchmove', onRenderedScrubTouchMove);
+  window.removeEventListener('touchend', stopRenderedScrubTouch);
+  resetControlsHideTimer();
+}
+
+function exitRenderPreview() {
+  if (controlsHideTimer) {
+    clearTimeout(controlsHideTimer);
+    controlsHideTimer = null;
+  }
+  if (centerFlashTimer) {
+    clearTimeout(centerFlashTimer);
+    centerFlashTimer = null;
+  }
+  if (renderedVideo.value) {
+    try {
+      renderedVideo.value.pause();
+    } catch {
+      // ignore
+    }
+  }
+  isRenderedPlaying.value = false;
+  if (state?.outputUrl) {
+    state.outputUrl.value = null;
+  }
+}
+
+async function openRenderFolder() {
+  if (state?.openRenderFolder) {
+    await state.openRenderFolder(state.outputUrl?.value);
+  }
+}
+
+function handleRenderedKeydown(e: KeyboardEvent) {
+  if (!state?.outputUrl?.value) return;
+
+  const target = e.target as HTMLElement | null;
+  if (
+    target &&
+    (target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable)
+  ) {
+    return;
+  }
+
+  if (e.key === ' ' || e.code === 'Space') {
+    e.preventDefault();
+    toggleRenderedPlayback();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    exitRenderPreview();
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleRenderedKeydown);
+});
+
+watch(
+  () => state?.shouldPlayRendered?.value,
+  async shouldPlay => {
+    if (shouldPlay) {
+      await nextTick();
+      if (renderedVideo.value) {
+        renderedVideo.value
+          .play()
+          .then(() => {
+            isRenderedPlaying.value = true;
+            resetControlsHideTimer();
+          })
+          .catch(() => {});
+      }
+      if (state?.shouldPlayRendered) {
+        state.shouldPlayRendered.value = false;
+      }
+    }
+  }
+);
 
 // --- LAYOUT & SIZING LOGIC ---
 const videoAspect = ref(16 / 9);
@@ -1214,6 +1786,18 @@ onUnmounted(() => {
   handleWindowTouchEnd();
   if (readyTimeout) clearTimeout(readyTimeout);
   if (safetyTimeout) clearTimeout(safetyTimeout);
+  if (controlsHideTimer) clearTimeout(controlsHideTimer);
+  if (centerFlashTimer) clearTimeout(centerFlashTimer);
+  if (volumePopoverTimer) clearTimeout(volumePopoverTimer);
+  window.removeEventListener('mousemove', onRenderedScrubMove);
+  window.removeEventListener('mouseup', stopRenderedScrub);
+  window.removeEventListener('touchmove', onRenderedScrubTouchMove);
+  window.removeEventListener('touchend', stopRenderedScrubTouch);
+  window.removeEventListener('mousemove', onVolumeScrubMove);
+  window.removeEventListener('mouseup', stopVolumeScrub);
+  window.removeEventListener('touchmove', onVolumeScrubTouchMove);
+  window.removeEventListener('touchend', stopVolumeScrubTouch);
+  window.removeEventListener('keydown', handleRenderedKeydown);
   directBridge.destroy();
 });
 

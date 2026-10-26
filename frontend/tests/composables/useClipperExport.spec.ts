@@ -243,4 +243,45 @@ describe('useClipperExport — Deep Render Pipeline', () => {
     expect(abortSignalCaptured?.aborted).toBe(true);
     expect(renderStatus.value).toBe('cancelled');
   });
+
+  it('openRenderFolder calls /api/open-folder and displays success toast', async () => {
+    const fetchStub = vi.fn().mockResolvedValue({ status: 'ok' });
+    vi.stubGlobal('$fetch', fetchStub);
+
+    const { openRenderFolder } = useClipperExport();
+    const result = await openRenderFolder('/static/output/clip.mp4');
+
+    expect(result).toBe(true);
+    expect(fetchStub).toHaveBeenCalledWith(
+      '/api/open-folder',
+      expect.objectContaining({
+        method: 'POST',
+        body: { output_url: '/static/output/clip.mp4' }
+      })
+    );
+  });
+
+  it('openRenderFolder handles backend error gracefully and displays error toast', async () => {
+    const fetchStub = vi
+      .fn()
+      .mockRejectedValue(new Error('Headless server error'));
+    vi.stubGlobal('$fetch', fetchStub);
+
+    const { openRenderFolder } = useClipperExport();
+    const result = await openRenderFolder('/static/output/clip.mp4');
+
+    expect(result).toBe(false);
+  });
+
+  it('computes isRenderPreviewActive accurately based on outputUrl state', () => {
+    const { outputUrl, isRenderPreviewActive } = useClipperExport();
+    outputUrl.value = null;
+    expect(isRenderPreviewActive.value).toBe(false);
+
+    outputUrl.value = '/static/output/finished_clip.mp4';
+    expect(isRenderPreviewActive.value).toBe(true);
+
+    outputUrl.value = null;
+    expect(isRenderPreviewActive.value).toBe(false);
+  });
 });

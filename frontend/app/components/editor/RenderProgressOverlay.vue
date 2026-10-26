@@ -262,6 +262,18 @@
                 Preview / Close
               </button>
               <button
+                data-testid="open-folder-btn"
+                class="px-5 py-2.5 rounded-full border border-surface-border bg-surface-dark/60 hover:bg-white/10 text-xs font-bold uppercase tracking-widest text-slate-300 hover:text-white transition-all flex items-center gap-2"
+                :disabled="isOpeningFolder"
+                @click="handleOpenFolder"
+              >
+                <Icon
+                  name="ri:folder-open-line"
+                  class="text-sm text-accent-400"
+                />
+                <span>Open Folder</span>
+              </button>
+              <button
                 data-testid="download-btn"
                 class="px-6 py-2.5 rounded-full bg-accent-500 hover:bg-accent-400 text-black text-xs font-extrabold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(255,215,0,0.4)] flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
                 @click="downloadVideo"
@@ -692,8 +704,22 @@ onUnmounted(() => {
 });
 
 // ----------------------------------------------------
-// ACTIONS: DOWNLOAD, DISMISS, RETRY
+// ACTIONS: DOWNLOAD, DISMISS, RETRY, OPEN FOLDER
 // ----------------------------------------------------
+const isOpeningFolder = ref(false);
+
+async function handleOpenFolder() {
+  if (!outputUrl.value || isOpeningFolder.value) return;
+  isOpeningFolder.value = true;
+  try {
+    if (state?.openRenderFolder) {
+      await state.openRenderFolder(outputUrl.value);
+    }
+  } finally {
+    isOpeningFolder.value = false;
+  }
+}
+
 function downloadVideo() {
   if (!outputUrl.value) return;
   const link = document.createElement('a');
@@ -706,11 +732,15 @@ function downloadVideo() {
 }
 
 function dismissOverlay() {
+  const wasDone = renderStatus.value === 'done';
   if (state?.cancelRender) {
     state.cancelRender();
   }
   if (state?.renderStatus) {
     state.renderStatus.value = 'idle';
+  }
+  if (wasDone && state?.shouldPlayRendered) {
+    state.shouldPlayRendered.value = true;
   }
 }
 

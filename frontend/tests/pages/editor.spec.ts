@@ -14,6 +14,11 @@ const mockExtractClip = vi.fn();
 const mockSubtitleMode = ref('word');
 const mockSubtitlesEnabled = ref(true);
 const mockToggleSubtitles = vi.fn();
+const mockOutputUrl = ref<string | null>(null);
+const mockIsRenderPreviewActive = computed(() => Boolean(mockOutputUrl.value));
+const mockIsEditorLocked = computed(
+  () => mockIsRenderPreviewActive.value || mockJobStatus.value === 'rendering'
+);
 const mockFolderName = ref('test_folder');
 const mockClipId = ref('');
 const mockSavedHooks = ref<any[]>([]);
@@ -52,6 +57,9 @@ vi.mock('../../app/composables/useClipperState', () => ({
     stopPolling: vi.fn(),
     startPolling: vi.fn(),
     renderStatus: { value: 'idle' },
+    outputUrl: mockOutputUrl,
+    isRenderPreviewActive: mockIsRenderPreviewActive,
+    isEditorLocked: mockIsEditorLocked,
     jobId: { value: '' },
     folderName: mockFolderName,
     clipId: mockClipId,
@@ -374,5 +382,59 @@ describe('Editor Page', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('.w-\\[500px\\]').exists()).toBe(false);
+  });
+
+  it('auto-dismisses floating subtitle panel and dims action rail when preview mode becomes active', async () => {
+    mockOutputUrl.value = null;
+    const hook = {
+      start: 10,
+      end: 20,
+      theme: 'Test Active Hook',
+      transcript_quote: ''
+    };
+    mockHooks.value = [hook];
+    mockActiveHook.value = hook;
+
+    const wrapper = mount(editor, {
+      global: {
+        stubs: {
+          HomeSidebar: true,
+          SidebarSettings: true,
+          VideoPreview: true,
+          TimelineEditor: true,
+          EditorPipelineOverlay: true,
+          EditorRenderProgressOverlay: true,
+          EditorHooksListPanel: true,
+          BlacklistSettings: true,
+          Icon: true
+        }
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    // Open Floating Subtitle Panel
+    const actionBtn = wrapper
+      .findAll('button')
+      .find(b => b.html().includes('ri:edit-box-line'));
+    if (actionBtn) {
+      await actionBtn.trigger('click');
+    } else {
+      const firstBtn = wrapper.find('button');
+      if (firstBtn.exists()) await firstBtn.trigger('click');
+    }
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('.w-\\[500px\\]').exists()).toBe(true);
+
+    // Now activate render preview mode
+    mockOutputUrl.value = 'http://localhost:8000/static/output/rendered.mp4';
+    await wrapper.vm.$nextTick();
+
+    // Floating panel must be automatically closed
+    expect(wrapper.find('.w-\\[500px\\]').exists()).toBe(false);
+
+    // Reset outputUrl
+    mockOutputUrl.value = null;
   });
 });

@@ -3,7 +3,10 @@
     class="flex-1 flex flex-col bg-[#0a0a0c] overflow-hidden h-full transition-all duration-300"
     :class="{
       'opacity-40 pointer-events-none':
-        isOverlayVisible || state?.renderStatus?.value === 'rendering'
+        isOverlayVisible ||
+        state?.renderStatus?.value === 'rendering' ||
+        state?.isRenderPreviewActive?.value ||
+        state?.isEditorLocked?.value
     }"
   >
     <!-- Toolbar -->
@@ -948,6 +951,14 @@ function splitSelected() {
 
 // --- Keyboard ---
 function onKeyDown(e: KeyboardEvent) {
+  if (
+    isOverlayVisible.value ||
+    state?.renderStatus?.value === 'rendering' ||
+    state?.isRenderPreviewActive?.value ||
+    state?.isEditorLocked?.value
+  ) {
+    return;
+  }
   if (
     e.target instanceof HTMLTextAreaElement ||
     e.target instanceof HTMLInputElement
