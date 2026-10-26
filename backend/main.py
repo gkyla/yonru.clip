@@ -270,6 +270,11 @@ ThumbnailConfigRequest = CoverConfigRequest
 class BatchDeleteClipsRequest(BaseModel):
     clips: list[dict] # list of {folder_name, clip_id}
 
+class OpenFolderRequest(BaseModel):
+    output_url: Optional[str] = None
+    filename: Optional[str] = None
+
+
 # --- Helpers ---
 
 
@@ -741,6 +746,16 @@ async def system_health():
 async def hardware_profile():
     """Detect host machine hardware specs and recommend optimal Whisper transcription model."""
     return system_repository.detect_hardware_profile()
+
+@app.post("/api/open-folder")
+async def open_output_folder(req: OpenFolderRequest):
+    """Open host operating system file manager revealing rendered clip or output directory."""
+    target = req.filename or req.output_url or ""
+    res = system_repository.reveal_in_file_manager(target, base_dir=render_engine.output_dir)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=400, detail=res.get("message", "Failed to open file manager"))
+    return res
+
 
 # --- Cover Slide Endpoints ---
 

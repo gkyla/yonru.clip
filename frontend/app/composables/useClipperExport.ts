@@ -2,9 +2,11 @@
 // Encapsulates SSE stream parsing, progress tracking, ETA, cancellation, and render lifecycle
 
 import type { RenderSpec } from '../types/render';
+import { useAppNotifier } from './useAppNotifier';
 
 export const useClipperExport = () => {
   const API_BASE = resolveApiBase();
+  const { showToast } = useAppNotifier();
 
   // --- Render state (global useState keys) ---
   const renderStatus = useState<string>('renderStatus', () => 'idle');
@@ -12,6 +14,11 @@ export const useClipperExport = () => {
   const renderStage = useState<string>('renderStage', () => '');
   const renderEta = useState<number>('renderEta', () => 0);
   const outputUrl = useState<string | null>('outputUrl', () => null);
+  const shouldPlayRendered = useState<boolean>(
+    'shouldPlayRendered',
+    () => false
+  );
+  const isRenderPreviewActive = computed(() => Boolean(outputUrl.value));
   const renderFrame = useState<number>('renderFrame', () => 0);
   const renderTotalFrames = useState<number>('renderTotalFrames', () => 0);
   const renderStartTime = useState<number | null>(
@@ -217,6 +224,34 @@ export const useClipperExport = () => {
     renderStatus.value = 'cancelled';
   }
 
+  // --- Public: safely reveal rendered video in OS file manager ---
+  async function openRenderFolder(targetUrl?: string | null): Promise<boolean> {
+    const url = targetUrl || outputUrl.value || '';
+    try {
+      const res = await $fetch<{ status: string; message?: string }>(
+        '/api/open-folder',
+        {
+          baseURL: API_BASE,
+          method: 'POST',
+          body: { output_url: url }
+        }
+      );
+      if (res.status === 'ok') {
+        showToast('Opened folder in file manager', 'success');
+        return true;
+      }
+      showToast(res.message || 'Could not open folder', 'error');
+      return false;
+    } catch (err: any) {
+      const msg =
+        err?.data?.detail ||
+        err?.message ||
+        'Failed to open file manager on host';
+      showToast(msg, 'error');
+      return false;
+    }
+  }
+
   return {
     // State
     renderStatus,
@@ -224,6 +259,8 @@ export const useClipperExport = () => {
     renderStage,
     renderEta,
     outputUrl,
+    isRenderPreviewActive,
+    shouldPlayRendered,
     renderFrame,
     renderTotalFrames,
     renderStartTime,
@@ -232,6 +269,7 @@ export const useClipperExport = () => {
     exportClip,
     renderClip: exportClip,
     cancelRender,
+    openRenderFolder,
     formatRenderBody
   };
 };

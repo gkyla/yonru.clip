@@ -173,7 +173,20 @@ const hasBeenMounted = ref(false);
 
 const isRendering = computed(() => state?.renderStatus?.value === 'rendering');
 const isEditorLocked = computed(
-  () => isOverlayVisible.value || isRendering.value
+  () =>
+    state?.isEditorLocked?.value ??
+    (isOverlayVisible.value ||
+      isRendering.value ||
+      Boolean(state?.outputUrl?.value))
+);
+
+watch(
+  () => state?.isRenderPreviewActive?.value || Boolean(state?.outputUrl?.value),
+  isActive => {
+    if (isActive) {
+      isPanelOpen.value = false;
+    }
+  }
 );
 
 const readyClips = useState<ReadyClip[]>('readyClips', () => []);

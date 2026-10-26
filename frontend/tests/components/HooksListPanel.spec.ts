@@ -174,4 +174,27 @@ describe('HooksListPanel Component', () => {
     await removeBtn?.trigger('click');
     expect(wrapper.emitted('remove-current-saved-hook')).toBeTruthy();
   });
+
+  it('dims and disables content safety audit and header controls when isOverlayVisible is true', () => {
+    const wrapper = mount(HooksListPanel, {
+      props: {
+        panelTab: 'generated',
+        isCurrentHookSaved: false,
+        isOverlayVisible: true,
+        isHookRendered: () => false,
+        isActiveHook: () => false
+      },
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, ContentAuditPanel: true }
+      }
+    });
+
+    const auditPanel = wrapper.findComponent({ name: 'ContentAuditPanel' });
+    expect(auditPanel.classes()).toContain('opacity-40');
+    expect(auditPanel.classes()).toContain('pointer-events-none');
+
+    const header = wrapper.find('[data-testid="hooks-panel-header"]');
+    expect(header.classes()).toContain('opacity-40');
+    expect(header.classes()).toContain('pointer-events-none');
+  });
 });

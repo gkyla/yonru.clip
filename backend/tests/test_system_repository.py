@@ -386,3 +386,118 @@ def test_system_repository_detect_hardware_profile_custom_profiler_injection():
     assert profile["recommended_model"] == "large-v3"
 
 
+def test_reveal_in_file_manager_existing_file_macos(temp_workspace):
+    """Verify revealing an existing file on macOS runs 'open -R <file>'."""
+    temp_dir, cookies_file = temp_workspace
+    repo = SystemRepository(config_store=InMemoryConfigStore(), cookies_path=cookies_file)
+
+    output_dir = os.path.join(temp_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    video_file = os.path.join(output_dir, "test_clip.mp4")
+    with open(video_file, "w") as f:
+        f.write("dummy")
+
+    with patch("sys.platform", "darwin"), patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        result = repo.reveal_in_file_manager(video_file, base_dir=output_dir)
+
+        assert result["status"] == "ok"
+        assert result["revealed_target"] == os.path.abspath(video_file)
+        mock_run.assert_called_once_with(["open", "-R", os.path.abspath(video_file)], check=True)
+
+
+def test_reveal_in_file_manager_existing_file_windows(temp_workspace):
+    """Verify revealing an existing file on Windows runs 'explorer /select,<file>'."""
+    temp_dir, cookies_file = temp_workspace
+    repo = SystemRepository(config_store=InMemoryConfigStore(), cookies_path=cookies_file)
+
+    output_dir = os.path.join(temp_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    video_file = os.path.join(output_dir, "test_clip.mp4")
+    with open(video_file, "w") as f:
+        f.write("dummy")
+
+    with patch("sys.platform", "win32"), patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        result = repo.reveal_in_file_manager("test_clip.mp4", base_dir=output_dir)
+
+        assert result["status"] == "ok"
+        expected_path = os.path.normpath(os.path.abspath(video_file))
+        mock_run.assert_called_once_with(["explorer", f"/select,{expected_path}"], check=True)
+
+
+def test_reveal_in_file_manager_missing_file_fallback(temp_workspace):
+    """Verify missing file falls back to opening parent directory."""
+    temp_dir, cookies_file = temp_workspace
+    repo = SystemRepository(config_store=InMemoryConfigStore(), cookies_path=cookies_file)
+
+    output_dir = os.path.join(temp_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+
+    with patch("sys.platform", "darwin"), patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        result = repo.reveal_in_file_manager("missing.mp4", base_dir=output_dir)
+
+        assert result["status"] == "ok"
+        assert result["fallback_directory"] is True
+        mock_run.assert_called_once_with(["open", os.path.abspath(output_dir)], check=True)
+
+
+def test_reveal_in_file_manager_traversal_prevention(temp_workspace):
+    """Verify directory traversal is prevented via os.path.commonpath and basename extraction."""
+    temp_dir, cookies_file = temp_workspace
+    repo = SystemRepository(config_store=InMemoryConfigStore(), cookies_path=cookies_file)
+
+    output_dir = os.path.join(temp_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+
+    with patch("sys.platform", "darwin"), patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        # Attempt traversal outside output_dir
+        result = repo.reveal_in_file_manager("../../etc/passwd", base_dir=output_dir)
+        # Basename is extracted ('passwd'), resolved strictly inside output_dir
+        assert result["status"] == "ok"
+        # Since 'passwd' doesn't exist in output_dir, it falls back to output_dir
+        mock_run.assert_called_once_with(["open", os.path.abspath(output_dir)], check=True)
+
+
+def test_reveal_in_file_manager_error_handling(temp_workspace):
+    """Verify subprocess error returns status error without crashing."""
+    temp_dir, cookies_file = temp_workspace
+    repo = SystemRepository(config_store=InMemoryConfigStore(), cookies_path=cookies_file)
+
+    output_dir = os.path.join(temp_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+
+    with patch("sys.platform", "darwin"), patch("subprocess.run", side_effect=FileNotFoundError("open not found")):
+        result = repo.reveal_in_file_manager("test.mp4", base_dir=output_dir)
+        assert result["status"] == "error"
+        assert "open not found" in result["message"]
+
+
+def test_api_open_folder_endpoint(temp_workspace):
+    """Verify POST /api/open-folder endpoint delegates to system_repository and returns 200."""
+    from fastapi.testclient import TestClient
+    import main
+
+    temp_dir, _ = temp_workspace
+    output_dir = os.path.join(temp_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    video_file = os.path.join(output_dir, "my_clip.mp4")
+    with open(video_file, "w") as f:
+        f.write("content")
+
+    with patch.object(main.render_engine, "output_dir", output_dir), \
+         patch("sys.platform", "darwin"), \
+         patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        client = TestClient(main.app)
+        res = client.post("/api/open-folder", json={"output_url": "/static/output/my_clip.mp4"})
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "ok"
+        mock_run.assert_called_once_with(["open", "-R", os.path.abspath(video_file)], check=True)
+
+
+
+

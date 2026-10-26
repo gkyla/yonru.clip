@@ -4,14 +4,21 @@
   >
     <!-- Content Safety Audit Panel -->
     <ContentAuditPanel
-      class="border-b border-surface-border min-h-0 shrink-0"
+      class="border-b border-surface-border min-h-0 shrink-0 transition-all duration-300"
+      :class="{
+        'opacity-40 pointer-events-none select-none': isOverlayVisible
+      }"
       :expanded="isAuditExpanded"
       @toggle-expand="isAuditExpanded = !isAuditExpanded"
       @settings="emit('open-blacklist-settings')"
     />
 
     <div
-      class="border-b border-surface-border/50 bg-surface-dark/40 flex flex-col shrink-0"
+      data-testid="hooks-panel-header"
+      class="border-b border-surface-border/50 bg-surface-dark/40 flex flex-col shrink-0 transition-all duration-300"
+      :class="{
+        'opacity-40 pointer-events-none select-none': isOverlayVisible
+      }"
     >
       <div class="flex items-center justify-between px-3 h-10">
         <span

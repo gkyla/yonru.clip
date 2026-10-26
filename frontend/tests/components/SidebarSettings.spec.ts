@@ -52,7 +52,7 @@ const mockState = {
   safeZoneOpacity,
   safeZoneColor,
   activeHook: ref({ theme: 'Test Hook' }),
-  outputUrl: ref('http://localhost/out.mp4'),
+  outputUrl: ref<string | null>(null),
   seekTo: vi.fn(),
   showToast: vi.fn(),
   saveDefaultStyleSettings: vi.fn(),
@@ -79,6 +79,7 @@ describe('SidebarSettings Component', () => {
     mockState.jobStatus.value = 'ready';
     mockState.renderStatus.value = 'ready';
     mockState.subtitleBackground.value = 'none';
+    mockState.outputUrl.value = null;
   });
 
   it('renders concise tab labels (Presets, Text, Layout) with Presets active by default', () => {
@@ -403,5 +404,37 @@ describe('SidebarSettings Component', () => {
     await presetBtn?.trigger('click');
 
     expect(mockState.saveStyleSettings).toHaveBeenCalled();
+  });
+
+  it('dims and disables scrollable settings content view when isEditorLocked or in render preview', async () => {
+    mockState.outputUrl.value = 'http://localhost/out.mp4';
+    mockState.jobStatus.value = 'ready';
+    mockState.renderStatus.value = 'ready';
+
+    const wrapper = mount(SidebarSettings, {
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, BlacklistSettings: true }
+      }
+    });
+
+    const scrollArea = wrapper.find('.custom-scrollbar > div');
+    expect(scrollArea.classes()).toContain('opacity-40');
+    expect(scrollArea.classes()).toContain('pointer-events-none');
+  });
+
+  it('disables Save Style and RENDER CLIP buttons when in render preview mode', async () => {
+    mockState.outputUrl.value = 'http://localhost/out.mp4';
+    const wrapper = mount(SidebarSettings, {
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, BlacklistSettings: true }
+      }
+    });
+
+    const buttons = wrapper.findAll('button');
+    const saveBtn = buttons.find(b => b.text().includes('Save Style'));
+    const renderBtn = buttons.find(b => b.text().includes('RENDER CLIP'));
+
+    expect(saveBtn?.attributes('disabled')).toBeDefined();
+    expect(renderBtn?.attributes('disabled')).toBeDefined();
   });
 });

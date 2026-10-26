@@ -792,5 +792,34 @@ describe('useClipperState Composable', () => {
       );
       expect(state.toast.value?.message).toBe('Hook names updated');
     });
+
+    it('computes isEditorLocked when overlay visible, rendering, or in render preview', async () => {
+      const state = useClipperState();
+      state.isOverlayVisible.value = false;
+      state.renderStatus.value = 'idle';
+      state.outputUrl.value = null;
+
+      expect(state.isEditorLocked.value).toBe(false);
+
+      // Overlay visible locks editor
+      state.isOverlayVisible.value = true;
+      expect(state.isEditorLocked.value).toBe(true);
+      state.isOverlayVisible.value = false;
+      expect(state.isEditorLocked.value).toBe(false);
+
+      // Rendering locks editor
+      state.renderStatus.value = 'rendering';
+      expect(state.isEditorLocked.value).toBe(true);
+      state.renderStatus.value = 'done';
+      expect(state.isEditorLocked.value).toBe(false);
+
+      // Render preview (outputUrl present) locks editor
+      state.outputUrl.value = 'http://localhost:8000/static/output/clip.mp4';
+      expect(state.isEditorLocked.value).toBe(true);
+
+      // Back to editor (outputUrl cleared) unlocks editor
+      state.outputUrl.value = null;
+      expect(state.isEditorLocked.value).toBe(false);
+    });
   });
 });

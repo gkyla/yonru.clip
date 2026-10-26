@@ -208,11 +208,14 @@ function createClipperState() {
     renderStage,
     renderEta,
     outputUrl,
+    isRenderPreviewActive,
+    shouldPlayRendered,
     renderFrame,
     renderTotalFrames,
     renderStartTime,
     exportClip,
-    cancelRender
+    cancelRender,
+    openRenderFolder
   } = exportState;
 
   // Clip editor session state delegated from useClipEditorSession sub-composable
@@ -267,6 +270,13 @@ function createClipperState() {
   const safeZoneOpacity = useState<number>('safeZoneOpacity', () => 100);
   const safeZoneColor = useState<string>('safeZoneColor', () => '#000000');
   const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
+  const isEditorLocked = computed(() =>
+    Boolean(
+      isOverlayVisible.value ||
+      renderStatus.value === 'rendering' ||
+      isRenderPreviewActive.value
+    )
+  );
 
   const segmentPadding = 2; // Match backend YouTubeParser safe_start buffer
 
@@ -533,6 +543,9 @@ function createClipperState() {
     renderStage,
     renderEta,
     outputUrl,
+    isRenderPreviewActive,
+    isEditorLocked,
+    shouldPlayRendered,
     renderFrame,
     renderTotalFrames,
     renderStartTime,
@@ -626,6 +639,7 @@ function createClipperState() {
     deleteThumbnail,
     toggleThumbnail,
     resetWorkspace,
+    openRenderFolder,
     toast,
     showToast,
     dismissToast,

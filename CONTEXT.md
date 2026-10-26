@@ -153,6 +153,21 @@ _Avoid_: Dual player mode, render switch, canvas exporter
 The immutable, self-contained specification DTO containing complete visual layout, multi-track timeline items, typography, audio levels, and frame bounds passed across the Remotion engine seam to execute headless MP4 video rendering without coupling to data repositories or disk assets.
 _Avoid_: Render job dict, composition settings, render options, export config
 
+**Rendered Clip Preview Canvas**:
+The presentation viewport layer in Video Preview displaying the final rendered MP4 export with playback controls, file actions, and editor-return capabilities, isolating the active editor session by dimming and disabling the timeline, settings sidebar, action rail, and hooks audit panel while preserving global navigation.
+_Avoid_: Export modal, output video popup, finish screen preview
+
+**Studio Playback Control Deck**:
+The matte glassmorphic floating control capsule positioned at the lower tier of the Rendered Clip Preview Canvas, providing clean scrub timeline manipulation, duration readout, audio mute states, keyboard transport shortcuts (Space playback toggle, Escape canvas exit), and cinematic auto-hiding without glow effects or monospace typography.
+_Avoid_: Video bar, player buttons, footer controls, preview scrub strip
+
+
+**Render Output Explorer Reveal**:
+The cross-platform operating system integration service in the backend that opens the host file manager (macOS Finder, Windows File Explorer, or Linux file manager) and selects the specific exported MP4 file on disk.
+_Avoid_: Folder opener, open directory, file link, disk browser
+
+
+
 
 
 **Word-Level Audio Censorship**:

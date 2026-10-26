@@ -24,6 +24,10 @@ const mockState = {
   volume: ref(1),
   videoLayout: ref('portrait'),
   selectedTimelineItem: ref<any>(null),
+  outputUrl: ref<string | null>(null),
+  isRenderPreviewActive: ref(false),
+  isEditorLocked: ref(false),
+  renderStatus: ref('ready'),
   contentAudit: ref({ flaggedSegments: [] }),
   timelineTracks: ref([
     {
@@ -320,5 +324,40 @@ describe('TimelineEditor Component', () => {
       left: expect.any(Number),
       behavior: 'smooth'
     });
+  });
+
+  it('dims timeline and suppresses keyboard shortcuts when render preview / editor locked is active', async () => {
+    mockState.isEditorLocked.value = true;
+    mockState.outputUrl.value = 'http://localhost/out.mp4';
+    mockState.isRenderPreviewActive.value = true;
+
+    const wrapper = mount(TimelineEditor, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          TimelinePropertiesInspector: true
+        }
+      }
+    });
+
+    const root = wrapper.find('div');
+    expect(root.classes()).toContain('opacity-40');
+    expect(root.classes()).toContain('pointer-events-none');
+
+    const togglePlaySpy = vi.spyOn(wrapper.vm as any, 'togglePlay');
+
+    // Space keydown should be blocked
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: ' ', code: 'Space' })
+    );
+    await wrapper.vm.$nextTick();
+
+    expect(togglePlaySpy).not.toHaveBeenCalled();
+
+    // Reset lock
+    mockState.isEditorLocked.value = false;
+    mockState.outputUrl.value = null;
+    mockState.isRenderPreviewActive.value = false;
   });
 });

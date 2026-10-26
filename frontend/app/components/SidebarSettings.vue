@@ -61,7 +61,10 @@
           'opacity-40 pointer-events-none':
             state.jobStatus?.value !== 'ready' ||
             isOverlayVisible ||
-            state.renderStatus?.value === 'rendering'
+            state.renderStatus?.value === 'rendering' ||
+            state.isRenderPreviewActive?.value ||
+            state.isEditorLocked?.value ||
+            Boolean(state.outputUrl?.value)
         }"
       >
         <Transition name="panel-tab-fade" mode="out-in">
@@ -135,7 +138,10 @@
             :disabled="
               state.jobStatus?.value !== 'ready' ||
               isOverlayVisible ||
-              state.renderStatus?.value === 'rendering'
+              state.renderStatus?.value === 'rendering' ||
+              state.isRenderPreviewActive?.value ||
+              state.isEditorLocked?.value ||
+              Boolean(state.outputUrl?.value)
             "
             class="bg-surface-dark/80 border border-surface-border/80 hover:border-accent-500/50 text-slate-300 hover:text-accent-400 p-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 hover:bg-surface-card disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:border-surface-border/80 disabled:hover:text-slate-300 disabled:hover:bg-surface-dark/80 cursor-pointer"
             @click="handleSaveDefaultStyle"
@@ -168,7 +174,10 @@
           :disabled="
             state.jobStatus?.value !== 'ready' ||
             isOverlayVisible ||
-            state.renderStatus?.value === 'rendering'
+            state.renderStatus?.value === 'rendering' ||
+            state.isRenderPreviewActive?.value ||
+            state.isEditorLocked?.value ||
+            Boolean(state.outputUrl?.value)
           "
           class="flex-1 bg-accent-500/80 text-black font-black uppercase tracking-wider rounded-xl py-2 px-2.5 text-xs hover:bg-accent-400 transition-all flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(255,215,0,0.18)] hover:shadow-[0_0_20px_rgba(255,215,0,0.3)] disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none min-w-0 truncate cursor-pointer"
           @click="prepareRender"

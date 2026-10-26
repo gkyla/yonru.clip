@@ -1,5 +1,5 @@
 // @vitest-environment nuxt
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import VideoPreview from '../../app/components/VideoPreview.vue';
 import { useClipperState } from '../../app/composables/useClipperState';
@@ -299,5 +299,247 @@ describe('VideoPreview Component', () => {
     const horizontalLine = guidesSvg.find('line[data-guide="horizontal"]');
     expect(horizontalLine.exists()).toBe(true);
     expect(horizontalLine.attributes('stroke')).toBe('#ffd700');
+  });
+
+  it('renders studio playback control deck with custom controls and no native controls attribute', async () => {
+    const state = useClipperState();
+    state.outputUrl.value =
+      'http://localhost:8000/static/output/rendered_test.mp4';
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    const previewContainer = wrapper.find(
+      '[data-testid="rendered-clip-preview"]'
+    );
+    expect(previewContainer.exists()).toBe(true);
+
+    const videoEl = wrapper.find('[data-testid="rendered-video-element"]');
+    expect(videoEl.exists()).toBe(true);
+    expect(videoEl.attributes('autoplay')).toBeUndefined();
+    expect(videoEl.attributes('controls')).toBeUndefined();
+
+    // Studio Control Deck Elements
+    expect(wrapper.find('[data-testid="studio-control-deck"]').exists()).toBe(
+      true
+    );
+    expect(wrapper.find('[data-testid="player-play-btn"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="player-scrubber"]').exists()).toBe(true);
+    const timeDisplay = wrapper.find('[data-testid="player-time-display"]');
+    expect(timeDisplay.exists()).toBe(true);
+    expect(timeDisplay.classes()).toContain('font-sans');
+    expect(timeDisplay.classes()).not.toContain('font-mono');
+    expect(wrapper.find('[data-testid="player-mute-btn"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="player-fullscreen-btn"]').exists()).toBe(
+      true
+    );
+
+    expect(wrapper.find('[data-testid="back-to-editor-btn"]').exists()).toBe(
+      true
+    );
+    expect(
+      wrapper.find('[data-testid="open-folder-canvas-btn"]').exists()
+    ).toBe(true);
+    expect(wrapper.find('[data-testid="download-canvas-btn"]').exists()).toBe(
+      true
+    );
+  });
+
+  it('toggles mute when player-mute-btn is clicked', async () => {
+    const state = useClipperState();
+    state.outputUrl.value =
+      'http://localhost:8000/static/output/rendered_test.mp4';
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    const muteBtn = wrapper.find('[data-testid="player-mute-btn"]');
+    expect(muteBtn.exists()).toBe(true);
+    const videoEl = wrapper.find<HTMLVideoElement>(
+      '[data-testid="rendered-video-element"]'
+    );
+
+    expect(videoEl.element.muted).toBe(false);
+    await muteBtn.trigger('click');
+    expect(videoEl.element.muted).toBe(true);
+    await muteBtn.trigger('click');
+    expect(videoEl.element.muted).toBe(false);
+  });
+
+  it('clicking back-to-editor-btn clears outputUrl to return to editor', async () => {
+    const state = useClipperState();
+    state.outputUrl.value =
+      'http://localhost:8000/static/output/rendered_test.mp4';
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    await wrapper.find('[data-testid="back-to-editor-btn"]').trigger('click');
+    expect(state.outputUrl.value).toBeNull();
+  });
+
+  it('triggers play() when shouldPlayRendered becomes true', async () => {
+    const state = useClipperState();
+    state.outputUrl.value =
+      'http://localhost:8000/static/output/rendered_test.mp4';
+    state.shouldPlayRendered.value = false;
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    const videoEl = wrapper.find<HTMLVideoElement>(
+      '[data-testid="rendered-video-element"]'
+    );
+    const playSpy = vi
+      .spyOn(videoEl.element, 'play')
+      .mockResolvedValue(undefined);
+
+    state.shouldPlayRendered.value = true;
+    await wrapper.vm.$nextTick();
+    await new Promise(r => setTimeout(r, 10));
+
+    expect(playSpy).toHaveBeenCalled();
+  });
+
+  it('controls volume via vertical volume bar and updates video element volume', async () => {
+    const state = useClipperState();
+    state.outputUrl.value =
+      'http://localhost:8000/static/output/rendered_test.mp4';
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    const volumeDeck = wrapper.find('[data-testid="player-volume-control"]');
+    expect(volumeDeck.exists()).toBe(true);
+
+    const volumeSlider = wrapper.find(
+      '[data-testid="player-vertical-volume-bar"]'
+    );
+    expect(volumeSlider.exists()).toBe(true);
+
+    const videoEl = wrapper.find<HTMLVideoElement>(
+      '[data-testid="rendered-video-element"]'
+    );
+    expect(videoEl.element.volume).toBe(1);
+    expect(wrapper.find('[data-testid="player-volume-percent"]').exists()).toBe(
+      true
+    );
+  });
+
+  it('handles keyboard shortcuts in Rendered Clip Preview Canvas (Space to toggle play/pause, Escape to exit preview)', async () => {
+    const state = useClipperState();
+    state.outputUrl.value =
+      'http://localhost:8000/static/output/rendered_test.mp4';
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': true,
+          'v-layer': true,
+          'v-label': true,
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    const videoEl = wrapper.find<HTMLVideoElement>(
+      '[data-testid="rendered-video-element"]'
+    );
+    const playSpy = vi
+      .spyOn(videoEl.element, 'play')
+      .mockResolvedValue(undefined);
+    const pauseSpy = vi
+      .spyOn(videoEl.element, 'pause')
+      .mockImplementation(() => {});
+
+    // Space keydown triggers playback
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: ' ', code: 'Space' })
+    );
+    await wrapper.vm.$nextTick();
+    expect(playSpy).toHaveBeenCalled();
+
+    // Escape keydown calls exitRenderPreview and clears outputUrl
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape' })
+    );
+    await wrapper.vm.$nextTick();
+    expect(state.outputUrl.value).toBeNull();
   });
 });
