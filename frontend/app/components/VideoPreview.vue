@@ -14,7 +14,7 @@
       <div
         v-if="state?.outputUrl?.value"
         data-testid="rendered-clip-preview"
-        class="absolute inset-0 z-30 bg-black flex flex-col items-center justify-center select-none overflow-hidden"
+        class="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center select-none overflow-hidden"
         @mousemove="onPlayerMouseMove"
         @mouseleave="onPlayerMouseLeave"
       >
@@ -396,7 +396,9 @@
       <div
         class="absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none w-full px-[5%] flex justify-center transition-opacity duration-300"
         :class="
-          state.useNativePlayer.value ? 'opacity-100' : 'opacity-0 hidden'
+          state.useNativePlayer.value && !state.outputUrl?.value
+            ? 'opacity-100'
+            : 'opacity-0 hidden'
         "
         :style="subtitleIndicatorStyle"
       >
@@ -449,7 +451,11 @@
       <!-- Text Layers (Konva) -->
       <ClientOnly>
         <div
-          v-if="state.videoUrl.value && !state.thumbnailEditMode.value"
+          v-if="
+            state.videoUrl.value &&
+            !state.thumbnailEditMode.value &&
+            !state.outputUrl?.value
+          "
           class="absolute inset-0 z-[45]"
           :class="
             activeTextItems.length > 0
@@ -569,6 +575,7 @@
 
       <!-- Thumbnail Preview Mode (active in edit mode OR during thumbnail time window) -->
       <Transition
+        v-if="!state.outputUrl?.value"
         enter-active-class="transition duration-300 ease-out"
         enter-from-class="opacity-0"
         enter-to-class="opacity-100"
@@ -708,6 +715,7 @@
 
       <!-- Editing indicator (moved outside of the z-[50] container to escape its CSS stacking context) -->
       <Transition
+        v-if="!state.outputUrl?.value"
         enter-active-class="transition duration-300 ease-out"
         enter-from-class="opacity-0"
         enter-to-class="opacity-100"
@@ -794,31 +802,32 @@
 
       <!-- Title safe area -->
       <div
+        v-if="!state.outputUrl?.value"
         class="absolute border-[6px] border-red-500/20 pointer-events-none rounded-[24px] z-10 mix-blend-screen border-dashed"
         style="top: 10%; bottom: 15%; left: 10%; right: 10%"
       ></div>
 
       <!-- TikTok Safe Zone Simulation Overlay -->
       <TikTokSafeZoneOverlay
-        v-if="activeSafeZone === 'tiktok'"
+        v-if="!state.outputUrl?.value && activeSafeZone === 'tiktok'"
         :opacity="safeZoneOpacity"
       />
 
       <!-- Instagram Reels Safe Zone Simulation Overlay -->
       <ReelsSafeZoneOverlay
-        v-else-if="activeSafeZone === 'reels'"
+        v-else-if="!state.outputUrl?.value && activeSafeZone === 'reels'"
         :opacity="safeZoneOpacity"
       />
 
       <!-- YouTube Shorts Safe Zone Simulation Overlay -->
       <YouTubeShortsSafeZoneOverlay
-        v-else-if="activeSafeZone === 'shorts'"
+        v-else-if="!state.outputUrl?.value && activeSafeZone === 'shorts'"
         :opacity="safeZoneOpacity"
       />
 
       <!-- Canvas Snapping Guides (Dynamic Alignment & Boundaries) -->
       <svg
-        v-if="snapping.isSnappingEnabled.value"
+        v-if="snapping.isSnappingEnabled.value && !state.outputUrl?.value"
         data-testid="canvas-snapping-guides"
         class="absolute inset-0 w-full h-full pointer-events-none z-[70]"
         viewBox="0 0 1080 1920"
