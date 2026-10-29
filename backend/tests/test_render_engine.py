@@ -711,6 +711,78 @@ class TestRenderEngine(unittest.TestCase):
             self.assertEqual(events[-1]["stage"], "done")
             self.assertEqual(events[-1]["outputUrl"], "/static/output/Decoupled_Clip.mp4")
 
+    def test_auto_adaptive_subtitles_plumbed_to_staged_props(self):
+        import tempfile
+        import main as backend_main
+
+        req_off = backend_main.RenderRequest(
+            job_id="test_job_adaptive",
+            face_tracking=True,
+            auto_adaptive_subtitles=False,
+            subtitle_position="bottom",
+            subtitle_offset=418,
+            timeline_tracks=[
+                {
+                    "id": "video",
+                    "items": [{"id": "seg-1", "start": 4.87, "mediaStart": 10.78, "duration": 10.0}],
+                }
+            ],
+            transcript=[{"start": 0.0, "duration": 2.0, "text": "Hello"}],
+        )
+        self.assertFalse(req_off.auto_adaptive_subtitles)
+
+        mock_job = {
+            "clip_path": "temp_assets/sources/video.mp4",
+            "video_info": {"file_path": "temp_assets/sources/video.mp4", "duration": 25.0, "fps": 24.0},
+            "hooks": [],
+        }
+
+        crop_data = [
+            {"time": 0.0, "x": 960, "mode": "single"},
+            {"time": 10.5, "x": 360, "mode": "split", "top_x": 360, "bottom_x": 1400},
+        ]
+
+        engine = FakeRenderEngine()
+        orig_exists = os.path.exists
+        orig_open = open
+
+        def fake_exists(p):
+            if str(p).endswith("crop_map.json") or str(p) == "temp_assets/sources/video.mp4":
+                return True
+            return orig_exists(p)
+
+        from io import StringIO
+
+        def fake_open(p, mode="r", *a, **kw):
+            if "r" in mode and str(p).endswith("crop_map.json"):
+                return StringIO(json.dumps(crop_data))
+            return orig_open(p, mode, *a, **kw)
+
+        with patch("os.path.exists", side_effect=fake_exists), patch("builtins.open", side_effect=fake_open):
+            comp = engine.compile_composition(mock_job, req_off)
+
+        self.assertFalse(comp.auto_adaptive_subtitles)
+
+        tmp_out = tempfile.mkdtemp(prefix="test_stage_adaptive_")
+        tmp_pub = os.path.join(tmp_out, "public")
+        os.makedirs(tmp_pub, exist_ok=True)
+        try:
+            ctx = StagedRenderContext(comp, "adaptive_test.mp4", output_dir=tmp_out)
+            ctx.public_dir = tmp_pub
+            with patch("shutil.copy2", side_effect=lambda src, dst: None):
+                ctx.__enter__()
+                assert ctx.props_path is not None
+                with open(ctx.props_path, "r", encoding="utf-8") as pf:
+                    staged_props = json.load(pf)
+                ctx.__exit__(None, None, None)
+
+            self.assertFalse(staged_props.get("autoAdaptiveSubtitles"))
+            self.assertEqual(staged_props["timelineVideoItems"][0]["mediaStart"], 10.78)
+            self.assertEqual(staged_props["cropMap"][1]["mode"], "split")
+        finally:
+            shutil.rmtree(tmp_out, ignore_errors=True)
+
+
 
 
 

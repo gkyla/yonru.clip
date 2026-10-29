@@ -897,6 +897,7 @@ import { useRemotionBridge } from '../composables/useRemotionBridge';
 import { useInteractiveText } from '../composables/useInteractiveText';
 import { DirectPlayerBridge } from '../utils/playerBridge';
 import { transformText } from '../utils/styleHelpers';
+import { getCropEntryAtMediaTime } from '../utils/timelineHelpers';
 import RemotionPlayer from './RemotionPlayer.client.vue';
 import TikTokSafeZoneOverlay from './preview/TikTokSafeZoneOverlay.vue';
 import ReelsSafeZoneOverlay from './preview/ReelsSafeZoneOverlay.vue';
@@ -1832,12 +1833,7 @@ const progressWidth = computed(() => {
 
 const isSplitActive = computed(() => {
   if (!state.cropMap?.value || state.cropMap.value.length === 0) return false;
-  const t = state.currentTime?.value || 0;
-  let active = state.cropMap.value[0];
-  for (const entry of state.cropMap.value) {
-    if (entry.time <= t) active = entry;
-    else break;
-  }
+  const active = getCropEntryAtMediaTime(state.cropMap.value, videoTime.value);
   return active?.mode === 'split';
 });
 

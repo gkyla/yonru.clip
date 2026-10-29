@@ -12,9 +12,201 @@ import {
   useRemotionEnvironment
 } from 'remotion';
 import { AnimatedSubtitles } from './AnimatedSubtitles';
-import { CanvasVideoCompositor } from './CanvasVideoCompositor';
+import {
+  CanvasVideoCompositor,
+  computeViewportFraming
+} from './CanvasVideoCompositor';
+import type { ViewportFramingParams } from './CanvasVideoCompositor';
+import {
+  TimelineFrameRetention,
+  coalesceContiguousVideoSegments,
+  getSegmentFrameWindow,
+  resolveTimelineMediaTime
+} from './TimelineFrameRetention';
 import type { YonruClipProps, ThumbnailTextOverlay } from './types';
 import { getFont } from './fonts';
+
+interface HeadlessMediaViewportsProps {
+  videoSrc: string;
+  frameVolume: number | ((f: number) => number);
+  mediaStartFrame?: number;
+  durationFrames?: number;
+  fps: number;
+  fallbackMediaTime: number;
+  framingParams: ViewportFramingParams;
+  isLandscape: boolean;
+  landscapeBackground?: 'black' | 'blur';
+  landscapeBlurRadius?: number;
+  landscapeDarkness?: number;
+  CONTAINER_W: number;
+  CONTAINER_H: number;
+  PANEL_H: number;
+  videoDisplayW: number;
+  videoDisplayH: number;
+}
+
+const HeadlessMediaViewports: React.FC<HeadlessMediaViewportsProps> = ({
+  videoSrc,
+  frameVolume,
+  mediaStartFrame,
+  durationFrames,
+  fps,
+  fallbackMediaTime,
+  framingParams,
+  isLandscape,
+  landscapeBackground = 'black',
+  landscapeBlurRadius = 25,
+  landscapeDarkness = 35,
+  CONTAINER_W,
+  CONTAINER_H,
+  PANEL_H,
+  videoDisplayW,
+  videoDisplayH
+}) => {
+  const localFrame = useCurrentFrame();
+  const segmentMediaTime =
+    mediaStartFrame !== undefined
+      ? (mediaStartFrame + Math.max(0, localFrame)) / fps
+      : fallbackMediaTime;
+
+  const segFraming = computeViewportFraming(segmentMediaTime, framingParams);
+  const segIsSplit = segFraming.isSplitActive;
+
+  return (
+    <AbsoluteFill style={{ overflow: 'hidden' }}>
+      {/* Landscape Blurred Video Background (Headless Render parity) */}
+      {isLandscape && landscapeBackground === 'blur' && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: `${CONTAINER_W}px`,
+            height: `${CONTAINER_H}px`,
+            overflow: 'hidden',
+            zIndex: 0
+          }}
+        >
+          <OffthreadVideo
+            src={videoSrc}
+            volume={0}
+            muted={true}
+            startFrom={mediaStartFrame}
+            endAt={
+              durationFrames
+                ? (mediaStartFrame ?? 0) + durationFrames
+                : undefined
+            }
+            style={{
+              width: `${CONTAINER_W}px`,
+              height: `${CONTAINER_H}px`,
+              objectFit: 'cover',
+              transform: 'scale(1.08)',
+              filter: `blur(${Math.max(1, landscapeBlurRadius || 25)}px)`
+            }}
+          />
+          {(landscapeDarkness ?? 35) > 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                backgroundColor: `rgba(0, 0, 0, ${Math.max(0, Math.min(100, landscapeDarkness ?? 35)) / 100})`
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Top Viewport (Split mode: Top Speaker | Single mode: Full Framing) */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: CONTAINER_W,
+          height:
+            !isLandscape && segIsSplit ? `${PANEL_H}px` : `${CONTAINER_H}px`,
+          overflow: 'hidden',
+          zIndex: 1
+        }}
+      >
+        <OffthreadVideo
+          src={videoSrc}
+          volume={frameVolume}
+          startFrom={mediaStartFrame}
+          endAt={
+            durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined
+          }
+          style={{
+            height: `${videoDisplayH}px`,
+            width: `${videoDisplayW}px`,
+            maxWidth: 'none',
+            transformOrigin: '0 0',
+            transform:
+              !isLandscape && segIsSplit
+                ? `translate3d(${segFraming.curTopTranslateX}px, ${segFraming.curTopTranslateY}px, 0) scale(${segFraming.curScaleTop})`
+                : `translate3d(${segFraming.curTranslateX}px, ${segFraming.curTranslateY}px, 0) scale(1)`,
+            objectFit: 'cover'
+          }}
+        />
+      </div>
+
+      {/* Bottom Viewport (Split mode only - Conditional Mount with volume=0) */}
+      {!isLandscape && segIsSplit && (
+        <div
+          style={{
+            position: 'absolute',
+            top: `${PANEL_H}px`,
+            left: 0,
+            width: CONTAINER_W,
+            height: `${PANEL_H}px`,
+            overflow: 'hidden',
+            zIndex: 2
+          }}
+        >
+          <OffthreadVideo
+            src={videoSrc}
+            volume={0}
+            startFrom={mediaStartFrame}
+            endAt={
+              durationFrames
+                ? (mediaStartFrame ?? 0) + durationFrames
+                : undefined
+            }
+            style={{
+              height: `${videoDisplayH}px`,
+              width: `${videoDisplayW}px`,
+              maxWidth: 'none',
+              transformOrigin: '0 0',
+              transform: `translate3d(${segFraming.curBottomTranslateX}px, ${segFraming.curBottomTranslateY}px, 0) scale(${segFraming.curScaleBottom})`,
+              objectFit: 'cover'
+            }}
+          />
+        </div>
+      )}
+
+      {/* Center Seam Divider (Split mode only) */}
+      {!isLandscape && segIsSplit && (
+        <div
+          style={{
+            position: 'absolute',
+            top: `${PANEL_H - 1}px`,
+            left: 0,
+            width: '100%',
+            height: '2px',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            boxShadow: '0 0 10px 2px rgba(0, 0, 0, 0.75)',
+            zIndex: 15,
+            pointerEvents: 'none'
+          }}
+        />
+      )}
+    </AbsoluteFill>
+  );
+};
 
 function transformText(text: string, transform?: string): string {
   if (!text) return '';
@@ -174,217 +366,90 @@ export const YonruClip: React.FC<YonruClipProps> = ({
       currentTime >= item.start && currentTime <= item.start + item.duration
   );
 
-  // Determine active framing with Continuous Sub-Frame LERP and Instant Snap Cuts
-  const activeFraming = useMemo(() => {
-    const rawSourceW = sourceWidth || 1920;
-    const defaultTop =
-      cropPercentXTop !== undefined
-        ? (cropPercentXTop / 100) * rawSourceW
-        : cropX || rawSourceW / 2;
-    const defaultBottom =
-      cropPercentXBottom !== undefined
-        ? (cropPercentXBottom / 100) * rawSourceW
-        : cropX || rawSourceW / 2;
-
-    if (!cropMap || cropMap.length === 0) {
-      return {
-        mode: 'single' as const,
-        x: cropX ?? rawSourceW / 2,
-        top_x: defaultTop,
-        bottom_x: defaultBottom
-      };
-    }
-
-    const CUT_THRESHOLD = rawSourceW * 0.15;
-
-    // Scan for adjacent keyframes
-    // Use 1ms epsilon for IEEE 754 float precision & 3-decimal JSON rounding without bleeding into preceding frames
-    const timeEpsilon = 0.001;
-    let prevIdx = 0;
-    for (let i = 0; i < cropMap.length; i++) {
-      if (cropMap[i].time <= currentTime + timeEpsilon) {
-        prevIdx = i;
-      } else {
-        break;
-      }
-    }
-
-    const prevEntry = cropMap[prevIdx];
-    const nextEntry =
-      prevIdx < cropMap.length - 1 ? cropMap[prevIdx + 1] : null;
-
-    // If only one entry or at/after the last keyframe, use prevEntry
-    if (!nextEntry || prevEntry.time === nextEntry.time) {
-      const mode = prevEntry.mode || 'single';
-      return {
-        mode,
-        x: prevEntry.x,
-        top_x: prevEntry.top_x ?? prevEntry.x,
-        bottom_x: prevEntry.bottom_x ?? prevEntry.x
-      };
-    }
-
-    // Layout mode change -> Instant Jump Cut
-    if ((prevEntry.mode || 'single') !== (nextEntry.mode || 'single')) {
-      const mode = prevEntry.mode || 'single';
-      return {
-        mode,
-        x: prevEntry.x,
-        top_x: prevEntry.top_x ?? prevEntry.x,
-        bottom_x: prevEntry.bottom_x ?? prevEntry.x
-      };
-    }
-
-    const mode = prevEntry.mode || 'single';
-    const duration = nextEntry.time - prevEntry.time;
-    const progress = Math.max(
-      0,
-      Math.min(1, (currentTime - prevEntry.time) / duration)
-    );
-    // Smoothstep ease-in-out: 3t^2 - 2t^3
-    const smoothT = progress * progress * (3 - 2 * progress);
-
-    if (mode === 'split') {
-      const prevTop = prevEntry.top_x ?? prevEntry.x;
-      const nextTop = nextEntry.top_x ?? nextEntry.x;
-      const prevBot = prevEntry.bottom_x ?? prevEntry.x;
-      const nextBot = nextEntry.bottom_x ?? nextEntry.x;
-
-      const top_x =
-        Math.abs(nextTop - prevTop) > CUT_THRESHOLD
-          ? prevTop
-          : prevTop + (nextTop - prevTop) * smoothT;
-
-      const bottom_x =
-        Math.abs(nextBot - prevBot) > CUT_THRESHOLD
-          ? prevBot
-          : prevBot + (nextBot - prevBot) * smoothT;
-
-      return {
-        mode: 'split' as const,
-        x: top_x,
-        top_x:
-          cropPercentXTop !== undefined
-            ? (cropPercentXTop / 100) * rawSourceW
-            : top_x,
-        bottom_x:
-          cropPercentXBottom !== undefined
-            ? (cropPercentXBottom / 100) * rawSourceW
-            : bottom_x
-      };
-    } else {
-      const delta = Math.abs(nextEntry.x - prevEntry.x);
-      const x =
-        delta > CUT_THRESHOLD
-          ? prevEntry.x
-          : prevEntry.x + (nextEntry.x - prevEntry.x) * smoothT;
-
-      return {
-        mode: 'single' as const,
-        x,
-        top_x: x,
-        bottom_x: x
-      };
-    }
-  }, [
-    cropMap,
-    currentTime,
-    cropX,
-    cropPercentXTop,
-    cropPercentXBottom,
-    sourceWidth
-  ]);
-
-  if (frame % 30 === 0) {
-    console.log(
-      `[Remotion] frame=${frame} time=${currentTime.toFixed(2)} mode=${activeFraming.mode} activeX=${activeFraming.x.toFixed(0)}`
-    );
-  }
+  // Coalesce unsorted split segments that are contiguous in both timeline time and media time
+  const coalescedVideoSegments = useMemo(
+    () => coalesceContiguousVideoSegments(timelineVideoItems),
+    [timelineVideoItems]
+  );
 
   // Exact math from VideoPreview.vue to guarantee 1:1 match
   const isLandscape = videoLayout === 'landscape';
-  const isSplit = !isLandscape && activeFraming.mode === 'split';
   const videoAspect =
     sourceWidth && sourceHeight ? sourceWidth / sourceHeight : 16 / 9;
   const CONTAINER_W = 1080;
   const CONTAINER_H = 1920;
+  const PANEL_H = CONTAINER_H / 2;
 
   // Single / Landscape Display - Constant Video Dimensions
   const videoDisplayW = isLandscape ? CONTAINER_W : CONTAINER_H * videoAspect;
   const videoDisplayH = isLandscape ? CONTAINER_W / videoAspect : CONTAINER_H;
-  const maxOffset = Math.max(0, videoDisplayW - CONTAINER_W);
-
   const rawSourceW = sourceWidth || (isLandscape ? 1080 : 1920);
-  const singleScale = videoDisplayW / rawSourceW;
-  const targetTranslateX = isLandscape
-    ? 0
-    : CONTAINER_W / 2 - activeFraming.x * singleScale;
-  const translateX = isLandscape
-    ? 0
-    : Math.max(-maxOffset, Math.min(0, targetTranslateX));
-  const translateY = isLandscape ? (CONTAINER_H - videoDisplayH) / 2 : 0;
 
-  // Split Viewport Display (1080x960 each viewport) with Constant Video Dimensions & Pure GPU Transforms
-  const PANEL_H = CONTAINER_H / 2;
-
-  // Top Speaker Viewport Zoom & Transform with Zoom-Relative Framing Offset
-  const effectiveZoomTop = Math.max(1.0, Math.min(2.5, splitZoomTop || 1.0));
-  const currentScaleTop = 0.5 * effectiveZoomTop;
-  const topDisplayW = videoDisplayW * currentScaleTop;
-  const topDisplayH = videoDisplayH * currentScaleTop;
-  const topMaxOffset = Math.max(0, topDisplayW - CONTAINER_W);
-  const topExtraH = Math.max(0, topDisplayH - PANEL_H);
-
-  // Horizontal Framing Nudge (bounded by CONTAINER_W * 0.35, strictly clamped to video bounds)
-  const topNudgeX = ((splitOffsetXTop || 0) / 100) * (CONTAINER_W * 0.35);
-  const targetTopTranslateX =
-    CONTAINER_W / 2 -
-    (activeFraming.top_x / rawSourceW) * topDisplayW +
-    topNudgeX;
-  const topTranslateX = Math.max(
-    -topMaxOffset,
-    Math.min(0, targetTopTranslateX)
+  const mainVideoFrame = frame - thumbnailFrames;
+  const activeMediaTime = useMemo(
+    () => resolveTimelineMediaTime(mainVideoFrame, coalescedVideoSegments, fps),
+    [mainVideoFrame, coalescedVideoSegments, fps]
   );
 
-  // Vertical Headroom Shift (base 25% natural headroom + user offset, strictly clamped to [ -topExtraH, 0 ])
-  const baseTopTranslateY = -topExtraH * 0.25;
-  const topNudgeY = ((splitOffsetYTop || 0) / 100) * (topExtraH * 0.5);
-  const topTranslateY = Math.max(
-    -topExtraH,
-    Math.min(0, baseTopTranslateY + topNudgeY)
+  const framingParams: ViewportFramingParams = useMemo(
+    () => ({
+      cropMap,
+      cropX,
+      cropPercentXTop,
+      cropPercentXBottom,
+      splitZoomTop,
+      splitZoomBottom,
+      splitOffsetXTop,
+      splitOffsetYTop,
+      splitOffsetXBottom,
+      splitOffsetYBottom,
+      rawSourceW,
+      isLandscape,
+      videoDisplayW,
+      videoDisplayH,
+      CONTAINER_W,
+      CONTAINER_H,
+      PANEL_H
+    }),
+    [
+      cropMap,
+      cropX,
+      cropPercentXTop,
+      cropPercentXBottom,
+      splitZoomTop,
+      splitZoomBottom,
+      splitOffsetXTop,
+      splitOffsetYTop,
+      splitOffsetXBottom,
+      splitOffsetYBottom,
+      rawSourceW,
+      isLandscape,
+      videoDisplayW,
+      videoDisplayH
+    ]
   );
 
-  // Bottom Speaker Viewport Zoom & Transform with Constant Video Dimensions & Pure GPU Transforms
-  const effectiveZoomBottom = Math.max(
-    1.0,
-    Math.min(2.5, splitZoomBottom || 1.0)
-  );
-  const currentScaleBottom = 0.5 * effectiveZoomBottom;
-  const bottomDisplayW = videoDisplayW * currentScaleBottom;
-  const bottomDisplayH = videoDisplayH * currentScaleBottom;
-  const bottomMaxOffset = Math.max(0, bottomDisplayW - CONTAINER_W);
-  const bottomExtraH = Math.max(0, bottomDisplayH - PANEL_H);
-
-  const effectiveBottomX = activeFraming.bottom_x;
-
-  // Horizontal Framing Nudge (bounded by CONTAINER_W * 0.35, strictly clamped to video bounds)
-  const bottomNudgeX = ((splitOffsetXBottom || 0) / 100) * (CONTAINER_W * 0.35);
-  const targetBottomTranslateX =
-    CONTAINER_W / 2 -
-    (effectiveBottomX / rawSourceW) * bottomDisplayW +
-    bottomNudgeX;
-  const bottomTranslateX = Math.max(
-    -bottomMaxOffset,
-    Math.min(0, targetBottomTranslateX)
+  // Determine active framing from physical source media time (never raw timeline time)
+  const activeFraming = useMemo(
+    () => computeViewportFraming(activeMediaTime, framingParams),
+    [activeMediaTime, framingParams]
   );
 
-  // Vertical Headroom Shift (base 25% natural headroom + user offset, strictly clamped to [ -bottomExtraH, 0 ])
-  const baseBottomTranslateY = -bottomExtraH * 0.25;
-  const bottomNudgeY = ((splitOffsetYBottom || 0) / 100) * (bottomExtraH * 0.5);
-  const bottomTranslateY = Math.max(
-    -bottomExtraH,
-    Math.min(0, baseBottomTranslateY + bottomNudgeY)
-  );
+  if (frame % 30 === 0) {
+    console.log(
+      `[Remotion] frame=${frame} time=${currentTime.toFixed(2)} mediaTime=${activeMediaTime.toFixed(2)} mode=${activeFraming.mode} activeX=${activeFraming.x.toFixed(0)}`
+    );
+  }
+
+  const isSplit = activeFraming.isSplitActive;
+  const translateX = activeFraming.curTranslateX;
+  const translateY = activeFraming.curTranslateY;
+  const topTranslateX = activeFraming.curTopTranslateX;
+  const topTranslateY = activeFraming.curTopTranslateY;
+  const currentScaleTop = activeFraming.curScaleTop;
+  const bottomTranslateX = activeFraming.curBottomTranslateX;
+  const bottomTranslateY = activeFraming.curBottomTranslateY;
+  const currentScaleBottom = activeFraming.curScaleBottom;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'black', overflow: 'hidden' }}>
@@ -456,147 +521,31 @@ export const YonruClip: React.FC<YonruClipProps> = ({
         {(() => {
           const renderMediaViewports = (
             mediaStartFrame?: number,
-            durationFrames?: number
+            durationFrames?: number,
+            onFrameRendered?: (canvas: HTMLCanvasElement) => void,
+            isActive: boolean = true
           ) => {
             if (isRendering) {
-              // HEADLESS RENDER: Frame-accurate native Remotion OffthreadVideo
+              // HEADLESS RENDER: Frame-accurate native Remotion OffthreadVideo synced to segment media time
               return (
-                <AbsoluteFill style={{ overflow: 'hidden' }}>
-                  {/* Landscape Blurred Video Background (Headless Render parity) */}
-                  {isLandscape && landscapeBackground === 'blur' && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: `${CONTAINER_W}px`,
-                        height: `${CONTAINER_H}px`,
-                        overflow: 'hidden',
-                        zIndex: 0
-                      }}
-                    >
-                      <OffthreadVideo
-                        src={videoSrc}
-                        volume={0}
-                        muted={true}
-                        startFrom={mediaStartFrame}
-                        endAt={
-                          durationFrames
-                            ? (mediaStartFrame ?? 0) + durationFrames
-                            : undefined
-                        }
-                        style={{
-                          width: `${CONTAINER_W}px`,
-                          height: `${CONTAINER_H}px`,
-                          objectFit: 'cover',
-                          transform: 'scale(1.08)',
-                          filter: `blur(${Math.max(1, landscapeBlurRadius || 25)}px)`
-                        }}
-                      />
-                      {(landscapeDarkness ?? 35) > 0 && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            backgroundColor: `rgba(0, 0, 0, ${Math.max(0, Math.min(100, landscapeDarkness ?? 35)) / 100})`
-                          }}
-                        />
-                      )}
-                    </div>
-                  )}
-
-                  {/* Top Viewport (Split mode: Top Speaker | Single mode: Full Framing) */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: CONTAINER_W,
-                      height:
-                        !isLandscape && isSplit
-                          ? `${PANEL_H}px`
-                          : `${CONTAINER_H}px`,
-                      overflow: 'hidden',
-                      zIndex: 1
-                    }}
-                  >
-                    <OffthreadVideo
-                      src={videoSrc}
-                      volume={frameVolume}
-                      startFrom={mediaStartFrame}
-                      endAt={
-                        durationFrames
-                          ? (mediaStartFrame ?? 0) + durationFrames
-                          : undefined
-                      }
-                      style={{
-                        height: `${videoDisplayH}px`,
-                        width: `${videoDisplayW}px`,
-                        maxWidth: 'none',
-                        transformOrigin: '0 0',
-                        transform:
-                          !isLandscape && isSplit
-                            ? `translate3d(${topTranslateX}px, ${topTranslateY}px, 0) scale(${currentScaleTop})`
-                            : `translate3d(${translateX}px, ${translateY}px, 0) scale(1)`,
-                        objectFit: 'cover'
-                      }}
-                    />
-                  </div>
-
-                  {/* Bottom Viewport (Split mode only - Conditional Mount with volume=0) */}
-                  {!isLandscape && isSplit && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: `${PANEL_H}px`,
-                        left: 0,
-                        width: CONTAINER_W,
-                        height: `${PANEL_H}px`,
-                        overflow: 'hidden',
-                        zIndex: 2
-                      }}
-                    >
-                      <OffthreadVideo
-                        src={videoSrc}
-                        volume={0}
-                        startFrom={mediaStartFrame}
-                        endAt={
-                          durationFrames
-                            ? (mediaStartFrame ?? 0) + durationFrames
-                            : undefined
-                        }
-                        style={{
-                          height: `${videoDisplayH}px`,
-                          width: `${videoDisplayW}px`,
-                          maxWidth: 'none',
-                          transformOrigin: '0 0',
-                          transform: `translate3d(${bottomTranslateX}px, ${bottomTranslateY}px, 0) scale(${currentScaleBottom})`,
-                          objectFit: 'cover'
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Center Seam Divider (Split mode only) */}
-                  {!isLandscape && isSplit && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: `${PANEL_H - 1}px`,
-                        left: 0,
-                        width: '100%',
-                        height: '2px',
-                        backgroundColor: 'rgba(0, 0, 0, 0.85)',
-                        boxShadow: '0 0 10px 2px rgba(0, 0, 0, 0.75)',
-                        zIndex: 15,
-                        pointerEvents: 'none'
-                      }}
-                    />
-                  )}
-                </AbsoluteFill>
+                <HeadlessMediaViewports
+                  videoSrc={videoSrc}
+                  frameVolume={frameVolume}
+                  mediaStartFrame={mediaStartFrame}
+                  durationFrames={durationFrames}
+                  fps={fps}
+                  fallbackMediaTime={activeMediaTime}
+                  framingParams={framingParams}
+                  isLandscape={isLandscape}
+                  landscapeBackground={landscapeBackground}
+                  landscapeBlurRadius={landscapeBlurRadius}
+                  landscapeDarkness={landscapeDarkness}
+                  CONTAINER_W={CONTAINER_W}
+                  CONTAINER_H={CONTAINER_H}
+                  PANEL_H={PANEL_H}
+                  videoDisplayW={videoDisplayW}
+                  videoDisplayH={videoDisplayH}
+                />
               );
             }
 
@@ -639,26 +588,96 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   splitOffsetYTop={splitOffsetYTop}
                   splitOffsetXBottom={splitOffsetXBottom}
                   splitOffsetYBottom={splitOffsetYBottom}
+                  isActive={isActive}
+                  onFrameRendered={onFrameRendered}
                 />
               </AbsoluteFill>
             );
           };
 
-          if (
-            videoPath &&
-            timelineVideoItems &&
-            timelineVideoItems.length > 0
-          ) {
-            return timelineVideoItems.map(item => {
-              const startFrame = Math.round(item.start * fps);
-              const durationFrames = Math.round(item.duration * fps);
-              const mediaStartFrame = Math.round((item.mediaStart ?? 0) * fps);
+          if (!videoPath) {
+            return null;
+          }
+
+          if (!isRendering) {
+            return (
+              <TimelineFrameRetention
+                videoSrc={videoSrc}
+                width={CONTAINER_W}
+                height={CONTAINER_H}
+                mainVideoFrame={mainVideoFrame}
+                fps={fps}
+                timelineVideoItems={coalescedVideoSegments}
+              >
+                {onFrameRendered => {
+                  if (coalescedVideoSegments.length > 0) {
+                    return coalescedVideoSegments.map((item, idx) => {
+                      const {
+                        startFrame,
+                        endFrame,
+                        durationFrames,
+                        mediaStartFrame
+                      } = getSegmentFrameWindow(item, fps);
+                      if (durationFrames <= 0) {
+                        return null;
+                      }
+                      const isSegmentActive =
+                        mainVideoFrame >= startFrame &&
+                        mainVideoFrame < endFrame;
+                      const premountFrames =
+                        startFrame > 0
+                          ? Math.min(Math.round(fps * 1.5), startFrame)
+                          : 0;
+                      return (
+                        <Sequence
+                          key={item.id ?? `seg-${idx}`}
+                          from={startFrame}
+                          durationInFrames={durationFrames}
+                          premountFor={
+                            premountFrames > 0 ? premountFrames : undefined
+                          }
+                          name={`VideoSegment-${item.id ?? idx}`}
+                          style={{ zIndex: 1 }}
+                        >
+                          {renderMediaViewports(
+                            mediaStartFrame,
+                            durationFrames,
+                            onFrameRendered,
+                            isSegmentActive
+                          )}
+                        </Sequence>
+                      );
+                    });
+                  }
+
+                  return (
+                    <AbsoluteFill style={{ zIndex: 1 }}>
+                      {renderMediaViewports(
+                        undefined,
+                        undefined,
+                        onFrameRendered,
+                        true
+                      )}
+                    </AbsoluteFill>
+                  );
+                }}
+              </TimelineFrameRetention>
+            );
+          }
+
+          if (coalescedVideoSegments.length > 0) {
+            return coalescedVideoSegments.map((item, idx) => {
+              const { startFrame, durationFrames, mediaStartFrame } =
+                getSegmentFrameWindow(item, fps);
+              if (durationFrames <= 0) {
+                return null;
+              }
               return (
                 <Sequence
-                  key={item.id}
+                  key={item.id ?? `seg-${idx}`}
                   from={startFrame}
                   durationInFrames={durationFrames}
-                  name={`VideoSegment-${item.id}`}
+                  name={`VideoSegment-${item.id ?? idx}`}
                 >
                   {renderMediaViewports(mediaStartFrame, durationFrames)}
                 </Sequence>
@@ -666,7 +685,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
             });
           }
 
-          return videoPath ? renderMediaViewports() : null;
+          return renderMediaViewports();
         })()}
 
         {/* Subtitles layer */}
