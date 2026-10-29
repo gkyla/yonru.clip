@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { useClipperState } from './useClipperState';
 import { calculateCropPercent } from '../utils/cropHelpers';
+import { isSplitFramingAtTimelineTime } from '../utils/timelineHelpers';
 
 export const useCropDrag = (
   previewScale: { value: number },
@@ -31,13 +32,14 @@ export const useCropDrag = (
   function getActiveMode(): 'single' | 'split' {
     if (!state.cropMap.value || state.cropMap.value.length === 0)
       return 'single';
-    const t = state.currentTime.value;
-    let active = state.cropMap.value[0];
-    for (const entry of state.cropMap.value) {
-      if (entry.time <= t) active = entry;
-      else break;
-    }
-    return active?.mode === 'split' ? 'split' : 'single';
+    const isSplit = isSplitFramingAtTimelineTime(
+      state.cropMap.value,
+      state.currentTime.value,
+      state.thumbnailEnabled?.value ?? false,
+      state.thumbnailDuration?.value ?? 0,
+      state.timelineTracks?.value ?? []
+    );
+    return isSplit ? 'split' : 'single';
   }
 
   function canDragInFaceTracking(half: 'single' | 'top' | 'bottom'): boolean {

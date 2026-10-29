@@ -123,6 +123,7 @@ class RenderRequest(BaseModel):
     landscape_darkness: Optional[int] = 35
     subtitle_position: str = "bottom"
     subtitle_offset: int = 50
+    auto_adaptive_subtitles: bool = True
     font: str = "Arial"
     font_size: int = 24
     face_tracking: bool = False

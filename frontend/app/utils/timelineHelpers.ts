@@ -1,4 +1,5 @@
 import type {
+  CropMapPoint,
   TimelineTrack,
   TimelineTrackItem,
   TranscriptSegment
@@ -60,6 +61,125 @@ export function calculateVideoTime(
   }
 
   return t;
+}
+
+export function getCropEntryAtMediaTime(
+  cropMap: ReadonlyArray<CropMapPoint> | undefined,
+  mediaTime: number
+): CropMapPoint | null {
+  if (!cropMap || cropMap.length === 0) {
+    return null;
+  }
+  const timeEpsilon = 0.001;
+  let active = cropMap[0]!;
+  for (const entry of cropMap) {
+    if (entry.time <= mediaTime + timeEpsilon) {
+      active = entry;
+    } else {
+      break;
+    }
+  }
+  return active;
+}
+
+export function isSplitFramingAtTimelineTime(
+  cropMap: ReadonlyArray<CropMapPoint> | undefined,
+  currentTime: number,
+  thumbnailEnabled: boolean,
+  thumbnailDuration: number,
+  tracks: TimelineTrack[]
+): boolean {
+  if (!cropMap || cropMap.length === 0) {
+    return false;
+  }
+  const mediaTime = calculateVideoTime(
+    currentTime,
+    thumbnailEnabled,
+    thumbnailDuration,
+    tracks
+  );
+  const active = getCropEntryAtMediaTime(cropMap, mediaTime);
+  return active?.mode === 'split';
+}
+
+export function findSplitTimelineJumpTime(
+  cropMap: ReadonlyArray<CropMapPoint> | undefined,
+  currentTime: number,
+  thumbnailEnabled: boolean,
+  thumbnailDuration: number,
+  tracks: TimelineTrack[]
+): number | null {
+  if (!cropMap || cropMap.length === 0) {
+    return null;
+  }
+
+  const thumbOffset = thumbnailEnabled ? thumbnailDuration : 0;
+  const videoTrack = tracks.find(tr => tr.id === 'video');
+  const videoItems = (videoTrack?.items ?? [])
+    .filter(item => item.duration > 0)
+    .slice()
+    .sort((a, b) => a.start - b.start);
+
+  // Collect contiguous split windows in source media time
+  const splitWindows: Array<{ start: number; end: number }> = [];
+  let i = 0;
+  while (i < cropMap.length) {
+    const entry = cropMap[i]!;
+    if (entry.mode === 'split') {
+      const winStart = entry.time;
+      let j = i + 1;
+      while (j < cropMap.length && cropMap[j]!.mode === 'split') {
+        j++;
+      }
+      const winEnd =
+        j < cropMap.length ? cropMap[j]!.time : Number.POSITIVE_INFINITY;
+      splitWindows.push({ start: winStart, end: winEnd });
+      i = j;
+    } else {
+      i++;
+    }
+  }
+
+  if (splitWindows.length === 0) {
+    return null;
+  }
+
+  const candidateTargets: number[] = [];
+
+  if (videoItems.length === 0) {
+    for (const win of splitWindows) {
+      candidateTargets.push(thumbOffset + win.start + 0.05);
+    }
+  } else {
+    for (const seg of videoItems) {
+      const segMediaStart =
+        seg.mediaStart !== undefined ? seg.mediaStart : seg.start;
+      const segMediaEnd = segMediaStart + seg.duration;
+      for (const win of splitWindows) {
+        const overlapStart = Math.max(segMediaStart, win.start);
+        const overlapEnd = Math.min(segMediaEnd, win.end);
+        if (overlapEnd - overlapStart > 0.01) {
+          const timelineEntry =
+            thumbOffset + seg.start + (overlapStart - segMediaStart);
+          const segTimelineEnd = thumbOffset + seg.start + seg.duration;
+          candidateTargets.push(
+            Math.min(
+              timelineEntry + 0.05,
+              Math.max(timelineEntry, segTimelineEnd - 0.01)
+            )
+          );
+        }
+      }
+    }
+  }
+
+  if (candidateTargets.length === 0) {
+    return null;
+  }
+
+  candidateTargets.sort((a, b) => a - b);
+  const nextTarget = candidateTargets.find(t => t > currentTime + 0.02);
+  return nextTarget ?? candidateTargets[0]!;
 }
 
 export function splitTimelineItem(

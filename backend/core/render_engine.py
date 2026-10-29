@@ -25,6 +25,11 @@ class RenderComposition:
         self.timeline_audio_items = kwargs.get("timeline_audio_items")
         self.timeline_video_items = kwargs.get("timeline_video_items")
         self.position = kwargs.get("position", "bottom")
+        self.auto_adaptive_subtitles = (
+            kwargs.get("auto_adaptive_subtitles")
+            if kwargs.get("auto_adaptive_subtitles") is not None
+            else sub_style.get("autoAdaptiveSubtitles", True)
+        )
         self.clip_duration = kwargs.get("clip_duration")
         self.subtitle_style = kwargs.get("subtitle_style")
         self.volume = kwargs.get("volume", 0.5)
@@ -276,6 +281,7 @@ class StagedRenderContext:
             "landscapeBlurRadius": self.comp.landscape_blur_radius,
             "landscapeDarkness": self.comp.landscape_darkness,
             "subtitleOffset": self.comp.subtitle_style.get("subtitleOffset", 50) if self.comp.subtitle_style else 50,
+            "autoAdaptiveSubtitles": getattr(self.comp, "auto_adaptive_subtitles", True),
             "hideSubtitles": getattr(self.comp, "hide_subtitles", False),
             "durationInFrames": self.frames,
             "subtitleStyle": self.comp.subtitle_style or {},
@@ -636,6 +642,7 @@ class RenderEngine(ABC):
             timeline_audio_items=timeline_audio,
             timeline_video_items=timeline_video,
             position=req.subtitle_position,
+            auto_adaptive_subtitles=getattr(req, "auto_adaptive_subtitles", True),
             clip_duration=clip_duration,
             subtitle_style={
                 "fontFamily": req.font,

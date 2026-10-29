@@ -9,8 +9,29 @@ try {
 
 export { RemotionRoot } from './Root';
 export { YonruClip } from './Composition';
-export { CanvasVideoCompositor } from './CanvasVideoCompositor';
-export type { CanvasVideoCompositorProps } from './CanvasVideoCompositor';
+export {
+  CanvasVideoCompositor,
+  computeViewportFraming
+} from './CanvasVideoCompositor';
+export type {
+  CanvasVideoCompositorProps,
+  ViewportFramingParams,
+  ViewportFramingResult
+} from './CanvasVideoCompositor';
+export {
+  TimelineFrameRetention,
+  coalesceContiguousVideoSegments,
+  getSegmentFrameWindow,
+  isMainVideoFrameCovered,
+  isInitialDecoderFrameAligned,
+  resolveTimelineMediaTime
+} from './TimelineFrameRetention';
+export type {
+  TimelineFrameRetentionProps,
+  TimelineVideoSegmentBounds,
+  SegmentFrameWindow,
+  InitialDecoderFrameAlignmentParams
+} from './TimelineFrameRetention';
 export { AnimatedSubtitles } from './AnimatedSubtitles';
 export * from './types';
 export * from './fonts';

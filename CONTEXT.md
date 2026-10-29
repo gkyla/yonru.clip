@@ -68,6 +68,10 @@ _Avoid_: Item modal, style popup, properties dialog, track inspector
 The visual marker and time-tracking line indicating the exact frame/second currently displayed in the video preview workspace.
 _Avoid_: Time bar, scrub line, cursor indicator
 
+**Timeline Video Segment**:
+An individual cut or trimmed slice of a Ready Clip positioned on the Main Video track within the Timeline Viewport, mapping an edited timeline start interval (`start`, `duration`) to a corresponding source clip media offset (`mediaStart`) used to index pre-computed Face Tracking & Auto-Reframe keyframes.
+_Avoid_: Video block, timeline chunk, split item, clip piece
+
 **Pipeline Progress Stepper**:
 The automated multi-stage workflow overlay tracking ingestion, transcription, AI hook generation, and preview extraction for source videos.
 _Avoid_: Loading spinner, progress modal, analysis bar

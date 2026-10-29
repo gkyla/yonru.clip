@@ -6,6 +6,7 @@ import {
   delayRender,
   continueRender
 } from 'remotion';
+import { isInitialDecoderFrameAligned } from './TimelineFrameRetention';
 
 export interface CropMapEntry {
   time: number;
@@ -13,6 +14,214 @@ export interface CropMapEntry {
   mode?: 'single' | 'split';
   top_x?: number;
   bottom_x?: number;
+}
+
+export interface ViewportFramingParams {
+  cropMap?: CropMapEntry[];
+  cropX?: number;
+  cropPercentXTop?: number;
+  cropPercentXBottom?: number;
+  splitZoomTop?: number;
+  splitZoomBottom?: number;
+  splitOffsetXTop?: number;
+  splitOffsetYTop?: number;
+  splitOffsetXBottom?: number;
+  splitOffsetYBottom?: number;
+  rawSourceW: number;
+  isLandscape: boolean;
+  videoDisplayW: number;
+  videoDisplayH: number;
+  CONTAINER_W: number;
+  CONTAINER_H: number;
+  PANEL_H: number;
+}
+
+export interface ViewportFramingResult {
+  mode: 'single' | 'split';
+  x: number;
+  top_x: number;
+  bottom_x: number;
+  isSplitActive: boolean;
+  curTranslateX: number;
+  curTranslateY: number;
+  curTopTranslateX: number;
+  curTopTranslateY: number;
+  curBottomTranslateX: number;
+  curBottomTranslateY: number;
+  curScaleTop: number;
+  curScaleBottom: number;
+}
+
+export function computeViewportFraming(
+  targetTime: number,
+  {
+    cropMap,
+    cropX,
+    cropPercentXTop,
+    cropPercentXBottom,
+    splitZoomTop = 1.0,
+    splitZoomBottom = 1.0,
+    splitOffsetXTop = 0,
+    splitOffsetYTop = 0,
+    splitOffsetXBottom = 0,
+    splitOffsetYBottom = 0,
+    rawSourceW,
+    isLandscape,
+    videoDisplayW,
+    videoDisplayH,
+    CONTAINER_W,
+    CONTAINER_H,
+    PANEL_H
+  }: ViewportFramingParams
+): ViewportFramingResult {
+  const fallbackX = cropX ?? rawSourceW / 2;
+  const manualTop =
+    cropPercentXTop !== undefined
+      ? (cropPercentXTop / 100) * rawSourceW
+      : undefined;
+  const manualBottom =
+    cropPercentXBottom !== undefined
+      ? (cropPercentXBottom / 100) * rawSourceW
+      : undefined;
+
+  let mode: 'single' | 'split' = 'single';
+  let x = fallbackX;
+  let top_x = manualTop ?? fallbackX;
+  let bottom_x = manualBottom ?? fallbackX;
+
+  if (cropMap && cropMap.length > 0) {
+    // Use 1ms epsilon for IEEE 754 float precision & 3-decimal JSON rounding without bleeding into preceding frames
+    const timeEpsilon = 0.001;
+    let prevIdx = 0;
+    for (let i = 0; i < cropMap.length; i++) {
+      if (cropMap[i].time <= targetTime + timeEpsilon) {
+        prevIdx = i;
+      } else {
+        break;
+      }
+    }
+
+    const prevEntry = cropMap[prevIdx];
+    const nextEntry =
+      prevIdx < cropMap.length - 1 ? cropMap[prevIdx + 1] : null;
+
+    mode = prevEntry.mode || 'single';
+    x = prevEntry.x;
+    top_x = prevEntry.top_x ?? prevEntry.x;
+    bottom_x = prevEntry.bottom_x ?? prevEntry.x;
+
+    const CUT_THRESHOLD = rawSourceW * 0.15;
+
+    if (nextEntry && prevEntry.time !== nextEntry.time) {
+      if ((prevEntry.mode || 'single') === (nextEntry.mode || 'single')) {
+        const duration = nextEntry.time - prevEntry.time;
+        const progress = Math.max(
+          0,
+          Math.min(1, (targetTime - prevEntry.time) / duration)
+        );
+        const smoothT = progress * progress * (3 - 2 * progress);
+
+        if (mode === 'split') {
+          const prevTop = prevEntry.top_x ?? prevEntry.x;
+          const nextTop = nextEntry.top_x ?? nextEntry.x;
+          const prevBot = prevEntry.bottom_x ?? prevEntry.x;
+          const nextBot = nextEntry.bottom_x ?? nextEntry.x;
+
+          top_x =
+            Math.abs(nextTop - prevTop) > CUT_THRESHOLD
+              ? prevTop
+              : prevTop + (nextTop - prevTop) * smoothT;
+          bottom_x =
+            Math.abs(nextBot - prevBot) > CUT_THRESHOLD
+              ? prevBot
+              : prevBot + (nextBot - prevBot) * smoothT;
+        } else {
+          const delta = Math.abs(nextEntry.x - prevEntry.x);
+          x =
+            delta > CUT_THRESHOLD
+              ? prevEntry.x
+              : prevEntry.x + (nextEntry.x - prevEntry.x) * smoothT;
+          top_x = x;
+          bottom_x = x;
+        }
+      }
+    }
+
+    if (manualTop !== undefined) top_x = manualTop;
+    if (manualBottom !== undefined) bottom_x = manualBottom;
+  }
+
+  const isSplitActive = !isLandscape && mode === 'split';
+
+  // Single framing transforms
+  const maxOffset = Math.max(0, videoDisplayW - CONTAINER_W);
+  const singleScale = videoDisplayW / rawSourceW;
+  const targetTranslateX = isLandscape ? 0 : CONTAINER_W / 2 - x * singleScale;
+  const curTranslateX = isLandscape
+    ? 0
+    : Math.max(-maxOffset, Math.min(0, targetTranslateX));
+  const curTranslateY = isLandscape ? (CONTAINER_H - videoDisplayH) / 2 : 0;
+
+  // Top split transforms
+  const effectiveZoomTop = Math.max(1.0, Math.min(2.5, splitZoomTop || 1.0));
+  const curScaleTop = 0.5 * effectiveZoomTop;
+  const topDisplayW = videoDisplayW * curScaleTop;
+  const topDisplayH = videoDisplayH * curScaleTop;
+  const topMaxOffset = Math.max(0, topDisplayW - CONTAINER_W);
+  const topExtraH = Math.max(0, topDisplayH - PANEL_H);
+  const topNudgeX = ((splitOffsetXTop || 0) / 100) * (CONTAINER_W * 0.35);
+  const targetTopTranslateX =
+    CONTAINER_W / 2 - (top_x / rawSourceW) * topDisplayW + topNudgeX;
+  const curTopTranslateX = Math.max(
+    -topMaxOffset,
+    Math.min(0, targetTopTranslateX)
+  );
+  const baseTopTranslateY = -topExtraH * 0.25;
+  const topNudgeY = ((splitOffsetYTop || 0) / 100) * (topExtraH * 0.5);
+  const curTopTranslateY = Math.max(
+    -topExtraH,
+    Math.min(0, baseTopTranslateY + topNudgeY)
+  );
+
+  // Bottom split transforms
+  const effectiveZoomBottom = Math.max(
+    1.0,
+    Math.min(2.5, splitZoomBottom || 1.0)
+  );
+  const curScaleBottom = 0.5 * effectiveZoomBottom;
+  const bottomDisplayW = videoDisplayW * curScaleBottom;
+  const bottomDisplayH = videoDisplayH * curScaleBottom;
+  const bottomMaxOffset = Math.max(0, bottomDisplayW - CONTAINER_W);
+  const bottomExtraH = Math.max(0, bottomDisplayH - PANEL_H);
+  const bottomNudgeX = ((splitOffsetXBottom || 0) / 100) * (CONTAINER_W * 0.35);
+  const targetBottomTranslateX =
+    CONTAINER_W / 2 - (bottom_x / rawSourceW) * bottomDisplayW + bottomNudgeX;
+  const curBottomTranslateX = Math.max(
+    -bottomMaxOffset,
+    Math.min(0, targetBottomTranslateX)
+  );
+  const baseBottomTranslateY = -bottomExtraH * 0.25;
+  const bottomNudgeY = ((splitOffsetYBottom || 0) / 100) * (bottomExtraH * 0.5);
+  const curBottomTranslateY = Math.max(
+    -bottomExtraH,
+    Math.min(0, baseBottomTranslateY + bottomNudgeY)
+  );
+
+  return {
+    mode,
+    x,
+    top_x,
+    bottom_x,
+    isSplitActive,
+    curTranslateX,
+    curTranslateY,
+    curTopTranslateX,
+    curTopTranslateY,
+    curBottomTranslateX,
+    curBottomTranslateY,
+    curScaleTop,
+    curScaleBottom
+  };
 }
 
 export interface CanvasVideoCompositorProps {
@@ -52,6 +261,8 @@ export interface CanvasVideoCompositorProps {
   splitOffsetYTop?: number;
   splitOffsetXBottom?: number;
   splitOffsetYBottom?: number;
+  isActive?: boolean;
+  onFrameRendered?: (canvas: HTMLCanvasElement) => void;
 }
 
 export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
@@ -89,12 +300,44 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
   splitOffsetXTop = 0,
   splitOffsetYTop = 0,
   splitOffsetXBottom = 0,
-  splitOffsetYBottom = 0
+  splitOffsetYBottom = 0,
+  isActive = true,
+  onFrameRendered
 }) => {
   const frame = useCurrentFrame();
   const { isRendering } = useRemotionEnvironment();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isActiveRef = useRef<boolean>(isActive);
+  isActiveRef.current = isActive;
+  const onFrameRenderedRef = useRef(onFrameRendered);
+  onFrameRenderedRef.current = onFrameRendered;
+  const hasRenderedValidFrameRef = useRef<boolean>(false);
+  const mountFallbackUnlockedRef = useRef<boolean>(false);
+  const lastVideoSrcRef = useRef<string>(videoSrc);
+
+  if (lastVideoSrcRef.current !== videoSrc) {
+    lastVideoSrcRef.current = videoSrc;
+    hasRenderedValidFrameRef.current = false;
+    mountFallbackUnlockedRef.current = false;
+  }
+
+  const setCanvasRef = useCallback(
+    (el: HTMLCanvasElement | null) => {
+      canvasRef.current = el;
+      if (!el) return;
+      if (
+        !isRendering &&
+        onFrameRenderedRef.current &&
+        !hasRenderedValidFrameRef.current
+      ) {
+        el.style.opacity = '0';
+      } else {
+        el.style.opacity = '1';
+      }
+    },
+    [isRendering]
+  );
 
   // Dynamically calculate framing from physical playback time to prevent 1-tick layout tearing
   const computeFramingForTime = useCallback(
@@ -113,146 +356,29 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
         };
       }
 
-      // Use 1ms epsilon for IEEE 754 float precision & 3-decimal JSON rounding without bleeding into preceding frames
-      const timeEpsilon = 0.001;
-      let prevIdx = 0;
-      for (let i = 0; i < cropMap.length; i++) {
-        if (cropMap[i].time <= targetTime + timeEpsilon) {
-          prevIdx = i;
-        } else {
-          break;
-        }
-      }
-
-      const prevEntry = cropMap[prevIdx];
-      const nextEntry =
-        prevIdx < cropMap.length - 1 ? cropMap[prevIdx + 1] : null;
-
-      let mode = prevEntry.mode || 'single';
-      let x = prevEntry.x;
-      let top_x = prevEntry.top_x ?? prevEntry.x;
-      let bottom_x = prevEntry.bottom_x ?? prevEntry.x;
-
-      const CUT_THRESHOLD = rawSourceW * 0.15;
-
-      if (nextEntry && prevEntry.time !== nextEntry.time) {
-        if ((prevEntry.mode || 'single') === (nextEntry.mode || 'single')) {
-          const duration = nextEntry.time - prevEntry.time;
-          const progress = Math.max(
-            0,
-            Math.min(1, (targetTime - prevEntry.time) / duration)
-          );
-          const smoothT = progress * progress * (3 - 2 * progress);
-
-          if (mode === 'split') {
-            const prevTop = prevEntry.top_x ?? prevEntry.x;
-            const nextTop = nextEntry.top_x ?? nextEntry.x;
-            const prevBot = prevEntry.bottom_x ?? prevEntry.x;
-            const nextBot = nextEntry.bottom_x ?? nextEntry.x;
-
-            top_x =
-              Math.abs(nextTop - prevTop) > CUT_THRESHOLD
-                ? prevTop
-                : prevTop + (nextTop - prevTop) * smoothT;
-            bottom_x =
-              Math.abs(nextBot - prevBot) > CUT_THRESHOLD
-                ? prevBot
-                : prevBot + (nextBot - prevBot) * smoothT;
-          } else {
-            const delta = Math.abs(nextEntry.x - prevEntry.x);
-            x =
-              delta > CUT_THRESHOLD
-                ? prevEntry.x
-                : prevEntry.x + (nextEntry.x - prevEntry.x) * smoothT;
-          }
-        }
-      }
-
-      if (cropPercentXTop !== undefined)
-        top_x = (cropPercentXTop / 100) * rawSourceW;
-      if (cropPercentXBottom !== undefined)
-        bottom_x = (cropPercentXBottom / 100) * rawSourceW;
-
-      const isSplitActive = !isLandscape && mode === 'split';
-
-      // Single framing transforms
-      const maxOffset = Math.max(0, videoDisplayW - CONTAINER_W);
-      const singleScale = videoDisplayW / rawSourceW;
-      const targetTranslateX = isLandscape
-        ? 0
-        : CONTAINER_W / 2 - x * singleScale;
-      const curTranslateX = isLandscape
-        ? 0
-        : Math.max(-maxOffset, Math.min(0, targetTranslateX));
-      const curTranslateY = isLandscape ? (CONTAINER_H - videoDisplayH) / 2 : 0;
-
-      // Top split transforms
-      const effectiveZoomTop = Math.max(
-        1.0,
-        Math.min(2.5, splitZoomTop || 1.0)
-      );
-      const curScaleTop = 0.5 * effectiveZoomTop;
-      const topDisplayW = videoDisplayW * curScaleTop;
-      const topDisplayH = videoDisplayH * curScaleTop;
-      const topMaxOffset = Math.max(0, topDisplayW - CONTAINER_W);
-      const topExtraH = Math.max(0, topDisplayH - PANEL_H);
-      const topNudgeX = ((splitOffsetXTop || 0) / 100) * (CONTAINER_W * 0.35);
-      const targetTopTranslateX =
-        CONTAINER_W / 2 - (top_x / rawSourceW) * topDisplayW + topNudgeX;
-      const curTopTranslateX = Math.max(
-        -topMaxOffset,
-        Math.min(0, targetTopTranslateX)
-      );
-      const baseTopTranslateY = -topExtraH * 0.25;
-      const topNudgeY = ((splitOffsetYTop || 0) / 100) * (topExtraH * 0.5);
-      const curTopTranslateY = Math.max(
-        -topExtraH,
-        Math.min(0, baseTopTranslateY + topNudgeY)
-      );
-
-      // Bottom split transforms
-      const effectiveZoomBottom = Math.max(
-        1.0,
-        Math.min(2.5, splitZoomBottom || 1.0)
-      );
-      const curScaleBottom = 0.5 * effectiveZoomBottom;
-      const bottomDisplayW = videoDisplayW * curScaleBottom;
-      const bottomDisplayH = videoDisplayH * curScaleBottom;
-      const bottomMaxOffset = Math.max(0, bottomDisplayW - CONTAINER_W);
-      const bottomExtraH = Math.max(0, bottomDisplayH - PANEL_H);
-      const bottomNudgeX =
-        ((splitOffsetXBottom || 0) / 100) * (CONTAINER_W * 0.35);
-      const targetBottomTranslateX =
-        CONTAINER_W / 2 -
-        (bottom_x / rawSourceW) * bottomDisplayW +
-        bottomNudgeX;
-      const curBottomTranslateX = Math.max(
-        -bottomMaxOffset,
-        Math.min(0, targetBottomTranslateX)
-      );
-      const baseBottomTranslateY = -bottomExtraH * 0.25;
-      const bottomNudgeY =
-        ((splitOffsetYBottom || 0) / 100) * (bottomExtraH * 0.5);
-      const curBottomTranslateY = Math.max(
-        -bottomExtraH,
-        Math.min(0, baseBottomTranslateY + bottomNudgeY)
-      );
-
-      return {
-        isSplitActive,
-        curTranslateX,
-        curTranslateY,
-        curTopTranslateX,
-        curTopTranslateY,
-        curBottomTranslateX,
-        curBottomTranslateY,
-        curScaleTop,
-        curScaleBottom
-      };
+      return computeViewportFraming(targetTime, {
+        cropMap,
+        cropX,
+        cropPercentXTop,
+        cropPercentXBottom,
+        splitZoomTop,
+        splitZoomBottom,
+        splitOffsetXTop,
+        splitOffsetYTop,
+        splitOffsetXBottom,
+        splitOffsetYBottom,
+        rawSourceW,
+        isLandscape,
+        videoDisplayW,
+        videoDisplayH,
+        CONTAINER_W,
+        CONTAINER_H,
+        PANEL_H
+      });
     },
     [
       cropMap,
-      fps,
+      cropX,
       rawSourceW,
       isLandscape,
       isSplit,
@@ -298,6 +424,27 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
       const vH = video.videoHeight || sourceHeight || 1080;
       if (vW === 0 || vH === 0) return;
 
+      if (
+        !isRendering &&
+        onFrameRenderedRef.current &&
+        !hasRenderedValidFrameRef.current
+      ) {
+        const expectedMediaTime = ((mediaStartFrame ?? 0) + frame) / fps;
+        if (
+          !isInitialDecoderFrameAligned({
+            currentTime: Number.isFinite(video.currentTime)
+              ? video.currentTime
+              : 0,
+            expectedMediaTime,
+            duration: video.duration,
+            paused: video.paused,
+            fallbackUnlocked: mountFallbackUnlockedRef.current
+          })
+        ) {
+          return;
+        }
+      }
+
       const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) return;
 
@@ -309,9 +456,10 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
           ? explicitMediaTime
           : video && !isNaN(video.currentTime) && video.currentTime > 0
             ? video.currentTime
-            : frame / fps;
+            : ((mediaStartFrame ?? 0) + frame) / fps;
 
       const framing = computeFramingForTime(currentTime);
+      let didDrawFrame = false;
 
       if (isLandscape) {
         // Landscape display: center letterboxed
@@ -356,13 +504,11 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
 
         try {
           ctx.drawImage(video, 0, 0, vW, vH, 0, dy, dw, dh);
+          didDrawFrame = true;
         } catch (err) {
           // Ignored if video texture is still preparing
         }
-        return;
-      }
-
-      if (!framing.isSplitActive) {
+      } else if (!framing.isSplitActive) {
         // Single-speaker framing (portrait 9:16)
         const scaleFactor = videoDisplayW / vW;
         const sw = CONTAINER_W / scaleFactor;
@@ -374,6 +520,7 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
 
         try {
           ctx.drawImage(video, sx, sy, sw, sh, 0, 0, CONTAINER_W, CONTAINER_H);
+          didDrawFrame = true;
         } catch (err) {
           // Ignored
         }
@@ -424,8 +571,19 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
           // Center Seam Divider (2px dark line with subtle shadow)
           ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
           ctx.fillRect(0, PANEL_H - 1, CONTAINER_W, 2);
+          didDrawFrame = true;
         } catch (err) {
           // Ignored
+        }
+      }
+
+      if (didDrawFrame) {
+        if (!hasRenderedValidFrameRef.current) {
+          hasRenderedValidFrameRef.current = true;
+          canvas.style.opacity = '1';
+        }
+        if (isActiveRef.current) {
+          onFrameRenderedRef.current?.(canvas);
         }
       }
     },
@@ -440,6 +598,7 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
       rawSourceW,
       sourceHeight,
       videoDisplayW,
+      mediaStartFrame,
       frame,
       fps,
       isRendering,
@@ -450,6 +609,45 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
   // Keep drawRef up-to-date with latest draw callback so rVFC and event listeners never churn
   const drawRef = useRef(draw);
   drawRef.current = draw;
+
+  // Sync initial canvas opacity when videoSrc changes and provide safety fallback timer
+  useLayoutEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    if (
+      !isRendering &&
+      onFrameRenderedRef.current &&
+      !hasRenderedValidFrameRef.current
+    ) {
+      el.style.opacity = '0';
+    } else {
+      el.style.opacity = '1';
+    }
+  }, [videoSrc, isRendering]);
+
+  useLayoutEffect(() => {
+    if (isActive && hasRenderedValidFrameRef.current && canvasRef.current) {
+      onFrameRenderedRef.current?.(canvasRef.current);
+    }
+  }, [isActive]);
+
+  useEffect(() => {
+    if (
+      !isActive ||
+      isRendering ||
+      !onFrameRenderedRef.current ||
+      hasRenderedValidFrameRef.current
+    ) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (!hasRenderedValidFrameRef.current) {
+        mountFallbackUnlockedRef.current = true;
+        drawRef.current(true);
+      }
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [isActive, videoSrc, isRendering]);
 
   // Draw on layout effect whenever frame or draw dependencies change
   useLayoutEffect(() => {
@@ -592,7 +790,8 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
         }}
       />
       <canvas
-        ref={canvasRef}
+        ref={setCanvasRef}
+        data-testid="compositor-canvas"
         width={CONTAINER_W}
         height={CONTAINER_H}
         style={{

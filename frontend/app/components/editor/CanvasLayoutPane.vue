@@ -736,6 +736,10 @@
 <script setup>
 import { computed, useAttrs } from 'vue';
 import { useClipperState } from '../../composables/useClipperState';
+import {
+  isSplitFramingAtTimelineTime,
+  findSplitTimelineJumpTime
+} from '../../utils/timelineHelpers';
 
 const props = defineProps({
   clipperState: {
@@ -761,13 +765,13 @@ const safeZoneColor = state?.safeZoneColor;
 
 const isCurrentSplit = computed(() => {
   if (!state?.cropMap?.value || state.cropMap.value.length === 0) return false;
-  const t = state.currentTime?.value || 0;
-  let active = state.cropMap.value[0];
-  for (const entry of state.cropMap.value) {
-    if (entry.time <= t) active = entry;
-    else break;
-  }
-  return active?.mode === 'split';
+  return isSplitFramingAtTimelineTime(
+    state.cropMap.value,
+    state.currentTime?.value || 0,
+    state.thumbnailEnabled?.value ?? false,
+    state.thumbnailDuration?.value ?? 0,
+    state.timelineTracks?.value ?? []
+  );
 });
 
 const hasAnySplit = computed(() => {
@@ -776,14 +780,14 @@ const hasAnySplit = computed(() => {
 
 function jumpToSplit() {
   if (!state?.cropMap?.value || state.cropMap.value.length === 0) return;
-  const t = state.currentTime?.value || 0;
-  const nextSplit = state.cropMap.value.find(
-    entry => entry.time > t && entry.mode === 'split'
+  const targetTime = findSplitTimelineJumpTime(
+    state.cropMap.value,
+    state.currentTime?.value || 0,
+    state.thumbnailEnabled?.value ?? false,
+    state.thumbnailDuration?.value ?? 0,
+    state.timelineTracks?.value ?? []
   );
-  const targetSplit =
-    nextSplit || state.cropMap.value.find(entry => entry.mode === 'split');
-  if (targetSplit) {
-    const targetTime = targetSplit.time + 0.05;
+  if (targetTime !== null) {
     if (state.seekTo) {
       state.seekTo(targetTime);
     } else if (state.currentTime) {

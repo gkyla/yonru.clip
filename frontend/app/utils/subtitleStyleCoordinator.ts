@@ -39,6 +39,7 @@ export interface BackendRenderStylePayload {
   landscape_darkness: number;
   subtitle_position: string;
   subtitle_offset: number;
+  auto_adaptive_subtitles: boolean;
   font: string;
   font_size: number;
   subtitle_sync_offset: number;
@@ -350,6 +351,7 @@ export class SubtitleStyleCoordinator {
       landscape_darkness: settings.landscapeDarkness ?? 35,
       subtitle_position: settings.subtitlePosition || 'center',
       subtitle_offset: settings.subtitleOffset ?? 50,
+      auto_adaptive_subtitles: settings.autoAdaptiveSubtitles ?? true,
       font: settings.font || 'Montserrat',
       font_size: settings.fontSize ?? 50,
       subtitle_sync_offset: settings.subtitleSyncOffset ?? 150,
