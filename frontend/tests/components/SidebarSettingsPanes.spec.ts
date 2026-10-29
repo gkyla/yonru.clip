@@ -69,7 +69,7 @@ describe('SidebarSettings Extracted Panes', () => {
   });
 
   describe('SubtitlePresetPane', () => {
-    it('renders quick presets and emits openStudio when browse button is clicked', async () => {
+    it('renders active style preset and emits openStudio when browse button is clicked', async () => {
       const wrapper = mount(SubtitlePresetPane, {
         props: { state: mockState },
         global: { stubs: { Icon: true, NuxtIcon: true } }
@@ -78,6 +78,7 @@ describe('SidebarSettings Extracted Panes', () => {
       expect(wrapper.text()).toContain('Style Presets');
       expect(wrapper.text()).toContain('Hormozi Bold');
       expect(wrapper.text()).toContain('Browse All');
+      expect(wrapper.text()).not.toContain('Quick Styles');
 
       const browseBtn = wrapper.find('button[class*="hover:underline"]');
       expect(browseBtn.exists()).toBe(true);
@@ -100,20 +101,6 @@ describe('SidebarSettings Extracted Panes', () => {
       await changeBtn?.trigger('click');
 
       expect(wrapper.emitted('openStudio')).toBeTruthy();
-    });
-
-    it('applies a preset and saves style settings when a quick preset button is clicked', async () => {
-      const wrapper = mount(SubtitlePresetPane, {
-        props: { state: mockState },
-        global: { stubs: { Icon: true, NuxtIcon: true } }
-      });
-
-      const presetButtons = wrapper.findAll('.grid.grid-cols-2 button');
-      expect(presetButtons.length).toBeGreaterThan(0);
-      await presetButtons[0]!.trigger('click');
-
-      expect(mockState.subtitlePreset.value).toBe('bold-podcast');
-      expect(mockState.saveStyleSettings).toHaveBeenCalled();
     });
 
     it('resets subtitle sync offset to 150ms when reset button is clicked', async () => {

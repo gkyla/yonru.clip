@@ -134,42 +134,7 @@
           </Transition>
         </div>
       </div>
-
-      <!-- Quick Styles Micro-Grid -->
-      <div>
-        <span
-          class="text-[8.5px] uppercase tracking-wider text-slate-500 font-bold mb-1.5 block"
-          >Quick Styles</span
-        >
-        <div class="grid grid-cols-2 gap-1.5">
-          <button
-            v-for="preset in quickPresets"
-            :key="preset.id"
-            :disabled="state?.renderStatus?.value === 'rendering'"
-            class="bg-surface-dark/50 border border-surface-border rounded-lg px-2 py-1.5 text-left transition-all flex items-center justify-between gap-1 hover:bg-surface-card disabled:opacity-50 disabled:cursor-not-allowed group min-w-0 cursor-pointer"
-            :class="
-              state?.subtitlePreset?.value === preset.id
-                ? 'border-accent-500 text-accent-500 bg-accent-500/5 shadow-[inset_0_0_8px_rgba(255,215,0,0.1)] font-bold'
-                : 'text-slate-400 hover:border-accent-500/30 hover:text-white'
-            "
-            @click="applyPreset(preset)"
-          >
-            <div class="flex items-center gap-1.5 min-w-0 truncate">
-              <Icon :name="preset.icon" class="text-xs shrink-0" />
-              <span class="text-[8.5px] uppercase tracking-wider truncate">{{
-                preset.name
-              }}</span>
-            </div>
-            <span
-              class="w-2 h-2 rounded-full shrink-0 border border-white/20 ml-1"
-              :style="{ background: preset.highlightColor }"
-            ></span>
-          </button>
-        </div>
-      </div>
     </div>
-
-    <hr class="border-surface-border/40" />
 
     <!-- Subtitle Pacing -->
     <div class="space-y-2">
@@ -408,10 +373,6 @@ const currentPreset = computed(() => {
   );
 });
 
-const quickPresets = computed(() => {
-  return SUBTITLE_PRESETS.slice(0, 6);
-});
-
 const animations = [
   { id: 'pop', label: 'Pop', icon: 'ri:magic-line' },
   { id: 'slide-up', label: 'Slide', icon: 'ri:arrow-up-line' },
@@ -428,25 +389,4 @@ const highlights = [
   { id: 'box', label: 'Box Highlight' },
   { id: 'none', label: 'None' }
 ];
-
-function applyPreset(preset) {
-  if (state?.applyPreset) {
-    state.applyPreset(preset);
-  } else if (state) {
-    state.subtitlePreset.value = preset.id;
-    state.font.value = preset.font;
-    state.fontSize.value = preset.fontSize;
-    state.subtitleFontWeight.value = preset.fontWeight;
-    state.subtitleTextColor.value = preset.color;
-    state.subtitleHighlightColor.value = preset.highlightColor;
-    state.subtitleAnimation.value = preset.animation;
-    state.subtitleHighlightMode.value = preset.highlightMode;
-    state.subtitleBackground.value = preset.background;
-    state.subtitleStrokeWidth.value = preset.strokeWidth;
-    state.subtitleTextTransform.value = preset.textTransform;
-  }
-  if (state?.saveStyleSettings) {
-    state.saveStyleSettings();
-  }
-}
 </script>

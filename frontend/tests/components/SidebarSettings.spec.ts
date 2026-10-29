@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import SidebarSettings from '../../app/components/SidebarSettings.vue';
+import PresetStudioModal from '../../app/components/editor/PresetStudioModal.vue';
+import { SUBTITLE_PRESETS } from '../../app/constants/subtitlePresets';
 import { ref } from 'vue';
 
 const activeSafeZone = ref('none');
@@ -93,13 +95,9 @@ describe('SidebarSettings Component', () => {
     expect(wrapper.text()).toContain('Text');
     expect(wrapper.text()).toContain('Layout');
 
-    // Presets and Sync Offset should be visible in Presets tab
+    // Active preset and Sync Offset should be visible in Presets tab
     expect(wrapper.text()).toContain('Hormozi Bold');
-    expect(wrapper.text()).toContain('Minimal Glass');
-    expect(wrapper.text()).toContain('Urban Street');
-    expect(wrapper.text()).toContain('Cinematic Docu');
-    expect(wrapper.text()).toContain('Rhythm Karaoke');
-    expect(wrapper.text()).toContain('Modern Vlog');
+    expect(wrapper.text()).not.toContain('Quick Styles');
     // Active Preset Viewport should display live studio preview
     expect(wrapper.text()).toContain('Change');
     expect(wrapper.text()).toContain('MAKE IT VIRAL');
@@ -130,11 +128,10 @@ describe('SidebarSettings Component', () => {
       }
     });
 
-    const presetButtons = wrapper.findAll('.grid.grid-cols-2 button');
-    expect(presetButtons.length).toBeGreaterThanOrEqual(6);
+    const modal = wrapper.findComponent(PresetStudioModal);
+    const hormoziPreset = SUBTITLE_PRESETS.find(p => p.id === 'bold-podcast')!;
+    modal.vm.$emit('select', hormoziPreset);
 
-    // Click Hormozi Bold
-    await presetButtons[0]!.trigger('click');
     expect(mockState.subtitlePreset.value).toBe('bold-podcast');
     expect(mockState.font.value).toBe('Montserrat');
     expect(mockState.subtitleStrokeWidth.value).toBe(0);
@@ -149,9 +146,10 @@ describe('SidebarSettings Component', () => {
       }
     });
 
-    const presetButtons = wrapper.findAll('.grid.grid-cols-2 button');
-    // Click Cinematic Docu (4th preset)
-    await presetButtons[3]!.trigger('click');
+    const modal = wrapper.findComponent(PresetStudioModal);
+    const docuPreset = SUBTITLE_PRESETS.find(p => p.id === 'documentary')!;
+    modal.vm.$emit('select', docuPreset);
+
     expect(mockState.subtitlePreset.value).toBe('documentary');
     expect(mockState.font.value).toBe('Noto Sans');
     expect(mockState.subtitleHighlightMode.value).toBe('underline');
@@ -397,11 +395,8 @@ describe('SidebarSettings Component', () => {
       }
     });
 
-    const presetBtn = wrapper
-      .findAll('button')
-      .find(b => b.text().includes('Hormozi Bold'));
-    expect(presetBtn?.exists()).toBe(true);
-    await presetBtn?.trigger('click');
+    const modal = wrapper.findComponent(PresetStudioModal);
+    modal.vm.$emit('select', SUBTITLE_PRESETS[0]!);
 
     expect(mockState.saveStyleSettings).toHaveBeenCalled();
   });
