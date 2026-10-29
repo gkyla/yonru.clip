@@ -4,18 +4,14 @@
     <div class="space-y-2">
       <div class="flex items-center justify-between">
         <h2
-          class="text-[10px] uppercase tracking-widest text-slate-500 font-bold flex items-center gap-1.5"
+          class="text-[10px] uppercase tracking-widest text-slate-500 font-bold flex items-center gap-1.5 w-full"
         >
-          <Icon name="ri:magic-line" class="text-accent-500" />
           <span>Style Presets</span>
+          <Icon
+            name="andrsrxn:paint-board-brush"
+            class="text-slate-400 ml-auto"
+          />
         </h2>
-        <button
-          class="text-[9px] font-bold text-accent-500 hover:text-accent-400 uppercase tracking-wider flex items-center gap-1 hover:underline cursor-pointer"
-          @click="emit('openStudio')"
-        >
-          <Icon name="ri:apps-2-line" class="text-xs" />
-          <span>Browse All ({{ SUBTITLE_PRESETS.length }})</span>
-        </button>
       </div>
 
       <!-- Active Preset Card (Clean 2-Tier with Preset Studio Viewport) -->

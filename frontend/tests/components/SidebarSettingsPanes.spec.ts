@@ -69,7 +69,7 @@ describe('SidebarSettings Extracted Panes', () => {
   });
 
   describe('SubtitlePresetPane', () => {
-    it('renders active style preset and emits openStudio when browse button is clicked', async () => {
+    it('renders active style preset header and info', async () => {
       const wrapper = mount(SubtitlePresetPane, {
         props: { state: mockState },
         global: { stubs: { Icon: true, NuxtIcon: true } }
@@ -77,15 +77,7 @@ describe('SidebarSettings Extracted Panes', () => {
 
       expect(wrapper.text()).toContain('Style Presets');
       expect(wrapper.text()).toContain('Hormozi Bold');
-      expect(wrapper.text()).toContain('Browse All');
       expect(wrapper.text()).not.toContain('Quick Styles');
-
-      const browseBtn = wrapper.find('button[class*="hover:underline"]');
-      expect(browseBtn.exists()).toBe(true);
-      await browseBtn.trigger('click');
-
-      expect(wrapper.emitted('openStudio')).toBeTruthy();
-      expect(wrapper.emitted('openStudio')!.length).toBe(1);
     });
 
     it('emits openStudio when Change button is clicked on the active preset card', async () => {
