@@ -120,7 +120,7 @@
               class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
             >
               <button
-                v-for="preset in filteredPresets"
+                v-for="(preset, index) in filteredPresets"
                 :key="preset.id"
                 class="group relative rounded-xl border p-3 text-left transition-all duration-150 flex flex-col justify-between gap-2.5 bg-surface-dark/50 hover:bg-surface-card hover:scale-[1.01]"
                 :class="
@@ -170,62 +170,11 @@
                 <div
                   class="w-full h-14 bg-black/60 rounded-lg flex items-center justify-center border border-white/5 px-2 overflow-hidden relative"
                 >
-                  <span
-                    :style="{
-                      fontFamily: preset.font,
-                      fontSize: '13px',
-                      fontWeight: preset.fontWeight,
-                      color: preset.color,
-                      textTransform:
-                        preset.textTransform === 'uppercase'
-                          ? 'uppercase'
-                          : 'none',
-                      textShadow: getOuterStrokeShadow(preset.strokeWidth)
-                    }"
-                    class="px-1.5 py-0.5 rounded leading-none transition-all text-center inline-block truncate max-w-full"
-                    :class="{
-                      'bg-slate-950/80 px-2 py-1 rounded':
-                        preset.background === 'box',
-                      'bg-slate-900/50 backdrop-blur px-2 py-1 rounded-full border border-white/10':
-                        preset.background === 'blur'
-                    }"
-                  >
-                    <template
-                      v-if="
-                        preset.highlightMode === 'color' ||
-                        preset.highlightMode === 'box' ||
-                        preset.highlightMode === 'scale'
-                      "
-                    >
-                      <span>Viral </span>
-                      <span
-                        :style="{ color: preset.highlightColor }"
-                        :class="{
-                          'bg-red-500/25 px-1 rounded':
-                            preset.highlightMode === 'box',
-                          'scale-105 inline-block font-black':
-                            preset.highlightMode === 'scale'
-                        }"
-                        >Hook</span
-                      >
-                    </template>
-                    <template v-else-if="preset.highlightMode === 'underline'">
-                      <span>Viral </span>
-                      <span
-                        class="relative inline-block font-bold"
-                        :style="{ color: preset.highlightColor }"
-                      >
-                        Hook
-                        <span
-                          class="absolute -bottom-0.5 left-0 right-0 h-[2px] rounded-full"
-                          :style="{ backgroundColor: preset.highlightColor }"
-                        ></span>
-                      </span>
-                    </template>
-                    <template v-else>
-                      <span>Viral Hook</span>
-                    </template>
-                  </span>
+                  <PresetStudioViewport
+                    :preset="preset"
+                    :stagger-delay="getStaggerDelay(index)"
+                    :font-size="13"
+                  />
                 </div>
 
                 <!-- Description & Badges Footer -->
@@ -298,14 +247,14 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import PresetStudioViewport from './PresetStudioViewport.vue';
 import {
   SUBTITLE_PRESETS,
   PRESET_CATEGORIES,
   type SubtitlePreset
 } from '../../constants/subtitlePresets';
-import { getOuterStrokeShadow } from '../../utils/subtitleStyleCoordinator';
 
-const props = defineProps<{
+defineProps<{
   show: boolean;
   activePresetId?: string;
 }>();
@@ -319,6 +268,10 @@ const selectedCategory = ref<
   'all' | 'viral' | 'minimal' | 'podcast' | 'creative'
 >('all');
 const searchQuery = ref('');
+
+function getStaggerDelay(index: number): number {
+  return Number(((index * 0.1) % 1.2).toFixed(2));
+}
 
 const filteredPresets = computed(() => {
   return SUBTITLE_PRESETS.filter(p => {

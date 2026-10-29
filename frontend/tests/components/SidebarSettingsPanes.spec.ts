@@ -115,6 +115,20 @@ describe('SidebarSettings Extracted Panes', () => {
       await resetBtn.trigger('click');
       expect(mockState.subtitleSyncOffset.value).toBe(150);
     });
+
+    it('renders PresetStudioViewport for the active preset', () => {
+      const wrapper = mount(SubtitlePresetPane, {
+        props: { state: mockState },
+        global: { stubs: { Icon: true, NuxtIcon: true } }
+      });
+
+      const viewport = wrapper.find('.preset-studio-viewport');
+      expect(viewport.exists()).toBe(true);
+      expect(viewport.attributes('data-preset-id')).toBe('bold-podcast');
+      expect(viewport.text()).toContain('THAT');
+      expect(viewport.text()).toContain('WAS');
+      expect(viewport.text()).toContain('CRAZY');
+    });
   });
 
   describe('TypographyTimingPane', () => {

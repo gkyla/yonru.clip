@@ -70,6 +70,7 @@ weights/
 # Debugging & Temporary Assets
 temp_assets/
 scratch/
+.agents/teamwork/
 
 # Shared Remotion Generated Assets
 shared/remotion/public/source_render_*
