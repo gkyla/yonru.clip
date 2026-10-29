@@ -65,8 +65,8 @@ export const SUBTITLE_PRESETS: SubtitlePreset[] = [
     highlightMode: 'scale',
     background: 'blur',
     strokeWidth: 0,
-    textTransform: 'capitalize',
-    description: 'Frosted blur pill with smooth scale highlight.'
+    textTransform: 'uppercase',
+    description: 'Frosted blur glass with smooth scale highlight.'
   },
   // 3. Urban Street (Original)
   {

@@ -141,6 +141,10 @@ _Avoid_: Static grid, magnet lines, drag ruler, alignment mesh
 The cinematic live preview canvas within the active subtitle preset card and Preset Studio Modal that renders real-time typography, kinetic motion simulations (pop, bounce, karaoke, typewriter, slide-up, fade), highlight effects, stroke, and background treatments against a dark studio backdrop simulating actual video output.
 _Avoid_: Preview box, font tester, text demo
 
+**Kinetic Word Sweep**:
+The sequential highlighting simulation across subtitle words ('THAT' → 'WAS' → 'CRAZY') rendered within the Preset Studio Viewport over the active speech window, reproducing Remotion's word-by-word timestamp activation for all animation styles before holding on the final punch word.
+_Avoid_: Static highlight, last-word emphasis, text glow loop
+
 **Visual Cut Point**:
 The exact timestamp or frame where a video camera angle or scene visually cuts between different shots.
 _Avoid_: Scene jump, split boundary, edit splice

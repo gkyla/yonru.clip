@@ -109,4 +109,50 @@ describe('PresetStudioModal Component', () => {
 
     expect(wrapper.emitted('close')).toBeTruthy();
   });
+
+  it('renders PresetStudioViewport on every preset card with staggered wave delay', () => {
+    const wrapper = mount(PresetStudioModal, {
+      props: {
+        show: true,
+        activePresetId: 'bold-podcast'
+      },
+      global: globalMountOptions
+    });
+
+    const viewports = wrapper.findAll('.preset-studio-viewport');
+    expect(viewports.length).toBe(16);
+
+    // Verify staggered wave delay formula: (index * 0.1s % 1.2s)
+    expect(viewports[0]?.attributes('data-stagger-delay')).toBe('0s');
+    expect(viewports[1]?.attributes('data-stagger-delay')).toBe('0.1s');
+    expect(viewports[2]?.attributes('data-stagger-delay')).toBe('0.2s');
+    expect(viewports[5]?.attributes('data-stagger-delay')).toBe('0.5s');
+    expect(viewports[11]?.attributes('data-stagger-delay')).toBe('1.1s');
+    expect(viewports[12]?.attributes('data-stagger-delay')).toBe('0s');
+    expect(viewports[13]?.attributes('data-stagger-delay')).toBe('0.1s');
+
+    // Verify each viewport renders the standardized 3-word phrase
+    expect(viewports[0]?.text()).toContain('THAT');
+    expect(viewports[0]?.text()).toContain('WAS');
+    expect(viewports[0]?.text()).toContain('CRAZY');
+  });
+
+  it('updates rendered viewports and re-indexes staggered delays when filtered by category or search', async () => {
+    const wrapper = mount(PresetStudioModal, {
+      props: {
+        show: true,
+        activePresetId: 'bold-podcast'
+      },
+      global: globalMountOptions
+    });
+
+    const searchInput = wrapper.find('input[type="text"]');
+    await searchInput.setValue('Neon');
+
+    const viewports = wrapper.findAll('.preset-studio-viewport');
+    expect(viewports.length).toBeGreaterThan(0);
+    // 1st filtered item gets index 0 wave delay
+    expect(viewports[0]?.attributes('data-stagger-delay')).toBe('0s');
+    expect(viewports[0]?.attributes('data-preset-id')).toBe('cyber-neon');
+  });
 });

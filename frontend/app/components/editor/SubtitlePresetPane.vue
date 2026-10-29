@@ -4,18 +4,14 @@
     <div class="space-y-2">
       <div class="flex items-center justify-between">
         <h2
-          class="text-[10px] uppercase tracking-widest text-slate-500 font-bold flex items-center gap-1.5"
+          class="text-[10px] uppercase tracking-widest text-slate-500 font-bold flex items-center gap-1.5 w-full"
         >
-          <Icon name="ri:magic-line" class="text-accent-500" />
           <span>Style Presets</span>
+          <Icon
+            name="andrsrxn:paint-board-brush"
+            class="text-slate-400 ml-auto"
+          />
         </h2>
-        <button
-          class="text-[9px] font-bold text-accent-500 hover:text-accent-400 uppercase tracking-wider flex items-center gap-1 hover:underline cursor-pointer"
-          @click="emit('openStudio')"
-        >
-          <Icon name="ri:apps-2-line" class="text-xs" />
-          <span>Browse All ({{ SUBTITLE_PRESETS.length }})</span>
-        </button>
       </div>
 
       <!-- Active Preset Card (Clean 2-Tier with Preset Studio Viewport) -->
@@ -71,66 +67,10 @@
             leave-to-class="opacity-0"
             mode="out-in"
           >
-            <!-- Kinetic Subtitle Text Sample -->
-            <span
+            <PresetStudioViewport
               :key="currentPreset.id"
-              :style="{
-                fontFamily: currentPreset.font,
-                fontSize: '13px',
-                fontWeight: currentPreset.fontWeight,
-                color: currentPreset.color,
-                textTransform:
-                  currentPreset.textTransform === 'uppercase'
-                    ? 'uppercase'
-                    : 'none',
-                textShadow: getOuterStrokeShadow(currentPreset.strokeWidth)
-              }"
-              class="px-2 py-1 rounded leading-tight transition-all text-center inline-block truncate max-w-full"
-              :class="{
-                'bg-slate-950/85 px-2 py-1 rounded':
-                  currentPreset.background === 'box',
-                'bg-slate-900/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10':
-                  currentPreset.background === 'blur'
-              }"
-            >
-              <template
-                v-if="
-                  currentPreset.highlightMode === 'color' ||
-                  currentPreset.highlightMode === 'box' ||
-                  currentPreset.highlightMode === 'scale'
-                "
-              >
-                <span>MAKE IT </span>
-                <span
-                  :style="{ color: currentPreset.highlightColor }"
-                  :class="{
-                    'bg-red-500/25 px-1 rounded':
-                      currentPreset.highlightMode === 'box',
-                    'scale-110 inline-block font-black':
-                      currentPreset.highlightMode === 'scale'
-                  }"
-                  >VIRAL</span
-                >
-              </template>
-              <template v-else-if="currentPreset.highlightMode === 'underline'">
-                <span>MAKE IT </span>
-                <span
-                  class="relative inline-block font-bold"
-                  :style="{ color: currentPreset.highlightColor }"
-                >
-                  VIRAL
-                  <span
-                    class="absolute -bottom-0.5 left-0 right-0 h-[2px] rounded-full"
-                    :style="{
-                      backgroundColor: currentPreset.highlightColor
-                    }"
-                  ></span>
-                </span>
-              </template>
-              <template v-else>
-                <span>MAKE IT VIRAL</span>
-              </template>
-            </span>
+              :preset="currentPreset"
+            />
           </Transition>
         </div>
       </div>
@@ -343,9 +283,9 @@
 
 <script setup>
 import { computed, useAttrs } from 'vue';
+import PresetStudioViewport from './PresetStudioViewport.vue';
 import { useClipperState } from '../../composables/useClipperState';
 import { SUBTITLE_PRESETS } from '../../constants/subtitlePresets';
-import { getOuterStrokeShadow } from '../../utils/subtitleStyleCoordinator';
 
 const props = defineProps({
   clipperState: {

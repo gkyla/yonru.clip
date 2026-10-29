@@ -100,7 +100,8 @@ describe('SidebarSettings Component', () => {
     expect(wrapper.text()).not.toContain('Quick Styles');
     // Active Preset Viewport should display live studio preview
     expect(wrapper.text()).toContain('Change');
-    expect(wrapper.text()).toContain('MAKE IT VIRAL');
+    expect(wrapper.text()).toContain('THAT WAS CRAZY');
+    expect(wrapper.find('.preset-studio-viewport').exists()).toBe(true);
     expect(wrapper.text()).toContain('Subtitle Offset (Timing)');
     expect(wrapper.text()).toContain('Reset');
   });
