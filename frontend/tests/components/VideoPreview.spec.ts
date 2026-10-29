@@ -542,4 +542,83 @@ describe('VideoPreview Component', () => {
     await wrapper.vm.$nextTick();
     expect(state.outputUrl.value).toBeNull();
   });
+
+  it('does not render timeline text layers or allow text dragging when rendered preview is active', async () => {
+    const state = useClipperState();
+    state.videoUrl.value = 'http://localhost:8000/sample.mp4';
+    state.outputUrl.value =
+      'http://localhost:8000/static/output/rendered_test.mp4';
+
+    const textTrack = state.timelineTracks.value.find(
+      (t: any) => t.id === 'text'
+    );
+    if (textTrack) {
+      textTrack.items = [
+        {
+          id: 'test-text-item',
+          trackId: 'text',
+          start: 0,
+          duration: 10,
+          content: 'TEST OVERLAY TEXT',
+          x: 540,
+          y: 960,
+          fontSize: 80,
+          font: 'Outfit',
+          color: '#ffffff'
+        }
+      ];
+    }
+    state.currentTime.value = 2;
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': {
+            name: 'v-stage',
+            template: '<div data-testid="konva-stage"><slot /></div>'
+          },
+          'v-layer': {
+            template: '<div data-testid="konva-layer"><slot /></div>'
+          },
+          'v-label': {
+            name: 'v-label',
+            template: '<div data-testid="konva-label"><slot /></div>'
+          },
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    // The rendered clip preview should exist
+    expect(wrapper.find('[data-testid="rendered-clip-preview"]').exists()).toBe(
+      true
+    );
+
+    // The timeline text layer and Konva stage/label must NOT be rendered when outputUrl is active
+    expect(wrapper.find('[data-testid="konva-stage"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="konva-label"]').exists()).toBe(false);
+
+    // Also verify rendered-clip-preview has z-50 or higher so it is never trapped under z-45
+    const previewContainer = wrapper.find(
+      '[data-testid="rendered-clip-preview"]'
+    );
+    expect(previewContainer.classes()).not.toContain('z-30');
+
+    // Clicking "Back to Editor" clears outputUrl and restores the editor text layer
+    await wrapper.find('[data-testid="back-to-editor-btn"]').trigger('click');
+    expect(state.outputUrl.value).toBeNull();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="rendered-clip-preview"]').exists()).toBe(
+      false
+    );
+    expect(wrapper.find('[data-testid="konva-stage"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="konva-label"]').exists()).toBe(true);
+  });
 });
