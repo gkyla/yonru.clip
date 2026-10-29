@@ -138,7 +138,7 @@ _Avoid_: Static grid, magnet lines, drag ruler, alignment mesh
 
 
 **Preset Studio Viewport**:
-The cinematic live preview canvas within the active subtitle preset card that renders real-time typography, highlight effects, stroke, and background treatments against a dark studio backdrop simulating actual video output.
+The cinematic live preview canvas within the active subtitle preset card and Preset Studio Modal that renders real-time typography, kinetic motion simulations (pop, bounce, karaoke, typewriter, slide-up, fade), highlight effects, stroke, and background treatments against a dark studio backdrop simulating actual video output.
 _Avoid_: Preview box, font tester, text demo
 
 **Visual Cut Point**:
