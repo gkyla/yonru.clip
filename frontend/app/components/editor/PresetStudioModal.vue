@@ -23,36 +23,28 @@
 
         <!-- Modal Surface -->
         <div
-          class="relative bg-surface-panel border border-surface-border rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 overflow-hidden"
+          class="relative bg-surface-panel border border-surface-border rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col h-[85vh] animate-in zoom-in-95 duration-200 overflow-hidden"
           @keydown.esc="emit('close')"
         >
           <!-- Header -->
           <div
             class="px-5 py-4 border-b border-surface-border bg-surface-dark/70 flex items-center justify-between shrink-0"
           >
-            <div class="flex items-center gap-2.5">
-              <div
-                class="w-8 h-8 rounded-xl bg-accent-500/10 border border-accent-500/30 flex items-center justify-center text-accent-500"
+            <div>
+              <h2
+                id="preset-studio-title"
+                class="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2"
               >
-                <Icon name="ri:palette-line" class="text-lg" />
-              </div>
-              <div>
-                <h2
-                  id="preset-studio-title"
-                  class="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2"
-                >
-                  Preset Studio
-                  <span
-                    class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-card border border-surface-border text-slate-400"
-                  >
-                    {{ filteredPresets.length }} Styles
-                  </span>
-                </h2>
-                <p class="text-[11px] text-slate-400">
-                  Select a caption style crafted for short-form pacing and
-                  visual retention.
-                </p>
-              </div>
+                <Icon
+                  name="andrsrxn:paint-board-brush"
+                  class="text-accent-500 text-lg"
+                />
+                Preset Studio
+              </h2>
+              <p class="text-[11px] text-slate-400">
+                Select a caption style crafted for short-form pacing and visual
+                retention.
+              </p>
             </div>
 
             <button
@@ -66,39 +58,53 @@
 
           <!-- Filter & Search Toolbar -->
           <div
-            class="px-5 py-3 border-b border-surface-border/60 bg-surface-dark/40 flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between shrink-0"
+            class="px-5 py-3 border-b border-surface-border/60 bg-surface-dark/40 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between shrink-0"
           >
-            <!-- Category Pills -->
-            <div
-              class="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 sm:pb-0"
-            >
-              <button
-                v-for="cat in PRESET_CATEGORIES"
-                :key="cat.id"
-                class="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all shrink-0 flex items-center gap-1.5 border"
-                :class="
-                  selectedCategory === cat.id
-                    ? 'border-accent-500 bg-accent-500 text-black shadow-sm'
-                    : 'border-surface-border/60 bg-surface-dark/60 text-slate-400 hover:text-white hover:border-accent-500/40'
-                "
-                @click="selectedCategory = cat.id"
+            <!-- Category Pills Container -->
+            <div class="relative flex-1 min-w-0 flex items-center">
+              <div
+                ref="categoriesContainerRef"
+                class="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-full py-0.5"
+                @wheel.passive="handleCategoryWheel"
+                @scroll="handleCategoryScroll"
               >
-                <Icon :name="cat.icon" class="text-xs" />
-                <span>{{ cat.label }}</span>
-              </button>
+                <button
+                  v-for="cat in PRESET_CATEGORIES"
+                  :key="cat.id"
+                  class="h-8 px-3.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all shrink-0 border flex items-center justify-center"
+                  :class="
+                    selectedCategory === cat.id
+                      ? 'border-accent-500 bg-accent-500 text-black shadow-sm'
+                      : 'border-surface-border/60 bg-surface-dark/60 text-slate-400 hover:text-white hover:border-accent-500/40'
+                  "
+                  @click="selectedCategory = cat.id"
+                >
+                  <span>{{ cat.label }}</span>
+                </button>
+              </div>
+
+              <!-- Edge Fade Mask (Affordance) -->
+              <div
+                v-if="canScrollLeft"
+                class="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-surface-panel to-transparent z-10"
+              ></div>
+              <div
+                v-if="canScrollRight"
+                class="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface-panel to-transparent z-10"
+              ></div>
             </div>
 
             <!-- Search Field -->
-            <div class="relative w-full sm:w-56 shrink-0">
+            <div class="relative w-full sm:w-48 shrink-0 flex items-center">
               <Icon
                 name="ri:search-line"
-                class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"
+                class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none"
               />
               <input
                 v-model="searchQuery"
                 type="text"
-                placeholder="Search style or font..."
-                class="w-full bg-surface-dark/80 border border-surface-border rounded-lg pl-8 pr-7 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 transition-colors"
+                placeholder="Search styles..."
+                class="w-full h-8 bg-surface-dark/80 border border-surface-border rounded-lg pl-8 pr-7 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-accent-500 transition-colors"
               />
               <button
                 v-if="searchQuery"
@@ -113,48 +119,36 @@
 
           <!-- Presets Grid -->
           <div
-            class="p-5 overflow-y-auto custom-scrollbar flex-1 min-h-[320px]"
+            class="p-5 overflow-y-auto custom-scrollbar flex-1 min-h-0 flex flex-col"
           >
             <div
               v-if="filteredPresets.length > 0"
-              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 content-start"
             >
               <button
                 v-for="(preset, index) in filteredPresets"
                 :key="preset.id"
-                class="group relative rounded-xl border p-3 text-left transition-all duration-150 flex flex-col justify-between gap-2.5 bg-surface-dark/50 hover:bg-surface-card hover:scale-[1.01]"
+                class="group relative rounded-xl border p-3 text-left transition-all duration-150 flex flex-col justify-between gap-2.5 bg-surface-dark/50 hover:bg-surface-card"
                 :class="
                   activePresetId === preset.id
-                    ? 'border-accent-500 ring-1 ring-accent-500/50 bg-accent-500/[0.04] shadow-[0_0_15px_rgba(255,215,0,0.1)]'
+                    ? 'border-accent-500 ring-1 ring-accent-500/50 bg-accent-500/[0.04]'
                     : 'border-surface-border/80 hover:border-accent-500/40'
                 "
                 @click="handleSelect(preset)"
               >
                 <!-- Card Header -->
                 <div class="flex items-start justify-between gap-2">
-                  <div class="flex items-center gap-2 min-w-0">
-                    <div
-                      class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border"
-                      :class="
-                        activePresetId === preset.id
-                          ? 'bg-accent-500/10 border-accent-500/30 text-accent-500'
-                          : 'bg-surface-panel border-surface-border text-slate-400 group-hover:text-white'
-                      "
+                  <div class="min-w-0">
+                    <h3
+                      class="text-xs font-black uppercase tracking-wider text-white truncate"
                     >
-                      <Icon :name="preset.icon" class="text-sm" />
-                    </div>
-                    <div class="truncate">
-                      <h3
-                        class="text-xs font-black uppercase tracking-wider text-white truncate"
-                      >
-                        {{ preset.name }}
-                      </h3>
-                      <span
-                        class="text-[9px] font-bold text-slate-500 uppercase tracking-widest"
-                      >
-                        {{ preset.font }}
-                      </span>
-                    </div>
+                      {{ preset.name }}
+                    </h3>
+                    <span
+                      class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block"
+                    >
+                      {{ preset.font }}
+                    </span>
                   </div>
 
                   <!-- Active Indicator -->
@@ -168,7 +162,7 @@
 
                 <!-- Live Typography Preview Box -->
                 <div
-                  class="w-full h-14 bg-black/60 rounded-lg flex items-center justify-center border border-white/5 px-2 overflow-hidden relative"
+                  class="w-full h-16 bg-black/60 rounded-lg flex items-center justify-center border border-white/5 px-2 overflow-hidden relative"
                 >
                   <PresetStudioViewport
                     :preset="preset"
@@ -176,29 +170,13 @@
                     :font-size="13"
                   />
                 </div>
-
-                <!-- Description & Badges Footer -->
-                <div
-                  class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-surface-border/40"
-                >
-                  <span class="truncate pr-2 text-slate-400 text-[10px]">{{
-                    preset.description
-                  }}</span>
-                  <div class="flex items-center gap-1 shrink-0">
-                    <span
-                      class="w-2.5 h-2.5 rounded-full border border-white/20 shadow-sm"
-                      :style="{ background: preset.highlightColor }"
-                      title="Highlight Color"
-                    ></span>
-                  </div>
-                </div>
               </button>
             </div>
 
             <!-- Empty State -->
             <div
               v-else
-              class="h-64 flex flex-col items-center justify-center text-center p-6 space-y-2"
+              class="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-2"
             >
               <Icon
                 name="ri:search-line"
@@ -224,10 +202,7 @@
           <div
             class="px-5 py-3 border-t border-surface-border bg-surface-dark/70 flex items-center justify-between shrink-0 text-[10px] text-slate-500"
           >
-            <span
-              class="font-bold uppercase tracking-wider flex items-center gap-1.5"
-            >
-              <Icon name="ri:checkbox-circle-line" class="text-accent-500" />
+            <span class="font-bold uppercase tracking-wider">
               Click any style to apply instantly
             </span>
             <div class="flex items-center gap-2">
@@ -246,7 +221,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import PresetStudioViewport from './PresetStudioViewport.vue';
 import {
   SUBTITLE_PRESETS,
@@ -254,7 +229,7 @@ import {
   type SubtitlePreset
 } from '../../constants/subtitlePresets';
 
-defineProps<{
+const props = defineProps<{
   show: boolean;
   activePresetId?: string;
 }>();
@@ -268,6 +243,65 @@ const selectedCategory = ref<
   'all' | 'viral' | 'minimal' | 'podcast' | 'creative'
 >('all');
 const searchQuery = ref('');
+const categoriesContainerRef = ref<HTMLElement | null>(null);
+const canScrollLeft = ref(false);
+const canScrollRight = ref(false);
+
+function updateCategoryScrollAffordance() {
+  const el = categoriesContainerRef.value;
+  if (!el) return;
+  canScrollLeft.value = el.scrollLeft > 4;
+  canScrollRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+}
+
+function handleCategoryWheel(event: WheelEvent) {
+  const el = categoriesContainerRef.value;
+  if (!el) return;
+  if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+    el.scrollLeft += event.deltaY;
+    updateCategoryScrollAffordance();
+  }
+}
+
+function handleCategoryScroll() {
+  updateCategoryScrollAffordance();
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (props.show && e.key === 'Escape') {
+    emit('close');
+  }
+}
+
+watch(
+  () => props.show,
+  val => {
+    if (val) {
+      nextTick(() => {
+        updateCategoryScrollAffordance();
+      });
+    }
+  }
+);
+
+onMounted(() => {
+  if (props.show) {
+    nextTick(() => {
+      updateCategoryScrollAffordance();
+    });
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', updateCategoryScrollAffordance);
+    window.addEventListener('keydown', handleKeydown);
+  }
+});
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', updateCategoryScrollAffordance);
+    window.removeEventListener('keydown', handleKeydown);
+  }
+});
 
 function getStaggerDelay(index: number): number {
   return Number(((index * 0.1) % 1.2).toFixed(2));

@@ -22,7 +22,7 @@ describe('PresetStudioModal Component', () => {
     });
 
     expect(wrapper.text()).toContain('Preset Studio');
-    expect(wrapper.text()).toContain('16 Styles');
+    expect(wrapper.findAll('.grid button').length).toBe(16);
     expect(wrapper.text()).toContain('Hormozi Bold');
     expect(wrapper.text()).toContain('MrBeast Impact');
     expect(wrapper.text()).toContain('Cyber Neon');
@@ -106,6 +106,20 @@ describe('PresetStudioModal Component', () => {
 
     const closeBtn = wrapper.find('button[aria-label="Close preset studio"]');
     await closeBtn.trigger('click');
+
+    expect(wrapper.emitted('close')).toBeTruthy();
+  });
+
+  it('emits close when the Escape key is pressed while modal is shown', async () => {
+    const wrapper = mount(PresetStudioModal, {
+      props: {
+        show: true,
+        activePresetId: 'bold-podcast'
+      },
+      global: globalMountOptions
+    });
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 
     expect(wrapper.emitted('close')).toBeTruthy();
   });
