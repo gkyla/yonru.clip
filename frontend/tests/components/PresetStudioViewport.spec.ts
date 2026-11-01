@@ -614,6 +614,30 @@ describe('PresetStudioViewport Component', () => {
       const style =
         wrapper.find('.viewport-text-wrapper').attributes('style') || '';
       expect(style).toContain('text-transform: lowercase');
+      expect(wrapper.text()).toContain('that was crazy');
+    });
+
+    it('formats sample words according to textTransform (uppercase, capitalize, none)', () => {
+      const upperWrapper = mount(PresetStudioViewport, {
+        props: {
+          preset: { ...hormoziPreset, textTransform: 'uppercase' }
+        }
+      });
+      expect(upperWrapper.text()).toContain('THAT WAS CRAZY');
+
+      const capWrapper = mount(PresetStudioViewport, {
+        props: {
+          preset: { ...hormoziPreset, textTransform: 'capitalize' }
+        }
+      });
+      expect(capWrapper.text()).toContain('That Was Crazy');
+
+      const normalWrapper = mount(PresetStudioViewport, {
+        props: {
+          preset: { ...hormoziPreset, textTransform: 'none' }
+        }
+      });
+      expect(normalWrapper.text()).toContain('That was crazy');
     });
 
     it('handles null or non-array sampleWords by falling back safely to benchmark phrase', () => {

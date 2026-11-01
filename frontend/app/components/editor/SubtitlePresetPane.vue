@@ -35,11 +35,16 @@
                   class="text-[10px] font-black text-white uppercase tracking-wider truncate flex items-center gap-1.5"
                 >
                   <span>{{ currentPreset.name }}</span>
+                  <span
+                    v-if="isCustomPreset"
+                    class="text-accent-400 font-bold text-[9px] lowercase tracking-normal"
+                    >(custom)</span
+                  >
                 </div>
                 <span
                   class="text-[8px] text-slate-500 font-bold uppercase tracking-wider block truncate"
-                  >{{ currentPreset.font }} •
-                  {{ currentPreset.animation }}</span
+                  >{{ activeViewportPreset.font }} •
+                  {{ activeViewportPreset.animation }}</span
                 >
               </div>
             </Transition>
@@ -69,7 +74,7 @@
           >
             <PresetStudioViewport
               :key="currentPreset.id"
-              :preset="currentPreset"
+              :preset="activeViewportPreset"
             />
           </Transition>
         </div>
@@ -306,10 +311,100 @@ try {
 
 const state = props.clipperState || attrs.state || defaultState;
 
+function getVal(item) {
+  if (item === null || item === undefined) return undefined;
+  if (typeof item === 'object' && 'value' in item) {
+    return item.value;
+  }
+  return item;
+}
+
+function normalizeColor(val) {
+  if (typeof val !== 'string') return undefined;
+  return val.trim().toLowerCase();
+}
+
 const currentPreset = computed(() => {
   return (
     SUBTITLE_PRESETS.find(p => p.id === state?.subtitlePreset?.value) ||
     SUBTITLE_PRESETS[0]
+  );
+});
+
+const activeViewportPreset = computed(() => {
+  const base = currentPreset.value;
+  return {
+    ...base,
+    font: getVal(state?.font) ?? base.font,
+    fontSize: base.fontSize,
+    fontWeight: Number(getVal(state?.subtitleFontWeight) ?? base.fontWeight),
+    color: getVal(state?.subtitleTextColor) ?? base.color,
+    highlightColor:
+      getVal(state?.subtitleHighlightColor) ?? base.highlightColor,
+    animation: getVal(state?.subtitleAnimation) ?? base.animation,
+    highlightMode: getVal(state?.subtitleHighlightMode) ?? base.highlightMode,
+    background: getVal(state?.subtitleBackground) ?? base.background,
+    strokeWidth: Number(getVal(state?.subtitleStrokeWidth) ?? base.strokeWidth),
+    textTransform: getVal(state?.subtitleTextTransform) ?? base.textTransform
+  };
+});
+
+const isCustomPreset = computed(() => {
+  const base = currentPreset.value;
+  if (!base || !state) return false;
+
+  const fontMismatch =
+    getVal(state.font) !== undefined && getVal(state.font) !== base.font;
+
+  const sizeMismatch =
+    getVal(state.fontSize) !== undefined &&
+    Number(getVal(state.fontSize)) !== Number(base.fontSize);
+
+  const weightMismatch =
+    getVal(state.subtitleFontWeight) !== undefined &&
+    Number(getVal(state.subtitleFontWeight)) !== Number(base.fontWeight);
+
+  const textTransformMismatch =
+    getVal(state.subtitleTextTransform) !== undefined &&
+    getVal(state.subtitleTextTransform) !== base.textTransform;
+
+  const colorMismatch =
+    getVal(state.subtitleTextColor) !== undefined &&
+    normalizeColor(getVal(state.subtitleTextColor)) !==
+      normalizeColor(base.color);
+
+  const highlightColorMismatch =
+    getVal(state.subtitleHighlightColor) !== undefined &&
+    normalizeColor(getVal(state.subtitleHighlightColor)) !==
+      normalizeColor(base.highlightColor);
+
+  const animMismatch =
+    getVal(state.subtitleAnimation) !== undefined &&
+    getVal(state.subtitleAnimation) !== base.animation;
+
+  const highlightModeMismatch =
+    getVal(state.subtitleHighlightMode) !== undefined &&
+    getVal(state.subtitleHighlightMode) !== base.highlightMode;
+
+  const backgroundMismatch =
+    getVal(state.subtitleBackground) !== undefined &&
+    getVal(state.subtitleBackground) !== base.background;
+
+  const strokeWidthMismatch =
+    getVal(state.subtitleStrokeWidth) !== undefined &&
+    Number(getVal(state.subtitleStrokeWidth)) !== Number(base.strokeWidth);
+
+  return (
+    fontMismatch ||
+    sizeMismatch ||
+    weightMismatch ||
+    textTransformMismatch ||
+    colorMismatch ||
+    highlightColorMismatch ||
+    animMismatch ||
+    highlightModeMismatch ||
+    backgroundMismatch ||
+    strokeWidthMismatch
   );
 });
 

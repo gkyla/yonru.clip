@@ -22,7 +22,7 @@
           :data-word-index="index"
           :data-highlight-active="isHighlightTarget(index) ? 'true' : undefined"
           :style="getWordStyle(index)"
-          ><span class="viewport-word-text">{{ word }}</span
+          ><span class="viewport-word-text">{{ formatWord(word, index) }}</span
           ><span
             v-if="
               isHighlightTarget(index) && preset.highlightMode === 'underline'
@@ -66,6 +66,26 @@ const words = computed(() => {
   }
   return ['THAT', 'WAS', 'CRAZY'];
 });
+
+function formatWord(word: string, index: number = 0): string {
+  if (!word) return '';
+  const transform = props.preset.textTransform;
+  if (transform === 'uppercase') {
+    return word.toUpperCase();
+  }
+  if (transform === 'capitalize') {
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }
+  if (transform === 'none') {
+    return index === 0
+      ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      : word.toLowerCase();
+  }
+  if (transform === 'lowercase') {
+    return word.toLowerCase();
+  }
+  return word;
+}
 
 const formattedStaggerDelay = computed(() => {
   if (typeof props.staggerDelay === 'number') {
