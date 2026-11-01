@@ -160,7 +160,7 @@
             >
               <!-- Release Title -->
               <h2
-                class="text-xl sm:text-2xl font-bold text-white mb-4 tracking-tight leading-snug"
+                class="text-2xl sm:text-3xl font-extrabold text-white mb-4 tracking-tight leading-snug"
               >
                 {{ release.title }}
               </h2>
@@ -218,10 +218,10 @@ function formatDate(dateStr: string): string {
 }
 
 :deep(.changelog-content h3) {
-  font-size: 1.125rem;
+  font-size: 1.35rem;
   font-weight: 700;
-  margin-top: 1.75rem;
-  margin-bottom: 0.75rem;
+  margin-top: 1.85rem;
+  margin-bottom: 0.85rem;
   display: flex;
   align-items: center;
   letter-spacing: -0.01em;
@@ -259,6 +259,33 @@ function formatDate(dateStr: string): string {
   height: 0.375rem;
   border-radius: 9999px;
   background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Sub-list indentation and styling for grouped scopes */
+:deep(.changelog-content ul ul) {
+  position: relative;
+  margin-top: 0.375rem;
+  margin-bottom: 0.25rem;
+  margin-left: 0;
+  padding-left: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+:deep(.changelog-content ul ul li) {
+  padding-left: 1rem;
+  color: #e2e8f0;
+  font-size: 0.875rem;
+}
+
+:deep(.changelog-content ul ul li::before) {
+  left: 0.15rem;
+  top: 0.55rem;
+  width: 0.25rem;
+  height: 0.25rem;
+  border-radius: 9999px;
+  background-color: rgba(255, 255, 255, 0.45);
 }
 
 :deep(.changelog-content strong) {

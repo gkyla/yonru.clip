@@ -1,24 +1,29 @@
 <template>
   <h3
     :id="id"
-    class="changelog-category-header flex items-center gap-2.5 text-lg font-bold tracking-tight mt-7 mb-3"
+    class="changelog-category-header flex items-center gap-3 text-xl sm:text-2xl font-bold tracking-tight mt-8 mb-3.5"
   >
     <span
-      v-if="categoryMeta.icon"
-      class="inline-flex items-center justify-center w-7 h-7 rounded-md border shrink-0 shadow-sm"
+      v-if="categoryMeta.emoji || categoryMeta.icon"
+      class="inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0 shadow-sm"
       :class="categoryMeta.badgeClass"
     >
+      <span
+        v-if="categoryMeta.emoji"
+        class="category-emoji text-2xl leading-none select-none"
+        role="img"
+      >
+        {{ categoryMeta.emoji }}
+      </span>
       <Icon
+        v-else-if="categoryMeta.icon"
         :name="categoryMeta.icon"
         :class="categoryMeta.iconColor"
-        class="text-base shrink-0"
+        class="text-lg shrink-0"
       />
     </span>
-    <span
-      class="changelog-category-title font-bold tracking-tight"
-      :class="categoryMeta.titleColor"
-    >
-      <slot />
+    <span class="changelog-category-title font-bold tracking-tight text-white">
+      <slot></slot>
     </span>
   </h3>
 </template>
@@ -31,53 +36,46 @@ const props = defineProps<{
 }>();
 
 interface CategoryConfig {
+  emoji?: string;
   icon?: string;
   iconColor?: string;
-  titleColor: string;
   badgeClass?: string;
 }
 
 const categoryMeta = computed<CategoryConfig>(() => {
   const headingId = (props.id || '').toLowerCase();
 
-  // Features (Emerald)
+  // Features (Violet / Chef 👨‍🍳)
   if (headingId.includes('feature') || headingId.includes('new')) {
     return {
-      icon: 'lucide:sparkles',
-      iconColor: 'text-emerald-400',
-      titleColor: 'text-emerald-400',
-      badgeClass: 'border-emerald-500/30'
+      emoji: '👨‍🍳',
+      badgeClass: ''
     };
   }
 
-  // Improvements / Enhancements / Performance (Amber)
+  // Improvements / Enhancements / Performance (Amber / Wrench 🔧)
   if (
     headingId.includes('improve') ||
     headingId.includes('perf') ||
     headingId.includes('enhanc')
   ) {
     return {
-      icon: 'lucide:wrench',
-      iconColor: 'text-amber-400',
-      titleColor: 'text-amber-400',
-      badgeClass: 'border-amber-500/30'
+      emoji: '🔧',
+      badgeClass: ''
     };
   }
 
-  // Bug Fixes (Rose)
+  // Bug Fixes (Rose / Ladybug 🐞)
   if (headingId.includes('fix') || headingId.includes('bug')) {
     return {
-      icon: 'lucide:bug',
-      iconColor: 'text-rose-400',
-      titleColor: 'text-rose-400',
-      badgeClass: 'border-rose-500/30'
+      emoji: '🐞',
+      badgeClass: ''
     };
   }
 
   // Fallback for standard headings
   return {
-    titleColor: 'text-white',
-    badgeClass: 'border-white/10'
+    badgeClass: 'bg-white/[0.04] border-white/10'
   };
 });
 </script>

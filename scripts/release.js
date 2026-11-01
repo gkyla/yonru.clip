@@ -108,47 +108,84 @@ function parseCommits(commits) {
   return { groups, bumpType };
 }
 
+function formatScopedEntries(messages) {
+  if (!messages || messages.length === 0) return '';
+
+  const scopedGroups = new Map();
+  const unscoped = [];
+
+  messages.forEach(msg => {
+    const trimmed = msg.trim();
+    const match = trimmed.match(/^([a-z]+)(?:\(([^)]+)\))?!*:\s*(.*)$/i);
+    if (match) {
+      const scope = match[2];
+      const text = match[3];
+      const formattedText = text.charAt(0).toUpperCase() + text.slice(1);
+      if (scope) {
+        const capitalizedScope = scope.trim().charAt(0).toUpperCase() + scope.trim().slice(1);
+        if (!scopedGroups.has(capitalizedScope)) {
+          scopedGroups.set(capitalizedScope, []);
+        }
+        scopedGroups.get(capitalizedScope).push(formattedText);
+      } else {
+        unscoped.push(formattedText);
+      }
+    } else {
+      unscoped.push(trimmed.charAt(0).toUpperCase() + trimmed.slice(1));
+    }
+  });
+
+  let output = '';
+
+  scopedGroups.forEach((items, scope) => {
+    if (items.length > 1) {
+      output += `- **${scope}**:\n`;
+      items.forEach(item => {
+        output += `  - ${item}\n`;
+      });
+    } else {
+      output += `- **${scope}**: ${items[0]}\n`;
+    }
+  });
+
+  unscoped.forEach(item => {
+    output += `- ${item}\n`;
+  });
+
+  return output;
+}
+
 function generateChangelogEntry(version, groups) {
   const date = new Date().toISOString().split('T')[0];
   let markdown = `## [${version}] - ${date}\n\n`;
 
   if (groups.features.length > 0) {
-    markdown += `### Features\n`;
-    groups.features.forEach(msg => {
-      markdown += `- ${msg}\n`;
-    });
+    markdown += `### Features\n\n`;
+    markdown += formatScopedEntries(groups.features);
     markdown += `\n`;
   }
 
   if (groups.fixes.length > 0) {
-    markdown += `### Bug Fixes\n`;
-    groups.fixes.forEach(msg => {
-      markdown += `- ${msg}\n`;
-    });
+    markdown += `### Bug Fixes\n\n`;
+    markdown += formatScopedEntries(groups.fixes);
     markdown += `\n`;
   }
 
   if (groups.performance.length > 0) {
-    markdown += `### Performance Improvements\n`;
-    groups.performance.forEach(msg => {
-      markdown += `- ${msg}\n`;
-    });
+    markdown += `### Performance Improvements\n\n`;
+    markdown += formatScopedEntries(groups.performance);
     markdown += `\n`;
   }
 
   if (groups.docs.length > 0) {
-    markdown += `### Documentation\n`;
-    groups.docs.forEach(msg => {
-      markdown += `- ${msg}\n`;
-    });
+    markdown += `### Documentation\n\n`;
+    markdown += formatScopedEntries(groups.docs);
     markdown += `\n`;
   }
 
   if (groups.features.length === 0 && groups.fixes.length === 0 && groups.performance.length === 0 && groups.docs.length === 0) {
-    markdown += `### Other Changes\n`;
-    groups.others.slice(0, 10).forEach(msg => {
-      markdown += `- ${msg}\n`;
-    });
+    markdown += `### Other Changes\n\n`;
+    markdown += formatScopedEntries(groups.others.slice(0, 10));
     markdown += `\n`;
   }
 
@@ -231,15 +268,17 @@ function writeModularChangelog(version, groups) {
     fs.mkdirSync(CONTENT_CHANGELOG_DIR, { recursive: true });
   }
 
-  // Clear isLatest on existing files
-  const existingFiles = fs.readdirSync(CONTENT_CHANGELOG_DIR).filter(f => f.endsWith('.md'));
-  existingFiles.forEach(file => {
-    const filePath = path.join(CONTENT_CHANGELOG_DIR, file);
-    const content = fs.readFileSync(filePath, 'utf8');
-    if (content.includes('isLatest: true')) {
-      fs.writeFileSync(filePath, content.replace(/isLatest:\s*true/g, 'isLatest: false'), 'utf8');
-    }
-  });
+  if (!dryRun) {
+    // Clear isLatest on existing files
+    const existingFiles = fs.readdirSync(CONTENT_CHANGELOG_DIR).filter(f => f.endsWith('.md'));
+    existingFiles.forEach(file => {
+      const filePath = path.join(CONTENT_CHANGELOG_DIR, file);
+      const content = fs.readFileSync(filePath, 'utf8');
+      if (content.includes('isLatest: true')) {
+        fs.writeFileSync(filePath, content.replace(/isLatest:\s*true/g, 'isLatest: false'), 'utf8');
+      }
+    });
+  }
 
   const date = new Date().toISOString().split('T')[0];
   let frontmatter = `---
@@ -255,33 +294,25 @@ githubReleaseUrl: "https://github.com/gkyla/yonru.clip/releases/tag/v${version}"
   let body = '';
   if (groups.features.length > 0) {
     body += `### Features\n\n`;
-    groups.features.forEach(msg => {
-      body += `- ${formatCommitLine(msg)}\n`;
-    });
+    body += formatScopedEntries(groups.features);
     body += `\n`;
   }
 
   if (groups.performance.length > 0 || groups.docs.length > 0) {
     body += `### Improvements\n\n`;
-    [...groups.performance, ...groups.docs].forEach(msg => {
-      body += `- ${formatCommitLine(msg)}\n`;
-    });
+    body += formatScopedEntries([...groups.performance, ...groups.docs]);
     body += `\n`;
   }
 
   if (groups.fixes.length > 0) {
     body += `### Bug Fixes\n\n`;
-    groups.fixes.forEach(msg => {
-      body += `- ${formatCommitLine(msg)}\n`;
-    });
+    body += formatScopedEntries(groups.fixes);
     body += `\n`;
   }
 
   if (!body) {
     body += `### Improvements\n\n`;
-    groups.others.slice(0, 10).forEach(msg => {
-      body += `- ${formatCommitLine(msg)}\n`;
-    });
+    body += formatScopedEntries(groups.others.slice(0, 10));
     body += `\n`;
   }
 

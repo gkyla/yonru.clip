@@ -71,3 +71,22 @@ Additionally, YOU MUST ALWAYS use plain, straightforward, and simple language in
 ## MANDATORY RULE 6: GITHUB ISSUE TEMPLATES (CRITICAL)
 
 When programmatically creating or updating GitHub Issues, all agents MUST ALWAYS read the corresponding template file in `.github/ISSUE_TEMPLATE/` (e.g., `feature_request.md` or `bug_report.md`) first, and structure the issue title, label, headings, and descriptions to strictly match that template's required syntax and fields. In particular, the issue title MUST use standard lowercase conventional prefixes followed by a colon (e.g., `feat: `, `fix: `) instead of bracketed uppercase styles (e.g., `[FEAT]`, `[BUG]`).
+
+## MANDATORY RULE 7: SCOPED CHANGELOG GROUPING AND SMART NESTING (CRITICAL)
+
+When creating, updating, or reviewing release notes (in `CHANGELOG.md` or `frontend/content/changelog/<version>.md`), all entries MUST be grouped by component scope using Smart Hierarchical Nesting (per ADR 0027):
+1. **Multi-Item Scope ($\ge 2$ commits)**: Consolidate under a single bold parent scope header with indented sub-bullet items:
+   ```markdown
+   - **Editor**:
+     - Show custom preset indicator and sync studio preview with text case (#306)
+     - Integrate PresetStudioViewport into modal grid and sidebar pane (#304)
+   ```
+2. **Single-Item Scope (1 commit)**: Format inline on a single line:
+   ```markdown
+   - **Home**: Show skeleton loading during initial load of ready clips
+   ```
+3. **Unscoped Commits**: Format inline as a standard bullet without bold prefix:
+   ```markdown
+   - Add global analytics dashboard
+   ```
+All bullet descriptions must have their first letter capitalized and be written in clear English. Never duplicate identical bold scope prefixes across separate consecutive bullets.

@@ -13,7 +13,7 @@ const defaultStubs = {
 };
 
 describe('ChangelogCategoryHeading Component', () => {
-  it('renders Features heading with sparkles icon and solid emerald text', () => {
+  it('renders Features heading with chef emoji and solid white text', () => {
     const wrapper = mount(ChangelogCategoryHeading, {
       props: {
         id: 'features'
@@ -27,19 +27,18 @@ describe('ChangelogCategoryHeading Component', () => {
     });
 
     expect(wrapper.text()).toContain('Features');
-    const icon = wrapper.find('.icon-stub');
-    expect(icon.exists()).toBe(true);
-    expect(icon.attributes('data-icon')).toBe('lucide:sparkles');
-    expect(wrapper.html()).toContain('border-emerald-500/30');
-    expect(wrapper.html()).not.toContain('bg-emerald-500');
-    expect(wrapper.classes()).toContain('text-lg');
+    const emoji = wrapper.find('.category-emoji');
+    expect(emoji.exists()).toBe(true);
+    expect(emoji.text()).toBe('👨‍🍳');
+    expect(wrapper.classes()).toContain('text-xl');
+    expect(wrapper.classes()).toContain('sm:text-2xl');
     const title = wrapper.find('.changelog-category-title');
     expect(title.text()).toBe('Features');
-    expect(title.classes()).toContain('text-emerald-400');
+    expect(title.classes()).toContain('text-white');
     expect(wrapper.html()).not.toContain('bg-gradient-to-r');
   });
 
-  it('renders Improvements heading with wrench icon and solid amber text', () => {
+  it('renders Improvements heading with wrench emoji and solid white text', () => {
     const wrapper = mount(ChangelogCategoryHeading, {
       props: {
         id: 'improvements'
@@ -53,19 +52,18 @@ describe('ChangelogCategoryHeading Component', () => {
     });
 
     expect(wrapper.text()).toContain('Improvements');
-    const icon = wrapper.find('.icon-stub');
-    expect(icon.exists()).toBe(true);
-    expect(icon.attributes('data-icon')).toBe('lucide:wrench');
-    expect(wrapper.html()).toContain('border-amber-500/30');
-    expect(wrapper.html()).not.toContain('bg-amber-500');
-    expect(wrapper.classes()).toContain('text-lg');
+    const emoji = wrapper.find('.category-emoji');
+    expect(emoji.exists()).toBe(true);
+    expect(emoji.text()).toBe('🔧');
+    expect(wrapper.classes()).toContain('text-xl');
+    expect(wrapper.classes()).toContain('sm:text-2xl');
     const title = wrapper.find('.changelog-category-title');
     expect(title.text()).toBe('Improvements');
-    expect(title.classes()).toContain('text-amber-400');
+    expect(title.classes()).toContain('text-white');
     expect(wrapper.html()).not.toContain('bg-gradient-to-r');
   });
 
-  it('renders Bug Fixes heading with bug icon and solid rose text', () => {
+  it('renders Bug Fixes heading with ladybug emoji and solid white text', () => {
     const wrapper = mount(ChangelogCategoryHeading, {
       props: {
         id: 'bug-fixes'
@@ -79,19 +77,18 @@ describe('ChangelogCategoryHeading Component', () => {
     });
 
     expect(wrapper.text()).toContain('Bug Fixes');
-    const icon = wrapper.find('.icon-stub');
-    expect(icon.exists()).toBe(true);
-    expect(icon.attributes('data-icon')).toBe('lucide:bug');
-    expect(wrapper.html()).toContain('border-rose-500/30');
-    expect(wrapper.html()).not.toContain('bg-rose-500');
-    expect(wrapper.classes()).toContain('text-lg');
+    const emoji = wrapper.find('.category-emoji');
+    expect(emoji.exists()).toBe(true);
+    expect(emoji.text()).toBe('🐞');
+    expect(wrapper.classes()).toContain('text-xl');
+    expect(wrapper.classes()).toContain('sm:text-2xl');
     const title = wrapper.find('.changelog-category-title');
     expect(title.text()).toBe('Bug Fixes');
-    expect(title.classes()).toContain('text-rose-400');
+    expect(title.classes()).toContain('text-white');
     expect(wrapper.html()).not.toContain('bg-gradient-to-r');
   });
 
-  it('renders generic fallback heading with solid white text and without icon', () => {
+  it('renders generic fallback heading with solid white text and without icon or emoji', () => {
     const wrapper = mount(ChangelogCategoryHeading, {
       props: {
         id: 'overview'
@@ -109,5 +106,6 @@ describe('ChangelogCategoryHeading Component', () => {
     expect(title.text()).toBe('Overview');
     expect(title.classes()).toContain('text-white');
     expect(wrapper.find('.icon-stub').exists()).toBe(false);
+    expect(wrapper.find('.category-emoji').exists()).toBe(false);
   });
 });
