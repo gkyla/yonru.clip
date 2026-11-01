@@ -121,6 +121,119 @@ describe('SidebarSettings Extracted Panes', () => {
       expect(viewport.text()).toContain('WAS');
       expect(viewport.text()).toContain('CRAZY');
     });
+
+    it('does not render (custom) badge when active styling matches preset defaults', async () => {
+      mockState.font.value = 'Montserrat';
+      mockState.fontSize.value = 50;
+      mockState.subtitleFontWeight.value = 900;
+      mockState.subtitleTextColor.value = '#FFFFFF';
+      mockState.subtitleHighlightColor.value = '#CFFF50';
+      mockState.subtitleAnimation.value = 'pop';
+      mockState.subtitleHighlightMode.value = 'color';
+      mockState.subtitleBackground.value = 'none';
+      mockState.subtitleStrokeWidth.value = 0;
+      mockState.subtitleTextTransform.value = 'uppercase';
+
+      const wrapper = mount(SubtitlePresetPane, {
+        props: { state: mockState },
+        global: { stubs: { Icon: true, NuxtIcon: true } }
+      });
+
+      expect(wrapper.text()).toContain('Hormozi Bold');
+      expect(wrapper.text()).not.toContain('(custom)');
+    });
+
+    it('renders (custom) badge and updates sub-info when highlight color or animation is customized', async () => {
+      mockState.font.value = 'Montserrat';
+      mockState.fontSize.value = 50;
+      mockState.subtitleFontWeight.value = 900;
+      mockState.subtitleTextColor.value = '#FFFFFF';
+      mockState.subtitleHighlightColor.value = '#CFFF50';
+      mockState.subtitleAnimation.value = 'pop';
+      mockState.subtitleHighlightMode.value = 'color';
+      mockState.subtitleBackground.value = 'none';
+      mockState.subtitleStrokeWidth.value = 0;
+      mockState.subtitleTextTransform.value = 'uppercase';
+
+      const wrapper = mount(SubtitlePresetPane, {
+        props: { state: mockState },
+        global: { stubs: { Icon: true, NuxtIcon: true } }
+      });
+
+      expect(wrapper.text()).not.toContain('(custom)');
+
+      mockState.subtitleHighlightColor.value = '#FF0055';
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.text()).toContain('(custom)');
+
+      mockState.subtitleAnimation.value = 'karaoke';
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.text()).toContain('Montserrat • karaoke');
+
+      // Reverting clears (custom)
+      mockState.subtitleHighlightColor.value = '#CFFF50';
+      mockState.subtitleAnimation.value = 'pop';
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.text()).not.toContain('(custom)');
+    });
+
+    it('passes custom styles dynamically to PresetStudioViewport', async () => {
+      mockState.font.value = 'Impact';
+      mockState.subtitleHighlightColor.value = '#00FFCC';
+
+      const wrapper = mount(SubtitlePresetPane, {
+        props: { state: mockState },
+        global: { stubs: { Icon: true, NuxtIcon: true } }
+      });
+
+      const viewport = wrapper.find('.preset-studio-viewport');
+      expect(viewport.exists()).toBe(true);
+      expect(viewport.attributes('style')).toContain(
+        '--highlight-color: #00FFCC'
+      );
+    });
+
+    it('updates text casing in PresetStudioViewport and triggers (custom) when subtitleTextTransform changes', async () => {
+      mockState.font.value = 'Montserrat';
+      mockState.fontSize.value = 50;
+      mockState.subtitleFontWeight.value = 900;
+      mockState.subtitleTextColor.value = '#FFFFFF';
+      mockState.subtitleHighlightColor.value = '#CFFF50';
+      mockState.subtitleAnimation.value = 'pop';
+      mockState.subtitleHighlightMode.value = 'color';
+      mockState.subtitleBackground.value = 'none';
+      mockState.subtitleStrokeWidth.value = 0;
+      mockState.subtitleTextTransform.value = 'uppercase';
+
+      const wrapper = mount(SubtitlePresetPane, {
+        props: { state: mockState },
+        global: { stubs: { Icon: true, NuxtIcon: true } }
+      });
+
+      expect(wrapper.text()).not.toContain('(custom)');
+      expect(wrapper.find('.preset-studio-viewport').text()).toContain(
+        'THAT WAS CRAZY'
+      );
+
+      mockState.subtitleTextTransform.value = 'capitalize';
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.text()).toContain('(custom)');
+      expect(wrapper.find('.preset-studio-viewport').text()).toContain(
+        'That Was Crazy'
+      );
+
+      mockState.subtitleTextTransform.value = 'none';
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.text()).toContain('(custom)');
+      expect(wrapper.find('.preset-studio-viewport').text()).toContain(
+        'That was crazy'
+      );
+    });
   });
 
   describe('TypographyTimingPane', () => {

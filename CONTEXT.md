@@ -112,6 +112,10 @@ _Avoid_: Audio delay, subtitle delay, speech lag
 A preconfigured collection of typography, color palette, highlight animation, stroke, and background treatments applied to subtitles for visual branding. Applying a preset is strictly isolated to these aesthetic properties and preserves Canvas Layout, Camera Framing, Subtitle Pacing, Subtitle Position, and Timing Offsets intact.
 _Avoid_: Template, subtitle theme, font style, caption design
 
+**Custom Subtitle Style**:
+A Subtitle Style Preset whose aesthetic properties (such as typography, color palette, highlight animation, or stroke treatments) have been modified by the creator away from the preset's canonical definition. It is designated with a (Custom) indicator and immediately applied to the Preset Studio Viewport until reset by selecting a preset.
+_Avoid_: User preset, modified theme, custom template, dirty preset
+
 **Subtitle Visibility Toggle**:
 The clip-level presentation control that enables creators to show or hide visual subtitles in both the Studio Editor preview and final rendered media without mutating or deleting underlying transcript timing or audio censorship boundaries.
 _Avoid_: Mute subtitles, hide captions, delete transcript, subtitle disable
