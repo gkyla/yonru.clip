@@ -187,10 +187,16 @@
 
               <!-- Timing: Start & Duration -->
               <div class="pt-2 border-t border-white/5 space-y-1">
-                <label
-                  class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1"
-                  >Timeline Timing</label
-                >
+                <div class="flex items-center justify-between mb-1">
+                  <label
+                    class="block text-[8px] font-bold uppercase tracking-widest text-slate-500"
+                    >Timeline Timing</label
+                  >
+                  <span class="text-[8px] mono text-slate-400">
+                    {{ displayStart.toFixed(1) }}s to
+                    {{ displayEnd.toFixed(1) }}s
+                  </span>
+                </div>
                 <div class="grid grid-cols-2 gap-3">
                   <div>
                     <div class="flex justify-between items-center mb-1">
@@ -201,12 +207,13 @@
                       <span
                         class="text-[9px] mono text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20"
                       >
-                        {{ Number(activeItem.start ?? 0).toFixed(1) }}s
+                        {{ displayStart.toFixed(1) }}s
                       </span>
                     </div>
                     <input
-                      v-model.number="activeItem.start"
+                      v-model.number="displayStart"
                       type="number"
+                      :min="coverOffsetSec"
                       step="0.1"
                       class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white mono focus:outline-none focus:border-emerald-500/50"
                       @mousedown="commitHistory"
@@ -228,6 +235,7 @@
                     <input
                       v-model.number="activeItem.duration"
                       type="number"
+                      min="0.1"
                       step="0.1"
                       class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white mono focus:outline-none focus:border-emerald-500/50"
                       @mousedown="commitHistory"
@@ -937,8 +945,9 @@
                           >Start (s)</label
                         >
                         <input
-                          v-model.number="activeItem.start"
+                          v-model.number="displayStart"
                           type="number"
+                          :min="coverOffsetSec"
                           step="0.1"
                           class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white mono"
                         />
@@ -1571,17 +1580,26 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import * as clipperStateModule from '../../composables/useClipperState';
+import {
+  fromGlobalTimelineStart,
+  resolveCoverOffsetSec,
+  toGlobalTimelineStart
+} from '../../utils/timelineHelpers';
 
 interface Props {
   modelValue?: any | null;
   videoLayout?: string;
   trackId?: string;
+  coverEnabled?: boolean;
+  coverDuration?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: undefined,
   videoLayout: undefined,
-  trackId: undefined
+  trackId: undefined,
+  coverEnabled: undefined,
+  coverDuration: undefined
 });
 
 const emit = defineEmits<{
@@ -1595,7 +1613,12 @@ const emit = defineEmits<{
 // Opportunistically obtain state if available in context
 let state: any = null;
 try {
-  state = useClipperState();
+  const resolveState =
+    (clipperStateModule as any)?.useClipperState ??
+    (typeof useClipperState !== 'undefined' ? useClipperState : null);
+  if (resolveState) {
+    state = resolveState();
+  }
 } catch {
   // Graceful fallback for isolated unit tests
 }
@@ -1613,6 +1636,46 @@ const activeItem = computed({
       state.selectedTimelineItem.value = val;
     }
   }
+});
+
+const coverOffsetSec = computed(() => {
+  const enabled =
+    props.coverEnabled ??
+    state?.coverEnabled?.value ??
+    state?.thumbnailEnabled?.value ??
+    false;
+  const duration =
+    props.coverDuration ??
+    state?.coverDuration?.value ??
+    state?.thumbnailDuration?.value ??
+    0;
+  return resolveCoverOffsetSec(enabled, duration);
+});
+
+const displayStart = computed({
+  get() {
+    if (!activeItem.value) return 0;
+    return toGlobalTimelineStart(
+      activeItem.value.start ?? 0,
+      coverOffsetSec.value > 0,
+      coverOffsetSec.value
+    );
+  },
+  set(val: number) {
+    if (!activeItem.value) return;
+    const numericVal = Number(val);
+    if (Number.isNaN(numericVal)) return;
+    activeItem.value.start = fromGlobalTimelineStart(
+      numericVal,
+      coverOffsetSec.value > 0,
+      coverOffsetSec.value
+    );
+  }
+});
+
+const displayEnd = computed(() => {
+  const dur = Number(activeItem.value?.duration ?? 0) || 0;
+  return Math.round((displayStart.value + dur) * 1000) / 1000;
 });
 
 const currentVideoLayout = computed(() => {

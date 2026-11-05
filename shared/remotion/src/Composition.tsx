@@ -363,7 +363,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   // Filter active text items (adjusted for thumbnail offset)
   const activeTextItems = timelineTextItems.filter(
     item =>
-      currentTime >= item.start && currentTime <= item.start + item.duration
+      currentTime >= item.start && currentTime < item.start + item.duration
   );
 
   // Coalesce unsorted split segments that are contiguous in both timeline time and media time

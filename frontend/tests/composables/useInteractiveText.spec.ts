@@ -1,6 +1,7 @@
 // @vitest-environment nuxt
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ref } from 'vue';
+import { useClipperState } from '../../app/composables/useClipperState';
 import { useInteractiveText } from '../../app/composables/useInteractiveText';
 import {
   useSnappingGuides,
@@ -98,5 +99,70 @@ describe('useInteractiveText Composable - Text Drag Snapping', () => {
     expect(currentPos.x).toBe(385);
     expect(currentPos.y).toBe(905);
     expect(snapping.activeGuides.value).toEqual({});
+  });
+});
+
+describe('useInteractiveText & addTimelineItem Cover Slide Synchronization', () => {
+  beforeEach(() => {
+    const state = useClipperState();
+    state.coverEnabled.value = true;
+    state.coverDuration.value = 1.5;
+    state.videoDuration.value = 12;
+    state.currentTime.value = 0;
+    state.timelineTracks.value = [
+      {
+        id: 'video',
+        name: 'Main Video',
+        type: 'video',
+        items: [{ id: 'v1', name: 'Main Video', start: 0, duration: 12 }]
+      },
+      { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
+      { id: 'text', name: 'Text layers', type: 'text', items: [] },
+      { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
+    ];
+  });
+
+  it('places newly added text items aligned with the Playhead relative to Cover Slide offset and synchronizes active preview items', () => {
+    const state = useClipperState();
+
+    // 1. Playhead at 1.5s (right after 1.5s Cover Slide): adding 5s Text Layer 1
+    state.currentTime.value = 1.5;
+    state.addTimelineItem('text', {
+      id: 't1',
+      content: 'Layer 1',
+      duration: 5
+    });
+
+    // 2. Playhead at 6.5s (right at end of Layer 1 on ruler): adding 5s Text Layer 2
+    state.currentTime.value = 6.5;
+    state.addTimelineItem('text', {
+      id: 't2',
+      content: 'Layer 2',
+      duration: 5
+    });
+
+    const textTrack = state.timelineTracks.value.find(t => t.id === 'text')!;
+    expect(textTrack.items[0]!.start).toBe(0);
+    expect(textTrack.items[0]!.duration).toBe(5);
+    expect(textTrack.items[1]!.start).toBe(5);
+    expect(textTrack.items[1]!.duration).toBe(5);
+
+    const { activeTextItems, isTimelineTextActiveAndSelected } =
+      useInteractiveText(ref(null));
+
+    // During Cover Slide [0, 1.5s): no timeline text overlay is active
+    state.currentTime.value = 0.8;
+    expect(activeTextItems.value.map(i => i.id)).toEqual([]);
+
+    // Scrubbing past 5.0s on ruler (e.g. 5.5s, inside Layer 1's 1.5s..6.5s block): Layer 1 stays active!
+    state.selectedTimelineItem.value = textTrack.items[0]!;
+    state.currentTime.value = 5.5;
+    expect(activeTextItems.value.map(i => i.id)).toEqual(['t1']);
+    expect(isTimelineTextActiveAndSelected.value).toBe(true);
+
+    // At 6.5s on ruler: clean handoff from Layer 2 with zero overlap
+    state.currentTime.value = 6.5;
+    expect(activeTextItems.value.map(i => i.id)).toEqual(['t2']);
+    expect(isTimelineTextActiveAndSelected.value).toBe(false);
   });
 });

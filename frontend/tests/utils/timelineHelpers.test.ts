@@ -6,7 +6,11 @@ import {
   deleteTimelineItemWithRipple,
   calculateSnapTime,
   calculateDragBounds,
-  calculateRulerTicks
+  calculateRulerTicks,
+  resolveCoverOffsetSec,
+  toGlobalTimelineStart,
+  fromGlobalTimelineStart,
+  isTimelineItemActiveAtTime
 } from '../../app/utils/timelineHelpers';
 
 describe('Timeline Helpers TDD', () => {
@@ -215,6 +219,35 @@ describe('Timeline Helpers TDD', () => {
       expect(ticks[0]?.pos).toBe(0);
       const majorTicks = ticks.filter(t => t.major && t.label);
       expect(majorTicks.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Cover Slide Global Timeline Coordinate Sync', () => {
+    it('maps relative item start to/from global ruler timestamps and evaluates half-open active windows', () => {
+      expect(resolveCoverOffsetSec(false, 1.5)).toBe(0);
+      expect(resolveCoverOffsetSec(true, 1.5)).toBe(1.5);
+
+      expect(toGlobalTimelineStart(0, true, 1.5)).toBe(1.5);
+      expect(toGlobalTimelineStart(5, true, 1.5)).toBe(6.5);
+      expect(toGlobalTimelineStart(5, false, 1.5)).toBe(5);
+
+      expect(fromGlobalTimelineStart(1.5, true, 1.5)).toBe(0);
+      expect(fromGlobalTimelineStart(6.5, true, 1.5)).toBe(5);
+      expect(fromGlobalTimelineStart(0.4, true, 1.5)).toBe(0);
+
+      const layer1 = { start: 0, duration: 5 };
+      const layer2 = { start: 5, duration: 5 };
+
+      // Hidden during Cover Slide intro window [0, 1.5s)
+      expect(isTimelineItemActiveAtTime(layer1, 0.5, true, 1.5)).toBe(false);
+      // Layer 1 active across [1.5s, 6.5s) — including past 5.0s on the ruler!
+      expect(isTimelineItemActiveAtTime(layer1, 1.5, true, 1.5)).toBe(true);
+      expect(isTimelineItemActiveAtTime(layer1, 5.5, true, 1.5)).toBe(true);
+      // Clean handoff at 6.5s with no overlap between adjacent 5s layers
+      expect(isTimelineItemActiveAtTime(layer1, 6.5, true, 1.5)).toBe(false);
+      expect(isTimelineItemActiveAtTime(layer2, 6.5, true, 1.5)).toBe(true);
+      expect(isTimelineItemActiveAtTime(layer2, 11.4, true, 1.5)).toBe(true);
+      expect(isTimelineItemActiveAtTime(layer2, 11.5, true, 1.5)).toBe(false);
     });
   });
 });

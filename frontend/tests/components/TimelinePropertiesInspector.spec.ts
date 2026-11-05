@@ -321,5 +321,35 @@ describe('TimelinePropertiesInspector Component', () => {
       expect(item.textTransform).toBe('capitalize');
       expect(item.content).toBe('Quick Brown Fox');
     });
+
+    it('displays and edits global timeline Start offset by Cover Slide duration when active', async () => {
+      const layer1 = reactive({
+        id: 'text-1',
+        type: 'text',
+        content: 'Layer 1',
+        start: 0,
+        duration: 5
+      });
+
+      const wrapper = mount(TimelinePropertiesInspector, {
+        props: {
+          modelValue: layer1,
+          trackId: 'text',
+          coverEnabled: true,
+          coverDuration: 1.5
+        },
+        global: globalMountOptions
+      });
+
+      expect(wrapper.text()).toContain('1.5s to 6.5s');
+      const inputs = wrapper.findAll('input[type="number"]');
+      expect((inputs[0]!.element as HTMLInputElement).value).toBe('1.5');
+      expect((inputs[1]!.element as HTMLInputElement).value).toBe('5');
+
+      // Editing Start on global timeline to 6.5s stores relative start = 5.0s
+      await inputs[0]!.setValue('6.5');
+      expect(layer1.start).toBe(5);
+      expect(wrapper.text()).toContain('6.5s to 11.5s');
+    });
   });
 });

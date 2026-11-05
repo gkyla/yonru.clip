@@ -261,10 +261,7 @@
           >
             <!-- Cover Slide block -->
             <div
-              v-if="
-                track.type === 'video' &&
-                (state.coverEnabled?.value ?? state.thumbnailEnabled.value)
-              "
+              v-if="track.type === 'video' && isCoverActive"
               class="absolute top-[4px] rounded-[3px] border-l-[3px] border-emerald-500 flex items-center px-2 gap-1 pointer-events-none"
               :style="{
                 left: 0,
@@ -281,6 +278,24 @@
               <span
                 class="text-[7px] font-bold text-emerald-400 truncate tracking-wider"
                 >Cover Slide</span
+              >
+            </div>
+            <div
+              v-else-if="isCoverActive && thumbW > 0"
+              data-testid="cover-slide-zone"
+              class="absolute top-[4px] rounded-[3px] border-r border-dashed border-emerald-500/25 flex items-center px-2 gap-1 pointer-events-none overflow-hidden"
+              :style="{
+                left: 0,
+                width: thumbW + 'px',
+                height: trackH - 8 + 'px',
+                background:
+                  'repeating-linear-gradient(-45deg, rgba(6,78,59,0.18), rgba(6,78,59,0.18) 4px, rgba(6,78,59,0.06) 4px, rgba(6,78,59,0.06) 8px)'
+              }"
+              title="Cover Slide Intro Zone"
+            >
+              <span
+                class="text-[7px] font-semibold text-emerald-400/50 truncate tracking-wider"
+                >Cover</span
               >
             </div>
             <!-- Track items -->
@@ -369,6 +384,8 @@
 
     <!-- Properties Inspector Panel (Extracted Deep Module) -->
     <TimelinePropertiesInspector
+      :cover-enabled="isCoverActive"
+      :cover-duration="activeCoverDuration"
       @delete="deleteSelected"
       @commit-history="state.commitToHistory"
     />
@@ -408,24 +425,25 @@ let scrollTimeout: any = null;
 let isProgrammaticScroll = false;
 
 // --- Cover Slide ---
-const thumbW = computed(() => {
-  const isEnabled = state.coverEnabled?.value ?? state.thumbnailEnabled.value;
-  const duration =
-    state.coverDuration?.value ?? state.thumbnailDuration.value ?? 3;
-  return isEnabled ? duration * pxPerSec.value : 0;
-});
+const isCoverActive = computed(
+  () => state.coverEnabled?.value ?? state.thumbnailEnabled.value ?? false
+);
+const activeCoverDuration = computed(
+  () => state.coverDuration?.value ?? state.thumbnailDuration.value ?? 3
+);
+const thumbW = computed(() =>
+  isCoverActive.value ? activeCoverDuration.value * pxPerSec.value : 0
+);
 const thumbOffsetPx = computed(() => thumbW.value);
 
-function getItemLeft(track: any, item: any) {
+function getItemLeft(_track: any, item: any) {
   const base = item.start * pxPerSec.value;
-  const isEnabled = state.coverEnabled?.value ?? state.thumbnailEnabled.value;
-  return isEnabled ? base + thumbOffsetPx.value : base;
+  return isCoverActive.value ? base + thumbOffsetPx.value : base;
 }
 
 function getMarkerLeft(val: number) {
   const base = val * pxPerSec.value;
-  const isEnabled = state.coverEnabled?.value ?? state.thumbnailEnabled.value;
-  return isEnabled ? base + thumbOffsetPx.value : base;
+  return isCoverActive.value ? base + thumbOffsetPx.value : base;
 }
 
 function getRelativeMarkerTime(val: number) {
@@ -669,9 +687,7 @@ function startRaf() {
     const video = document.getElementById(
       'preview-video-element'
     ) as HTMLVideoElement;
-    const thumbSec = state.thumbnailEnabled.value
-      ? state.thumbnailDuration.value
-      : 0;
+    const thumbSec = isCoverActive.value ? activeCoverDuration.value : 0;
 
     // Stop playback if end of timeline reached
     if (state.currentTime.value >= state.timelineDuration.value) {
@@ -787,15 +803,15 @@ function handleAudioFile(e: Event) {
 }
 
 // --- Snap logic ---
-function snapValue(val: number, trackId?: string): number {
+function snapValue(val: number, _trackId?: string): number {
   return calculateSnapTime(
     val,
     snapEnabled.value,
     pxPerSec.value,
     state.currentTime.value,
     state.timelineTracks.value,
-    state.thumbnailEnabled.value,
-    state.thumbnailDuration.value,
+    isCoverActive.value,
+    activeCoverDuration.value,
     draggingItem?.id
   );
 }
@@ -914,8 +930,8 @@ function deleteSelected() {
     itemToDelete,
     trackId,
     state.currentTime.value,
-    state.thumbnailEnabled.value,
-    state.thumbnailDuration.value
+    isCoverActive.value,
+    activeCoverDuration.value
   );
 
   state.timelineTracks.value = result.updatedTracks;
@@ -930,9 +946,7 @@ function deleteSelected() {
 function splitSelected() {
   const item = state.selectedTimelineItem.value;
   if (!item) return;
-  const offset = state.thumbnailEnabled.value
-    ? state.thumbnailDuration.value
-    : 0;
+  const offset = isCoverActive.value ? activeCoverDuration.value : 0;
   const cut = state.currentTime.value - offset;
 
   const splitResult = splitTimelineItem(item, cut);

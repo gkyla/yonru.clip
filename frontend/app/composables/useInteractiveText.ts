@@ -9,6 +9,7 @@ import {
 import { useClipperState } from './useClipperState';
 import { useSnappingGuides } from './useSnappingGuides';
 import { getEditingStyle } from '../utils/styleHelpers';
+import { isTimelineItemActiveAtTime } from '../utils/timelineHelpers';
 
 export const useInteractiveText = (transformerRef: { value: any }) => {
   const state = useClipperState();
@@ -65,16 +66,26 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     });
   }
 
+  const isCoverEnabled = computed(
+    () => state.coverEnabled?.value ?? state.thumbnailEnabled?.value ?? false
+  );
+  const activeCoverDuration = computed(
+    () => state.coverDuration?.value ?? state.thumbnailDuration?.value ?? 1
+  );
+
   // Timeline Text Overlays
   const activeTextItems = computed(() => {
     const textTrack = state.timelineTracks.value.find(
       (t: any) => t.id === 'text'
     );
     if (!textTrack) return [];
-    return textTrack.items.filter(
-      (item: any) =>
-        state.currentTime.value >= item.start &&
-        state.currentTime.value <= item.start + item.duration
+    return textTrack.items.filter((item: any) =>
+      isTimelineItemActiveAtTime(
+        item,
+        state.currentTime.value,
+        isCoverEnabled.value,
+        activeCoverDuration.value
+      )
     );
   });
 
@@ -103,11 +114,22 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     state.saveTimelineTracks();
   }
 
+  // Inline Text Editing State
+  const editingItemId = ref<string | null>(null);
+  const originalContent = ref<string>('');
+  const editingInputRef = ref<HTMLElement | null>(null);
+
+  const setEditingInputRef = (el: any) => {
+    editingInputRef.value = el;
+  };
+
   function isCurrentItemActive(item: any) {
     if (!item) return false;
-    return (
-      state.currentTime.value >= item.start &&
-      state.currentTime.value <= item.start + item.duration
+    return isTimelineItemActiveAtTime(
+      item,
+      state.currentTime.value,
+      isCoverEnabled.value,
+      activeCoverDuration.value
     );
   }
 
@@ -190,15 +212,7 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     state.selectedTimelineItem.value = item;
   }
 
-  // Inline Text Editing State & Logic
-  const editingItemId = ref<string | null>(null);
-  const originalContent = ref<string>('');
-  const editingInputRef = ref<HTMLElement | null>(null);
-
-  const setEditingInputRef = (el: any) => {
-    editingInputRef.value = el;
-  };
-
+  // Inline Text Editing Logic
   function startEditing(item: any) {
     editingItemId.value = item.id;
     originalContent.value = item.content || '';

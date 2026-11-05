@@ -2,7 +2,9 @@
 import { nextTick } from 'vue';
 import {
   calculateTimelineDuration,
-  calculateVideoTime
+  calculateVideoTime,
+  fromGlobalTimelineStart,
+  resolveCoverOffsetSec
 } from '../utils/timelineHelpers';
 import { TimelineTransactionEngine } from '../utils/timelineHistory';
 import type {
@@ -294,8 +296,23 @@ export const useTimelineState = () => {
   function addTimelineItem(trackId: string, item: Partial<TimelineTrackItem>) {
     const track = timelineTracks.value.find(t => t.id === trackId);
     if (track) {
-      const startSec = item.start ?? currentTime.value;
-      const maxRemaining = Math.max(0.5, timelineDuration.value - startSec);
+      const coverOffset = resolveCoverOffsetSec(
+        coverEnabled.value,
+        coverDuration.value
+      );
+      const startSec =
+        item.start !== undefined
+          ? item.start
+          : fromGlobalTimelineStart(
+              currentTime.value ?? 0,
+              coverEnabled.value,
+              coverDuration.value
+            );
+      const maxClipDuration = Math.max(
+        0.5,
+        timelineDuration.value - coverOffset
+      );
+      const maxRemaining = Math.max(0.5, maxClipDuration - startSec);
       const defaultDuration = item.duration ?? 5;
       const durationSec = Math.min(defaultDuration, maxRemaining);
 

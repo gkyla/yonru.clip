@@ -72,6 +72,14 @@ _Avoid_: Time bar, scrub line, cursor indicator
 An individual cut or trimmed slice of a Ready Clip positioned on the Main Video track within the Timeline Viewport, mapping an edited timeline start interval (`start`, `duration`) to a corresponding source clip media offset (`mediaStart`) used to index pre-computed Face Tracking & Auto-Reframe keyframes.
 _Avoid_: Video block, timeline chunk, split item, clip piece
 
+**Timeline Audio Layer**:
+An independent audio element (sound effect, background music, or custom intro audio) positioned within the Timeline Viewport on the Audio track, anchored to absolute global timeline seconds starting from the initial frame of the Cover Slide (`0.0s`) through video playback, persisting its absolute ruler timestamp across Cover Slide duration and toggle adjustments.
+_Avoid_: Audio clip, audio piece, intro sound, track item
+
+**Timeline Magnetic Snapping**:
+The dynamic, tolerance-based alignment mechanism within the Timeline Viewport that magnetically pulls dragging and resizing media boundaries to nearest ruler intervals, the Playhead, clip edges, and the Cover Slide transition boundary while preserving fluid, unconstrained positioning outside the snapping tolerance threshold.
+_Avoid_: Grid lock, hard snap, timeline lock, magnetic grip
+
 **Pipeline Progress Stepper**:
 The automated multi-stage workflow overlay tracking ingestion, transcription, AI hook generation, and preview extraction for source videos.
 _Avoid_: Loading spinner, progress modal, analysis bar
