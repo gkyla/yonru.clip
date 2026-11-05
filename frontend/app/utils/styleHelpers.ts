@@ -68,6 +68,7 @@ export function getEditingStyle(item: Partial<TimelineTrackItem>) {
     borderRadius: '10px',
     padding: padding,
 
+    paintOrder: showStroke ? ('stroke fill' as const) : undefined,
     '-webkit-text-stroke': showStroke
       ? `${strokeWidth}px ${strokeColor}`
       : 'none',

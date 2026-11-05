@@ -159,6 +159,32 @@ describe('useSnappingGuides Composable', () => {
     });
   });
 
+  it('snaps object center to canvas center X and Y simultaneously when isCentered is false (matching Cover Slide)', () => {
+    // Top-left anchor with width=300, height=100.
+    // Near center: x=385 (center X = 385 + 150 = 535, diff=5 <= 20)
+    // Near center: y=905 (center Y = 905 + 50 = 955, diff=5 <= 20)
+    const result = guides.calculateSnap({
+      x: 385,
+      y: 905,
+      width: 300,
+      height: 100,
+      isCentered: false,
+      platform: 'none'
+    });
+
+    // Snapped coordinates should center the text object at (540, 960)
+    expect(result.snappedX).toBe(CANVAS_CENTER_X - 150); // 390
+    expect(result.snappedY).toBe(CANVAS_CENTER_Y - 50); // 910
+    expect(result.activeGuides.vertical).toEqual({
+      position: CANVAS_CENTER_X,
+      type: 'center'
+    });
+    expect(result.activeGuides.horizontal).toEqual({
+      position: CANVAS_CENTER_Y,
+      type: 'center'
+    });
+  });
+
   it('toggles isSnappingEnabled and clears active guides', () => {
     expect(guides.isSnappingEnabled.value).toBe(true);
     guides.toggleSnapping();
