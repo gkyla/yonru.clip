@@ -454,6 +454,7 @@
           v-if="
             state.videoUrl.value &&
             !state.thumbnailEditMode.value &&
+            !isInThumbnailWindow &&
             !state.outputUrl?.value
           "
           class="absolute inset-0 z-[45]"
@@ -1346,12 +1347,18 @@ if (import.meta.client) {
 }
 
 // --- TIMING & THUMBNAIL TIMINGS ---
+const isCoverActive = computed(
+  () => state.coverEnabled?.value ?? state.thumbnailEnabled.value ?? false
+);
+const activeCoverDuration = computed(
+  () => state.coverDuration?.value ?? state.thumbnailDuration.value ?? 0
+);
 const thumbOffset = computed(() =>
-  state.thumbnailEnabled.value ? state.thumbnailDuration.value : 0
+  isCoverActive.value ? activeCoverDuration.value : 0
 );
 const isInThumbnailWindow = computed(
   () =>
-    state.thumbnailEnabled.value &&
+    isCoverActive.value &&
     state.currentTime.value < thumbOffset.value &&
     !state.isCapturingThumbnail.value
 );

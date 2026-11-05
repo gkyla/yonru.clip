@@ -360,4 +360,56 @@ describe('TimelineEditor Component', () => {
     mockState.outputUrl.value = null;
     mockState.isRenderPreviewActive.value = false;
   });
+
+  it('renders Cover Slide intro zone across non-video tracks and aligns 2 adjacent 5s text blocks', async () => {
+    mockState.thumbnailEnabled.value = true;
+    mockState.thumbnailDuration.value = 1.5;
+    const prevTracks = mockState.timelineTracks.value;
+    mockState.timelineTracks.value = [
+      {
+        id: 'video',
+        name: 'Main Video',
+        type: 'video',
+        items: [{ id: 'v1', name: 'Clip 1', start: 0, duration: 12 }]
+      },
+      {
+        id: 'text',
+        name: 'Text layers',
+        type: 'text',
+        items: [
+          { id: 't1', content: 'Layer 1', start: 0, duration: 5 },
+          { id: 't2', content: 'Layer 2', start: 5, duration: 5 }
+        ]
+      }
+    ];
+
+    const wrapper = mount(TimelineEditor, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          Teleport: true,
+          Transition: true,
+          TimelinePropertiesInspector: true
+        }
+      }
+    });
+
+    const coverZones = wrapper.findAll('[data-testid="cover-slide-zone"]');
+    expect(coverZones.length).toBe(1);
+    expect(coverZones[0]!.attributes('style')).toContain('width: 150px');
+
+    const textBlocks = wrapper
+      .findAll('.tl-scroll .cursor-move')
+      .filter(el => el.text().includes('Layer'));
+    expect(textBlocks).toHaveLength(2);
+    expect(textBlocks[0]!.attributes('style')).toContain('left: 150px');
+    expect(textBlocks[0]!.attributes('style')).toContain('width: 500px');
+    expect(textBlocks[1]!.attributes('style')).toContain('left: 650px');
+    expect(textBlocks[1]!.attributes('style')).toContain('width: 500px');
+
+    mockState.thumbnailEnabled.value = false;
+    mockState.thumbnailDuration.value = 3;
+    mockState.timelineTracks.value = prevTracks;
+  });
 });

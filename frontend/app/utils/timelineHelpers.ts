@@ -13,6 +13,50 @@ export interface RulerTick {
   label: string | null;
 }
 
+export function resolveCoverOffsetSec(
+  coverEnabled?: boolean,
+  coverDuration?: number
+): number {
+  return coverEnabled ? Math.max(0, Number(coverDuration) || 0) : 0;
+}
+
+export function toGlobalTimelineStart(
+  relativeStart: number,
+  coverEnabled?: boolean,
+  coverDuration?: number
+): number {
+  const start = Number(relativeStart) || 0;
+  const offset = resolveCoverOffsetSec(coverEnabled, coverDuration);
+  return Math.round((start + offset) * 1000) / 1000;
+}
+
+export function fromGlobalTimelineStart(
+  globalStart: number,
+  coverEnabled?: boolean,
+  coverDuration?: number
+): number {
+  const globalSec = Number(globalStart) || 0;
+  const offset = resolveCoverOffsetSec(coverEnabled, coverDuration);
+  return Math.max(0, Math.round((globalSec - offset) * 1000) / 1000);
+}
+
+export function isTimelineItemActiveAtTime(
+  item: { start: number; duration: number },
+  currentTime: number,
+  coverEnabled?: boolean,
+  coverDuration?: number
+): boolean {
+  const offset = resolveCoverOffsetSec(coverEnabled, coverDuration);
+  if (offset > 0 && currentTime < offset) {
+    return false;
+  }
+  const relTime = currentTime - offset;
+  const start = Number(item.start) || 0;
+  const duration = Number(item.duration) || 0;
+  if (duration <= 0) return false;
+  return relTime >= start && relTime < start + duration;
+}
+
 export function calculateTimelineDuration(
   tracks: TimelineTrack[],
   thumbnailEnabled: boolean,
