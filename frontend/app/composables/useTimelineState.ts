@@ -314,6 +314,7 @@ export const useTimelineState = () => {
 
       const newItem = {
         id: Math.random().toString(36).substr(2, 9),
+        type: trackId as any,
         start: startSec,
         mediaStart: item.mediaStart ?? 0,
         duration: durationSec,

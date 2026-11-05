@@ -518,8 +518,11 @@
                     verticalAlign: 'middle',
                     lineHeight: item.lineHeight ?? 1.1,
                     stroke: item.strokeColor || '#000000',
-                    strokeWidth: item.showStroke ? (item.strokeWidth ?? 5) : 0,
+                    strokeWidth: item.showStroke
+                      ? (item.strokeWidth ?? 5) * 2
+                      : 0,
                     strokeEnabled: item.showStroke,
+                    fillAfterStrokeEnabled: true,
                     shadowColor: item.shadowColor || '#000000',
                     shadowBlur: item.shadowBlur ?? 10,
                     shadowOffset: {
@@ -675,9 +678,10 @@
                         stroke: overlay.strokeColor || '#000000',
                         strokeWidth:
                           overlay.showStroke !== false
-                            ? (overlay.strokeWidth ?? 5)
+                            ? (overlay.strokeWidth ?? 5) * 2
                             : 0,
                         strokeEnabled: overlay.showStroke !== false,
+                        fillAfterStrokeEnabled: true,
                         shadowColor: 'black',
                         shadowBlur: 15,
                         shadowOffset: { x: 3, y: 5 },
@@ -1776,8 +1780,9 @@ function getThumbOverlayEditingStyle(overlay: any) {
     borderRadius: '10px',
     padding: padding,
 
+    paintOrder: showStroke ? ('stroke fill' as const) : undefined,
     '-webkit-text-stroke': showStroke
-      ? `${strokeWidth}px ${strokeColor}`
+      ? `${strokeWidth * 2}px ${strokeColor}`
       : 'none',
     textShadow: `3px 5px 15px ${rgbaShadow}`,
 

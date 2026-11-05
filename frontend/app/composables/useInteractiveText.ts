@@ -1,4 +1,11 @@
-import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import {
+  ref,
+  computed,
+  watch,
+  nextTick,
+  onMounted,
+  getCurrentInstance
+} from 'vue';
 import { useClipperState } from './useClipperState';
 import { useSnappingGuides } from './useSnappingGuides';
 import { getEditingStyle } from '../utils/styleHelpers';
@@ -48,13 +55,15 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     { immediate: true, deep: true }
   );
 
-  onMounted(() => {
-    if (typeof document !== 'undefined' && (document as any).fonts) {
-      (document as any).fonts.ready.then(() => {
-        fontsLoaded.value++;
-      });
-    }
-  });
+  if (getCurrentInstance()) {
+    onMounted(() => {
+      if (typeof document !== 'undefined' && (document as any).fonts) {
+        (document as any).fonts.ready.then(() => {
+          fontsLoaded.value++;
+        });
+      }
+    });
+  }
 
   // Timeline Text Overlays
   const activeTextItems = computed(() => {
@@ -80,7 +89,7 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
       y: node.y(),
       width: node.width(),
       height: node.height(),
-      isCentered: true,
+      isCentered: false,
       platform: state.activeSafeZone.value,
       isAltPressed
     });
@@ -149,19 +158,15 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     item.fontSize = newSize;
     node.scaleX(1);
     node.scaleY(1);
-    const width = node.width();
-    const height = node.height();
-    node.offsetX(width / 2);
-    node.offsetY(height / 2);
+    node.offsetX(0);
+    node.offsetY(0);
     node.getLayer().batchDraw();
   }
 
   function onLabelRender(e: any) {
     const node = e.target;
-    const width = node.width();
-    const height = node.height();
-    node.offsetX(width / 2);
-    node.offsetY(height / 2);
+    node.offsetX(0);
+    node.offsetY(0);
   }
 
   function handleStageClick(e: any) {

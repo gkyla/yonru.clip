@@ -203,4 +203,123 @@ describe('TimelinePropertiesInspector Component', () => {
     await deleteBtn!.trigger('click');
     expect(wrapper.emitted('delete')).toBeTruthy();
   });
+
+  describe('Text Track Cover-Slide Inspired Mode', () => {
+    it('renders 4 mini tabs and modern header when trackId is text', () => {
+      const item = {
+        id: 'text-1',
+        type: 'text',
+        content: 'Cover Style Text',
+        start: 1.0,
+        duration: 3.5,
+        color: '#fbbf24'
+      };
+
+      const wrapper = mount(TimelinePropertiesInspector, {
+        props: {
+          modelValue: item,
+          trackId: 'text'
+        },
+        global: globalMountOptions
+      });
+
+      // Modern header shows text snippet
+      expect(wrapper.text()).toContain('Text');
+      expect(wrapper.text()).toContain('"Cover Style Text"');
+
+      // Four segmented mini tabs
+      expect(wrapper.text()).toContain('Text');
+      expect(wrapper.text()).toContain('Style');
+      expect(wrapper.text()).toContain('Box');
+      expect(wrapper.text()).toContain('Layout');
+
+      // Default active tab is 'text'
+      expect(wrapper.text()).toContain('Capitalization');
+      expect(wrapper.text()).toContain('Timeline Timing');
+      expect(wrapper.find('textarea').element.value).toBe('Cover Style Text');
+    });
+
+    it('navigates across tabs and updates style, box, and layout', async () => {
+      const item = reactive({
+        id: 'text-1',
+        type: 'text',
+        content: 'Interactive Text',
+        start: 2.0,
+        duration: 4.0,
+        font: 'Inter',
+        fontSize: 90,
+        showStroke: false,
+        strokeWidth: 4,
+        showBackground: false,
+        backgroundColor: '#000000',
+        align: 'center',
+        x: 540,
+        y: 960
+      });
+
+      const wrapper = mount(TimelinePropertiesInspector, {
+        props: {
+          modelValue: item,
+          trackId: 'text',
+          videoLayout: 'landscape'
+        },
+        global: globalMountOptions
+      });
+
+      // Tab navigation buttons
+      const tabButtons = wrapper.findAll('div.flex.bg-white\\/5 button');
+      expect(tabButtons.length).toBe(4);
+
+      // Switch to Style tab (index 1)
+      await tabButtons[1]?.trigger('click');
+      expect(wrapper.text()).toContain('Font Family');
+      expect(wrapper.text()).toContain('Text Color');
+      expect(wrapper.text()).toContain('Enable Outline');
+      expect(wrapper.text()).toContain('Enable Shadow');
+
+      // Switch to Box tab (index 2)
+      await tabButtons[2]?.trigger('click');
+      expect(wrapper.text()).toContain('Enable Background Box');
+
+      // Switch to Layout tab (index 3)
+      await tabButtons[3]?.trigger('click');
+      expect(wrapper.text()).toContain('Text Alignment');
+      expect(wrapper.text()).toContain(
+        'Drag overlay in video canvas to position'
+      );
+      expect(wrapper.text()).toContain('Blank Zone Snap');
+    });
+
+    it('handles capitalization and text transform in text tab', async () => {
+      const item = reactive({
+        id: 'text-1',
+        type: 'text',
+        content: 'quick brown fox',
+        textTransform: 'none'
+      });
+
+      const wrapper = mount(TimelinePropertiesInspector, {
+        props: {
+          modelValue: item,
+          trackId: 'text'
+        },
+        global: globalMountOptions
+      });
+
+      const buttons = wrapper.findAll('button');
+      const uppercaseBtn = buttons.find(b => b.text() === 'AA');
+      const capitalizeBtn = buttons.find(b => b.text() === 'Aa');
+
+      expect(uppercaseBtn).toBeDefined();
+      expect(capitalizeBtn).toBeDefined();
+
+      await uppercaseBtn!.trigger('click');
+      expect(item.textTransform).toBe('uppercase');
+      expect(item.content).toBe('QUICK BROWN FOX');
+
+      await capitalizeBtn!.trigger('click');
+      expect(item.textTransform).toBe('capitalize');
+      expect(item.content).toBe('Quick Brown Fox');
+    });
+  });
 });
