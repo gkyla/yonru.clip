@@ -333,3 +333,22 @@ def test_put_clip_session_cached_audio_src_and_compact_response(client_with_temp
         saved_tracks = json.load(f)
     assert saved_tracks[0]["items"][0]["start"] == 2.5
     assert saved_tracks[0]["items"][0]["src"] == heavy_src
+
+    # 3. Saving history snapshots with embedded data: URIs strips src from history.json on disk
+    res3 = client.put(f"/api/clip-session/{folder_name}/{clip_id}", json={
+        "undo_stack": [
+            {
+                "tracks": [
+                    {"id": "audio", "type": "audio", "items": [{"id": "a1", "name": "bgm.mp3", "start": 0.0, "duration": 10.0, "src": heavy_src}]}
+                ],
+                "transcript": [],
+                "selectedId": "a1"
+            }
+        ],
+        "_compact": True
+    })
+    assert res3.status_code == 200
+    with open(os.path.join(clip_dir, "history.json"), "r", encoding="utf-8") as f:
+        saved_history = json.load(f)
+    assert "src" not in saved_history["undo_stack"][0]["tracks"][0]["items"][0]
+    assert saved_history["undo_stack"][0]["tracks"][0]["items"][0]["id"] == "a1"

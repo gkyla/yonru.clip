@@ -160,7 +160,8 @@ export const useClipEditorSession = (
         {
           method: 'PUT',
           body: {
-            transcript: cleanTranscript
+            transcript: cleanTranscript,
+            _compact: true
           }
         }
       );
@@ -198,6 +199,7 @@ export const useClipEditorSession = (
         undo_stack: timeline.timelineUndoStack.value,
         redo_stack: timeline.timelineRedoStack.value
       },
+      _compact: true,
       ...(cropMap.value?.length > 0 ? { crop_map: cropMap.value } : {})
     };
 
@@ -249,7 +251,8 @@ export const useClipEditorSession = (
         {
           method: 'PUT',
           body: {
-            style_settings: subtitleStyle.getStyleSnapshot()
+            style_settings: subtitleStyle.getStyleSnapshot(),
+            _compact: true
           }
         }
       );
@@ -345,13 +348,23 @@ export const useClipEditorSession = (
   }
 
   function undo() {
-    timeline.undo();
-    saveTranscript(true);
+    const res = timeline.undo() as
+      | { transcriptChanged?: boolean; tracksChanged?: boolean }
+      | undefined
+      | null;
+    if (!res || res.transcriptChanged !== false) {
+      saveTranscript(true);
+    }
   }
 
   function redo() {
-    timeline.redo();
-    saveTranscript(true);
+    const res = timeline.redo() as
+      | { transcriptChanged?: boolean; tracksChanged?: boolean }
+      | undefined
+      | null;
+    if (!res || res.transcriptChanged !== false) {
+      saveTranscript(true);
+    }
   }
 
   function resetSession() {

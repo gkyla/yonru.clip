@@ -7,7 +7,10 @@ import {
   isAudioTrack,
   resolveCoverOffsetSec
 } from '../utils/timelineHelpers';
-import { TimelineTransactionEngine } from '../utils/timelineHistory';
+import {
+  TimelineTransactionEngine,
+  areTranscriptsEqual
+} from '../utils/timelineHistory';
 import type {
   TimelineTrack,
   TimelineTrackItem,
@@ -177,7 +180,10 @@ export const useTimelineState = () => {
     );
   }
 
-  function undo() {
+  function undo(): {
+    transcriptChanged: boolean;
+    tracksChanged: boolean;
+  } | null {
     const previousState = historyManager.undo(
       timelineUndoStack.value,
       timelineRedoStack.value,
@@ -186,8 +192,14 @@ export const useTimelineState = () => {
       selectedTimelineItem.value?.id || null
     );
     if (previousState) {
+      const transcriptChanged = !areTranscriptsEqual(
+        fullTranscript.value,
+        previousState.transcript
+      );
       timelineTracks.value = previousState.tracks;
-      fullTranscript.value = previousState.transcript;
+      if (transcriptChanged) {
+        fullTranscript.value = previousState.transcript;
+      }
       if (previousState.selectedId) {
         const item = previousState.tracks
           .flatMap((t: TimelineTrack) => t.items)
@@ -196,10 +208,15 @@ export const useTimelineState = () => {
       } else {
         selectedTimelineItem.value = null;
       }
+      return { transcriptChanged, tracksChanged: true };
     }
+    return null;
   }
 
-  function redo() {
+  function redo(): {
+    transcriptChanged: boolean;
+    tracksChanged: boolean;
+  } | null {
     const nextState = historyManager.redo(
       timelineUndoStack.value,
       timelineRedoStack.value,
@@ -208,8 +225,14 @@ export const useTimelineState = () => {
       selectedTimelineItem.value?.id || null
     );
     if (nextState) {
+      const transcriptChanged = !areTranscriptsEqual(
+        fullTranscript.value,
+        nextState.transcript
+      );
       timelineTracks.value = nextState.tracks;
-      fullTranscript.value = nextState.transcript;
+      if (transcriptChanged) {
+        fullTranscript.value = nextState.transcript;
+      }
       if (nextState.selectedId) {
         const item = nextState.tracks
           .flatMap((t: TimelineTrack) => t.items)
@@ -218,7 +241,9 @@ export const useTimelineState = () => {
       } else {
         selectedTimelineItem.value = null;
       }
+      return { transcriptChanged, tracksChanged: true };
     }
+    return null;
   }
 
   async function saveHistoryToBackend() {

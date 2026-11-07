@@ -335,7 +335,8 @@ export const useSubtitleStyle = () => {
         {
           method: 'PUT',
           body: {
-            style_settings: getStyleSnapshot()
+            style_settings: getStyleSnapshot(),
+            _compact: true
           }
         }
       );
