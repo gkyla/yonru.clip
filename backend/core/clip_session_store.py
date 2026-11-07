@@ -334,10 +334,43 @@ class ClipSessionStore:
         elif "settings" in payload:
             updates["style_settings.json"] = payload["settings"]
 
-        if "timeline" in payload:
-            updates["timeline.json"] = payload["timeline"]
-        elif "timeline_tracks" in payload:
-            updates["timeline.json"] = payload["timeline_tracks"]
+        if "timeline" in payload or "timeline_tracks" in payload:
+            incoming_tracks = payload.get("timeline") if "timeline" in payload else payload.get("timeline_tracks")
+            if isinstance(incoming_tracks, list):
+                has_cached_ref = any(
+                    isinstance(tr, dict) and any(
+                        isinstance(it, dict) and it.get("src") == "__cached_src__"
+                        for it in (tr.get("items") or [])
+                    )
+                    for tr in incoming_tracks
+                )
+                if has_cached_ref:
+                    existing_timeline_path = os.path.join(clip_dir, "timeline.json")
+                    src_by_id: Dict[str, Any] = {}
+                    src_by_name: Dict[str, Any] = {}
+                    if os.path.exists(existing_timeline_path):
+                        try:
+                            with open(existing_timeline_path, "r", encoding="utf-8") as f:
+                                existing_tracks = json.load(f)
+                                if isinstance(existing_tracks, list):
+                                    for etr in existing_tracks:
+                                        if isinstance(etr, dict):
+                                            for eit in (etr.get("items") or []):
+                                                if isinstance(eit, dict) and eit.get("src") and eit.get("src") != "__cached_src__":
+                                                    if eit.get("id"):
+                                                        src_by_id[str(eit["id"])] = eit["src"]
+                                                    if eit.get("name"):
+                                                        src_by_name[str(eit["name"])] = eit["src"]
+                        except Exception:
+                            pass
+                    for tr in incoming_tracks:
+                        if isinstance(tr, dict):
+                            for it in (tr.get("items") or []):
+                                if isinstance(it, dict) and it.get("src") == "__cached_src__":
+                                    restored = src_by_id.get(str(it.get("id") or "")) or src_by_name.get(str(it.get("name") or ""))
+                                    if restored:
+                                        it["src"] = restored
+            updates["timeline.json"] = incoming_tracks
 
         if "history" in payload:
             updates["history.json"] = payload["history"]
@@ -389,6 +422,9 @@ class ClipSessionStore:
                     except OSError:
                         pass
             raise
+
+        if payload.get("_compact"):
+            return {"folder_name": folder_name, "clip_id": clip_id}
 
         return self.get_clip_session(folder_name, clip_id)
 

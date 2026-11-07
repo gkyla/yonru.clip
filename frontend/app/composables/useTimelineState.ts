@@ -4,6 +4,7 @@ import {
   calculateTimelineDuration,
   calculateVideoTime,
   fromGlobalTimelineStart,
+  isAudioTrack,
   resolveCoverOffsetSec
 } from '../utils/timelineHelpers';
 import { TimelineTransactionEngine } from '../utils/timelineHistory';
@@ -37,6 +38,10 @@ export const useTimelineState = () => {
     'isTimelineShifting',
     () => false
   );
+  const isDraggingTimelineItem = useState<boolean>(
+    'isDraggingTimelineItem',
+    () => false
+  );
 
   // External states synced globally via useState
   const coverEnabled = useState<boolean>('coverEnabled', () => false);
@@ -65,6 +70,62 @@ export const useTimelineState = () => {
     'isHydratingHistory',
     () => false
   );
+  const syncedAudioPayloads = useState<Record<string, boolean>>(
+    'syncedAudioPayloads',
+    () => ({})
+  );
+
+  function stripHeavyMediaFromSnapshots(
+    snapshots: HistorySnapshot[]
+  ): HistorySnapshot[] {
+    return (snapshots || []).map(snap => ({
+      ...snap,
+      tracks: (snap.tracks || []).map(track => ({
+        ...track,
+        items: (track.items || []).map(item => {
+          if (typeof item.src === 'string' && item.src.startsWith('data:')) {
+            const { src: _omitted, ...rest } = item;
+            return rest as TimelineTrackItem;
+          }
+          return item;
+        })
+      }))
+    }));
+  }
+
+  function rehydrateMediaInSnapshots(
+    snapshots: HistorySnapshot[],
+    currentTracks: TimelineTrack[]
+  ): HistorySnapshot[] {
+    const srcById = new Map<string, string | ArrayBuffer>();
+    const srcByName = new Map<string, string | ArrayBuffer>();
+    for (const track of currentTracks || []) {
+      for (const item of track.items || []) {
+        if (item.src) {
+          srcById.set(item.id, item.src);
+          if (item.name) srcByName.set(item.name, item.src);
+        }
+      }
+    }
+    if (srcById.size === 0) return snapshots;
+    return (snapshots || []).map(snap => ({
+      ...snap,
+      tracks: (snap.tracks || []).map(track => ({
+        ...track,
+        items: (track.items || []).map(item => {
+          if (!item.src && (track.id === 'audio' || item.type === 'audio')) {
+            const matchedSrc =
+              srcById.get(item.id) ||
+              (item.name ? srcByName.get(item.name) : undefined);
+            if (matchedSrc) {
+              return { ...item, src: matchedSrc };
+            }
+          }
+          return item;
+        })
+      }))
+    }));
+  }
 
   // Isolate history to specific hook/clip — save before clearing (option A)
   watch([folderName, clipId], async (_newVal, oldVal) => {
@@ -81,8 +142,9 @@ export const useTimelineState = () => {
           {
             method: 'PUT',
             body: {
-              undo_stack: timelineUndoStack.value,
-              redo_stack: timelineRedoStack.value
+              undo_stack: stripHeavyMediaFromSnapshots(timelineUndoStack.value),
+              redo_stack: stripHeavyMediaFromSnapshots(timelineRedoStack.value),
+              _compact: true
             }
           }
         );
@@ -168,8 +230,9 @@ export const useTimelineState = () => {
         {
           method: 'PUT',
           body: {
-            undo_stack: timelineUndoStack.value,
-            redo_stack: timelineRedoStack.value
+            undo_stack: stripHeavyMediaFromSnapshots(timelineUndoStack.value),
+            redo_stack: stripHeavyMediaFromSnapshots(timelineRedoStack.value),
+            _compact: true
           }
         }
       );
@@ -190,8 +253,14 @@ export const useTimelineState = () => {
   ) {
     if (historyData && typeof historyData === 'object') {
       isHydratingHistory.value = true;
-      timelineUndoStack.value = historyData.undo_stack || [];
-      timelineRedoStack.value = historyData.redo_stack || [];
+      timelineUndoStack.value = rehydrateMediaInSnapshots(
+        historyData.undo_stack || [],
+        timelineTracks.value
+      );
+      timelineRedoStack.value = rehydrateMediaInSnapshots(
+        historyData.redo_stack || [],
+        timelineTracks.value
+      );
       hasUnsavedHistory.value = false;
       nextTick(() => {
         isHydratingHistory.value = false;
@@ -227,26 +296,44 @@ export const useTimelineState = () => {
     }
     if (!folderName.value || !clipId.value) return;
 
+    const currentFolder = folderName.value;
+    const currentClip = clipId.value;
+    const newlySyncedKeys: string[] = [];
+
+    const payloadTracks = (timelineTracks.value || []).map(track => ({
+      ...track,
+      items: (track.items || []).map(item => {
+        if (typeof item.src === 'string' && item.src.startsWith('data:')) {
+          const cacheKey = `${currentFolder}/${currentClip}/${item.id}:${item.src.length}`;
+          if (syncedAudioPayloads.value[cacheKey]) {
+            return { ...item, src: '__cached_src__' };
+          }
+          newlySyncedKeys.push(cacheKey);
+        }
+        return item;
+      })
+    }));
+
     console.log(
       '[clipper] saveTimelineTracks triggered for:',
-      folderName.value,
-      clipId.value
-    );
-    console.log(
-      '[clipper] Tracks state:',
-      JSON.stringify(timelineTracks.value).substring(0, 200) + '...'
+      currentFolder,
+      currentClip
     );
 
     try {
       await $fetch(
-        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`,
+        `${API_BASE}/api/clip-session/${encodeURIComponent(currentFolder)}/${encodeURIComponent(currentClip)}`,
         {
           method: 'PUT',
           body: {
-            timeline_tracks: timelineTracks.value
+            timeline_tracks: payloadTracks,
+            _compact: true
           }
         }
       );
+      for (const k of newlySyncedKeys) {
+        syncedAudioPayloads.value[k] = true;
+      }
       console.log('[clipper] Saved timeline tracks successfully');
     } catch (e) {
       console.error('[clipper] Failed to save timeline tracks:', e);
@@ -300,19 +387,26 @@ export const useTimelineState = () => {
         coverEnabled.value,
         coverDuration.value
       );
-      const startSec =
-        item.start !== undefined
-          ? item.start
-          : fromGlobalTimelineStart(
-              currentTime.value ?? 0,
-              coverEnabled.value,
-              coverDuration.value
-            );
-      const maxClipDuration = Math.max(
-        0.5,
-        timelineDuration.value - coverOffset
-      );
-      const maxRemaining = Math.max(0.5, maxClipDuration - startSec);
+      const isAudio = isAudioTrack(track);
+      let startSec: number;
+      if (item.start !== undefined) {
+        startSec = item.start;
+      } else if (isAudio) {
+        const cur = currentTime.value ?? 0;
+        startSec = coverOffset > 0 && cur < coverOffset ? 0.0 : cur;
+      } else {
+        startSec = fromGlobalTimelineStart(
+          currentTime.value ?? 0,
+          coverEnabled.value,
+          coverDuration.value
+        );
+      }
+      const maxRemaining = isAudio
+        ? Math.max(0.5, (timelineDuration.value || 60) - startSec)
+        : Math.max(
+            0.5,
+            Math.max(0.5, timelineDuration.value - coverOffset) - startSec
+          );
       const defaultDuration = item.duration ?? 5;
       const durationSec = Math.min(defaultDuration, maxRemaining);
 
@@ -329,13 +423,16 @@ export const useTimelineState = () => {
         }
       }
 
+      const baseContent =
+        trackId === 'text' || trackId === 'subtitles' ? { content: '' } : {};
+
       const newItem = {
         id: Math.random().toString(36).substr(2, 9),
         type: trackId as any,
         start: startSec,
         mediaStart: item.mediaStart ?? 0,
         duration: durationSec,
-        content: '',
+        ...baseContent,
         ...styleOverrides,
         ...item
       };
@@ -422,6 +519,7 @@ export const useTimelineState = () => {
     selectedTimelineItem,
     isSavingLocked,
     isTimelineShifting,
+    isDraggingTimelineItem,
     timelineDuration,
     videoTime,
     saveTimelineTracks,

@@ -53,7 +53,8 @@ const mockState = {
   saveTimelineTracks: vi.fn(),
   undo: vi.fn(),
   redo: vi.fn(),
-  commitToHistory: vi.fn()
+  commitToHistory: vi.fn(),
+  showToast: vi.fn()
 };
 
 vi.mock('../../app/composables/useClipperState', () => ({
@@ -410,6 +411,207 @@ describe('TimelineEditor Component', () => {
 
     mockState.thumbnailEnabled.value = false;
     mockState.thumbnailDuration.value = 3;
+    mockState.timelineTracks.value = prevTracks;
+  });
+
+  it('excludes audio track from hatched intro zone and positions audio item at 0px without cover offset', async () => {
+    mockState.thumbnailEnabled.value = true;
+    mockState.thumbnailDuration.value = 1.5;
+    const prevTracks = mockState.timelineTracks.value;
+    mockState.timelineTracks.value = [
+      {
+        id: 'video',
+        name: 'Main Video',
+        type: 'video',
+        items: [{ id: 'v1', name: 'Clip 1', start: 0, duration: 12 }]
+      },
+      {
+        id: 'audio',
+        name: 'Audio layers',
+        type: 'audio',
+        items: [{ id: 'a1', name: 'Intro SFX', start: 0, duration: 4 }]
+      },
+      {
+        id: 'text',
+        name: 'Text layers',
+        type: 'text',
+        items: [{ id: 't1', content: 'Layer 1', start: 0, duration: 5 }]
+      }
+    ];
+
+    const wrapper = mount(TimelineEditor, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          Teleport: true,
+          Transition: true,
+          TimelinePropertiesInspector: true
+        }
+      }
+    });
+
+    // Hatched zone should render ONLY on Text track (1 zone), NOT on Audio track
+    const coverZones = wrapper.findAll('[data-testid="cover-slide-zone"]');
+    expect(coverZones.length).toBe(1);
+
+    // Audio item starting at 0.0s should start at left: 0px (not shifted by 150px!)
+    const audioBlock = wrapper
+      .findAll('.tl-scroll .cursor-move')
+      .find(el => el.text().includes('Intro SFX'));
+    expect(audioBlock).toBeDefined();
+    expect(audioBlock!.attributes('style')).toContain('left: 0px');
+    expect(audioBlock!.attributes('style')).toContain('width: 400px');
+
+    // Text item starting at 0.0s relative should be shifted by 150px
+    const textBlock = wrapper
+      .findAll('.tl-scroll .cursor-move')
+      .find(el => el.text().includes('Layer 1'));
+    expect(textBlock).toBeDefined();
+    expect(textBlock!.attributes('style')).toContain('left: 150px');
+
+    mockState.thumbnailEnabled.value = false;
+    mockState.thumbnailDuration.value = 3;
+    mockState.timelineTracks.value = prevTracks;
+  });
+
+  it('restricts audio input accept attribute to pure audio formats excluding mp4 and rejects mp4 upload with toast', async () => {
+    const wrapper = mount(TimelineEditor, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          Teleport: true,
+          Transition: true,
+          TimelinePropertiesInspector: true
+        }
+      }
+    });
+
+    const audioInput = wrapper.find<HTMLInputElement>('input[type="file"]');
+    expect(audioInput.exists()).toBe(true);
+
+    // 1. Accept attribute check: must not be wildcard audio/* and must exclude .mp4
+    const accept = audioInput.attributes('accept') || '';
+    expect(accept).not.toBe('audio/*');
+    expect(accept).toContain('.mp3');
+    expect(accept).toContain('.wav');
+    expect(accept).not.toContain('.mp4');
+
+    // 2. Reject .mp4 file selection with error toast and do not add item
+    mockState.showToast.mockClear();
+    mockState.addTimelineItem.mockClear();
+
+    const mp4File = new File(['dummy'], 'video.mp4', { type: 'video/mp4' });
+    Object.defineProperty(audioInput.element, 'files', {
+      value: [mp4File],
+      writable: true
+    });
+
+    await audioInput.trigger('change');
+
+    expect(mockState.showToast).toHaveBeenCalledWith(
+      expect.stringContaining('Hanya file audio'),
+      'error'
+    );
+    expect(mockState.addTimelineItem).not.toHaveBeenCalled();
+    expect(mockState.commitToHistory).not.toHaveBeenCalled();
+
+    // 3. Valid .mp3 file upload proceeds and adds timeline item
+    mockState.showToast.mockClear();
+    mockState.addTimelineItem.mockClear();
+    mockState.commitToHistory.mockClear();
+
+    const mp3File = new File(['dummy-audio'], 'intro-whoosh.mp3', {
+      type: 'audio/mpeg'
+    });
+    Object.defineProperty(audioInput.element, 'files', {
+      value: [mp3File],
+      writable: true
+    });
+
+    await audioInput.trigger('change');
+    // Allow async duration detection & FileReader onload to fire
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    expect(mockState.showToast).not.toHaveBeenCalled();
+    expect(mockState.commitToHistory).toHaveBeenCalled();
+    expect(mockState.addTimelineItem).toHaveBeenCalledWith(
+      'audio',
+      expect.objectContaining({
+        name: 'intro-whoosh.mp3',
+        duration: expect.any(Number)
+      })
+    );
+  });
+
+  it('selects the newly created split piece and clears selection on delete', async () => {
+    const prevTracks = mockState.timelineTracks.value;
+    const audioItem = {
+      id: 'audio-item-1',
+      name: 'Song.mp3',
+      start: 0,
+      duration: 30,
+      type: 'audio'
+    };
+    mockState.timelineTracks.value = [
+      {
+        id: 'video',
+        name: 'Video',
+        type: 'video',
+        items: [{ id: 'v1', name: 'Clip 1', start: 0, duration: 15 }]
+      },
+      {
+        id: 'audio',
+        name: 'Audio layers',
+        type: 'audio',
+        items: [audioItem]
+      }
+    ];
+    mockState.selectedTimelineItem.value = audioItem;
+    mockState.currentTime.value = 15;
+
+    const wrapper = mount(TimelineEditor, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          Teleport: true,
+          Transition: true,
+          TimelinePropertiesInspector: true
+        }
+      }
+    });
+
+    // 1. Trigger split via split button
+    const splitBtn = wrapper.find('button[title*="Split"]');
+    expect(splitBtn.exists()).toBe(true);
+    await splitBtn.trigger('click');
+
+    expect(mockState.commitToHistory).toHaveBeenCalled();
+    expect(mockState.addTimelineItem).toHaveBeenCalledWith(
+      'audio',
+      expect.objectContaining({
+        start: 15,
+        duration: 15
+      })
+    );
+    // Selected item must be updated to the second piece (the split tail)
+    expect(mockState.selectedTimelineItem.value).toEqual(
+      expect.objectContaining({
+        start: 15,
+        duration: 15
+      })
+    );
+
+    // 2. Trigger delete
+    const deleteBtn = wrapper.find('button[title*="Delete"]');
+    expect(deleteBtn.exists()).toBe(true);
+    await deleteBtn.trigger('click');
+
+    // Selected item must be cleared to null
+    expect(mockState.selectedTimelineItem.value).toBeNull();
+
     mockState.timelineTracks.value = prevTracks;
   });
 });

@@ -10,7 +10,13 @@ import {
   resolveCoverOffsetSec,
   toGlobalTimelineStart,
   fromGlobalTimelineStart,
-  isTimelineItemActiveAtTime
+  isTimelineItemActiveAtTime,
+  isAudioTrack,
+  getItemLeftPx,
+  SUPPORTED_AUDIO_EXTENSIONS,
+  AUDIO_INPUT_ACCEPT,
+  isValidAudioFile,
+  resolveAudioFileDuration
 } from '../../app/utils/timelineHelpers';
 
 describe('Timeline Helpers TDD', () => {
@@ -41,6 +47,57 @@ describe('Timeline Helpers TDD', () => {
       ];
       expect(calculateTimelineDuration(tracks, false, 5.0, 120)).toBe(45);
       expect(calculateTimelineDuration(tracks, true, 5.0, 120)).toBe(50);
+    });
+
+    it('calculates duration correctly with global span audio items (audio never inflates clip duration)', () => {
+      const tracks = [
+        {
+          id: 'video' as const,
+          name: 'Video Track',
+          type: 'video' as const,
+          items: [{ id: 'v1', start: 0, duration: 20 }]
+        },
+        {
+          id: 'audio' as const,
+          name: 'Audio Track',
+          type: 'audio' as const,
+          items: [{ id: 'a1', start: 0, duration: 30 }]
+        }
+      ];
+      // Video is 20s + 3s cover = 23s. Audio is 30s global. Total timeline duration MUST remain 23s.
+      expect(calculateTimelineDuration(tracks, true, 3.0, 20)).toBe(23);
+      // Audio is 15s global, Video is 20s + 3s = 23s. Total should still be 23s.
+      tracks[1]!.items[0]!.duration = 15;
+      expect(calculateTimelineDuration(tracks, true, 3.0, 20)).toBe(23);
+    });
+
+    it('maintains video duration when audio track item is split / cut', () => {
+      const tracks = [
+        {
+          id: 'video' as const,
+          name: 'Video Track',
+          type: 'video' as const,
+          items: [{ id: 'v1', start: 0, duration: 20 }]
+        },
+        {
+          id: 'audio' as const,
+          name: 'Audio Track',
+          type: 'audio' as const,
+          items: [{ id: 'a1', start: 0, duration: 60 }]
+        }
+      ];
+
+      // Before cut: timeline duration is bounded by video (20s)
+      expect(calculateTimelineDuration(tracks, false, 0, 20)).toBe(20);
+
+      // User cuts audio at 20s
+      const split = splitTimelineItem(tracks[1]!.items[0]!, 20);
+      expect(split).not.toBeNull();
+      tracks[1]!.items[0]!.duration = split!.firstItem.duration; // 20s
+      tracks[1]!.items.push(split!.secondItem); // 20s..60s
+
+      // After cut: timeline duration must still be 20s, NOT inflated to 60s
+      expect(calculateTimelineDuration(tracks, false, 0, 20)).toBe(20);
     });
 
     it('calculates videoTime correctly inside active segment and across boundaries', () => {
@@ -193,6 +250,77 @@ describe('Timeline Helpers TDD', () => {
         10.0
       );
     });
+
+    it('snaps audio items to 0.0s, coverDuration, and currentTime within tolerance', () => {
+      const tracks = [
+        {
+          id: 'audio' as const,
+          name: 'Audio Track',
+          type: 'audio' as const,
+          items: [{ id: 'a1', start: 0, duration: 5 }]
+        }
+      ];
+      // Tolerance at 100px/s is 5px / 100 = 0.05s
+      // 1. Magnetic snap to 0.0s
+      expect(
+        calculateSnapTime(
+          0.03,
+          true,
+          100,
+          10.0,
+          tracks,
+          true,
+          3.0,
+          undefined,
+          true
+        )
+      ).toBe(0.0);
+
+      // 2. Magnetic snap to coverDuration (2.3s)
+      expect(
+        calculateSnapTime(
+          2.31,
+          true,
+          100,
+          6.7,
+          tracks,
+          true,
+          2.3,
+          undefined,
+          true
+        )
+      ).toBe(2.3);
+
+      // 3. Magnetic snap to currentTime (6.7s)
+      expect(
+        calculateSnapTime(
+          6.69,
+          true,
+          100,
+          6.7,
+          tracks,
+          true,
+          2.3,
+          undefined,
+          true
+        )
+      ).toBe(6.7);
+
+      // 4. Fluid unconstrained movement outside tolerance
+      expect(
+        calculateSnapTime(
+          1.57,
+          true,
+          100,
+          6.7,
+          tracks,
+          true,
+          2.3,
+          undefined,
+          true
+        )
+      ).toBe(1.57);
+    });
   });
 
   describe('Drag Bounds', () => {
@@ -248,6 +376,108 @@ describe('Timeline Helpers TDD', () => {
       expect(isTimelineItemActiveAtTime(layer2, 6.5, true, 1.5)).toBe(true);
       expect(isTimelineItemActiveAtTime(layer2, 11.4, true, 1.5)).toBe(true);
       expect(isTimelineItemActiveAtTime(layer2, 11.5, true, 1.5)).toBe(false);
+    });
+
+    it('calculates item left px honoring global span audio track semantics', () => {
+      expect(isAudioTrack('audio')).toBe(true);
+      expect(isAudioTrack({ id: 'audio', type: 'audio' })).toBe(true);
+      expect(isAudioTrack({ id: 'custom-audio', type: 'audio' })).toBe(true);
+      expect(isAudioTrack('text')).toBe(false);
+      expect(isAudioTrack({ id: 'text', type: 'text' })).toBe(false);
+
+      // Non-audio items get shifted by thumbOffsetPx when cover is active
+      expect(getItemLeftPx('text', 0, 100, true, 150)).toBe(150);
+      expect(
+        getItemLeftPx({ id: 'text', type: 'text' }, 2.5, 100, true, 150)
+      ).toBe(400);
+      // Non-audio items not shifted when cover is inactive
+      expect(getItemLeftPx('text', 0, 100, false, 150)).toBe(0);
+
+      // Audio items ALWAYS start at startSec * pxPerSec without thumbOffsetPx
+      expect(getItemLeftPx('audio', 0, 100, true, 150)).toBe(0);
+      expect(
+        getItemLeftPx({ id: 'audio', type: 'audio' }, 0, 100, true, 150)
+      ).toBe(0);
+      expect(
+        getItemLeftPx({ id: 'audio', type: 'audio' }, 2.5, 100, true, 150)
+      ).toBe(250);
+      expect(getItemLeftPx('audio', 1.0, 100, false, 150)).toBe(100);
+    });
+  });
+
+  describe('Audio File Whitelist and Validation', () => {
+    it('defines supported audio extensions and file input accept attribute excluding mp4', () => {
+      expect(SUPPORTED_AUDIO_EXTENSIONS).toEqual([
+        '.mp3',
+        '.wav',
+        '.ogg',
+        '.aac',
+        '.m4a',
+        '.flac'
+      ]);
+      expect(AUDIO_INPUT_ACCEPT).toContain('.mp3');
+      expect(AUDIO_INPUT_ACCEPT).toContain('.wav');
+      expect(AUDIO_INPUT_ACCEPT).toContain('.ogg');
+      expect(AUDIO_INPUT_ACCEPT).toContain('.aac');
+      expect(AUDIO_INPUT_ACCEPT).toContain('.m4a');
+      expect(AUDIO_INPUT_ACCEPT).toContain('.flac');
+      // Strictly must NOT accept mp4 or video MIME types
+      expect(AUDIO_INPUT_ACCEPT).not.toContain('.mp4');
+      expect(AUDIO_INPUT_ACCEPT).not.toContain('video/');
+    });
+
+    it('validates audio files correctly and rejects mp4/video formats', () => {
+      // Valid audio files
+      expect(isValidAudioFile({ name: 'intro.mp3', type: 'audio/mpeg' })).toBe(
+        true
+      );
+      expect(isValidAudioFile({ name: 'sfx.wav', type: 'audio/wav' })).toBe(
+        true
+      );
+      expect(isValidAudioFile({ name: 'song.m4a', type: 'audio/x-m4a' })).toBe(
+        true
+      );
+      expect(isValidAudioFile({ name: 'music.ogg', type: 'audio/ogg' })).toBe(
+        true
+      );
+      expect(isValidAudioFile({ name: 'track.flac', type: 'audio/flac' })).toBe(
+        true
+      );
+      expect(isValidAudioFile({ name: 'whoosh.aac', type: 'audio/aac' })).toBe(
+        true
+      );
+      expect(isValidAudioFile({ name: 'UPPERCASE.MP3' })).toBe(true);
+      expect(isValidAudioFile({ name: 'custom.wav', type: '' })).toBe(true);
+
+      // Strictly rejected files (MP4, video, other non-audio files)
+      expect(isValidAudioFile({ name: 'video.mp4', type: 'video/mp4' })).toBe(
+        false
+      );
+      expect(isValidAudioFile({ name: 'audio.mp4', type: 'audio/mp4' })).toBe(
+        false
+      );
+      expect(isValidAudioFile({ name: 'recording.mp4' })).toBe(false);
+      expect(
+        isValidAudioFile({ name: 'movie.mov', type: 'video/quicktime' })
+      ).toBe(false);
+      expect(isValidAudioFile({ name: 'clip.webm', type: 'video/webm' })).toBe(
+        false
+      );
+      expect(isValidAudioFile({ name: 'image.png', type: 'image/png' })).toBe(
+        false
+      );
+      expect(
+        isValidAudioFile({ name: 'doc.pdf', type: 'application/pdf' })
+      ).toBe(false);
+      expect(isValidAudioFile(null as any)).toBe(false);
+      expect(isValidAudioFile(undefined as any)).toBe(false);
+      expect(isValidAudioFile({ name: '' })).toBe(false);
+    });
+
+    it('resolves audio duration safely with fallback', async () => {
+      // When audio metadata is not available / mock environment, falls back to 5.0s
+      const fallbackDur = await resolveAudioFileDuration('invalid-data-uri');
+      expect(fallbackDur).toBe(5.0);
     });
   });
 });

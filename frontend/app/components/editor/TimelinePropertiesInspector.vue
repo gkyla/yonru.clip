@@ -37,6 +37,25 @@
             <span v-else class="text-[10px] text-slate-600 italic">Empty</span>
           </div>
 
+          <!-- Modern Header for Audio Track Item -->
+          <div
+            v-else-if="isAudioItem"
+            class="flex items-center gap-2 min-w-0 pr-2"
+          >
+            <div
+              class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"
+            ></div>
+            <span class="text-xs font-extrabold text-white tracking-wide"
+              >Audio</span
+            >
+            <span
+              v-if="activeItem.name"
+              class="text-[10px] text-slate-400 truncate italic max-w-[140px]"
+            >
+              "{{ activeItem.name }}"
+            </span>
+          </div>
+
           <!-- Default Header for Subtitles and Media Items -->
           <div v-else class="flex items-center gap-2">
             <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
@@ -48,7 +67,7 @@
           <div class="flex items-center gap-2">
             <!-- Link with Global Style toggle (inline in header) -->
             <div
-              v-if="activeItem?.content !== undefined"
+              v-if="!isAudioItem && activeItem?.content !== undefined"
               class="relative group"
             >
               <button
@@ -213,7 +232,7 @@
                     <input
                       v-model.number="displayStart"
                       type="number"
-                      :min="coverOffsetSec"
+                      :min="isAudioItem ? 0 : coverOffsetSec"
                       step="0.1"
                       class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white mono focus:outline-none focus:border-emerald-500/50"
                       @mousedown="commitHistory"
@@ -900,7 +919,9 @@
                 <div class="overflow-hidden">
                   <div class="p-3 space-y-2.5 border-t border-white/5">
                     <!-- Text Content & Casing -->
-                    <div v-if="activeItem.content !== undefined">
+                    <div
+                      v-if="!isAudioItem && activeItem.content !== undefined"
+                    >
                       <div class="flex justify-between items-center mb-1.5">
                         <label
                           class="block text-[8px] font-bold uppercase tracking-widest text-slate-500"
@@ -947,7 +968,7 @@
                         <input
                           v-model.number="displayStart"
                           type="number"
-                          :min="coverOffsetSec"
+                          :min="isAudioItem ? 0 : coverOffsetSec"
                           step="0.1"
                           class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white mono"
                         />
@@ -967,7 +988,7 @@
                     </div>
 
                     <!-- Alignment Buttons -->
-                    <div v-if="activeItem.align !== undefined">
+                    <div v-if="!isAudioItem && activeItem.align !== undefined">
                       <label
                         class="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1"
                         >Alignment</label
@@ -993,7 +1014,11 @@
 
                     <!-- Blank Zone Alignment Snap for Landscape Mode -->
                     <div
-                      v-if="currentVideoLayout === 'landscape'"
+                      v-if="
+                        !isAudioItem &&
+                        !isVideoItem &&
+                        currentVideoLayout === 'landscape'
+                      "
                       class="pt-2 border-t border-white/5 space-y-1"
                     >
                       <label
@@ -1031,7 +1056,7 @@
 
             <!-- STYLE SECTIONS WRAPPER (dimmed when linked) -->
             <div
-              v-if="activeItem?.content !== undefined"
+              v-if="!isAudioItem && activeItem?.content !== undefined"
               class="space-y-3 transition-all duration-300 relative"
               :class="isLinkedToGlobal ? 'opacity-50' : 'opacity-100'"
               @mousedown="handleStyleInteraction"
@@ -1548,7 +1573,10 @@
 
         <!-- Panel Footer -->
         <div class="p-4 border-t border-white/5 space-y-2 bg-white/[0.01]">
-          <div v-if="activeItem?.content !== undefined" class="flex gap-2">
+          <div
+            v-if="!isAudioItem && activeItem?.content !== undefined"
+            class="flex gap-2"
+          >
             <button
               v-if="!isLinkedToGlobal"
               class="flex-1 py-2 rounded-lg bg-violet-600/15 border border-violet-500/25 text-violet-400 text-[9px] font-bold uppercase tracking-wider hover:bg-violet-500/25 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
@@ -1568,7 +1596,11 @@
             @click="deleteItem"
           >
             {{
-              activeItem?.content !== undefined ? 'Delete Text' : 'Delete Item'
+              isAudioItem
+                ? 'Delete Audio'
+                : activeItem?.content !== undefined
+                  ? 'Delete Text'
+                  : 'Delete Item'
             }}
           </button>
         </div>
@@ -1582,9 +1614,11 @@ import { computed, ref } from 'vue';
 import * as clipperStateModule from '../../composables/useClipperState';
 import {
   fromGlobalTimelineStart,
+  isAudioTrack,
   resolveCoverOffsetSec,
   toGlobalTimelineStart
 } from '../../utils/timelineHelpers';
+import type { TimelineTrack, TimelineTrackItem } from '../../types/clipper';
 
 interface Props {
   modelValue?: any | null;
@@ -1652,9 +1686,43 @@ const coverOffsetSec = computed(() => {
   return resolveCoverOffsetSec(enabled, duration);
 });
 
+const isAudioItem = computed(() => {
+  if (isAudioTrack(props.trackId)) return true;
+  if (props.trackId && !isAudioTrack(props.trackId)) return false;
+  if (
+    isAudioTrack(activeItem.value?.type) ||
+    isAudioTrack(activeItem.value?.trackId)
+  )
+    return true;
+  const itemId = activeItem.value?.id;
+  if (!itemId || !state?.timelineTracks?.value) return false;
+  const track = state.timelineTracks.value.find((t: TimelineTrack) =>
+    t.items?.some((i: TimelineTrackItem) => i.id === itemId)
+  );
+  return isAudioTrack(track);
+});
+
+const isVideoItem = computed(() => {
+  if (props.trackId === 'video') return true;
+  if (
+    activeItem.value?.type === 'video' ||
+    activeItem.value?.id === 'main-video'
+  )
+    return true;
+  const itemId = activeItem.value?.id;
+  if (!itemId || !state?.timelineTracks?.value) return false;
+  const track = state.timelineTracks.value.find((t: TimelineTrack) =>
+    t.items?.some((i: TimelineTrackItem) => i.id === itemId)
+  );
+  return track?.id === 'video' || track?.type === 'video';
+});
+
 const displayStart = computed({
   get() {
     if (!activeItem.value) return 0;
+    if (isAudioItem.value) {
+      return activeItem.value.start ?? 0;
+    }
     return toGlobalTimelineStart(
       activeItem.value.start ?? 0,
       coverOffsetSec.value > 0,
@@ -1665,6 +1733,13 @@ const displayStart = computed({
     if (!activeItem.value) return;
     const numericVal = Number(val);
     if (Number.isNaN(numericVal)) return;
+    if (isAudioItem.value) {
+      activeItem.value.start = Math.max(
+        0,
+        Math.round(numericVal * 1000) / 1000
+      );
+      return;
+    }
     activeItem.value.start = fromGlobalTimelineStart(
       numericVal,
       coverOffsetSec.value > 0,

@@ -250,6 +250,8 @@ class StagedRenderContext:
         if self.comp.timeline_tracks:
             max_timeline_end = 0.0
             for track in self.comp.timeline_tracks:
+                if track.get("id") == "audio" or track.get("type") == "audio":
+                    continue
                 for item in track.get("items", []):
                     end = float(item.get("start") or 0.0) + float(item.get("duration") or 0.0)
                     if end > max_timeline_end:
@@ -491,6 +493,7 @@ class RenderEngine(ABC):
         if req.timeline_tracks:
             for track in req.timeline_tracks:
                 track_id = track.get('id')
+                track_type = track.get('type')
                 items = track.get("items", [])
                 if track_id == 'text':
                     timeline_text = items
@@ -498,6 +501,10 @@ class RenderEngine(ABC):
                     timeline_audio = items
                 elif track_id == 'video':
                     timeline_video = items
+
+                # Audio layers must NEVER extend the clip duration past the video footage!
+                if track_id == 'audio' or track_type == 'audio':
+                    continue
 
                 if items:
                     has_timeline_items = True

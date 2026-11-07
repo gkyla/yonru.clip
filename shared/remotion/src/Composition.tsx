@@ -818,18 +818,6 @@ export const YonruClip: React.FC<YonruClipProps> = ({
           );
         })}
 
-        {/* Timeline Audio layers */}
-        {timelineAudioItems.map(item => (
-          <Sequence
-            key={item.id}
-            from={Math.round(item.start * fps)}
-            durationInFrames={Math.round(item.duration * fps)}
-            name={`Audio-${item.name}`}
-          >
-            <Audio src={item.src} volume={item.volume ?? 1} />
-          </Sequence>
-        ))}
-
         {/* Frame-Locked Censorship Bleep Audio Layers */}
         {bleepAudioSrc &&
           mergedCensoredSegments.map((seg, idx) => {
@@ -850,6 +838,22 @@ export const YonruClip: React.FC<YonruClipProps> = ({
             );
           })}
       </Sequence>
+
+      {/* Global Span Timeline Audio layers */}
+      {timelineAudioItems.map(item => (
+        <Sequence
+          key={item.id}
+          from={Math.round(item.start * fps)}
+          durationInFrames={Math.round(item.duration * fps)}
+          name={`Audio-${item.name}`}
+        >
+          <Audio
+            src={item.src}
+            volume={item.volume ?? 1}
+            startFrom={Math.round((item.mediaStart || 0) * fps)}
+          />
+        </Sequence>
+      ))}
     </AbsoluteFill>
   );
 };

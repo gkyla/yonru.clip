@@ -351,5 +351,123 @@ describe('TimelinePropertiesInspector Component', () => {
       expect(layer1.start).toBe(5);
       expect(wrapper.text()).toContain('6.5s to 11.5s');
     });
+
+    it('permits audio items to reach minimum 0.0s and binds start in absolute global seconds', async () => {
+      const audioItem = reactive({
+        id: 'audio-1',
+        type: 'audio',
+        name: 'intro.mp3',
+        start: 0,
+        duration: 4
+      });
+
+      const wrapper = mount(TimelinePropertiesInspector, {
+        props: {
+          modelValue: audioItem,
+          trackId: 'audio',
+          coverEnabled: true,
+          coverDuration: 3.0
+        },
+        global: globalMountOptions
+      });
+
+      const startInput = wrapper.find('input[type="number"]');
+      expect(startInput.exists()).toBe(true);
+
+      // Minimum bound must be 0 for audio items, NOT coverDuration (3.0s)
+      expect(startInput.attributes('min')).toBe('0');
+      expect((startInput.element as HTMLInputElement).value).toBe('0');
+
+      // Modifying audio start directly persists absolute global timestamp
+      await startInput.setValue('1.5');
+      expect(audioItem.start).toBe(1.5);
+
+      await startInput.setValue('0');
+      expect(audioItem.start).toBe(0);
+    });
+
+    describe('Timeline Audio Layer Mode', () => {
+      it('renders dedicated audio header, Timing & Spacing only, and Delete Audio button', async () => {
+        const audioItem = reactive({
+          id: 'audio-1',
+          type: 'audio',
+          name: 'ambient-music.mp3',
+          start: 0,
+          duration: 10
+        });
+
+        const wrapper = mount(TimelinePropertiesInspector, {
+          props: {
+            modelValue: audioItem,
+            trackId: 'audio',
+            videoLayout: 'landscape'
+          },
+          global: globalMountOptions
+        });
+
+        // Header shows emerald audio identity and file name
+        expect(wrapper.text()).toContain('Audio');
+        expect(wrapper.text()).toContain('"ambient-music.mp3"');
+        expect(wrapper.text()).not.toContain('LINKED');
+        expect(wrapper.text()).not.toContain('CUSTOM');
+
+        // Timing & Spacing accordion exists with Start and Duration inputs
+        expect(wrapper.text()).toContain('Timing & Spacing');
+        expect(wrapper.text()).toContain('Start (s)');
+        expect(wrapper.text()).toContain('Duration (s)');
+
+        // Text controls are completely suppressed
+        expect(wrapper.find('textarea').exists()).toBe(false);
+        expect(wrapper.text()).not.toContain('Text Content');
+        expect(wrapper.text()).not.toContain('UPPER');
+        expect(wrapper.text()).not.toContain('lower');
+        expect(wrapper.text()).not.toContain('Title');
+        expect(wrapper.text()).not.toContain('Alignment');
+
+        // Blank Zone Snap is suppressed despite videoLayout === landscape
+        expect(wrapper.text()).not.toContain('Blank Zone Snap');
+
+        // Styling accordions are suppressed
+        expect(wrapper.text()).not.toContain('Typography');
+        expect(wrapper.text()).not.toContain('Colors & Borders');
+        expect(wrapper.text()).not.toContain('Background Box');
+        expect(wrapper.text()).not.toContain('Text Shadows');
+        expect(wrapper.text()).not.toContain('Reset to Global Style');
+        expect(wrapper.text()).not.toContain('Save as Default Style');
+
+        // Delete button says 'Delete Audio'
+        const deleteBtn = wrapper
+          .findAll('button')
+          .find(b => b.text().includes('Delete Audio'));
+        expect(deleteBtn).toBeDefined();
+
+        await deleteBtn!.trigger('click');
+        expect(wrapper.emitted('delete')).toBeTruthy();
+      });
+
+      it('immune to legacy content property and treats audio as pure Timing & Spacing', () => {
+        const legacyAudioItem = reactive({
+          id: 'audio-2',
+          type: 'audio',
+          name: 'beat.wav',
+          content: '',
+          start: 1.0,
+          duration: 5.0
+        });
+
+        const wrapper = mount(TimelinePropertiesInspector, {
+          props: {
+            modelValue: legacyAudioItem,
+            trackId: 'audio'
+          },
+          global: globalMountOptions
+        });
+
+        expect(wrapper.find('textarea').exists()).toBe(false);
+        expect(wrapper.text()).not.toContain('Typography');
+        expect(wrapper.text()).not.toContain('Colors & Borders');
+        expect(wrapper.text()).toContain('Delete Audio');
+      });
+    });
   });
 });

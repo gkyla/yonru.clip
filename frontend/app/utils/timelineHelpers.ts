@@ -20,6 +20,176 @@ export function resolveCoverOffsetSec(
   return coverEnabled ? Math.max(0, Number(coverDuration) || 0) : 0;
 }
 
+export function isAudioTrack(
+  track:
+    TimelineTrack | { id?: string; type?: string } | string | undefined | null
+): boolean {
+  if (!track) return false;
+  if (typeof track === 'string') return track === 'audio';
+  return track.id === 'audio' || track.type === 'audio';
+}
+
+export const SUPPORTED_AUDIO_EXTENSIONS = [
+  '.mp3',
+  '.wav',
+  '.ogg',
+  '.aac',
+  '.m4a',
+  '.flac'
+] as const;
+
+export const SUPPORTED_AUDIO_MIME_TYPES = [
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/wave',
+  'audio/x-wav',
+  'audio/ogg',
+  'audio/aac',
+  'audio/x-m4a',
+  'audio/m4a',
+  'audio/flac',
+  'audio/x-flac'
+] as const;
+
+export const AUDIO_INPUT_ACCEPT = [
+  ...SUPPORTED_AUDIO_EXTENSIONS,
+  ...SUPPORTED_AUDIO_MIME_TYPES
+].join(',');
+
+export function isValidAudioFile(
+  file?: {
+    name?: string;
+    type?: string;
+  } | null
+): boolean {
+  if (!file || !file.name) return false;
+
+  const fileName = file.name.trim();
+  const lowerName = fileName.toLowerCase();
+
+  // Explicitly reject video container formats (especially MP4)
+  if (
+    lowerName.endsWith('.mp4') ||
+    lowerName.endsWith('.mov') ||
+    lowerName.endsWith('.webm') ||
+    lowerName.endsWith('.mkv') ||
+    lowerName.endsWith('.avi')
+  ) {
+    return false;
+  }
+
+  // Reject any video/ MIME type
+  if (file.type && file.type.toLowerCase().startsWith('video/')) {
+    return false;
+  }
+
+  // Check if extension is one of the supported audio extensions
+  const hasSupportedExtension = SUPPORTED_AUDIO_EXTENSIONS.some(ext =>
+    lowerName.endsWith(ext)
+  );
+
+  if (!hasSupportedExtension) {
+    return false;
+  }
+
+  // If MIME type is present and non-empty, ensure it's not a disallowed container
+  if (file.type) {
+    const lowerType = file.type.toLowerCase();
+    // In macOS, .mp4 files can report 'audio/mp4'. Reject audio/mp4 container.
+    if (lowerType === 'audio/mp4') {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function resolveAudioFileDuration(
+  source: File | Blob | string,
+  timeoutMs = typeof process !== 'undefined' &&
+  (process.env?.VITEST || process.env?.NODE_ENV === 'test')
+    ? 20
+    : 1500
+): Promise<number> {
+  return new Promise(resolve => {
+    // If not in a browser environment, return default 5.0
+    if (typeof window === 'undefined' || typeof Audio === 'undefined') {
+      resolve(5.0);
+      return;
+    }
+
+    let urlToRevoke: string | null = null;
+    let resolved = false;
+
+    const cleanup = () => {
+      if (urlToRevoke) {
+        URL.revokeObjectURL(urlToRevoke);
+        urlToRevoke = null;
+      }
+    };
+
+    const safeResolve = (duration: number) => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        const validDuration =
+          Number.isFinite(duration) && duration > 0
+            ? Math.round(duration * 10) / 10
+            : 5.0;
+        resolve(validDuration);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      safeResolve(5.0);
+    }, timeoutMs);
+
+    try {
+      let src = '';
+      if (typeof source === 'string') {
+        src = source;
+      } else if (source instanceof Blob) {
+        urlToRevoke = URL.createObjectURL(source);
+        src = urlToRevoke;
+      } else {
+        safeResolve(5.0);
+        return;
+      }
+
+      const audio = new Audio();
+      audio.preload = 'metadata';
+
+      audio.onloadedmetadata = () => {
+        clearTimeout(timer);
+        safeResolve(audio.duration);
+      };
+
+      audio.onerror = () => {
+        clearTimeout(timer);
+        safeResolve(5.0);
+      };
+
+      audio.src = src;
+    } catch {
+      clearTimeout(timer);
+      safeResolve(5.0);
+    }
+  });
+}
+
+export function getItemLeftPx(
+  track:
+    TimelineTrack | { id?: string; type?: string } | string | undefined | null,
+  startSec: number,
+  pxPerSec: number,
+  coverActive: boolean,
+  thumbOffsetPx: number
+): number {
+  const base = (Number(startSec) || 0) * pxPerSec;
+  return isAudioTrack(track) || !coverActive ? base : base + thumbOffsetPx;
+}
+
 export function toGlobalTimelineStart(
   relativeStart: number,
   coverEnabled?: boolean,
@@ -63,19 +233,23 @@ export function calculateTimelineDuration(
   thumbnailDuration: number,
   videoDuration: number
 ): number {
-  let max = 0;
+  let maxGlobal = 0;
   let hasItems = false;
+  const offset = thumbnailEnabled ? thumbnailDuration : 0;
+
   tracks.forEach(track => {
+    // Audio layers MUST NEVER extend the timeline duration past the video clip
+    if (isAudioTrack(track)) return;
+
     if (track.items && track.items.length > 0) hasItems = true;
     track.items.forEach(item => {
-      max = Math.max(max, item.start + item.duration);
+      const end = item.start + item.duration + offset;
+      maxGlobal = Math.max(maxGlobal, end);
     });
   });
 
-  const offset = thumbnailEnabled ? thumbnailDuration : 0;
-
   if (hasItems) {
-    return (max > 0 ? max : 1) + offset;
+    return maxGlobal > 0 ? maxGlobal : 1 + offset;
   }
   return (videoDuration > 0 ? videoDuration : 60) + offset;
 }
@@ -383,7 +557,8 @@ export function calculateSnapTime(
   tracks: TimelineTrack[],
   thumbnailEnabled: boolean,
   thumbnailDuration: number,
-  activeDraggingItemId?: string
+  activeDraggingItemId?: string,
+  isAudio?: boolean
 ): number {
   if (!snapEnabled) return val;
   const tolerance = 5 / pxPerSec;
@@ -399,18 +574,49 @@ export function calculateSnapTime(
   const nearestRuler = Math.round(val / step) * step;
   targets.push(nearestRuler);
 
-  // 2. Playhead snap
   const offset = thumbnailEnabled ? thumbnailDuration : 0;
-  targets.push(currentTime - offset);
 
-  // 3. Clip edge snap
-  tracks.forEach(track => {
-    track.items.forEach(item => {
-      if (activeDraggingItemId && item.id === activeDraggingItemId) return;
-      targets.push(item.start);
-      targets.push(item.start + item.duration);
+  if (isAudio) {
+    // 2. Audio magnetic snap targets: 0.0s, coverDuration (if cover active), and global currentTime
+    targets.push(0.0);
+    if (offset > 0) {
+      targets.push(offset);
+    }
+    targets.push(currentTime);
+
+    // 3. Audio clip edges: other audio items (in global ruler time) & non-audio items (shifted to global time)
+    tracks.forEach(track => {
+      const isOtherAudio = isAudioTrack(track);
+      track.items.forEach(item => {
+        if (activeDraggingItemId && item.id === activeDraggingItemId) return;
+        const start = isOtherAudio ? item.start : item.start + offset;
+        targets.push(start);
+        targets.push(start + item.duration);
+      });
     });
-  });
+  } else {
+    // 2. Playhead snap (video-relative coordinates)
+    targets.push(currentTime - offset);
+
+    // 3. Clip edge snap
+    tracks.forEach(track => {
+      const isOtherAudio = isAudioTrack(track);
+      track.items.forEach(item => {
+        if (activeDraggingItemId && item.id === activeDraggingItemId) return;
+        if (isOtherAudio) {
+          if (item.start >= offset) {
+            targets.push(item.start - offset);
+          }
+          if (item.start + item.duration >= offset) {
+            targets.push(item.start + item.duration - offset);
+          }
+        } else {
+          targets.push(item.start);
+          targets.push(item.start + item.duration);
+        }
+      });
+    });
+  }
 
   // Find closest target within tolerance
   let closest = val;

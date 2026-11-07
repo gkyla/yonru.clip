@@ -538,6 +538,7 @@ function createClipperState() {
     currentTime,
     videoTime: timeline.videoTime,
     isTimelineShifting: timeline.isTimelineShifting,
+    isDraggingTimelineItem: timeline.isDraggingTimelineItem,
     renderStatus,
     renderProgress,
     renderStage,
