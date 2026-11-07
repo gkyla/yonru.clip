@@ -295,3 +295,60 @@ def test_track_face_endpoint_path_traversal_400(client_with_temp_storage):
         res = client.post(f"/api/clips/{f_name}/{c_id}/track-face")
         assert res.status_code == 400
         assert "Path traversal detected" in res.json()["detail"]
+
+
+def test_put_clip_session_cached_audio_src_and_compact_response(client_with_temp_storage):
+    """PUT /api/clip-session preserves existing base64 audio src on __cached_src__ and returns compact response when _compact=True."""
+    client, clips_dir, _ = client_with_temp_storage
+    folder_name = "test_vid_audio_cache"
+    clip_id = "clip_audio_1"
+    clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+    os.makedirs(clip_dir, exist_ok=True)
+
+    heavy_src = "data:audio/mp3;base64," + ("A" * 10000)
+
+    # 1. Initial save with full base64 src and _compact=True
+    res1 = client.put(f"/api/clip-session/{folder_name}/{clip_id}", json={
+        "timeline_tracks": [
+            {"id": "audio", "type": "audio", "items": [{"id": "a1", "name": "bgm.mp3", "start": 0.0, "duration": 10.0, "src": heavy_src}]}
+        ],
+        "_compact": True
+    })
+    assert res1.status_code == 200
+    d1 = res1.json()
+    assert d1["status"] == "ok"
+    assert "timeline" not in d1
+
+    # 2. Subsequent save after moving audio item to start=2.5s using __cached_src__
+    res2 = client.put(f"/api/clip-session/{folder_name}/{clip_id}", json={
+        "timeline_tracks": [
+            {"id": "audio", "type": "audio", "items": [{"id": "a1", "name": "bgm.mp3", "start": 2.5, "duration": 10.0, "src": "__cached_src__"}]}
+        ],
+        "_compact": True
+    })
+    assert res2.status_code == 200
+
+    # Verify on-disk timeline.json preserved the full heavy_src and updated start to 2.5
+    with open(os.path.join(clip_dir, "timeline.json"), "r", encoding="utf-8") as f:
+        saved_tracks = json.load(f)
+    assert saved_tracks[0]["items"][0]["start"] == 2.5
+    assert saved_tracks[0]["items"][0]["src"] == heavy_src
+
+    # 3. Saving history snapshots with embedded data: URIs strips src from history.json on disk
+    res3 = client.put(f"/api/clip-session/{folder_name}/{clip_id}", json={
+        "undo_stack": [
+            {
+                "tracks": [
+                    {"id": "audio", "type": "audio", "items": [{"id": "a1", "name": "bgm.mp3", "start": 0.0, "duration": 10.0, "src": heavy_src}]}
+                ],
+                "transcript": [],
+                "selectedId": "a1"
+            }
+        ],
+        "_compact": True
+    })
+    assert res3.status_code == 200
+    with open(os.path.join(clip_dir, "history.json"), "r", encoding="utf-8") as f:
+        saved_history = json.load(f)
+    assert "src" not in saved_history["undo_stack"][0]["tracks"][0]["items"][0]
+    assert saved_history["undo_stack"][0]["tracks"][0]["items"][0]["id"] == "a1"

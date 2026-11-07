@@ -281,7 +281,7 @@
               >
             </div>
             <div
-              v-else-if="isCoverActive && thumbW > 0"
+              v-else-if="isCoverActive && thumbW > 0 && !isAudioTrack(track)"
               data-testid="cover-slide-zone"
               class="absolute top-[4px] rounded-[3px] border-r border-dashed border-emerald-500/25 flex items-center px-2 gap-1 pointer-events-none overflow-hidden"
               :style="{
@@ -394,21 +394,27 @@
       ref="audioInput"
       type="file"
       class="hidden"
-      accept="audio/*"
+      :accept="AUDIO_INPUT_ACCEPT"
       @change="handleAudioFile"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import {
   calculateRulerTicks,
   calculateSnapTime,
   calculateDragBounds,
   splitTimelineItem,
-  deleteTimelineItemWithRipple
+  deleteTimelineItemWithRipple,
+  getItemLeftPx,
+  isAudioTrack,
+  AUDIO_INPUT_ACCEPT,
+  isValidAudioFile,
+  resolveAudioFileDuration
 } from '../utils/timelineHelpers';
+import type { TimelineTrack, TimelineTrackItem } from '../types/clipper';
 
 import TimelinePropertiesInspector from './editor/TimelinePropertiesInspector.vue';
 
@@ -436,9 +442,17 @@ const thumbW = computed(() =>
 );
 const thumbOffsetPx = computed(() => thumbW.value);
 
-function getItemLeft(_track: any, item: any) {
-  const base = item.start * pxPerSec.value;
-  return isCoverActive.value ? base + thumbOffsetPx.value : base;
+function getItemLeft(
+  track: TimelineTrack | { id?: string; type?: string },
+  item: TimelineTrackItem | { start: number }
+) {
+  return getItemLeftPx(
+    track,
+    item.start,
+    pxPerSec.value,
+    isCoverActive.value,
+    thumbOffsetPx.value
+  );
 }
 
 function getMarkerLeft(val: number) {
@@ -787,23 +801,44 @@ function addText() {
 function triggerAudioUpload() {
   audioInput.value?.click();
 }
-function handleAudioFile(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
+async function handleAudioFile(e: Event) {
+  const inputEl = e.target as HTMLInputElement;
+  const file = inputEl.files?.[0];
   if (!file) return;
+
+  if (!isValidAudioFile(file)) {
+    state.showToast(
+      'Hanya file audio (.mp3, .wav, .ogg, .aac, .m4a, .flac) yang didukung.',
+      'error'
+    );
+    inputEl.value = '';
+    return;
+  }
+
+  const duration = await resolveAudioFileDuration(file);
   const reader = new FileReader();
   reader.onload = ev => {
     state.commitToHistory();
     state.addTimelineItem('audio', {
       name: file.name,
       src: ev.target?.result,
-      duration: 5
+      duration
     });
   };
   reader.readAsDataURL(file);
+  inputEl.value = '';
 }
 
 // --- Snap logic ---
-function snapValue(val: number, _trackId?: string): number {
+function snapValue(val: number, trackId?: string): number {
+  const track = state.timelineTracks.value.find(
+    (t: TimelineTrack) => t.id === (trackId || dragTrackId)
+  );
+  const isAudio =
+    isAudioTrack(track) ||
+    isAudioTrack(trackId) ||
+    isAudioTrack(dragTrackId) ||
+    isAudioTrack(draggingItem?.type);
   return calculateSnapTime(
     val,
     snapEnabled.value,
@@ -812,38 +847,40 @@ function snapValue(val: number, _trackId?: string): number {
     state.timelineTracks.value,
     isCoverActive.value,
     activeCoverDuration.value,
-    draggingItem?.id
+    draggingItem?.id,
+    isAudio
   );
 }
 
 // --- Drag/Resize ---
 let draggingItem: any = null;
+let draggingEl: HTMLElement | null = null;
+let draggingDurationEl: HTMLElement | null = null;
 let dragStartX = 0;
 let dragStartVal = 0;
+let initialItemStart = 0;
+let initialItemDuration = 0;
+let pendingStart = 0;
+let pendingDuration = 0;
 let resizeMode: 'start' | 'end' | null = null;
 let dragTrackId = '';
-let dragStartSnapshot: any = null;
 
 function startMove(e: MouseEvent, trackId: string, item: any) {
   state.selectedTimelineItem.value = item;
+  if (state.isDraggingTimelineItem) {
+    state.isDraggingTimelineItem.value = true;
+  }
   draggingItem = item;
+  draggingEl = (e.currentTarget as HTMLElement) || null;
+  draggingDurationEl = draggingEl?.querySelector('.mono') || null;
   dragTrackId = trackId;
   dragStartX = e.clientX;
   dragStartVal = item.start;
+  initialItemStart = item.start;
+  initialItemDuration = item.duration;
+  pendingStart = item.start;
+  pendingDuration = item.duration;
   resizeMode = null;
-  dragStartSnapshot = {
-    tracks: JSON.parse(JSON.stringify(state.timelineTracks.value)),
-    transcript: state.fullTranscript.value
-      ? state.fullTranscript.value.map((seg: any) => ({
-          id: seg.id,
-          start: seg.start,
-          duration: seg.duration,
-          text: seg.text,
-          words: seg.words ? JSON.parse(JSON.stringify(seg.words)) : undefined
-        }))
-      : [],
-    selectedId: state.selectedTimelineItem.value?.id || null
-  };
   window.addEventListener('mousemove', onDrag);
   window.addEventListener('mouseup', stopDrag);
 }
@@ -855,24 +892,20 @@ function startResize(
   mode: 'start' | 'end'
 ) {
   state.selectedTimelineItem.value = item;
+  if (state.isDraggingTimelineItem) {
+    state.isDraggingTimelineItem.value = true;
+  }
   draggingItem = item;
+  draggingEl = (e.currentTarget as HTMLElement)?.parentElement || null;
+  draggingDurationEl = draggingEl?.querySelector('.mono') || null;
   dragTrackId = trackId;
   dragStartX = e.clientX;
   dragStartVal = mode === 'start' ? item.start : item.duration;
+  initialItemStart = item.start;
+  initialItemDuration = item.duration;
+  pendingStart = item.start;
+  pendingDuration = item.duration;
   resizeMode = mode;
-  dragStartSnapshot = {
-    tracks: JSON.parse(JSON.stringify(state.timelineTracks.value)),
-    transcript: state.fullTranscript.value
-      ? state.fullTranscript.value.map((seg: any) => ({
-          id: seg.id,
-          start: seg.start,
-          duration: seg.duration,
-          text: seg.text,
-          words: seg.words ? JSON.parse(JSON.stringify(seg.words)) : undefined
-        }))
-      : [],
-    selectedId: state.selectedTimelineItem.value?.id || null
-  };
   window.addEventListener('mousemove', onDrag);
   window.addEventListener('mouseup', stopDrag);
 }
@@ -884,31 +917,63 @@ function onDrag(e: MouseEvent) {
     resizeMode || 'move',
     dragStartVal,
     dx,
-    draggingItem,
+    {
+      ...draggingItem,
+      start: pendingStart,
+      duration: pendingDuration
+    },
     val => snapValue(val, dragTrackId)
   );
-  draggingItem.start = bounds.newStart;
-  draggingItem.duration = bounds.newDuration;
+  pendingStart = bounds.newStart;
+  pendingDuration = bounds.newDuration;
+
+  if (draggingEl) {
+    const leftPx = getItemLeftPx(
+      dragTrackId,
+      pendingStart,
+      pxPerSec.value,
+      isCoverActive.value,
+      thumbOffsetPx.value
+    );
+    draggingEl.style.left = `${leftPx}px`;
+    draggingEl.style.width = `${pendingDuration * pxPerSec.value}px`;
+    if (draggingDurationEl && resizeMode) {
+      draggingDurationEl.textContent = `${pendingDuration.toFixed(1)}s`;
+    }
+  }
 }
 
 function stopDrag() {
-  draggingItem = null;
   window.removeEventListener('mousemove', onDrag);
   window.removeEventListener('mouseup', stopDrag);
 
-  if (dragStartSnapshot) {
-    const currentTracks = JSON.stringify(state.timelineTracks.value);
-    const originalTracks = JSON.stringify(dragStartSnapshot.tracks);
-    if (currentTracks !== originalTracks) {
-      const timelineUndoStack = useState<any[]>('timelineUndoStack');
-      const timelineRedoStack = useState<any[]>('timelineRedoStack');
-      timelineUndoStack.value.push(dragStartSnapshot);
-      if (timelineUndoStack.value.length > 50) {
-        timelineUndoStack.value.shift();
-      }
-      timelineRedoStack.value = []; // Clear redo stack
+  if (draggingItem) {
+    const hasChanged =
+      Math.abs(pendingStart - initialItemStart) > 0.0001 ||
+      Math.abs(pendingDuration - initialItemDuration) > 0.0001;
+
+    if (hasChanged) {
+      state.commitToHistory?.();
+      draggingItem.start = pendingStart;
+      draggingItem.duration = pendingDuration;
     }
-    dragStartSnapshot = null;
+
+    draggingItem = null;
+    draggingEl = null;
+    draggingDurationEl = null;
+
+    if (hasChanged) {
+      state.saveTimelineTracks?.();
+      nextTick(() => {
+        if (state.isDraggingTimelineItem) {
+          state.isDraggingTimelineItem.value = false;
+        }
+      });
+    } else if (state.isDraggingTimelineItem) {
+      state.isDraggingTimelineItem.value = false;
+    }
+  } else if (state.isDraggingTimelineItem) {
+    state.isDraggingTimelineItem.value = false;
   }
 }
 
@@ -926,7 +991,7 @@ function deleteSelected() {
 
   const result = deleteTimelineItemWithRipple(
     state.timelineTracks.value,
-    state.fullTranscript.value,
+    state.fullTranscript?.value || [],
     itemToDelete,
     trackId,
     state.currentTime.value,
@@ -936,28 +1001,32 @@ function deleteSelected() {
 
   state.timelineTracks.value = result.updatedTracks;
   state.currentTime.value = result.updatedCurrentTime;
-  if (trackId === 'video') {
+  if (trackId === 'video' && state.fullTranscript && state.saveTranscript) {
     state.fullTranscript.value = result.updatedTranscript;
     state.saveTranscript();
   }
+  state.selectedTimelineItem.value = null;
   state.saveTimelineTracks();
 }
 
 function splitSelected() {
   const item = state.selectedTimelineItem.value;
   if (!item) return;
-  const offset = isCoverActive.value ? activeCoverDuration.value : 0;
+  const track = state.timelineTracks.value.find((t: TimelineTrack) =>
+    t.items.some((i: TimelineTrackItem) => i.id === item.id)
+  );
+  const isAudio = isAudioTrack(track) || isAudioTrack(item.type);
+  const offset =
+    isCoverActive.value && !isAudio ? activeCoverDuration.value : 0;
   const cut = state.currentTime.value - offset;
 
   const splitResult = splitTimelineItem(item, cut);
   if (splitResult) {
     state.commitToHistory();
     item.duration = splitResult.firstItem.duration;
-    const track = state.timelineTracks.value.find((t: any) =>
-      t.items.some((i: any) => i.id === item.id)
-    );
     if (track) {
       state.addTimelineItem(track.id, splitResult.secondItem);
+      state.selectedTimelineItem.value = splitResult.secondItem;
       state.saveTimelineTracks();
     }
   }
@@ -1007,6 +1076,8 @@ onMounted(() => {
 });
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown);
+  window.removeEventListener('mousemove', onDrag);
+  window.removeEventListener('mouseup', stopDrag);
   stopRaf();
   stopEdgeScroll();
 });

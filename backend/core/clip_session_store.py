@@ -315,6 +315,40 @@ class ClipSessionStore:
             "cover_url": f"/assets/clips/{folder_name}/{clip_id}/cover.jpg" if has_cover else None,
         }
 
+    @staticmethod
+    def _strip_heavy_media_from_history(history_data: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(history_data, dict):
+            return history_data
+        cleaned: Dict[str, Any] = {}
+        for key, stack in history_data.items():
+            if isinstance(stack, list):
+                new_stack = []
+                for snap in stack:
+                    if isinstance(snap, dict) and isinstance(snap.get("tracks"), list):
+                        new_tracks = []
+                        for tr in snap["tracks"]:
+                            if isinstance(tr, dict) and isinstance(tr.get("items"), list):
+                                new_items = []
+                                for it in tr["items"]:
+                                    if (
+                                        isinstance(it, dict)
+                                        and isinstance(it.get("src"), str)
+                                        and it["src"].startswith("data:")
+                                    ):
+                                        new_items.append({k: v for k, v in it.items() if k != "src"})
+                                    else:
+                                        new_items.append(it)
+                                new_tracks.append({**tr, "items": new_items})
+                            else:
+                                new_tracks.append(tr)
+                        new_stack.append({**snap, "tracks": new_tracks})
+                    else:
+                        new_stack.append(snap)
+                cleaned[key] = new_stack
+            else:
+                cleaned[key] = stack
+        return cleaned
+
     def save_clip_session(self, folder_name: str, clip_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
         Atomically persists partial or complete clip manifests.
@@ -334,13 +368,46 @@ class ClipSessionStore:
         elif "settings" in payload:
             updates["style_settings.json"] = payload["settings"]
 
-        if "timeline" in payload:
-            updates["timeline.json"] = payload["timeline"]
-        elif "timeline_tracks" in payload:
-            updates["timeline.json"] = payload["timeline_tracks"]
+        if "timeline" in payload or "timeline_tracks" in payload:
+            incoming_tracks = payload.get("timeline") if "timeline" in payload else payload.get("timeline_tracks")
+            if isinstance(incoming_tracks, list):
+                has_cached_ref = any(
+                    isinstance(tr, dict) and any(
+                        isinstance(it, dict) and it.get("src") == "__cached_src__"
+                        for it in (tr.get("items") or [])
+                    )
+                    for tr in incoming_tracks
+                )
+                if has_cached_ref:
+                    existing_timeline_path = os.path.join(clip_dir, "timeline.json")
+                    src_by_id: Dict[str, Any] = {}
+                    src_by_name: Dict[str, Any] = {}
+                    if os.path.exists(existing_timeline_path):
+                        try:
+                            with open(existing_timeline_path, "r", encoding="utf-8") as f:
+                                existing_tracks = json.load(f)
+                                if isinstance(existing_tracks, list):
+                                    for etr in existing_tracks:
+                                        if isinstance(etr, dict):
+                                            for eit in (etr.get("items") or []):
+                                                if isinstance(eit, dict) and eit.get("src") and eit.get("src") != "__cached_src__":
+                                                    if eit.get("id"):
+                                                        src_by_id[str(eit["id"])] = eit["src"]
+                                                    if eit.get("name"):
+                                                        src_by_name[str(eit["name"])] = eit["src"]
+                        except Exception:
+                            pass
+                    for tr in incoming_tracks:
+                        if isinstance(tr, dict):
+                            for it in (tr.get("items") or []):
+                                if isinstance(it, dict) and it.get("src") == "__cached_src__":
+                                    restored = src_by_id.get(str(it.get("id") or "")) or src_by_name.get(str(it.get("name") or ""))
+                                    if restored:
+                                        it["src"] = restored
+            updates["timeline.json"] = incoming_tracks
 
         if "history" in payload:
-            updates["history.json"] = payload["history"]
+            updates["history.json"] = self._strip_heavy_media_from_history(payload["history"])
         elif "undo_stack" in payload or "redo_stack" in payload:
             existing_history_path = os.path.join(clip_dir, "history.json")
             undo_stack = payload.get("undo_stack", [])
@@ -355,7 +422,9 @@ class ClipSessionStore:
                             redo_stack = curr.get("redo_stack", [])
                 except Exception:
                     pass
-            updates["history.json"] = {"undo_stack": undo_stack, "redo_stack": redo_stack}
+            updates["history.json"] = self._strip_heavy_media_from_history(
+                {"undo_stack": undo_stack, "redo_stack": redo_stack}
+            )
 
         if "cover_config" in payload:
             updates["cover_config.json"] = payload["cover_config"]
@@ -389,6 +458,9 @@ class ClipSessionStore:
                     except OSError:
                         pass
             raise
+
+        if payload.get("_compact"):
+            return {"folder_name": folder_name, "clip_id": clip_id}
 
         return self.get_clip_session(folder_name, clip_id)
 

@@ -168,7 +168,8 @@ describe('useClipEditorSession Composable', () => {
         expect.objectContaining({
           method: 'PUT',
           body: {
-            transcript: [{ start: 1.5, duration: 3.0, text: 'Sanitized edit' }]
+            transcript: [{ start: 1.5, duration: 3.0, text: 'Sanitized edit' }],
+            _compact: true
           }
         })
       );
@@ -371,7 +372,8 @@ describe('useClipEditorSession Composable', () => {
         expect.objectContaining({
           method: 'PUT',
           body: {
-            style_settings: { fontSize: 48 }
+            style_settings: { fontSize: 48 },
+            _compact: true
           }
         })
       );

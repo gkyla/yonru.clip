@@ -271,20 +271,16 @@ export class VideoPlaybackCoordinator {
       showDebug: snapshot.showIframeDebug,
       volume: snapshot.volume,
       timelineTextItems: [],
-      timelineAudioItems: JSON.parse(
-        JSON.stringify(
-          snapshot.timelineTracks?.find(t => t.id === 'audio')?.items || []
-        )
-      ),
-      timelineVideoItems: JSON.parse(
-        JSON.stringify(
-          snapshot.timelineTracks?.find(t => t.id === 'video')?.items || []
-        )
-      ),
+      timelineAudioItems: (
+        snapshot.timelineTracks?.find(t => t.id === 'audio')?.items || []
+      ).map(item => ({ ...item })),
+      timelineVideoItems: (
+        snapshot.timelineTracks?.find(t => t.id === 'video')?.items || []
+      ).map(item => ({ ...item })),
       thumbnailEnabled: snapshot.thumbnailEnabled,
       thumbnailDuration: snapshot.thumbnailDuration,
-      thumbnailTextOverlays: JSON.parse(
-        JSON.stringify(snapshot.thumbnailTextOverlays || [])
+      thumbnailTextOverlays: (snapshot.thumbnailTextOverlays || []).map(
+        item => ({ ...item })
       ),
       censoredSegments: snapshot.audioBleepEnabled
         ? this.mergeCensoredSegments(snapshot.flaggedSegments || [])

@@ -165,4 +165,44 @@ describe('useInteractiveText & addTimelineItem Cover Slide Synchronization', () 
     expect(activeTextItems.value.map(i => i.id)).toEqual(['t2']);
     expect(isTimelineTextActiveAndSelected.value).toBe(false);
   });
+
+  it('auto-anchors newly added audio items to 0.0s when playhead is in cover slide, and to currentTime in main video', () => {
+    const state = useClipperState();
+    state.coverEnabled.value = true;
+    state.coverDuration.value = 2.0;
+    state.videoDuration.value = 20;
+
+    // 1. Playhead inside Cover Slide window (0.8s < 2.0s) -> auto-anchors to 0.0s
+    state.currentTime.value = 0.8;
+    state.addTimelineItem('audio', {
+      id: 'a1',
+      name: 'intro-swoosh.mp3',
+      duration: 3
+    });
+
+    const audioTrack = state.timelineTracks.value.find(t => t.id === 'audio')!;
+    expect(audioTrack.items[0]!.start).toBe(0.0);
+    expect(audioTrack.items[0]!.duration).toBe(3);
+    expect(audioTrack.items[0]!.content).toBeUndefined();
+
+    // 2. Playhead inside main video (5.5s >= 2.0s) -> anchors to currentTime (5.5s)
+    state.currentTime.value = 5.5;
+    state.addTimelineItem('audio', {
+      id: 'a2',
+      name: 'bgm.mp3',
+      duration: 10
+    });
+
+    expect(audioTrack.items[1]!.start).toBe(5.5);
+    expect(audioTrack.items[1]!.duration).toBe(10);
+
+    // 3. Explicit start parameter is preserved
+    state.addTimelineItem('audio', {
+      id: 'a3',
+      name: 'fx.mp3',
+      start: 1.2,
+      duration: 2
+    });
+    expect(audioTrack.items[2]!.start).toBe(1.2);
+  });
 });

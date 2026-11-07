@@ -549,7 +549,7 @@ def remove_saved_hook(folder_name: str, hook_id: str):
 # --- Unified Clip Session Endpoints ---
 
 @app.get("/api/clip-session/{folder_name}/{clip_id}")
-async def get_clip_session(folder_name: str, clip_id: str):
+def get_clip_session(folder_name: str, clip_id: str):
     """Retrieve complete aggregate clip session (transcript, styles, timeline, history, cover, crop map)."""
     try:
         session = clip_session_store.get_clip_session(folder_name, clip_id)
@@ -564,7 +564,7 @@ async def get_clip_session(folder_name: str, clip_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/clip-session/{folder_name}/{clip_id}")
-async def update_clip_session(folder_name: str, clip_id: str, payload: dict):
+def update_clip_session(folder_name: str, clip_id: str, payload: dict):
     """Atomically update partial or complete clip session manifests."""
     try:
         session = clip_session_store.save_clip_session(folder_name, clip_id, payload)

@@ -95,6 +95,31 @@ function areWordsEqual(
   return true;
 }
 
+export function areTranscriptsEqual(
+  a: TranscriptSegment[] | undefined,
+  b: TranscriptSegment[] | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; i++) {
+    const segA = a[i];
+    const segB = b[i];
+    if (segA === segB) continue;
+    if (!segA || !segB) return false;
+    if (
+      segA.start !== segB.start ||
+      segA.duration !== segB.duration ||
+      segA.text !== segB.text ||
+      !areWordsEqual(segA.words, segB.words)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export class TimelineTransactionEngine {
   private maxStackSize: number;
   private _undoStack: TimelineSnapshot[] = [];

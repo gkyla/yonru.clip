@@ -61,7 +61,7 @@ The scrollable horizontal canvas displaying multi-track media segments (video, a
 _Avoid_: Scroll track, timeline window, seek pane
 
 **Timeline Properties Inspector**:
-The focused contextual floating panel in Studio Editor displaying and editing selected track item properties (typography, colors, custom vs linked global styles, animations, timing, and audio) decoupled from horizontal canvas scrubbing and playback.
+The focused contextual floating panel in Studio Editor displaying and editing selected track item properties: typography, colors, animations, and custom vs linked global styles for text and subtitles; timing intervals (`start`, `duration`) for Timeline Video Segments; and dedicated audio identity and timing controls for Timeline Audio Layers, completely decoupled from horizontal canvas scrubbing and playback.
 _Avoid_: Item modal, style popup, properties dialog, track inspector
 
 **Playhead**:
@@ -73,7 +73,7 @@ An individual cut or trimmed slice of a Ready Clip positioned on the Main Video 
 _Avoid_: Video block, timeline chunk, split item, clip piece
 
 **Timeline Audio Layer**:
-An independent audio element (sound effect, background music, or custom intro audio) positioned within the Timeline Viewport on the Audio track, anchored to absolute global timeline seconds starting from the initial frame of the Cover Slide (`0.0s`) through video playback, persisting its absolute ruler timestamp across Cover Slide duration and toggle adjustments.
+An independent audio element (sound effect, background music, or custom intro audio in supported audio formats such as MP3, WAV, OGG, AAC, M4A, FLAC) positioned within the Timeline Viewport on the Audio track, anchored to absolute global timeline seconds starting from the initial frame of the Cover Slide (`0.0s`) through video playback, persisting its absolute ruler timestamp across Cover Slide duration and toggle adjustments. Video container formats (such as MP4) are strictly disallowed on this track.
 _Avoid_: Audio clip, audio piece, intro sound, track item
 
 **Timeline Magnetic Snapping**:

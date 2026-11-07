@@ -172,9 +172,19 @@ export const useRemotionBridge = (
       () => state.contentAudit?.value?.flaggedSegments
     ],
     () => {
+      if (state.isDraggingTimelineItem?.value) return;
       syncRemotionProps();
     },
     { deep: true, immediate: true }
+  );
+
+  watch(
+    () => state.isDraggingTimelineItem?.value,
+    isDragging => {
+      if (!isDragging) {
+        syncRemotionProps();
+      }
+    }
   );
 
   watch(

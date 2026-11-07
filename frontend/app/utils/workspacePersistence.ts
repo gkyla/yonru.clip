@@ -513,6 +513,7 @@ export class WorkspacePersistenceCoordinator {
         watch(
           timeline.timelineTracks,
           () => {
+            if (timeline.isDraggingTimelineItem?.value) return;
             timeline.saveTimelineTracks?.();
           },
           { deep: true }
