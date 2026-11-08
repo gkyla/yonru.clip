@@ -16,10 +16,10 @@
 
       <!-- Active Preset Card (Clean 2-Tier with Preset Studio Viewport) -->
       <div
-        class="bg-surface-dark/40 border border-surface-border/80 rounded-xl p-2.5 relative overflow-hidden group"
+        class="bg-surface-dark/40 border-surface-border/80 rounded-xl relative overflow-hidden group"
       >
         <!-- Tier 1: Preset Identity & Change Action -->
-        <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2 min-w-0">
             <Transition
               enter-active-class="transition-opacity duration-200 ease-out"
