@@ -63,7 +63,7 @@
           class="absolute inset-0 bg-noise opacity-[0.015] mix-blend-overlay pointer-events-none"
         ></div>
 
-        <!-- Brand Mark ("The Focal Frame") with Sleek Golden Spinner Orbit -->
+        <!-- Brand Mark ("Sol Aperture") with Sleek Golden Spinner Orbit -->
         <div
           class="relative flex items-center justify-center w-16 h-16 mb-6 z-10"
         >
@@ -77,31 +77,21 @@
             role="img"
             aria-label="Yonru."
           >
-            <!-- In-point bracket [ -->
-            <path
-              d="M 94 56 H 56 V 200 H 94"
-              stroke="#FFFFFF"
-              stroke-width="26"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <!-- Out-point bracket ] -->
-            <path
-              d="M 162 56 H 200 V 200 H 162"
-              stroke="#FFFFFF"
-              stroke-width="26"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <!-- Center focal clip capsule -->
-            <rect
-              x="114"
-              y="68"
-              width="28"
-              height="120"
-              rx="14"
-              fill="#ffd700"
-            />
+            <g transform="rotate(-45 128 128)">
+              <path
+                d="M 167.73 42.81 A 94 94 0 0 1 152.33 218.80"
+                stroke="#FFFFFF"
+                stroke-width="32"
+                stroke-linecap="round"
+              />
+              <path
+                d="M 88.27 213.19 A 94 94 0 0 1 103.67 37.20"
+                stroke="#ffd700"
+                stroke-width="32"
+                stroke-linecap="round"
+              />
+              <circle cx="128" cy="128" r="22" fill="#ffd700" />
+            </g>
           </svg>
         </div>
 

@@ -20,12 +20,13 @@ export default defineNuxtConfig({
     head: {
       title: 'Yonru',
       link: [
-        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg?v=2' },
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg?v=3' },
         {
           rel: 'alternate icon',
           type: 'image/x-icon',
-          href: '/favicon.ico?v=2'
-        }
+          href: '/favicon.ico?v=3'
+        },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' }
       ]
     }
   },

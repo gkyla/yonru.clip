@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title-sym-light">
+  <title id="title-sym-light">Yonru Clip Symbol - Color (Light UI)</title>
+  <g id="symbol" transform="rotate(-45 128 128)">
+    <path d="M 157.58 64.56 A 70 70 0 0 1 146.12 195.61" fill="none" stroke="#0B0E14" stroke-width="24" stroke-linecap="round"/>
+    <path d="M 98.42 191.44 A 70 70 0 0 1 109.88 60.39" fill="none" stroke="#ffd700" stroke-width="24" stroke-linecap="round"/>
+    <circle cx="128" cy="128" r="16" fill="#ffd700"/>
+  </g>
+</svg>

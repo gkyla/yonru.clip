@@ -1,0 +1,58 @@
+{
+  "brand": "Yonru Clip",
+  "tagline": "Effortless AI Short Video Clipping",
+  "brief": "An intuitive platform that extracts high-virality hooks from long-form video. The visual identity had to feel elegant, soft, and technical using #ffd700 and #FFFFFF without cliché scissors or film brackets.",
+  "adjectives": [
+    "elegant",
+    "soft",
+    "technical",
+    "effortless"
+  ],
+  "criteria": "Success: Distinct abstract mark, scales cleanly down to 16 px, zero cliché scissors/brackets, radiant in dark and light interfaces.",
+  "industry": "software",
+  "mockups": [
+    "app-icon",
+    "website",
+    "readme",
+    "terminal",
+    "social",
+    "favicon-tab"
+  ],
+  "nav": [
+    "Features",
+    "Editor",
+    "Presets",
+    "Docs"
+  ],
+  "brand_color": "#ffd700",
+  "tile_color": "#0B0E14",
+  "greyscale": false,
+  "final": true,
+  "round": 2,
+  "designer": "Antigravity Identity Studio",
+  "concepts": [
+    {
+      "name": "Sol Aperture",
+      "symbol": "master/yonru-symbol-color-light.svg",
+      "symbol_on_tile": "master/yonru-symbol-tile.svg",
+      "symbol_on_dark": "master/yonru-symbol-color-dark.svg",
+      "lockup": "master/yonru-lockup-horizontal-light.svg",
+      "lockup_on_dark": "master/yonru-lockup-horizontal-dark.svg",
+      "stacked": "master/yonru-lockup-stacked-light.svg",
+      "stacked_on_dark": "master/yonru-lockup-stacked-dark.svg",
+      "avatar": "master/yonru-symbol-tile.svg",
+      "idea": "A rotational dual-crescent iris capturing the distilled golden moment at its center.",
+      "rationale": [
+        "180° rotational symmetry with dynamic 45° diagonal breathing space",
+        "Central golden core symbolizes the isolated viral hook and harmonizes with the typography",
+        "Pure circular arc geometry with 100% rounded caps delivers technical precision and approachable softness"
+      ]
+    }
+  ],
+  "recommendation": "Sol Aperture establishes a distinctive, premium SaaS presence that remains ultra-crisp at every scale from 16 px dock icons to full UI headers.",
+  "next_steps": [
+    "Direction B approved for production deployment",
+    "Master vector assets and full icon suite exported",
+    "Integrate favicon and app icons into frontend/public/"
+  ]
+}

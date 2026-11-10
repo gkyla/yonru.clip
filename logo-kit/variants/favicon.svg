@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><title>Yonru Clip</title><g transform="translate(-96.77 -96.77) scale(1.756)">
+  <title id="title-sym-small">Yonru Clip Symbol - Small Size (Favicon)</title>
+  <g id="symbol" transform="rotate(-45 128 128)">
+    <path d="M 163.00 67.38 A 70 70 0 0 1 151.94 193.78" fill="none" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round"/>
+    <path d="M 93.00 188.62 A 70 70 0 0 1 104.06 62.22" fill="none" stroke="#ffd700" stroke-width="30" stroke-linecap="round"/>
+    <circle cx="128" cy="128" r="19" fill="#ffd700"/>
+  </g>
+</g></svg>

@@ -90,7 +90,7 @@
                 class="flex items-center min-w-0 group cursor-pointer overflow-hidden whitespace-nowrap py-0.5"
                 title="Yonru — Home"
               >
-                <!-- Full Horizontal Logo Lockup: [ | ] Yonru. -->
+                <!-- Full Horizontal Logo Lockup: Sol Aperture + Yonru. -->
                 <svg
                   viewBox="70 65 480 128"
                   class="h-7 w-auto transition-transform duration-200 group-hover:scale-[1.03] select-none"
@@ -98,30 +98,25 @@
                   role="img"
                   aria-label="Yonru."
                 >
-                  <!-- [ | ] Symbol -->
-                  <g transform="translate(48, 48) scale(0.625)">
-                    <path
-                      d="M 94 56 H 56 V 200 H 94"
-                      stroke="#FFFFFF"
-                      stroke-width="26"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <path
-                      d="M 162 56 H 200 V 200 H 162"
-                      stroke="#FFFFFF"
-                      stroke-width="26"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <rect
-                      x="114"
-                      y="68"
-                      width="28"
-                      height="120"
-                      rx="14"
-                      fill="#ffd700"
-                    />
+                  <!-- Sol Aperture Symbol -->
+                  <g
+                    transform="translate(128, 128) scale(0.45) translate(-128, -128)"
+                  >
+                    <g transform="rotate(-45 128 128)">
+                      <path
+                        d="M 167.73 42.81 A 94 94 0 0 1 152.33 218.80"
+                        stroke="#FFFFFF"
+                        stroke-width="32"
+                        stroke-linecap="round"
+                      />
+                      <path
+                        d="M 88.27 213.19 A 94 94 0 0 1 103.67 37.20"
+                        stroke="#ffd700"
+                        stroke-width="32"
+                        stroke-linecap="round"
+                      />
+                      <circle cx="128" cy="128" r="22" fill="#ffd700" />
+                    </g>
                   </g>
                   <!-- Wordmark "Yonru." with Brand Gold Accent Dot -->
                   <text

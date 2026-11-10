@@ -532,10 +532,11 @@ describe('TimelineEditor Component', () => {
 
     await audioInput.trigger('change');
     // Allow async duration detection & FileReader onload to fire
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await vi.waitFor(() => {
+      expect(mockState.commitToHistory).toHaveBeenCalled();
+    });
 
     expect(mockState.showToast).not.toHaveBeenCalled();
-    expect(mockState.commitToHistory).toHaveBeenCalled();
     expect(mockState.addTimelineItem).toHaveBeenCalledWith(
       'audio',
       expect.objectContaining({
