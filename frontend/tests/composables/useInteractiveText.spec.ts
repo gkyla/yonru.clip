@@ -165,13 +165,13 @@ describe('useInteractiveText & addTimelineItem Cover Slide Synchronization', () 
     expect(isTimelineTextActiveAndSelected.value).toBe(false);
   });
 
-  it('auto-anchors newly added audio items to 0.0s when playhead is in cover slide, and to currentTime in main video', () => {
+  it('places newly added audio items precisely at playhead across cover slide and main video', () => {
     const state = useClipperState();
     state.coverEnabled.value = true;
     state.coverDuration.value = 2.0;
     state.videoDuration.value = 20;
 
-    // 1. Playhead inside Cover Slide window (0.8s < 2.0s) -> auto-anchors to 0.0s
+    // 1. Playhead inside Cover Slide window (0.8s < 2.0s) -> precisely places at currentTime (0.8s)
     state.currentTime.value = 0.8;
     state.addTimelineItem('audio', {
       id: 'a1',
@@ -180,7 +180,7 @@ describe('useInteractiveText & addTimelineItem Cover Slide Synchronization', () 
     });
 
     const audioTrack = state.timelineTracks.value.find(t => t.id === 'audio')!;
-    expect(audioTrack.items[0]!.start).toBe(0.0);
+    expect(audioTrack.items[0]!.start).toBe(0.8);
     expect(audioTrack.items[0]!.duration).toBe(3);
     expect(audioTrack.items[0]!.content).toBeUndefined();
 

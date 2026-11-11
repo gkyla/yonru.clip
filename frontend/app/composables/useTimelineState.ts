@@ -417,7 +417,7 @@ export const useTimelineState = () => {
         startSec = item.start;
       } else if (isAudio) {
         const cur = currentTime.value ?? 0;
-        startSec = coverOffset > 0 && cur < coverOffset ? 0.0 : cur;
+        startSec = Math.max(0, cur);
       } else {
         startSec = fromGlobalTimelineStart(
           currentTime.value ?? 0,
