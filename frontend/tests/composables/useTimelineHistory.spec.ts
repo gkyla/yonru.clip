@@ -36,14 +36,12 @@ describe('useTimelineState History Tracking - Undo/Redo', () => {
     const tracks = useState<any[]>('timelineTracks', () => [
       { id: 'video', name: 'Main Video', type: 'video', items: [] },
       { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-      { id: 'text', name: 'Text layers', type: 'text', items: [] },
-      { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
+      { id: 'text', name: 'Text layers', type: 'text', items: [] }
     ]);
     tracks.value = [
       { id: 'video', name: 'Main Video', type: 'video', items: [] },
       { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-      { id: 'text', name: 'Text layers', type: 'text', items: [] },
-      { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
+      { id: 'text', name: 'Text layers', type: 'text', items: [] }
     ];
 
     const transcript = useState<any[]>('fullTranscript', () => []);

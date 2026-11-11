@@ -37,10 +37,10 @@ const mockState = {
       items: [{ id: 'v1', name: 'Clip 1', start: 0, duration: 30 }]
     },
     {
-      id: 'subtitle',
-      name: 'Subtitle',
-      type: 'subtitle',
-      items: [{ id: 's1', content: 'Hello world', start: 0, duration: 10 }]
+      id: 'text',
+      name: 'Text layers',
+      type: 'text',
+      items: [{ id: 't1', content: 'Hello world', start: 0, duration: 10 }]
     }
   ]),
   formatDuration: (sec: number) => {
@@ -613,6 +613,59 @@ describe('TimelineEditor Component', () => {
     // Selected item must be cleared to null
     expect(mockState.selectedTimelineItem.value).toBeNull();
 
+    mockState.timelineTracks.value = prevTracks;
+  });
+
+  it('renders content safety flagged markers over video track and omits subtitle track (ADR 0029)', async () => {
+    const prevTracks = mockState.timelineTracks.value;
+    mockState.timelineTracks.value = [
+      {
+        id: 'video',
+        name: 'Main Video',
+        type: 'video',
+        items: [{ id: 'v1', name: 'Clip 1', start: 0, duration: 30 }]
+      },
+      {
+        id: 'audio',
+        name: 'Audio layers',
+        type: 'audio',
+        items: []
+      },
+      {
+        id: 'text',
+        name: 'Text layers',
+        type: 'text',
+        items: []
+      }
+    ];
+
+    mockState.contentAudit.value = {
+      flaggedSegments: [{ start: 5, duration: 1.5, word: 'badword' }]
+    };
+
+    const wrapper = mount(TimelineEditor, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          Teleport: true,
+          Transition: true,
+          TimelinePropertiesInspector: true
+        }
+      }
+    });
+
+    // Subtitle track should not exist
+    expect(wrapper.text()).not.toContain('Subtitle');
+    expect(wrapper.text()).toContain('Main Video');
+    expect(wrapper.text()).toContain('Audio layers');
+    expect(wrapper.text()).toContain('Text layers');
+
+    // Flagged marker indicator should be present
+    const flaggedMarker = wrapper.find('.bg-rose-500\\/25');
+    expect(flaggedMarker.exists()).toBe(true);
+
+    mockState.contentAudit.value = { flaggedSegments: [] };
     mockState.timelineTracks.value = prevTracks;
   });
 });

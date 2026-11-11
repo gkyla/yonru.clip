@@ -39,8 +39,7 @@ describe('useRemotionBridge Composable', () => {
     const timelineTracks = useState<any[]>('timelineTracks', () => [
       { id: 'video', name: 'Main Video', type: 'video', items: [] },
       { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-      { id: 'text', name: 'Text layers', type: 'text', items: [] },
-      { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
+      { id: 'text', name: 'Text layers', type: 'text', items: [] }
     ]);
     const isTimelineShifting = useState<boolean>(
       'isTimelineShifting',
@@ -61,8 +60,7 @@ describe('useRemotionBridge Composable', () => {
     timelineTracks.value = [
       { id: 'video', name: 'Main Video', type: 'video', items: [] },
       { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-      { id: 'text', name: 'Text layers', type: 'text', items: [] },
-      { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
+      { id: 'text', name: 'Text layers', type: 'text', items: [] }
     ];
     isTimelineShifting.value = false;
     thumbnailEnabled.value = false;

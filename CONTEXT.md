@@ -57,11 +57,11 @@ The signature visual mark of Yonru Clip ("The Focal Frame") consisting of two fr
 _Avoid_: App icon, site logo, avatar, monogram, logo badge
 
 **Timeline Viewport**:
-The scrollable horizontal canvas displaying multi-track media segments (video, audio, subtitle, text) across time, enabling independent navigation and panning without mutating the current playback time.
+The scrollable horizontal canvas displaying multi-track media segments (video, audio, text) across time, enabling independent navigation and panning without mutating the current playback time.
 _Avoid_: Scroll track, timeline window, seek pane
 
 **Timeline Properties Inspector**:
-The focused contextual floating panel in Studio Editor displaying and editing selected track item properties: typography, colors, animations, and custom vs linked global styles for text and subtitles; timing intervals (`start`, `duration`) for Timeline Video Segments; and dedicated audio identity and timing controls for Timeline Audio Layers, completely decoupled from horizontal canvas scrubbing and playback.
+The focused contextual floating panel in Studio Editor displaying and editing selected track item properties: typography, colors, animations, and custom vs linked global styles for text layers; timing intervals (`start`, `duration`) for Timeline Video Segments; and dedicated audio identity and timing controls for Timeline Audio Layers, completely decoupled from horizontal canvas scrubbing and playback.
 _Avoid_: Item modal, style popup, properties dialog, track inspector
 
 **Playhead**:

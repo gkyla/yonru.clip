@@ -193,19 +193,9 @@
             :class="trackColor(track.type)"
           />
           <span
-            class="text-[8px] font-bold uppercase tracking-widest truncate"
-            :class="
-              track.id === 'subtitle' && !state.subtitlesEnabled?.value
-                ? 'text-slate-500 opacity-80'
-                : 'text-slate-600'
-            "
+            class="text-[8px] font-bold uppercase tracking-widest truncate text-slate-600"
           >
             {{ track.name }}
-            <span
-              v-if="track.id === 'subtitle' && !state.subtitlesEnabled?.value"
-              class="text-[7px] text-amber-500/80 font-bold ml-1"
-              >(OFF)</span
-            >
           </span>
         </div>
       </div>
@@ -303,12 +293,7 @@
               v-for="item in track.items"
               :key="item.id"
               class="absolute top-[4px] rounded-[3px] cursor-move flex items-center px-2 gap-1.5 overflow-hidden border-l-[3px] transition-opacity duration-200"
-              :class="[
-                itemClasses(track.type, item),
-                track.id === 'subtitle' && !state.subtitlesEnabled?.value
-                  ? '!opacity-35 grayscale-[0.5]'
-                  : ''
-              ]"
+              :class="[itemClasses(track.type, item)]"
               :style="itemStyle(track, item)"
               @mousedown.stop="startMove($event, track.id, item)"
             >
@@ -337,20 +322,21 @@
               </div>
             </div>
 
-            <!-- Flagged markers layer (only for subtitle track) -->
+            <!-- Flagged markers layer (rendered over Main Video track) -->
             <template
               v-if="
-                track.id === 'subtitle' &&
+                track.id === 'video' &&
                 state.contentAudit.value?.flaggedSegments
               "
             >
               <div
                 v-for="(v, i) in state.contentAudit.value.flaggedSegments"
                 :key="'v-' + i"
-                class="absolute top-0 bottom-0 bg-rose-500/20 border-x border-rose-500/40 pointer-events-none z-10"
+                class="absolute top-[4px] rounded-[3px] bg-rose-500/25 border-x border-rose-500/50 pointer-events-none z-20"
                 :style="{
                   left: getMarkerLeft(getRelativeMarkerTime(v.start)) + 'px',
-                  width: v.duration * pxPerSec + 'px'
+                  width: Math.max(2, v.duration * pxPerSec) + 'px',
+                  height: trackH - 8 + 'px'
                 }"
               >
                 <div
@@ -461,13 +447,13 @@ function getMarkerLeft(val: number) {
 }
 
 function getRelativeMarkerTime(val: number) {
-  const firstStart = state.fullTranscript.value?.[0]?.start || 0;
-  const isTranscriptZeroBased = state.activeHook.value
+  const firstStart = state.fullTranscript?.value?.[0]?.start || 0;
+  const isTranscriptZeroBased = state.activeHook?.value
     ? firstStart < (state.activeHook.value.start || 0) - 2
     : true;
 
   if (isTranscriptZeroBased) return val;
-  return val - (state.activeHook.value?.start || 0);
+  return val - (state.activeHook?.value?.start || 0);
 }
 
 // --- Layout ---
@@ -489,33 +475,28 @@ const rulerTicks = computed(() =>
 function trackIcon(type: string) {
   if (type === 'video') return 'ri:film-line';
   if (type === 'audio') return 'ri:volume-up-line';
-  if (type === 'subtitle') return 'ri:chat-voice-line';
   return 'ri:text';
 }
 function trackColor(type: string) {
   if (type === 'video') return 'text-sky-400';
   if (type === 'audio') return 'text-green-400';
-  if (type === 'subtitle') return 'text-accent-500';
   return 'text-violet-400';
 }
 function trackBorderColor(type: string) {
   if (type === 'video') return 'bg-sky-500';
   if (type === 'audio') return 'bg-green-500';
-  if (type === 'subtitle') return 'bg-accent-500';
   return 'bg-violet-500';
 }
 
 const itemBg: Record<string, string> = {
   video: '#1a365d',
   audio: '#1a3a1a',
-  text: '#2d1b5e',
-  subtitle: 'rgba(255,215,0,0.05)'
+  text: '#2d1b5e'
 };
 const itemBorder: Record<string, string> = {
   video: '#3182ce',
   audio: '#38a169',
-  text: '#805ad5',
-  subtitle: '#ffd700'
+  text: '#805ad5'
 };
 
 function itemClasses(type: string, item: any) {
