@@ -532,7 +532,7 @@ export class IngestionJobCoordinator {
     }
 
     // Resolve timeline tracks or construct fallback tracks
-    const timelineTracks: TimelineTrack[] =
+    const rawTracks: TimelineTrack[] =
       timelineRes.status === 'fulfilled' &&
       Array.isArray(timelineRes.value) &&
       timelineRes.value.length > 0
@@ -540,18 +540,13 @@ export class IngestionJobCoordinator {
         : [
             { id: 'video', name: 'Main Video', type: 'video', items: [] },
             { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-            { id: 'text', name: 'Text layers', type: 'text', items: [] },
-            { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
+            { id: 'text', name: 'Text layers', type: 'text', items: [] }
           ];
 
-    if (!timelineTracks.some(t => t.id === 'subtitle')) {
-      timelineTracks.push({
-        id: 'subtitle',
-        name: 'Subtitle',
-        type: 'subtitle',
-        items: []
-      });
-    }
+    // Filter out legacy subtitle track for clean decoupled editing (ADR 0029)
+    const timelineTracks: TimelineTrack[] = rawTracks.filter(
+      (t: any) => t.id !== 'subtitle'
+    );
 
     // Resolve thumbnail/cover config and cover URL
     const thumbnailConfig: ThumbnailConfig | null =

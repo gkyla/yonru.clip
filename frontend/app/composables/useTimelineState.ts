@@ -25,8 +25,7 @@ export const useTimelineState = () => {
   const timelineTracks = useState<TimelineTrack[]>('timelineTracks', () => [
     { id: 'video', name: 'Main Video', type: 'video', items: [] },
     { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-    { id: 'text', name: 'Text layers', type: 'text', items: [] },
-    { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
+    { id: 'text', name: 'Text layers', type: 'text', items: [] }
   ]);
   const defaultTimelineTextStyle = useState<Partial<TimelineTrackItem> | null>(
     'defaultTimelineTextStyle',
@@ -448,8 +447,7 @@ export const useTimelineState = () => {
         }
       }
 
-      const baseContent =
-        trackId === 'text' || trackId === 'subtitles' ? { content: '' } : {};
+      const baseContent = trackId === 'text' ? { content: '' } : {};
 
       const newItem = {
         id: Math.random().toString(36).substr(2, 9),

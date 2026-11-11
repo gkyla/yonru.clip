@@ -327,12 +327,40 @@ describe('IngestionJobCoordinator Unit Tests', () => {
       expect(bundle.styleSettings.fontSize).toBe(60); // Overridden by clip style
       expect(bundle.styleSettings.subtitleHighlightColor).toBe('#FF0000');
       expect(bundle.cropMap).toEqual([{ time: 0, x: 960 }]);
-      expect(bundle.timelineTracks).toHaveLength(2); // Video track + subtitle track injected
+      expect(bundle.timelineTracks).toHaveLength(1); // Video track only (subtitle track decoupled per ADR 0029)
       expect(bundle.thumbnailConfig?.enabled).toBe(true);
       expect(bundle.coverUrl).toBe(
         '/assets/clips/test-folder/clip-101/cover.jpg'
       );
       expect(bundle.savedHooks).toHaveLength(1);
+    });
+
+    it('filters out legacy subtitle track from persisted timeline for backward compatibility (ADR 0029)', async () => {
+      mockFetcher.mockImplementation((url: string) => {
+        if (url.includes('timeline.json')) {
+          return Promise.resolve([
+            { id: 'video', name: 'Main Video', type: 'video', items: [] },
+            { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
+            { id: 'text', name: 'Text layers', type: 'text', items: [] },
+            { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
+          ]);
+        }
+        return Promise.resolve({});
+      });
+
+      const bundle = await coordinator.loadClipAssets(
+        'folder-legacy',
+        'clip-legacy'
+      );
+      expect(bundle.timelineTracks).toHaveLength(3);
+      expect(
+        bundle.timelineTracks.some(t => (t.id as string) === 'subtitle')
+      ).toBe(false);
+      expect(bundle.timelineTracks.map(t => t.id)).toEqual([
+        'video',
+        'audio',
+        'text'
+      ]);
     });
 
     it('triggers on-demand crop map backfill when crop_map.json is missing', async () => {

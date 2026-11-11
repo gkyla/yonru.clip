@@ -130,9 +130,9 @@ export interface TimelineTrackItem {
 }
 
 export interface TimelineTrack {
-  id: 'video' | 'audio' | 'text' | 'subtitle';
+  id: 'video' | 'audio' | 'text';
   name: string;
-  type: 'video' | 'audio' | 'text' | 'subtitle';
+  type: 'video' | 'audio' | 'text';
   items: TimelineTrackItem[];
 }
 

@@ -117,8 +117,7 @@ describe('useInteractiveText & addTimelineItem Cover Slide Synchronization', () 
         items: [{ id: 'v1', name: 'Main Video', start: 0, duration: 12 }]
       },
       { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-      { id: 'text', name: 'Text layers', type: 'text', items: [] },
-      { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
+      { id: 'text', name: 'Text layers', type: 'text', items: [] }
     ];
   });
 
