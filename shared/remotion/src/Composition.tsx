@@ -840,20 +840,33 @@ export const YonruClip: React.FC<YonruClipProps> = ({
       </Sequence>
 
       {/* Global Span Timeline Audio layers */}
-      {timelineAudioItems.map(item => (
-        <Sequence
-          key={item.id}
-          from={Math.round(item.start * fps)}
-          durationInFrames={Math.round(item.duration * fps)}
-          name={`Audio-${item.name}`}
-        >
-          <Audio
-            src={item.src}
-            volume={item.volume ?? 1}
-            startFrom={Math.round((item.mediaStart || 0) * fps)}
-          />
-        </Sequence>
-      ))}
+      {timelineAudioItems.map(item => {
+        const rawSrc = item.src || '';
+        const isDirectUrl =
+          rawSrc.startsWith('http') ||
+          rawSrc.startsWith('blob:') ||
+          rawSrc.startsWith('data:') ||
+          rawSrc.startsWith('/');
+        const resolvedAudioSrc = rawSrc
+          ? isDirectUrl
+            ? rawSrc
+            : staticFile(rawSrc)
+          : '';
+        return (
+          <Sequence
+            key={item.id}
+            from={Math.round(item.start * fps)}
+            durationInFrames={Math.round(item.duration * fps)}
+            name={`Audio-${item.name}`}
+          >
+            <Audio
+              src={resolvedAudioSrc}
+              volume={item.volume ?? 1}
+              startFrom={Math.round((item.mediaStart || 0) * fps)}
+            />
+          </Sequence>
+        );
+      })}
     </AbsoluteFill>
   );
 };

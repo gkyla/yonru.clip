@@ -222,8 +222,10 @@ class StagedRenderContext:
         self.output_dir = output_dir
         self.remotion_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../shared/remotion"))
         self.public_dir = os.path.join(self.remotion_dir, "public")
+        self.audio_library_dir = os.path.abspath("temp_assets/audio_library")
         self.public_video_path: Optional[str] = None
         self.thumbnail_image_path: Optional[str] = None
+        self.staged_audio_paths: List[str] = []
         self.props_path: Optional[str] = None
         self.frames: int = 0
 
@@ -272,6 +274,29 @@ class StagedRenderContext:
         cover_frames = int(cover_duration * self.comp.fps)
         self.frames = video_frames + cover_frames
 
+        staged_audio_items = []
+        base_audio_dir = os.path.abspath(self.audio_library_dir)
+        base_public_dir = os.path.abspath(self.public_dir)
+        for idx, item in enumerate(self.comp.timeline_audio_items or []):
+            item_copy = dict(item)
+            src = str(item_copy.get("src") or "")
+            if "/assets/audio_library/" in src:
+                raw_filename = src.split("/assets/audio_library/")[-1].split("?")[0]
+                audio_filename = os.path.basename(raw_filename)
+                local_audio_path = os.path.abspath(os.path.join(base_audio_dir, audio_filename))
+                if (
+                    audio_filename
+                    and os.path.commonpath([base_audio_dir, local_audio_path]) == base_audio_dir
+                    and os.path.isfile(local_audio_path)
+                ):
+                    staged_audio_name = f"audio_{os.path.basename(self.out_filename)}_{idx}_{audio_filename}"
+                    staged_audio_dest = os.path.abspath(os.path.join(base_public_dir, staged_audio_name))
+                    if os.path.commonpath([base_public_dir, staged_audio_dest]) == base_public_dir:
+                        shutil.copy2(local_audio_path, staged_audio_dest)
+                        self.staged_audio_paths.append(staged_audio_dest)
+                        item_copy["src"] = staged_audio_name
+            staged_audio_items.append(item_copy)
+
         props = {
             "videoPath": temp_public_video_name,
             "words": self.comp.words_data or [],
@@ -288,7 +313,7 @@ class StagedRenderContext:
             "durationInFrames": self.frames,
             "subtitleStyle": self.comp.subtitle_style or {},
             "timelineTextItems": self.comp.timeline_text_items or [],
-            "timelineAudioItems": self.comp.timeline_audio_items or [],
+            "timelineAudioItems": staged_audio_items,
             "timelineVideoItems": timeline_video_items,
             "censoredSegments": self.comp.censored_segments or [],
             "bleepAudioSrc": self.comp.bleep_audio_src,
@@ -336,6 +361,12 @@ class StagedRenderContext:
                 os.remove(self.thumbnail_image_path)
             except Exception:
                 pass
+        for audio_path in self.staged_audio_paths:
+            if audio_path and os.path.exists(audio_path):
+                try:
+                    os.remove(audio_path)
+                except Exception:
+                    pass
 
 
 class RenderEngine(ABC):

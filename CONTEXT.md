@@ -76,6 +76,10 @@ _Avoid_: Video block, timeline chunk, split item, clip piece
 An independent audio element (sound effect, background music, or custom intro audio in supported audio formats such as MP3, WAV, OGG, AAC, M4A, FLAC) positioned within the Timeline Viewport on the Audio track, anchored to absolute global timeline seconds starting from the initial frame of the Cover Slide (`0.0s`) through video playback, persisting its absolute ruler timestamp across Cover Slide duration and toggle adjustments. Video container formats (such as MP4) are strictly disallowed on this track.
 _Avoid_: Audio clip, audio piece, intro sound, track item
 
+**Audio Library**:
+The persistent workspace-wide catalog of creator-uploaded audio assets (sound effects, background music, and intro sounds) available across all Ready Clips, accessed via a contextual floating popover anchored above the Timeline Viewport toolbar for audio auditioning, uploading, and repeated insertion as Timeline Audio Layers.
+_Avoid_: Sound bank, clip audio folder, media pool, local audio cache
+
 **Timeline Magnetic Snapping**:
 The dynamic, tolerance-based alignment mechanism within the Timeline Viewport that magnetically pulls dragging and resizing media boundaries to nearest ruler intervals, the Playhead, clip edges, and the Cover Slide transition boundary while preserving fluid, unconstrained positioning outside the snapping tolerance threshold.
 _Avoid_: Grid lock, hard snap, timeline lock, magnetic grip

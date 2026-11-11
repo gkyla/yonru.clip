@@ -425,8 +425,13 @@ export const useTimelineState = () => {
           coverDuration.value
         );
       }
+      const effectiveAudioSpan =
+        Math.max(
+          timelineDuration.value || 0,
+          (videoDuration.value || 0) + coverOffset
+        ) || 60;
       const maxRemaining = isAudio
-        ? Math.max(0.5, (timelineDuration.value || 60) - startSec)
+        ? Math.max(0.5, effectiveAudioSpan - startSec)
         : Math.max(
             0.5,
             Math.max(0.5, timelineDuration.value - coverOffset) - startSec
@@ -452,12 +457,12 @@ export const useTimelineState = () => {
       const newItem = {
         id: Math.random().toString(36).substr(2, 9),
         type: trackId as any,
-        start: startSec,
-        mediaStart: item.mediaStart ?? 0,
-        duration: durationSec,
         ...baseContent,
         ...styleOverrides,
-        ...item
+        ...item,
+        start: startSec,
+        mediaStart: item.mediaStart ?? 0,
+        duration: durationSec
       };
       track.items.push(newItem);
       selectedTimelineItem.value = newItem;

@@ -349,3 +349,36 @@ export type DefaultThumbnailStyle = Partial<ThumbnailTextOverlay> & {
 };
 
 export type DefaultCoverStyle = DefaultThumbnailStyle;
+
+export interface AudioLibraryItem {
+  id: string;
+  name: string;
+  filename: string;
+  url: string;
+  src: string;
+  duration: number;
+  size: number;
+  sha256?: string;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export interface AudioLibraryUploadResult {
+  status: 'created' | 'duplicate' | 'existing' | 'replaced';
+  item: AudioLibraryItem;
+}
+
+export interface DuplicateAudioPrompt {
+  file: File;
+  duration: number;
+  existingItem: AudioLibraryItem;
+}
+
+export interface AnchorRect {
+  top: number;
+  left: number;
+  bottom: number;
+  right: number;
+  width: number;
+  height: number;
+}
