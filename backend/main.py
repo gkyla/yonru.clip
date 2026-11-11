@@ -4,7 +4,7 @@ os.environ["OPENCV_VIDEOIO_PRIORITY_BACKEND"] = "FFMPEG"
 
 import json
 import asyncio
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -60,6 +60,9 @@ media_transcoder = MediaTranscoder(config_store=config_store)
 
 from core.clip_session_store import ClipSessionStore
 clip_session_store = ClipSessionStore("temp_assets/clips", output_dir="temp_assets", config_store=config_store, media_transcoder=media_transcoder)
+
+from core.audio_library_repository import AudioLibraryRepository, DuplicateHandlingMode
+audio_library_repository = AudioLibraryRepository(output_dir="temp_assets", clip_session_store=clip_session_store)
 
 youtube_client = YouTubeClient(cookie_path=cookie_path)
 asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store, media_transcoder=media_transcoder)
@@ -863,6 +866,48 @@ async def track_face_for_clip(folder_name: str, clip_id: str):
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Workspace Audio Library Endpoints ---
+
+@app.get("/api/audio-library")
+async def list_audio_library():
+    """Returns all audio items persisted in the workspace Audio Library."""
+    items = audio_library_repository.list_items()
+    return {"status": "ok", "items": items}
+
+
+@app.post("/api/audio-library")
+async def upload_audio_library_item(
+    file: UploadFile = File(...),
+    duration: float = Form(0.0),
+    on_duplicate: DuplicateHandlingMode = Form("prompt"),
+):
+    """Saves an uploaded audio file to the workspace Audio Library with duplicate handling."""
+    try:
+        content_bytes = await file.read()
+        result = audio_library_repository.save_item(
+            filename=file.filename or "audio.mp3",
+            content_bytes=content_bytes,
+            duration=duration,
+            on_duplicate=on_duplicate,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/audio-library/{item_id}")
+async def delete_audio_library_item(item_id: str):
+    """Deletes an item from the Audio Library catalog and cleans up disk file if unreferenced."""
+    try:
+        return audio_library_repository.delete_item(item_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

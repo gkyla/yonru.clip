@@ -24,8 +24,14 @@
             <Icon name="ri:text" class="text-violet-400 text-xs" /> TEXT
           </button>
           <button
-            class="px-2 py-1 rounded hover:bg-white/5 text-slate-400 text-[9px] font-bold tracking-wider flex items-center gap-1.5"
-            @click="triggerAudioUpload"
+            ref="audioBtnEl"
+            class="px-2 py-1 rounded hover:bg-white/5 text-[9px] font-bold tracking-wider flex items-center gap-1.5 transition-colors"
+            :class="
+              isAudioLibraryOpen
+                ? 'bg-emerald-500/15 text-emerald-300'
+                : 'text-slate-400'
+            "
+            @click="toggleAudioLibrary"
           >
             <Icon name="ri:music-2-line" class="text-green-400 text-xs" /> AUDIO
           </button>
@@ -376,6 +382,22 @@
       @commit-history="state.commitToHistory"
     />
 
+    <!-- Workspace Audio Library Popover -->
+    <AudioLibraryPopover
+      v-model="isAudioLibraryOpen"
+      :items="state.audioLibrary?.value || []"
+      :loading="state.isAudioLibraryLoading?.value || false"
+      :anchor-rect="audioAnchorRect"
+      :duplicate-prompt="duplicateAudioPrompt"
+      @close="closeAudioLibrary"
+      @insert="insertAudioFromLibrary"
+      @delete="handleDeleteLibraryAudio"
+      @trigger-upload="triggerAudioUpload"
+      @confirm-replace="confirmReplaceDuplicateAudio"
+      @confirm-use-existing="confirmUseExistingDuplicateAudio"
+      @cancel-duplicate="duplicateAudioPrompt = null"
+    />
+
     <input
       ref="audioInput"
       type="file"
@@ -400,9 +422,16 @@ import {
   isValidAudioFile,
   resolveAudioFileDuration
 } from '../utils/timelineHelpers';
-import type { TimelineTrack, TimelineTrackItem } from '../types/clipper';
+import type {
+  TimelineTrack,
+  TimelineTrackItem,
+  AudioLibraryItem,
+  AnchorRect,
+  DuplicateAudioPrompt
+} from '../types/clipper';
 
 import TimelinePropertiesInspector from './editor/TimelinePropertiesInspector.vue';
+import AudioLibraryPopover from './editor/AudioLibraryPopover.vue';
 
 const state = useClipperState();
 const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
@@ -410,6 +439,10 @@ const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
 const pxPerSec = ref(100);
 const scrollEl = ref<HTMLElement | null>(null);
 const audioInput = ref<HTMLInputElement | null>(null);
+const audioBtnEl = ref<HTMLElement | null>(null);
+const isAudioLibraryOpen = ref(false);
+const audioAnchorRect = ref<AnchorRect | null>(null);
+const duplicateAudioPrompt = ref<DuplicateAudioPrompt | null>(null);
 const snapEnabled = ref(true);
 const trackH = 40;
 const isUserScrolling = ref(false);
@@ -779,9 +812,78 @@ function addText() {
     y: 960
   });
 }
+function updateAudioAnchorRect() {
+  if (!audioBtnEl.value) return;
+  const r = audioBtnEl.value.getBoundingClientRect();
+  audioAnchorRect.value = {
+    top: r.top,
+    left: r.left,
+    bottom: r.bottom,
+    right: r.right,
+    width: r.width,
+    height: r.height
+  };
+}
+
+async function toggleAudioLibrary() {
+  if (isAudioLibraryOpen.value) {
+    closeAudioLibrary();
+    return;
+  }
+  updateAudioAnchorRect();
+  duplicateAudioPrompt.value = null;
+  isAudioLibraryOpen.value = true;
+  if (typeof state.fetchAudioLibrary === 'function') {
+    await state.fetchAudioLibrary();
+  }
+}
+
+function closeAudioLibrary() {
+  isAudioLibraryOpen.value = false;
+  duplicateAudioPrompt.value = null;
+}
+
+function insertAudioFromLibrary(item: AudioLibraryItem) {
+  state.commitToHistory();
+  state.addTimelineItem('audio', {
+    name: item.name,
+    src: item.src,
+    duration: item.duration
+  });
+  closeAudioLibrary();
+}
+
+async function handleDeleteLibraryAudio(id: string) {
+  if (typeof state.deleteAudioItem === 'function') {
+    await state.deleteAudioItem(id);
+  }
+}
+
+async function confirmReplaceDuplicateAudio() {
+  const prompt = duplicateAudioPrompt.value;
+  if (!prompt || typeof state.uploadAudioFile !== 'function') return;
+  const res = await state.uploadAudioFile(
+    prompt.file,
+    prompt.duration,
+    'replace'
+  );
+  duplicateAudioPrompt.value = null;
+  if (res?.item) {
+    insertAudioFromLibrary(res.item);
+  }
+}
+
+function confirmUseExistingDuplicateAudio() {
+  const prompt = duplicateAudioPrompt.value;
+  if (!prompt) return;
+  duplicateAudioPrompt.value = null;
+  insertAudioFromLibrary(prompt.existingItem);
+}
+
 function triggerAudioUpload() {
   audioInput.value?.click();
 }
+
 async function handleAudioFile(e: Event) {
   const inputEl = e.target as HTMLInputElement;
   const file = inputEl.files?.[0];
@@ -797,6 +899,27 @@ async function handleAudioFile(e: Event) {
   }
 
   const duration = await resolveAudioFileDuration(file);
+
+  if (typeof state.uploadAudioFile === 'function') {
+    const res = await state.uploadAudioFile(file, duration, 'prompt');
+    inputEl.value = '';
+    if (!res) return;
+
+    if (res.status === 'duplicate') {
+      updateAudioAnchorRect();
+      duplicateAudioPrompt.value = {
+        file,
+        duration,
+        existingItem: res.item
+      };
+      isAudioLibraryOpen.value = true;
+      return;
+    }
+
+    insertAudioFromLibrary(res.item);
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = ev => {
     state.commitToHistory();

@@ -15,6 +15,7 @@ import { useAppNotifier } from './useAppNotifier';
 import { usePromptRepository } from './usePromptRepository';
 import { useCachedLibrary } from './useCachedLibrary';
 import { useClipEditorSession } from './useClipEditorSession';
+import { useAudioLibrary } from './useAudioLibrary';
 
 import fontsManifest from '../../../shared/fonts_manifest.json';
 import type {
@@ -91,6 +92,15 @@ function createClipperState() {
   const subtitleStyle = useSubtitleStyle();
   const notifier = useAppNotifier();
   const promptRepo = usePromptRepository(notifier);
+  const audioLib = useAudioLibrary(notifier);
+
+  const {
+    audioLibrary,
+    isAudioLibraryLoading,
+    fetchAudioLibrary,
+    uploadAudioFile,
+    deleteAudioItem
+  } = audioLib;
 
   // Application Notification state delegated from useAppNotifier sub-composable
   const { toast, showToast, dismissToast } = notifier;
@@ -670,6 +680,13 @@ function createClipperState() {
     deleteCover,
     loadDefaultCoverStyle,
     saveDefaultCoverStyle,
-    applyDefaultCoverStyle
+    applyDefaultCoverStyle,
+
+    // Workspace Audio Library API
+    audioLibrary,
+    isAudioLibraryLoading,
+    fetchAudioLibrary,
+    uploadAudioFile,
+    deleteAudioItem
   };
 }

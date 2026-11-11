@@ -1066,4 +1066,22 @@ class ClipSessionStore:
     def save_default_thumbnail_style(self, style: Dict[str, Any]) -> bool:
         return self.save_default_cover_style(style)
 
+    def is_audio_asset_referenced(self, filename: str, url: str) -> bool:
+        """Checks whether any saved clip session manifest references the given audio asset."""
+        if not self.clips_dir or not os.path.isdir(self.clips_dir):
+            return False
+        for root, _, files in os.walk(self.clips_dir):
+            for manifest_name in ("timeline.json", "history.json"):
+                if manifest_name in files:
+                    manifest_path = os.path.join(root, manifest_name)
+                    try:
+                        with open(manifest_path, "r", encoding="utf-8") as f:
+                            raw = f.read()
+                        if url in raw or f"/audio_library/{filename}" in raw:
+                            return True
+                    except Exception:
+                        continue
+        return False
+
+
 
