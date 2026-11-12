@@ -911,7 +911,10 @@ import { useRemotionBridge } from '../composables/useRemotionBridge';
 import { useInteractiveText } from '../composables/useInteractiveText';
 import { DirectPlayerBridge } from '../utils/playerBridge';
 import { transformText } from '../utils/styleHelpers';
-import { getCropEntryAtMediaTime } from '../utils/timelineHelpers';
+import {
+  findVideoTrack,
+  getCropEntryAtMediaTime
+} from '../utils/timelineHelpers';
 import RemotionPlayer from './RemotionPlayer.client.vue';
 import TikTokSafeZoneOverlay from './preview/TikTokSafeZoneOverlay.vue';
 import ReelsSafeZoneOverlay from './preview/ReelsSafeZoneOverlay.vue';
@@ -1365,9 +1368,7 @@ const isInThumbnailWindow = computed(
 
 const videoTime = computed(() => {
   const t = Math.max(0, state.currentTime.value - thumbOffset.value);
-  const videoTrack = state.timelineTracks.value.find(
-    (tr: any) => tr.id === 'video'
-  );
+  const videoTrack = findVideoTrack(state.timelineTracks.value);
   if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0)
     return t;
 
@@ -1493,9 +1494,7 @@ function onNativeTimeUpdate(e: Event) {
   const thumbSec = state.thumbnailEnabled.value
     ? state.thumbnailDuration.value
     : 0;
-  const videoTrack = state.timelineTracks.value.find(
-    (tr: any) => tr.id === 'video'
-  );
+  const videoTrack = findVideoTrack(state.timelineTracks.value);
 
   if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) {
     state.currentTime.value = video.currentTime + thumbSec;

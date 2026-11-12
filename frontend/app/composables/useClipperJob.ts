@@ -2,6 +2,10 @@
 import { useTimelineState } from './useTimelineState';
 import { mapThumbnailOverlays } from '../utils/thumbnailHelpers';
 import {
+  findVideoTrack,
+  normalizeTimelineTracks
+} from '../utils/timelineHelpers';
+import {
   IngestionJobCoordinator,
   type HydratedClipBundle,
   type JobUpdateCallbacks
@@ -268,12 +272,15 @@ export const useClipperJob = () => {
       cropMap.value = bundle.cropMap;
     }
 
-    if (bundle.timelineTracks && bundle.timelineTracks.length > 0) {
-      timeline.timelineTracks.value = bundle.timelineTracks;
+    if (Array.isArray(bundle.timelineTracks)) {
+      timeline.timelineTracks.value = normalizeTimelineTracks(
+        bundle.timelineTracks
+      );
     }
 
-    if (timeline.timelineTracks.value[0]?.items?.length === 0) {
-      timeline.timelineTracks.value[0].items = [
+    const videoTrack = findVideoTrack(timeline.timelineTracks.value);
+    if (videoTrack && videoTrack.items.length === 0) {
+      videoTrack.items = [
         {
           id: 'main-video',
           name: 'Main Video',
@@ -443,8 +450,9 @@ export const useClipperJob = () => {
     activeHook.value = null;
     clipId.value = null;
     timeline.isSavingLocked.value = true;
-    if (timeline.timelineTracks.value[0]) {
-      timeline.timelineTracks.value[0].items = [];
+    const videoTrack = findVideoTrack(timeline.timelineTracks.value);
+    if (videoTrack) {
+      videoTrack.items = [];
     }
     resetThumbnailState();
 
@@ -517,8 +525,9 @@ export const useClipperJob = () => {
     outputUrl.value = null;
     renderStatus.value = 'idle';
     fullTranscript.value = [];
-    if (timeline.timelineTracks.value[0]) {
-      timeline.timelineTracks.value[0].items = [];
+    const videoTrack = findVideoTrack(timeline.timelineTracks.value);
+    if (videoTrack) {
+      videoTrack.items = [];
     }
     resetThumbnailState();
 
@@ -590,8 +599,9 @@ export const useClipperJob = () => {
     // Lock saving immediately during state initialization and fetch
     timeline.isSavingLocked.value = true;
 
-    if (timeline.timelineTracks.value[0]) {
-      timeline.timelineTracks.value[0].items = [];
+    const videoTrack = findVideoTrack(timeline.timelineTracks.value);
+    if (videoTrack) {
+      videoTrack.items = [];
     }
     isMediaLoading.value = true;
     resetThumbnailState(true);

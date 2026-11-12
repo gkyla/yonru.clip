@@ -9,7 +9,15 @@ import {
 import { useClipperState } from './useClipperState';
 import { useSnappingGuides } from './useSnappingGuides';
 import { getEditingStyle } from '../utils/styleHelpers';
-import { isTimelineItemActiveAtTime } from '../utils/timelineHelpers';
+import {
+  isTextTrack,
+  isTimelineItemActiveAtTime
+} from '../utils/timelineHelpers';
+import type {
+  ThumbnailTextOverlay,
+  TimelineTrack,
+  TimelineTrackItem
+} from '../types/clipper';
 
 export const useInteractiveText = (transformerRef: { value: any }) => {
   const state = useClipperState();
@@ -21,15 +29,16 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
 
   const allUsedFonts = computed(() => {
     const fonts = new Set<string>();
-    state.thumbnailTextOverlays.value.forEach((o: any) => {
+    state.thumbnailTextOverlays.value.forEach((o: ThumbnailTextOverlay) => {
       fonts.add(`${o.fontWeight || 900}-${o.fontFamily || 'Montserrat'}`);
     });
-    const track = state.timelineTracks.value.find((t: any) => t.id === 'text');
-    if (track && track.items) {
-      track.items.forEach((item: any) => {
-        fonts.add(`${item.fontWeight || 900}-${item.font || 'Outfit'}`);
+    state.timelineTracks.value
+      .filter((t: TimelineTrack) => isTextTrack(t))
+      .forEach((track: TimelineTrack) => {
+        (track.items || []).forEach((item: TimelineTrackItem) => {
+          fonts.add(`${item.fontWeight || 900}-${item.font || 'Outfit'}`);
+        });
       });
-    }
     return Array.from(fonts);
   });
 
@@ -73,20 +82,29 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     () => state.coverDuration?.value ?? state.thumbnailDuration?.value ?? 1
   );
 
-  // Timeline Text Overlays
+  // Timeline Text Overlays (ordered bottom-to-top so upper tracks paint & hit-test on top)
   const activeTextItems = computed(() => {
-    const textTrack = state.timelineTracks.value.find(
-      (t: any) => t.id === 'text'
+    const visibleTextTracks = state.timelineTracks.value.filter(
+      (t: TimelineTrack) => isTextTrack(t) && !t.hidden
     );
-    if (!textTrack) return [];
-    return textTrack.items.filter((item: any) =>
-      isTimelineItemActiveAtTime(
-        item,
-        state.currentTime.value,
-        isCoverEnabled.value,
-        activeCoverDuration.value
-      )
-    );
+    const items: TimelineTrackItem[] = [];
+    for (let i = visibleTextTracks.length - 1; i >= 0; i--) {
+      const track = visibleTextTracks[i];
+      if (!track?.items) continue;
+      for (const item of track.items) {
+        if (
+          isTimelineItemActiveAtTime(
+            item,
+            state.currentTime.value,
+            isCoverEnabled.value,
+            activeCoverDuration.value
+          )
+        ) {
+          items.push(item);
+        }
+      }
+    }
+    return items;
   });
 
   function onTextDragMove(e: any, _item: any) {
@@ -123,21 +141,13 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     editingInputRef.value = el;
   };
 
-  function isCurrentItemActive(item: any) {
-    if (!item) return false;
-    return isTimelineItemActiveAtTime(
-      item,
-      state.currentTime.value,
-      isCoverEnabled.value,
-      activeCoverDuration.value
-    );
-  }
-
   const isTimelineTextActiveAndSelected = computed(() => {
     const item = state.selectedTimelineItem.value;
     if (!item || item.type !== 'text' || editingItemId.value === item.id)
       return false;
-    return isCurrentItemActive(item);
+    return activeTextItems.value.some(
+      (i: TimelineTrackItem) => i.id === item.id
+    );
   });
 
   function updateTransformer() {
@@ -262,6 +272,7 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
 
   return {
     fontsLoaded,
+    allUsedFonts,
     activeTextItems,
     isTimelineTextActiveAndSelected,
     editingItemId,

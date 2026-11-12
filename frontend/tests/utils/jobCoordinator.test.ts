@@ -327,7 +327,11 @@ describe('IngestionJobCoordinator Unit Tests', () => {
       expect(bundle.styleSettings.fontSize).toBe(60); // Overridden by clip style
       expect(bundle.styleSettings.subtitleHighlightColor).toBe('#FF0000');
       expect(bundle.cropMap).toEqual([{ time: 0, x: 960 }]);
-      expect(bundle.timelineTracks).toHaveLength(1); // Video track only (subtitle track decoupled per ADR 0029)
+      expect(bundle.timelineTracks.map(t => t.id)).toEqual([
+        'text',
+        'video',
+        'audio'
+      ]); // Normalized into NLE stack [text, video, audio] (ADR 0031)
       expect(bundle.thumbnailConfig?.enabled).toBe(true);
       expect(bundle.coverUrl).toBe(
         '/assets/clips/test-folder/clip-101/cover.jpg'
@@ -357,9 +361,14 @@ describe('IngestionJobCoordinator Unit Tests', () => {
         bundle.timelineTracks.some(t => (t.id as string) === 'subtitle')
       ).toBe(false);
       expect(bundle.timelineTracks.map(t => t.id)).toEqual([
+        'text',
         'video',
-        'audio',
-        'text'
+        'audio'
+      ]);
+      expect(bundle.timelineTracks.map(t => t.name)).toEqual([
+        'Text 1',
+        'Main Video',
+        'Audio 1'
       ]);
     });
 

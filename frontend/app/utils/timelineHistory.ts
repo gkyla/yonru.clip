@@ -159,6 +159,25 @@ export class TimelineTransactionEngine {
     return this._redoStack.length;
   }
 
+  private cloneTrack(
+    track: TimelineTrack,
+    items: TimelineTrackItem[]
+  ): TimelineTrack {
+    const cloned: TimelineTrack = {
+      id: track.id,
+      name: track.name,
+      type: track.type,
+      items
+    };
+    if (track.muted !== undefined) {
+      cloned.muted = track.muted;
+    }
+    if (track.hidden !== undefined) {
+      cloned.hidden = track.hidden;
+    }
+    return cloned;
+  }
+
   private cloneTimelineItem(item: TimelineTrackItem): TimelineTrackItem {
     const cloned = { ...item } as Record<string, unknown>;
     // Clean up circular properties that components might attach dynamically
@@ -242,9 +261,15 @@ export class TimelineTransactionEngine {
           }
         );
 
-        // If items array is unchanged, reuse the track reference
-        const isItemsArrayIdentical =
+        // If items array and track metadata are unchanged, reuse the track reference
+        const isTrackMetadataSame =
           lastTrack &&
+          track.name === lastTrack.name &&
+          track.type === lastTrack.type &&
+          Boolean(track.muted) === Boolean(lastTrack.muted) &&
+          Boolean(track.hidden) === Boolean(lastTrack.hidden);
+        const isItemsArrayIdentical =
+          isTrackMetadataSame &&
           newItems.length === lastTrack.items.length &&
           newItems.every(
             (item: TimelineTrackItem, idx: number) =>
@@ -255,12 +280,7 @@ export class TimelineTransactionEngine {
           return lastTrack;
         }
 
-        return {
-          id: track.id,
-          name: track.name,
-          type: track.type,
-          items: newItems
-        };
+        return this.cloneTrack(track, newItems);
       }
     );
 
@@ -287,9 +307,9 @@ export class TimelineTransactionEngine {
 
     // 3. Check if there is a real change compared to the last snapshot
     if (lastSnapshot) {
-      const isTracksUnchanged = newTracks.every(
-        (track, idx) => track === lastSnapshot.tracks[idx]
-      );
+      const isTracksUnchanged =
+        newTracks.length === lastSnapshot.tracks.length &&
+        newTracks.every((track, idx) => track === lastSnapshot.tracks[idx]);
       const isTranscriptUnchanged =
         !newTranscript ||
         (lastSnapshot.transcript &&
@@ -357,14 +377,13 @@ export class TimelineTransactionEngine {
 
     // Clone current state to push onto redo stack
     const currentTracksCloned = currentTracks.map(
-      (track: TimelineTrack): TimelineTrack => ({
-        id: track.id,
-        name: track.name,
-        type: track.type,
-        items: track.items.map((item: TimelineTrackItem) =>
-          this.cloneTimelineItem(item)
+      (track: TimelineTrack): TimelineTrack =>
+        this.cloneTrack(
+          track,
+          track.items.map((item: TimelineTrackItem) =>
+            this.cloneTimelineItem(item)
+          )
         )
-      })
     );
 
     const currentTranscriptCloned = currentTranscript
@@ -420,14 +439,13 @@ export class TimelineTransactionEngine {
 
     // Clone current state to push onto undo stack
     const currentTracksCloned = currentTracks.map(
-      (track: TimelineTrack): TimelineTrack => ({
-        id: track.id,
-        name: track.name,
-        type: track.type,
-        items: track.items.map((item: TimelineTrackItem) =>
-          this.cloneTimelineItem(item)
+      (track: TimelineTrack): TimelineTrack =>
+        this.cloneTrack(
+          track,
+          track.items.map((item: TimelineTrackItem) =>
+            this.cloneTimelineItem(item)
+          )
         )
-      })
     );
 
     const currentTranscriptCloned = currentTranscript

@@ -10,6 +10,8 @@ const mockSeekTo = vi.fn((t: number) => {
   mockCurrentTime.value = t;
 });
 
+const mockActiveTrackIds = ref({ text: 'text', audio: 'audio' });
+
 const mockState = {
   currentTime: mockCurrentTime,
   isPlaying: mockIsPlaying,
@@ -29,6 +31,7 @@ const mockState = {
   isEditorLocked: ref(false),
   renderStatus: ref('ready'),
   contentAudit: ref({ flaggedSegments: [] }),
+  activeTrackIds: mockActiveTrackIds,
   timelineTracks: ref([
     {
       id: 'video',
@@ -50,7 +53,31 @@ const mockState = {
   },
   seekTo: mockSeekTo,
   addTimelineItem: vi.fn(),
+  addTrack: vi.fn(),
+  deleteTrack: vi.fn(),
+  canDeleteTrack: vi.fn((trackId: string) => {
+    const target = mockState.timelineTracks.value.find(t => t.id === trackId);
+    if (!target || target.type === 'video') return false;
+    return (
+      mockState.timelineTracks.value.filter(t => t.type === target.type)
+        .length > 1
+    );
+  }),
+  toggleTrackMute: vi.fn(),
+  toggleTrackVisibility: vi.fn(),
+  setActiveTrack: vi.fn((trackId: string) => {
+    const target = mockState.timelineTracks.value.find(t => t.id === trackId);
+    if (target && (target.type === 'text' || target.type === 'audio')) {
+      mockActiveTrackIds.value = {
+        ...mockActiveTrackIds.value,
+        [target.type]: target.id
+      };
+    }
+  }),
+  moveTimelineItemToTrack: vi.fn(),
   saveTimelineTracks: vi.fn(),
+  saveTranscript: vi.fn(),
+  fullTranscript: ref([]),
   undo: vi.fn(),
   redo: vi.fn(),
   commitToHistory: vi.fn(),
@@ -595,7 +622,8 @@ describe('TimelineEditor Component', () => {
       expect.objectContaining({
         start: 15,
         duration: 15
-      })
+      }),
+      { forceTrack: true }
     );
     // Selected item must be updated to the second piece (the split tail)
     expect(mockState.selectedTimelineItem.value).toEqual(
@@ -667,5 +695,385 @@ describe('TimelineEditor Component', () => {
 
     mockState.contentAudit.value = { flaggedSegments: [] };
     mockState.timelineTracks.value = prevTracks;
+  });
+
+  describe('Multi-Track NLE UI & Vertical Drag Interactions', () => {
+    it('supports + Text / + Audio track creation, Mute / Hide / Delete track toggles, minimum 1 track guard, active track selection, Cover Slide zones across all text tracks, and synced scroll', async () => {
+      const prevTracks = mockState.timelineTracks.value;
+      mockState.addTrack.mockClear();
+      mockState.deleteTrack.mockClear();
+      mockState.toggleTrackMute.mockClear();
+      mockState.toggleTrackVisibility.mockClear();
+      mockState.saveTimelineTracks.mockClear();
+      mockState.setActiveTrack.mockClear();
+      mockState.thumbnailEnabled.value = true;
+      mockState.thumbnailDuration.value = 1.5;
+
+      mockState.timelineTracks.value = [
+        {
+          id: 'text-2',
+          name: 'Text 2',
+          type: 'text',
+          hidden: false,
+          items: []
+        },
+        {
+          id: 'text',
+          name: 'Text 1',
+          type: 'text',
+          hidden: true,
+          items: [{ id: 't1', content: 'Layer 1', start: 0, duration: 2 }]
+        },
+        {
+          id: 'video',
+          name: 'Main Video',
+          type: 'video',
+          items: [{ id: 'v1', name: 'Clip 1', start: 0, duration: 20 }]
+        },
+        {
+          id: 'audio',
+          name: 'Audio 1',
+          type: 'audio',
+          muted: true,
+          items: [{ id: 'a1', name: 'BGM', start: 0, duration: 10 }]
+        }
+      ];
+
+      const wrapper = mount(TimelineEditor, {
+        global: {
+          stubs: {
+            Icon: true,
+            NuxtIcon: true,
+            Teleport: true,
+            Transition: true,
+            TimelinePropertiesInspector: true
+          }
+        }
+      });
+
+      // 1. + Text and + Audio buttons trigger addTrack + save
+      await wrapper.find('[data-testid="add-text-track-btn"]').trigger('click');
+      expect(mockState.addTrack).toHaveBeenCalledWith('text');
+      expect(mockState.saveTimelineTracks).toHaveBeenCalled();
+
+      await wrapper
+        .find('[data-testid="add-audio-track-btn"]')
+        .trigger('click');
+      expect(mockState.addTrack).toHaveBeenCalledWith('audio');
+
+      // 2. Delete enabled on Text 2 (2 text tracks exist), disabled on Audio 1 (only 1 audio track), absent on Video
+      const delText2 = wrapper.find('[data-testid="delete-track-text-2"]');
+      expect(delText2.exists()).toBe(true);
+      expect((delText2.element as HTMLButtonElement).disabled).toBe(false);
+      await delText2.trigger('click');
+      expect(mockState.deleteTrack).toHaveBeenCalledWith('text-2');
+
+      const delAudio1 = wrapper.find('[data-testid="delete-track-audio"]');
+      expect(delAudio1.exists()).toBe(true);
+      expect((delAudio1.element as HTMLButtonElement).disabled).toBe(true);
+
+      expect(wrapper.find('[data-testid="delete-track-video"]').exists()).toBe(
+        false
+      );
+
+      // 3. Mute and Hide toggles work and items on muted/hidden tracks visually dim
+      await wrapper.find('[data-testid="toggle-mute-audio"]').trigger('click');
+      expect(mockState.toggleTrackMute).toHaveBeenCalledWith('audio');
+
+      await wrapper.find('[data-testid="toggle-hide-text"]').trigger('click');
+      expect(mockState.toggleTrackVisibility).toHaveBeenCalledWith('text');
+
+      // 4. Selecting Text 2 header activates it
+      await wrapper
+        .find('[data-testid="track-header-text-2"]')
+        .trigger('click');
+      expect(mockState.setActiveTrack).toHaveBeenCalledWith('text-2');
+      await wrapper.vm.$nextTick();
+      expect(
+        wrapper
+          .find('[data-testid="track-header-text-2"]')
+          .attributes('data-active-track')
+      ).toBe('true');
+
+      // 5. Cover Slide hatched zone renders on BOTH Text 2 and Text 1 (2 zones), NOT Audio 1
+      expect(wrapper.findAll('[data-testid="cover-slide-zone"]').length).toBe(
+        2
+      );
+
+      // 6. Vertical scroll sync between canvas scrollEl and header scroll container
+      const tlScroll = wrapper.find('.tl-scroll').element as HTMLElement;
+      const headerScroll = wrapper.find('[data-testid="track-headers-scroll"]')
+        .element as HTMLElement;
+      tlScroll.scrollTop = 48;
+      await wrapper.find('.tl-scroll').trigger('scroll');
+      expect(headerScroll.scrollTop).toBe(48);
+
+      headerScroll.scrollTop = 16;
+      await wrapper
+        .find('[data-testid="track-headers-scroll"]')
+        .trigger('scroll');
+      expect(tlScroll.scrollTop).toBe(16);
+
+      mockState.thumbnailEnabled.value = false;
+      mockState.timelineTracks.value = prevTracks;
+    });
+
+    it('supports vertical cross-track pointer drag between same-type tracks while blocking incompatible or overlapping drops', async () => {
+      const prevTracks = mockState.timelineTracks.value;
+      mockState.moveTimelineItemToTrack.mockReset();
+      mockState.moveTimelineItemToTrack.mockReturnValue(true);
+      mockState.commitToHistory.mockClear();
+      mockState.saveTimelineTracks.mockClear();
+
+      mockState.timelineTracks.value = [
+        {
+          id: 'text-2',
+          name: 'Text 2',
+          type: 'text',
+          items: [
+            { id: 'top-txt', content: 'Upper Text', start: 0, duration: 4 }
+          ]
+        },
+        {
+          id: 'text',
+          name: 'Text 1',
+          type: 'text',
+          items: [
+            { id: 'busy-txt', content: 'Occupied Later', start: 8, duration: 4 }
+          ]
+        },
+        {
+          id: 'video',
+          name: 'Main Video',
+          type: 'video',
+          items: [{ id: 'v1', name: 'Clip 1', start: 0, duration: 20 }]
+        },
+        {
+          id: 'audio',
+          name: 'Audio 1',
+          type: 'audio',
+          items: []
+        }
+      ];
+
+      const wrapper = mount(TimelineEditor, {
+        global: {
+          stubs: {
+            Icon: true,
+            NuxtIcon: true,
+            Teleport: true,
+            Transition: true,
+            TimelinePropertiesInspector: true
+          }
+        }
+      });
+
+      const topEl = wrapper
+        .findAll('.tl-scroll .cursor-move')
+        .find(el => el.text().includes('Upper Text'));
+      expect(topEl).toBeDefined();
+
+      // 1. Drag down 1 row (+40px) from text-2 -> free interval on text -> valid drop
+      await topEl!.trigger('mousedown', { clientX: 100, clientY: 50 });
+      window.dispatchEvent(
+        new MouseEvent('mousemove', { clientX: 100, clientY: 90 })
+      );
+      await wrapper.vm.$nextTick();
+      expect(
+        wrapper.find('[data-testid="track-lane-text"]').classes().join(' ')
+      ).toContain('ring-sky-400');
+
+      window.dispatchEvent(new MouseEvent('mouseup'));
+      expect(mockState.commitToHistory).toHaveBeenCalled();
+      expect(mockState.moveTimelineItemToTrack).toHaveBeenCalledWith(
+        'top-txt',
+        'text-2',
+        'text',
+        0,
+        4
+      );
+      expect(mockState.saveTimelineTracks).toHaveBeenCalled();
+
+      // 2. Drag down 2 rows (+80px) from text-2 -> Video (incompatible type) -> blocked & no move
+      mockState.moveTimelineItemToTrack.mockClear();
+      mockState.commitToHistory.mockClear();
+      await topEl!.trigger('mousedown', { clientX: 100, clientY: 50 });
+      window.dispatchEvent(
+        new MouseEvent('mousemove', { clientX: 100, clientY: 130 })
+      );
+      await wrapper.vm.$nextTick();
+      expect(
+        wrapper.find('[data-testid="track-lane-video"]').classes().join(' ')
+      ).toContain('ring-rose-500');
+      window.dispatchEvent(new MouseEvent('mouseup'));
+      expect(mockState.moveTimelineItemToTrack).not.toHaveBeenCalled();
+
+      // 3. Drag horizontally into [8s..12s] (+800px at 100px/s) AND down 1 row (+40px) -> overlaps busy-txt [8..12] -> blocked
+      await topEl!.trigger('mousedown', { clientX: 100, clientY: 50 });
+      window.dispatchEvent(
+        new MouseEvent('mousemove', { clientX: 900, clientY: 90 })
+      );
+      await wrapper.vm.$nextTick();
+      expect(
+        wrapper.find('[data-testid="track-lane-text"]').classes().join(' ')
+      ).toContain('ring-rose-500');
+      window.dispatchEvent(new MouseEvent('mouseup'));
+      expect(mockState.moveTimelineItemToTrack).not.toHaveBeenCalled();
+
+      mockState.timelineTracks.value = prevTracks;
+    });
+
+    it('pins scrubbing head inside sticky ruler and spans playhead guide line across all track lanes through audio-3', async () => {
+      const prevTracks = mockState.timelineTracks.value;
+      mockSeekTo.mockClear();
+      mockState.timelineTracks.value = [
+        { id: 'text-2', name: 'Text 2', type: 'text', items: [] },
+        { id: 'text', name: 'Text 1', type: 'text', items: [] },
+        { id: 'video', name: 'Main Video', type: 'video', items: [] },
+        { id: 'audio', name: 'Audio 1', type: 'audio', items: [] },
+        { id: 'audio-2', name: 'Audio 2', type: 'audio', items: [] },
+        { id: 'audio-3', name: 'Audio 3', type: 'audio', items: [] }
+      ];
+
+      const wrapper = mount(TimelineEditor, {
+        global: {
+          stubs: {
+            Icon: true,
+            NuxtIcon: true,
+            Teleport: true,
+            Transition: true,
+            TimelinePropertiesInspector: true
+          }
+        }
+      });
+
+      // Sticky scrubbing head stays inside the sticky top-0 ruler so it never hides on vertical scroll
+      const stickyRuler = wrapper.find('.timeline-ruler');
+      expect(stickyRuler.classes()).toContain('sticky');
+      expect(stickyRuler.classes()).toContain('top-0');
+      const head = stickyRuler.find('[data-testid="timeline-playhead-head"]');
+      expect(head.exists()).toBe(true);
+      const handle = head.find('[data-testid="timeline-playhead-handle"]');
+      expect(handle.exists()).toBe(true);
+
+      // Scrubbing via pinned handle works independently of vertical scroll
+      await handle.trigger('mousedown', { button: 0, clientX: 250 });
+      window.dispatchEvent(new MouseEvent('mouseup'));
+      expect(mockSeekTo).toHaveBeenCalled();
+
+      // Vertical playhead line lives inside the full-height tracks canvas wrapping text-2 through audio-3
+      const tracksCanvas = wrapper.find(
+        '[data-testid="timeline-tracks-canvas"]'
+      );
+      expect(tracksCanvas.exists()).toBe(true);
+      expect(
+        tracksCanvas.find('[data-testid="track-lane-audio-3"]').exists()
+      ).toBe(true);
+      const playhead = tracksCanvas.find('[data-testid="timeline-playhead"]');
+      expect(playhead.exists()).toBe(true);
+      expect(playhead.classes()).toContain('top-0');
+      expect(playhead.classes()).toContain('bottom-0');
+
+      mockState.timelineTracks.value = prevTracks;
+    });
+
+    it('highlights source lane rose and snaps back when horizontal drag overlaps a sibling item on the same track', async () => {
+      const prevTracks = mockState.timelineTracks.value;
+      mockState.commitToHistory.mockClear();
+      mockState.saveTimelineTracks.mockClear();
+
+      const itemA = { id: 'txt-a', content: 'A', start: 0, duration: 3 };
+      const itemB = { id: 'txt-b', content: 'B', start: 5, duration: 3 };
+      mockState.timelineTracks.value = [
+        { id: 'text', name: 'Text 1', type: 'text', items: [itemA, itemB] },
+        { id: 'video', name: 'Main Video', type: 'video', items: [] },
+        { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+      ];
+
+      const wrapper = mount(TimelineEditor, {
+        global: {
+          stubs: {
+            Icon: true,
+            NuxtIcon: true,
+            Teleport: true,
+            Transition: true,
+            TimelinePropertiesInspector: true
+          }
+        }
+      });
+
+      const elA = wrapper
+        .findAll('.tl-scroll .cursor-move')
+        .find(el => el.text().includes('A'));
+      expect(elA).toBeDefined();
+
+      // Drag horizontally +500px (5s at 100px/s) into [5s..8s] where B sits
+      await elA!.trigger('mousedown', { clientX: 100, clientY: 50 });
+      window.dispatchEvent(
+        new MouseEvent('mousemove', { clientX: 600, clientY: 50 })
+      );
+      await wrapper.vm.$nextTick();
+
+      expect(
+        wrapper.find('[data-testid="track-lane-text"]').classes().join(' ')
+      ).toContain('ring-rose-500');
+
+      window.dispatchEvent(new MouseEvent('mouseup'));
+      expect(itemA.start).toBe(0);
+      expect(mockState.commitToHistory).not.toHaveBeenCalled();
+      expect(mockState.saveTimelineTracks).not.toHaveBeenCalled();
+
+      mockState.timelineTracks.value = prevTracks;
+    });
+
+    it('keeps selectedTimelineItem referencing the live inserted item inside track.items after splitSelected', async () => {
+      const prevTracks = mockState.timelineTracks.value;
+      const origAdd = mockState.addTimelineItem;
+      const item = {
+        id: 'txt-split',
+        content: 'Split',
+        start: 0,
+        duration: 10
+      };
+      mockState.timelineTracks.value = [
+        { id: 'text', name: 'Text 1', type: 'text', items: [item] },
+        { id: 'video', name: 'Main Video', type: 'video', items: [] },
+        { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+      ];
+      mockState.selectedTimelineItem.value = item;
+      mockState.currentTime.value = 4;
+      mockState.addTimelineItem = vi.fn((trackId: string, newItem: any) => {
+        const cloned = { ...newItem, fromRuntime: true };
+        mockState.timelineTracks.value = mockState.timelineTracks.value.map(
+          t => (t.id === trackId ? { ...t, items: [...t.items, cloned] } : t)
+        );
+      });
+
+      try {
+        const wrapper = mount(TimelineEditor, {
+          global: {
+            stubs: {
+              Icon: true,
+              NuxtIcon: true,
+              Teleport: true,
+              Transition: true,
+              TimelinePropertiesInspector: true
+            }
+          }
+        });
+
+        const splitBtn = wrapper.find('button[title*="Split"]');
+        await splitBtn.trigger('click');
+
+        const insertedInTrack = mockState.timelineTracks.value
+          .find(t => t.id === 'text')
+          ?.items.find(i => i.id !== 'txt-split');
+        expect(insertedInTrack).toBeDefined();
+        expect(mockState.selectedTimelineItem.value).toBe(insertedInTrack);
+      } finally {
+        mockState.addTimelineItem = origAdd;
+        mockState.timelineTracks.value = prevTracks;
+      }
+    });
   });
 });

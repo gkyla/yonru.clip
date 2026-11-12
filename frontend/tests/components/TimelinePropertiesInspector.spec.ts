@@ -3,6 +3,30 @@ import { mount } from '@vue/test-utils';
 import TimelinePropertiesInspector from '../../app/components/editor/TimelinePropertiesInspector.vue';
 import { ref, reactive } from 'vue';
 
+const mockClipperState = vi.hoisted(() => ({
+  value: null as {
+    timelineTracks: {
+      value: Array<{
+        id: string;
+        name: string;
+        type: 'text' | 'video' | 'audio';
+        items: Array<{ id: string; start: number; duration: number }>;
+      }>;
+    };
+  } | null
+}));
+
+vi.mock('../../app/composables/useClipperState', async importOriginal => {
+  const actual =
+    await importOriginal<
+      typeof import('../../app/composables/useClipperState')
+    >();
+  return {
+    ...actual,
+    useClipperState: () => mockClipperState.value
+  };
+});
+
 const globalMountOptions = {
   stubs: {
     Icon: true,
@@ -467,6 +491,98 @@ describe('TimelinePropertiesInspector Component', () => {
         expect(wrapper.text()).not.toContain('Typography');
         expect(wrapper.text()).not.toContain('Colors & Borders');
         expect(wrapper.text()).toContain('Delete Audio');
+      });
+
+      it('recognizes multi-track text-2 and audio-2 trackIds cleanly', () => {
+        const secondaryTextItem = reactive({
+          id: 'txt-sec',
+          content: 'Upper Track Text',
+          start: 0,
+          duration: 3
+        });
+
+        const textWrapper = mount(TimelinePropertiesInspector, {
+          props: {
+            modelValue: secondaryTextItem,
+            trackId: 'text-2'
+          },
+          global: globalMountOptions
+        });
+        expect(textWrapper.text()).toContain('Delete Text');
+        expect(textWrapper.text()).toContain('Capitalization');
+
+        const secondaryAudioItem = reactive({
+          id: 'aud-sec',
+          name: 'sfx-layer.mp3',
+          start: 1,
+          duration: 2
+        });
+
+        const audioWrapper = mount(TimelinePropertiesInspector, {
+          props: {
+            modelValue: secondaryAudioItem,
+            trackId: 'audio-2'
+          },
+          global: globalMountOptions
+        });
+        expect(audioWrapper.text()).toContain('Delete Audio');
+        expect(audioWrapper.find('textarea').exists()).toBe(false);
+      });
+
+      it('prevents editing start or duration to overlap another item on the same track', async () => {
+        const firstText = reactive({
+          id: 'txt-first',
+          type: 'text' as const,
+          content: 'First',
+          start: 0,
+          duration: 2
+        });
+        const secondText = reactive({
+          id: 'txt-second',
+          type: 'text' as const,
+          content: 'Second',
+          start: 3,
+          duration: 2
+        });
+        mockClipperState.value = {
+          timelineTracks: ref([
+            {
+              id: 'text',
+              name: 'Text 1',
+              type: 'text',
+              items: [firstText, secondText]
+            },
+            { id: 'video', name: 'Main Video', type: 'video', items: [] },
+            { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+          ])
+        };
+
+        try {
+          const wrapper = mount(TimelinePropertiesInspector, {
+            props: {
+              modelValue: firstText,
+              trackId: 'text',
+              coverEnabled: false,
+              coverDuration: 0
+            },
+            global: globalMountOptions
+          });
+
+          const inputs = wrapper.findAll('input[type="number"]');
+          // Moving start to 2.0 (2.0 + 2.0 = 4.0) overlaps [3, 5] -> rejected
+          await inputs[0]!.setValue('2');
+          expect(firstText.start).toBe(0);
+
+          // Extending duration to 4.0 (0 + 4.0 = 4.0) overlaps [3, 5] -> rejected
+          await inputs[1]!.setValue('4');
+          expect(firstText.duration).toBe(2);
+
+          // Extending duration to 2.5 (0 + 2.5 = 2.5 < 3) is allowed
+          await inputs[1]!.setValue('2.5');
+          expect(firstText.duration).toBe(2.5);
+        } finally {
+          mockClipperState.value = null;
+        }
       });
     });
   });

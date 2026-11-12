@@ -105,13 +105,11 @@ describe('useAudioLibrary Composable & Timeline Audio Duration Clamping', () => 
 
     vi.stubGlobal(
       '$fetch',
-      vi
-        .fn()
-        .mockResolvedValue({
-          status: 'deleted',
-          id: 'aud-del',
-          file_retained: false
-        })
+      vi.fn().mockResolvedValue({
+        status: 'deleted',
+        id: 'aud-del',
+        file_retained: false
+      })
     );
 
     const ok = await lib.deleteAudioItem('aud-del');
@@ -148,17 +146,19 @@ describe('useAudioLibrary Composable & Timeline Audio Duration Clamping', () => 
       duration: 180
     });
 
-    const addedBgm = audioTrack?.items[0];
+    const addedBgm = timeline.timelineTracks.value.find(t => t.id === 'audio')
+      ?.items[0];
     expect(addedBgm?.start).toBe(10);
     expect(addedBgm?.duration).toBe(20);
 
-    // Add a short 2.5s SFX at 10s -> should preserve 2.5s duration
+    // Add an overlapping 2.5s SFX at 10s -> auto-routes to new Audio 2 track with preserved 2.5s duration
     timeline.addTimelineItem('audio', {
       name: 'short_sfx.mp3',
       src: '/assets/audio_library/short_sfx.mp3',
       duration: 2.5
     });
-    const addedSfx = audioTrack?.items[1];
+    const addedSfx = timeline.timelineTracks.value.find(t => t.id === 'audio-2')
+      ?.items[0];
     expect(addedSfx?.duration).toBe(2.5);
   });
 });

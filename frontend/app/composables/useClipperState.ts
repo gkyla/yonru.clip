@@ -6,6 +6,7 @@ import {
   CATEGORIZED_BLACKLIST
 } from '../utils/safetyEngine';
 import { useTimelineState } from './useTimelineState';
+import { createDefaultTimelineTracks } from '../utils/timelineHelpers';
 import { useClipperJob } from './useClipperJob';
 import { useClipperCover } from './useClipperCover';
 import { useClipperExport } from './useClipperExport';
@@ -411,9 +412,7 @@ function createClipperState() {
     jobId.value = null;
     jobStatus.value = 'idle';
     savedHooks.value = [];
-    if (timeline.timelineTracks.value && timeline.timelineTracks.value[0]) {
-      timeline.timelineTracks.value[0].items = [];
-    }
+    timeline.timelineTracks.value = createDefaultTimelineTracks();
     videoUrl.value = null;
     outputUrl.value = null;
     renderStatus.value = 'idle';
@@ -576,6 +575,7 @@ function createClipperState() {
     cachedVideosSortOrder,
     cachedVideosHasMore,
     timelineTracks: timeline.timelineTracks,
+    activeTrackIds: timeline.activeTrackIds,
     timelineDuration: timeline.timelineDuration,
     selectedTimelineItem: timeline.selectedTimelineItem,
     defaultTimelineTextStyle: timeline.defaultTimelineTextStyle,
@@ -630,6 +630,13 @@ function createClipperState() {
     setLastAccessed,
     setLastClip,
     saveTimelineTracks: timeline.saveTimelineTracks,
+    setActiveTrack: timeline.setActiveTrack,
+    canDeleteTrack: timeline.canDeleteTrack,
+    addTrack: timeline.addTrack,
+    deleteTrack: timeline.deleteTrack,
+    toggleTrackMute: timeline.toggleTrackMute,
+    toggleTrackVisibility: timeline.toggleTrackVisibility,
+    moveTimelineItemToTrack: timeline.moveTimelineItemToTrack,
     addTimelineItem: timeline.addTimelineItem,
     deleteTimelineItem: timeline.deleteTimelineItem,
     updateTimelineItem: timeline.updateTimelineItem,

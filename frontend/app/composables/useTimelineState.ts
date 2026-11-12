@@ -1,11 +1,18 @@
 // useTimelineState.ts - Extracted timeline tracks and duration sequencing logic
 import { nextTick } from 'vue';
 import {
+  addTimelineTrack,
   calculateTimelineDuration,
   calculateVideoTime,
+  canDeleteTimelineTrack,
+  createDefaultTimelineTracks,
+  deleteTimelineTrack,
   fromGlobalTimelineStart,
+  insertItemWithAutoRoute,
   isAudioTrack,
-  resolveCoverOffsetSec
+  moveTimelineItemToTrack as moveTimelineItemToTrackHelper,
+  resolveCoverOffsetSec,
+  resolveTrackType
 } from '../utils/timelineHelpers';
 import {
   TimelineTransactionEngine,
@@ -22,11 +29,16 @@ export const useTimelineState = () => {
   const historyManager = new TimelineTransactionEngine(50);
   const API_BASE = resolveApiBase();
 
-  const timelineTracks = useState<TimelineTrack[]>('timelineTracks', () => [
-    { id: 'video', name: 'Main Video', type: 'video', items: [] },
-    { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-    { id: 'text', name: 'Text layers', type: 'text', items: [] }
-  ]);
+  const timelineTracks = useState<TimelineTrack[]>('timelineTracks', () =>
+    createDefaultTimelineTracks()
+  );
+  const activeTrackIds = useState<{ text: string; audio: string }>(
+    'activeTrackIds',
+    () => ({
+      text: 'text',
+      audio: 'audio'
+    })
+  );
   const defaultTimelineTextStyle = useState<Partial<TimelineTrackItem> | null>(
     'defaultTimelineTextStyle',
     () => null
@@ -115,7 +127,7 @@ export const useTimelineState = () => {
       tracks: (snap.tracks || []).map(track => ({
         ...track,
         items: (track.items || []).map(item => {
-          if (!item.src && (track.id === 'audio' || item.type === 'audio')) {
+          if (!item.src && (isAudioTrack(track) || item.type === 'audio')) {
             const matchedSrc =
               srcById.get(item.id) ||
               (item.name ? srcByName.get(item.name) : undefined);
@@ -404,80 +416,227 @@ export const useTimelineState = () => {
     };
   }
 
-  function addTimelineItem(trackId: string, item: Partial<TimelineTrackItem>) {
+  function setActiveTrack(trackId: string) {
     const track = timelineTracks.value.find(t => t.id === trackId);
-    if (track) {
-      const coverOffset = resolveCoverOffsetSec(
+    if (!track) return;
+    if (track.type === 'text' || track.type === 'audio') {
+      activeTrackIds.value = {
+        ...activeTrackIds.value,
+        [track.type]: track.id
+      };
+    }
+  }
+
+  function getActiveTrackId(type: 'text' | 'audio'): string {
+    const candidateId = activeTrackIds.value[type];
+    const exists = timelineTracks.value.some(
+      t => t.id === candidateId && resolveTrackType(t) === type
+    );
+    if (exists) return candidateId;
+    const primary = timelineTracks.value.find(
+      t => t.id === type && resolveTrackType(t) === type
+    );
+    if (primary) return primary.id;
+    return (
+      timelineTracks.value.find(t => resolveTrackType(t) === type)?.id ?? type
+    );
+  }
+
+  function canDeleteTrack(trackId: string): boolean {
+    return canDeleteTimelineTrack(timelineTracks.value, trackId);
+  }
+
+  function addTrack(type: 'text' | 'audio'): TimelineTrack {
+    commitToHistory();
+    const { tracks, newTrack } = addTimelineTrack(timelineTracks.value, type);
+    timelineTracks.value = tracks;
+    activeTrackIds.value = {
+      ...activeTrackIds.value,
+      [type]: newTrack.id
+    };
+    return newTrack;
+  }
+
+  function deleteTrack(trackId: string): boolean {
+    if (!canDeleteTrack(trackId)) return false;
+    commitToHistory();
+    const { tracks, deleted, removedTrack } = deleteTimelineTrack(
+      timelineTracks.value,
+      trackId
+    );
+    if (!deleted) return false;
+    if (
+      selectedTimelineItem.value &&
+      removedTrack?.items.some(i => i.id === selectedTimelineItem.value?.id)
+    ) {
+      selectedTimelineItem.value = null;
+    }
+    timelineTracks.value = tracks;
+    if (
+      removedTrack &&
+      (removedTrack.type === 'text' || removedTrack.type === 'audio') &&
+      activeTrackIds.value[removedTrack.type] === trackId
+    ) {
+      const fallback =
+        tracks.find(t => t.id === removedTrack.type) ??
+        tracks.find(t => resolveTrackType(t) === removedTrack.type);
+      if (fallback) {
+        activeTrackIds.value = {
+          ...activeTrackIds.value,
+          [removedTrack.type]: fallback.id
+        };
+      }
+    }
+    return true;
+  }
+
+  function toggleTrackFlag(
+    trackId: string,
+    expectedType: 'audio' | 'text',
+    flag: 'muted' | 'hidden'
+  ): boolean {
+    const track = timelineTracks.value.find(t => t.id === trackId);
+    if (!track || resolveTrackType(track) !== expectedType) return false;
+    commitToHistory();
+    timelineTracks.value = timelineTracks.value.map(t =>
+      t.id === trackId ? { ...t, [flag]: !t[flag] } : t
+    );
+    return true;
+  }
+
+  function toggleTrackMute(trackId: string): boolean {
+    return toggleTrackFlag(trackId, 'audio', 'muted');
+  }
+
+  function toggleTrackVisibility(trackId: string): boolean {
+    return toggleTrackFlag(trackId, 'text', 'hidden');
+  }
+
+  function moveTimelineItemToTrack(
+    itemId: string,
+    sourceTrackId: string,
+    targetTrackId: string,
+    newStart?: number,
+    newDuration?: number
+  ): boolean {
+    const result = moveTimelineItemToTrackHelper(
+      timelineTracks.value,
+      itemId,
+      sourceTrackId,
+      targetTrackId,
+      newStart,
+      newDuration
+    );
+    if (!result.success || !result.movedItem) return false;
+    timelineTracks.value = result.tracks;
+    if (selectedTimelineItem.value?.id === itemId) {
+      selectedTimelineItem.value = result.movedItem;
+    }
+    return true;
+  }
+
+  function addTimelineItem(
+    trackId: string,
+    item: Partial<TimelineTrackItem>,
+    options?: { forceTrack?: boolean }
+  ) {
+    const explicitTrack = timelineTracks.value.find(t => t.id === trackId);
+    const trackType = resolveTrackType(explicitTrack ?? trackId);
+    if (!trackType) return;
+
+    const preferredTrackId =
+      !options?.forceTrack && (trackId === 'text' || trackId === 'audio')
+        ? getActiveTrackId(trackId)
+        : (explicitTrack?.id ?? null);
+
+    const coverOffset = resolveCoverOffsetSec(
+      coverEnabled.value,
+      coverDuration.value
+    );
+    const isAudio = trackType === 'audio';
+    let startSec: number;
+    if (item.start !== undefined) {
+      startSec = item.start;
+    } else if (isAudio) {
+      const cur = currentTime.value ?? 0;
+      startSec = Math.max(0, cur);
+    } else {
+      startSec = fromGlobalTimelineStart(
+        currentTime.value ?? 0,
         coverEnabled.value,
         coverDuration.value
       );
-      const isAudio = isAudioTrack(track);
-      let startSec: number;
-      if (item.start !== undefined) {
-        startSec = item.start;
-      } else if (isAudio) {
-        const cur = currentTime.value ?? 0;
-        startSec = Math.max(0, cur);
-      } else {
-        startSec = fromGlobalTimelineStart(
-          currentTime.value ?? 0,
-          coverEnabled.value,
-          coverDuration.value
+    }
+    const effectiveAudioSpan =
+      Math.max(
+        timelineDuration.value || 0,
+        (videoDuration.value || 0) + coverOffset
+      ) || 60;
+    const maxRemaining = isAudio
+      ? Math.max(0.5, effectiveAudioSpan - startSec)
+      : Math.max(
+          0.5,
+          Math.max(0.5, timelineDuration.value - coverOffset) - startSec
         );
+    const defaultDuration = item.duration ?? 5;
+    const durationSec = Math.min(defaultDuration, maxRemaining);
+
+    let styleOverrides: Partial<TimelineTrackItem> = {};
+    if (trackType === 'text') {
+      if (defaultTimelineTextStyle.value) {
+        styleOverrides = {
+          ...defaultTimelineTextStyle.value,
+          linkToGlobal: true
+        };
+      } else {
+        styleOverrides = getGlobalStyleSnapshot();
+        styleOverrides.linkToGlobal = true;
       }
-      const effectiveAudioSpan =
-        Math.max(
-          timelineDuration.value || 0,
-          (videoDuration.value || 0) + coverOffset
-        ) || 60;
-      const maxRemaining = isAudio
-        ? Math.max(0.5, effectiveAudioSpan - startSec)
-        : Math.max(
-            0.5,
-            Math.max(0.5, timelineDuration.value - coverOffset) - startSec
-          );
-      const defaultDuration = item.duration ?? 5;
-      const durationSec = Math.min(defaultDuration, maxRemaining);
+    }
 
-      let styleOverrides: Partial<TimelineTrackItem> = {};
-      if (trackId === 'text') {
-        if (defaultTimelineTextStyle.value) {
-          styleOverrides = {
-            ...defaultTimelineTextStyle.value,
-            linkToGlobal: true
-          };
-        } else {
-          styleOverrides = getGlobalStyleSnapshot();
-          styleOverrides.linkToGlobal = true;
-        }
+    const baseContent = trackType === 'text' ? { content: '' } : {};
+
+    const newItem: TimelineTrackItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      type: trackType,
+      ...baseContent,
+      ...styleOverrides,
+      ...item,
+      start: startSec,
+      mediaStart: item.mediaStart ?? 0,
+      duration: durationSec
+    };
+
+    const routed = insertItemWithAutoRoute(
+      timelineTracks.value,
+      explicitTrack?.id ?? trackType,
+      newItem,
+      {
+        forceTrack: options?.forceTrack,
+        preferredTrackId
       }
+    );
 
-      const baseContent = trackId === 'text' ? { content: '' } : {};
-
-      const newItem = {
-        id: Math.random().toString(36).substr(2, 9),
-        type: trackId as any,
-        ...baseContent,
-        ...styleOverrides,
-        ...item,
-        start: startSec,
-        mediaStart: item.mediaStart ?? 0,
-        duration: durationSec
-      };
-      track.items.push(newItem);
-      selectedTimelineItem.value = newItem;
+    if (routed.targetTrackId) {
+      timelineTracks.value = routed.tracks;
+      const inserted = routed.tracks
+        .find(t => t.id === routed.targetTrackId)
+        ?.items.find(i => i.id === newItem.id);
+      selectedTimelineItem.value = inserted ?? newItem;
     }
   }
 
   function deleteTimelineItem(trackId: string, itemId: string) {
-    const track = timelineTracks.value.find(t => t.id === trackId);
-    if (track) {
-      track.items = track.items.filter(
-        (i: TimelineTrackItem) => i.id !== itemId
-      );
-      if (selectedTimelineItem.value?.id === itemId) {
-        selectedTimelineItem.value = null;
-      }
+    timelineTracks.value = timelineTracks.value.map(track =>
+      track.id === trackId
+        ? {
+            ...track,
+            items: track.items.filter((i: TimelineTrackItem) => i.id !== itemId)
+          }
+        : track
+    );
+    if (selectedTimelineItem.value?.id === itemId) {
+      selectedTimelineItem.value = null;
     }
   }
 
@@ -543,6 +702,7 @@ export const useTimelineState = () => {
 
   return {
     timelineTracks,
+    activeTrackIds,
     defaultTimelineTextStyle,
     selectedTimelineItem,
     isSavingLocked,
@@ -551,6 +711,13 @@ export const useTimelineState = () => {
     timelineDuration,
     videoTime,
     saveTimelineTracks,
+    setActiveTrack,
+    canDeleteTrack,
+    addTrack,
+    deleteTrack,
+    toggleTrackMute,
+    toggleTrackVisibility,
+    moveTimelineItemToTrack,
     addTimelineItem,
     deleteTimelineItem,
     updateTimelineItem,

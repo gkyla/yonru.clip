@@ -192,16 +192,96 @@ describe('useInteractiveText & addTimelineItem Cover Slide Synchronization', () 
       duration: 10
     });
 
-    expect(audioTrack.items[1]!.start).toBe(5.5);
-    expect(audioTrack.items[1]!.duration).toBe(10);
+    const updatedAudioTrack = state.timelineTracks.value.find(
+      t => t.id === 'audio'
+    )!;
+    expect(updatedAudioTrack.items[1]!.start).toBe(5.5);
+    expect(updatedAudioTrack.items[1]!.duration).toBe(10);
 
-    // 3. Explicit start parameter is preserved
+    // 3. Explicit start parameter is preserved (auto-routes to audio-2 since [1.2..3.2] overlaps a1 [0.8..3.8])
     state.addTimelineItem('audio', {
       id: 'a3',
       name: 'fx.mp3',
       start: 1.2,
       duration: 2
     });
-    expect(audioTrack.items[2]!.start).toBe(1.2);
+    const audio2Track = state.timelineTracks.value.find(
+      t => t.id === 'audio-2'
+    )!;
+    expect(audio2Track.items[0]!.start).toBe(1.2);
+  });
+
+  it('aggregates activeTextItems bottom-to-top across multi-text tracks and excludes hidden tracks', () => {
+    const state = useClipperState();
+    state.coverEnabled.value = false;
+    state.coverDuration.value = 0;
+    state.currentTime.value = 2.0;
+
+    state.timelineTracks.value = [
+      {
+        id: 'text-2',
+        name: 'Text 2',
+        type: 'text',
+        hidden: false,
+        items: [
+          {
+            id: 'top-item',
+            type: 'text',
+            content: 'Top Layer',
+            start: 0,
+            duration: 5,
+            font: 'Roboto',
+            fontWeight: 700
+          }
+        ]
+      },
+      {
+        id: 'text',
+        name: 'Text 1',
+        type: 'text',
+        hidden: false,
+        items: [
+          {
+            id: 'bottom-item',
+            type: 'text',
+            content: 'Bottom Layer',
+            start: 0,
+            duration: 5,
+            font: 'Outfit',
+            fontWeight: 900
+          }
+        ]
+      },
+      {
+        id: 'video',
+        name: 'Main Video',
+        type: 'video',
+        items: [{ id: 'v1', type: 'video', start: 0, duration: 12 }]
+      },
+      { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+    ];
+
+    const { allUsedFonts, activeTextItems, isTimelineTextActiveAndSelected } =
+      useInteractiveText(ref(null));
+
+    // Bottom track renders first, top track renders last (Top-Track-Wins)
+    expect(activeTextItems.value.map((i: any) => i.id)).toEqual([
+      'bottom-item',
+      'top-item'
+    ]);
+    expect(allUsedFonts.value).toEqual(
+      expect.arrayContaining(['700-Roboto', '900-Outfit'])
+    );
+
+    // Selecting top-item while visible
+    state.selectedTimelineItem.value = state.timelineTracks.value[0]!.items[0]!;
+    expect(isTimelineTextActiveAndSelected.value).toBe(true);
+
+    // Hiding Text 2 removes top-item from preview and hides its selection transformer
+    state.toggleTrackVisibility('text-2');
+    expect(activeTextItems.value.map((i: any) => i.id)).toEqual([
+      'bottom-item'
+    ]);
+    expect(isTimelineTextActiveAndSelected.value).toBe(false);
   });
 });

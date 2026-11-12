@@ -437,4 +437,58 @@ describe('Editor Page', () => {
     // Reset outputUrl
     mockOutputUrl.value = null;
   });
+
+  it('resizes the bottom timeline panel height via accessible drag handle and keyboard arrows within clamped bounds', async () => {
+    const wrapper = mount(editor, {
+      global: {
+        stubs: {
+          HomeSidebar: true,
+          SidebarSettings: true,
+          VideoPreview: true,
+          TimelineEditor: true,
+          EditorPipelineOverlay: true,
+          EditorRenderProgressOverlay: true,
+          EditorHooksListPanel: true,
+          BlacklistSettings: true,
+          Icon: true
+        }
+      }
+    });
+
+    const handle = wrapper.find('[data-testid="timeline-resize-handle"]');
+    expect(handle.exists()).toBe(true);
+    expect(handle.attributes('type')).toBe('button');
+
+    const panel = wrapper.find('[data-testid="timeline-panel-container"]');
+    expect(panel.exists()).toBe(true);
+
+    // Drag upward by 60px -> height increases from 256 to 316
+    await handle.trigger('pointerdown', { button: 0, clientY: 600 });
+    window.dispatchEvent(new PointerEvent('pointermove', { clientY: 540 }));
+    await wrapper.vm.$nextTick();
+    expect(panel.attributes('style')).toContain('height: 316px');
+
+    window.dispatchEvent(new PointerEvent('pointerup'));
+
+    // Dragging extreme distances clamps to [180px, min(520px, 60% viewportHeight)]
+    const expectedMax = Math.min(520, Math.round(window.innerHeight * 0.6));
+    await handle.trigger('pointerdown', { button: 0, clientY: 600 });
+    window.dispatchEvent(new PointerEvent('pointermove', { clientY: 0 }));
+    await wrapper.vm.$nextTick();
+    expect(panel.attributes('style')).toContain(`height: ${expectedMax}px`);
+    window.dispatchEvent(new PointerEvent('pointerup'));
+
+    // Keyboard ArrowDown decreases height and dragging down clamps at 180px
+    await handle.trigger('keydown.down');
+    await wrapper.vm.$nextTick();
+    expect(panel.attributes('style')).toContain(
+      `height: ${expectedMax - 16}px`
+    );
+
+    await handle.trigger('pointerdown', { button: 0, clientY: 200 });
+    window.dispatchEvent(new PointerEvent('pointermove', { clientY: 2000 }));
+    await wrapper.vm.$nextTick();
+    expect(panel.attributes('style')).toContain('height: 180px');
+    window.dispatchEvent(new PointerEvent('pointerup'));
+  });
 });

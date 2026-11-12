@@ -57,11 +57,15 @@ The signature visual mark of Yonru Clip ("The Focal Frame") consisting of two fr
 _Avoid_: App icon, site logo, avatar, monogram, logo badge
 
 **Timeline Viewport**:
-The scrollable horizontal canvas displaying multi-track media segments (video, audio, text) across time, enabling independent navigation and panning without mutating the current playback time.
+The scrollable canvas displaying one or more **Timeline Tracks** (Main Video, **Audio Tracks**, and **Text Tracks**) across time, enabling independent navigation and panning without mutating the current playback time.
 _Avoid_: Scroll track, timeline window, seek pane
 
+**Timeline Track**:
+A horizontal lane within the **Timeline Viewport** organized vertically around a single **Main Video** track: one or more **Text Tracks** stacked above it for **Timeline Text Layers** (with upper tracks rendering in front of lower ones), the **Main Video** track for **Timeline Video Segments**, and one or more **Audio Tracks** below it for **Timeline Audio Layers**.
+_Avoid_: Timeline line, garis timeline, timeline row, track lane
+
 **Timeline Properties Inspector**:
-The focused contextual floating panel in Studio Editor displaying and editing selected track item properties: typography, colors, animations, and custom vs linked global styles for text layers; timing intervals (`start`, `duration`) for Timeline Video Segments; and dedicated audio identity and timing controls for Timeline Audio Layers, completely decoupled from horizontal canvas scrubbing and playback.
+The focused contextual floating panel in Studio Editor displaying and editing selected track item properties: typography, colors, animations, and custom vs linked global styles for **Timeline Text Layers**; timing intervals (`start`, `duration`) for **Timeline Video Segments**; and dedicated audio identity and timing controls for **Timeline Audio Layers**, completely decoupled from horizontal canvas scrubbing and playback.
 _Avoid_: Item modal, style popup, properties dialog, track inspector
 
 **Playhead**:
@@ -69,12 +73,16 @@ The visual marker and time-tracking line indicating the exact frame/second curre
 _Avoid_: Time bar, scrub line, cursor indicator
 
 **Timeline Video Segment**:
-An individual cut or trimmed slice of a Ready Clip positioned on the Main Video track within the Timeline Viewport, mapping an edited timeline start interval (`start`, `duration`) to a corresponding source clip media offset (`mediaStart`) used to index pre-computed Face Tracking & Auto-Reframe keyframes.
+An individual cut or trimmed slice of a Ready Clip positioned on the **Main Video** **Timeline Track** within the **Timeline Viewport**, mapping an edited timeline start interval (`start`, `duration`) to a corresponding source clip media offset (`mediaStart`) used to index pre-computed Face Tracking & Auto-Reframe keyframes.
 _Avoid_: Video block, timeline chunk, split item, clip piece
 
 **Timeline Audio Layer**:
-An independent audio element (sound effect, background music, or custom intro audio in supported audio formats such as MP3, WAV, OGG, AAC, M4A, FLAC) positioned within the Timeline Viewport on the Audio track, anchored to absolute global timeline seconds starting from the initial frame of the Cover Slide (`0.0s`) through video playback, persisting its absolute ruler timestamp across Cover Slide duration and toggle adjustments. Video container formats (such as MP4) are strictly disallowed on this track.
+An independent audio element (sound effect, background music, or custom intro audio in supported audio formats such as MP3, WAV, OGG, AAC, M4A, FLAC) positioned within the **Timeline Viewport** on an **Audio Track**, anchored to absolute global timeline seconds starting from the initial frame of the Cover Slide (`0.0s`) through video playback, persisting its absolute ruler timestamp across Cover Slide duration and toggle adjustments. Video container formats (such as MP4) are strictly disallowed on Audio Tracks.
 _Avoid_: Audio clip, audio piece, intro sound, track item
+
+**Timeline Text Layer**:
+An independent styled text item positioned within the **Timeline Viewport** on a **Text Track**, displayed over the video frame during its active time interval and anchored to video-relative timeline coordinates following the Cover Slide Intro Zone.
+_Avoid_: Timeline Text Overlay, text block, caption layer, text sticker
 
 **Audio Library**:
 The persistent workspace-wide catalog of creator-uploaded audio assets (sound effects, background music, and intro sounds) available across all Ready Clips, accessed via a contextual floating popover anchored above the Timeline Viewport toolbar for audio auditioning, uploading, and repeated insertion as Timeline Audio Layers.
@@ -149,7 +157,7 @@ The realistic platform simulation layer (such as TikTok, Instagram Reels, or You
 _Avoid_: Deadzone box, safe zone grid, mock overlay, fake tiktok, watermarked player
 
 **Canvas Snapping Guides**:
-Transient visual alignment axes and safe zone boundary lines rendered dynamically during drag-and-drop manipulation of Timeline Text Overlays and Cover Slide text, magnetically snapping text coordinates to canvas centers and platform-safe margins to prevent UI occlusion.
+Transient visual alignment axes and safe zone boundary lines rendered dynamically during drag-and-drop manipulation of **Timeline Text Layers** and Cover Slide text, magnetically snapping text coordinates to canvas centers and platform-safe margins to prevent UI occlusion.
 _Avoid_: Static grid, magnet lines, drag ruler, alignment mesh
 
 

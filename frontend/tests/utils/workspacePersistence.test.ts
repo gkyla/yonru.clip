@@ -243,4 +243,49 @@ describe('WorkspacePersistenceCoordinator Unit Tests', () => {
     unbind();
     vi.useRealTimers();
   });
+
+  it('syncs global subtitle styles across all Text Tracks (text, text-2) while respecting linkToGlobal === false', async () => {
+    const syncSpy = vi.fn();
+    const fontRef = ref('Montserrat');
+    const tracksRef = ref([
+      {
+        id: 'text-2',
+        name: 'Text 2',
+        type: 'text' as const,
+        items: [
+          { id: 't2-linked', start: 0, duration: 3, linkToGlobal: true },
+          { id: 't2-unlinked', start: 4, duration: 3, linkToGlobal: false }
+        ]
+      },
+      { id: 'video', name: 'Main Video', type: 'video' as const, items: [] },
+      {
+        id: 'text',
+        name: 'Text 1',
+        type: 'text' as const,
+        items: [{ id: 't1-linked', start: 0, duration: 3 }]
+      },
+      { id: 'audio', name: 'Audio 1', type: 'audio' as const, items: [] }
+    ]);
+
+    const unbind = WorkspacePersistenceCoordinator.bindReactivity({
+      timeline: {
+        timelineTracks: tracksRef,
+        syncGlobalStylesToItem: syncSpy
+      },
+      subtitleStyle: {
+        font: fontRef
+      }
+    });
+
+    fontRef.value = 'Roboto';
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(syncSpy).toHaveBeenCalledTimes(2);
+    expect(syncSpy.mock.calls.map(c => c[0].id)).toEqual([
+      't2-linked',
+      't1-linked'
+    ]);
+
+    unbind();
+  });
 });
