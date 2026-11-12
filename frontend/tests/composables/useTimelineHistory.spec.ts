@@ -485,4 +485,66 @@ describe('TimelineTransactionEngine - Deepened Standalone Engine', () => {
     expect(freshEngine.undoCount).toBe(0);
     expect(freshEngine.canUndo).toBe(false);
   });
+
+  it('detects track additions, deletions, and muted/hidden metadata changes across commit, undo, and redo', async () => {
+    const { TimelineTransactionEngine } =
+      await import('../../app/utils/timelineHistory');
+    const engine = new TimelineTransactionEngine(50);
+
+    const baseTracks: TimelineTrack[] = [
+      { id: 'text', name: 'Text 1', type: 'text', items: [] },
+      { id: 'video', name: 'Main Video', type: 'video', items: [] },
+      { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+    ];
+    const withExtraTrack: TimelineTrack[] = [
+      { id: 'text-2', name: 'Text 2', type: 'text', items: [], hidden: true },
+      ...baseTracks
+    ];
+
+    // Commit 4-track state, then commit 3-track state (last track deleted -> shorter array)
+    expect(engine.commit(withExtraTrack, [], null)).toBe(true);
+    expect(engine.commit(baseTracks, [], null)).toBe(true);
+    expect(engine.undoCount).toBe(2);
+
+    // Pop back to withExtraTrack, then test muted/hidden metadata change on trailing track removal
+    const tracksWithTrailingAudio: TimelineTrack[] = [
+      ...baseTracks,
+      { id: 'audio-2', name: 'Audio 2', type: 'audio', items: [], muted: false }
+    ];
+    const engine2 = new TimelineTransactionEngine(50);
+    expect(engine2.commit(tracksWithTrailingAudio, [], null)).toBe(true);
+    // Deleting trailing audio-2 leaves identical prefix tracks[0..2]
+    expect(engine2.commit(baseTracks, [], null)).toBe(true);
+    expect(engine2.undoCount).toBe(2);
+
+    // Toggle muted on audio-2
+    const mutedTracks: TimelineTrack[] = [
+      ...baseTracks,
+      { id: 'audio-2', name: 'Audio 2', type: 'audio', items: [], muted: true }
+    ];
+    expect(engine2.commit(mutedTracks, [], null)).toBe(true);
+    expect(engine2.undoCount).toBe(3);
+
+    const undoPop = engine2.undo(
+      [
+        { id: 'text', name: 'Text 1', type: 'text', items: [], hidden: true },
+        { id: 'video', name: 'Main Video', type: 'video', items: [] },
+        { id: 'audio', name: 'Audio 1', type: 'audio', items: [] },
+        {
+          id: 'audio-2',
+          name: 'Audio 2',
+          type: 'audio',
+          items: [],
+          muted: true
+        }
+      ],
+      [],
+      null
+    );
+    expect(undoPop?.tracks[3]?.muted).toBe(true);
+
+    const redoPop = engine2.redo(baseTracks, [], null);
+    expect(redoPop?.tracks[0]?.hidden).toBe(true);
+    expect(redoPop?.tracks[3]?.muted).toBe(true);
+  });
 });

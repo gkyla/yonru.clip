@@ -165,8 +165,8 @@ def test_delete_audio_library_item_with_safe_reference_cleanup(audio_library_cli
         json.dump(
             [
                 {
-                    "id": "audio",
-                    "name": "Audio",
+                    "id": "audio-2",
+                    "name": "Audio 2",
                     "type": "audio",
                     "items": [
                         {

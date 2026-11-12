@@ -782,6 +782,103 @@ class TestRenderEngine(unittest.TestCase):
         finally:
             shutil.rmtree(tmp_out, ignore_errors=True)
 
+    def test_multi_track_nle_stacking_render_composition(self):
+        import main as backend_main
+
+        req = backend_main.RenderRequest(
+            job_id="test_job_nle",
+            timeline_tracks=[
+                {
+                    "id": "text-3",
+                    "name": "Text 3",
+                    "type": "text",
+                    "hidden": True,
+                    "items": [{"id": "txt-hidden", "content": "Hidden", "start": 0.0, "duration": 25.0}],
+                },
+                {
+                    "id": "text-2",
+                    "name": "Text 2",
+                    "type": "text",
+                    "hidden": False,
+                    "items": [{"id": "txt-top", "content": "Top", "start": 0.0, "duration": 4.0}],
+                },
+                {
+                    "id": "text",
+                    "name": "Text 1",
+                    "type": "text",
+                    "hidden": False,
+                    "items": [{"id": "txt-bottom", "content": "Bottom", "start": 0.0, "duration": 5.0}],
+                },
+                {
+                    "id": "video",
+                    "name": "Main Video",
+                    "type": "video",
+                    "items": [{"id": "vid-1", "start": 0.0, "duration": 10.0}],
+                },
+                {
+                    "id": "audio",
+                    "name": "Audio 1",
+                    "type": "audio",
+                    "muted": False,
+                    "items": [{"id": "aud-1", "name": "bgm.mp3", "start": 0.0, "duration": 8.0}],
+                },
+                {
+                    "id": "audio-2",
+                    "name": "Audio 2",
+                    "type": "audio",
+                    "muted": False,
+                    "items": [{"id": "aud-2", "name": "sfx.mp3", "start": 1.0, "duration": 60.0}],
+                },
+                {
+                    "id": "audio-3",
+                    "name": "Audio 3",
+                    "type": "audio",
+                    "muted": True,
+                    "items": [{"id": "aud-muted", "name": "muted.mp3", "start": 0.0, "duration": 4.0}],
+                },
+            ],
+            transcript=[{"start": 0.0, "duration": 2.0, "text": "Hello"}],
+        )
+
+        mock_job = {
+            "clip_path": "temp_assets/sources/video.mp4",
+            "video_info": {"file_path": "temp_assets/sources/video.mp4", "duration": 25.0, "fps": 30.0},
+            "hooks": [],
+        }
+
+        engine = FakeRenderEngine()
+        orig_exists = os.path.exists
+
+        def fake_exists(p):
+            if str(p) == "temp_assets/sources/video.mp4":
+                return True
+            return orig_exists(p)
+
+        with patch("os.path.exists", side_effect=fake_exists):
+            comp = engine.compile_composition(mock_job, req)
+
+        # Text tracks filtered for hidden and ordered bottom-to-top (Text 1 then Text 2)
+        self.assertEqual([i["id"] for i in (comp.timeline_text_items or [])], ["txt-bottom", "txt-top"])
+        # Audio tracks aggregate non-muted tracks only
+        self.assertEqual([i["id"] for i in (comp.timeline_audio_items or [])], ["aud-1", "aud-2"])
+        # Video track resolved cleanly
+        self.assertEqual([i["id"] for i in (comp.timeline_video_items or [])], ["vid-1"])
+        # Neither hidden text-3 (25s) nor audio-2 (61s) extends clip duration past 10.0s
+        self.assertEqual(comp.clip_duration, 10.0)
+
+        # Empty video items with NLE text at index 0 must NOT fallback to text items
+        req_empty_video = backend_main.RenderRequest(
+            job_id="test_job_nle_empty_vid",
+            timeline_tracks=[
+                {"id": "text", "type": "text", "items": [{"id": "t1", "start": 0.0, "duration": 3.0}]},
+                {"id": "video", "type": "video", "items": []},
+            ],
+            transcript=[],
+        )
+        with patch("os.path.exists", side_effect=fake_exists):
+            comp_empty = engine.compile_composition(mock_job, req_empty_video)
+        self.assertEqual(comp_empty.timeline_video_items, [])
+
 
 
 

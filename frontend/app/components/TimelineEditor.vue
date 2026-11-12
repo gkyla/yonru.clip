@@ -177,46 +177,149 @@
     </div>
 
     <!-- Timeline Body -->
-    <div class="flex-1 flex overflow-hidden relative select-none">
-      <!-- Track Labels -->
+    <div class="flex-1 flex overflow-hidden relative select-none min-h-0">
+      <!-- Track Headers Rail (Pinned corner + synced vertical scroll) -->
       <div
-        class="w-24 bg-[#111113] border-r border-white/5 flex flex-col shrink-0 z-40"
+        class="w-40 bg-[#111113] border-r border-white/5 flex flex-col shrink-0 z-40 min-h-0"
       >
-        <div class="h-5 border-b border-white/5"></div>
         <div
-          v-for="track in state.timelineTracks.value"
-          :key="track.id"
-          class="border-b border-white/5 px-3 flex items-center gap-1.5 relative"
-          :style="{ height: trackH + 'px' }"
+          class="h-6 shrink-0 border-b border-white/5 bg-[#0d0d0f] px-2 flex items-center justify-between gap-1"
+        >
+          <button
+            type="button"
+            data-testid="add-text-track-btn"
+            title="Add Text Track"
+            class="px-1.5 py-0.5 rounded bg-violet-500/15 hover:bg-violet-500/25 text-violet-300 text-[9px] font-bold tracking-wide flex items-center gap-0.5 transition-colors"
+            @click="handleAddTrack('text')"
+          >
+            <Icon name="ri:add-line" class="text-[10px]" /> Text
+          </button>
+          <button
+            type="button"
+            data-testid="add-audio-track-btn"
+            title="Add Audio Track"
+            class="px-1.5 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[9px] font-bold tracking-wide flex items-center gap-0.5 transition-colors"
+            @click="handleAddTrack('audio')"
+          >
+            <Icon name="ri:add-line" class="text-[10px]" /> Audio
+          </button>
+        </div>
+
+        <div
+          ref="headerScrollEl"
+          data-testid="track-headers-scroll"
+          class="flex-1 overflow-y-auto overflow-x-hidden tl-header-scroll min-h-0"
+          @scroll="onHeaderScroll"
         >
           <div
-            class="absolute left-0 top-0 bottom-0 w-[3px]"
-            :class="trackBorderColor(track.type)"
-          ></div>
-          <Icon
-            :name="trackIcon(track.type)"
-            class="text-[10px] opacity-50"
-            :class="trackColor(track.type)"
-          />
-          <span
-            class="text-[8px] font-bold uppercase tracking-widest truncate text-slate-600"
+            v-for="track in state.timelineTracks.value"
+            :key="track.id"
+            :data-testid="'track-header-' + track.id"
+            :data-track-id="track.id"
+            :data-active-track="isTrackActive(track) ? 'true' : 'false'"
+            class="border-b border-white/5 px-2.5 flex items-center gap-1.5 relative transition-colors"
+            :class="[
+              trackHeaderRowClass(track),
+              !isVideoTrack(track) ? 'cursor-pointer' : ''
+            ]"
+            :style="{ height: trackH + 'px' }"
+            @click="handleSelectTrack(track)"
           >
-            {{ track.name }}
-          </span>
+            <div
+              class="absolute left-0 top-0 bottom-0"
+              :class="[
+                trackBorderColor(track),
+                isTrackActive(track) ? 'w-[3px]' : 'w-[2px] opacity-60'
+              ]"
+            ></div>
+            <Icon
+              :name="trackIcon(track)"
+              class="text-[10px] shrink-0"
+              :class="trackColor(track)"
+            />
+            <span
+              class="text-[9px] font-bold uppercase tracking-wider truncate flex-1 text-slate-300"
+            >
+              {{ track.name }}
+            </span>
+            <div
+              v-if="!isVideoTrack(track)"
+              class="flex items-center gap-0.5 shrink-0"
+              @click.stop
+            >
+              <button
+                v-if="isAudioTrack(track)"
+                type="button"
+                :data-testid="'toggle-mute-' + track.id"
+                :aria-label="(track.muted ? 'Unmute ' : 'Mute ') + track.name"
+                :aria-pressed="Boolean(track.muted)"
+                :title="track.muted ? 'Unmute Track' : 'Mute Track'"
+                class="p-1 rounded transition-colors"
+                :class="
+                  track.muted
+                    ? 'text-amber-300 bg-amber-500/15 hover:bg-amber-500/25'
+                    : 'text-slate-400 hover:text-white hover:bg-white/10'
+                "
+                @click="handleToggleMute(track.id)"
+              >
+                <Icon
+                  :name="
+                    track.muted ? 'ri:volume-mute-line' : 'ri:volume-up-line'
+                  "
+                  class="text-[11px]"
+                />
+              </button>
+              <button
+                v-if="isTextTrack(track)"
+                type="button"
+                :data-testid="'toggle-hide-' + track.id"
+                :aria-label="(track.hidden ? 'Show ' : 'Hide ') + track.name"
+                :aria-pressed="Boolean(track.hidden)"
+                :title="track.hidden ? 'Show Track' : 'Hide Track'"
+                class="p-1 rounded transition-colors"
+                :class="
+                  track.hidden
+                    ? 'text-violet-300 bg-violet-500/15 hover:bg-violet-500/25'
+                    : 'text-slate-400 hover:text-white hover:bg-white/10'
+                "
+                @click="handleToggleVisibility(track.id)"
+              >
+                <Icon
+                  :name="track.hidden ? 'ri:eye-off-line' : 'ri:eye-line'"
+                  class="text-[11px]"
+                />
+              </button>
+              <button
+                type="button"
+                :data-testid="'delete-track-' + track.id"
+                :disabled="!isTrackDeletable(track.id)"
+                :aria-label="'Delete ' + track.name"
+                :title="
+                  isTrackDeletable(track.id)
+                    ? 'Delete Track'
+                    : 'At least 1 track required'
+                "
+                class="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 disabled:opacity-25 disabled:pointer-events-none transition-colors"
+                @click="handleDeleteTrack(track.id)"
+              >
+                <Icon name="ri:delete-bin-line" class="text-[11px]" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Scrollable Timeline -->
       <div
         ref="scrollEl"
-        class="flex-1 overflow-x-auto overflow-y-hidden relative tl-scroll"
+        class="flex-1 overflow-auto relative tl-scroll min-h-0"
         @scroll="onScroll"
-        @wheel.prevent="onWheel"
+        @wheel="onWheel"
       >
-        <!-- Ruler -->
+        <!-- Sticky Time Ruler & Pinned Scrubbing Head -->
         <div
-          class="sticky top-0 z-30 bg-[#0d0d0f] border-b border-white/5 cursor-pointer select-none timeline-ruler"
-          :style="{ height: '20px' }"
+          class="sticky top-0 z-40 bg-[#0d0d0f] border-b border-white/5 cursor-pointer select-none timeline-ruler"
+          :style="{ height: '24px', width: totalW + 'px' }"
           @mousedown="startRulerScrub"
         >
           <div
@@ -228,36 +331,65 @@
                 class="absolute bottom-0 border-l"
                 :class="
                   tick.major
-                    ? 'border-white/20 h-[10px]'
-                    : 'border-white/8 h-[5px]'
+                    ? 'border-white/25 h-[10px]'
+                    : 'border-white/10 h-[5px]'
                 "
                 :style="{ left: tick.pos + 'px' }"
               >
                 <span
                   v-if="tick.label"
-                  class="absolute -top-[12px] left-[3px] text-[8px] mono text-slate-600 whitespace-nowrap select-none"
+                  class="absolute -top-[12px] left-[3px] text-[8px] mono text-slate-400 whitespace-nowrap select-none"
                   >{{ tick.label }}</span
                 >
               </div>
             </template>
+
+            <!-- Scrubbing head stays pinned inside the sticky ruler while tracks scroll vertically -->
+            <div
+              data-testid="timeline-playhead-head"
+              class="absolute top-0 bottom-[-1px] z-20 pointer-events-none"
+              :style="{ left: playheadPx + 'px', width: '2px' }"
+            >
+              <div
+                data-testid="timeline-playhead-handle"
+                class="w-0 h-0 absolute -left-[5px] top-0 cursor-ew-resize pointer-events-auto"
+                style="
+                  border-left: 6px solid transparent;
+                  border-right: 6px solid transparent;
+                  border-top: 8px solid #ff3b30;
+                "
+                @mousedown.stop="startRulerScrub"
+              ></div>
+              <div
+                class="absolute top-[8px] bottom-0 left-0 w-[2px] bg-[#ff3b30]"
+              ></div>
+            </div>
           </div>
         </div>
 
         <!-- Track Content Area -->
         <div
+          data-testid="timeline-tracks-canvas"
           class="relative"
-          :style="{ width: totalW + 'px' }"
+          :style="{
+            width: totalW + 'px',
+            minHeight: 'calc(100% - 24px)'
+          }"
           @mousedown="onTrackBgClick"
         >
           <div
             v-for="track in state.timelineTracks.value"
             :key="track.id"
-            class="relative border-b border-white/[0.03]"
+            :data-testid="'track-lane-' + track.id"
+            :data-track-id="track.id"
+            :data-track-type="resolveTrackType(track) || track.type"
+            class="relative border-b border-white/[0.03] transition-colors"
+            :class="trackLaneClass(track)"
             :style="{ height: trackH + 'px' }"
           >
             <!-- Cover Slide block -->
             <div
-              v-if="track.type === 'video' && isCoverActive"
+              v-if="isVideoTrack(track) && isCoverActive"
               class="absolute top-[4px] rounded-[3px] border-l-[3px] border-emerald-500 flex items-center px-2 gap-1 pointer-events-none"
               :style="{
                 left: 0,
@@ -290,7 +422,7 @@
               title="Cover Slide Intro Zone"
             >
               <span
-                class="text-[7px] font-semibold text-emerald-400/50 truncate tracking-wider"
+                class="text-[7px] font-semibold text-emerald-400/70 truncate tracking-wider"
                 >Cover</span
               >
             </div>
@@ -299,14 +431,20 @@
               v-for="item in track.items"
               :key="item.id"
               class="absolute top-[4px] rounded-[3px] cursor-move flex items-center px-2 gap-1.5 overflow-hidden border-l-[3px] transition-opacity duration-200"
-              :class="[itemClasses(track.type, item)]"
+              :class="[
+                itemClasses(track.type, item),
+                track.muted || track.hidden ? 'opacity-45' : ''
+              ]"
               :style="itemStyle(track, item)"
               @mousedown.stop="startMove($event, track.id, item)"
             >
-              <span class="text-[8px] font-bold truncate opacity-80">{{
-                item.content || item.name || track.type
+              <span class="text-[8px] font-bold truncate opacity-90">{{
+                item.content ||
+                item.name ||
+                resolveTrackType(track) ||
+                track.type
               }}</span>
-              <span class="text-[7px] mono opacity-40 ml-auto shrink-0"
+              <span class="text-[7px] mono opacity-60 ml-auto shrink-0"
                 >{{ item.duration.toFixed(1) }}s</span
               >
               <!-- Resize handles -->
@@ -331,8 +469,7 @@
             <!-- Flagged markers layer (rendered over Main Video track) -->
             <template
               v-if="
-                track.id === 'video' &&
-                state.contentAudit.value?.flaggedSegments
+                isVideoTrack(track) && state.contentAudit.value?.flaggedSegments
               "
             >
               <div
@@ -351,24 +488,12 @@
               </div>
             </template>
           </div>
-        </div>
 
-        <!-- Playhead (positioned in canvas coordinates) -->
-        <div
-          class="absolute top-0 bottom-0 z-50 pointer-events-none"
-          :style="{ left: playheadPx + 'px', width: '2px' }"
-        >
+          <!-- Playhead vertical guide across all track lanes down to the bottom layer -->
           <div
-            class="w-0 h-0 absolute -left-[5px] top-0 cursor-ew-resize pointer-events-auto"
-            style="
-              border-left: 6px solid transparent;
-              border-right: 6px solid transparent;
-              border-top: 8px solid #ff3b30;
-            "
-            @mousedown.stop="startRulerScrub"
-          ></div>
-          <div
-            class="absolute top-[8px] bottom-0 left-0 w-[2px] bg-[#ff3b30]"
+            data-testid="timeline-playhead"
+            class="absolute top-0 bottom-0 z-30 pointer-events-none bg-[#ff3b30]"
+            :style="{ left: playheadPx + 'px', width: '2px' }"
           ></div>
         </div>
       </div>
@@ -416,15 +541,23 @@ import {
   calculateDragBounds,
   splitTimelineItem,
   deleteTimelineItemWithRipple,
+  findTrackByItemId,
   getItemLeftPx,
+  canDeleteTimelineTrack,
+  hasTrackIntervalOverlap,
   isAudioTrack,
+  isTextTrack,
+  isVideoTrack,
+  resolveTrackType,
   AUDIO_INPUT_ACCEPT,
   isValidAudioFile,
   resolveAudioFileDuration
 } from '../utils/timelineHelpers';
+import type { TrackRef } from '../utils/timelineHelpers';
 import type {
   TimelineTrack,
   TimelineTrackItem,
+  TimelineTrackType,
   AudioLibraryItem,
   AnchorRect,
   DuplicateAudioPrompt
@@ -438,6 +571,7 @@ const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
 
 const pxPerSec = ref(100);
 const scrollEl = ref<HTMLElement | null>(null);
+const headerScrollEl = ref<HTMLElement | null>(null);
 const audioInput = ref<HTMLInputElement | null>(null);
 const audioBtnEl = ref<HTMLElement | null>(null);
 const isAudioLibraryOpen = ref(false);
@@ -446,6 +580,8 @@ const duplicateAudioPrompt = ref<DuplicateAudioPrompt | null>(null);
 const snapEnabled = ref(true);
 const trackH = 40;
 const isUserScrolling = ref(false);
+const dragTargetTrackId = ref<string | null>(null);
+const dragTargetValid = ref(true);
 let scrollTimeout: any = null;
 let isProgrammaticScroll = false;
 
@@ -505,47 +641,120 @@ const rulerTicks = computed(() =>
 );
 
 // --- Track helpers ---
-function trackIcon(type: string) {
-  if (type === 'video') return 'ri:film-line';
-  if (type === 'audio') return 'ri:volume-up-line';
-  return 'ri:text';
-}
-function trackColor(type: string) {
-  if (type === 'video') return 'text-sky-400';
-  if (type === 'audio') return 'text-green-400';
-  return 'text-violet-400';
-}
-function trackBorderColor(type: string) {
-  if (type === 'video') return 'bg-sky-500';
-  if (type === 'audio') return 'bg-green-500';
-  return 'bg-violet-500';
+interface TrackStyleConfig {
+  icon: string;
+  color: string;
+  borderColor: string;
+  activeBg: string;
+  itemBg: string;
+  itemBorder: string;
 }
 
-const itemBg: Record<string, string> = {
-  video: '#1a365d',
-  audio: '#1a3a1a',
-  text: '#2d1b5e'
-};
-const itemBorder: Record<string, string> = {
-  video: '#3182ce',
-  audio: '#38a169',
-  text: '#805ad5'
+const TRACK_STYLES: Record<TimelineTrackType, TrackStyleConfig> = {
+  video: {
+    icon: 'ri:film-line',
+    color: 'text-sky-400',
+    borderColor: 'bg-sky-500',
+    activeBg: '',
+    itemBg: '#1a365d',
+    itemBorder: '#3182ce'
+  },
+  audio: {
+    icon: 'ri:volume-up-line',
+    color: 'text-green-400',
+    borderColor: 'bg-green-500',
+    activeBg: 'bg-emerald-500/10',
+    itemBg: '#1a3a1a',
+    itemBorder: '#38a169'
+  },
+  text: {
+    icon: 'ri:text',
+    color: 'text-violet-400',
+    borderColor: 'bg-violet-500',
+    activeBg: 'bg-violet-500/10',
+    itemBg: '#2d1b5e',
+    itemBorder: '#805ad5'
+  }
 };
 
-function itemClasses(type: string, item: any) {
+function trackTypeOf(track: TrackRef): TimelineTrackType {
+  return resolveTrackType(track) || 'text';
+}
+function trackIcon(track: TrackRef) {
+  return TRACK_STYLES[trackTypeOf(track)].icon;
+}
+function trackColor(track: TrackRef) {
+  return TRACK_STYLES[trackTypeOf(track)].color;
+}
+function trackBorderColor(track: TrackRef) {
+  return TRACK_STYLES[trackTypeOf(track)].borderColor;
+}
+function isTrackActive(track: TimelineTrack) {
+  const t = trackTypeOf(track);
+  if (t !== 'text' && t !== 'audio') return false;
+  return state?.activeTrackIds?.value?.[t] === track.id;
+}
+function isTrackDeletable(trackId: string) {
+  if (state?.canDeleteTrack) {
+    return state.canDeleteTrack(trackId);
+  }
+  return canDeleteTimelineTrack(state.timelineTracks.value || [], trackId);
+}
+function trackHeaderRowClass(track: TimelineTrack) {
+  if (!isTrackActive(track)) return '';
+  return TRACK_STYLES[trackTypeOf(track)].activeBg;
+}
+function trackLaneClass(track: TimelineTrack) {
+  if (dragTargetTrackId.value === track.id) {
+    return dragTargetValid.value
+      ? 'bg-white/[0.04] ring-1 ring-inset ring-sky-400/60'
+      : 'bg-rose-500/10 ring-1 ring-inset ring-rose-500/70';
+  }
+  if (isTrackActive(track)) {
+    return 'bg-white/[0.015]';
+  }
+  return '';
+}
+function handleSelectTrack(track: TimelineTrack) {
+  const t = trackTypeOf(track);
+  if (t === 'text' || t === 'audio') {
+    state.setActiveTrack?.(track.id);
+  }
+}
+function handleAddTrack(type: 'text' | 'audio') {
+  state.addTrack?.(type);
+  state.saveTimelineTracks?.();
+}
+function handleDeleteTrack(trackId: string) {
+  if (!isTrackDeletable(trackId)) return;
+  const deleted = state.deleteTrack?.(trackId);
+  if (deleted !== false) {
+    state.saveTimelineTracks?.();
+  }
+}
+function handleToggleMute(trackId: string) {
+  state.toggleTrackMute?.(trackId);
+  state.saveTimelineTracks?.();
+}
+function handleToggleVisibility(trackId: string) {
+  state.toggleTrackVisibility?.(trackId);
+  state.saveTimelineTracks?.();
+}
+
+function itemClasses(_type: string, item: TimelineTrackItem) {
   return item.id === state.selectedTimelineItem.value?.id
     ? 'border border-white/80'
     : 'border border-transparent';
 }
 
-function itemStyle(track: any, item: any) {
-  const t = track.type;
+function itemStyle(track: TimelineTrack, item: TimelineTrackItem) {
+  const styleCfg = TRACK_STYLES[trackTypeOf(track)];
   return {
     left: getItemLeft(track, item) + 'px',
     width: item.duration * pxPerSec.value + 'px',
     height: trackH - 8 + 'px',
-    background: itemBg[t] || itemBg.text,
-    borderLeftColor: itemBorder[t] || itemBorder.text
+    background: styleCfg.itemBg,
+    borderLeftColor: styleCfg.itemBorder
   };
 }
 
@@ -563,28 +772,56 @@ function onWheel(e: WheelEvent) {
     e.preventDefault();
     if (e.deltaY < 0) zoomIn();
     else zoomOut();
-  } else {
-    // Horizontal scroll = pan timeline viewport
-    if (scrollEl.value) {
-      if (state.isPlaying.value) {
-        isUserScrolling.value = true;
-        if (scrollTimeout) clearTimeout(scrollTimeout);
-        scrollTimeout = setTimeout(() => {
-          // Smooth glide back to playhead, then resume 60fps auto-follow
-          smoothCenterPlayhead();
-          setTimeout(() => {
-            isUserScrolling.value = false;
-          }, 400);
-        }, 1200);
-      }
-      scrollEl.value.scrollLeft += e.deltaY + e.deltaX;
+    return;
+  }
+  if (!scrollEl.value) return;
+
+  const hasVerticalOverflow =
+    scrollEl.value.scrollHeight > scrollEl.value.clientHeight + 1;
+  const isHorizontalGesture =
+    e.shiftKey ||
+    Math.abs(e.deltaX) > Math.abs(e.deltaY) ||
+    !hasVerticalOverflow;
+
+  e.preventDefault();
+  if (isHorizontalGesture) {
+    if (state.isPlaying.value) {
+      isUserScrolling.value = true;
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        // Smooth glide back to playhead, then resume 60fps auto-follow
+        smoothCenterPlayhead();
+        setTimeout(() => {
+          isUserScrolling.value = false;
+        }, 400);
+      }, 1200);
     }
+    scrollEl.value.scrollLeft += e.shiftKey
+      ? e.deltaY + e.deltaX
+      : e.deltaX || e.deltaY;
+  } else {
+    scrollEl.value.scrollTop += e.deltaY;
   }
 }
 
-// --- Scroll (Timeline Viewport Panning) ---
+// --- Scroll (Timeline Viewport Panning + Synced Vertical Header Scroll) ---
+function syncVerticalScroll(
+  source: HTMLElement | null,
+  target: HTMLElement | null
+) {
+  if (!source || !target) return;
+  if (Math.abs(target.scrollTop - source.scrollTop) >= 1) {
+    target.scrollTop = source.scrollTop;
+  }
+}
+
+function onHeaderScroll() {
+  syncVerticalScroll(headerScrollEl.value, scrollEl.value);
+}
+
 function onScroll() {
   if (!scrollEl.value) return;
+  syncVerticalScroll(scrollEl.value, headerScrollEl.value);
   if (isProgrammaticScroll || state.isPlaying.value) return;
   isUserScrolling.value = true;
   if (scrollTimeout) clearTimeout(scrollTimeout);
@@ -961,6 +1198,11 @@ let draggingItem: any = null;
 let draggingEl: HTMLElement | null = null;
 let draggingDurationEl: HTMLElement | null = null;
 let dragStartX = 0;
+let dragStartY = 0;
+let dragStartScrollTop = 0;
+let dragSourceTrackIndex = -1;
+let dragCandidateTrackIndex = -1;
+let dragSourceType = '';
 let dragStartVal = 0;
 let initialItemStart = 0;
 let initialItemDuration = 0;
@@ -969,42 +1211,102 @@ let pendingDuration = 0;
 let resizeMode: 'start' | 'end' | null = null;
 let dragTrackId = '';
 
-function startMove(e: MouseEvent, trackId: string, item: any) {
-  state.selectedTimelineItem.value = item;
-  if (state.isDraggingTimelineItem) {
-    state.isDraggingTimelineItem.value = true;
+function resolveCandidateTrackIndex(clientY: number): number {
+  const tracks = state.timelineTracks.value || [];
+  if (resizeMode || dragSourceTrackIndex < 0 || tracks.length === 0) {
+    return dragSourceTrackIndex;
   }
-  draggingItem = item;
-  draggingEl = (e.currentTarget as HTMLElement) || null;
-  draggingDurationEl = draggingEl?.querySelector('.mono') || null;
-  dragTrackId = trackId;
-  dragStartX = e.clientX;
-  dragStartVal = item.start;
-  initialItemStart = item.start;
-  initialItemDuration = item.duration;
-  pendingStart = item.start;
-  pendingDuration = item.duration;
-  resizeMode = null;
-  window.addEventListener('mousemove', onDrag);
-  window.addEventListener('mouseup', stopDrag);
+  const currentScrollTop = scrollEl.value?.scrollTop ?? 0;
+  const dy = clientY - dragStartY + (currentScrollTop - dragStartScrollTop);
+  const rowDelta = Math.round(dy / trackH);
+  return Math.max(
+    0,
+    Math.min(tracks.length - 1, dragSourceTrackIndex + rowDelta)
+  );
 }
 
-function startResize(
+function evaluateDragPlacement(
+  candidateIdx: number,
+  newStart: number,
+  newDuration: number
+) {
+  const tracks = state.timelineTracks.value || [];
+  const candidateTrack = candidateIdx >= 0 ? tracks[candidateIdx] : undefined;
+  if (!candidateTrack) {
+    dragTargetTrackId.value = null;
+    dragTargetValid.value = true;
+    dragCandidateTrackIndex = dragSourceTrackIndex;
+    return;
+  }
+
+  const isSameTrack = candidateTrack.id === dragTrackId;
+  const sameType =
+    isSameTrack || resolveTrackType(candidateTrack) === dragSourceType;
+  const overlaps = hasTrackIntervalOverlap(
+    candidateTrack.items || [],
+    newStart,
+    newDuration,
+    draggingItem?.id
+  );
+  const valid = sameType && !overlaps;
+
+  if (isSameTrack) {
+    dragTargetTrackId.value = valid ? null : candidateTrack.id;
+    dragTargetValid.value = valid;
+    dragCandidateTrackIndex = dragSourceTrackIndex;
+    return;
+  }
+
+  dragTargetTrackId.value = candidateTrack.id;
+  dragTargetValid.value = valid;
+  dragCandidateTrackIndex = valid ? candidateIdx : dragSourceTrackIndex;
+}
+
+function restoreDraggedElementStyles() {
+  if (!draggingEl) return;
+  draggingEl.style.transform = '';
+  const leftPx = getItemLeftPx(
+    dragTrackId,
+    initialItemStart,
+    pxPerSec.value,
+    isCoverActive.value,
+    thumbOffsetPx.value
+  );
+  draggingEl.style.left = `${leftPx}px`;
+  draggingEl.style.width = `${initialItemDuration * pxPerSec.value}px`;
+  if (draggingDurationEl) {
+    draggingDurationEl.textContent = `${initialItemDuration.toFixed(1)}s`;
+  }
+}
+
+function initDragSession(
   e: MouseEvent,
   trackId: string,
-  item: any,
-  mode: 'start' | 'end'
+  item: TimelineTrackItem,
+  targetEl: HTMLElement | null,
+  mode: 'start' | 'end' | null
 ) {
   state.selectedTimelineItem.value = item;
   if (state.isDraggingTimelineItem) {
     state.isDraggingTimelineItem.value = true;
   }
   draggingItem = item;
-  draggingEl = (e.currentTarget as HTMLElement)?.parentElement || null;
+  draggingEl = targetEl;
   draggingDurationEl = draggingEl?.querySelector('.mono') || null;
   dragTrackId = trackId;
   dragStartX = e.clientX;
-  dragStartVal = mode === 'start' ? item.start : item.duration;
+  dragStartY = e.clientY ?? 0;
+  dragStartScrollTop = scrollEl.value?.scrollTop ?? 0;
+  const tracks = state.timelineTracks.value || [];
+  dragSourceTrackIndex = tracks.findIndex(
+    (t: TimelineTrack) => t.id === trackId
+  );
+  dragCandidateTrackIndex = dragSourceTrackIndex;
+  dragSourceType =
+    resolveTrackType(tracks[dragSourceTrackIndex] ?? trackId) || '';
+  dragTargetTrackId.value = null;
+  dragTargetValid.value = true;
+  dragStartVal = mode === 'end' ? item.duration : item.start;
   initialItemStart = item.start;
   initialItemDuration = item.duration;
   pendingStart = item.start;
@@ -1014,9 +1316,45 @@ function startResize(
   window.addEventListener('mouseup', stopDrag);
 }
 
+function startMove(e: MouseEvent, trackId: string, item: TimelineTrackItem) {
+  initDragSession(
+    e,
+    trackId,
+    item,
+    (e.currentTarget as HTMLElement) || null,
+    null
+  );
+}
+
+function startResize(
+  e: MouseEvent,
+  trackId: string,
+  item: TimelineTrackItem,
+  mode: 'start' | 'end'
+) {
+  initDragSession(
+    e,
+    trackId,
+    item,
+    (e.currentTarget as HTMLElement)?.parentElement || null,
+    mode
+  );
+}
+
 function onDrag(e: MouseEvent) {
   if (!draggingItem) return;
   const dx = (e.clientX - dragStartX) / pxPerSec.value;
+  const tracks = state.timelineTracks.value || [];
+  const candidateIdx = resolveCandidateTrackIndex(e.clientY ?? dragStartY);
+  const candidateTrack = candidateIdx >= 0 ? tracks[candidateIdx] : undefined;
+  const sameTypeAsSource = Boolean(
+    candidateTrack && resolveTrackType(candidateTrack) === dragSourceType
+  );
+  const previewTrackId =
+    !resizeMode && candidateTrack && sameTypeAsSource
+      ? candidateTrack.id
+      : dragTrackId;
+
   const bounds = calculateDragBounds(
     resizeMode || 'move',
     dragStartVal,
@@ -1026,14 +1364,16 @@ function onDrag(e: MouseEvent) {
       start: pendingStart,
       duration: pendingDuration
     },
-    val => snapValue(val, dragTrackId)
+    val => snapValue(val, previewTrackId)
   );
   pendingStart = bounds.newStart;
   pendingDuration = bounds.newDuration;
 
+  evaluateDragPlacement(candidateIdx, pendingStart, pendingDuration);
+
   if (draggingEl) {
     const leftPx = getItemLeftPx(
-      dragTrackId,
+      previewTrackId,
       pendingStart,
       pxPerSec.value,
       isCoverActive.value,
@@ -1041,6 +1381,12 @@ function onDrag(e: MouseEvent) {
     );
     draggingEl.style.left = `${leftPx}px`;
     draggingEl.style.width = `${pendingDuration * pxPerSec.value}px`;
+    if (!resizeMode && dragSourceTrackIndex >= 0) {
+      const rowOffsetPx =
+        (dragCandidateTrackIndex - dragSourceTrackIndex) * trackH;
+      draggingEl.style.transform =
+        rowOffsetPx !== 0 ? `translateY(${rowOffsetPx}px)` : '';
+    }
     if (draggingDurationEl && resizeMode) {
       draggingDurationEl.textContent = `${pendingDuration.toFixed(1)}s`;
     }
@@ -1051,22 +1397,70 @@ function stopDrag() {
   window.removeEventListener('mousemove', onDrag);
   window.removeEventListener('mouseup', stopDrag);
 
+  const targetTrackId = dragTargetTrackId.value;
+  const isTargetValid = dragTargetValid.value;
+  dragTargetTrackId.value = null;
+  dragTargetValid.value = true;
+
+  if (draggingEl) {
+    draggingEl.style.transform = '';
+  }
+
   if (draggingItem) {
-    const hasChanged =
+    const hasTimeChanged =
       Math.abs(pendingStart - initialItemStart) > 0.0001 ||
       Math.abs(pendingDuration - initialItemDuration) > 0.0001;
+    const isCrossTrack = Boolean(
+      targetTrackId && targetTrackId !== dragTrackId
+    );
+    let hasMutated = false;
 
-    if (hasChanged) {
-      state.commitToHistory?.();
-      draggingItem.start = pendingStart;
-      draggingItem.duration = pendingDuration;
+    if (isCrossTrack && targetTrackId) {
+      if (isTargetValid && state.moveTimelineItemToTrack) {
+        state.commitToHistory?.();
+        const moved = state.moveTimelineItemToTrack(
+          draggingItem.id,
+          dragTrackId,
+          targetTrackId,
+          pendingStart,
+          pendingDuration
+        );
+        if (moved) {
+          hasMutated = true;
+        } else {
+          restoreDraggedElementStyles();
+        }
+      } else {
+        restoreDraggedElementStyles();
+      }
+    } else if (hasTimeChanged) {
+      const tracks = state.timelineTracks.value || [];
+      const sourceTrack = tracks.find(
+        (t: TimelineTrack) => t.id === dragTrackId
+      );
+      const overlapsSameTrack =
+        sourceTrack &&
+        hasTrackIntervalOverlap(
+          sourceTrack.items || [],
+          pendingStart,
+          pendingDuration,
+          draggingItem.id
+        );
+      if (isTargetValid && !overlapsSameTrack) {
+        state.commitToHistory?.();
+        draggingItem.start = pendingStart;
+        draggingItem.duration = pendingDuration;
+        hasMutated = true;
+      } else {
+        restoreDraggedElementStyles();
+      }
     }
 
     draggingItem = null;
     draggingEl = null;
     draggingDurationEl = null;
 
-    if (hasChanged) {
+    if (hasMutated) {
       state.saveTimelineTracks?.();
       nextTick(() => {
         if (state.isDraggingTimelineItem) {
@@ -1086,11 +1480,7 @@ function deleteSelected() {
   if (!state.selectedTimelineItem.value) return;
   state.commitToHistory();
   const itemToDelete = { ...state.selectedTimelineItem.value };
-  const id = itemToDelete.id;
-
-  const track = state.timelineTracks.value.find((t: any) =>
-    t.items.some((i: any) => i.id === id)
-  );
+  const track = findTrackByItemId(state.timelineTracks.value, itemToDelete.id);
   const trackId = track?.id || '';
 
   const result = deleteTimelineItemWithRipple(
@@ -1105,7 +1495,11 @@ function deleteSelected() {
 
   state.timelineTracks.value = result.updatedTracks;
   state.currentTime.value = result.updatedCurrentTime;
-  if (trackId === 'video' && state.fullTranscript && state.saveTranscript) {
+  if (
+    isVideoTrack(track || trackId) &&
+    state.fullTranscript &&
+    state.saveTranscript
+  ) {
     state.fullTranscript.value = result.updatedTranscript;
     state.saveTranscript();
   }
@@ -1116,9 +1510,7 @@ function deleteSelected() {
 function splitSelected() {
   const item = state.selectedTimelineItem.value;
   if (!item) return;
-  const track = state.timelineTracks.value.find((t: TimelineTrack) =>
-    t.items.some((i: TimelineTrackItem) => i.id === item.id)
-  );
+  const track = findTrackByItemId(state.timelineTracks.value, item.id);
   const isAudio = isAudioTrack(track) || isAudioTrack(item.type);
   const offset =
     isCoverActive.value && !isAudio ? activeCoverDuration.value : 0;
@@ -1129,8 +1521,17 @@ function splitSelected() {
     state.commitToHistory();
     item.duration = splitResult.firstItem.duration;
     if (track) {
-      state.addTimelineItem(track.id, splitResult.secondItem);
-      state.selectedTimelineItem.value = splitResult.secondItem;
+      state.addTimelineItem(track.id, splitResult.secondItem, {
+        forceTrack: true
+      });
+      const updatedTrack = state.timelineTracks.value.find(
+        (t: TimelineTrack) => t.id === track.id
+      );
+      const insertedSecondItem = updatedTrack?.items.find(
+        (i: TimelineTrackItem) => i.id === splitResult.secondItem.id
+      );
+      state.selectedTimelineItem.value =
+        insertedSecondItem ?? splitResult.secondItem;
       state.saveTimelineTracks();
     }
   }
@@ -1189,16 +1590,24 @@ onUnmounted(() => {
 
 <style scoped>
 .tl-scroll::-webkit-scrollbar {
+  width: 6px;
   height: 6px;
 }
 .tl-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 .tl-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 0;
 }
 .tl-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.16);
+}
+.tl-header-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.tl-header-scroll::-webkit-scrollbar {
+  display: none;
 }
 </style>

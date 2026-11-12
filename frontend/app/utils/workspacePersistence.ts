@@ -4,6 +4,7 @@
  */
 
 import { watch, type Ref } from 'vue';
+import { isTextTrack } from './timelineHelpers';
 import type {
   HookExtractionMode,
   HookIntentPreset,
@@ -573,14 +574,15 @@ export class WorkspacePersistenceCoordinator {
       if (styleSyncRefs.length > 0) {
         unwatchList.push(
           watch(styleSyncRefs, () => {
-            const textTrack = timeline.timelineTracks?.value.find(
-              (t: TimelineTrack) => t.id === 'text'
+            const textTracks = (timeline.timelineTracks?.value || []).filter(
+              (t: TimelineTrack) => isTextTrack(t)
             );
-            if (!textTrack) return;
-            textTrack.items.forEach((item: TimelineTrackItem) => {
-              if (item.linkToGlobal !== false) {
-                timeline.syncGlobalStylesToItem?.(item);
-              }
+            textTracks.forEach((textTrack: TimelineTrack) => {
+              textTrack.items.forEach((item: TimelineTrackItem) => {
+                if (item.linkToGlobal !== false) {
+                  timeline.syncGlobalStylesToItem?.(item);
+                }
+              });
             });
           })
         );

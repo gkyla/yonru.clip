@@ -277,4 +277,79 @@ describe('VideoPlaybackCoordinator Unit Tests', () => {
       expect(props.hideSubtitles).toBe(true);
     });
   });
+
+  describe('Multi-Track NLE Audio & Video Prop Assembly', () => {
+    it('aggregates all non-muted audio tracks, excludes muted tracks, and resolves video track regardless of index', () => {
+      const props = coordinator.assembleRemotionProps({
+        ...baseSnapshot,
+        timelineTracks: [
+          {
+            id: 'text-2',
+            name: 'Text 2',
+            type: 'text',
+            items: [
+              { id: 't2', type: 'text', start: 0, duration: 2, content: 'Top' }
+            ]
+          },
+          {
+            id: 'video',
+            name: 'Main Video',
+            type: 'video',
+            items: [{ id: 'v1', type: 'video', start: 0, duration: 10 }]
+          },
+          {
+            id: 'audio',
+            name: 'Audio 1',
+            type: 'audio',
+            muted: false,
+            items: [
+              {
+                id: 'a1',
+                type: 'audio',
+                name: 'bgm.mp3',
+                start: 0,
+                duration: 8
+              }
+            ]
+          },
+          {
+            id: 'audio-2',
+            name: 'Audio 2',
+            type: 'audio',
+            muted: false,
+            items: [
+              {
+                id: 'a2',
+                type: 'audio',
+                name: 'sfx.mp3',
+                start: 1,
+                duration: 2
+              }
+            ]
+          },
+          {
+            id: 'audio-3',
+            name: 'Audio 3',
+            type: 'audio',
+            muted: true,
+            items: [
+              {
+                id: 'a3',
+                type: 'audio',
+                name: 'muted.mp3',
+                start: 2,
+                duration: 3
+              }
+            ]
+          }
+        ]
+      });
+
+      expect(props.timelineVideoItems.map((i: any) => i.id)).toEqual(['v1']);
+      expect(props.timelineAudioItems.map((i: any) => i.id)).toEqual([
+        'a1',
+        'a2'
+      ]);
+    });
+  });
 });

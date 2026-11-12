@@ -252,7 +252,7 @@
                       </span>
                     </div>
                     <input
-                      v-model.number="activeItem.duration"
+                      v-model.number="displayDuration"
                       type="number"
                       min="0.1"
                       step="0.1"
@@ -979,8 +979,9 @@
                           >Duration (s)</label
                         >
                         <input
-                          v-model.number="activeItem.duration"
+                          v-model.number="displayDuration"
                           type="number"
+                          min="0.1"
                           step="0.1"
                           class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white mono"
                         />
@@ -1613,12 +1614,16 @@
 import { computed, ref } from 'vue';
 import * as clipperStateModule from '../../composables/useClipperState';
 import {
+  findTrackByItemId,
   fromGlobalTimelineStart,
+  hasTrackIntervalOverlap,
   isAudioTrack,
+  isTextTrack,
+  isVideoTrack,
   resolveCoverOffsetSec,
   toGlobalTimelineStart
 } from '../../utils/timelineHelpers';
-import type { TimelineTrack, TimelineTrackItem } from '../../types/clipper';
+import type { TimelineTrack } from '../../types/clipper';
 
 interface Props {
   modelValue?: any | null;
@@ -1686,6 +1691,19 @@ const coverOffsetSec = computed(() => {
   return resolveCoverOffsetSec(enabled, duration);
 });
 
+const activeTrack = computed<TimelineTrack | undefined>(() => {
+  const itemId = activeItem.value?.id;
+  if (!itemId || !state?.timelineTracks?.value) return undefined;
+  return findTrackByItemId(state.timelineTracks.value, itemId);
+});
+
+function wouldOverlapSibling(nextStart: number, nextDuration: number): boolean {
+  const track = activeTrack.value;
+  const itemId = activeItem.value?.id;
+  if (!track || !itemId) return false;
+  return hasTrackIntervalOverlap(track.items, nextStart, nextDuration, itemId);
+}
+
 const isAudioItem = computed(() => {
   if (isAudioTrack(props.trackId)) return true;
   if (props.trackId && !isAudioTrack(props.trackId)) return false;
@@ -1694,27 +1712,17 @@ const isAudioItem = computed(() => {
     isAudioTrack(activeItem.value?.trackId)
   )
     return true;
-  const itemId = activeItem.value?.id;
-  if (!itemId || !state?.timelineTracks?.value) return false;
-  const track = state.timelineTracks.value.find((t: TimelineTrack) =>
-    t.items?.some((i: TimelineTrackItem) => i.id === itemId)
-  );
-  return isAudioTrack(track);
+  return isAudioTrack(activeTrack.value);
 });
 
 const isVideoItem = computed(() => {
-  if (props.trackId === 'video') return true;
+  if (isVideoTrack(props.trackId)) return true;
   if (
     activeItem.value?.type === 'video' ||
     activeItem.value?.id === 'main-video'
   )
     return true;
-  const itemId = activeItem.value?.id;
-  if (!itemId || !state?.timelineTracks?.value) return false;
-  const track = state.timelineTracks.value.find((t: TimelineTrack) =>
-    t.items?.some((i: TimelineTrackItem) => i.id === itemId)
-  );
-  return track?.id === 'video' || track?.type === 'video';
+  return isVideoTrack(activeTrack.value);
 });
 
 const displayStart = computed({
@@ -1733,18 +1741,31 @@ const displayStart = computed({
     if (!activeItem.value) return;
     const numericVal = Number(val);
     if (Number.isNaN(numericVal)) return;
-    if (isAudioItem.value) {
-      activeItem.value.start = Math.max(
-        0,
-        Math.round(numericVal * 1000) / 1000
-      );
-      return;
-    }
-    activeItem.value.start = fromGlobalTimelineStart(
-      numericVal,
-      coverOffsetSec.value > 0,
-      coverOffsetSec.value
-    );
+    const curDuration = Number(activeItem.value.duration ?? 0) || 0;
+    const nextStart = isAudioItem.value
+      ? Math.max(0, Math.round(numericVal * 1000) / 1000)
+      : fromGlobalTimelineStart(
+          numericVal,
+          coverOffsetSec.value > 0,
+          coverOffsetSec.value
+        );
+    if (wouldOverlapSibling(nextStart, curDuration)) return;
+    activeItem.value.start = nextStart;
+  }
+});
+
+const displayDuration = computed({
+  get() {
+    return activeItem.value?.duration ?? 0;
+  },
+  set(val: number) {
+    if (!activeItem.value) return;
+    const numericVal = Number(val);
+    if (Number.isNaN(numericVal) || numericVal < 0.1) return;
+    const nextDuration = Math.round(numericVal * 1000) / 1000;
+    const curStart = Number(activeItem.value.start ?? 0) || 0;
+    if (wouldOverlapSibling(curStart, nextDuration)) return;
+    activeItem.value.duration = nextDuration;
   }
 });
 
@@ -1772,16 +1793,14 @@ const fontOptions = (clipperStateModule as any)?.FONT_OPTIONS ?? [
 const activeTab = ref<'text' | 'style' | 'box' | 'layout'>('text');
 
 const isTextTrackItem = computed(() => {
-  if (props.trackId === 'text') return true;
-  if (props.trackId && props.trackId !== 'text') return false;
-  if (activeItem.value?.type === 'text' || activeItem.value?.trackId === 'text')
+  if (isTextTrack(props.trackId)) return true;
+  if (props.trackId && !isTextTrack(props.trackId)) return false;
+  if (
+    activeItem.value?.type === 'text' ||
+    isTextTrack(activeItem.value?.trackId)
+  )
     return true;
-  const itemId = activeItem.value?.id;
-  if (!itemId || !state?.timelineTracks?.value) return false;
-  const track = state.timelineTracks.value.find((t: any) =>
-    t.items?.some((i: any) => i.id === itemId)
-  );
-  return track?.id === 'text';
+  return isTextTrack(activeTrack.value);
 });
 
 const activeSections = ref<Record<string, boolean>>({

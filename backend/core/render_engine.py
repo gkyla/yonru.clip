@@ -9,6 +9,41 @@ import time
 from typing import Generator, Any, Optional, Dict, List, Tuple
 
 
+def _resolve_track_type(track: Any) -> str:
+    """Resolve canonical NLE track type ('text', 'audio', 'video') from track metadata or ID."""
+    if not isinstance(track, dict):
+        return ""
+    track_type = track.get("type")
+    if track_type in ("text", "audio", "video"):
+        return str(track_type)
+    track_id = str(track.get("id") or "")
+    if track_id == "audio" or track_id.startswith("audio-"):
+        return "audio"
+    if track_id == "text" or track_id.startswith("text-"):
+        return "text"
+    if track_id == "video" or track_id.startswith("video-"):
+        return "video"
+    return ""
+
+
+def _compute_timeline_duration(tracks: Optional[List[Dict[str, Any]]]) -> float:
+    """Return max non-audio, visible end time (seconds) across tracks, or 0.0."""
+    if not tracks:
+        return 0.0
+    max_timeline_end = 0.0
+    for track in tracks:
+        resolved_type = _resolve_track_type(track)
+        if resolved_type == "audio":
+            continue
+        if resolved_type == "text" and track.get("hidden"):
+            continue
+        for item in track.get("items") or []:
+            end = float(item.get("start") or 0.0) + float(item.get("duration") or 0.0)
+            if end > max_timeline_end:
+                max_timeline_end = end
+    return max_timeline_end
+
+
 class RenderComposition:
     """A data DTO containing the complete settings of a video composition."""
     def __init__(self, original_video: str, crop_center_x: Any, **kwargs):
@@ -249,25 +284,17 @@ class StagedRenderContext:
                 cover_duration = cover_cfg.get("duration", 1.0)
 
         clip_dur = self.comp.clip_duration
-        if self.comp.timeline_tracks:
-            max_timeline_end = 0.0
-            for track in self.comp.timeline_tracks:
-                if track.get("id") == "audio" or track.get("type") == "audio":
-                    continue
-                for item in track.get("items", []):
-                    end = float(item.get("start") or 0.0) + float(item.get("duration") or 0.0)
-                    if end > max_timeline_end:
-                        max_timeline_end = end
-            if max_timeline_end > 0.0:
-                clip_dur = max_timeline_end
+        max_timeline_end = _compute_timeline_duration(self.comp.timeline_tracks)
+        if max_timeline_end > 0.0:
+            clip_dur = max_timeline_end
 
         timeline_video_items = self.comp.timeline_video_items
         if timeline_video_items is None and self.comp.timeline_tracks:
-            video_track = next((t for t in self.comp.timeline_tracks if t.get('id') == 'video'), None)
-            if video_track:
-                timeline_video_items = video_track.get('items', [])
-            elif len(self.comp.timeline_tracks) > 0:
-                timeline_video_items = self.comp.timeline_tracks[0].get('items', [])
+            video_track = next(
+                (t for t in self.comp.timeline_tracks if _resolve_track_type(t) == "video"),
+                None,
+            )
+            timeline_video_items = video_track.get("items", []) if video_track else []
         timeline_video_items = timeline_video_items or []
 
         video_frames = max(1, int((clip_dur or 10.0) * self.comp.fps))
@@ -514,42 +541,31 @@ class RenderEngine(ABC):
             clip_start = 0
             clip_duration = job.get("video_info", {}).get("duration") or 0
 
-        # Extract tracks and calculate duration override in a single consolidated pass
-        timeline_text = []
-        timeline_audio = []
-        timeline_video = []
-        max_timeline_end = 0.0
-        has_timeline_items = False
+        # Extract tracks and calculate duration override via shared helper
+        timeline_text: List[Dict[str, Any]] = []
+        timeline_text_tracks: List[List[Dict[str, Any]]] = []
+        timeline_audio: List[Dict[str, Any]] = []
+        timeline_video: List[Dict[str, Any]] = []
 
         if req.timeline_tracks:
             for track in req.timeline_tracks:
-                track_id = track.get('id')
-                track_type = track.get('type')
-                items = track.get("items", [])
-                if track_id == 'text':
-                    timeline_text = items
-                elif track_id == 'audio':
-                    timeline_audio = items
-                elif track_id == 'video':
+                resolved_type = _resolve_track_type(track)
+                items = track.get("items") or []
+                if resolved_type == "text":
+                    if not track.get("hidden"):
+                        timeline_text_tracks.append(items)
+                elif resolved_type == "audio":
+                    if not track.get("muted"):
+                        timeline_audio.extend(items)
+                elif resolved_type == "video":
                     timeline_video = items
 
-                # Audio layers must NEVER extend the clip duration past the video footage!
-                if track_id == 'audio' or track_type == 'audio':
-                    continue
+        # Flatten visible text tracks bottom-to-top so upper tracks paint above lower tracks
+        for text_items in reversed(timeline_text_tracks):
+            timeline_text.extend(text_items)
 
-                if items:
-                    has_timeline_items = True
-                    for item in items:
-                        start = float(item.get("start") or 0.0)
-                        dur = float(item.get("duration") or 0.0)
-                        end = start + dur
-                        if end > max_timeline_end:
-                            max_timeline_end = end
-
-        if not timeline_video and req.timeline_tracks and len(req.timeline_tracks) > 0:
-            timeline_video = req.timeline_tracks[0].get('items', [])
-
-        if has_timeline_items and max_timeline_end > 0.0:
+        max_timeline_end = _compute_timeline_duration(req.timeline_tracks)
+        if max_timeline_end > 0.0:
             print(f"[render-engine] Overriding clip_duration with timeline duration: {max_timeline_end:.2f}s (was: {clip_duration}s)")
             clip_duration = max_timeline_end
 

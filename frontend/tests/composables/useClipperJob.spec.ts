@@ -3,7 +3,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useClipperJob } from '../../app/composables/useClipperJob';
 
 // Mock useTimelineState
-const mockTimelineTracks = { value: [{ items: [] as any[] }] };
+const mockTimelineTracks = {
+  value: [
+    { id: 'video', name: 'Main Video', type: 'video', items: [] as any[] }
+  ]
+};
 const mockIsSavingLocked = { value: false };
 vi.mock('../../app/composables/useTimelineState', () => ({
   useTimelineState: () => ({
@@ -172,7 +176,9 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     const { startPolling, stopPolling, jobId } = useClipperJob();
 
     jobId.value = 'job-123';
-    mockTimelineTracks.value = [{ items: [] }]; // Empty timeline
+    mockTimelineTracks.value = [
+      { id: 'video', name: 'Main Video', type: 'video', items: [] }
+    ]; // Empty timeline
 
     vi.stubGlobal(
       '$fetch',
@@ -189,7 +195,14 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
           });
         }
         if (urlStr.includes('/timeline.json')) {
-          return Promise.resolve([{ items: [{ id: 'mock-item-from-file' }] }]);
+          return Promise.resolve([
+            {
+              id: 'video',
+              name: 'Main Video',
+              type: 'video',
+              items: [{ id: 'mock-item-from-file' }]
+            }
+          ]);
         }
         return Promise.resolve({});
       })
@@ -199,13 +212,76 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
 
     await vi.advanceTimersByTimeAsync(2000);
 
-    expect(mockTimelineTracks.value[0]?.items.length).toBe(1);
-    expect(mockTimelineTracks.value[0]?.items[0]?.id).toBe(
-      'mock-item-from-file'
+    const videoTrack = mockTimelineTracks.value.find(
+      t => t.type === 'video' || t.id === 'video'
     );
+    expect(videoTrack?.items.length).toBe(1);
+    expect(videoTrack?.items[0]?.id).toBe('mock-item-from-file');
 
     stopPolling();
     vi.useRealTimers();
+  });
+
+  it('populates main-video on the video track rather than timelineTracks[0] when Text Tracks precede Main Video', async () => {
+    mockTimelineTracks.value = [
+      { id: 'text', name: 'Text 1', type: 'text', items: [] },
+      { id: 'video', name: 'Main Video', type: 'video', items: [] },
+      { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+    ];
+
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn().mockImplementation(url => {
+        const urlStr = String(url);
+        if (urlStr.includes('/timeline.json')) {
+          return Promise.resolve([
+            { id: 'text-2', name: 'Text 2', type: 'text', items: [] },
+            { id: 'text', name: 'Text 1', type: 'text', items: [] },
+            { id: 'video', name: 'Main Video', type: 'video', items: [] },
+            { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+          ]);
+        }
+        if (urlStr.includes('/api/load-ready-clip')) {
+          return Promise.resolve({
+            job_id: 'job-nle',
+            status: 'ready',
+            clip: {
+              asset_url: '/assets/clips/folder/clip-nle/video.mp4',
+              duration: 15
+            }
+          });
+        }
+        return Promise.resolve({});
+      })
+    );
+
+    const { loadReadyClipIntoEditor } = useClipperJob();
+    await loadReadyClipIntoEditor('folder', 'clip-nle');
+
+    expect(mockTimelineTracks.value[0]?.id).toBe('text-2');
+    expect(mockTimelineTracks.value[0]?.items).toHaveLength(0);
+    const videoTrack = mockTimelineTracks.value.find(t => t.type === 'video');
+    expect(videoTrack?.items).toHaveLength(1);
+    expect(videoTrack?.items[0]?.id).toBe('main-video');
+  });
+
+  it('normalizes empty timelineTracks array into default tracks and populates main-video', () => {
+    mockTimelineTracks.value = [];
+    const { applyHydratedClipBundle } = useClipperJob();
+
+    applyHydratedClipBundle({
+      timelineTracks: [],
+      videoDuration: 18
+    });
+
+    expect(mockTimelineTracks.value.map(t => t.id)).toEqual([
+      'text',
+      'video',
+      'audio'
+    ]);
+    const videoTrack = mockTimelineTracks.value.find(t => t.type === 'video');
+    expect(videoTrack?.items).toHaveLength(1);
+    expect(videoTrack?.items[0]?.duration).toBe(18);
   });
 
   it('locks saving during loadReadyClipIntoEditor to prevent premature auto-saves', async () => {

@@ -108,8 +108,24 @@
 
         <!-- Bottom Timeline -->
         <div
-          class="h-64 border-t border-surface-border flex flex-col bg-[#060608] z-40 relative"
+          data-testid="timeline-panel-container"
+          class="border-t border-surface-border flex flex-col bg-[#060608] z-40 relative shrink-0"
+          :style="{ height: `${timelineHeightPx}px` }"
         >
+          <button
+            type="button"
+            data-testid="timeline-resize-handle"
+            aria-label="Resize timeline height. Use Up and Down arrow keys to adjust."
+            class="timeline-resize-handle group absolute -top-1.5 left-0 right-0 h-3 z-50 flex items-center justify-center bg-transparent border-0 p-0 cursor-ns-resize focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-500"
+            @pointerdown="startTimelineResize"
+            @keydown.up.prevent="stepTimelineHeight(16)"
+            @keydown.down.prevent="stepTimelineHeight(-16)"
+          >
+            <span
+              class="w-10 h-1 rounded-full bg-white/15 group-hover:bg-accent-500/80 group-focus-visible:bg-accent-500 transition-colors"
+              :class="{ 'bg-accent-500': isResizingTimeline }"
+            ></span>
+          </button>
           <TimelineEditor />
         </div>
       </div>
@@ -148,6 +164,77 @@ let overlayTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const isPanelOpen = ref(false);
 const editorTab = ref<'edit' | 'quote' | 'thumbnail'>('edit');
+
+const MIN_TIMELINE_HEIGHT = 180;
+const MAX_TIMELINE_HEIGHT = 520;
+const TIMELINE_HEIGHT_STORAGE_KEY = 'yonru_timeline_height';
+const timelineHeightPx = ref(256);
+const isResizingTimeline = ref(false);
+let timelineResizeStartY = 0;
+let timelineResizeStartHeight = 256;
+
+function clampTimelineHeight(height: number): number {
+  const maxAllowed =
+    typeof window !== 'undefined' && window.innerHeight > 300
+      ? Math.min(MAX_TIMELINE_HEIGHT, Math.round(window.innerHeight * 0.6))
+      : MAX_TIMELINE_HEIGHT;
+  return Math.max(
+    MIN_TIMELINE_HEIGHT,
+    Math.min(maxAllowed, Math.round(height))
+  );
+}
+
+function persistTimelineHeight(height: number) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(TIMELINE_HEIGHT_STORAGE_KEY, String(height));
+  } catch {
+    // Ignore storage failures in restricted contexts
+  }
+}
+
+function stepTimelineHeight(delta: number) {
+  timelineHeightPx.value = clampTimelineHeight(timelineHeightPx.value + delta);
+  persistTimelineHeight(timelineHeightPx.value);
+}
+
+function handleTimelineResizeMove(e: PointerEvent) {
+  if (!isResizingTimeline.value) return;
+  const dy = timelineResizeStartY - e.clientY;
+  timelineHeightPx.value = clampTimelineHeight(timelineResizeStartHeight + dy);
+}
+
+function stopTimelineResize() {
+  if (!isResizingTimeline.value) return;
+  isResizingTimeline.value = false;
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('pointermove', handleTimelineResizeMove);
+    window.removeEventListener('pointerup', stopTimelineResize);
+    window.removeEventListener('pointercancel', stopTimelineResize);
+  }
+  if (typeof document !== 'undefined') {
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  }
+  persistTimelineHeight(timelineHeightPx.value);
+}
+
+function startTimelineResize(e: PointerEvent) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  isResizingTimeline.value = true;
+  timelineResizeStartY = e.clientY;
+  timelineResizeStartHeight = timelineHeightPx.value;
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pointermove', handleTimelineResizeMove);
+    window.addEventListener('pointerup', stopTimelineResize);
+    window.addEventListener('pointercancel', stopTimelineResize);
+  }
+  if (typeof document !== 'undefined') {
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'ns-resize';
+  }
+}
 
 const toggleTab = (tab: 'edit' | 'quote' | 'thumbnail') => {
   if (isPanelOpen.value && editorTab.value === tab) {
@@ -568,6 +655,18 @@ onMounted(async () => {
     if (saved) state.lastAccessedVideoId.value = saved;
   }
 
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const savedHeight = Number(
+        localStorage.getItem(TIMELINE_HEIGHT_STORAGE_KEY)
+      );
+      if (Number.isFinite(savedHeight) && savedHeight > 0) {
+        timelineHeightPx.value = clampTimelineHeight(savedHeight);
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }
   restoreStateFromQuery();
   state.initPersistence();
   if (typeof window !== 'undefined') {
@@ -604,6 +703,7 @@ onDeactivated(() => {
 });
 
 onUnmounted(() => {
+  stopTimelineResize();
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', handleGlobalKeydown);
   }
@@ -617,3 +717,11 @@ onUnmounted(() => {
   }
 });
 </script>
+
+<style scoped>
+.timeline-resize-handle {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+</style>

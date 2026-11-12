@@ -94,6 +94,8 @@ export interface ThumbnailTextOverlay {
   backgroundPadding?: number;
 }
 
+export type TimelineTrackType = 'video' | 'audio' | 'text';
+
 export interface TimelineTrackItem {
   id: string;
   name?: string;
@@ -126,14 +128,16 @@ export interface TimelineTrackItem {
   x?: number;
   y?: number;
   src?: string | ArrayBuffer | null;
-  type?: 'video' | 'audio' | 'text';
+  type?: TimelineTrackType;
 }
 
 export interface TimelineTrack {
-  id: 'video' | 'audio' | 'text';
+  id: string;
   name: string;
-  type: 'video' | 'audio' | 'text';
+  type: TimelineTrackType;
   items: TimelineTrackItem[];
+  muted?: boolean;
+  hidden?: boolean;
 }
 
 export interface TranscriptWord {

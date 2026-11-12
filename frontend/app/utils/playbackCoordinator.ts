@@ -1,6 +1,7 @@
 import { resolveApiBase } from './apiBase';
 import { SubtitleLayoutEngine } from './subtitleChunker';
 import { SubtitleStyleCoordinator } from './subtitleStyleCoordinator';
+import { findVideoTrack, isAudioTrack } from './timelineHelpers';
 import type { PlayerBridge } from './playerBridge';
 import type {
   Hook,
@@ -271,11 +272,11 @@ export class VideoPlaybackCoordinator {
       showDebug: snapshot.showIframeDebug,
       volume: snapshot.volume,
       timelineTextItems: [],
-      timelineAudioItems: (
-        snapshot.timelineTracks?.find(t => t.id === 'audio')?.items || []
-      ).map(item => ({ ...item })),
+      timelineAudioItems: (snapshot.timelineTracks || [])
+        .filter(t => isAudioTrack(t) && !t.muted)
+        .flatMap(t => (t.items || []).map(item => ({ ...item }))),
       timelineVideoItems: (
-        snapshot.timelineTracks?.find(t => t.id === 'video')?.items || []
+        findVideoTrack(snapshot.timelineTracks || [])?.items || []
       ).map(item => ({ ...item })),
       thumbnailEnabled: snapshot.thumbnailEnabled,
       thumbnailDuration: snapshot.thumbnailDuration,

@@ -2,10 +2,13 @@ import type {
   CropMapPoint,
   TimelineTrack,
   TimelineTrackItem,
+  TimelineTrackType,
   TranscriptSegment
 } from '../types/clipper';
 
 export type TimelineItem = TimelineTrackItem;
+export type TrackRef =
+  TimelineTrack | { id?: string; type?: string } | string | undefined | null;
 
 export interface RulerTick {
   pos: number;
@@ -20,13 +23,436 @@ export function resolveCoverOffsetSec(
   return coverEnabled ? Math.max(0, Number(coverDuration) || 0) : 0;
 }
 
-export function isAudioTrack(
-  track:
-    TimelineTrack | { id?: string; type?: string } | string | undefined | null
+export function resolveTrackType(track: TrackRef): TimelineTrackType | null {
+  if (!track) return null;
+  if (typeof track === 'string') {
+    if (track === 'video') return 'video';
+    if (track === 'audio' || track.startsWith('audio-')) return 'audio';
+    if (track === 'text' || track.startsWith('text-')) return 'text';
+    return null;
+  }
+  if (
+    track.type === 'video' ||
+    track.type === 'audio' ||
+    track.type === 'text'
+  ) {
+    return track.type;
+  }
+  if (typeof track.id === 'string') {
+    return resolveTrackType(track.id);
+  }
+  return null;
+}
+
+export function isAudioTrack(track: TrackRef): boolean {
+  return resolveTrackType(track) === 'audio';
+}
+
+export function isTextTrack(track: TrackRef): boolean {
+  return resolveTrackType(track) === 'text';
+}
+
+export function isVideoTrack(track: TrackRef): boolean {
+  return resolveTrackType(track) === 'video';
+}
+
+export function findVideoTrack(
+  tracks: ReadonlyArray<TimelineTrack> | undefined | null
+): TimelineTrack | undefined {
+  return tracks?.find(t => isVideoTrack(t));
+}
+
+export function findTrackByItemId(
+  tracks: ReadonlyArray<TimelineTrack> | undefined | null,
+  itemId: string
+): TimelineTrack | undefined {
+  return tracks?.find(t => t.items?.some(i => i.id === itemId));
+}
+
+export function createDefaultTimelineTracks(): TimelineTrack[] {
+  return [
+    { id: 'text', name: 'Text 1', type: 'text', items: [] },
+    { id: 'video', name: 'Main Video', type: 'video', items: [] },
+    { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+  ];
+}
+
+const LAYER_TRACK_DEFAULTS = {
+  text: { legacyName: 'Text layers', prefix: 'Text', flag: 'hidden' },
+  audio: { legacyName: 'Audio layers', prefix: 'Audio', flag: 'muted' }
+} as const;
+
+function normalizeLayerTrack(
+  raw: {
+    name?: string;
+    muted?: boolean;
+    hidden?: boolean;
+  },
+  type: 'text' | 'audio',
+  index: number,
+  items: TimelineTrackItem[],
+  id: string
+): TimelineTrack {
+  const cfg = LAYER_TRACK_DEFAULTS[type];
+  const isLegacyName = !raw.name || raw.name === cfg.legacyName;
+  const normalized: TimelineTrack = {
+    id,
+    name: isLegacyName ? `${cfg.prefix} ${index + 1}` : raw.name!,
+    type,
+    items
+  };
+  if (raw[cfg.flag] !== undefined) {
+    normalized[cfg.flag] = Boolean(raw[cfg.flag]);
+  }
+  return normalized;
+}
+
+export function normalizeTimelineTracks(
+  rawTracks?: ReadonlyArray<{
+    id?: string;
+    name?: string;
+    type?: string;
+    items?: TimelineTrackItem[];
+    muted?: boolean;
+    hidden?: boolean;
+  }> | null
+): TimelineTrack[] {
+  if (!Array.isArray(rawTracks) || rawTracks.length === 0) {
+    return createDefaultTimelineTracks();
+  }
+
+  const textTracks: TimelineTrack[] = [];
+  const videoTracks: TimelineTrack[] = [];
+  const audioTracks: TimelineTrack[] = [];
+
+  for (const raw of rawTracks) {
+    if (!raw || raw.id === 'subtitle' || raw.type === 'subtitle') continue;
+    const type = resolveTrackType(raw);
+    if (!type) continue;
+
+    const items = Array.isArray(raw.items) ? raw.items : [];
+    const id = raw.id || type;
+
+    if (type === 'video') {
+      videoTracks.push({
+        id,
+        name: raw.name || 'Main Video',
+        type: 'video',
+        items
+      });
+    } else if (type === 'text') {
+      textTracks.push(
+        normalizeLayerTrack(raw, 'text', textTracks.length, items, id)
+      );
+    } else {
+      audioTracks.push(
+        normalizeLayerTrack(raw, 'audio', audioTracks.length, items, id)
+      );
+    }
+  }
+
+  if (textTracks.length === 0) {
+    textTracks.push({ id: 'text', name: 'Text 1', type: 'text', items: [] });
+  }
+  const videoTrack = videoTracks[0] ?? {
+    id: 'video',
+    name: 'Main Video',
+    type: 'video',
+    items: []
+  };
+  if (audioTracks.length === 0) {
+    audioTracks.push({
+      id: 'audio',
+      name: 'Audio 1',
+      type: 'audio',
+      items: []
+    });
+  }
+
+  return [...textTracks, videoTrack, ...audioTracks];
+}
+
+function getNextTrackNumber(
+  tracksOfType: ReadonlyArray<TimelineTrack>,
+  type: 'text' | 'audio'
+): number {
+  const prefix = type === 'text' ? 'Text' : 'Audio';
+  const nameRegex = new RegExp(`^${prefix}\\s+(\\d+)$`, 'i');
+  const idRegex = new RegExp(`^${type}-(\\d+)$`, 'i');
+  let maxNum = tracksOfType.length;
+
+  for (const t of tracksOfType) {
+    const nameMatch = t.name?.match(nameRegex);
+    if (nameMatch?.[1]) {
+      maxNum = Math.max(maxNum, Number(nameMatch[1]));
+    }
+    const idMatch = t.id?.match(idRegex);
+    if (idMatch?.[1]) {
+      maxNum = Math.max(maxNum, Number(idMatch[1]));
+    }
+  }
+  return maxNum + 1;
+}
+
+export function canDeleteTimelineTrack(
+  tracks: ReadonlyArray<TimelineTrack>,
+  trackId: string
 ): boolean {
-  if (!track) return false;
-  if (typeof track === 'string') return track === 'audio';
-  return track.id === 'audio' || track.type === 'audio';
+  const target = tracks.find(t => t.id === trackId);
+  if (!target || isVideoTrack(target)) return false;
+  const targetType = resolveTrackType(target);
+  if (!targetType) return false;
+  const sameTypeCount = tracks.filter(
+    t => resolveTrackType(t) === targetType
+  ).length;
+  return sameTypeCount > 1;
+}
+
+export function addTimelineTrack(
+  tracks: ReadonlyArray<TimelineTrack>,
+  type: 'text' | 'audio'
+): { tracks: TimelineTrack[]; newTrack: TimelineTrack } {
+  const normalized = normalizeTimelineTracks(tracks);
+  const sameTypeTracks = normalized.filter(t => t.type === type);
+  const existingIds = new Set(normalized.map(t => t.id));
+  const prefix = type === 'text' ? 'Text' : 'Audio';
+
+  let nextNum = getNextTrackNumber(sameTypeTracks, type);
+  let candidateId = `${type}-${nextNum}`;
+  while (existingIds.has(candidateId)) {
+    nextNum += 1;
+    candidateId = `${type}-${nextNum}`;
+  }
+
+  const newTrack: TimelineTrack = {
+    id: candidateId,
+    name: `${prefix} ${nextNum}`,
+    type,
+    items: []
+  };
+
+  const textTracks = normalized.filter(t => t.type === 'text');
+  const videoTrack = normalized.find(t => t.type === 'video')!;
+  const audioTracks = normalized.filter(t => t.type === 'audio');
+
+  const updatedTracks =
+    type === 'text'
+      ? [newTrack, ...textTracks, videoTrack, ...audioTracks]
+      : [...textTracks, videoTrack, ...audioTracks, newTrack];
+
+  return { tracks: updatedTracks, newTrack };
+}
+
+export function deleteTimelineTrack(
+  tracks: ReadonlyArray<TimelineTrack>,
+  trackId: string
+): {
+  tracks: TimelineTrack[];
+  deleted: boolean;
+  removedTrack: TimelineTrack | null;
+} {
+  if (!canDeleteTimelineTrack(tracks, trackId)) {
+    return { tracks: [...tracks], deleted: false, removedTrack: null };
+  }
+  const removedTrack = tracks.find(t => t.id === trackId) ?? null;
+  const remaining = tracks.filter(t => t.id !== trackId);
+  return { tracks: remaining, deleted: true, removedTrack };
+}
+
+export function hasTrackIntervalOverlap(
+  items: ReadonlyArray<Pick<TimelineTrackItem, 'id' | 'start' | 'duration'>>,
+  start: number,
+  duration: number,
+  excludeItemId?: string,
+  epsilon = 0.001
+): boolean {
+  const end = start + duration;
+  return items.some(existing => {
+    if (excludeItemId && existing.id === excludeItemId) return false;
+    const existingEnd = existing.start + existing.duration;
+    return start < existingEnd - epsilon && end > existing.start + epsilon;
+  });
+}
+
+function appendItemToTrack(
+  tracks: ReadonlyArray<TimelineTrack>,
+  targetTrackId: string,
+  item: TimelineTrackItem
+): TimelineTrack[] {
+  return tracks.map(t =>
+    t.id === targetTrackId ? { ...t, items: [...t.items, item] } : t
+  );
+}
+
+export function insertItemWithAutoRoute(
+  tracks: ReadonlyArray<TimelineTrack>,
+  targetTrackIdOrType: string,
+  item: TimelineTrackItem,
+  options?: { forceTrack?: boolean; preferredTrackId?: string | null }
+): {
+  tracks: TimelineTrack[];
+  targetTrackId: string | null;
+  createdTrack: TimelineTrack | null;
+} {
+  const explicitTrack = tracks.find(t => t.id === targetTrackIdOrType);
+  const trackType = resolveTrackType(explicitTrack ?? targetTrackIdOrType);
+  if (!trackType) {
+    return { tracks: [...tracks], targetTrackId: null, createdTrack: null };
+  }
+
+  const sameTypeTracks = tracks.filter(t => resolveTrackType(t) === trackType);
+  const typedItem: TimelineTrackItem = { ...item, type: trackType };
+
+  if (options?.forceTrack || trackType === 'video') {
+    const target = explicitTrack ?? sameTypeTracks[0];
+    if (!target) {
+      return { tracks: [...tracks], targetTrackId: null, createdTrack: null };
+    }
+    return {
+      tracks: appendItemToTrack(tracks, target.id, typedItem),
+      targetTrackId: target.id,
+      createdTrack: null
+    };
+  }
+
+  const preferred = options?.preferredTrackId
+    ? sameTypeTracks.find(t => t.id === options.preferredTrackId)
+    : explicitTrack;
+  const orderedFallback =
+    trackType === 'text' ? [...sameTypeTracks].reverse() : sameTypeTracks;
+
+  const candidates: TimelineTrack[] = [];
+  if (preferred) candidates.push(preferred);
+  for (const cand of orderedFallback) {
+    if (!candidates.some(c => c.id === cand.id)) {
+      candidates.push(cand);
+    }
+  }
+
+  const freeTrack = candidates.find(
+    cand =>
+      !hasTrackIntervalOverlap(cand.items, typedItem.start, typedItem.duration)
+  );
+
+  if (freeTrack) {
+    return {
+      tracks: appendItemToTrack(tracks, freeTrack.id, typedItem),
+      targetTrackId: freeTrack.id,
+      createdTrack: null
+    };
+  }
+
+  const { tracks: withNewTrack, newTrack } = addTimelineTrack(
+    tracks,
+    trackType
+  );
+  return {
+    tracks: appendItemToTrack(withNewTrack, newTrack.id, typedItem),
+    targetTrackId: newTrack.id,
+    createdTrack: newTrack
+  };
+}
+
+export function moveTimelineItemToTrack(
+  tracks: ReadonlyArray<TimelineTrack>,
+  itemId: string,
+  sourceTrackId: string,
+  targetTrackId: string,
+  newStart?: number,
+  newDuration?: number
+): {
+  tracks: TimelineTrack[];
+  movedItem: TimelineTrackItem | null;
+  success: boolean;
+  reason?: 'not-found' | 'type-mismatch' | 'overlap';
+} {
+  const sourceTrack = tracks.find(t => t.id === sourceTrackId);
+  const targetTrack = tracks.find(t => t.id === targetTrackId);
+  if (!sourceTrack || !targetTrack) {
+    return {
+      tracks: [...tracks],
+      movedItem: null,
+      success: false,
+      reason: 'not-found'
+    };
+  }
+
+  const sourceType = resolveTrackType(sourceTrack);
+  const targetType = resolveTrackType(targetTrack);
+  if (!sourceType || sourceType !== targetType) {
+    return {
+      tracks: [...tracks],
+      movedItem: null,
+      success: false,
+      reason: 'type-mismatch'
+    };
+  }
+
+  const item = sourceTrack.items.find(i => i.id === itemId);
+  if (!item) {
+    return {
+      tracks: [...tracks],
+      movedItem: null,
+      success: false,
+      reason: 'not-found'
+    };
+  }
+
+  const candidateStart =
+    newStart !== undefined ? Math.max(0, newStart) : item.start;
+  const candidateDuration =
+    newDuration !== undefined ? Math.max(0.1, newDuration) : item.duration;
+
+  if (
+    hasTrackIntervalOverlap(
+      targetTrack.items,
+      candidateStart,
+      candidateDuration,
+      itemId
+    )
+  ) {
+    return {
+      tracks: [...tracks],
+      movedItem: null,
+      success: false,
+      reason: 'overlap'
+    };
+  }
+
+  const movedItem: TimelineTrackItem = {
+    ...item,
+    start: candidateStart,
+    duration: candidateDuration,
+    type: targetType
+  };
+
+  const updatedTracks = tracks.map(t => {
+    if (sourceTrackId === targetTrackId && t.id === targetTrackId) {
+      return {
+        ...t,
+        items: t.items.map(i => (i.id === itemId ? movedItem : i))
+      };
+    }
+    if (t.id === sourceTrackId) {
+      return {
+        ...t,
+        items: t.items.filter(i => i.id !== itemId)
+      };
+    }
+    if (t.id === targetTrackId) {
+      return {
+        ...t,
+        items: [...t.items, movedItem]
+      };
+    }
+    return t;
+  });
+
+  return {
+    tracks: updatedTracks,
+    movedItem,
+    success: true
+  };
 }
 
 export const SUPPORTED_AUDIO_EXTENSIONS = [
@@ -239,7 +665,8 @@ export function calculateTimelineDuration(
 
   tracks.forEach(track => {
     // Audio layers MUST NEVER extend the timeline duration past the video clip
-    if (isAudioTrack(track)) return;
+    // Hidden text layers are excluded from preview/render output and duration
+    if (isAudioTrack(track) || (isTextTrack(track) && track.hidden)) return;
 
     if (track.items && track.items.length > 0) hasItems = true;
     track.items.forEach(item => {
@@ -262,7 +689,7 @@ export function calculateVideoTime(
 ): number {
   const thumbSec = thumbnailEnabled ? thumbnailDuration : 0;
   const t = Math.max(0, currentTime - thumbSec);
-  const videoTrack = tracks.find(tr => tr.id === 'video');
+  const videoTrack = findVideoTrack(tracks);
   if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0)
     return t;
 
@@ -332,7 +759,7 @@ export function findSplitTimelineJumpTime(
   }
 
   const thumbOffset = thumbnailEnabled ? thumbnailDuration : 0;
-  const videoTrack = tracks.find(tr => tr.id === 'video');
+  const videoTrack = findVideoTrack(tracks);
   const videoItems = (videoTrack?.items ?? [])
     .filter(item => item.duration > 0)
     .slice()
@@ -453,8 +880,11 @@ export function deleteTimelineItemWithRipple(
   let updatedCurrentTime = currentTime;
   let updatedTranscript = transcript ? [...transcript] : [];
 
+  const deletedTrack = tracks.find(t => t.id === trackId);
+  const isVideoDeletion = isVideoTrack(deletedTrack) || isVideoTrack(trackId);
+
   // ONLY perform ripple edit if we deleted a video segment!
-  if (trackId === 'video') {
+  if (isVideoDeletion) {
     // Ripple edit: shift all items starting at or after deleted item to the left
     updatedTracks.forEach(track => {
       track.items.forEach(item => {

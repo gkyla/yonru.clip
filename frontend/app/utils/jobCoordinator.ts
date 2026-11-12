@@ -1,5 +1,6 @@
 // jobCoordinator.ts - Ingestion Job Coordinator domain engine
 import { resolveApiBase } from './apiBase';
+import { normalizeTimelineTracks } from './timelineHelpers';
 import {
   DEFAULT_SUBTITLE_STYLES,
   SubtitleStyleCoordinator
@@ -531,22 +532,12 @@ export class IngestionJobCoordinator {
       cropMap = await this.backfillCropMap(folderName, clipId);
     }
 
-    // Resolve timeline tracks or construct fallback tracks
-    const rawTracks: TimelineTrack[] =
-      timelineRes.status === 'fulfilled' &&
-      Array.isArray(timelineRes.value) &&
-      timelineRes.value.length > 0
+    // Resolve timeline tracks, drop legacy subtitle track (ADR 0029), and normalize into NLE stack order (ADR 0031)
+    const rawTracks: TimelineTrack[] | null =
+      timelineRes.status === 'fulfilled' && Array.isArray(timelineRes.value)
         ? timelineRes.value
-        : [
-            { id: 'video', name: 'Main Video', type: 'video', items: [] },
-            { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-            { id: 'text', name: 'Text layers', type: 'text', items: [] }
-          ];
-
-    // Filter out legacy subtitle track for clean decoupled editing (ADR 0029)
-    const timelineTracks: TimelineTrack[] = rawTracks.filter(
-      (t: any) => t.id !== 'subtitle'
-    );
+        : null;
+    const timelineTracks: TimelineTrack[] = normalizeTimelineTracks(rawTracks);
 
     // Resolve thumbnail/cover config and cover URL
     const thumbnailConfig: ThumbnailConfig | null =

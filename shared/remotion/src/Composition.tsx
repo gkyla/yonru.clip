@@ -725,8 +725,8 @@ export const YonruClip: React.FC<YonruClipProps> = ({
             );
           })()}
 
-        {/* Timeline Text layers */}
-        {activeTextItems.map(item => {
+        {/* Timeline Text layers (ordered bottom-to-top so upper tracks paint above lower tracks) */}
+        {activeTextItems.map((item, idx) => {
           const getBgColor = (it: any) => {
             if (!it.showBackground) return 'transparent';
             const baseColor = it.backgroundColor || '#000000';
@@ -765,7 +765,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
             <AbsoluteFill
               key={item.id}
               style={{
-                zIndex: 20,
+                zIndex: 21 + idx,
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
