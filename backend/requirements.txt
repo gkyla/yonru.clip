@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
+httpx
 yt-dlp>=2026.8.19
 faster-whisper
 av>=11.0.0,<19.0.0

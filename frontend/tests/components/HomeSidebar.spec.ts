@@ -34,6 +34,10 @@ const mockLoadReadyClipIntoEditor = vi.fn().mockResolvedValue(true);
 const mockIsNavigatingToEditor = ref(false);
 const mockShowToast = vi.fn();
 const mockCheckSystemHealth = vi.fn();
+const mockInstalledVersion = ref('0.3.0');
+const mockHasAvailableUpdate = ref(false);
+const mockLatestAvailableVersion = ref<string | null>(null);
+const mockCheckForUpdates = vi.fn();
 
 vi.mock('~/composables/useClipperState', () => ({
   useClipperState: () => ({
@@ -47,7 +51,11 @@ vi.mock('~/composables/useClipperState', () => ({
     loadReadyClipIntoEditor: mockLoadReadyClipIntoEditor,
     isNavigatingToEditor: mockIsNavigatingToEditor,
     showToast: mockShowToast,
-    checkSystemHealth: mockCheckSystemHealth
+    checkSystemHealth: mockCheckSystemHealth,
+    installedVersion: mockInstalledVersion,
+    hasAvailableUpdate: mockHasAvailableUpdate,
+    latestAvailableVersion: mockLatestAvailableVersion,
+    checkForUpdates: mockCheckForUpdates
   })
 }));
 
@@ -58,6 +66,9 @@ describe('HomeSidebar Component', () => {
     mockLastAccessedVideo.value = null;
     mockLastAccessedClip.value = null;
     mockIsNavigatingToEditor.value = false;
+    mockInstalledVersion.value = '0.3.0';
+    mockHasAvailableUpdate.value = false;
+    mockLatestAvailableVersion.value = null;
     Object.keys(stateStore).forEach(k => delete stateStore[k]);
     try {
       const nuxt = (globalThis as any).useNuxtApp?.();
@@ -710,5 +721,40 @@ describe('HomeSidebar Component', () => {
     expect(img.attributes('src')).toBe(
       'http://localhost:8000/assets/clips/parent_folder/10_20_awesome_hook/thumbnail.jpg'
     );
+  });
+
+  it('triggers cached remote release check on mount and displays sidebar update badge + installed footer version', () => {
+    mockInstalledVersion.value = '0.3.0';
+    mockHasAvailableUpdate.value = true;
+    mockLatestAvailableVersion.value = '0.4.0';
+
+    const wrapper = mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed: false
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: { template: '<a><slot /></a>' }
+        }
+      }
+    });
+
+    expect(mockCheckForUpdates).toHaveBeenCalledWith({
+      apiBase: 'http://localhost:8000'
+    });
+    expect(wrapper.find('[data-testid="changelog-update-dot"]').exists()).toBe(
+      true
+    );
+    expect(
+      wrapper.find('[data-testid="changelog-update-badge"]').text()
+    ).toContain('v0.4.0');
+    expect(wrapper.text()).toContain('v0.3.0');
+    expect(wrapper.text()).not.toContain('v0.1.0');
   });
 });

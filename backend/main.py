@@ -55,6 +55,12 @@ cookie_path = os.path.abspath(os.path.join(backend_dir, "cookies.txt"))
 from core.system_repository import SystemRepository
 system_repository = SystemRepository(config_store=config_store, cookies_path=cookie_path)
 
+from core.release_service import ReleaseService
+release_service = ReleaseService(
+    current_version=app.version,
+    cache_path=os.path.join(backend_dir, "temp_assets", "cache", "github_releases.json"),
+)
+
 from core.media_transcoder import MediaTranscoder
 media_transcoder = MediaTranscoder(config_store=config_store)
 
@@ -287,6 +293,11 @@ class OpenFolderRequest(BaseModel):
 @app.get("/api")
 def index():
     return {"status": "ok", "service": "Yonru API v2"}
+
+@app.get("/api/releases")
+async def list_releases(force: bool = False):
+    """Return canonical installed version and cached stable GitHub releases."""
+    return await release_service.get_releases(force=force)
 
 @app.get("/api/prompts")
 def list_prompts():

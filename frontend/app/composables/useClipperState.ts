@@ -17,6 +17,7 @@ import { usePromptRepository } from './usePromptRepository';
 import { useCachedLibrary } from './useCachedLibrary';
 import { useClipEditorSession } from './useClipEditorSession';
 import { useAudioLibrary } from './useAudioLibrary';
+import { useReleaseUpdates } from './useReleaseUpdates';
 
 import fontsManifest from '../../../shared/fonts_manifest.json';
 import type {
@@ -94,6 +95,7 @@ function createClipperState() {
   const notifier = useAppNotifier();
   const promptRepo = usePromptRepository(notifier);
   const audioLib = useAudioLibrary(notifier);
+  const releaseUpdates = useReleaseUpdates();
 
   const {
     audioLibrary,
@@ -694,6 +696,12 @@ function createClipperState() {
     isAudioLibraryLoading,
     fetchAudioLibrary,
     uploadAudioFile,
-    deleteAudioItem
+    deleteAudioItem,
+
+    // Hybrid Changelog & Remote Release Updates API
+    installedVersion: releaseUpdates.installedVersion,
+    hasAvailableUpdate: releaseUpdates.hasAvailableUpdate,
+    latestAvailableVersion: releaseUpdates.latestAvailableVersion,
+    checkForUpdates: releaseUpdates.checkForUpdates
   };
 }
