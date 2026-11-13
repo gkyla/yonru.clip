@@ -138,18 +138,53 @@
             statusLabel
           }}</span>
         </div>
-        <span class="text-[9px] text-white/45 font-mono">v0.1.0</span>
+        <div class="flex items-center gap-1.5">
+          <span
+            v-if="hasAvailableUpdate"
+            data-testid="footer-update-indicator"
+            class="w-1.5 h-1.5 rounded-full bg-accent-500"
+            :title="updateTooltip"
+          ></span>
+          <span class="text-[9px] text-white/60 font-mono">{{
+            formattedVersion
+          }}</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import pkg from '../../../package.json';
 import { SAWERIA_LOGO, TRAKTEER_LOGO } from '~/utils/donationLogos';
+import { normalizeVersion } from '~/utils/changelogMarkdown';
 
-defineProps<{
-  isCollapsed: boolean;
-  statusColor: string;
-  statusLabel: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    isCollapsed: boolean;
+    statusColor: string;
+    statusLabel: string;
+    version?: string;
+    hasAvailableUpdate?: boolean;
+    latestAvailableVersion?: string | null;
+  }>(),
+  {
+    version: () => normalizeVersion(pkg.version || '0.3.0'),
+    hasAvailableUpdate: false,
+    latestAvailableVersion: null
+  }
+);
+
+const formattedVersion = computed(() => {
+  const norm = normalizeVersion(props.version || pkg.version || '0.3.0');
+  return `v${norm}`;
+});
+
+const updateTooltip = computed(() => {
+  if (props.latestAvailableVersion) {
+    return `Update available: v${normalizeVersion(props.latestAvailableVersion)}`;
+  }
+  return 'Update available';
+});
 </script>

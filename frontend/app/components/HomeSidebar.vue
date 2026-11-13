@@ -261,7 +261,9 @@
               :title="isCollapsed ? 'Changelog' : undefined"
               @click="handleNav('changelog')"
             >
-              <div class="w-10 h-10 shrink-0 flex items-center justify-center">
+              <div
+                class="w-10 h-10 shrink-0 flex items-center justify-center relative"
+              >
                 <Icon
                   name="lucide:history"
                   class="text-lg group-hover:scale-105 transition-transform"
@@ -271,24 +273,48 @@
                       : 'text-white/70 group-hover:text-white'
                   "
                 />
+                <div
+                  v-if="hasAvailableUpdate"
+                  data-testid="changelog-update-dot"
+                  class="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-accent-500"
+                  :title="changelogUpdateTitle"
+                ></div>
               </div>
               <div
-                class="overflow-hidden whitespace-nowrap transition-all ease-in-out min-w-0"
+                class="overflow-hidden whitespace-nowrap transition-all ease-in-out min-w-0 flex items-center justify-between gap-2 flex-1 pr-2"
                 :class="
                   isCollapsed
                     ? 'max-w-0 opacity-0 duration-80 -translate-x-1 pointer-events-none'
-                    : 'max-w-[160px] opacity-100 duration-200 delay-75 translate-x-0'
+                    : 'max-w-[200px] opacity-100 duration-200 delay-75 translate-x-0'
                 "
               >
-                <span class="text-sm font-medium pr-3">Changelog</span>
+                <span class="text-sm font-medium">Changelog</span>
+                <span
+                  v-if="hasAvailableUpdate"
+                  data-testid="changelog-update-badge"
+                  class="px-1.5 py-0.5 rounded-md bg-accent-500/15 border border-accent-500/35 text-accent-400 text-[10px] font-bold font-mono shrink-0"
+                >
+                  {{
+                    latestAvailableVersion
+                      ? `v${latestAvailableVersion}`
+                      : 'Update'
+                  }}
+                </span>
               </div>
             </button>
 
             <div
               v-if="isCollapsed"
-              class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-[#121216] border border-white/10 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-[100] whitespace-nowrap"
+              class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-[#121216] border border-white/10 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-[100] whitespace-nowrap flex items-center gap-1.5"
             >
-              Changelog
+              <span>Changelog</span>
+              <span v-if="hasAvailableUpdate" class="text-accent-400 font-mono">
+                {{
+                  latestAvailableVersion
+                    ? `v${latestAvailableVersion}`
+                    : 'Update'
+                }}
+              </span>
             </div>
           </div>
         </div>
@@ -298,6 +324,9 @@
           :is-collapsed="isCollapsed"
           :status-color="statusColor"
           :status-label="statusLabel"
+          :version="installedVersion"
+          :has-available-update="hasAvailableUpdate"
+          :latest-available-version="latestAvailableVersion"
         />
       </div>
     </aside>
@@ -307,12 +336,33 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useCommandPalette } from '~/composables/useCommandPalette';
+import { useReleaseUpdates } from '~/composables/useReleaseUpdates';
 import SidebarNavList from './sidebar/SidebarNavList.vue';
 import SidebarWorkspaceCard from './sidebar/SidebarWorkspaceCard.vue';
 import SidebarUtilityFooter from './sidebar/SidebarUtilityFooter.vue';
 
 const state = useClipperState();
 const palette = useCommandPalette();
+const releaseUpdates = useReleaseUpdates();
+
+const installedVersion = computed(
+  () => state?.installedVersion?.value ?? releaseUpdates.installedVersion.value
+);
+const hasAvailableUpdate = computed(
+  () =>
+    state?.hasAvailableUpdate?.value ?? releaseUpdates.hasAvailableUpdate.value
+);
+const latestAvailableVersion = computed(
+  () =>
+    state?.latestAvailableVersion?.value ??
+    releaseUpdates.latestAvailableVersion.value
+);
+const changelogUpdateTitle = computed(() => {
+  if (!hasAvailableUpdate.value) return 'Changelog';
+  return latestAvailableVersion.value
+    ? `Update available: v${latestAvailableVersion.value}`
+    : 'Update available';
+});
 
 const isCurrentClipActive = computed(() => {
   return props.activeView === 'editor';
@@ -647,6 +697,13 @@ onMounted(() => {
     !state?.checkingHealth?.value
   ) {
     state.checkSystemHealth();
+  }
+
+  if (
+    typeof window !== 'undefined' &&
+    typeof state?.checkForUpdates === 'function'
+  ) {
+    state.checkForUpdates({ apiBase: props.API_BASE });
   }
 });
 

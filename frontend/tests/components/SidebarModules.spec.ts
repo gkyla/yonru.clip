@@ -215,7 +215,7 @@ describe('Sidebar Sub-Modules Isolated Unit Tests', () => {
   });
 
   describe('SidebarUtilityFooter Component', () => {
-    it('renders Saweria, Trakteer, and health status indicators in expanded mode', () => {
+    it('renders Saweria, Trakteer, health status, and active installed version in expanded mode', () => {
       const wrapper = mount(SidebarUtilityFooter, {
         props: {
           isCollapsed: false,
@@ -230,7 +230,8 @@ describe('Sidebar Sub-Modules Isolated Unit Tests', () => {
       expect(wrapper.text()).toContain('Saweria');
       expect(wrapper.text()).toContain('Trakteer');
       expect(wrapper.text()).toContain('IDLE');
-      expect(wrapper.text()).toContain('v0.1.0');
+      expect(wrapper.text()).toContain('v0.3.0');
+      expect(wrapper.text()).not.toContain('v0.1.0');
 
       const saweriaLink = wrapper.find('a[title*="Saweria"]');
       expect(saweriaLink.attributes('href')).toBe('https://saweria.co/gitkyla');
@@ -239,6 +240,25 @@ describe('Sidebar Sub-Modules Isolated Unit Tests', () => {
       expect(trakteerLink.attributes('href')).toBe(
         'https://trakteer.id/gitkyla'
       );
+    });
+
+    it('renders custom version prop and update indicator when an update is available', () => {
+      const wrapper = mount(SidebarUtilityFooter, {
+        props: {
+          isCollapsed: false,
+          statusColor: 'bg-emerald-500/80',
+          statusLabel: 'IDLE',
+          version: '0.3.0',
+          hasAvailableUpdate: true,
+          latestAvailableVersion: '0.4.0'
+        },
+        global: globalStubs
+      });
+
+      expect(wrapper.text()).toContain('v0.3.0');
+      const indicator = wrapper.find('[data-testid="footer-update-indicator"]');
+      expect(indicator.exists()).toBe(true);
+      expect(indicator.attributes('title')).toContain('v0.4.0');
     });
 
     it('renders vertical icon stack with tooltips in collapsed mode', () => {
