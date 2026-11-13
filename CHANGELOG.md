@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-11-13
+
+### Features
+
+- **Timeline**:
+  - Add multi-track audio and text layers with NLE stacking (#318)
+  - Streamline canvas and decouple subtitle editing (#314)
+  - Global span audio track and fix drag/undo lag (#311) (#312)
+- **Editor**:
+  - Add workspace audio library and precision playhead placement (#315) (#316)
+  - Align timeline text inspector and drag snapping with cover slide design (#307) (#308)
+
+### Bug Fixes
+
+- **Timeline**: Align text layer block width and inspector with ruler (#310)
+
 ## [0.2.0] - 2026-11-02
 
 ### Features
@@ -21,6 +37,7 @@ All notable changes to this project will be documented in this file.
 ## [0.1.0] - 2026-10-21
 
 ### Features
+
 - feat: AI Hook Discovery Engine
 - feat: Smart Face Tracking & Auto-Reframe
 - feat: Multi-Track Studio Timeline
@@ -31,6 +48,7 @@ All notable changes to this project will be documented in this file.
 - feat: Local Whisper Transcription
 
 ### Bug Fixes
+
 - fix: Video playback desynchronization during backward timeline scrubbing
 - fix: Subtitle timestamp lead-time clamping
 - fix: Canvas letterbox clipping
