@@ -749,12 +749,142 @@ describe('HomeSidebar Component', () => {
       apiBase: 'http://localhost:8000'
     });
     expect(wrapper.find('[data-testid="changelog-update-dot"]').exists()).toBe(
-      true
+      false
     );
-    expect(
-      wrapper.find('[data-testid="changelog-update-badge"]').text()
-    ).toContain('v0.4.0');
+    const changelogBtn = wrapper.find('[data-testid="changelog-nav-button"]');
+    expect(changelogBtn.classes()).toContain('h-[52px]');
+    expect(changelogBtn.classes()).not.toContain('border');
+    expect(changelogBtn.classes()).not.toContain('border-accent-500/25');
+    expect(changelogBtn.classes()).not.toContain('bg-accent-500/[0.06]');
+    expect(changelogBtn.attributes('title')).toBe('Update available v0.4.0');
+    const badge = wrapper.find('[data-testid="changelog-update-badge"]');
+    expect(badge.text()).toBe('Update available v0.4.0');
     expect(wrapper.text()).toContain('v0.3.0');
     expect(wrapper.text()).not.toContain('v0.1.0');
+  });
+
+  function mountSidebar(defaultCollapsed: boolean) {
+    return mount(HomeSidebar, {
+      props: {
+        activeView: 'home',
+        cachedVideos: [],
+        isProcessing: false,
+        API_BASE: 'http://localhost:8000',
+        defaultCollapsed
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true,
+          NuxtLink: { template: '<a><slot /></a>' }
+        }
+      }
+    });
+  }
+
+  it('displays clear two-line Update available flyout tooltip, handles click + expand toggle, and supports keyboard focus when collapsed', async () => {
+    mockInstalledVersion.value = '0.3.0';
+    mockHasAvailableUpdate.value = true;
+    mockLatestAvailableVersion.value = 'v0.4.0';
+
+    const wrapper = mountSidebar(true);
+
+    expect(wrapper.find('[data-testid="changelog-update-dot"]').exists()).toBe(
+      true
+    );
+    const changelogBtn = wrapper.find(
+      'button[aria-label="Changelog, Update available v0.4.0"]'
+    );
+    expect(changelogBtn.exists()).toBe(true);
+    expect(changelogBtn.classes()).toContain('h-10');
+    expect(changelogBtn.attributes('title')).toBe('Update available v0.4.0');
+    expect(changelogBtn.classes()).toContain('peer');
+    expect(changelogBtn.classes()).toContain('focus-visible:outline');
+
+    const flyout = wrapper.find('[data-testid="changelog-collapsed-tooltip"]');
+    expect(flyout.exists()).toBe(true);
+    expect(flyout.text()).toContain('Changelog');
+    expect(flyout.classes()).toContain('peer-focus-visible:opacity-100');
+    expect(flyout.classes()).not.toContain('backdrop-blur-md');
+
+    const statusLine = wrapper.find(
+      '[data-testid="changelog-collapsed-tooltip-status"]'
+    );
+    expect(statusLine.exists()).toBe(true);
+    expect(statusLine.text()).toBe('Update available v0.4.0');
+    expect(statusLine.text()).not.toContain('vv0.4.0');
+
+    await changelogBtn.trigger('click');
+    expect(wrapper.emitted('update:activeView')).toEqual([['changelog']]);
+    expect(pushSpy).toHaveBeenCalledWith('/changelog');
+
+    const toggleBtn = wrapper.find('button[title*="Sidebar"]');
+    await toggleBtn.trigger('click');
+    expect(wrapper.find('[data-testid="changelog-update-dot"]').exists()).toBe(
+      false
+    );
+    expect(
+      wrapper.find('[data-testid="changelog-collapsed-tooltip"]').exists()
+    ).toBe(false);
+    expect(
+      wrapper.find('[data-testid="changelog-nav-button"]').classes()
+    ).toContain('h-[52px]');
+    expect(wrapper.find('[data-testid="changelog-update-badge"]').text()).toBe(
+      'Update available v0.4.0'
+    );
+  });
+
+  it('falls back gracefully in collapsed flyout and expanded two-line card when update flag has no version', () => {
+    mockHasAvailableUpdate.value = true;
+    mockLatestAvailableVersion.value = null;
+
+    const collapsedWrapper = mountSidebar(true);
+
+    const collapsedBtn = collapsedWrapper.find(
+      'button[title="Update available"]'
+    );
+    expect(collapsedBtn.exists()).toBe(true);
+    expect(
+      collapsedWrapper
+        .find('[data-testid="changelog-collapsed-tooltip-status"]')
+        .text()
+    ).toBe('Update available');
+
+    const expandedWrapper = mountSidebar(false);
+
+    expect(
+      expandedWrapper.find('[data-testid="changelog-update-badge"]').text()
+    ).toBe('Update available');
+  });
+
+  it('renders plain single-line Changelog button and flyout without update status when no update is available', () => {
+    mockHasAvailableUpdate.value = false;
+    mockLatestAvailableVersion.value = null;
+
+    const collapsedWrapper = mountSidebar(true);
+
+    expect(collapsedWrapper.find('button[title="Changelog"]').exists()).toBe(
+      true
+    );
+    const flyout = collapsedWrapper.find(
+      '[data-testid="changelog-collapsed-tooltip"]'
+    );
+    expect(flyout.exists()).toBe(true);
+    expect(flyout.text()).toBe('Changelog');
+    expect(
+      collapsedWrapper
+        .find('[data-testid="changelog-collapsed-tooltip-status"]')
+        .exists()
+    ).toBe(false);
+
+    const expandedWrapper = mountSidebar(false);
+    const expandedBtn = expandedWrapper.find(
+      '[data-testid="changelog-nav-button"]'
+    );
+    expect(expandedBtn.classes()).toContain('h-10');
+    expect(expandedBtn.attributes('title')).toBeUndefined();
+    expect(
+      expandedWrapper.find('[data-testid="changelog-update-badge"]').exists()
+    ).toBe(false);
   });
 });

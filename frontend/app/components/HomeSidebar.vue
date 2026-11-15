@@ -252,13 +252,15 @@
           <!-- Section 4: Changelog (Persistent 40px Hitbox) -->
           <div class="relative group w-full mt-auto pt-2 shrink-0">
             <button
-              class="h-10 flex items-center rounded-xl transition-colors duration-200 cursor-pointer w-full overflow-hidden"
-              :class="[
-                activeView === 'changelog'
-                  ? 'bg-white/[0.06] text-white font-semibold'
-                  : 'text-white/80 hover:text-white hover:bg-white/[0.04]'
-              ]"
-              :title="isCollapsed ? 'Changelog' : undefined"
+              data-testid="changelog-nav-button"
+              class="peer flex items-center rounded-xl transition-all duration-200 cursor-pointer w-full overflow-hidden focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent-500"
+              :class="changelogButtonClass"
+              :title="
+                isCollapsed || hasAvailableUpdate
+                  ? changelogUpdateTitle
+                  : undefined
+              "
+              :aria-label="isCollapsed ? changelogAriaLabel : undefined"
               @click="handleNav('changelog')"
             >
               <div
@@ -267,53 +269,61 @@
                 <Icon
                   name="lucide:history"
                   class="text-lg group-hover:scale-105 transition-transform"
-                  :class="
-                    activeView === 'changelog'
-                      ? 'text-accent-500'
-                      : 'text-white/70 group-hover:text-white'
-                  "
+                  :class="changelogIconClass"
                 />
                 <div
-                  v-if="hasAvailableUpdate"
+                  v-if="hasAvailableUpdate && isCollapsed"
                   data-testid="changelog-update-dot"
                   class="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-accent-500"
                   :title="changelogUpdateTitle"
                 ></div>
               </div>
               <div
-                class="overflow-hidden whitespace-nowrap transition-all ease-in-out min-w-0 flex items-center justify-between gap-2 flex-1 pr-2"
+                class="overflow-hidden whitespace-nowrap transition-all ease-in-out min-w-0 flex flex-col items-start justify-center flex-1 pr-2.5"
                 :class="
                   isCollapsed
                     ? 'max-w-0 opacity-0 duration-80 -translate-x-1 pointer-events-none'
-                    : 'max-w-[200px] opacity-100 duration-200 delay-75 translate-x-0'
+                    : 'max-w-[460px] opacity-100 duration-200 delay-75 translate-x-0'
                 "
               >
-                <span class="text-sm font-medium">Changelog</span>
+                <span
+                  class="text-sm font-medium leading-tight truncate w-full text-left"
+                  >Changelog</span
+                >
                 <span
                   v-if="hasAvailableUpdate"
                   data-testid="changelog-update-badge"
-                  class="px-1.5 py-0.5 rounded-md bg-accent-500/15 border border-accent-500/35 text-accent-400 text-[10px] font-bold font-mono shrink-0"
+                  class="text-[11px] font-medium leading-tight text-accent-400 truncate w-full text-left mt-0.5"
                 >
-                  {{
-                    latestAvailableVersion
-                      ? `v${latestAvailableVersion}`
-                      : 'Update'
-                  }}
+                  {{ changelogUpdateStatusLabel }}
                 </span>
               </div>
             </button>
 
             <div
               v-if="isCollapsed"
-              class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-[#121216] border border-white/10 backdrop-blur-md rounded-lg py-1 px-2.5 text-[10px] font-bold text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 z-[100] whitespace-nowrap flex items-center gap-1.5"
+              data-testid="changelog-collapsed-tooltip"
+              class="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-[#121216] border border-white/15 rounded-lg text-white shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 peer-focus-visible:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 peer-focus-visible:translate-x-0 z-[100] whitespace-nowrap flex flex-col items-start"
+              :class="
+                hasAvailableUpdate
+                  ? 'py-1.5 px-2.5 gap-0.5'
+                  : 'py-1 px-2.5 text-[10px] font-bold'
+              "
             >
-              <span>Changelog</span>
-              <span v-if="hasAvailableUpdate" class="text-accent-400 font-mono">
-                {{
-                  latestAvailableVersion
-                    ? `v${latestAvailableVersion}`
-                    : 'Update'
-                }}
+              <span
+                :class="
+                  hasAvailableUpdate
+                    ? 'text-[11px] font-semibold leading-tight text-white'
+                    : ''
+                "
+                >Changelog</span
+              >
+              <span
+                v-if="hasAvailableUpdate"
+                data-testid="changelog-collapsed-tooltip-status"
+                class="text-[10px] font-medium leading-tight text-accent-400"
+              >
+                {{ changelogUpdateStatusLabel }}
               </span>
             </div>
           </div>
@@ -337,6 +347,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useCommandPalette } from '~/composables/useCommandPalette';
 import { useReleaseUpdates } from '~/composables/useReleaseUpdates';
+import { normalizeVersion } from '~/utils/changelogMarkdown';
 import SidebarNavList from './sidebar/SidebarNavList.vue';
 import SidebarWorkspaceCard from './sidebar/SidebarWorkspaceCard.vue';
 import SidebarUtilityFooter from './sidebar/SidebarUtilityFooter.vue';
@@ -357,11 +368,26 @@ const latestAvailableVersion = computed(
     state?.latestAvailableVersion?.value ??
     releaseUpdates.latestAvailableVersion.value
 );
-const changelogUpdateTitle = computed(() => {
-  if (!hasAvailableUpdate.value) return 'Changelog';
-  return latestAvailableVersion.value
-    ? `Update available: v${latestAvailableVersion.value}`
+const normalizedAvailableVersion = computed(() => {
+  const raw = latestAvailableVersion.value;
+  if (!raw) return null;
+  const clean = normalizeVersion(raw);
+  return clean || null;
+});
+const changelogUpdateStatusLabel = computed(() => {
+  return normalizedAvailableVersion.value
+    ? `Update available v${normalizedAvailableVersion.value}`
     : 'Update available';
+});
+const changelogUpdateTitle = computed(() => {
+  return hasAvailableUpdate.value
+    ? changelogUpdateStatusLabel.value
+    : 'Changelog';
+});
+const changelogAriaLabel = computed(() => {
+  return hasAvailableUpdate.value
+    ? `Changelog, ${changelogUpdateStatusLabel.value}`
+    : 'Changelog';
 });
 
 const isCurrentClipActive = computed(() => {
@@ -503,6 +529,26 @@ const isCollapsed = props.isFloating
       'yonru_sidebar_collapsed',
       () => props.defaultCollapsed ?? true
     );
+
+const isExpandedUpdateCard = computed(() => {
+  return !isCollapsed.value && hasAvailableUpdate.value;
+});
+
+const changelogButtonClass = computed(() => {
+  const heightClass = isExpandedUpdateCard.value ? 'h-[52px]' : 'h-10';
+  const stateClass =
+    props.activeView === 'changelog'
+      ? 'bg-white/[0.06] text-white font-semibold'
+      : 'text-white/80 hover:text-white hover:bg-white/[0.04]';
+  return `${heightClass} ${stateClass}`;
+});
+
+const changelogIconClass = computed(() => {
+  if (isExpandedUpdateCard.value) return 'text-accent-400';
+  return props.activeView === 'changelog'
+    ? 'text-accent-500'
+    : 'text-white/70 group-hover:text-white';
+});
 
 watch(isCollapsed, newVal => {
   if (!props.isFloating) {
