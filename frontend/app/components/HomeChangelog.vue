@@ -107,71 +107,128 @@
             </h2>
           </div>
           <p class="text-xs sm:text-sm text-slate-300">
-            Currently running v{{ installedVersion }}. Pull the latest release
-            locally when you are ready:
+            Currently running v{{ installedVersion }}. Update automatically when
+            no renders or active jobs are running, or use the manual Git
+            commands below.
           </p>
         </div>
 
-        <a
-          v-if="latestReleaseUrl"
-          :href="latestReleaseUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] sm:min-h-[36px] rounded-xl bg-accent-500/15 hover:bg-accent-500/25 border border-accent-500/40 text-accent-300 text-xs font-semibold transition-colors shrink-0 self-start sm:self-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70"
+        <div
+          class="flex flex-wrap items-center gap-2.5 shrink-0 self-start sm:self-center"
         >
-          <span>View v{{ latestAvailableVersion }} on GitHub</span>
-          <Icon
-            name="lucide:external-link"
-            class="text-xs"
-            aria-hidden="true"
-          />
-        </a>
-      </div>
-
-      <!-- Copyable Manual Update Command -->
-      <div
-        class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#09090b]/90 border border-white/10 px-3.5 py-2.5"
-      >
-        <pre
-          class="m-0 min-w-0 max-w-full overflow-x-auto text-xs sm:text-sm font-mono text-slate-100"
-        ><code id="manual-update-command">{{ UPDATE_COMMAND }}</code></pre>
-
-        <div class="flex items-center gap-2 shrink-0">
-          <span
-            data-testid="copy-command-status"
-            role="status"
-            aria-live="polite"
-            class="text-xs font-medium transition-opacity duration-150"
-            :class="[
-              copyState === 'failed'
-                ? 'text-rose-300 opacity-100'
-                : copyState === 'copied'
-                  ? 'text-emerald-300 opacity-100'
-                  : 'opacity-0 pointer-events-none'
-            ]"
-          >
-            {{ copyStatusMessage }}
-          </span>
           <button
             type="button"
-            data-testid="copy-update-command-btn"
-            aria-label="Copy update command"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 min-w-[44px] sm:min-w-[36px] min-h-[44px] sm:min-h-[36px] rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white text-xs font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70"
-            @click="copyUpdateCommand"
+            data-testid="update-now-btn"
+            :disabled="isUpdating"
+            class="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl bg-accent-500 hover:bg-accent-400 disabled:opacity-60 disabled:cursor-not-allowed text-black text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-300"
+            @click="openUpdateDialog"
           >
+            <Icon name="lucide:download" class="text-sm" aria-hidden="true" />
+            <span>Update Now</span>
+          </button>
+
+          <a
+            v-if="latestReleaseUrl"
+            :href="latestReleaseUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl bg-accent-500/15 hover:bg-accent-500/25 border border-accent-500/40 text-accent-300 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70"
+          >
+            <span>View v{{ latestAvailableVersion }} on GitHub</span>
             <Icon
-              :name="copyState === 'copied' ? 'lucide:check' : 'lucide:copy'"
-              class="text-sm"
-              :class="
-                copyState === 'copied' ? 'text-emerald-400' : 'text-slate-300'
-              "
+              name="lucide:external-link"
+              class="text-xs"
               aria-hidden="true"
             />
-            <span>{{ copyState === 'copied' ? 'Copied' : 'Copy' }}</span>
-          </button>
+          </a>
         </div>
       </div>
+
+      <!-- Collapsible Tag-Exact Manual Update Disclosure -->
+      <details
+        :open="isManualFallbackOpen"
+        data-testid="manual-update-details"
+        class="rounded-xl bg-[#09090b]/90 border border-white/10 overflow-hidden"
+        @toggle="handleManualToggle"
+      >
+        <summary
+          data-testid="manual-update-summary"
+          class="cursor-pointer select-none px-3.5 py-2.5 min-h-[44px] sm:min-h-[38px] flex items-center justify-between gap-2 text-xs font-medium text-slate-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70"
+        >
+          <span class="flex items-center gap-2">
+            <Icon
+              name="lucide:terminal"
+              class="text-sm text-slate-400"
+              aria-hidden="true"
+            />
+            <span>Manual Git Update Commands</span>
+          </span>
+          <span class="text-[11px] font-mono text-slate-400">
+            {{ isManualFallbackOpen ? 'Hide' : 'Show' }}
+          </span>
+        </summary>
+
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 border-t border-white/10"
+        >
+          <pre
+            class="m-0 min-w-0 max-w-full overflow-x-auto text-xs sm:text-sm font-mono text-slate-100"
+          ><code id="manual-update-command">{{ manualUpdateCommand }}</code></pre>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <span
+              data-testid="copy-command-status"
+              role="status"
+              aria-live="polite"
+              class="text-xs font-medium transition-opacity duration-150"
+              :class="[
+                copyState === 'failed'
+                  ? 'text-rose-300 opacity-100'
+                  : copyState === 'copied'
+                    ? 'text-emerald-300 opacity-100'
+                    : 'opacity-0 pointer-events-none'
+              ]"
+            >
+              {{ copyStatusMessage }}
+            </span>
+            <button
+              type="button"
+              data-testid="copy-update-command-btn"
+              aria-label="Copy update command"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 min-w-[44px] sm:min-w-[36px] min-h-[44px] sm:min-h-[36px] rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white text-xs font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70"
+              @click="copyUpdateCommand"
+            >
+              <Icon
+                :name="copyState === 'copied' ? 'lucide:check' : 'lucide:copy'"
+                class="text-sm"
+                :class="
+                  copyState === 'copied' ? 'text-emerald-400' : 'text-slate-300'
+                "
+                aria-hidden="true"
+              />
+              <span>{{ copyState === 'copied' ? 'Copied' : 'Copy' }}</span>
+            </button>
+          </div>
+        </div>
+      </details>
     </section>
+
+    <!-- Native Top-Layer Self-Update Dialog -->
+    <SelfUpdateDialog
+      :open="shouldDialogBeOpen"
+      :installed-version="installedVersion"
+      :target-version="activeDialogTargetVersion"
+      :preflight="updatePreflight"
+      :preflight-error="preflightError"
+      :is-checking-preflight="isCheckingPreflight"
+      :update-status="updateStatus"
+      :is-updating="isUpdating"
+      :is-reconnecting="isReconnecting"
+      :update-error="updateError"
+      @close="closeUpdateDialog"
+      @confirm="handleConfirmUpdate"
+      @dismiss-failure="handleDismissFailure"
+    />
 
     <!-- Timeline Container -->
     <main class="relative mt-2">
@@ -376,14 +433,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import ChangelogCategoryHeading from './ChangelogCategoryHeading.vue';
 import ChangelogMarkdownRenderer from './ChangelogMarkdownRenderer.vue';
+import SelfUpdateDialog from './SelfUpdateDialog.vue';
 import { useChangelog } from '~/composables/useChangelog';
 import { useAppNotifier } from '~/composables/useAppNotifier';
+import {
+  buildTagManualCommand,
+  useSelfUpdate
+} from '~/composables/useSelfUpdate';
 import { sanitizeExternalUrl } from '~/utils/changelogMarkdown';
-
-const UPDATE_COMMAND = 'git pull && python run.py';
 
 const {
   releases,
@@ -399,12 +459,29 @@ const {
   refreshReleases
 } = useChangelog();
 
+const {
+  preflight: updatePreflight,
+  preflightError,
+  isCheckingPreflight,
+  status: updateStatus,
+  isUpdating,
+  isReconnecting,
+  updateError,
+  runPreflight,
+  startUpdate,
+  dismissFailure,
+  reconcileStatusOnMount
+} = useSelfUpdate();
+
 const notifier = useAppNotifier();
 
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle');
 const copyStatusMessage = ref<string>('');
 let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 let lastAnnouncement = '';
+
+const isDialogRequestedOpen = ref<boolean>(false);
+const manualFallbackOverride = ref<boolean | null>(null);
 
 const latestReleaseUrl = computed(() => {
   return (
@@ -413,8 +490,57 @@ const latestReleaseUrl = computed(() => {
   );
 });
 
+const manualUpdateCommand = computed(() => {
+  return buildTagManualCommand(latestAvailableVersion.value ?? '');
+});
+
+const activeDialogTargetVersion = computed(() => {
+  return (
+    updateStatus.value?.targetVersion ||
+    updatePreflight.value?.targetVersion ||
+    latestAvailableVersion.value ||
+    ''
+  );
+});
+
+const isManualFallbackOpen = computed(() => {
+  if (manualFallbackOverride.value !== null) {
+    return manualFallbackOverride.value;
+  }
+  return Boolean(
+    updatePreflight.value &&
+    (!updatePreflight.value.supported || !updatePreflight.value.canUpdate)
+  );
+});
+
+const shouldDialogBeOpen = computed(() => {
+  const s = updateStatus.value?.state;
+  const hasActiveOrTerminalUpdate =
+    isUpdating.value ||
+    s === 'pending_restart' ||
+    s === 'updating' ||
+    s === 'restarting' ||
+    s === 'failed';
+  return isDialogRequestedOpen.value || hasActiveOrTerminalUpdate;
+});
+
+watch(
+  [hasAvailableUpdate, latestAvailableVersion],
+  ([hasUpdate, version]) => {
+    if (hasUpdate && version) {
+      void runPreflight(version);
+    }
+  },
+  { immediate: true }
+);
+
 onMounted(() => {
   fetchReleases();
+  void reconcileStatusOnMount({
+    onCompleted: async () => {
+      await refreshReleases();
+    }
+  });
 });
 
 onUnmounted(() => {
@@ -423,6 +549,41 @@ onUnmounted(() => {
     copyResetTimer = null;
   }
 });
+
+function handleManualToggle(event: Event) {
+  if (event.target instanceof HTMLDetailsElement) {
+    manualFallbackOverride.value = event.target.open;
+  }
+}
+
+async function openUpdateDialog() {
+  isDialogRequestedOpen.value = true;
+  if (latestAvailableVersion.value) {
+    await runPreflight(latestAvailableVersion.value);
+  }
+}
+
+function closeUpdateDialog() {
+  isDialogRequestedOpen.value = false;
+}
+
+async function handleConfirmUpdate() {
+  const target = activeDialogTargetVersion.value;
+  if (
+    !target ||
+    isCheckingPreflight.value ||
+    isUpdating.value ||
+    !updatePreflight.value?.canUpdate
+  ) {
+    return;
+  }
+  await startUpdate(target);
+}
+
+async function handleDismissFailure() {
+  isDialogRequestedOpen.value = false;
+  await dismissFailure();
+}
 
 function reportCopyOutcome(ok: boolean) {
   if (copyResetTimer) {
@@ -457,7 +618,7 @@ async function copyUpdateCommand() {
     if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
       throw new Error('Clipboard API unavailable');
     }
-    await navigator.clipboard.writeText(UPDATE_COMMAND);
+    await navigator.clipboard.writeText(manualUpdateCommand.value);
     reportCopyOutcome(true);
   } catch {
     reportCopyOutcome(false);

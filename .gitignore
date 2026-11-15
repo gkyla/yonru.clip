@@ -13,6 +13,7 @@ Thumbs.db
 backend/venv/
 backend/venv_win/
 backend/cookies.txt
+backend/prompts/prompt.json
 backend/temp_assets/
 backend/static/output/
 backend/__pycache__/

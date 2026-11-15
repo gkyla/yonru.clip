@@ -4,8 +4,8 @@ os.environ["OPENCV_VIDEOIO_PRIORITY_BACKEND"] = "FFMPEG"
 
 import json
 import asyncio
-from fastapi import FastAPI, BackgroundTasks, HTTPException, UploadFile, File, Form
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Request, UploadFile, File, Form
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -59,6 +59,23 @@ from core.release_service import ReleaseService
 release_service = ReleaseService(
     current_version=app.version,
     cache_path=os.path.join(backend_dir, "temp_assets", "cache", "github_releases.json"),
+)
+
+from core.self_update_service import (
+    EnvSupervisorPort,
+    PlatformGitPort,
+    RenderActivityTracker,
+    SelfUpdateError,
+    SelfUpdateService,
+    validate_local_request,
+)
+render_activity_tracker = RenderActivityTracker()
+self_update_service = SelfUpdateService(
+    current_version=app.version,
+    git_port=PlatformGitPort(repo_root=os.path.abspath(os.path.join(backend_dir, ".."))),
+    supervisor_port=EnvSupervisorPort(),
+    job_store=jobs,
+    render_tracker=render_activity_tracker,
 )
 
 from core.media_transcoder import MediaTranscoder
@@ -299,6 +316,56 @@ async def list_releases(force: bool = False):
     """Return canonical installed version and cached stable GitHub releases."""
     return await release_service.get_releases(force=force)
 
+class SelfUpdateTriggerRequest(BaseModel):
+    targetVersion: str
+
+
+@app.get("/api/self-update/preflight")
+def self_update_preflight(target_version: str):
+    """Run read-only safety checks before triggering a supervised self-update."""
+    try:
+        return self_update_service.preflight(target_version)
+    except SelfUpdateError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+def _enforce_local_self_update_request(request: Request) -> None:
+    client_host = request.client.host if request.client else None
+    validate_local_request(
+        client_host=client_host,
+        origin=request.headers.get("origin"),
+        referer=request.headers.get("referer"),
+    )
+
+
+@app.post("/api/self-update", status_code=202)
+def trigger_self_update(req: SelfUpdateTriggerRequest, request: Request):
+    """Validate loopback trust and pre-flight checks, then signal run.py supervisor to update."""
+    try:
+        _enforce_local_self_update_request(request)
+        return self_update_service.trigger_update(req.targetVersion)
+    except SelfUpdateError as exc:
+        payload: dict = {"detail": exc.detail}
+        if exc.preflight is not None:
+            payload["preflight"] = exc.preflight
+        return JSONResponse(status_code=exc.status_code, content=payload)
+
+
+@app.get("/api/self-update/status")
+def self_update_status():
+    """Return current self-update progress or post-restart completion/rollback state."""
+    return self_update_service.get_status()
+
+
+@app.post("/api/self-update/acknowledge")
+def acknowledge_self_update(request: Request):
+    """Clear self-update IPC status after the client finishes handling completion or error."""
+    try:
+        _enforce_local_self_update_request(request)
+        return self_update_service.acknowledge()
+    except SelfUpdateError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+
 @app.get("/api/prompts")
 def list_prompts():
     """List all available prompt JSON files in prompts folder"""
@@ -421,7 +488,8 @@ async def render_clip(req: RenderRequest):
     if req.job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    result = render_engine.render(jobs[req.job_id], req, output_name=req.output_name)
+    with render_activity_tracker.track():
+        result = render_engine.render(jobs[req.job_id], req, output_name=req.output_name)
     if result:
         return {"status": "done", "output_url": result["output_url"]}
     else:
@@ -434,8 +502,9 @@ async def render_clip_stream(req: RenderRequest):
         raise HTTPException(status_code=404, detail="Job not found")
     
     def sse_generator():
-        for progress in render_engine.render_stream(jobs[req.job_id], req, output_name=req.output_name):
-            yield f"data: {json.dumps(progress)}\n\n"
+        with render_activity_tracker.track():
+            for progress in render_engine.render_stream(jobs[req.job_id], req, output_name=req.output_name):
+                yield f"data: {json.dumps(progress)}\n\n"
     
     return StreamingResponse(sse_generator(), media_type="text/event-stream", headers={
         "Cache-Control": "no-cache",

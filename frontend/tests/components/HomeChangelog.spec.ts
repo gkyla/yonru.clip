@@ -4,6 +4,10 @@ import { ref } from 'vue';
 import HomeChangelog from '../../app/components/HomeChangelog.vue';
 import type { ChangelogItem } from '../../app/composables/useChangelog';
 import type { RemoteReleaseDto } from '../../app/composables/useReleaseUpdates';
+import type {
+  SelfUpdatePreflightResponse,
+  SelfUpdateStatusResponse
+} from '../../app/composables/useSelfUpdate';
 
 const mockReleasesData: ChangelogItem[] = [
   {
@@ -40,6 +44,18 @@ const mockFetchReleases = vi.fn();
 const mockRefreshReleases = vi.fn();
 const mockShowToast = vi.fn();
 
+const mockPreflight = ref<SelfUpdatePreflightResponse | null>(null);
+const mockPreflightError = ref<string | null>(null);
+const mockIsCheckingPreflight = ref(false);
+const mockUpdateStatus = ref<SelfUpdateStatusResponse | null>(null);
+const mockIsUpdating = ref(false);
+const mockIsReconnecting = ref(false);
+const mockUpdateError = ref<string | null>(null);
+const mockRunPreflight = vi.fn();
+const mockStartUpdate = vi.fn();
+const mockDismissFailure = vi.fn();
+const mockReconcileStatusOnMount = vi.fn();
+
 vi.mock('../../app/composables/useChangelog', () => ({
   useChangelog: () => ({
     releases: mockReleases,
@@ -55,6 +71,31 @@ vi.mock('../../app/composables/useChangelog', () => ({
     refreshReleases: mockRefreshReleases
   })
 }));
+
+vi.mock('../../app/composables/useSelfUpdate', async importOriginal => {
+  const actual =
+    await importOriginal<
+      typeof import('../../app/composables/useSelfUpdate')
+    >();
+  return {
+    ...actual,
+    useSelfUpdate: () => ({
+      preflight: mockPreflight,
+      preflightError: mockPreflightError,
+      isCheckingPreflight: mockIsCheckingPreflight,
+      status: mockUpdateStatus,
+      isUpdating: mockIsUpdating,
+      isReconnecting: mockIsReconnecting,
+      updateError: mockUpdateError,
+      runPreflight: mockRunPreflight,
+      startUpdate: mockStartUpdate,
+      acknowledgeUpdate: vi.fn(),
+      dismissFailure: mockDismissFailure,
+      reconcileStatusOnMount: mockReconcileStatusOnMount,
+      resetState: vi.fn()
+    })
+  };
+});
 
 vi.mock('../../app/composables/useAppNotifier', () => ({
   useAppNotifier: () => ({
@@ -84,6 +125,17 @@ describe('HomeChangelog Component', () => {
     mockIsRefreshing.value = false;
     mockIsOffline.value = false;
     mockRemoteError.value = null;
+    mockPreflight.value = null;
+    mockPreflightError.value = null;
+    mockIsCheckingPreflight.value = false;
+    mockUpdateStatus.value = null;
+    mockIsUpdating.value = false;
+    mockIsReconnecting.value = false;
+    mockUpdateError.value = null;
+    mockRunPreflight.mockResolvedValue(null);
+    mockStartUpdate.mockResolvedValue('completed');
+    mockDismissFailure.mockResolvedValue(undefined);
+    mockReconcileStatusOnMount.mockResolvedValue(undefined);
   });
 
   it('renders header with plain inline installed version, refresh button, and GitHub releases link', () => {
@@ -160,11 +212,14 @@ describe('HomeChangelog Component', () => {
       global: { stubs: defaultStubs }
     });
 
-    // Informational update banner
+    // Informational update banner with Update Now button and collapsible tag-exact fallback
     const banner = wrapper.find('[data-testid="available-update-banner"]');
     expect(banner.exists()).toBe(true);
     expect(banner.text()).toContain('v0.4.0');
-    expect(banner.text()).toContain('git pull && python run.py');
+    expect(wrapper.find('[data-testid="update-now-btn"]').exists()).toBe(true);
+    expect(banner.text()).toContain(
+      'git fetch origin --tags && git merge --ff-only v0.4.0 && python run.py'
+    );
     expect(
       banner
         .find(
@@ -173,13 +228,15 @@ describe('HomeChangelog Component', () => {
         .exists()
     ).toBe(true);
 
-    // Copy button copies command and announces status without disabling button
+    // Copy button copies tag-exact command and announces status without disabling button
     const copyBtn = wrapper.find('[data-testid="copy-update-command-btn"]');
     expect(copyBtn.exists()).toBe(true);
     await copyBtn.trigger('click');
     await flushPromises();
 
-    expect(writeText).toHaveBeenCalledWith('git pull && python run.py');
+    expect(writeText).toHaveBeenCalledWith(
+      'git fetch origin --tags && git merge --ff-only v0.4.0 && python run.py'
+    );
     expect(copyBtn.attributes('disabled')).toBeUndefined();
     const statusRegion = wrapper.find('[data-testid="copy-command-status"]');
     expect(statusRegion.attributes('role')).toBe('status');
@@ -284,5 +341,244 @@ describe('HomeChangelog Component', () => {
     });
 
     expect(wrapper.findAll('.animate-pulse').length).toBeGreaterThan(0);
+  });
+
+  it('opens preflight confirmation dialog when Update Now is clicked and starts update on confirm', async () => {
+    mockHasAvailableUpdate.value = true;
+    mockLatestAvailableVersion.value = '0.4.0';
+    mockLatestAvailableRelease.value = {
+      version: '0.4.0',
+      title: 'One-Click Updater',
+      date: '2026-11-16',
+      githubReleaseUrl:
+        'https://github.com/gkyla/yonru.clip/releases/tag/v0.4.0'
+    };
+
+    const passingPreflight: SelfUpdatePreflightResponse = {
+      supported: true,
+      canUpdate: true,
+      currentVersion: '0.3.0',
+      targetVersion: '0.4.0',
+      targetTag: 'v0.4.0',
+      mode: 'production',
+      branch: 'main',
+      initialCommit: 'abc1234',
+      checks: [
+        {
+          id: 'supervisor',
+          label: 'Managed by Yonru Launcher',
+          passed: true,
+          detail: null
+        },
+        {
+          id: 'tag_fast_forward',
+          label: 'Tag v0.4.0 verified',
+          passed: true,
+          detail: null
+        }
+      ],
+      dirtyFiles: [],
+      activeJobs: [],
+      activeRenders: 0,
+      blockingReason: null,
+      manualCommand:
+        'git fetch origin --tags && git merge --ff-only v0.4.0 && python run.py'
+    };
+    mockPreflight.value = passingPreflight;
+    mockRunPreflight.mockResolvedValue(passingPreflight);
+
+    const wrapper = mount(HomeChangelog, {
+      global: { stubs: defaultStubs }
+    });
+
+    await wrapper.find('[data-testid="update-now-btn"]').trigger('click');
+    await flushPromises();
+
+    expect(mockRunPreflight).toHaveBeenCalledWith('0.4.0');
+    const dialog = wrapper.find('[data-testid="self-update-dialog"]');
+    expect(dialog.exists()).toBe(true);
+    expect(dialog.text()).toContain('Managed by Yonru Launcher');
+    expect(dialog.text()).toContain('Tag v0.4.0 verified');
+
+    const confirmBtn = wrapper.find('[data-testid="confirm-self-update-btn"]');
+    expect(confirmBtn.exists()).toBe(true);
+    expect(confirmBtn.attributes('disabled')).toBeUndefined();
+    await confirmBtn.trigger('click');
+    await flushPromises();
+
+    expect(mockStartUpdate).toHaveBeenCalledWith('0.4.0');
+  });
+
+  it('disables confirm CTA and auto-expands manual fallback when preflight blocks update', async () => {
+    mockHasAvailableUpdate.value = true;
+    mockLatestAvailableVersion.value = '0.4.0';
+    mockLatestAvailableRelease.value = {
+      version: '0.4.0',
+      title: 'One-Click Updater',
+      date: '2026-11-16',
+      githubReleaseUrl:
+        'https://github.com/gkyla/yonru.clip/releases/tag/v0.4.0'
+    };
+
+    const blockedPreflight: SelfUpdatePreflightResponse = {
+      supported: false,
+      canUpdate: false,
+      currentVersion: '0.3.0',
+      targetVersion: '0.4.0',
+      targetTag: 'v0.4.0',
+      mode: 'standalone',
+      branch: 'main',
+      initialCommit: 'abc1234',
+      checks: [
+        {
+          id: 'supervisor',
+          label: 'Managed by Yonru Launcher',
+          passed: false,
+          detail: 'Run via python run.py to enable automatic restarts.'
+        }
+      ],
+      dirtyFiles: ['backend/main.py', 'run.py'],
+      activeJobs: [],
+      activeRenders: 0,
+      blockingReason: 'Run via python run.py to enable automatic restarts.',
+      manualCommand:
+        'git fetch origin --tags && git merge --ff-only v0.4.0 && python run.py'
+    };
+    mockPreflight.value = blockedPreflight;
+    mockRunPreflight.mockResolvedValue(blockedPreflight);
+
+    const wrapper = mount(HomeChangelog, {
+      global: { stubs: defaultStubs }
+    });
+    await flushPromises();
+
+    const details = wrapper.find('[data-testid="manual-update-details"]');
+    expect(details.attributes('open')).toBeDefined();
+
+    await wrapper.find('[data-testid="update-now-btn"]').trigger('click');
+    await flushPromises();
+
+    const confirmBtn = wrapper.find('[data-testid="confirm-self-update-btn"]');
+    expect(confirmBtn.attributes('disabled')).toBeDefined();
+    const dialog = wrapper.find('[data-testid="self-update-dialog"]');
+    expect(dialog.text()).toContain(
+      'Run via python run.py to enable automatic restarts.'
+    );
+    const dirtyList = wrapper.find('[data-testid="preflight-dirty-files"]');
+    expect(dirtyList.exists()).toBe(true);
+    expect(dirtyList.text()).toContain('backend/main.py');
+    const modalFallback = wrapper.find('[data-testid="modal-manual-fallback"]');
+    expect(modalFallback.exists()).toBe(true);
+    expect(modalFallback.text()).toContain(
+      'git fetch origin --tags && git merge --ff-only v0.4.0 && python run.py'
+    );
+  });
+
+  it('renders live stepper during update, keeps dialog locked, and dismisses rollback failure', async () => {
+    mockHasAvailableUpdate.value = true;
+    mockLatestAvailableVersion.value = '0.4.0';
+    mockLatestAvailableRelease.value = {
+      version: '0.4.0',
+      title: 'One-Click Updater',
+      date: '2026-11-16',
+      githubReleaseUrl:
+        'https://github.com/gkyla/yonru.clip/releases/tag/v0.4.0'
+    };
+    mockIsUpdating.value = true;
+    mockUpdateStatus.value = {
+      state: 'updating',
+      step: 'building_frontend',
+      message: 'Building production web interface...',
+      currentVersion: '0.3.0',
+      targetVersion: '0.4.0',
+      targetTag: 'v0.4.0',
+      rolledBack: false,
+      error: null,
+      steps: [
+        { id: 'stopping_services', label: 'Stopping services', status: 'done' },
+        {
+          id: 'building_frontend',
+          label: 'Building interface',
+          status: 'active'
+        }
+      ]
+    };
+
+    const wrapper = mount(HomeChangelog, {
+      global: { stubs: defaultStubs }
+    });
+    await flushPromises();
+
+    const dialog = wrapper.find('[data-testid="self-update-dialog"]');
+    expect(dialog.text()).toContain('Building production web interface...');
+    expect(dialog.text()).toContain('Stopping services');
+    expect(dialog.attributes('closedby')).toBe('none');
+
+    // Simulate rollback failure after restart
+    mockIsUpdating.value = false;
+    mockUpdateStatus.value = {
+      state: 'failed',
+      step: 'building_frontend',
+      message: 'Update to v0.4.0 failed and was rolled back.',
+      currentVersion: '0.3.0',
+      targetVersion: '0.4.0',
+      targetTag: 'v0.4.0',
+      rolledBack: true,
+      error: 'Vite build syntax error',
+      steps: [
+        {
+          id: 'building_frontend',
+          label: 'Building interface',
+          status: 'failed'
+        }
+      ]
+    };
+    mockUpdateError.value = 'Vite build syntax error';
+    await flushPromises();
+
+    expect(dialog.text()).toContain('Vite build syntax error');
+    const dismissBtn = wrapper.find('[data-testid="dismiss-self-update-btn"]');
+    expect(dismissBtn.exists()).toBe(true);
+    await dismissBtn.trigger('click');
+    await flushPromises();
+
+    expect(mockDismissFailure).toHaveBeenCalledTimes(1);
+  });
+
+  it('unlocks dialog and renders timeout error recovery when verification times out', async () => {
+    mockHasAvailableUpdate.value = true;
+    mockLatestAvailableVersion.value = '0.4.0';
+    mockIsUpdating.value = false;
+    mockUpdateStatus.value = {
+      state: 'restarting',
+      step: 'restarting',
+      message: 'Restarting Yonru...',
+      currentVersion: '0.3.0',
+      targetVersion: '0.4.0',
+      targetTag: 'v0.4.0',
+      rolledBack: false,
+      error: null,
+      steps: []
+    };
+    mockUpdateError.value =
+      'Timed out waiting for Yonru to finish restarting. Refresh the page to check the current version.';
+
+    const wrapper = mount(HomeChangelog, {
+      global: { stubs: defaultStubs }
+    });
+    await flushPromises();
+
+    const dialog = wrapper.find('[data-testid="self-update-dialog"]');
+    expect(dialog.attributes('closedby')).toBe('closerequest');
+    expect(dialog.text()).toContain(
+      'Timed out waiting for Yonru to finish restarting.'
+    );
+
+    const dismissBtn = wrapper.find('[data-testid="dismiss-self-update-btn"]');
+    expect(dismissBtn.exists()).toBe(true);
+    await dismissBtn.trigger('click');
+    await flushPromises();
+
+    expect(mockDismissFailure).toHaveBeenCalledTimes(1);
   });
 });

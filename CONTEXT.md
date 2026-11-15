@@ -278,8 +278,20 @@ The self-healing cross-platform bootstrap orchestrator (`run.py`) responsible fo
 _Avoid_: Startup script, run script, dev runner, bootstrapper
 
 **Changelog View**:
-The dedicated release notes workspace displaying chronological version milestones, feature highlights, improvements, and bug fixes parsed from curated markdown release documents.
+The dedicated release notes workspace displaying chronological version milestones, combining local **Installed Version** release documents with any newer **Available Update** releases published on GitHub.
 _Avoid_: Commit log, update history, version list, release modal
+
+**Installed Version**:
+The synchronized semantic version currently running in the creator's local workspace, displayed in the sidebar footer and marked as installed in the **Changelog View**.
+_Avoid_: Local tag, build number, app version, current tag
+
+**Available Update**:
+A published stable GitHub Release whose semantic version is strictly newer than the **Installed Version**, surfaced in the **Changelog View** and signaled in the sidebar without modifying local files.
+_Avoid_: Pending patch, remote tag, GitHub commit, auto-update
+
+**Self-Update**:
+The creator-initiated local upgrade workflow in the **Changelog View** that safely fast-forwards the workspace to the latest **Available Update** release tag, refreshes dependencies and builds, and restarts **Unified Launcher** services while preserving local user data.
+_Avoid_: Auto-update, silent patch, git pull sync, hot reload
 
 
 

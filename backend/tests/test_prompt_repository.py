@@ -224,3 +224,46 @@ def test_get_prompt_and_format_prompt():
     finally:
         shutil.rmtree(temp_dir)
 
+
+def test_file_prompt_repository_seeds_from_example_without_duplicating_or_overwriting(tmp_path):
+    """Verify prompt.example.json seeds missing prompt.json once, is ignored during queries, and preserves edits."""
+    example_file = tmp_path / "prompt.example.json"
+    example_payload = [
+        {
+            "id": "starter-1",
+            "promptName": "Starter Prompt",
+            "suitableFor": ["general"],
+            "prompt": "Starter text",
+            "numHooks": 5,
+            "autoHooks": False,
+        }
+    ]
+    example_file.write_text(json.dumps(example_payload, indent=2), encoding="utf-8")
+
+    # 1. Missing prompt.json should be seeded from prompt.example.json
+    repo = FilePromptRepository(str(tmp_path))
+    prompts = repo.list_prompts()
+    assert len(prompts) == 1
+    assert prompts[0].id == "starter-1"
+    assert prompts[0].name == "Starter Prompt"
+    assert (tmp_path / "prompt.json").is_file()
+
+    # 2. Editing prompt mutates prompt.json, never prompt.example.json
+    repo.edit_prompt(
+        id="starter-1",
+        name="Creator Custom Prompt",
+        suitable_for=["gaming"],
+        prompt="Custom text",
+        num_hooks=8,
+        auto_hooks=True,
+    )
+    assert json.loads(example_file.read_text(encoding="utf-8"))[0]["promptName"] == "Starter Prompt"
+
+    # 3. Re-opening repository preserves local prompt.json edits without overwriting
+    reloaded = FilePromptRepository(str(tmp_path))
+    reloaded_prompts = reloaded.list_prompts()
+    assert len(reloaded_prompts) == 1
+    assert reloaded_prompts[0].name == "Creator Custom Prompt"
+    assert reloaded_prompts[0].prompt == "Custom text"
+
+
