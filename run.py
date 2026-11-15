@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 import os
 import sys
+import json
 import shutil
+import socket
 import subprocess
 import threading
 import time
 import signal
 import hashlib
 from abc import ABC, abstractmethod
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse
 
 # --- Port Configuration Constants ---
 DEFAULT_PORT = 8765
@@ -174,6 +178,189 @@ class MockBrowserOpener(BrowserOpener):
         return True
 
 
+class NoopBrowserOpener(BrowserOpener):
+    """Browser opener adapter used under --no-browser (e.g., post-update restarts)."""
+
+    def open_url(self, url: str) -> bool:
+        return False
+
+
+def _resolve_cors_origin(origin: str | None) -> str:
+    if not origin:
+        return "*"
+    parsed = urlparse(origin.strip())
+    if parsed.scheme in ("http", "https") and parsed.hostname and parsed.hostname.lower() in ("localhost", "127.0.0.1", "::1"):
+        return origin.strip()
+    return "*"
+
+
+def _utc_now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _atomic_write_json(path: str, payload: dict) -> None:
+    """Atomically write JSON payload to disk using write + fsync + replace."""
+    parent = os.path.dirname(os.path.abspath(path))
+    os.makedirs(parent, exist_ok=True)
+    tmp_path = f"{path}.tmp.{os.getpid()}.{threading.get_ident()}"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, path)
+
+
+def _remove_file_if_exists(path: str) -> None:
+    if os.path.isfile(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def _format_update_error(exc: Exception) -> str:
+    if isinstance(exc, subprocess.CalledProcessError):
+        detail = (exc.stderr or exc.stdout or "").strip()
+        if detail:
+            return f"{exc} | {detail}"
+    return str(exc) or exc.__class__.__name__
+
+
+def _build_update_steps(
+    tag: str,
+    dev_mode: bool,
+    active_step: str,
+    failed_step: str | None = None,
+) -> list[dict[str, str]]:
+    """Build ordered progress stepper matching SelfUpdateService steps."""
+    raw_steps = [
+        ("stopping_services", "Stopping services"),
+        ("backing_up_prompts", "Preserving local prompts"),
+        ("fetching_tags", f"Fetching release tag {tag}"),
+        ("merging_tag", f"Updating repository to {tag}"),
+        ("installing_dependencies", "Updating dependencies"),
+    ]
+    if not dev_mode:
+        raw_steps.append(("building_frontend", "Building interface"))
+    raw_steps.append(("restarting", "Restarting Yonru"))
+
+    steps: list[dict[str, str]] = []
+    seen_target = False
+    for step_id, label in raw_steps:
+        if failed_step and step_id == failed_step:
+            status = "failed"
+            seen_target = True
+        elif not failed_step and step_id == active_step:
+            status = "active"
+            seen_target = True
+        elif not seen_target:
+            status = "done"
+        else:
+            status = "pending"
+        steps.append({"id": step_id, "label": label, "status": status})
+    return steps
+
+
+def _wait_port_free(port: int, timeout: float = 5.0) -> None:
+    """Wait briefly until a local TCP port stops accepting connections."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.2)
+            if sock.connect_ex(("127.0.0.1", port)) != 0:
+                return
+        time.sleep(0.1)
+
+
+def _reexec_self(argv: list[str]) -> None:
+    """Replace the current launcher process (POSIX) or respawn and exit (Windows)."""
+    if IS_WIN:
+        subprocess.Popen(argv, cwd=os.path.dirname(os.path.abspath(__file__)))
+        sys.exit(0)
+    os.execv(argv[0], argv)
+
+
+class _ReusableThreadingHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
+class UpdateStatusHttpServer:
+    """Temporary stdlib HTTP server exposing live self-update progress while FastAPI is offline."""
+
+    def __init__(self, port: int, get_status, host: str = "0.0.0.0"):
+        self.requested_port = port
+        self.host = host
+        self._get_status = get_status
+        self._httpd: _ReusableThreadingHTTPServer | None = None
+        self._thread: threading.Thread | None = None
+        self.port = port
+
+    def start(self) -> None:
+        get_status = self._get_status
+
+        class StatusHandler(BaseHTTPRequestHandler):
+            def _send_cors_headers(self) -> None:
+                origin = _resolve_cors_origin(self.headers.get("Origin"))
+                self.send_header("Access-Control-Allow-Origin", origin)
+                if origin != "*":
+                    self.send_header("Vary", "Origin")
+                self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.send_header("Cache-Control", "no-store")
+
+            def do_OPTIONS(self) -> None:
+                self.send_response(204)
+                self._send_cors_headers()
+                self.end_headers()
+
+            def do_GET(self) -> None:
+                path = urlparse(self.path).path
+                if path == "/api/self-update/status":
+                    body = json.dumps(get_status()).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self._send_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+
+                body = json.dumps(
+                    {"detail": "Yonru is updating and restarting...", "updating": True}
+                ).encode("utf-8")
+                self.send_response(503)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format: str, *args) -> None:
+                return
+
+        self._httpd = _ReusableThreadingHTTPServer((self.host, self.requested_port), StatusHandler)
+        self.port = int(self._httpd.server_address[1])
+        self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        if self._httpd is not None:
+            try:
+                self._httpd.shutdown()
+            except Exception:
+                pass
+            try:
+                self._httpd.server_close()
+            except Exception:
+                pass
+            self._httpd = None
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+            self._thread = None
+
+
 class ServiceCoordinator:
     def __init__(
         self, 
@@ -183,7 +370,8 @@ class ServiceCoordinator:
         dev: bool = False,
         port: int = DEFAULT_PORT,
         frontend_port: int = DEFAULT_FRONTEND_PORT,
-        no_sweep: bool = False
+        no_sweep: bool = False,
+        update_request_file: str | None = None
     ):
         self.target = target
         self.sweeper = sweeper or OSPortSweeper()
@@ -192,6 +380,7 @@ class ServiceCoordinator:
         self.port = port
         self.frontend_port = frontend_port
         self.no_sweep = no_sweep
+        self.update_request_file = update_request_file
         self._procs = {}
         self._shutdown_initiated = False
         self._pending_ready = set()
@@ -365,8 +554,18 @@ class ServiceCoordinator:
                 
         log_system("\033[32mAll services successfully stopped. Clean exit.\033[0m")
 
+    def _read_update_request(self) -> dict | None:
+        if not self.update_request_file or not os.path.isfile(self.update_request_file):
+            return None
+        try:
+            with open(self.update_request_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else None
+        except Exception:
+            return None
+
     def run_loop(self):
-        """Monitor running processes and handle unexpected exit status."""
+        """Monitor running processes and handle unexpected exit status or supervised self-update IPC."""
         log_system("All requested services launched! Waiting for initialization...")
         
         def fallback_timer():
@@ -376,7 +575,11 @@ class ServiceCoordinator:
         threading.Thread(target=fallback_timer, daemon=True).start()
 
         while True:
-            time.sleep(0.5)
+            time.sleep(0.25)
+            update_req = self._read_update_request()
+            if update_req is not None:
+                log_system(f"Self-update signal received for {update_req.get('targetTag', 'release')}.")
+                return update_req
             with self._lock:
                 procs = list(self._procs.items())
             for name, proc in procs:
@@ -403,6 +606,8 @@ class BootstrappedLauncher:
         port: int = DEFAULT_PORT,
         frontend_port: int = DEFAULT_FRONTEND_PORT,
         no_sweep: bool = False,
+        no_browser: bool = False,
+        ipc_dir: str | None = None,
         browser_opener: BrowserOpener | None = None
     ):
         self.target = target.lower()
@@ -412,9 +617,38 @@ class BootstrappedLauncher:
         self.port = port
         self.frontend_port = frontend_port
         self.no_sweep = no_sweep
-        self.browser_opener = browser_opener
+        self.no_browser = no_browser
+        self.ipc_dir = os.path.abspath(
+            ipc_dir or os.path.join("backend", "temp_assets", "self_update")
+        )
+        if browser_opener is not None:
+            self.browser_opener = browser_opener
+        elif no_browser:
+            self.browser_opener = NoopBrowserOpener()
+        else:
+            self.browser_opener = None
         self.coordinator = None
         self.venv_python = None
+
+    def build_reexec_argv(self) -> list[str]:
+        """Build CLI argv preserving launcher flags while appending --no-browser."""
+        argv = [
+            sys.executable,
+            os.path.abspath(__file__),
+            self.target,
+            "--port",
+            str(self.port),
+            "--frontend-port",
+            str(self.frontend_port),
+        ]
+        if self.dev:
+            argv.append("--dev")
+        if self.no_sweep:
+            argv.append("--no-sweep")
+        if self.force_fonts:
+            argv.append("--force-fonts")
+        argv.append("--no-browser")
+        return argv
 
     def _check_dependencies(self):
         log_system("Verifying core dependencies...")
@@ -621,17 +855,57 @@ class BootstrappedLauncher:
             except Exception as e:
                 log_error(f"Failed to copy fonts to shared/remotion: {e}")
 
+    @staticmethod
+    def _compute_node_deps_hash(directory: str) -> str:
+        """Compute deterministic SHA-256 hash of tracked Node manifest files in directory."""
+        hasher = hashlib.sha256()
+        found = False
+        for fname in ("package.json", "package-lock.json"):
+            fpath = os.path.join(directory, fname)
+            if os.path.isfile(fpath):
+                found = True
+                hasher.update(fname.encode("utf-8"))
+                try:
+                    with open(fpath, "rb") as f:
+                        hasher.update(f.read())
+                except Exception:
+                    pass
+        return hasher.hexdigest() if found else ""
+
     def _bootstrap_node_project(self, directory, name):
         node_modules = os.path.join(directory, "node_modules")
-        if not os.path.exists(node_modules):
-            bun_bin = self._find_bun()
-            if bun_bin:
-                log_system(f"Bun detected! Rapid-installing packages for {name} via bun...")
-                cmd = [bun_bin, "install"]
-            else:
-                log_system(f"Installing packages for {name} via npm (tip: install Bun for 10x faster installs)...")
-                cmd = ["npm", "install"]
-            subprocess.run(cmd, cwd=directory, shell=IS_WIN, check=True)
+        sentinel_file = os.path.join(node_modules, ".deps.hash")
+        current_hash = self._compute_node_deps_hash(directory)
+
+        stored_hash = ""
+        if os.path.exists(node_modules) and os.path.isfile(sentinel_file):
+            try:
+                with open(sentinel_file, "r", encoding="utf-8") as f:
+                    stored_hash = f.read().strip()
+            except Exception:
+                pass
+
+        need_install = (not os.path.exists(node_modules)) or (
+            bool(current_hash) and current_hash != stored_hash
+        )
+        if not need_install:
+            return
+
+        bun_bin = self._find_bun()
+        if bun_bin:
+            log_system(f"Bun detected! Rapid-installing packages for {name} via bun...")
+            cmd = [bun_bin, "install"]
+        else:
+            log_system(f"Installing packages for {name} via npm (tip: install Bun for 10x faster installs)...")
+            cmd = ["npm", "install"]
+        subprocess.run(cmd, cwd=directory, shell=IS_WIN, check=True)
+
+        if current_hash and os.path.isdir(node_modules):
+            try:
+                with open(sentinel_file, "w", encoding="utf-8") as f:
+                    f.write(current_hash)
+            except Exception as e:
+                log_system(f"Warning: Failed to write Node dependency hash sentinel for {name}: {e}")
 
     def _setup_remotion_browser(self):
         log_system("Verifying Remotion browser configuration (Chrome Headless Shell)...")
@@ -738,8 +1012,225 @@ class BootstrappedLauncher:
         else:
             log_system("Frontend production bundle is up to date (<1s instant start).")
 
+    def _restore_prompt_backup(self, backup_path: str, prompt_path: str, *, remove_backup: bool = False) -> None:
+        if not os.path.isfile(backup_path):
+            return
+        os.makedirs(os.path.dirname(prompt_path), exist_ok=True)
+        shutil.copy2(backup_path, prompt_path)
+        if remove_backup:
+            _remove_file_if_exists(backup_path)
+
+    def _execute_self_update(
+        self,
+        update_req: dict,
+        repo_root: str | None = None,
+        start_status_server: bool = True,
+        reexec_fn=None,
+    ) -> None:
+        """Execute tag fast-forward self-update with prompt backup, temp status HTTP, rollback, and re-exec."""
+        root = os.path.abspath(repo_root or os.path.dirname(os.path.abspath(__file__)))
+        os.makedirs(self.ipc_dir, exist_ok=True)
+        request_path = os.path.join(self.ipc_dir, "request.json")
+        status_path = os.path.join(self.ipc_dir, "status.json")
+        prompt_path = os.path.join(root, "backend", "prompts", "prompt.json")
+        prompt_backup_path = os.path.join(self.ipc_dir, "prompt.json.backup")
+
+        def run_git(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+            res = subprocess.run(
+                ["git", *args],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            if check and res.returncode != 0:
+                detail = (res.stderr or res.stdout or f"git {' '.join(args)} exited with {res.returncode}").strip()
+                raise RuntimeError(detail)
+            return res
+
+        update_id = str(update_req.get("updateId") or "")
+        target_version = str(update_req.get("targetVersion") or "")
+        target_tag = str(update_req.get("targetTag") or f"v{target_version}")
+        current_version = str(update_req.get("currentVersion") or "")
+        initial_commit = str(update_req.get("initialCommit") or "").strip()
+        if not initial_commit:
+            initial_commit = run_git(["rev-parse", "HEAD"]).stdout.strip()
+
+        status_lock = threading.Lock()
+        current_status: dict = {}
+
+        def get_live_status() -> dict:
+            with status_lock:
+                return dict(current_status)
+
+        def publish_status(
+            *,
+            state: str,
+            step: str,
+            message: str,
+            rolled_back: bool = False,
+            error: str | None = None,
+            failed_step: str | None = None,
+        ) -> None:
+            payload = {
+                "updateId": update_id,
+                "state": state,
+                "step": step,
+                "message": message,
+                "currentVersion": current_version,
+                "targetVersion": target_version,
+                "targetTag": target_tag,
+                "mode": "dev" if self.dev else "production",
+                "initialCommit": initial_commit,
+                "rolledBack": rolled_back,
+                "error": error,
+                "updatedAt": _utc_now_iso(),
+                "steps": _build_update_steps(target_tag, self.dev, active_step=step, failed_step=failed_step),
+            }
+            with status_lock:
+                current_status.clear()
+                current_status.update(payload)
+            _atomic_write_json(status_path, payload)
+
+        status_server: UpdateStatusHttpServer | None = None
+        publish_status(
+            state="updating",
+            step="backing_up_prompts",
+            message=f"Preserving local prompts before updating to {target_tag}...",
+        )
+
+        if start_status_server:
+            _wait_port_free(self.port, timeout=5.0)
+            for _ in range(3):
+                try:
+                    status_server = UpdateStatusHttpServer(self.port, get_status=get_live_status)
+                    status_server.start()
+                    break
+                except OSError:
+                    status_server = None
+                    time.sleep(0.25)
+
+        active_step = "backing_up_prompts"
+        prev_cwd = os.getcwd()
+        try:
+            # Step 1: Backup prompt.json and reset tracked copy (if any) so fast-forward merge never conflicts
+            if os.path.isfile(prompt_path):
+                shutil.copy2(prompt_path, prompt_backup_path)
+                tracked = run_git(["ls-files", "--error-unmatch", "backend/prompts/prompt.json"], check=False)
+                if tracked.returncode == 0:
+                    run_git(["checkout", "--", "backend/prompts/prompt.json"])
+
+            # Step 2: Fetch release tags
+            active_step = "fetching_tags"
+            publish_status(
+                state="updating",
+                step=active_step,
+                message=f"Fetching release tag {target_tag} from origin...",
+            )
+            run_git(["fetch", "origin", "--tags"])
+
+            # Step 3: Fast-forward current branch to exact release tag and restore user prompts
+            active_step = "merging_tag"
+            publish_status(
+                state="updating",
+                step=active_step,
+                message=f"Updating repository to {target_tag}...",
+            )
+            run_git(["merge", "--ff-only", f"refs/tags/{target_tag}"])
+            self._restore_prompt_backup(prompt_backup_path, prompt_path)
+
+            # Ensure relative bootstrap/build calls operate against repo root
+            if root != prev_cwd:
+                os.chdir(root)
+
+            # Step 4: Update Python, font, and Node dependencies
+            active_step = "installing_dependencies"
+            publish_status(
+                state="updating",
+                step=active_step,
+                message="Updating backend and frontend dependencies...",
+            )
+            self.venv_python = self._bootstrap_backend()
+            if self.target in ["all", "frontend"]:
+                self._bootstrap_fonts()
+            if self.target in ["all", "backend"]:
+                self._bootstrap_node_project("shared/remotion", "Shared Remotion")
+            if self.dev and self.target in ["all", "frontend"]:
+                self._bootstrap_node_project("frontend", "Frontend")
+
+            # Step 5: Rebuild frontend production SPA when not running dev HMR
+            if not self.dev and self.target in ["all", "frontend"]:
+                active_step = "building_frontend"
+                publish_status(
+                    state="updating",
+                    step=active_step,
+                    message="Building production web interface...",
+                )
+                self._ensure_frontend_build()
+
+            # Step 6: Handoff back to fresh launcher process with --no-browser
+            active_step = "restarting"
+            _remove_file_if_exists(prompt_backup_path)
+            _remove_file_if_exists(request_path)
+            publish_status(
+                state="restarting",
+                step=active_step,
+                message=f"Update to {target_tag} complete. Restarting Yonru...",
+            )
+        except Exception as exc:
+            err_msg = _format_update_error(exc)
+            log_error(f"Self-update to {target_tag} failed during '{active_step}': {err_msg}")
+            log_system(f"Rolling back repository to {initial_commit[:8]}...")
+            run_git(["merge", "--abort"], check=False)
+            run_git(["reset", "--hard", initial_commit], check=False)
+            self._restore_prompt_backup(prompt_backup_path, prompt_path, remove_backup=True)
+            _remove_file_if_exists(request_path)
+            publish_status(
+                state="failed",
+                step=active_step,
+                message=f"Update to {target_tag} failed and was rolled back.",
+                rolled_back=True,
+                error=err_msg,
+                failed_step=active_step,
+            )
+        finally:
+            if os.getcwd() != prev_cwd and os.path.isdir(prev_cwd):
+                os.chdir(prev_cwd)
+            if status_server is not None:
+                status_server.stop()
+
+        exec_fn = reexec_fn or _reexec_self
+        exec_fn(self.build_reexec_argv())
+
+    def _recover_interrupted_update_ipc(self, request_path: str) -> None:
+        """Clear stale request signals and unlock single-flight state if a prior update crashed."""
+        _remove_file_if_exists(request_path)
+        status_path = os.path.join(self.ipc_dir, "status.json")
+        if not os.path.isfile(status_path):
+            return
+        try:
+            with open(status_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            _remove_file_if_exists(status_path)
+            return
+        if isinstance(data, dict) and data.get("state") in ("pending_restart", "updating"):
+            interrupted = {
+                **data,
+                "state": "failed",
+                "rolledBack": False,
+                "error": "Previous self-update was interrupted before finishing.",
+                "message": "Previous self-update was interrupted before finishing.",
+                "updatedAt": _utc_now_iso(),
+            }
+            _atomic_write_json(status_path, interrupted)
+
     def run(self):
         global coordinator
+
+        request_path = os.path.join(self.ipc_dir, "request.json")
+        self._recover_interrupted_update_ipc(request_path)
         
         # 1. Dependency and Environment Checks
         self._check_dependencies()
@@ -774,6 +1265,12 @@ class BootstrappedLauncher:
 
         frontend_cmd = ["npm", "run", "dev"]
 
+        backend_env = {
+            "YONRU_SUPERVISOR_PID": str(os.getpid()),
+            "YONRU_UPDATE_IPC_DIR": self.ipc_dir,
+            "YONRU_SUPERVISOR_DEV": "1" if self.dev else "0",
+        }
+
         # 4. Spawn Active Services
         self.coordinator = ServiceCoordinator(
             self.target, 
@@ -781,7 +1278,8 @@ class BootstrappedLauncher:
             dev=self.dev, 
             port=self.port, 
             frontend_port=self.frontend_port, 
-            no_sweep=self.no_sweep
+            no_sweep=self.no_sweep,
+            update_request_file=request_path
         )
         coordinator = self.coordinator # Maintain global reference for signals and testing
         self.coordinator.clean_ports()
@@ -789,6 +1287,7 @@ class BootstrappedLauncher:
         mode_label = "development" if self.dev else "production"
         log_system(f"Starting services in {mode_label} mode (target: '{self.target}')")
         
+        update_req = None
         try:
             if self.target in ["all", "backend"]:
                 backend_def = ServiceDef(
@@ -797,7 +1296,8 @@ class BootstrappedLauncher:
                     cwd="backend",
                     prefix="[BACKEND]",
                     color_code="36",
-                    ready_signal="Application startup complete"
+                    ready_signal="Application startup complete",
+                    env=backend_env
                 )
                 self.coordinator.spawn(backend_def)
 
@@ -808,7 +1308,8 @@ class BootstrappedLauncher:
                     cwd="backend",
                     prefix="[SERVER]",
                     color_code="32",
-                    ready_signal="Application startup complete"
+                    ready_signal="Application startup complete",
+                    env=backend_env
                 )
                 self.coordinator.spawn(backend_def)
                 
@@ -827,12 +1328,15 @@ class BootstrappedLauncher:
                 )
                 self.coordinator.spawn(frontend_def)
 
-            self.coordinator.run_loop()
+            update_req = self.coordinator.run_loop()
                         
         except KeyboardInterrupt:
             log_system("Shutting down...")
         finally:
             self.coordinator.shutdown()
+
+        if isinstance(update_req, dict) and update_req:
+            self._execute_self_update(update_req)
 
 
 # --- Global Coordinator Instance for Signal Handlers ---
@@ -892,6 +1396,11 @@ def main():
         help="Skip automatic zombie process port sweeping before service boot"
     )
     parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Skip opening the browser automatically once services are ready"
+    )
+    parser.add_argument(
         "--force-fonts", 
         action="store_true", 
         help="Force redownload of offline fonts"
@@ -921,7 +1430,8 @@ def main():
         force_build=args.build,
         port=args.port,
         frontend_port=args.frontend_port,
-        no_sweep=args.no_sweep
+        no_sweep=args.no_sweep,
+        no_browser=args.no_browser
     )
     launcher.run()
 

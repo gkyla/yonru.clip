@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 import uuid
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Any
@@ -84,6 +85,33 @@ class PromptRepository(ABC):
 class FilePromptRepository(PromptRepository):
     def __init__(self, base_dir: str):
         self.base_dir = os.path.abspath(base_dir)
+        self._seed_default_prompts_if_missing()
+
+    @staticmethod
+    def _is_prompt_store_file(filename: str) -> bool:
+        return (
+            not filename.startswith(".")
+            and filename.endswith(".json")
+            and not filename.endswith(".example.json")
+        )
+
+    def _iter_prompt_files(self) -> List[str]:
+        if not os.path.isdir(self.base_dir):
+            return []
+        return sorted(
+            f for f in os.listdir(self.base_dir) if self._is_prompt_store_file(f)
+        )
+
+    def _seed_default_prompts_if_missing(self) -> None:
+        """Seed prompt.json from prompt.example.json on first boot when no local prompt store exists."""
+        if not os.path.isdir(self.base_dir):
+            return
+        if self._iter_prompt_files():
+            return
+        example_path = self._get_file_path("prompt.example.json")
+        target_path = self._get_file_path("prompt.json")
+        if os.path.isfile(example_path) and not os.path.exists(target_path):
+            shutil.copy2(example_path, target_path)
 
     def _get_file_path(self, filename: str) -> str:
         safe_filename = os.path.basename(filename)
@@ -96,82 +124,76 @@ class FilePromptRepository(PromptRepository):
 
     def list_prompts(self) -> List[PromptDTO]:
         prompt_list = []
-        if not os.path.exists(self.base_dir):
-            return prompt_list
+        for f in self._iter_prompt_files():
+            path_str = os.path.join(self.base_dir, f)
+            try:
+                with open(path_str, "r", encoding="utf-8") as file:
+                    data = json.load(file)
 
-        for f in os.listdir(self.base_dir):
-            if f.endswith(".json"):
-                path_str = os.path.join(self.base_dir, f)
-                try:
-                    with open(path_str, "r", encoding="utf-8") as file:
-                        data = json.load(file)
-                    
-                    modified = False
-                    
-                    if isinstance(data, list):
-                        for idx, item in enumerate(data):
-                            if not isinstance(item, dict):
-                                continue
-                            p_id = item.get("id")
-                            if not p_id:
-                                p_id = str(uuid.uuid4())
-                                item["id"] = p_id
-                                modified = True
-                            
-                            name = item.get("promptName", f"{f} - {idx + 1}")
-                            suitable = item.get("suitableFor", [])
-                            prompt_list.append(PromptDTO(
-                                id=p_id,
-                                name=name,
-                                suitable_for=suitable,
-                                prompt=item.get("prompt", ""),
-                                num_hooks=item.get("numHooks", 10),
-                                auto_hooks=item.get("autoHooks", False)
-                            ))
-                    elif isinstance(data, dict):
-                        p_id = data.get("id")
+                modified = False
+
+                if isinstance(data, list):
+                    for idx, item in enumerate(data):
+                        if not isinstance(item, dict):
+                            continue
+                        p_id = item.get("id")
                         if not p_id:
                             p_id = str(uuid.uuid4())
-                            data["id"] = p_id
+                            item["id"] = p_id
                             modified = True
-                        
-                        name = data.get("promptName", f)
-                        suitable = data.get("suitableFor", [])
+
+                        name = item.get("promptName", f"{f} - {idx + 1}")
+                        suitable = item.get("suitableFor", [])
                         prompt_list.append(PromptDTO(
                             id=p_id,
                             name=name,
                             suitable_for=suitable,
-                            prompt=data.get("prompt", ""),
-                            num_hooks=data.get("numHooks", 10),
-                            auto_hooks=data.get("autoHooks", False)
+                            prompt=item.get("prompt", ""),
+                            num_hooks=item.get("numHooks", 10),
+                            auto_hooks=item.get("autoHooks", False)
                         ))
-                    
-                    if modified:
-                        with open(path_str, "w", encoding="utf-8") as file:
-                            json.dump(data, file, indent=4, ensure_ascii=False)
-                            
-                except Exception as e:
-                    print(f"[FilePromptRepository] Failed to load {f}: {e}")
+                elif isinstance(data, dict):
+                    p_id = data.get("id")
+                    if not p_id:
+                        p_id = str(uuid.uuid4())
+                        data["id"] = p_id
+                        modified = True
+
+                    name = data.get("promptName", f)
+                    suitable = data.get("suitableFor", [])
+                    prompt_list.append(PromptDTO(
+                        id=p_id,
+                        name=name,
+                        suitable_for=suitable,
+                        prompt=data.get("prompt", ""),
+                        num_hooks=data.get("numHooks", 10),
+                        auto_hooks=data.get("autoHooks", False)
+                    ))
+
+                if modified:
+                    with open(path_str, "w", encoding="utf-8") as file:
+                        json.dump(data, file, indent=4, ensure_ascii=False)
+
+            except Exception as e:
+                print(f"[FilePromptRepository] Failed to load {f}: {e}")
         return prompt_list
 
     def get_prompt_text(self, prompt_file: str) -> Optional[str]:
         # Try finding by UUID first
-        if os.path.exists(self.base_dir):
-            for f in os.listdir(self.base_dir):
-                if f.endswith(".json"):
-                    path_str = os.path.join(self.base_dir, f)
-                    try:
-                        with open(path_str, "r", encoding="utf-8") as file:
-                            data = json.load(file)
-                            if isinstance(data, list):
-                                for item in data:
-                                    if isinstance(item, dict) and item.get("id") == prompt_file:
-                                        return item.get("prompt", "")
-                            elif isinstance(data, dict):
-                                if data.get("id") == prompt_file:
-                                    return data.get("prompt", "")
-                    except Exception:
-                        pass
+        for f in self._iter_prompt_files():
+            path_str = os.path.join(self.base_dir, f)
+            try:
+                with open(path_str, "r", encoding="utf-8") as file:
+                    data = json.load(file)
+                    if isinstance(data, list):
+                        for item in data:
+                            if isinstance(item, dict) and item.get("id") == prompt_file:
+                                return item.get("prompt", "")
+                    elif isinstance(data, dict):
+                        if data.get("id") == prompt_file:
+                            return data.get("prompt", "")
+            except Exception:
+                pass
 
         # Fallback to old filename / index-based ID resolution
         if "::" in prompt_file:
@@ -239,43 +261,41 @@ class FilePromptRepository(PromptRepository):
     def edit_prompt(self, id: str, name: str, suitable_for: List[str], prompt: str, num_hooks: int = 10, auto_hooks: bool = False) -> None:
         self.validate_prompt(name=name, prompt=prompt, num_hooks=num_hooks)
         found = False
-        if os.path.exists(self.base_dir):
-            for f in os.listdir(self.base_dir):
-                if f.endswith(".json"):
-                    path_str = os.path.join(self.base_dir, f)
-                    try:
-                        with open(path_str, "r", encoding="utf-8") as file:
-                            data = json.load(file)
-                        
-                        modified = False
-                        if isinstance(data, list):
-                            for item in data:
-                                if isinstance(item, dict) and item.get("id") == id:
-                                    item["promptName"] = name
-                                    item["suitableFor"] = suitable_for
-                                    item["prompt"] = prompt
-                                    item["numHooks"] = num_hooks
-                                    item["autoHooks"] = auto_hooks
-                                    modified = True
+        for f in self._iter_prompt_files():
+            path_str = os.path.join(self.base_dir, f)
+            try:
+                with open(path_str, "r", encoding="utf-8") as file:
+                    data = json.load(file)
 
-                                    found = True
-                                    break
-                        elif isinstance(data, dict):
-                            if data.get("id") == id:
-                                data["promptName"] = name
-                                data["suitableFor"] = suitable_for
-                                data["prompt"] = prompt
-                                data["numHooks"] = num_hooks
-                                data["autoHooks"] = auto_hooks
-                                modified = True
-                                found = True
-                        
-                        if modified:
-                            with open(path_str, "w", encoding="utf-8") as file:
-                                json.dump(data, file, indent=4, ensure_ascii=False)
+                modified = False
+                if isinstance(data, list):
+                    for item in data:
+                        if isinstance(item, dict) and item.get("id") == id:
+                            item["promptName"] = name
+                            item["suitableFor"] = suitable_for
+                            item["prompt"] = prompt
+                            item["numHooks"] = num_hooks
+                            item["autoHooks"] = auto_hooks
+                            modified = True
+
+                            found = True
                             break
-                    except Exception as e:
-                        print(f"[FilePromptRepository] Failed to read/write {f} in edit_prompt: {e}")
+                elif isinstance(data, dict):
+                    if data.get("id") == id:
+                        data["promptName"] = name
+                        data["suitableFor"] = suitable_for
+                        data["prompt"] = prompt
+                        data["numHooks"] = num_hooks
+                        data["autoHooks"] = auto_hooks
+                        modified = True
+                        found = True
+
+                if modified:
+                    with open(path_str, "w", encoding="utf-8") as file:
+                        json.dump(data, file, indent=4, ensure_ascii=False)
+                    break
+            except Exception as e:
+                print(f"[FilePromptRepository] Failed to read/write {f} in edit_prompt: {e}")
         
         # If not found by UUID, fallback to old index-based ID editing
         if not found:
@@ -315,44 +335,42 @@ class FilePromptRepository(PromptRepository):
 
     def delete_prompt(self, id: str) -> None:
         found = False
-        if os.path.exists(self.base_dir):
-            for f in os.listdir(self.base_dir):
-                if f.endswith(".json"):
-                    path_str = os.path.join(self.base_dir, f)
-                    try:
-                        with open(path_str, "r", encoding="utf-8") as file:
-                            data = json.load(file)
-                        
-                        modified = False
-                        if isinstance(data, list):
-                            new_data = []
-                            for item in data:
-                                if isinstance(item, dict) and item.get("id") == id:
-                                    modified = True
-                                    found = True
-                                else:
-                                    new_data.append(item)
-                            data = new_data
-                        elif isinstance(data, dict):
-                            if data.get("id") == id:
-                                modified = True
-                                found = True
-                                data = None
-                        
-                        if modified:
-                            if data is None or (isinstance(data, list) and len(data) == 0):
-                                abs_path = os.path.abspath(path_str)
-                                if os.path.commonpath([self.base_dir, abs_path]) == self.base_dir:
-                                    os.remove(abs_path)
-                                else:
-                                    raise PermissionError("Attempted deletion outside base directory")
-                            else:
-                                with open(path_str, "w", encoding="utf-8") as file:
-                                    json.dump(data, file, indent=4, ensure_ascii=False)
-                            break
-                    except Exception as e:
-                        print(f"[FilePromptRepository] Failed to read/write/delete {f} in delete_prompt: {e}")
-                        raise e
+        for f in self._iter_prompt_files():
+            path_str = os.path.join(self.base_dir, f)
+            try:
+                with open(path_str, "r", encoding="utf-8") as file:
+                    data = json.load(file)
+
+                modified = False
+                if isinstance(data, list):
+                    new_data = []
+                    for item in data:
+                        if isinstance(item, dict) and item.get("id") == id:
+                            modified = True
+                            found = True
+                        else:
+                            new_data.append(item)
+                    data = new_data
+                elif isinstance(data, dict):
+                    if data.get("id") == id:
+                        modified = True
+                        found = True
+                        data = None
+
+                if modified:
+                    if data is None or (isinstance(data, list) and len(data) == 0):
+                        abs_path = os.path.abspath(path_str)
+                        if os.path.commonpath([self.base_dir, abs_path]) == self.base_dir:
+                            os.remove(abs_path)
+                        else:
+                            raise PermissionError("Attempted deletion outside base directory")
+                    else:
+                        with open(path_str, "w", encoding="utf-8") as file:
+                            json.dump(data, file, indent=4, ensure_ascii=False)
+                    break
+            except Exception as e:
+                print(f"[FilePromptRepository] Failed to read/write/delete {f} in delete_prompt: {e}")
+                raise e
         
         # If not found by UUID, fallback to old index-based ID deletion
         if not found:

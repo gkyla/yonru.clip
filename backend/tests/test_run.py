@@ -281,6 +281,39 @@ def test_bootstrap_node_project_fallback_npm(mocker, tmp_path):
     )
 
 
+def test_bootstrap_node_project_reinstalls_when_deps_hash_changes_and_skips_when_matching(mocker, tmp_path):
+    """Verify _bootstrap_node_project installs when package manifest hash changes and skips when matching."""
+    mocker.patch("run.log_system")
+    mock_sub_run = mocker.patch("run.subprocess.run")
+
+    target_dir = tmp_path / "frontend"
+    node_modules = target_dir / "node_modules"
+    node_modules.mkdir(parents=True)
+    pkg_json = target_dir / "package.json"
+    pkg_json.write_text('{"dependencies": {"vue": "^3.5.0"}}', encoding="utf-8")
+
+    launcher = run.BootstrappedLauncher(target="frontend")
+    mocker.patch.object(launcher, "_find_bun", return_value=None)
+
+    # 1. Missing .deps.hash even though node_modules exists -> must install and write sentinel
+    launcher._bootstrap_node_project(str(target_dir), "Frontend")
+    assert mock_sub_run.call_count == 1
+    sentinel = node_modules / ".deps.hash"
+    assert sentinel.is_file()
+    first_hash = sentinel.read_text(encoding="utf-8").strip()
+    assert len(first_hash) == 64
+
+    # 2. Matching .deps.hash -> must skip install
+    launcher._bootstrap_node_project(str(target_dir), "Frontend")
+    assert mock_sub_run.call_count == 1
+
+    # 3. Updated package.json -> hash mismatch -> must reinstall and refresh sentinel
+    pkg_json.write_text('{"dependencies": {"vue": "^3.5.1"}}', encoding="utf-8")
+    launcher._bootstrap_node_project(str(target_dir), "Frontend")
+    assert mock_sub_run.call_count == 2
+    assert sentinel.read_text(encoding="utf-8").strip() != first_hash
+
+
 def test_bootstrap_backend_opportunistic_uv(mocker):
     """Verify that _bootstrap_backend uses uv pip install when uv is available."""
     mocker.patch("run.log_system")
@@ -508,6 +541,334 @@ def test_bootstrapped_launcher_passes_browser_opener_to_coordinator(mocker):
 
     mock_coord_cls.assert_called_once()
     assert mock_coord_cls.call_args.kwargs.get("browser_opener") is mock_opener
+
+
+def test_bootstrapped_launcher_builds_reexec_argv_with_no_browser_and_skips_browser_open(mocker):
+    """Self-update re-exec preserves CLI flags, adds --no-browser, and disables browser tab opening."""
+    launcher = run.BootstrappedLauncher(
+        target="all",
+        dev=True,
+        port=9100,
+        frontend_port=4100,
+        no_sweep=True,
+        force_fonts=True,
+        no_browser=True,
+    )
+    argv = launcher.build_reexec_argv()
+    assert argv[0] == run.sys.executable
+    assert argv[1].endswith("run.py")
+    assert "all" in argv
+    assert "--dev" in argv
+    assert "--port" in argv and argv[argv.index("--port") + 1] == "9100"
+    assert "--frontend-port" in argv and argv[argv.index("--frontend-port") + 1] == "4100"
+    assert "--no-sweep" in argv
+    assert "--force-fonts" in argv
+    assert argv.count("--no-browser") == 1
+    assert launcher.browser_opener is not None
+    assert launcher.browser_opener.open_url("http://localhost:4100") is False
+
+
+def test_service_coordinator_detects_ipc_update_request_and_status_server_serves_cors(mocker, tmp_path):
+    """ServiceCoordinator.run_loop returns IPC request when written; UpdateStatusHttpServer serves status with CORS."""
+    import json
+    import urllib.request
+
+    mocker.patch("run.log_system")
+    ipc_dir = tmp_path / "ipc"
+    ipc_dir.mkdir()
+    req_file = ipc_dir / "request.json"
+
+    coordinator = run.ServiceCoordinator(
+        "all",
+        dev=True,
+        update_request_file=str(req_file),
+    )
+
+    # Simulate an active dummy process that stays alive while IPC file arrives
+    mock_proc = mocker.MagicMock()
+    mock_proc.poll.return_value = None
+    coordinator._procs["Backend"] = mock_proc
+
+    def write_request_soon():
+        req_file.write_text(
+            json.dumps({"updateId": "u1", "targetTag": "v0.4.0", "targetVersion": "0.4.0", "initialCommit": "abc"}),
+            encoding="utf-8",
+        )
+
+    timer = run.threading.Timer(0.1, write_request_soon)
+    timer.start()
+    try:
+        req = coordinator.run_loop()
+    finally:
+        timer.cancel()
+
+    assert req is not None
+    assert req["targetTag"] == "v0.4.0"
+
+    # Temporary stdlib HTTP status server must respond with JSON and CORS headers
+    status_snapshot = {
+        "state": "updating",
+        "step": "merging_tag",
+        "targetVersion": "0.4.0",
+        "targetTag": "v0.4.0",
+        "rolledBack": False,
+        "error": None,
+    }
+    server = run.UpdateStatusHttpServer(port=0, get_status=lambda: status_snapshot)
+    server.start()
+    try:
+        req_http = urllib.request.Request(
+            f"http://127.0.0.1:{server.port}/api/self-update/status",
+            headers={"Origin": "http://localhost:3765"},
+        )
+        with urllib.request.urlopen(req_http, timeout=2.0) as resp:
+            assert resp.status == 200
+            assert resp.headers.get("Access-Control-Allow-Origin") == "http://localhost:3765"
+            payload = json.loads(resp.read().decode("utf-8"))
+            assert payload["step"] == "merging_tag"
+    finally:
+        server.stop()
+
+
+def _create_git_remote_and_clone(tmp_path):
+    """Create a bare origin repo and local clone at v0.3.0 with tracked prompt.json and remote v0.4.0."""
+    import subprocess
+
+    def git(cwd, *args):
+        return subprocess.run(
+            ["git", *args],
+            cwd=str(cwd),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    remote = tmp_path / "origin.git"
+    work = tmp_path / "seed"
+    local = tmp_path / "local"
+
+    git(tmp_path, "init", "--bare", str(remote))
+    git(tmp_path, "clone", str(remote), str(work))
+    git(work, "checkout", "-b", "main")
+    git(work, "config", "user.email", "test@yonru.local")
+    git(work, "config", "user.name", "Test")
+
+    prompts_dir = work / "backend" / "prompts"
+    prompts_dir.mkdir(parents=True)
+    (prompts_dir / "prompt.json").write_text('[{"promptName": "Stock"}]', encoding="utf-8")
+    (work / "version.txt").write_text("0.3.0\n", encoding="utf-8")
+    git(work, "add", ".")
+    git(work, "commit", "-m", "v0.3.0")
+    git(work, "tag", "-a", "v0.3.0", "-m", "v0.3.0")
+    git(work, "push", "-u", "origin", "main", "--tags")
+
+    # Clone user workspace at v0.3.0 BEFORE v0.4.0 is pushed
+    git(tmp_path, "clone", str(remote), str(local))
+    git(local, "config", "user.email", "user@yonru.local")
+    git(local, "config", "user.name", "User")
+
+    # Push v0.4.0 to origin (untracking prompt.json and adding prompt.example.json)
+    git(work, "rm", "backend/prompts/prompt.json")
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    (prompts_dir / "prompt.example.json").write_text('[{"promptName": "Stock"}]', encoding="utf-8")
+    (work / "version.txt").write_text("0.4.0\n", encoding="utf-8")
+    git(work, "add", ".")
+    git(work, "commit", "-m", "v0.4.0")
+    git(work, "tag", "-a", "v0.4.0", "-m", "v0.4.0")
+    git(work, "push", "origin", "main", "--tags")
+
+    c_v030 = git(local, "rev-parse", "HEAD").stdout.strip()
+    c_v040 = git(work, "rev-parse", "HEAD").stdout.strip()
+    return local, c_v030, c_v040
+
+
+def test_execute_self_update_fast_forwards_tag_preserves_prompts_and_reexecs(mocker, tmp_path):
+    """_execute_self_update merges refs/tags/v0.4.0 on main, preserves prompt.json edits, bootstraps, and reexecs."""
+    import json
+    import subprocess
+
+    mocker.patch("run.log_system")
+    mocker.patch("run.log_error")
+    local_repo, c_v030, c_v040 = _create_git_remote_and_clone(tmp_path)
+
+    # Creator edited tracked prompt.json while on v0.3.0
+    user_prompt = local_repo / "backend" / "prompts" / "prompt.json"
+    user_prompt.write_text('[{"promptName": "Creator Custom"}]', encoding="utf-8")
+
+    ipc_dir = tmp_path / "ipc"
+    ipc_dir.mkdir()
+    req_file = ipc_dir / "request.json"
+    req_payload = {
+        "updateId": "upd-ff",
+        "targetVersion": "0.4.0",
+        "targetTag": "v0.4.0",
+        "initialCommit": c_v030,
+    }
+    req_file.write_text(json.dumps(req_payload), encoding="utf-8")
+
+    launcher = run.BootstrappedLauncher(target="all", dev=False, ipc_dir=str(ipc_dir))
+    mocker.patch.object(launcher, "_bootstrap_backend", return_value="python")
+    mocker.patch.object(launcher, "_bootstrap_fonts")
+    mocker.patch.object(launcher, "_bootstrap_node_project")
+    mocker.patch.object(launcher, "_ensure_frontend_build")
+
+    reexec_calls = []
+    launcher._execute_self_update(
+        req_payload,
+        repo_root=str(local_repo),
+        start_status_server=False,
+        reexec_fn=reexec_calls.append,
+    )
+
+    head_after = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(local_repo), text=True).strip()
+    branch_after = subprocess.check_output(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=str(local_repo), text=True
+    ).strip()
+    assert head_after == c_v040
+    assert branch_after == "main"
+    assert (local_repo / "version.txt").read_text(encoding="utf-8").strip() == "0.4.0"
+    assert json.loads(user_prompt.read_text(encoding="utf-8"))[0]["promptName"] == "Creator Custom"
+    assert not req_file.exists()
+
+    status_data = json.loads((ipc_dir / "status.json").read_text(encoding="utf-8"))
+    assert status_data["state"] == "restarting"
+    assert status_data["targetTag"] == "v0.4.0"
+    assert len(reexec_calls) == 1
+    assert "--no-browser" in reexec_calls[0]
+
+
+def test_execute_self_update_rolls_back_and_preserves_prompts_on_build_failure(mocker, tmp_path):
+    """If npm run generate fails after merge, _execute_self_update resets hard to initial commit and keeps error status."""
+    import json
+    import subprocess
+
+    mocker.patch("run.log_system")
+    mocker.patch("run.log_error")
+    local_repo, c_v030, _ = _create_git_remote_and_clone(tmp_path)
+
+    user_prompt = local_repo / "backend" / "prompts" / "prompt.json"
+    user_prompt.write_text('[{"promptName": "Creator Custom"}]', encoding="utf-8")
+
+    ipc_dir = tmp_path / "ipc"
+    ipc_dir.mkdir()
+    req_file = ipc_dir / "request.json"
+    req_payload = {
+        "updateId": "upd-fail",
+        "targetVersion": "0.4.0",
+        "targetTag": "v0.4.0",
+        "initialCommit": c_v030,
+    }
+    req_file.write_text(json.dumps(req_payload), encoding="utf-8")
+
+    launcher = run.BootstrappedLauncher(target="all", dev=False, ipc_dir=str(ipc_dir))
+    mocker.patch.object(launcher, "_bootstrap_backend", return_value="python")
+    mocker.patch.object(launcher, "_bootstrap_fonts")
+    mocker.patch.object(launcher, "_bootstrap_node_project")
+    mocker.patch.object(
+        launcher,
+        "_ensure_frontend_build",
+        side_effect=subprocess.CalledProcessError(1, ["npm", "run", "generate"], stderr="Vite build syntax error"),
+    )
+
+    reexec_calls = []
+    launcher._execute_self_update(
+        req_payload,
+        repo_root=str(local_repo),
+        start_status_server=False,
+        reexec_fn=reexec_calls.append,
+    )
+
+    head_after = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(local_repo), text=True).strip()
+    assert head_after == c_v030
+    assert (local_repo / "version.txt").read_text(encoding="utf-8").strip() == "0.3.0"
+    assert json.loads(user_prompt.read_text(encoding="utf-8"))[0]["promptName"] == "Creator Custom"
+    assert not req_file.exists()
+
+    status_data = json.loads((ipc_dir / "status.json").read_text(encoding="utf-8"))
+    assert status_data["state"] == "failed"
+    assert status_data["rolledBack"] is True
+    assert "Vite build syntax error" in status_data["error"]
+    assert len(reexec_calls) == 1
+    assert "--no-browser" in reexec_calls[0]
+
+
+def test_launcher_run_passes_supervisor_env_cleans_stale_request_and_executes_update(mocker, tmp_path):
+    """BootstrappedLauncher.run() cleans stale request.json, injects supervisor env, and invokes _execute_self_update."""
+    import json
+    import os
+
+    ipc_dir = tmp_path / "ipc"
+    ipc_dir.mkdir()
+    stale_req = ipc_dir / "request.json"
+    stale_req.write_text('{"updateId": "stale"}', encoding="utf-8")
+    preserved_status = ipc_dir / "status.json"
+    preserved_status.write_text('{"state": "restarting", "targetVersion": "0.4.0"}', encoding="utf-8")
+
+    launcher = run.BootstrappedLauncher(target="all", dev=False, port=8765, frontend_port=3765, ipc_dir=str(ipc_dir))
+    mocker.patch.object(launcher, "_check_dependencies")
+    mocker.patch.object(launcher, "_bootstrap_backend", return_value="python")
+    mocker.patch.object(launcher, "_bootstrap_fonts")
+    mocker.patch.object(launcher, "_ensure_frontend_build")
+    mocker.patch.object(launcher, "_bootstrap_node_project")
+    mocker.patch.object(launcher, "_setup_remotion_browser")
+
+    update_req = {"updateId": "upd-1", "targetVersion": "0.4.0", "targetTag": "v0.4.0"}
+    spawned_services = []
+    events = []
+
+    mock_coordinator = mocker.MagicMock()
+    mock_coordinator.spawn.side_effect = lambda s: spawned_services.append(s)
+    mock_coordinator.run_loop.return_value = update_req
+    mock_coordinator.shutdown.side_effect = lambda: events.append("shutdown")
+    coord_cls = mocker.patch("run.ServiceCoordinator", return_value=mock_coordinator)
+
+    mock_exec = mocker.patch.object(
+        launcher,
+        "_execute_self_update",
+        side_effect=lambda req: events.append(("execute", req)),
+    )
+
+    launcher.run()
+
+    assert not stale_req.exists()
+    assert json.loads(preserved_status.read_text(encoding="utf-8"))["state"] == "restarting"
+    assert coord_cls.call_args.kwargs["update_request_file"] == str(stale_req)
+    assert len(spawned_services) == 1
+    backend_env = spawned_services[0].env
+    assert backend_env["YONRU_SUPERVISOR_PID"] == str(os.getpid())
+    assert backend_env["YONRU_UPDATE_IPC_DIR"] == str(ipc_dir)
+    assert backend_env["YONRU_SUPERVISOR_DEV"] == "0"
+    mock_exec.assert_called_once_with(update_req)
+    assert events == ["shutdown", ("execute", update_req)]
+
+
+def test_launcher_run_unlocks_interrupted_updating_status_on_startup(mocker, tmp_path):
+    """If a previous launcher crashed mid-update ('updating'), run() marks it failed so single-flight lock does not wedge."""
+    import json
+
+    ipc_dir = tmp_path / "ipc"
+    ipc_dir.mkdir()
+    status_file = ipc_dir / "status.json"
+    status_file.write_text('{"state": "updating", "targetVersion": "0.4.0"}', encoding="utf-8")
+
+    launcher = run.BootstrappedLauncher(target="all", dev=False, ipc_dir=str(ipc_dir))
+    mocker.patch.object(launcher, "_check_dependencies")
+    mocker.patch.object(launcher, "_bootstrap_backend", return_value="python")
+    mocker.patch.object(launcher, "_bootstrap_fonts")
+    mocker.patch.object(launcher, "_ensure_frontend_build")
+    mocker.patch.object(launcher, "_bootstrap_node_project")
+    mocker.patch.object(launcher, "_setup_remotion_browser")
+
+    mock_coordinator = mocker.MagicMock()
+    mock_coordinator.run_loop.side_effect = KeyboardInterrupt
+    mocker.patch("run.ServiceCoordinator", return_value=mock_coordinator)
+
+    launcher.run()
+
+    recovered = json.loads(status_file.read_text(encoding="utf-8"))
+    assert recovered["state"] == "failed"
+    assert recovered["rolledBack"] is False
+    assert "interrupted" in recovered["error"].lower()
 
 
 
