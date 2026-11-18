@@ -23,6 +23,7 @@ For specific guidelines, see:
 For core workflow rules that are automatically loaded and enforced:
 - [GitHub / Git Workflow Rules](.agents/rules/github-workflow-rules.md)
 - [RTK Command Proxy Rules](.agents/rules/antigravity-rtk-rules.md)
+- [UI Skills Workflow Rules](.agents/rules/ui-skills-workflow.md) — mandatory 3-step pipeline (`frontend-design` → `ui-ux-pro-max` → `antislop`) for UI/frontend design, layout, styling, or UX review tasks
 
 ## Agent skills
 
