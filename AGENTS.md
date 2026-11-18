@@ -28,7 +28,7 @@ For core workflow rules that are automatically loaded and enforced:
 
 ### Issue tracker
 
-Issues and PRDs for this repo live as GitHub issues. See [issue-tracker.md](file:///Users/gitkyla/Documents/Codes/yonru.clip/docs/agents/issue-tracker.md).
+Issues and specs for this repo live as GitHub issues. See [issue-tracker.md](file:///Users/gitkyla/Documents/Codes/yonru.clip/docs/agents/issue-tracker.md).
 
 ### Triage labels
 
@@ -36,5 +36,5 @@ Canonical triage roles mapped 1:1 to repo labels (`needs-triage`, `needs-info`, 
 
 ### Domain docs
 
-Single-context repository layout (`CONTEXT.md` + `docs/adr/`). See [domain.md](file:///Users/gitkyla/Documents/Codes/yonru.clip/docs/agents/domain.md).
+Single-context repository layout (`GLOSSARY.md` + `docs/adr/`). See [domain.md](file:///Users/gitkyla/Documents/Codes/yonru.clip/docs/agents/domain.md).
 

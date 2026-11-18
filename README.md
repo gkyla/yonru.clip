@@ -134,7 +134,7 @@ yonru.clip/
 ```
 
 For complete architectural patterns, state management rules, and ADRs:
-- [Domain Model & Canonical Glossary](CONTEXT.md)
+- [Domain Model & Canonical Glossary](GLOSSARY.md)
 - [Architecture Decision Records (ADRs)](docs/adr/)
 - [Internal Architecture Guidelines](.agents/instructions/architecture.md)
 
