@@ -403,6 +403,198 @@ def test_bootstrap_node_project_npm_clears_stale_bun_lock_and_vite_cache(mocker,
     assert not (node_modules / ".cache" / "vite").exists()
 
 
+def test_bootstrap_node_project_skips_reinstall_on_package_metadata_edits_while_frontend_build_hash_updates(mocker, tmp_path):
+    """Verify version/script/formatting edits do not trigger package install, while frontend build hash still updates."""
+    import json
+
+    mocker.patch("run.log_system")
+    mock_sub_run = mocker.patch("run.subprocess.run")
+
+    target_dir = tmp_path / "frontend"
+    node_modules = target_dir / "node_modules"
+    node_modules.mkdir(parents=True)
+    pkg_json = target_dir / "package.json"
+    pkg_json.write_text(
+        json.dumps(
+            {
+                "name": "frontend",
+                "version": "0.3.0",
+                "scripts": {"dev": "nuxt dev"},
+                "dependencies": {"vue": "^3.5.0"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (target_dir / "package-lock.json").write_text('{"lockfileVersion": 3}', encoding="utf-8")
+
+    launcher = run.BootstrappedLauncher(target="frontend")
+    mocker.patch.object(launcher, "_find_bun", return_value="/usr/local/bin/bun")
+
+    launcher._bootstrap_node_project(str(target_dir), "Frontend")
+    assert mock_sub_run.call_count == 1
+    initial_build_hash = launcher._compute_frontend_hash(str(target_dir))
+
+    # Simulate release version bump, scripts tweak, and key-order/whitespace formatting change
+    pkg_json.write_text(
+        json.dumps(
+            {
+                "dependencies": {"vue": "^3.5.0"},
+                "scripts": {"dev": "nuxt dev", "lint": "eslint ."},
+                "version": "0.3.1",
+                "name": "frontend",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    launcher._bootstrap_node_project(str(target_dir), "Frontend")
+    assert mock_sub_run.call_count == 1
+    assert launcher._compute_frontend_hash(str(target_dir)) != initial_build_hash
+
+
+def test_bootstrap_node_project_bun_clears_stale_bun_locks_before_install_when_package_lock_exists(mocker, tmp_path):
+    """Verify stale bun.lock/bun.lockb are removed before bun install when package-lock.json exists so Bun re-migrates."""
+    mocker.patch("run.log_system")
+
+    target_dir = tmp_path / "frontend"
+    target_dir.mkdir(parents=True)
+    (target_dir / "package.json").write_text('{"dependencies": {"@nuxt/content": "^3.16.2"}}', encoding="utf-8")
+    tracked_lock = target_dir / "package-lock.json"
+    tracked_lock.write_text('{"lockfileVersion": 3}', encoding="utf-8")
+    stale_bun_lock = target_dir / "bun.lock"
+    stale_bun_lock.write_text('{"stale": true}', encoding="utf-8")
+    stale_bun_lockb = target_dir / "bun.lockb"
+    stale_bun_lockb.write_bytes(b"stale-binary-lock")
+
+    observed_during_install = {}
+
+    def fake_bun_install(cmd, **kwargs):
+        observed_during_install["cmd"] = cmd
+        observed_during_install["bun_lock_exists"] = stale_bun_lock.exists()
+        observed_during_install["bun_lockb_exists"] = stale_bun_lockb.exists()
+        observed_during_install["package_lock_exists"] = tracked_lock.exists()
+        stale_bun_lock.write_text('{"migrated": true}', encoding="utf-8")
+
+    mocker.patch("run.subprocess.run", side_effect=fake_bun_install)
+
+    launcher = run.BootstrappedLauncher(target="frontend")
+    mocker.patch.object(launcher, "_find_bun", return_value="/usr/local/bin/bun")
+    launcher._bootstrap_node_project(str(target_dir), "Frontend")
+
+    assert observed_during_install == {
+        "cmd": ["/usr/local/bin/bun", "install"],
+        "bun_lock_exists": False,
+        "bun_lockb_exists": False,
+        "package_lock_exists": True,
+    }
+    assert tracked_lock.is_file()
+    assert stale_bun_lock.read_text(encoding="utf-8") == '{"migrated": true}'
+
+
+def test_bootstrap_node_project_restores_bun_lock_on_install_failure(mocker, tmp_path):
+    """Verify prior bun.lock is restored and .deps.hash stays unwritten if bun install fails (e.g., offline)."""
+    import subprocess
+
+    mocker.patch("run.log_system")
+
+    target_dir = tmp_path / "frontend"
+    node_modules = target_dir / "node_modules"
+    node_modules.mkdir(parents=True)
+    (target_dir / "package.json").write_text('{"dependencies": {"vue": "^3.5.0"}}', encoding="utf-8")
+    (target_dir / "package-lock.json").write_text('{"lockfileVersion": 3}', encoding="utf-8")
+    bun_lock = target_dir / "bun.lock"
+    bun_lock.write_text('{"previous": true}', encoding="utf-8")
+
+    mocker.patch(
+        "run.subprocess.run",
+        side_effect=subprocess.CalledProcessError(1, ["bun", "install"], stderr="offline"),
+    )
+
+    launcher = run.BootstrappedLauncher(target="frontend")
+    mocker.patch.object(launcher, "_find_bun", return_value="/usr/local/bin/bun")
+
+    with pytest.raises(subprocess.CalledProcessError):
+        launcher._bootstrap_node_project(str(target_dir), "Frontend")
+
+    assert bun_lock.read_text(encoding="utf-8") == '{"previous": true}'
+    assert not (node_modules / ".deps.hash").exists()
+
+
+def test_bootstrap_node_project_preserves_bun_lock_when_package_lock_absent(mocker, tmp_path):
+    """Verify existing bun.lock is kept before bun install when no package-lock.json exists."""
+    mocker.patch("run.log_system")
+
+    target_dir = tmp_path / "pkg"
+    target_dir.mkdir(parents=True)
+    (target_dir / "package.json").write_text('{"dependencies": {"vue": "^3.5.0"}}', encoding="utf-8")
+    bun_lock = target_dir / "bun.lock"
+    bun_lock.write_text('{"keep": true}', encoding="utf-8")
+
+    observed = {}
+
+    def fake_bun_install(cmd, **kwargs):
+        observed["bun_lock_exists"] = bun_lock.exists()
+
+    mocker.patch("run.subprocess.run", side_effect=fake_bun_install)
+
+    launcher = run.BootstrappedLauncher(target="frontend")
+    mocker.patch.object(launcher, "_find_bun", return_value="/usr/local/bin/bun")
+    launcher._bootstrap_node_project(str(target_dir), "Pkg")
+
+    assert observed["bun_lock_exists"] is True
+
+
+def test_compute_node_deps_hash_detects_lockfile_dev_deps_and_malformed_manifest(tmp_path):
+    """Verify _compute_node_deps_hash reacts to devDependencies, overrides, package-lock.json, and malformed JSON."""
+    import json
+
+    target_dir = tmp_path / "frontend"
+    target_dir.mkdir(parents=True)
+    pkg_json = target_dir / "package.json"
+    pkg_lock = target_dir / "package-lock.json"
+
+    pkg_json.write_text(
+        json.dumps({"version": "0.3.0", "dependencies": {"vue": "^3.5.0"}, "devDependencies": {"vitest": "^3.0.5"}}),
+        encoding="utf-8",
+    )
+    pkg_lock.write_text('{"lockfileVersion": 3, "packages": {"a": "1.0.0"}}', encoding="utf-8")
+    h_base = run.BootstrappedLauncher._compute_node_deps_hash(str(target_dir))
+
+    # devDependencies update must change hash
+    pkg_json.write_text(
+        json.dumps({"version": "0.3.0", "dependencies": {"vue": "^3.5.0"}, "devDependencies": {"vitest": "^3.1.0"}}),
+        encoding="utf-8",
+    )
+    h_dev = run.BootstrappedLauncher._compute_node_deps_hash(str(target_dir))
+    assert h_dev != h_base
+
+    # overrides addition must change hash
+    pkg_json.write_text(
+        json.dumps(
+            {
+                "version": "0.3.0",
+                "dependencies": {"vue": "^3.5.0"},
+                "devDependencies": {"vitest": "^3.1.0"},
+                "overrides": {"cookie": "1.0.2"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    h_overrides = run.BootstrappedLauncher._compute_node_deps_hash(str(target_dir))
+    assert h_overrides != h_dev
+
+    # package-lock.json change alone must change hash
+    pkg_lock.write_text('{"lockfileVersion": 3, "packages": {"a": "1.0.1"}}', encoding="utf-8")
+    h_lock = run.BootstrappedLauncher._compute_node_deps_hash(str(target_dir))
+    assert h_lock != h_overrides
+
+    # Malformed JSON must fall back cleanly to raw bytes without raising
+    pkg_json.write_text("{broken json", encoding="utf-8")
+    h_broken = run.BootstrappedLauncher._compute_node_deps_hash(str(target_dir))
+    assert len(h_broken) == 64
+
+
 def test_bootstrap_backend_opportunistic_uv(mocker):
     """Verify that _bootstrap_backend uses uv pip install when uv is available."""
     mocker.patch("run.log_system")
