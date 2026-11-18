@@ -10,6 +10,7 @@ import time
 import signal
 import hashlib
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -855,21 +856,62 @@ class BootstrappedLauncher:
             except Exception as e:
                 log_error(f"Failed to copy fonts to shared/remotion: {e}")
 
-    @staticmethod
-    def _compute_node_deps_hash(directory: str) -> str:
-        """Compute deterministic SHA-256 hash of tracked Node manifest files in directory."""
+    _BUN_LOCK_FILENAMES = ("bun.lock", "bun.lockb")
+
+    _NODE_DEP_MANIFEST_KEYS = (
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+        "peerDependenciesMeta",
+        "bundledDependencies",
+        "bundleDependencies",
+        "overrides",
+        "resolutions",
+        "workspaces",
+        "trustedDependencies",
+        "patchedDependencies",
+        "catalog",
+        "catalogs",
+    )
+
+    @classmethod
+    def _read_node_dep_manifest_bytes(cls, fpath: str) -> bytes:
+        """Extract canonical dependency fields from package.json, falling back to raw bytes."""
+        try:
+            with open(fpath, "rb") as f:
+                raw = f.read()
+        except OSError:
+            return b""
+        try:
+            parsed = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return raw
+        if not isinstance(parsed, dict):
+            return raw
+        deps_only = {k: parsed[k] for k in cls._NODE_DEP_MANIFEST_KEYS if k in parsed}
+        return json.dumps(deps_only, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+
+    @classmethod
+    def _compute_node_deps_hash(cls, directory: str) -> str:
+        """Compute deterministic SHA-256 hash of dependency specs and package-lock.json."""
         hasher = hashlib.sha256()
+        hasher.update(b"node-deps-v2\0")
         found = False
         for fname in ("package.json", "package-lock.json"):
             fpath = os.path.join(directory, fname)
-            if os.path.isfile(fpath):
-                found = True
-                hasher.update(fname.encode("utf-8"))
-                try:
-                    with open(fpath, "rb") as f:
-                        hasher.update(f.read())
-                except Exception:
-                    pass
+            if not os.path.isfile(fpath):
+                continue
+            found = True
+            hasher.update(fname.encode("utf-8"))
+            if fname == "package.json":
+                hasher.update(cls._read_node_dep_manifest_bytes(fpath))
+                continue
+            try:
+                with open(fpath, "rb") as f:
+                    hasher.update(f.read())
+            except OSError:
+                pass
         return hasher.hexdigest() if found else ""
 
     @staticmethod
@@ -881,6 +923,40 @@ class BootstrappedLauncher:
         ):
             if os.path.isdir(cache_dir):
                 shutil.rmtree(cache_dir, ignore_errors=True)
+
+    @classmethod
+    @contextmanager
+    def _aligned_bun_lock_migration(cls, directory: str, *, enabled: bool):
+        """Remove stale bun locks before bun install when package-lock.json exists, restoring on failure."""
+        if not enabled or not os.path.isfile(os.path.join(directory, "package-lock.json")):
+            yield
+            return
+
+        # Bun ignores package-lock.json whenever bun.lock already sits on disk, so
+        # clear stale bun locks beforehand to force fresh migration from package-lock.json.
+        stashed: dict[str, bytes] = {}
+        for lock_name in cls._BUN_LOCK_FILENAMES:
+            lock_path = os.path.join(directory, lock_name)
+            if not os.path.isfile(lock_path):
+                continue
+            try:
+                with open(lock_path, "rb") as f:
+                    stashed[lock_path] = f.read()
+            except OSError:
+                pass
+            _remove_file_if_exists(lock_path)
+
+        try:
+            yield
+        except Exception:
+            for lock_path, content in stashed.items():
+                if not os.path.exists(lock_path):
+                    try:
+                        with open(lock_path, "wb") as f:
+                            f.write(content)
+                    except OSError:
+                        pass
+            raise
 
     @classmethod
     def _reconcile_node_package_caches(
@@ -900,10 +976,7 @@ class BootstrappedLauncher:
         npm_hidden_lock = os.path.join(node_modules, ".package-lock.json")
         bun_locks = [
             path
-            for path in (
-                os.path.join(directory, "bun.lock"),
-                os.path.join(directory, "bun.lockb"),
-            )
+            for path in (os.path.join(directory, name) for name in cls._BUN_LOCK_FILENAMES)
             if os.path.isfile(path)
         ]
 
@@ -965,7 +1038,8 @@ class BootstrappedLauncher:
         else:
             log_system(f"Installing packages for {name} via npm (tip: install Bun for 10x faster installs)...")
             cmd = ["npm", "install"]
-        subprocess.run(cmd, cwd=directory, shell=IS_WIN, check=True)
+        with self._aligned_bun_lock_migration(directory, enabled=bool(bun_bin)):
+            subprocess.run(cmd, cwd=directory, shell=IS_WIN, check=True)
         self._reconcile_node_package_caches(
             directory, node_modules, installed_with_bun=bool(bun_bin)
         )
