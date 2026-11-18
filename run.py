@@ -872,6 +872,72 @@ class BootstrappedLauncher:
                     pass
         return hasher.hexdigest() if found else ""
 
+    @staticmethod
+    def _clear_vite_caches(node_modules: str) -> None:
+        """Delete Vite pre-bundle caches so Vite rebuilds deps and rotates browserHash."""
+        for cache_dir in (
+            os.path.join(node_modules, ".cache", "vite"),
+            os.path.join(node_modules, ".vite"),
+        ):
+            if os.path.isdir(cache_dir):
+                shutil.rmtree(cache_dir, ignore_errors=True)
+
+    @classmethod
+    def _reconcile_node_package_caches(
+        cls,
+        directory: str,
+        node_modules: str,
+        *,
+        installed_with_bun: bool | None = None,
+    ) -> None:
+        """Keep one active internal lockfile and clear stale Vite caches after package updates.
+
+        `npm run dev` sets `npm_config_user_agent=npm/...`, which makes Vite read
+        `node_modules/.package-lock.json` before `bun.lock`. Removing the older
+        lockfile and Vite cache forces Vite to recompute `browserHash` so browsers
+        do not pair fresh `.vue` files with old immutable-cached JS chunks.
+        """
+        npm_hidden_lock = os.path.join(node_modules, ".package-lock.json")
+        bun_locks = [
+            path
+            for path in (
+                os.path.join(directory, "bun.lock"),
+                os.path.join(directory, "bun.lockb"),
+            )
+            if os.path.isfile(path)
+        ]
+
+        if installed_with_bun is True:
+            _remove_file_if_exists(npm_hidden_lock)
+            cls._clear_vite_caches(node_modules)
+            return
+
+        if installed_with_bun is False:
+            for bun_lock in bun_locks:
+                _remove_file_if_exists(bun_lock)
+            cls._clear_vite_caches(node_modules)
+            return
+
+        has_npm_lock = os.path.isfile(npm_hidden_lock)
+        if has_npm_lock and bun_locks:
+            npm_mtime = os.path.getmtime(npm_hidden_lock)
+            bun_mtime = max(os.path.getmtime(p) for p in bun_locks)
+            if bun_mtime >= npm_mtime:
+                _remove_file_if_exists(npm_hidden_lock)
+            else:
+                for bun_lock in bun_locks:
+                    _remove_file_if_exists(bun_lock)
+            cls._clear_vite_caches(node_modules)
+            return
+
+        vite_metadata = os.path.join(
+            node_modules, ".cache", "vite", "client", "deps", "_metadata.json"
+        )
+        if os.path.isfile(vite_metadata):
+            active_locks = ([npm_hidden_lock] if has_npm_lock else []) + bun_locks
+            if active_locks and max(os.path.getmtime(p) for p in active_locks) > os.path.getmtime(vite_metadata):
+                cls._clear_vite_caches(node_modules)
+
     def _bootstrap_node_project(self, directory, name):
         node_modules = os.path.join(directory, "node_modules")
         sentinel_file = os.path.join(node_modules, ".deps.hash")
@@ -889,6 +955,7 @@ class BootstrappedLauncher:
             bool(current_hash) and current_hash != stored_hash
         )
         if not need_install:
+            self._reconcile_node_package_caches(directory, node_modules)
             return
 
         bun_bin = self._find_bun()
@@ -899,6 +966,9 @@ class BootstrappedLauncher:
             log_system(f"Installing packages for {name} via npm (tip: install Bun for 10x faster installs)...")
             cmd = ["npm", "install"]
         subprocess.run(cmd, cwd=directory, shell=IS_WIN, check=True)
+        self._reconcile_node_package_caches(
+            directory, node_modules, installed_with_bun=bool(bun_bin)
+        )
 
         if current_hash and os.path.isdir(node_modules):
             try:
