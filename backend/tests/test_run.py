@@ -314,6 +314,95 @@ def test_bootstrap_node_project_reinstalls_when_deps_hash_changes_and_skips_when
     assert sentinel.read_text(encoding="utf-8").strip() != first_hash
 
 
+def test_bootstrap_node_project_bun_clears_stale_npm_lock_and_vite_cache(mocker, tmp_path):
+    """Verify bun install removes stale node_modules/.package-lock.json and Vite caches without deleting tracked package-lock.json."""
+    mocker.patch("run.log_system")
+    mocker.patch("run.subprocess.run")
+
+    target_dir = tmp_path / "frontend"
+    node_modules = target_dir / "node_modules"
+    vite_cache = node_modules / ".cache" / "vite" / "client" / "deps"
+    vite_dot = node_modules / ".vite"
+    vite_cache.mkdir(parents=True)
+    vite_dot.mkdir(parents=True)
+    (vite_cache / "_metadata.json").write_text('{"browserHash":"dbb4ac25"}', encoding="utf-8")
+    (target_dir / "package.json").write_text('{"dependencies": {"@nuxt/content": "^3.16.2"}}', encoding="utf-8")
+    tracked_lock = target_dir / "package-lock.json"
+    tracked_lock.write_text('{"lockfileVersion": 3}', encoding="utf-8")
+    hidden_npm_lock = node_modules / ".package-lock.json"
+    hidden_npm_lock.write_text('{"lockfileVersion": 3}', encoding="utf-8")
+
+    launcher = run.BootstrappedLauncher(target="frontend")
+    mocker.patch.object(launcher, "_find_bun", return_value="/usr/local/bin/bun")
+    launcher._bootstrap_node_project(str(target_dir), "Frontend")
+
+    assert tracked_lock.is_file()
+    assert not hidden_npm_lock.exists()
+    assert not (node_modules / ".cache" / "vite").exists()
+    assert not vite_dot.exists()
+
+
+def test_bootstrap_node_project_reconciles_stale_caches_even_when_deps_hash_matches(mocker, tmp_path):
+    """Verify stale npm hidden lock and Vite cache are cleared when bun.lock is newer, even if .deps.hash matches."""
+    mocker.patch("run.log_system")
+    mock_sub_run = mocker.patch("run.subprocess.run")
+
+    target_dir = tmp_path / "frontend"
+    node_modules = target_dir / "node_modules"
+    vite_cache = node_modules / ".cache" / "vite" / "client" / "deps"
+    vite_cache.mkdir(parents=True)
+    metadata_file = vite_cache / "_metadata.json"
+    metadata_file.write_text('{"browserHash":"dbb4ac25"}', encoding="utf-8")
+    (target_dir / "package.json").write_text('{"version": "0.3.0"}', encoding="utf-8")
+    (target_dir / "package-lock.json").write_text('{"lockfileVersion": 3}', encoding="utf-8")
+
+    launcher = run.BootstrappedLauncher(target="frontend")
+    (node_modules / ".deps.hash").write_text(
+        launcher._compute_node_deps_hash(str(target_dir)), encoding="utf-8"
+    )
+
+    hidden_npm_lock = node_modules / ".package-lock.json"
+    hidden_npm_lock.write_text('{"lockfileVersion": 3}', encoding="utf-8")
+    bun_lock = target_dir / "bun.lock"
+    bun_lock.write_text('{"lockfileVersion": 2}', encoding="utf-8")
+
+    # Simulate older .package-lock.json and older Vite metadata vs newer bun.lock
+    os.utime(hidden_npm_lock, (1000, 1000))
+    os.utime(metadata_file, (1500, 1500))
+    os.utime(bun_lock, (2000, 2000))
+
+    mocker.patch.object(launcher, "_find_bun", return_value="/usr/local/bin/bun")
+    launcher._bootstrap_node_project(str(target_dir), "Frontend")
+
+    assert mock_sub_run.call_count == 0
+    assert not hidden_npm_lock.exists()
+    assert not (node_modules / ".cache" / "vite").exists()
+
+
+def test_bootstrap_node_project_npm_clears_stale_bun_lock_and_vite_cache(mocker, tmp_path):
+    """Verify npm install fallback removes stale bun.lock and Vite cache while keeping tracked package-lock.json."""
+    mocker.patch("run.log_system")
+    mocker.patch("run.subprocess.run")
+
+    target_dir = tmp_path / "frontend"
+    node_modules = target_dir / "node_modules"
+    vite_cache = node_modules / ".cache" / "vite" / "client" / "deps"
+    vite_cache.mkdir(parents=True)
+    (target_dir / "package.json").write_text('{"dependencies": {"vue": "^3.5.0"}}', encoding="utf-8")
+    tracked_lock = target_dir / "package-lock.json"
+    tracked_lock.write_text('{"lockfileVersion": 3}', encoding="utf-8")
+    stale_bun_lock = target_dir / "bun.lock"
+    stale_bun_lock.write_text('{"lockfileVersion": 2}', encoding="utf-8")
+
+    launcher = run.BootstrappedLauncher(target="frontend")
+    mocker.patch.object(launcher, "_find_bun", return_value=None)
+    launcher._bootstrap_node_project(str(target_dir), "Frontend")
+
+    assert tracked_lock.is_file()
+    assert not stale_bun_lock.exists()
+    assert not (node_modules / ".cache" / "vite").exists()
+
+
 def test_bootstrap_backend_opportunistic_uv(mocker):
     """Verify that _bootstrap_backend uses uv pip install when uv is available."""
     mocker.patch("run.log_system")
