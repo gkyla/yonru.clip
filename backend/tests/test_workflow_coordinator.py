@@ -690,7 +690,7 @@ def test_load_ready_clip_success(mock_dependencies, tmp_path):
         "fps": 30.0,
         "duration": 120.0
     }
-    mock_dependencies["asset_repository"].get_video_duration.return_value = 15.0
+    mock_dependencies["asset_repository"].transcoder.probe_video.return_value = MagicMock(duration=15.0)
 
     clip_dir = clips_dir / "vid_folder_1" / "10_25_awesome_clip"
     clip_dir.mkdir(parents=True)

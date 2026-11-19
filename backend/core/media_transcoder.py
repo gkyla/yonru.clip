@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 import os
 import sys
 import subprocess
+import threading
 import json
 import re
 from typing import Optional, Dict, Any, List, Tuple
@@ -173,6 +175,8 @@ class MediaTranscoder:
     screenshot extraction, video cutting, and audio extraction behind a single cohesive seam.
     """
 
+    _PROBE_CACHE_MAX_SIZE = 2048
+
     def __init__(
         self,
         adapter: Optional[MediaProcessAdapter] = None,
@@ -183,6 +187,41 @@ class MediaTranscoder:
         else:
             self.adapter = SubprocessMediaAdapter(config_store=config_store)
         self.config_store = config_store
+        self._probe_lock = threading.RLock()
+        self._probe_cache: OrderedDict[Tuple[str, int, int], MediaSpecs] = OrderedDict()
+
+    def invalidate_probe_cache(self, file_path: Optional[str] = None) -> None:
+        """Invalidate cached probe results for one path or clear the entire cache."""
+        with self._probe_lock:
+            if file_path is None:
+                self._probe_cache.clear()
+                return
+            abs_path = os.path.abspath(file_path)
+            stale_keys = [k for k in self._probe_cache if k[0] == abs_path]
+            for k in stale_keys:
+                del self._probe_cache[k]
+
+    @staticmethod
+    def _parse_fps(raw_fps: Any) -> Optional[float]:
+        """Parse an ffprobe rational or numeric frame-rate value."""
+        if not raw_fps:
+            return None
+        fps_str = str(raw_fps).strip()
+        if "/" in fps_str:
+            try:
+                num_s, den_s = fps_str.split("/", 1)
+                den = float(den_s)
+                if den > 0:
+                    val = float(num_s) / den
+                    return val if val > 0 else None
+            except Exception:
+                return None
+            return None
+        try:
+            val = float(fps_str)
+            return val if val > 0 else None
+        except Exception:
+            return None
 
     def run_ffmpeg(self, args: List[str]) -> bool:
         """Executes raw FFmpeg argument list with unified error sanitization."""
@@ -192,9 +231,24 @@ class MediaTranscoder:
         """
         Inspects video file via ffprobe and returns typed MediaSpecs DTO
         containing duration, resolution width/height, and fps.
+        Caches results in memory keyed by (abspath, mtime_ns, size) when stat succeeds.
         """
         if not file_path:
             return MediaSpecs()
+
+        cache_key: Optional[Tuple[str, int, int]] = None
+        try:
+            st = os.stat(file_path)
+            cache_key = (os.path.abspath(file_path), st.st_mtime_ns, st.st_size)
+        except OSError:
+            cache_key = None
+
+        if cache_key is not None:
+            with self._probe_lock:
+                cached = self._probe_cache.get(cache_key)
+                if cached is not None:
+                    self._probe_cache.move_to_end(cache_key)
+                    return cached
 
         info = self.adapter.ffprobe_info(file_path)
         duration = 0.0
@@ -206,19 +260,12 @@ class MediaTranscoder:
             if stream.get("codec_type") == "video":
                 width = int(stream.get("width") or 0)
                 height = int(stream.get("height") or 0)
-                r_fps = stream.get("r_frame_rate")
-                if r_fps and "/" in str(r_fps):
-                    try:
-                        num, den = str(r_fps).split("/")
-                        if float(den) > 0:
-                            fps = float(num) / float(den)
-                    except Exception:
-                        fps = 30.0
-                elif r_fps:
-                    try:
-                        fps = float(r_fps)
-                    except Exception:
-                        fps = 30.0
+                parsed_fps = (
+                    self._parse_fps(stream.get("r_frame_rate"))
+                    or self._parse_fps(stream.get("avg_frame_rate"))
+                )
+                if parsed_fps is not None:
+                    fps = parsed_fps
 
                 s_dur = stream.get("duration")
                 if s_dur:
@@ -236,12 +283,21 @@ class MediaTranscoder:
                 except Exception:
                     pass
 
-        return MediaSpecs(
+        specs = MediaSpecs(
             duration=round(duration, 3),
             width=width,
             height=height,
             fps=round(fps, 2)
         )
+
+        if cache_key is not None:
+            with self._probe_lock:
+                self._probe_cache[cache_key] = specs
+                self._probe_cache.move_to_end(cache_key)
+                while len(self._probe_cache) > self._PROBE_CACHE_MAX_SIZE:
+                    self._probe_cache.popitem(last=False)
+
+        return specs
 
     def get_video_duration(self, file_path: str) -> float:
         """Returns video duration in seconds."""

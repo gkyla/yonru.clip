@@ -4,6 +4,7 @@ import tempfile
 from unittest.mock import MagicMock
 import pytest
 from core.clip_session_store import ClipSessionStore
+from core.media_transcoder import FakeMediaAdapter, MediaSpecs, MediaTranscoder
 
 def test_path_traversal_detection():
     """Verify that path traversal attempts in folder_name or clip_id raise ValueError."""
@@ -362,7 +363,9 @@ def test_list_all_and_ready_clips():
     """Verify list_all_clips and list_ready_clips scan directory and auto-heal manifests."""
     with tempfile.TemporaryDirectory() as temp_dir:
         clips_dir = os.path.join(temp_dir, "clips")
-        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+        adapter = FakeMediaAdapter()
+        transcoder = MediaTranscoder(adapter=adapter)
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, media_transcoder=transcoder)
 
         # Create two ready clips in different folders
         c1_dir = os.path.join(clips_dir, "folder_a", "10_20_hook_a")
@@ -370,11 +373,13 @@ def test_list_all_and_ready_clips():
         os.makedirs(c1_dir, exist_ok=True)
         os.makedirs(c2_dir, exist_ok=True)
 
-        open(os.path.join(c1_dir, "video.mp4"), "w").close()
-        open(os.path.join(c2_dir, "video.mp4"), "w").close()
+        v1 = os.path.join(c1_dir, "video.mp4")
+        v2 = os.path.join(c2_dir, "video.mp4")
+        open(v1, "w").close()
+        open(v2, "w").close()
 
-        # Mock duration function directly on store/transcoder seam
-        store.get_video_duration = lambda file_path: 10.0 if "10_20" in file_path else 15.0
+        adapter.probe_overrides[v1] = {"format": {"duration": "10.0"}, "streams": []}
+        adapter.probe_overrides[v2] = {"format": {"duration": "15.0"}, "streams": []}
 
         all_clips = store.list_all_clips()
         assert len(all_clips) == 2
@@ -389,38 +394,37 @@ def test_list_all_and_ready_clips():
 
 
 def test_clip_session_store_media_delegations():
-    """Verify ClipSessionStore media probing and screenshotting delegate directly to internal methods without leaky callbacks."""
+    """Verify ClipSessionStore media probing and screenshotting delegate directly to MediaTranscoder."""
     with tempfile.TemporaryDirectory() as temp_dir:
         clips_dir = os.path.join(temp_dir, "clips")
         mock_transcoder = MagicMock()
-        mock_transcoder.get_video_duration.return_value = 18.5
+        mock_transcoder.probe_video.return_value = MediaSpecs(duration=18.5)
         mock_transcoder.capture_screenshot.return_value = True
 
         store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, media_transcoder=mock_transcoder)
 
-        # 1. get_video_duration delegates directly to transcoder
-        dummy_video = os.path.join(temp_dir, "test.mp4")
-        open(dummy_video, "w").close()
-        dur = store.get_video_duration(dummy_video)
-        assert dur == 18.5
-        mock_transcoder.get_video_duration.assert_called_once_with(dummy_video)
-
-        # 2. ensure_clip_defaults generates thumbnail via extract_clip_screenshot directly
+        # 1. ensure_clip_defaults generates thumbnail via extract_clip_screenshot directly
         clip_dir = os.path.join(clips_dir, "f1", "c1")
         os.makedirs(clip_dir, exist_ok=True)
         clip_vid = os.path.join(clip_dir, "video.mp4")
         open(clip_vid, "w").close()
 
-        store.ensure_clip_defaults("f1", "c1")
+        # 2. list_all_clips delegates duration probe directly to transcoder.probe_video
+        clips = store.list_all_clips()
+        assert len(clips) == 1
+        assert clips[0]["duration"] == 18.5
+        mock_transcoder.probe_video.assert_called_once_with(clip_vid)
         mock_transcoder.capture_screenshot.assert_called_with(
             clip_vid, 0.0, os.path.join(clip_dir, "thumbnail.jpg")
         )
 
-        # 3. extract_cover_frame captures cover image directly
+        # 3. extract_cover_frame captures cover image and clamps timestamp via probe_video
+        mock_transcoder.probe_video.reset_mock()
         mock_transcoder.capture_screenshot.reset_mock()
         res = store.extract_cover_frame("f1", "c1", timestamp=12.0)
         assert res["status"] == "ok"
         assert res["timestamp"] == 12.0
+        mock_transcoder.probe_video.assert_called_once_with(clip_vid)
         mock_transcoder.capture_screenshot.assert_called_once_with(
             clip_vid, 12.0, os.path.join(clip_dir, "cover.jpg")
         )
@@ -604,7 +608,8 @@ def test_extract_cover_frame():
     """Verify extract_cover_frame extracts custom frame, clamps timestamp, and leaves thumbnail intact."""
     with tempfile.TemporaryDirectory() as temp_dir:
         clips_dir = os.path.join(temp_dir, "clips")
-        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+        transcoder = MediaTranscoder(adapter=FakeMediaAdapter(default_duration=20.0))
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, media_transcoder=transcoder)
 
         clip_dir = os.path.join(clips_dir, "folder_2", "clip_2")
         os.makedirs(clip_dir, exist_ok=True)
@@ -616,8 +621,6 @@ def test_extract_cover_frame():
         thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
         with open(thumb_path, "w") as f:
             f.write("initial thumbnail")
-
-        store.get_video_duration = lambda file_path: 20.0
 
         ffmpeg_calls = []
         def mock_run_ffmpeg(args):

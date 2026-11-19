@@ -600,15 +600,15 @@ class RenderEngine(ABC):
 
         w, h = 0, 0
         transcoder = media_transcoder or getattr(self, "media_transcoder", None)
-        if transcoder and hasattr(transcoder, "get_video_resolution"):
+        if transcoder and hasattr(transcoder, "probe_video"):
             try:
-                w, h = transcoder.get_video_resolution(video_path)
+                specs = transcoder.probe_video(video_path)
+                w, h = specs.width, specs.height
             except Exception:
                 w, h = 0, 0
-
-        if (w <= 0 or h <= 0) and asset_repository and hasattr(asset_repository, "get_video_resolution"):
+        elif transcoder and hasattr(transcoder, "get_video_resolution"):
             try:
-                w, h = asset_repository.get_video_resolution(video_path)
+                w, h = transcoder.get_video_resolution(video_path)
             except Exception:
                 w, h = 0, 0
 

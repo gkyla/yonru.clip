@@ -90,7 +90,7 @@ clip_session_store.audio_library_store = audio_library_repository
 
 youtube_client = YouTubeClient(cookie_path=cookie_path)
 asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store, media_transcoder=media_transcoder)
-render_engine = RemotionRenderEngine(output_dir="static/output", config_store=config_store)
+render_engine = RemotionRenderEngine(output_dir="static/output", config_store=config_store, media_transcoder=media_transcoder)
 
 speech_transcriber = FasterWhisperSpeechTranscriber(model_size="base")
 hook_discovery_engine = HookDiscoveryEngine(

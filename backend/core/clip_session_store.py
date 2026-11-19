@@ -701,7 +701,9 @@ class ClipSessionStore:
         if not os.path.exists(clip_path):
             raise ValueError(f"No clip video available at {clip_path}. Extract a clip first.")
 
-        clip_duration = float(self.get_video_duration(clip_path) or 10.0)
+        clip_duration = float(
+            (self.transcoder.probe_video(clip_path).duration if self.transcoder else 0.0) or 10.0
+        )
 
         if timestamp is not None:
             ts = max(0.0, min(float(timestamp), max(0.0, clip_duration - 0.1)))
@@ -733,7 +735,7 @@ class ClipSessionStore:
         if self.transcoder and hasattr(self.transcoder, "capture_screenshot"):
             return self.transcoder.capture_screenshot(clip_path, timestamp, output_path)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        dur = self.get_video_duration(clip_path)
+        dur = self.transcoder.probe_video(clip_path).duration if self.transcoder else 0.0
         if dur > 0:
             ts = max(0.0, min(float(timestamp), max(0.0, dur - 0.1)))
         else:
@@ -753,35 +755,30 @@ class ClipSessionStore:
             print(f"[clip_session_store] Failed to extract screenshot: {e}")
             return False
 
-    def _ffprobe_info(self, file_path: str) -> dict:
-        """Get video metadata via ffprobe."""
-        return self.transcoder.adapter.ffprobe_info(file_path)
+    # ── Ready Clips Discovery & Lifecycle ────────────────────────────
 
-    def get_video_duration(self, file_path: str) -> float:
-        """Returns video duration in seconds."""
-        if self.transcoder and hasattr(self.transcoder, "get_video_duration"):
+    def _resolve_parent_title(self, parent_name: str, title_cache: Dict[str, str]) -> str:
+        """Read and cache parent video title from metadata.json with folder-name fallback."""
+        if parent_name in title_cache:
+            return title_cache[parent_name]
+
+        title = "Unknown Clip"
+        meta_path = os.path.join(self.source_dir, parent_name, "metadata.json")
+        if os.path.exists(meta_path):
             try:
-                dur = self.transcoder.get_video_duration(file_path)
-                if dur > 0:
-                    return float(dur)
+                with open(meta_path, "r", encoding="utf-8") as mf:
+                    meta = json.load(mf)
+                    title = meta.get("title") or meta.get("raw_title") or "Unknown Clip"
             except Exception:
                 pass
-        info = self._ffprobe_info(file_path)
-        for stream in info.get("streams", []):
-            if stream.get("codec_type") == "video" and stream.get("duration"):
-                try:
-                    return float(stream["duration"])
-                except Exception:
-                    pass
-        fmt = info.get("format", {})
-        try:
-            return float(fmt.get("duration", 0))
-        except (ValueError, TypeError):
-            return 0.0
+        if title == "Unknown Clip" and "_" in parent_name:
+            raw_p = " ".join(parent_name.split("_")[:-1])
+            if raw_p.startswith("[") and "] " in raw_p:
+                raw_p = raw_p.split("] ", 1)[1]
+            title = raw_p
 
-
-
-    # ── Ready Clips Discovery & Lifecycle ────────────────────────────
+        title_cache[parent_name] = title
+        return title
 
     def list_all_clips(self) -> List[Dict[str, Any]]:
         """Scans the clips directory and returns metadata for all ready clips."""
@@ -794,6 +791,8 @@ class ClipSessionStore:
         except OSError:
             return results
 
+        title_cache: Dict[str, str] = {}
+
         for video_entry in video_entries:
             if video_entry.is_dir():
                 parent_name = video_entry.name
@@ -801,6 +800,8 @@ class ClipSessionStore:
                     clip_entries = list(os.scandir(video_entry.path))
                 except OSError:
                     continue
+
+                title = self._resolve_parent_title(parent_name, title_cache)
 
                 for clip_entry in clip_entries:
                     if not clip_entry.is_dir():
@@ -817,22 +818,7 @@ class ClipSessionStore:
                         pass
 
                     mtime = os.path.getmtime(video_path)
-                    duration = self.get_video_duration(video_path)
-
-                    title = "Unknown Clip"
-                    meta_path = os.path.join(self.source_dir, parent_name, "metadata.json")
-                    if os.path.exists(meta_path):
-                        try:
-                            with open(meta_path, "r", encoding="utf-8") as mf:
-                                meta = json.load(mf)
-                                title = meta.get("title") or meta.get("raw_title") or "Unknown Clip"
-                        except Exception:
-                            pass
-                    if title == "Unknown Clip" and "_" in parent_name:
-                        raw_p = " ".join(parent_name.split("_")[:-1])
-                        if raw_p.startswith("[") and "] " in raw_p:
-                            raw_p = raw_p.split("] ", 1)[1]
-                        title = raw_p
+                    duration = self.transcoder.probe_video(video_path).duration if self.transcoder else 0.0
 
                     theme = ""
                     start_time = 0.0

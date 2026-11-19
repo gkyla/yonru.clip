@@ -101,7 +101,7 @@ class TestRenderEngine(unittest.TestCase):
         }
 
         mock_asset_repo = MagicMock()
-        mock_asset_repo.get_video_resolution.return_value = (1920, 1080)
+        mock_asset_repo.transcoder = None
 
         with patch("os.path.exists", return_value=False):
             engine = FakeRenderEngine()
@@ -160,7 +160,7 @@ class TestRenderEngine(unittest.TestCase):
         }
 
         mock_asset_repo = MagicMock()
-        mock_asset_repo.get_video_resolution.return_value = (1920, 1080)
+        mock_asset_repo.transcoder = None
 
         with patch("os.path.exists", return_value=False):
             engine = FakeRenderEngine()
@@ -219,7 +219,7 @@ class TestRenderEngine(unittest.TestCase):
         }
 
         mock_asset_repo = MagicMock()
-        mock_asset_repo.get_video_resolution.return_value = (1920, 1080)
+        mock_asset_repo.transcoder = None
 
         # Mock result of 500 for crop tracking
         mock_tracker = MockFaceTracker(mock_result=500)
@@ -270,7 +270,7 @@ class TestRenderEngine(unittest.TestCase):
         }
 
         mock_asset_repo = MagicMock()
-        mock_asset_repo.get_video_resolution.return_value = (1920, 1080)
+        mock_asset_repo.transcoder = None
 
         cached_crop_map = [{"time": 0.0, "x": 750}, {"time": 2.5, "x": 820}]
         mock_tracker = MockFaceTracker(mock_result=500)
@@ -352,7 +352,7 @@ class TestRenderEngine(unittest.TestCase):
         }
 
         mock_asset_repo = MagicMock()
-        mock_asset_repo.get_video_resolution.return_value = (1920, 1080)
+        mock_asset_repo.transcoder = None
 
         with patch("os.path.exists", return_value=False):
             engine = FakeRenderEngine()

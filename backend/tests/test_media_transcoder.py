@@ -136,3 +136,74 @@ def test_subprocess_adapter_initialization_with_custom_ffmpeg_path(tmp_path):
     adapter = SubprocessMediaAdapter(config_store=DummyConfigStore())
     assert str(custom_bin) in adapter._env["PATH"]
 
+
+def test_probe_video_caches_repeated_probes_and_invalidates_on_file_change(tmp_path):
+    adapter = FakeMediaAdapter(default_duration=42.0, default_width=1920, default_height=1080, default_fps=30.0)
+    transcoder = MediaTranscoder(adapter=adapter)
+
+    video_file = tmp_path / "cached.mp4"
+    video_file.write_bytes(b"initial bytes")
+
+    specs1 = transcoder.probe_video(str(video_file))
+    specs2 = transcoder.probe_video(str(video_file))
+    dur = transcoder.get_video_duration(str(video_file))
+    res = transcoder.get_video_resolution(str(video_file))
+
+    assert specs1 == specs2
+    assert dur == 42.0
+    assert res == (1920, 1080)
+    probe_calls = [c for c in adapter.calls if c[0] == "ffprobe_info"]
+    assert len(probe_calls) == 1
+
+    # Modifying the file size/mtime invalidates the cache key automatically
+    video_file.write_bytes(b"updated bytes with different length")
+    adapter.probe_overrides[str(video_file)] = {
+        "streams": [{"codec_type": "video", "width": 1280, "height": 720, "avg_frame_rate": "24/1"}],
+        "format": {"duration": "99.5"}
+    }
+    specs3 = transcoder.probe_video(str(video_file))
+    assert specs3.duration == 99.5
+    assert specs3.width == 1280
+    assert specs3.height == 720
+    assert specs3.fps == 24.0
+    probe_calls = [c for c in adapter.calls if c[0] == "ffprobe_info"]
+    assert len(probe_calls) == 2
+
+    # Explicit invalidation clears entry for the path
+    transcoder.invalidate_probe_cache(str(video_file))
+    transcoder.probe_video(str(video_file))
+    probe_calls = [c for c in adapter.calls if c[0] == "ffprobe_info"]
+    assert len(probe_calls) == 3
+
+
+def test_probe_video_bypasses_cache_when_file_stat_fails():
+    adapter = FakeMediaAdapter()
+    transcoder = MediaTranscoder(adapter=adapter)
+
+    transcoder.probe_video("non_existent_virtual_path.mp4")
+    transcoder.probe_video("non_existent_virtual_path.mp4")
+    probe_calls = [c for c in adapter.calls if c[0] == "ffprobe_info"]
+    assert len(probe_calls) == 2
+
+
+def test_probe_video_falls_back_to_avg_frame_rate_when_r_frame_rate_zero(tmp_path):
+    adapter = FakeMediaAdapter()
+    video_file = tmp_path / "vfr.mp4"
+    video_file.write_bytes(b"video")
+    adapter.probe_overrides[str(video_file)] = {
+        "streams": [
+            {
+                "codec_type": "video",
+                "width": 1080,
+                "height": 1920,
+                "r_frame_rate": "0/0",
+                "avg_frame_rate": "2997/100",
+                "duration": "10.0"
+            }
+        ]
+    }
+    transcoder = MediaTranscoder(adapter=adapter)
+    specs = transcoder.probe_video(str(video_file))
+    assert specs.fps == 29.97
+
+

@@ -525,16 +525,20 @@ class ClipWorkflowCoordinator:
         job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
         
         duration = end_time - start_time
-        if hasattr(self.clip_session_store, "get_video_duration"):
+        transcoder = (
+            getattr(self.clip_session_store, "transcoder", None)
+            or getattr(self.asset_repository, "transcoder", None)
+        )
+        if transcoder and hasattr(transcoder, "probe_video"):
             try:
-                dur = self.clip_session_store.get_video_duration(clip_path)
+                dur = transcoder.probe_video(clip_path).duration
                 if dur and dur > 0:
                     duration = dur
             except Exception:
                 pass
-        elif hasattr(self.asset_repository, "get_video_duration"):
+        elif transcoder and hasattr(transcoder, "get_video_duration"):
             try:
-                dur = self.asset_repository.get_video_duration(clip_path)
+                dur = transcoder.get_video_duration(clip_path)
                 if dur and dur > 0:
                     duration = dur
             except Exception:

@@ -8,6 +8,7 @@ import json
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core.asset_repository import AssetRepository
+from core.media_transcoder import FakeMediaAdapter, MediaTranscoder
 from core.youtube_client import YouTubeClient
 
 class DummyYouTubeClient(YouTubeClient):
@@ -40,16 +41,23 @@ class TestAssetRepository(unittest.TestCase):
     def setUp(self):
         self.output_dir = "temp_test_assets"
         self.mock_client = DummyYouTubeClient()
-        self.repo = AssetRepository(output_dir=self.output_dir, youtube_client=self.mock_client)
+        self.media_adapter = FakeMediaAdapter()
+        self.transcoder = MediaTranscoder(adapter=self.media_adapter)
+        self.repo = AssetRepository(
+            output_dir=self.output_dir,
+            youtube_client=self.mock_client,
+            media_transcoder=self.transcoder
+        )
 
     def tearDown(self):
         import shutil
         if os.path.exists(self.output_dir):
             shutil.rmtree(self.output_dir)
 
-    @patch('core.asset_repository.AssetRepository._ffprobe_info')
-    def test_get_or_create_source_downloads_and_caches(self, mock_ffprobe):
-        mock_ffprobe.return_value = {
+    def test_get_or_create_source_downloads_and_caches(self):
+        source_dir = os.path.join(self.output_dir, "sources", "[Test Channel] Test_Video_Title_abc12345678")
+        full_video_path = os.path.join(source_dir, "full.mp4")
+        self.media_adapter.probe_overrides[full_video_path] = {
             "streams": [{"codec_type": "video", "width": 1920, "height": 1080, "avg_frame_rate": "30/1"}],
             "format": {"duration": "60.0"}
         }
@@ -62,10 +70,11 @@ class TestAssetRepository(unittest.TestCase):
         self.assertEqual(source["height"], 1080)
         self.assertEqual(source["duration"], 60.0)
         self.assertEqual(source["fps"], 30.0)
+        probe_calls = [c for c in self.media_adapter.calls if c[0] == "ffprobe_info"]
+        self.assertEqual(len(probe_calls), 1)
 
         # Check files were created in local output directory structure with bracket format
-        source_dir = os.path.join(self.output_dir, "sources", "[Test Channel] Test_Video_Title_abc12345678")
-        self.assertTrue(os.path.exists(os.path.join(source_dir, "full.mp4")))
+        self.assertTrue(os.path.exists(full_video_path))
         meta_file = os.path.join(source_dir, "metadata.json")
         self.assertTrue(os.path.exists(meta_file))
         with open(meta_file, "r", encoding="utf-8") as f:
@@ -103,32 +112,26 @@ class TestAssetRepository(unittest.TestCase):
 
 
     @patch('core.asset_repository.AssetRepository._generate_thumbnail')
-    @patch('core.asset_repository.AssetRepository.get_video_duration')
-    @patch('core.asset_repository.AssetRepository.get_video_resolution')
-    def test_list_cached_videos_includes_mtime(self, mock_res, mock_dur, mock_thumb):
-        mock_res.return_value = (1920, 1080)
-        mock_dur.return_value = 60.0
+    def test_list_cached_videos_includes_mtime(self, mock_thumb):
         mock_thumb.return_value = "thumb.jpg"
-        
+
         folder_name = "Test_Video_Title_abc12345678"
         folder_path = os.path.join(self.output_dir, "sources", folder_name)
         os.makedirs(folder_path, exist_ok=True)
         video_path = os.path.join(folder_path, "full.mp4")
         with open(video_path, "w") as f:
             f.write("content")
-            
+
         videos = self.repo.list_cached_videos()
         self.assertEqual(len(videos), 1)
         self.assertEqual(videos[0]["video_id"], "abc12345678")
+        self.assertEqual(videos[0]["resolution"], "1920x1080")
+        self.assertEqual(videos[0]["duration"], 60.0)
         self.assertIn("mtime", videos[0])
         self.assertIsInstance(videos[0]["mtime"], float)
 
     @patch('core.asset_repository.AssetRepository._generate_thumbnail')
-    @patch('core.asset_repository.AssetRepository.get_video_duration')
-    @patch('core.asset_repository.AssetRepository.get_video_resolution')
-    def test_list_cached_videos_search_and_pagination(self, mock_res, mock_dur, mock_thumb):
-        mock_res.return_value = (1920, 1080)
-        mock_dur.return_value = 60.0
+    def test_list_cached_videos_search_and_pagination(self, mock_thumb):
         mock_thumb.return_value = "thumb.jpg"
 
         # Create three fake source folders
@@ -143,10 +146,14 @@ class TestAssetRepository(unittest.TestCase):
         with open(alpha_meta, "w") as f:
             json.dump({"channel": "Fireship", "added_at": 1720000000.0, "title": "Alpha Video", "video_id": "aaaa1111111"}, f)
 
-        # Test search by title
+        # Verify paginated search only probes and thumbnails the matched slice
+        self.media_adapter.calls.clear()
         search_res = self.repo.list_cached_videos(page=1, limit=10, search="beta")
         self.assertEqual(search_res["total"], 1)
         self.assertEqual(search_res["videos"][0]["video_id"], "bbbb2222222")
+        probe_calls = [c for c in self.media_adapter.calls if c[0] == "ffprobe_info"]
+        self.assertEqual(len(probe_calls), 1)
+        self.assertEqual(mock_thumb.call_count, 1)
 
         # Test search by channel name
         channel_search = self.repo.list_cached_videos(page=1, limit=10, search="fireship")
@@ -223,10 +230,11 @@ class TestAssetRepository(unittest.TestCase):
         mock_res.returncode = 0
         mock_subprocess.return_value = mock_res
 
-        self.repo._run_ffmpeg(["ffmpeg", "-y", "-version"])
+        subprocess_repo = AssetRepository(output_dir=self.output_dir, youtube_client=self.mock_client)
+        subprocess_repo._run_ffmpeg(["ffmpeg", "-y", "-version"])
         self.assertEqual(mock_subprocess.call_args[0][0], ["ffmpeg", "-y", "-version"])
 
-        self.repo._run_ffmpeg(["-y", "-version"])
+        subprocess_repo._run_ffmpeg(["-y", "-version"])
         self.assertEqual(mock_subprocess.call_args[0][0], ["ffmpeg", "-y", "-version"])
 
     def test_sanitize_channel_and_filename(self):
@@ -243,11 +251,8 @@ class TestAssetRepository(unittest.TestCase):
         self.assertEqual(self.repo._sanitize_filename("   🔥✨   "), "Video")
 
     @patch('core.asset_repository.AssetRepository._generate_thumbnail')
-    @patch('core.asset_repository.AssetRepository.get_video_duration')
-    @patch('core.asset_repository.AssetRepository.get_video_resolution')
-    def test_list_cached_videos_with_bracket_format_and_raw_title(self, mock_res, mock_dur, mock_thumb):
-        mock_res.return_value = (1920, 1080)
-        mock_dur.return_value = 120.0
+    def test_list_cached_videos_with_bracket_format_and_raw_title(self, mock_thumb):
+        self.media_adapter.default_duration = 120.0
         mock_thumb.return_value = "thumb.jpg"
 
         # 1. Folder with brackets and metadata.json (with raw title containing special characters)

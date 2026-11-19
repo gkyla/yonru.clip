@@ -6,7 +6,7 @@ import json
 import uuid
 import shutil
 import time
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from abc import ABC, abstractmethod
 from core.youtube_client import YouTubeClient
 from core.media_transcoder import MediaTranscoder
@@ -92,53 +92,43 @@ class AssetRepository(AssetStore):
     def _run_ffmpeg(self, args: list) -> bool:
         return self.transcoder.run_ffmpeg(args)
 
-    def _ffprobe_info(self, file_path: str) -> dict:
-        """Get video metadata via ffprobe."""
-        return self.transcoder.adapter.ffprobe_info(file_path)
+    @staticmethod
+    def _read_source_metadata(
+        folder_path: str,
+        folder_name: str,
+        video_id: str,
+        default_added_at: Optional[float] = None
+    ) -> dict:
+        """Load title, channel, and added_at from metadata.json with folder-name fallback."""
+        title = None
+        channel = "Unknown Channel"
+        added_at = default_added_at
+        meta_path = os.path.join(folder_path, "metadata.json")
+        if os.path.exists(meta_path):
+            try:
+                with open(meta_path, "r", encoding="utf-8") as mf:
+                    meta = json.load(mf)
+                    title = meta.get("title") or meta.get("raw_title")
+                    if meta.get("channel"):
+                        channel = meta.get("channel")
+                    elif meta.get("uploader"):
+                        channel = meta.get("uploader")
+                    if meta.get("added_at"):
+                        added_at = float(meta.get("added_at"))
+            except Exception:
+                pass
 
-    def get_video_resolution(self, file_path: str) -> tuple:
-        """Returns (width, height)."""
-        info = self._ffprobe_info(file_path)
-        for stream in info.get("streams", []):
-            if stream.get("codec_type") == "video":
-                return (int(stream.get("width", 0)), int(stream.get("height", 0)))
-        return (0, 0)
+        if not title:
+            title = folder_name.replace(f"_{video_id}", "")
+            if title.startswith("[") and "] " in title:
+                title = title.split("] ", 1)[1]
+            title = title.replace("_", " ")
 
-    def get_video_duration(self, file_path: str) -> float:
-        """Returns duration in seconds."""
-        info = self._ffprobe_info(file_path)
-        for stream in info.get("streams", []):
-            if stream.get("codec_type") == "video" and stream.get("duration"):
-                try:
-                    return float(stream["duration"])
-                except Exception:
-                    pass
-        fmt = info.get("format", {})
-        try:
-            return float(fmt.get("duration", 0))
-        except (ValueError, TypeError):
-            return 0.0
-
-
-
-    def _get_video_fps(self, file_path: str) -> float:
-        """Returns frame rate as float."""
-        info = self._ffprobe_info(file_path)
-        for stream in info.get("streams", []):
-            if stream.get("codec_type") == "video":
-                fps_str = stream.get("avg_frame_rate", "30/1")
-                if "/" in fps_str:
-                    try:
-                        num, den = map(int, fps_str.split("/"))
-                        if den > 0:
-                            return num / den
-                    except:
-                        pass
-                try:
-                    return float(fps_str)
-                except:
-                    return 30.0
-        return 30.0
+        return {
+            "title": title,
+            "channel": channel,
+            "added_at": added_at
+        }
 
     def _generate_thumbnail(self, folder_path: str, video_id: str) -> Optional[str]:
         """Generate a video thumbnail inside the source folder."""
@@ -164,126 +154,66 @@ class AssetRepository(AssetStore):
 
     # ── High Leverage Deep Interface Methods ────────────────────────
 
+    @staticmethod
+    def _resolve_source_video(folder_path: str) -> Tuple[Optional[str], bool, bool]:
+        """Resolve preferred source video path, hd_ready flag, and preview presence."""
+        full_path = os.path.join(folder_path, "full.mp4")
+        preview_path = os.path.join(folder_path, "preview.mp4")
+        has_preview = os.path.exists(preview_path)
+        if os.path.exists(full_path):
+            return full_path, True, has_preview
+        if has_preview:
+            return preview_path, False, True
+        return None, False, False
+
+    def _build_cached_video_info(
+        self, folder_path: str, folder_name: str, video_id: str
+    ) -> Optional[dict]:
+        """Probe video once and assemble cached video metadata dict."""
+        target_path, hd_ready, has_preview = self._resolve_source_video(folder_path)
+        if not target_path:
+            return None
+
+        specs = self.transcoder.probe_video(target_path)
+        meta = self._read_source_metadata(folder_path, folder_name, video_id)
+        filename = os.path.basename(target_path)
+
+        return {
+            "video_id": video_id,
+            "title": meta["title"],
+            "channel": meta["channel"],
+            "duration": specs.duration,
+            "fps": specs.fps,
+            "file_path": target_path,
+            "folder_name": folder_name,
+            "asset_url": f"/assets/sources/{folder_name}/{filename}",
+            "width": specs.width,
+            "height": specs.height,
+            "hd_ready": hd_ready,
+            "has_preview": has_preview,
+            "heatmap": []
+        }
+
     def get_cached_video(self, url: str) -> Optional[dict]:
         """Search sources/ subfolders for the video ID."""
         video_id = self.client.extract_video_id(url)
         if not video_id:
             return None
-        
+
         with os.scandir(self.source_dir) as entries:
             for entry in entries:
                 if entry.is_dir() and entry.name.endswith(f"_{video_id}"):
-                    full_path = os.path.join(entry.path, "full.mp4")
-                    preview_path = os.path.join(entry.path, "preview.mp4")
-                    
-                    target_path = None
-                    hd_ready = False
-                    if os.path.exists(full_path):
-                        target_path = full_path
-                        hd_ready = True
-                    elif os.path.exists(preview_path):
-                        target_path = preview_path
-                        hd_ready = False
-                
-                    if target_path:
-                        w, h = self.get_video_resolution(target_path)
-                        filename = os.path.basename(target_path)
-                        
-                        title = None
-                        channel = "Unknown Channel"
-                        meta_path = os.path.join(entry.path, "metadata.json")
-                        if os.path.exists(meta_path):
-                            try:
-                                with open(meta_path, "r", encoding="utf-8") as mf:
-                                    meta = json.load(mf)
-                                    title = meta.get("title") or meta.get("raw_title")
-                                    if meta.get("channel"):
-                                        channel = meta.get("channel")
-                                    elif meta.get("uploader"):
-                                        channel = meta.get("uploader")
-                            except Exception:
-                                pass
-                        
-                        if not title:
-                            title = entry.name.replace(f"_{video_id}", "")
-                            if title.startswith("[") and "] " in title:
-                                title = title.split("] ", 1)[1]
-                            title = title.replace("_", " ")
-
-                        return {
-                            "video_id": video_id,
-                            "title": title,
-                            "channel": channel,
-                            "duration": self.get_video_duration(target_path),
-                            "fps": self._get_video_fps(target_path),
-                            "file_path": target_path,
-                            "folder_name": entry.name,
-                            "asset_url": f"/assets/sources/{entry.name}/{filename}",
-                            "width": w,
-                            "height": h,
-                            "hd_ready": hd_ready,
-                            "has_preview": os.path.exists(preview_path),
-                            "heatmap": []
-                        }
+                    info = self._build_cached_video_info(entry.path, entry.name, video_id)
+                    if info:
+                        return info
         return None
 
     def get_cached_video_by_folder(self, folder_name: str) -> Optional[dict]:
         """Search sources/ subfolders by exact folder name."""
         target_dir = os.path.join(self.source_dir, folder_name)
         if os.path.exists(target_dir) and os.path.isdir(target_dir):
-            full_path = os.path.join(target_dir, "full.mp4")
-            preview_path = os.path.join(target_dir, "preview.mp4")
-            
-            target_path = None
-            hd_ready = False
-            if os.path.exists(full_path):
-                target_path = full_path
-                hd_ready = True
-            elif os.path.exists(preview_path):
-                target_path = preview_path
-                hd_ready = False
-                
-            if target_path:
-                video_id = folder_name.split("_")[-1]
-                w, h = self.get_video_resolution(target_path)
-                filename = os.path.basename(target_path)
-
-                title = None
-                channel = "Unknown Channel"
-                meta_path = os.path.join(target_dir, "metadata.json")
-                if os.path.exists(meta_path):
-                    try:
-                        with open(meta_path, "r", encoding="utf-8") as mf:
-                            meta = json.load(mf)
-                            title = meta.get("title") or meta.get("raw_title")
-                            if meta.get("channel"):
-                                channel = meta.get("channel")
-                            elif meta.get("uploader"):
-                                channel = meta.get("uploader")
-                    except Exception:
-                        pass
-
-                if not title:
-                    title = folder_name.replace(f"_{video_id}", "")
-                    if title.startswith("[") and "] " in title:
-                        title = title.split("] ", 1)[1]
-                    title = title.replace("_", " ")
-
-                return {
-                    "video_id": video_id,
-                    "title": title,
-                    "channel": channel,
-                    "duration": self.get_video_duration(target_path),
-                    "fps": self._get_video_fps(target_path),
-                    "file_path": target_path,
-                    "folder_name": folder_name,
-                    "asset_url": f"/assets/sources/{folder_name}/{filename}",
-                    "width": w,
-                    "height": h,
-                    "hd_ready": hd_ready,
-                    "has_preview": os.path.exists(preview_path),
-                    "heatmap": []
-                }
+            video_id = folder_name.split("_")[-1]
+            return self._build_cached_video_info(target_dir, folder_name, video_id)
         return None
 
     def get_or_create_source(self, url: str, force_download: bool = False, quality: str = "1080p", progress_callback = None) -> dict:
@@ -336,7 +266,7 @@ class AssetRepository(AssetStore):
             self.client.download_video(url, target_dir, quality=quality, progress_callback=progress_callback)
             filename = "preview.mp4" if quality == "360p" else "full.mp4"
             file_path = os.path.join(target_dir, filename)
-            w, h = self.get_video_resolution(file_path)
+            specs = self.transcoder.probe_video(file_path)
 
             added_at = time.time()
             try:
@@ -357,13 +287,13 @@ class AssetRepository(AssetStore):
                 "title": info["title"],
                 "channel": channel,
                 "added_at": added_at,
-                "duration": self.get_video_duration(file_path),
-                "fps": self._get_video_fps(file_path),
+                "duration": specs.duration,
+                "fps": specs.fps,
                 "file_path": file_path,
                 "folder_name": folder_name,
                 "asset_url": f"/assets/sources/{folder_name}/{filename}",
-                "width": w,
-                "height": h,
+                "width": specs.width,
+                "height": specs.height,
                 "hd_ready": (quality == "1080p"),
                 "has_preview": os.path.exists(os.path.join(target_dir, "preview.mp4")),
                 "heatmap": []
@@ -371,6 +301,26 @@ class AssetRepository(AssetStore):
 
 
 
+
+    def _hydrate_cached_video_list_item(self, item: dict) -> dict:
+        """Probe video dimensions/duration and ensure thumbnail only for items being returned."""
+        specs = self.transcoder.probe_video(item["target_path"])
+        thumb_path = self._generate_thumbnail(item["folder_path"], item["video_id"])
+        filename = os.path.basename(item["target_path"])
+        return {
+            "video_id": item["video_id"],
+            "title": item["title"],
+            "folder_name": item["folder_name"],
+            "channel": item["channel"],
+            "added_at": item["added_at"],
+            "resolution": f"{specs.width}x{specs.height}",
+            "duration": specs.duration,
+            "mtime": item["mtime"],
+            "asset_url": f"/assets/sources/{item['folder_name']}/{filename}",
+            "thumbnail_url": f"/assets/sources/{item['folder_name']}/thumb.jpg" if thumb_path else None,
+            "youtube_url": f"https://youtube.com/watch?v={item['video_id']}",
+            "hd_ready": item["hd_ready"]
+        }
 
     def list_cached_videos(
         self,
@@ -381,86 +331,47 @@ class AssetRepository(AssetStore):
         order: str = "desc"
     ) -> Any:
         """List, search, sort, and paginate cached source videos."""
-        results = []
+        candidates = []
         if not os.path.exists(self.source_dir):
             return {"videos": [], "total": 0, "has_more": False} if page is not None else []
-            
+
         with os.scandir(self.source_dir) as entries:
             for entry in entries:
                 if entry.is_dir() and len(entry.name) >= 12 and entry.name[-12] == "_":
                     video_id = entry.name[-11:]
-                    full_path = os.path.join(entry.path, "full.mp4")
-                    preview_path = os.path.join(entry.path, "preview.mp4")
-                
-                    target_path = None
-                    hd_ready = False
-                    if os.path.exists(full_path):
-                        target_path = full_path
-                        hd_ready = True
-                    elif os.path.exists(preview_path):
-                        target_path = preview_path
-                        hd_ready = False
-                    
+                    target_path, hd_ready, _ = self._resolve_source_video(entry.path)
                     if not target_path:
                         continue
-                    
-                    w, h = self.get_video_resolution(target_path)
-                    thumb_path = self._generate_thumbnail(entry.path, video_id)
-                    filename = os.path.basename(target_path)
-                    
+
                     try:
                         mtime = os.path.getmtime(target_path)
                     except Exception:
                         mtime = 0.0
-                    
-                    channel = "Unknown Channel"
-                    added_at = mtime
-                    title = None
-                    meta_path = os.path.join(entry.path, "metadata.json")
-                    if os.path.exists(meta_path):
-                        try:
-                            with open(meta_path, "r", encoding="utf-8") as mf:
-                                meta = json.load(mf)
-                                title = meta.get("title") or meta.get("raw_title")
-                                if meta.get("channel"):
-                                    channel = meta.get("channel")
-                                elif meta.get("uploader"):
-                                    channel = meta.get("uploader")
-                                if meta.get("added_at"):
-                                    added_at = float(meta.get("added_at"))
-                        except Exception:
-                            pass
 
-                    if not title:
-                        title = entry.name.replace(f"_{video_id}", "")
-                        if title.startswith("[") and "] " in title:
-                            title = title.split("] ", 1)[1]
-                        title = title.replace("_", " ")
-
-                    results.append({
+                    meta = self._read_source_metadata(
+                        entry.path, entry.name, video_id, default_added_at=mtime
+                    )
+                    candidates.append({
                         "video_id": video_id,
-                        "title": title,
+                        "title": meta["title"],
                         "folder_name": entry.name,
-                        "channel": channel,
-                        "added_at": added_at,
-                        "resolution": f"{w}x{h}",
-                        "duration": self.get_video_duration(target_path),
+                        "folder_path": entry.path,
+                        "target_path": target_path,
+                        "channel": meta["channel"],
+                        "added_at": meta["added_at"],
                         "mtime": mtime,
-                        "asset_url": f"/assets/sources/{entry.name}/{filename}",
-                        "thumbnail_url": f"/assets/sources/{entry.name}/thumb.jpg" if thumb_path else None,
-                        "youtube_url": f"https://youtube.com/watch?v={video_id}",
                         "hd_ready": hd_ready
                     })
-        
+
         # If raw list requested without pagination
         if page is None:
-            return results
+            return [self._hydrate_cached_video_list_item(c) for c in candidates]
 
-        # 1. Search Filter (case-insensitive)
+        # 1. Search Filter (case-insensitive) before probing/thumbnail generation
         if search:
             search_lower = search.lower()
-            results = [
-                v for v in results
+            candidates = [
+                v for v in candidates
                 if search_lower in v.get("title", "").lower()
                 or search_lower in v.get("video_id", "").lower()
                 or search_lower in v.get("channel", "").lower()
@@ -469,20 +380,20 @@ class AssetRepository(AssetStore):
         # 2. Sorting
         if sort_by == "title":
             reverse = (order == "desc")
-            results.sort(key=lambda x: x.get("title", "").lower(), reverse=reverse)
+            candidates.sort(key=lambda x: x.get("title", "").lower(), reverse=reverse)
         else:
             reverse = (order != "asc")
-            results.sort(key=lambda x: x.get("added_at", x.get("mtime", 0.0)), reverse=reverse)
+            candidates.sort(key=lambda x: x.get("added_at", x.get("mtime", 0.0)), reverse=reverse)
 
-        # 3. Pagination Slicing
-        total = len(results)
+        # 3. Pagination Slicing, then probe + thumbnail only visible page
+        total = len(candidates)
         start_idx = (page - 1) * limit
         end_idx = start_idx + limit
-        paginated_videos = results[start_idx:end_idx]
+        paginated_candidates = candidates[start_idx:end_idx]
         has_more = end_idx < total
 
         return {
-            "videos": paginated_videos,
+            "videos": [self._hydrate_cached_video_list_item(c) for c in paginated_candidates],
             "total": total,
             "has_more": has_more
         }
