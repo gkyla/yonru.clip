@@ -9,17 +9,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from core.workflow_coordinator import ClipWorkflowCoordinator
 from core.clip_session_store import ClipSessionStore
+from core.job_store import InMemoryJobStore
 
-class MockJobStore(dict):
-    def save(self):
-        pass
-    def get_job(self, job_id: str):
-        return self.get(job_id)
-    def update_job(self, job_id: str, **kwargs):
-        if job_id not in self:
-            self[job_id] = {}
-        self[job_id].update(kwargs)
-        return self[job_id]
 
 @pytest.fixture
 def mock_dependencies():
@@ -27,7 +18,7 @@ def mock_dependencies():
     asset_repo = MagicMock()
     asset_repo.sanitize_and_prepare_hooks = lambda raw_hooks, video_info: AssetStore.sanitize_and_prepare_hooks(asset_repo, raw_hooks, video_info)
     return {
-        "job_store": MockJobStore(),
+        "job_store": InMemoryJobStore(),
         "asset_repository": asset_repo,
         "youtube_client": MagicMock(),
         "speech_transcriber": MagicMock(),
@@ -1096,4 +1087,57 @@ def test_run_local_cut_uses_injected_clip_session_store(mock_dependencies, tmp_p
     assert coordinator.jobs[job_id]["clip_duration"] == 15.0
     mock_clip_store.create_clip.assert_called_once_with(str(video_file), 5.0, 20.0, theme=None)
     mock_clip_store.extract_clip_audio.assert_called_once_with(str(clip_file))
+
+
+def test_run_source_download_streams_progress_in_memory_and_preserves_terminal_or_cut_status(mock_dependencies, tmp_path):
+    """Verify run_source_download emits zero disk writes for chunk progress and preserves cutting/cancelled statuses."""
+    from core.job_store import JSONFileJobStore
+
+    store = JSONFileJobStore(str(tmp_path / "jobs"))
+    store.create_job("dl_ready", {"status": "hooks_ready", "download_percent": 0.0})
+    store.create_job("dl_cancelled", {"status": "hooks_ready", "download_percent": 0.0})
+    store.create_job("dl_cutting", {"status": "hooks_ready", "download_percent": 0.0})
+
+    def fake_get_or_create_source(url, force_download=True, quality="1080p", progress_callback=None):
+        assert progress_callback is not None
+        if "cancelled" in url:
+            progress_callback(42.34)
+            store.update_job("dl_cancelled", status="cancelled", error="Source video deleted by user.")
+        elif "cutting" in url:
+            progress_callback(67.89)
+            store.update_job("dl_cutting", status="cutting")
+        else:
+            for pct in (10.1, 55.6, 99.0):
+                progress_callback(pct)
+        return {"file_path": str(tmp_path / "full.mp4"), "fps": 30.0}
+
+    mock_dependencies["asset_repository"].get_or_create_source.side_effect = fake_get_or_create_source
+
+    coordinator = ClipWorkflowCoordinator(
+        job_store=store,
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+    )
+
+    with patch.object(store, "set_download_progress", wraps=store.set_download_progress) as spy_progress, \
+         patch.object(store, "_persist_job", wraps=store._persist_job) as spy_persist:
+        coordinator.run_source_download("dl_ready", "https://youtube.com/watch?v=ready_vid")
+
+    # 3 progress updates in memory + exactly 1 disk write on completion
+    assert spy_progress.call_count == 3
+    assert spy_persist.call_count == 1
+    assert store["dl_ready"]["status"] == "ready"
+    assert store["dl_ready"]["download_percent"] == 100.0
+
+    # Cancelled and cutting jobs must not be overwritten back to "ready"
+    coordinator.run_source_download("dl_cancelled", "https://youtube.com/watch?v=cancelled_vid")
+    assert store["dl_cancelled"]["status"] == "cancelled"
+    assert store["dl_cancelled"]["download_percent"] == 100.0
+
+    coordinator.run_source_download("dl_cutting", "https://youtube.com/watch?v=cutting_vid")
+    assert store["dl_cutting"]["status"] == "cutting"
+    assert store["dl_cutting"]["download_percent"] == 100.0
 

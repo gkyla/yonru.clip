@@ -10,22 +10,8 @@ import uuid
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 
+from core.job_store import ACTIVE_JOB_STATUSES
 from core.release_service import parse_semver
-
-
-ACTIVE_JOB_STATUSES = frozenset({
-    "queued",
-    "pending",
-    "checking_transcript",
-    "downloading",
-    "downloading_video",
-    "processing",
-    "extracting_audio",
-    "generating_hooks",
-    "cutting",
-    "transcribing",
-    "tracking_face",
-})
 
 IGNORED_DIRTY_TRACKED_PATHS = frozenset({
     "backend/prompts/prompt.json",
@@ -461,20 +447,16 @@ class SelfUpdateService:
         self._trigger_lock = threading.Lock()
 
     def _find_active_jobs(self) -> List[Dict[str, str]]:
-        active: List[Dict[str, str]] = []
         if not self.job_store:
-            return active
+            return []
         try:
-            all_jobs = self.job_store.list_all_jobs()
+            active_jobs = self.job_store.list_active_jobs()
         except Exception:
-            return active
-        for job_id, job in all_jobs.items():
-            if not isinstance(job, dict):
-                continue
-            status = str(job.get("status") or "").strip().lower()
-            if status in ACTIVE_JOB_STATUSES:
-                active.append({"jobId": str(job_id), "status": status})
-        return active
+            return []
+        return [
+            {"jobId": item["job_id"], "status": item["status"]}
+            for item in active_jobs
+        ]
 
     def preflight(self, target_version: str) -> Dict[str, Any]:
         version, tag = normalize_target_version(target_version)

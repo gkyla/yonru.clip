@@ -968,10 +968,7 @@ class ClipSessionStore:
         if success and job_store is not None:
             hash_input = f"{folder_name}_{clip_id}"
             derived_job_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()[:8]
-            if hasattr(job_store, "delete_job"):
-                job_store.delete_job(derived_job_id)
-            elif isinstance(job_store, dict) and derived_job_id in job_store:
-                del job_store[derived_job_id]
+            job_store.delete_job(derived_job_id)
         return success
 
     def delete_batch(self, clips: List[Dict[str, str]], job_store: Any = None) -> List[Dict[str, Any]]:
@@ -1003,19 +1000,11 @@ class ClipSessionStore:
         deleted_count = 0
         if os.path.exists(source_clips_dir) and os.path.isdir(source_clips_dir):
             if job_store is not None:
-                jobs_dict = job_store.items() if hasattr(job_store, "items") else []
-                for j_id, j_info in list(jobs_dict):
-                    if isinstance(j_info, dict):
-                        clip_info = j_info.get("clip") or {}
-                        if j_info.get("folder_name") == folder_name or clip_info.get("folder_name") == folder_name:
-                            j_info["status"] = "cancelled"
-                            j_info["error"] = "Clip deleted by user."
-                            job_store[j_id] = j_info
-                if hasattr(job_store, "save"):
-                    try:
-                        job_store.save()
-                    except Exception:
-                        pass
+                job_store.cancel_source_jobs(
+                    folder_name,
+                    reason="Clip deleted by user.",
+                    active_only=True,
+                )
 
             clip_dirs = [d for d in os.listdir(source_clips_dir) if os.path.isdir(os.path.join(source_clips_dir, d))]
             deleted_count = len(clip_dirs) or 1
