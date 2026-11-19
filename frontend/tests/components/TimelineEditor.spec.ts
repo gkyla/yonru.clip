@@ -30,9 +30,9 @@ const mockState = {
   isRenderPreviewActive: ref(false),
   isEditorLocked: ref(false),
   renderStatus: ref('ready'),
-  contentAudit: ref({ flaggedSegments: [] }),
+  contentAudit: ref<{ flaggedSegments: any[] }>({ flaggedSegments: [] }),
   activeTrackIds: mockActiveTrackIds,
-  timelineTracks: ref([
+  timelineTracks: ref<any[]>([
     {
       id: 'video',
       name: 'Video',
@@ -182,7 +182,7 @@ describe('TimelineEditor Component', () => {
     });
 
     expect(mockSeekTo).toHaveBeenCalled();
-    const seekArg = mockSeekTo.mock.calls[0][0];
+    const seekArg = mockSeekTo.mock.calls[0]?.[0];
     expect(seekArg).toBeGreaterThan(0);
     expect(seekArg).toBeLessThanOrEqual(60);
   });
@@ -1067,7 +1067,7 @@ describe('TimelineEditor Component', () => {
 
         const insertedInTrack = mockState.timelineTracks.value
           .find(t => t.id === 'text')
-          ?.items.find(i => i.id !== 'txt-split');
+          ?.items.find((i: { id: string }) => i.id !== 'txt-split');
         expect(insertedInTrack).toBeDefined();
         expect(mockState.selectedTimelineItem.value).toBe(insertedInTrack);
       } finally {

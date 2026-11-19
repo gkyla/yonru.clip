@@ -1,3 +1,4 @@
+/** @jsxImportSource react */
 import React, { useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import {
   Video,
@@ -94,7 +95,8 @@ export function computeViewportFraming(
     const timeEpsilon = 0.001;
     let prevIdx = 0;
     for (let i = 0; i < cropMap.length; i++) {
-      if (cropMap[i].time <= targetTime + timeEpsilon) {
+      const entry = cropMap[i];
+      if (entry && entry.time <= targetTime + timeEpsilon) {
         prevIdx = i;
       } else {
         break;
@@ -105,44 +107,46 @@ export function computeViewportFraming(
     const nextEntry =
       prevIdx < cropMap.length - 1 ? cropMap[prevIdx + 1] : null;
 
-    mode = prevEntry.mode || 'single';
-    x = prevEntry.x;
-    top_x = prevEntry.top_x ?? prevEntry.x;
-    bottom_x = prevEntry.bottom_x ?? prevEntry.x;
+    if (prevEntry) {
+      mode = prevEntry.mode || 'single';
+      x = prevEntry.x;
+      top_x = prevEntry.top_x ?? prevEntry.x;
+      bottom_x = prevEntry.bottom_x ?? prevEntry.x;
 
-    const CUT_THRESHOLD = rawSourceW * 0.15;
+      const CUT_THRESHOLD = rawSourceW * 0.15;
 
-    if (nextEntry && prevEntry.time !== nextEntry.time) {
-      if ((prevEntry.mode || 'single') === (nextEntry.mode || 'single')) {
-        const duration = nextEntry.time - prevEntry.time;
-        const progress = Math.max(
-          0,
-          Math.min(1, (targetTime - prevEntry.time) / duration)
-        );
-        const smoothT = progress * progress * (3 - 2 * progress);
+      if (nextEntry && prevEntry.time !== nextEntry.time) {
+        if ((prevEntry.mode || 'single') === (nextEntry.mode || 'single')) {
+          const duration = nextEntry.time - prevEntry.time;
+          const progress = Math.max(
+            0,
+            Math.min(1, (targetTime - prevEntry.time) / duration)
+          );
+          const smoothT = progress * progress * (3 - 2 * progress);
 
-        if (mode === 'split') {
-          const prevTop = prevEntry.top_x ?? prevEntry.x;
-          const nextTop = nextEntry.top_x ?? nextEntry.x;
-          const prevBot = prevEntry.bottom_x ?? prevEntry.x;
-          const nextBot = nextEntry.bottom_x ?? nextEntry.x;
+          if (mode === 'split') {
+            const prevTop = prevEntry.top_x ?? prevEntry.x;
+            const nextTop = nextEntry.top_x ?? nextEntry.x;
+            const prevBot = prevEntry.bottom_x ?? prevEntry.x;
+            const nextBot = nextEntry.bottom_x ?? nextEntry.x;
 
-          top_x =
-            Math.abs(nextTop - prevTop) > CUT_THRESHOLD
-              ? prevTop
-              : prevTop + (nextTop - prevTop) * smoothT;
-          bottom_x =
-            Math.abs(nextBot - prevBot) > CUT_THRESHOLD
-              ? prevBot
-              : prevBot + (nextBot - prevBot) * smoothT;
-        } else {
-          const delta = Math.abs(nextEntry.x - prevEntry.x);
-          x =
-            delta > CUT_THRESHOLD
-              ? prevEntry.x
-              : prevEntry.x + (nextEntry.x - prevEntry.x) * smoothT;
-          top_x = x;
-          bottom_x = x;
+            top_x =
+              Math.abs(nextTop - prevTop) > CUT_THRESHOLD
+                ? prevTop
+                : prevTop + (nextTop - prevTop) * smoothT;
+            bottom_x =
+              Math.abs(nextBot - prevBot) > CUT_THRESHOLD
+                ? prevBot
+                : prevBot + (nextBot - prevBot) * smoothT;
+          } else {
+            const delta = Math.abs(nextEntry.x - prevEntry.x);
+            x =
+              delta > CUT_THRESHOLD
+                ? prevEntry.x
+                : prevEntry.x + (nextEntry.x - prevEntry.x) * smoothT;
+            top_x = x;
+            bottom_x = x;
+          }
         }
       }
     }

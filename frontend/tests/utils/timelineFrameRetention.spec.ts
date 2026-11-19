@@ -28,15 +28,15 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
 
     const coalesced = coalesceContiguousVideoSegments(rawItems);
     expect(coalesced).toHaveLength(2);
-    expect(coalesced[0].id).toBe('main-video');
-    expect(coalesced[0].start).toBeCloseTo(0, 6);
-    expect(coalesced[0].mediaStart).toBeCloseTo(0, 6);
-    expect(coalesced[0].duration).toBeCloseTo(4.2, 6);
+    expect(coalesced[0]?.id).toBe('main-video');
+    expect(coalesced[0]?.start).toBeCloseTo(0, 6);
+    expect(coalesced[0]?.mediaStart).toBeCloseTo(0, 6);
+    expect(coalesced[0]?.duration).toBeCloseTo(4.2, 6);
 
-    expect(coalesced[1].id).toBe('bd2nfay38');
-    expect(coalesced[1].start).toBeCloseTo(4.87, 6);
-    expect(coalesced[1].mediaStart).toBeCloseTo(10.78, 6);
-    expect(coalesced[1].duration).toBeCloseTo(51.22, 6);
+    expect(coalesced[1]?.id).toBe('bd2nfay38');
+    expect(coalesced[1]?.start).toBeCloseTo(4.87, 6);
+    expect(coalesced[1]?.mediaStart).toBeCloseTo(10.78, 6);
+    expect(coalesced[1]?.duration).toBeCloseTo(51.22, 6);
 
     // Adjacent on timeline, but mediaStart jumps (trimmed ripple delete): MUST NOT coalesce
     const jumpCutItems = [
@@ -61,8 +61,8 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
       { id: 'seg-1', start: 0, duration: 0.51, mediaStart: 0 },
       { id: 'seg-2', start: 0.51, duration: 0.51, mediaStart: 3.0 }
     ];
-    const win1 = getSegmentFrameWindow(fractionalJumpSegments[0], fps);
-    const win2 = getSegmentFrameWindow(fractionalJumpSegments[1], fps);
+    const win1 = getSegmentFrameWindow(fractionalJumpSegments[0]!, fps);
+    const win2 = getSegmentFrameWindow(fractionalJumpSegments[1]!, fps);
 
     expect(win1.startFrame).toBe(0);
     expect(win1.endFrame).toBe(15);
@@ -85,8 +85,8 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
       { id: 's2', start: 0.49, duration: 0.49, mediaStart: 2 },
       { id: 's3', start: 0.98, duration: 1.02, mediaStart: 5 }
     ];
-    const w2 = getSegmentFrameWindow(overlapProneSegments[1], fps);
-    const w3 = getSegmentFrameWindow(overlapProneSegments[2], fps);
+    const w2 = getSegmentFrameWindow(overlapProneSegments[1]!, fps);
+    const w3 = getSegmentFrameWindow(overlapProneSegments[2]!, fps);
     expect(w2.endFrame).toBe(w3.startFrame);
   });
 
@@ -180,24 +180,23 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
     const renderScene = (frame: number, src: string, activeSegId: string) => {
       act(() => {
         root.render(
-          React.createElement(
-            TimelineFrameRetention,
-            {
-              videoSrc: src,
-              width: 1080,
-              height: 1920,
-              mainVideoFrame: frame,
-              fps: 30,
-              timelineVideoItems: segments
-            },
-            (onFrameRendered: (canvas: HTMLCanvasElement) => void) => {
+          React.createElement(TimelineFrameRetention, {
+            videoSrc: src,
+            width: 1080,
+            height: 1920,
+            mainVideoFrame: frame,
+            fps: 30,
+            timelineVideoItems: segments,
+            children: (
+              onFrameRendered: (canvas: HTMLCanvasElement) => void
+            ) => {
               capturedCallback = onFrameRendered;
               return React.createElement('canvas', {
                 key: activeSegId,
                 'data-testid': `segment-canvas-${activeSegId}`
               });
             }
-          )
+          })
         );
       });
     };

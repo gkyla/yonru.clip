@@ -160,8 +160,8 @@ describe('SafetyEngine Unit Tests', () => {
 
       // 4. Unmask / Revert: restores original transcript text
       const revertedTranscript = auditor.unmaskTranscript(maskedTranscript);
-      expect(revertedTranscript[0].text).toBe('kamu brengsek banget');
-      expect(revertedTranscript[0].words?.[1].text).toBe('brengsek');
+      expect(revertedTranscript[0]?.text).toBe('kamu brengsek banget');
+      expect(revertedTranscript[0]?.words?.[1]?.text).toBe('brengsek');
     });
   });
 

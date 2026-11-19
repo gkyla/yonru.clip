@@ -85,7 +85,7 @@ describe('useSnappingGuides Composable', () => {
 
     expect(result.snappedY).toBe(1420);
     expect(result.activeGuides.horizontal).toEqual({
-      position: PLATFORM_SAFE_BOUNDS.tiktok.bottom,
+      position: PLATFORM_SAFE_BOUNDS.tiktok?.bottom,
       type: 'safe'
     });
   });
@@ -105,7 +105,7 @@ describe('useSnappingGuides Composable', () => {
 
     expect(result.snappedY).toBe(250);
     expect(result.activeGuides.horizontal).toEqual({
-      position: PLATFORM_SAFE_BOUNDS.tiktok.top,
+      position: PLATFORM_SAFE_BOUNDS.tiktok?.top,
       type: 'safe'
     });
   });

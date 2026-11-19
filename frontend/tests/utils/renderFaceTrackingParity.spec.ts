@@ -103,7 +103,7 @@ vi.mock('remotion', () => {
         const relFrame = ReactLib.useContext(FrameContext);
         const mediaTime = ((startFrom || 0) + relFrame) / EnvState.fps;
         return ReactLib.createElement('video', {
-          ref: (el: HTMLVideoElement | null) => {
+          ref: (el: HTMLVideoElement | null): void => {
             if (el) {
               Object.defineProperty(el, 'readyState', {
                 value: 4,

@@ -136,8 +136,7 @@ describe('ReelsSafeZoneOverlay Component', () => {
             start: 0,
             duration: 60,
             type: 'video',
-            label: 'Video',
-            trackId: 'video'
+            name: 'Video'
           }
         ]
       }

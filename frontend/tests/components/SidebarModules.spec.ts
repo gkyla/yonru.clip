@@ -93,10 +93,10 @@ describe('Sidebar Sub-Modules Isolated Unit Tests', () => {
 
       const tooltips = wrapper.findAll('.absolute.left-full');
       expect(tooltips.length).toBe(4);
-      expect(tooltips[0].text()).toBe('Home');
-      expect(tooltips[1].text()).toBe('Prompts');
-      expect(tooltips[2].text()).toBe('Documentation');
-      expect(tooltips[3].text()).toBe('Settings');
+      expect(tooltips[0]?.text()).toBe('Home');
+      expect(tooltips[1]?.text()).toBe('Prompts');
+      expect(tooltips[2]?.text()).toBe('Documentation');
+      expect(tooltips[3]?.text()).toBe('Settings');
     });
   });
 

@@ -45,7 +45,7 @@ function createMockState() {
     splitOffsetYTop: ref(0),
     splitOffsetXBottom: ref(0),
     splitOffsetYBottom: ref(0),
-    cropMap: ref([]),
+    cropMap: ref<any[]>([]),
     currentTime: ref(0),
     activeSafeZone: ref('none'),
     safeZoneOpacity: ref(50),

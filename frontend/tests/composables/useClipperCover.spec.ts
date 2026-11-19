@@ -99,7 +99,7 @@ describe('useClipperCover Composable', () => {
     );
     expect(cover.coverDuration.value).toBe(1.5);
     expect(cover.coverTextOverlays.value.length).toBe(1);
-    expect(cover.coverTextOverlays.value[0].text).toBe(
+    expect(cover.coverTextOverlays.value[0]?.text).toBe(
       'KEBANYAKAN DUDUK BIKIN VARISES?'
     );
   });

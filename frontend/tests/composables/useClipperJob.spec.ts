@@ -220,6 +220,12 @@ describe('useClipperJob Sub-composable - Clip Session Hydration', () => {
     const { applyHydratedClipBundle } = useClipperJob();
 
     applyHydratedClipBundle({
+      folderName: 'test-folder',
+      clipId: 'test-clip',
+      transcript: [],
+      styleSettings: {},
+      cropMap: [],
+      thumbnailConfig: null,
       timelineTracks: [],
       videoDuration: 18
     });

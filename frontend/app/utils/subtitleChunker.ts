@@ -272,7 +272,8 @@ export class SubtitleLayoutEngine {
 
     this._masterTranscript.forEach(seg => {
       const chunkerSeg = seg as ChunkerSegment;
-      chunkerSeg.flatWords = [];
+      const segFlatWords: ChunkerFlatWord[] = [];
+      chunkerSeg.flatWords = segFlatWords;
 
       if (seg.words && Array.isArray(seg.words) && seg.words.length > 0) {
         seg.words.forEach(w => {
@@ -288,7 +289,7 @@ export class SubtitleLayoutEngine {
             originalSegment: chunkerSeg
           };
           flatWords.push(wordObj);
-          chunkerSeg.flatWords.push(wordObj);
+          segFlatWords.push(wordObj);
         });
       } else {
         const wordObj: ChunkerFlatWord = {
@@ -299,7 +300,7 @@ export class SubtitleLayoutEngine {
           originalSegment: chunkerSeg
         };
         flatWords.push(wordObj);
-        chunkerSeg.flatWords.push(wordObj);
+        segFlatWords.push(wordObj);
       }
     });
 

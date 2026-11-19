@@ -1,6 +1,9 @@
 #!/bin/sh
-# 1. Frontend Unit Tests
+# 1. Frontend Typecheck & Unit Tests
 cd frontend
+echo "Running pre-push Frontend Typecheck (nuxi typecheck)..."
+npm run typecheck || exit 1
+
 echo "Running pre-push Frontend Unit Tests (Vitest)..."
 npm run test || exit 1
 

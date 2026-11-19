@@ -28,8 +28,8 @@ describe('Timeline Undo/Redo Performance & Compact Payload Feedback Loop', () =>
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const fetchArgs = mockFetch.mock.calls[0];
-    expect(fetchArgs[0]).toBe(`${API_BASE}/api/clip-session/f1/c1`);
-    expect(fetchArgs[1]?.body).toEqual({
+    expect(fetchArgs?.[0]).toBe(`${API_BASE}/api/clip-session/f1/c1`);
+    expect(fetchArgs?.[1]?.body).toEqual({
       transcript: [{ start: 0, duration: 1, text: 'Hello' }]
     });
   });

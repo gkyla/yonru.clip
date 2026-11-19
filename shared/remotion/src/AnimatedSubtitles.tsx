@@ -1,3 +1,4 @@
+/** @jsxImportSource react */
 import React from 'react';
 import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
 import {
@@ -34,7 +35,8 @@ export const AnimatedSubtitles: React.FC<AnimatedSubtitlesProps> = ({
   );
 
   if (!activeWord) {
-    if (showDebug && words.length > 0) {
+    const firstWord = words[0];
+    if (showDebug && firstWord) {
       return (
         <div
           style={{
@@ -48,8 +50,8 @@ export const AnimatedSubtitles: React.FC<AnimatedSubtitlesProps> = ({
           }}
         >
           Debug: Found {words.length} words. Time: {currentTime.toFixed(2)}s.
-          First: {words[0].word} ({words[0].start.toFixed(2)}-
-          {words[0].end.toFixed(2)})
+          First: {firstWord.word} ({firstWord.start.toFixed(2)}-
+          {firstWord.end.toFixed(2)})
         </div>
       );
     }
