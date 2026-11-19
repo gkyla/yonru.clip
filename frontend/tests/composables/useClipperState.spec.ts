@@ -672,7 +672,7 @@ describe('useClipperState Composable', () => {
 
       await state.fetchPrompts();
       expect(state.promptsList.value.length).toBe(1);
-      expect(state.promptsList.value[0].id).toBe('facade-test.json');
+      expect(state.promptsList.value[0]?.id).toBe('facade-test.json');
 
       const created = await state.createPrompt(
         'New Facade Prompt',

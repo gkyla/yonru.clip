@@ -349,7 +349,7 @@ describe('IngestionJobCoordinator Unit Tests', () => {
       expect(bundle.styleSettings.font).toBe('Roboto');
       expect(bundle.styleSettings.fontSize).toBe(60);
       expect(bundle.cropMap).toEqual([{ time: 0, x: 960 }]);
-      expect(bundle.timelineTracks.map(t => t.id)).toEqual([
+      expect(bundle.timelineTracks.map((t: { id: string }) => t.id)).toEqual([
         'text',
         'video',
         'audio'

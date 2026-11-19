@@ -119,8 +119,8 @@ describe('useClipperExport — Deep Render Pipeline', () => {
 
     // 1. Verify single POST /api/render-stream call
     expect(fetchCalls.length).toBe(1);
-    expect(fetchCalls[0].url).toContain('/api/render-stream');
-    expect(fetchCalls[0].opts.method).toBe('POST');
+    expect(fetchCalls[0]?.url).toContain('/api/render-stream');
+    expect(fetchCalls[0]?.opts.method).toBe('POST');
 
     // 2. Verify payload formatted strictly from RenderSpec
     expect(capturedRenderBody).not.toBeNull();
@@ -240,7 +240,7 @@ describe('useClipperExport — Deep Render Pipeline', () => {
 
     await renderPromise;
 
-    expect(abortSignalCaptured?.aborted).toBe(true);
+    expect((abortSignalCaptured as AbortSignal | null)?.aborted).toBe(true);
     expect(renderStatus.value).toBe('cancelled');
   });
 

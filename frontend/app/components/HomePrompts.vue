@@ -282,12 +282,9 @@ onMounted(async () => {
   if (state.promptsList.value.length === 0) {
     await state.fetchPrompts();
   }
-  if (
-    !editingId.value &&
-    !isCreatingNew.value &&
-    state.promptsList.value.length > 0
-  ) {
-    editExistingPrompt(state.promptsList.value[0]);
+  const firstPrompt = state.promptsList.value[0];
+  if (!editingId.value && !isCreatingNew.value && firstPrompt) {
+    editExistingPrompt(firstPrompt);
   }
   window.addEventListener('beforeunload', handleBeforeUnload);
   window.addEventListener('keydown', handleKeyDown);

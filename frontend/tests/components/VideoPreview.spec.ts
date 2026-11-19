@@ -556,7 +556,6 @@ describe('VideoPreview Component', () => {
       textTrack.items = [
         {
           id: 'test-text-item',
-          trackId: 'text',
           start: 0,
           duration: 10,
           content: 'TEST OVERLAY TEXT',

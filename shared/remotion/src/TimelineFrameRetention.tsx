@@ -1,3 +1,4 @@
+/** @jsxImportSource react */
 import React, { useRef, useCallback, useLayoutEffect } from 'react';
 
 export interface TimelineVideoSegmentBounds {
@@ -50,15 +51,19 @@ export function coalesceContiguousVideoSegments<
     .slice()
     .sort((a, b) => a.start - b.start);
 
-  if (validSorted.length === 0) {
+  const firstValid = validSorted[0];
+  if (!firstValid) {
     return [];
   }
 
-  const coalesced: T[] = [{ ...validSorted[0] }];
+  const coalesced: T[] = [{ ...firstValid }];
 
   for (let i = 1; i < validSorted.length; i++) {
     const prev = coalesced[coalesced.length - 1];
     const next = validSorted[i];
+    if (!prev || !next) {
+      continue;
+    }
 
     const prevTimelineEnd = prev.start + prev.duration;
     const prevMediaStart = prev.mediaStart ?? 0;
@@ -118,11 +123,12 @@ export function resolveTimelineMediaTime(
   }
 
   const coalesced = coalesceContiguousVideoSegments(timelineVideoItems);
-  if (coalesced.length === 0) {
+  const firstCoalesced = coalesced[0];
+  if (!firstCoalesced) {
     return clampedFrame / safeFps;
   }
 
-  const firstWin = getSegmentFrameWindow(coalesced[0], safeFps);
+  const firstWin = getSegmentFrameWindow(firstCoalesced, safeFps);
   if (clampedFrame < firstWin.startFrame) {
     return firstWin.mediaStartFrame / safeFps;
   }

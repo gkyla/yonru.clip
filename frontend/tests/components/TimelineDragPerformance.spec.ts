@@ -94,7 +94,7 @@ describe('Timeline Drag Performance & Player Sync Bug Repro', () => {
     const audioEl = audioItems[1];
 
     // Trigger startMove on audio element
-    await audioEl.trigger('mousedown', { clientX: 100 });
+    await audioEl!.trigger('mousedown', { clientX: 100 });
 
     // Simulate 10 mousemove events (dragging across 10 ticks)
     for (let i = 1; i <= 10; i++) {
@@ -141,7 +141,7 @@ describe('Timeline Drag Performance & Player Sync Bug Repro', () => {
     const audioItems = wrapper.findAll('.cursor-move');
     const audioEl = audioItems[1]!;
 
-    await audioEl.trigger('mousedown', { clientX: 100 });
+    await audioEl!.trigger('mousedown', { clientX: 100 });
 
     // In a high-frequency drag (10 mousemoves of 5px each = 50px = 0.5s at 100px/sec)
     for (let i = 1; i <= 10; i++) {

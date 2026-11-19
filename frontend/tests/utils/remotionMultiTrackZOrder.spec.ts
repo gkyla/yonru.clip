@@ -162,7 +162,9 @@ describe('Remotion Multi-Track Z-Order & Audio Mixing', () => {
           volume: 0.9
         }
       ],
-      subtitleStyle: SubtitleStyleCoordinator.extractRenderPayload({})
+      subtitleStyle: SubtitleStyleCoordinator.extractRenderPayload(
+        {}
+      ) as unknown as YonruClipProps['subtitleStyle']
     };
 
     await act(async () => {

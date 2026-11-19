@@ -677,7 +677,7 @@ export class WorkspacePersistenceCoordinator {
         cover.coverScreenshotTime,
         cover.coverTextOverlays,
         cover.coverXOffset
-      ].filter((r): r is Ref<unknown> => Boolean(r));
+      ].filter((r): r is NonNullable<typeof r> => Boolean(r));
 
       if (watchedCoverRefs.length > 0) {
         unwatchList.push(

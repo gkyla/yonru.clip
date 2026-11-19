@@ -278,7 +278,7 @@ describe('SafetyPanes Component Suite', () => {
       const deleteButtons = wrapper.findAll('button[title="Hapus kata"]');
       expect(deleteButtons.length).toBe(3);
 
-      await deleteButtons[0].trigger('click');
+      await deleteButtons[0]!.trigger('click');
       expect(mockState.customBlacklist.value).toEqual(['banana', 'cherry']);
       expect(mockState.saveBlacklistToStorage).toHaveBeenCalled();
     });

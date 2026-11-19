@@ -4,12 +4,14 @@
  */
 
 import type { TimelineTrack, CoverConfig } from './clipper';
+import type { BackendRenderStylePayload } from '../utils/subtitleStyleCoordinator';
+import type { FlaggedSegment } from '../utils/safetyEngine';
 
 export interface RenderSafetyConfig {
   audioBleepEnabled?: boolean;
   audioBleepSource?: 'mute' | 'custom';
   customBleepFile?: { name: string; data: string } | null;
-  censoredSegments?: Array<Record<string, unknown>>;
+  censoredSegments?: Array<FlaggedSegment | Record<string, unknown>>;
   bleepPaddingOffset?: number;
   bleepMode?: 'full' | 'partial_end';
   safetySensitivity?: string;
@@ -35,7 +37,7 @@ export interface RenderSpec {
   splitOffsetXBottom?: number;
   splitOffsetYBottom?: number;
   subtitlesEnabled?: boolean;
-  subtitlePayload?: Record<string, unknown>;
+  subtitlePayload?: BackendRenderStylePayload | Record<string, unknown>;
   timelineTracks?: TimelineTrack[];
   transcript?: Array<{
     start: number | string;

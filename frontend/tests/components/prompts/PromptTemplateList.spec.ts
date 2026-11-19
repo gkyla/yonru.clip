@@ -117,7 +117,7 @@ describe('PromptTemplateList Component', () => {
 
     await secondCard!.trigger('click');
     expect(wrapper.emitted('select')).toBeDefined();
-    expect(wrapper.emitted('select')![0][0]).toEqual(samplePrompts[1]);
+    expect(wrapper.emitted('select')?.[0]?.[0]).toEqual(samplePrompts[1]);
   });
 
   it('renders max 2 tags and +N count badge with tooltips', () => {

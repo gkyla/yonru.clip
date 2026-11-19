@@ -27,7 +27,7 @@ describe('ReadyClipsSection Component', () => {
     theme: 'Viral Highlight',
     duration: 45,
     asset_url: '/assets/clips/clip_1.mp4',
-    created_at: 1725400000
+    created_at: '2024-09-03T12:00:00Z'
   };
 
   it('renders skeleton loading and hides empty state during loading', () => {

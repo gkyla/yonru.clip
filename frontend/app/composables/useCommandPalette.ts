@@ -648,12 +648,14 @@ function createCommandPaletteState() {
 
     for (const item of filteredItems.value) {
       if (item.category === 'prompts') {
-        const promptsGroup = groups.find(g => g.key === 'prompts')!;
-        promptsGroup.items.push(item);
-        if (item.subcategory === 'custom') {
-          promptsGroup.subgroups![1].items.push(item);
-        } else {
-          promptsGroup.subgroups![0].items.push(item);
+        const promptsGroup = groups.find(g => g.key === 'prompts');
+        if (promptsGroup) {
+          promptsGroup.items.push(item);
+          const targetSubgroup =
+            item.subcategory === 'custom'
+              ? promptsGroup.subgroups?.[1]
+              : promptsGroup.subgroups?.[0];
+          targetSubgroup?.items.push(item);
         }
       } else {
         const group = groups.find(g => g.category === item.category);

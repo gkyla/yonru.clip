@@ -1,3 +1,4 @@
+/** @jsxImportSource react */
 import React, { useEffect, useRef, useSyncExternalStore } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
 import { YonruClip } from '@yonru/remotion';

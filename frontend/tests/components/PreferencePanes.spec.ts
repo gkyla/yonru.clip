@@ -83,7 +83,7 @@ describe('GeminiKeysPane Component', () => {
         keysList,
         hasUnsavedChanges: true,
         testingKey: false,
-        testResult: { status: 'idle', message: '' },
+        testResult: { status: 'idle' as const, message: '' },
         draggedIndex: null,
         'onUpdate:keysList': (val: any) => wrapper.setProps({ keysList: val })
       },
@@ -92,9 +92,9 @@ describe('GeminiKeysPane Component', () => {
 
     expect(wrapper.text()).toContain('Gemini API Keys');
     expect(wrapper.text()).toContain('#1 Primary');
-    expect(wrapper.find('input[type="text"]').element.value).toBe(
-      'Primary Key'
-    );
+    expect(
+      (wrapper.find('input[type="text"]').element as HTMLInputElement).value
+    ).toBe('Primary Key');
     expect(wrapper.text()).toContain('Unsaved changes');
 
     // Add key button

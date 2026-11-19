@@ -81,10 +81,10 @@ describe('useClipEditorSession Composable', () => {
 
       // Sanitized transcript has no circular references and serializes cleanly
       expect(() => JSON.stringify(cleaned)).not.toThrow();
-      expect(cleaned[0].text).toBe('Circular text');
+      expect(cleaned[0]?.text).toBe('Circular text');
       expect((cleaned[0] as any).self).toBeUndefined();
       expect((cleaned[0] as any).domNode).toBeUndefined();
-      expect((cleaned[0].words![0] as any).parent).toBeUndefined();
+      expect((cleaned[0]?.words?.[0] as any).parent).toBeUndefined();
     });
   });
 
@@ -267,7 +267,7 @@ describe('useClipEditorSession Composable', () => {
 
       session.folderName.value = 'folderX';
       session.clipId.value = 'clipY';
-      session.cropMap.value = [{ time: 0, x: 50, y: 50 }];
+      session.cropMap.value = [{ time: 0, x: 50 }];
       session.fullTranscript.value = [
         { start: 0, duration: 5, text: 'Session transcript' }
       ];
@@ -293,7 +293,7 @@ describe('useClipEditorSession Composable', () => {
               undo_stack: [{ action: 'move' }],
               redo_stack: []
             },
-            crop_map: [{ time: 0, x: 50, y: 50 }]
+            crop_map: [{ time: 0, x: 50 }]
           })
         })
       );
@@ -708,7 +708,7 @@ describe('useClipEditorSession Composable', () => {
       session.hooks.value = [{ theme: 'Hook 1', start: 0, end: 5 }];
       session.activeHook.value = { theme: 'Active Hook', start: 0, end: 5 };
       session.fullTranscript.value = [{ start: 0, duration: 5, text: 'Hello' }];
-      session.cropMap.value = [{ time: 1, x: 20, y: 30 }];
+      session.cropMap.value = [{ time: 1, x: 20 }];
 
       session.resetSession();
 

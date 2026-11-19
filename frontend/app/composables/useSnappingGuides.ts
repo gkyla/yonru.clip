@@ -136,12 +136,16 @@ export const useSnappingGuides = () => {
       // 2. Safe zone boundaries (Left and Right edges)
       const bounds =
         PLATFORM_SAFE_BOUNDS[platform] ?? PLATFORM_SAFE_BOUNDS.none;
-      if (Math.abs(left - bounds.left) <= SNAP_THRESHOLD) {
-        snappedX = isCentered ? bounds.left + width / 2 : bounds.left;
-        guides.vertical = { position: bounds.left, type: 'safe' };
-      } else if (Math.abs(right - bounds.right) <= SNAP_THRESHOLD) {
-        snappedX = isCentered ? bounds.right - width / 2 : bounds.right - width;
-        guides.vertical = { position: bounds.right, type: 'safe' };
+      if (bounds) {
+        if (Math.abs(left - bounds.left) <= SNAP_THRESHOLD) {
+          snappedX = isCentered ? bounds.left + width / 2 : bounds.left;
+          guides.vertical = { position: bounds.left, type: 'safe' };
+        } else if (Math.abs(right - bounds.right) <= SNAP_THRESHOLD) {
+          snappedX = isCentered
+            ? bounds.right - width / 2
+            : bounds.right - width;
+          guides.vertical = { position: bounds.right, type: 'safe' };
+        }
       }
     }
 
@@ -154,14 +158,16 @@ export const useSnappingGuides = () => {
       // 2. Safe zone boundaries (Top and Bottom edges)
       const bounds =
         PLATFORM_SAFE_BOUNDS[platform] ?? PLATFORM_SAFE_BOUNDS.none;
-      if (Math.abs(top - bounds.top) <= SNAP_THRESHOLD) {
-        snappedY = isCentered ? bounds.top + height / 2 : bounds.top;
-        guides.horizontal = { position: bounds.top, type: 'safe' };
-      } else if (Math.abs(bottom - bounds.bottom) <= SNAP_THRESHOLD) {
-        snappedY = isCentered
-          ? bounds.bottom - height / 2
-          : bounds.bottom - height;
-        guides.horizontal = { position: bounds.bottom, type: 'safe' };
+      if (bounds) {
+        if (Math.abs(top - bounds.top) <= SNAP_THRESHOLD) {
+          snappedY = isCentered ? bounds.top + height / 2 : bounds.top;
+          guides.horizontal = { position: bounds.top, type: 'safe' };
+        } else if (Math.abs(bottom - bounds.bottom) <= SNAP_THRESHOLD) {
+          snappedY = isCentered
+            ? bounds.bottom - height / 2
+            : bounds.bottom - height;
+          guides.horizontal = { position: bounds.bottom, type: 'safe' };
+        }
       }
     }
 

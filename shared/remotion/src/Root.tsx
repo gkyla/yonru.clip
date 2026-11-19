@@ -1,3 +1,4 @@
+/** @jsxImportSource react */
 import React from 'react';
 import { Composition, getInputProps } from 'remotion';
 import { YonruClip } from './Composition';

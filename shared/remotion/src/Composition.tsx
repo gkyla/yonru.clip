@@ -1,3 +1,4 @@
+/** @jsxImportSource react */
 import React, { useMemo } from 'react';
 import {
   AbsoluteFill,
@@ -296,13 +297,15 @@ export const YonruClip: React.FC<YonruClipProps> = ({
       }))
       .sort((a, b) => a.start - b.start);
 
-    if (valid.length === 0) return [];
+    const first = valid[0];
+    if (!first) return [];
 
     const merged: Array<{ start: number; duration: number }> = [];
-    let current = { ...valid[0] };
+    let current = { ...first };
 
     for (let i = 1; i < valid.length; i++) {
       const next = valid[i];
+      if (!next) continue;
       const currentEnd =
         Math.round((current.start + current.duration) * 1000) / 1000;
       if (next.start <= currentEnd + 0.005) {

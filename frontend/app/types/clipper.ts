@@ -16,6 +16,8 @@ export interface Hook {
   thumbnail_url?: string;
   virality_score?: number;
   virality_reason?: string;
+  score?: number;
+  saved?: boolean;
 }
 
 export interface LastAccessedClip {

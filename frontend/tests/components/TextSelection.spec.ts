@@ -66,7 +66,7 @@ const mockState = {
       ]
     }
   ]),
-  selectedTimelineItem: ref(null),
+  selectedTimelineItem: ref<any>(null),
   renderStatus: ref('idle'),
   isPlaying: ref(false),
   currentTime: ref(0),
