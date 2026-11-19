@@ -534,7 +534,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import {
   calculateRulerTicks,
   calculateSnapTime,
@@ -723,22 +723,16 @@ function handleSelectTrack(track: TimelineTrack) {
 }
 function handleAddTrack(type: 'text' | 'audio') {
   state.addTrack?.(type);
-  state.saveTimelineTracks?.();
 }
 function handleDeleteTrack(trackId: string) {
   if (!isTrackDeletable(trackId)) return;
-  const deleted = state.deleteTrack?.(trackId);
-  if (deleted !== false) {
-    state.saveTimelineTracks?.();
-  }
+  state.deleteTrack?.(trackId);
 }
 function handleToggleMute(trackId: string) {
   state.toggleTrackMute?.(trackId);
-  state.saveTimelineTracks?.();
 }
 function handleToggleVisibility(trackId: string) {
   state.toggleTrackVisibility?.(trackId);
-  state.saveTimelineTracks?.();
 }
 
 function itemClasses(_type: string, item: TimelineTrackItem) {
@@ -1406,6 +1400,10 @@ function stopDrag() {
     draggingEl.style.transform = '';
   }
 
+  if (state.isDraggingTimelineItem) {
+    state.isDraggingTimelineItem.value = false;
+  }
+
   if (draggingItem) {
     const hasTimeChanged =
       Math.abs(pendingStart - initialItemStart) > 0.0001 ||
@@ -1413,7 +1411,6 @@ function stopDrag() {
     const isCrossTrack = Boolean(
       targetTrackId && targetTrackId !== dragTrackId
     );
-    let hasMutated = false;
 
     if (isCrossTrack && targetTrackId) {
       if (isTargetValid && state.moveTimelineItemToTrack) {
@@ -1425,9 +1422,7 @@ function stopDrag() {
           pendingStart,
           pendingDuration
         );
-        if (moved) {
-          hasMutated = true;
-        } else {
+        if (!moved) {
           restoreDraggedElementStyles();
         }
       } else {
@@ -1450,7 +1445,6 @@ function stopDrag() {
         state.commitToHistory?.();
         draggingItem.start = pendingStart;
         draggingItem.duration = pendingDuration;
-        hasMutated = true;
       } else {
         restoreDraggedElementStyles();
       }
@@ -1459,19 +1453,6 @@ function stopDrag() {
     draggingItem = null;
     draggingEl = null;
     draggingDurationEl = null;
-
-    if (hasMutated) {
-      state.saveTimelineTracks?.();
-      nextTick(() => {
-        if (state.isDraggingTimelineItem) {
-          state.isDraggingTimelineItem.value = false;
-        }
-      });
-    } else if (state.isDraggingTimelineItem) {
-      state.isDraggingTimelineItem.value = false;
-    }
-  } else if (state.isDraggingTimelineItem) {
-    state.isDraggingTimelineItem.value = false;
   }
 }
 
@@ -1495,16 +1476,10 @@ function deleteSelected() {
 
   state.timelineTracks.value = result.updatedTracks;
   state.currentTime.value = result.updatedCurrentTime;
-  if (
-    isVideoTrack(track || trackId) &&
-    state.fullTranscript &&
-    state.saveTranscript
-  ) {
+  if (isVideoTrack(track || trackId) && state.fullTranscript) {
     state.fullTranscript.value = result.updatedTranscript;
-    state.saveTranscript();
   }
   state.selectedTimelineItem.value = null;
-  state.saveTimelineTracks();
 }
 
 function splitSelected() {
@@ -1532,7 +1507,6 @@ function splitSelected() {
       );
       state.selectedTimelineItem.value =
         insertedSecondItem ?? splitResult.secondItem;
-      state.saveTimelineTracks();
     }
   }
 }

@@ -323,6 +323,31 @@ describe('useClipperJob Sub-composable - Clip Session Hydration', () => {
     expect(cropMode.value).toBe('face_tracking');
   });
 
+  it('ignores polluted cropMap inside session.style_settings and hydrates cropPercentXTop/Bottom', async () => {
+    const cropMap = useState<CropMapPoint[]>('cropMap');
+    const cropPercentXTop = useState<number>('cropPercentXTop', () => 50);
+    const cropPercentXBottom = useState<number>('cropPercentXBottom', () => 50);
+    cropMap.value = [];
+
+    const canonicalCropMap = [{ time: 0, x: 640 }];
+    mockSessionResponse = {
+      style_settings: {
+        font: 'Outfit',
+        cropPercentXTop: 35,
+        cropPercentXBottom: 70,
+        cropMap: [{ time: 99, x: 123 }]
+      } as any,
+      crop_map: canonicalCropMap
+    };
+
+    const { loadReadyClipIntoEditor } = useClipperJob();
+    await loadReadyClipIntoEditor('folder', '10_20_clip');
+
+    expect(cropMap.value).toEqual(canonicalCropMap);
+    expect(cropPercentXTop.value).toBe(35);
+    expect(cropPercentXBottom.value).toBe(70);
+  });
+
   it('populates videoUrl during analyzeCached even when activeHook is populated', async () => {
     const videoUrl = useState<string | null>('videoUrl', () => null);
     const activeHook = useState<any>('activeHook', () => null);

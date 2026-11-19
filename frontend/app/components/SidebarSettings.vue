@@ -420,9 +420,6 @@ function applyPreset(preset) {
     state.subtitleStrokeWidth.value = preset.strokeWidth;
     state.subtitleTextTransform.value = preset.textTransform;
   }
-  if (state.saveStyleSettings) {
-    state.saveStyleSettings();
-  }
 }
 
 function handleSaveDefaultStyle() {

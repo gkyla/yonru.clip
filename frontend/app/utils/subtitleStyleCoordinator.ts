@@ -70,7 +70,6 @@ export const DEFAULT_SUBTITLE_STYLES: SubtitleStyleSettings = {
   font: 'Montserrat',
   fontSize: 50,
   cropMode: 'face_tracking',
-  cropMap: [],
   cropPercentX: 50,
   cropPercentXTop: 50,
   cropPercentXBottom: 50,
@@ -159,11 +158,6 @@ export class SubtitleStyleCoordinator {
           ? overrides.fontSize
           : (base.fontSize ?? 50),
       cropMode: overrides.cropMode ?? base.cropMode ?? 'face_tracking',
-      cropMap: overrides.cropMap
-        ? [...overrides.cropMap]
-        : base.cropMap
-          ? [...base.cropMap]
-          : [],
       cropPercentX:
         overrides.cropPercentX !== undefined
           ? overrides.cropPercentX

@@ -129,7 +129,6 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     item.x = Math.round(e.target.x());
     item.y = Math.round(e.target.y());
     snapping.clearGuides();
-    state.saveTimelineTracks();
   }
 
   // Inline Text Editing State
@@ -252,7 +251,6 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
         item.content = originalContent.value;
       }
       editingItemId.value = null;
-      state.saveTimelineTracks();
     }
   }
 

@@ -203,6 +203,19 @@ describe('SubtitleStyleCoordinator Domain Engine', () => {
     expect(payload.video_layout).toBe('vertical');
   });
 
+  it('omits clip-specific cropMap from DEFAULT_SUBTITLE_STYLES and merge output (ADR-0008)', () => {
+    expect(DEFAULT_SUBTITLE_STYLES).not.toHaveProperty('cropMap');
+
+    const coordinator = new SubtitleStyleCoordinator({ font: 'Inter' });
+    expect(coordinator.getSettings()).not.toHaveProperty('cropMap');
+
+    const merged = SubtitleStyleCoordinator.merge(DEFAULT_SUBTITLE_STYLES, {
+      font: 'Outfit',
+      cropMap: [{ time: 0, x: 500 }]
+    } as any);
+    expect(merged).not.toHaveProperty('cropMap');
+  });
+
   describe('getOuterStrokeShadow calculation & projection', () => {
     it('returns subtle ambient shadow when strokeWidth is 0 or undefined', () => {
       expect(getOuterStrokeShadow(0)).toBe('0 1px 3px rgba(0,0,0,0.8)');

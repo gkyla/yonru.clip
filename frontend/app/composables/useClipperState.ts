@@ -88,9 +88,10 @@ function createClipperState() {
   const diagnostics = useSystemDiagnostics();
   const auditor = useSafetyAuditor();
   const timeline = useTimelineState();
-  const job = useClipperJob();
+  const job = useClipperJob({ timeline });
   let editorSessionRef: ReturnType<typeof useClipEditorSession> | null = null;
   const coverState = useClipperCover({
+    timeline,
     onSaveCoverConfig: () => editorSessionRef?.saveCoverConfig()
   });
   const thumbnailState = coverState;
@@ -255,6 +256,9 @@ function createClipperState() {
     cropMap,
     subtitlesEnabled,
     autoAdaptiveSubtitles,
+    isSessionSaving,
+    scheduleSessionSave,
+    flushSessionSaves,
     loadReadyClipIntoEditor,
     saveTranscript,
     saveClipSession,
@@ -627,6 +631,9 @@ function createClipperState() {
     saveClipSession,
     saveTranscript,
     saveStyleSettings,
+    isSessionSaving,
+    scheduleSessionSave,
+    flushSessionSaves,
     applyPreset,
     subtitleStyle,
     toggleSubtitles,

@@ -1518,7 +1518,6 @@ function handleWindowMouseUp() {
     isThumbBgDragging.value = false;
     window.removeEventListener('mousemove', handleWindowMouseMove);
     window.removeEventListener('mouseup', handleWindowMouseUp);
-    state.saveThumbnailConfig();
   }
 }
 
@@ -1556,7 +1555,6 @@ function handleWindowTouchEnd() {
     isThumbBgDragging.value = false;
     window.removeEventListener('touchmove', handleWindowTouchMove);
     window.removeEventListener('touchend', handleWindowTouchEnd);
-    state.saveThumbnailConfig();
   }
 }
 
@@ -1601,7 +1599,6 @@ function onThumbnailLabelDragEnd(e: any, overlay: any) {
   overlay.x = e.target.x();
   overlay.y = e.target.y();
   snapping.clearGuides();
-  state.saveThumbnailConfig();
 }
 
 // --- THUMBNAIL TEXT DIRECT EDITING ---
@@ -1643,7 +1640,6 @@ function stopEditingThumbOverlay(overlay: any, shouldSave = true) {
       overlay.text = originalThumbContent.value;
     }
     editingThumbOverlayId.value = null;
-    state.saveThumbnailConfig();
   }
 }
 

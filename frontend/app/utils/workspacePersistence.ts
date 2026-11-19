@@ -5,6 +5,10 @@
 
 import { watch, type Ref } from 'vue';
 import { isTextTrack } from './timelineHelpers';
+import {
+  ClipSessionSaveScheduler,
+  type ClipSessionSaveDomain
+} from './clipSessionSaveScheduler';
 import type {
   HookExtractionMode,
   HookIntentPreset,
@@ -12,7 +16,8 @@ import type {
   LastAccessedClip,
   TimelineTrack,
   TimelineTrackItem,
-  CoverTextOverlay
+  CoverTextOverlay,
+  TranscriptSegment
 } from '../types/clipper';
 
 export interface WorkspaceSettingsSchema {
@@ -58,11 +63,20 @@ export interface DomainLibraryReactivityContext {
 export interface DomainEditorSessionReactivityContext {
   folderName?: Ref<string | null>;
   clipId?: Ref<string | null>;
+  fullTranscript?: Ref<TranscriptSegment[]>;
   saveStyleSettings?: () => Promise<void> | void;
   saveClipSession?: () => Promise<unknown> | void;
   saveTimelineTracks?: () => Promise<void> | void;
   saveHistoryToBackend?: () => Promise<void> | void;
   saveCoverConfig?: () => Promise<void> | void;
+  saveTranscript?: (isSilent?: boolean) => Promise<void> | void;
+  saveScheduler?: ClipSessionSaveScheduler;
+  scheduleSessionSave?: (
+    domain: ClipSessionSaveDomain,
+    delayMs?: number
+  ) => boolean;
+  flushSessionSaves?: () => Promise<unknown>;
+  hasPendingSessionSaves?: () => boolean;
 }
 
 export interface DomainCoverReactivityContext {
@@ -122,6 +136,17 @@ export interface DomainSubtitleStyleReactivityContext {
   landscapeBlurRadius?: Ref<number>;
   landscapeDarkness?: Ref<number>;
   autoAdaptiveSubtitles?: Ref<boolean>;
+  cropMode?: Ref<string>;
+  cropPercentX?: Ref<number>;
+  cropPercentXTop?: Ref<number>;
+  cropPercentXBottom?: Ref<number>;
+  splitZoomTop?: Ref<number>;
+  splitZoomBottom?: Ref<number>;
+  splitOffsetXTop?: Ref<number>;
+  splitOffsetYTop?: Ref<number>;
+  splitOffsetXBottom?: Ref<number>;
+  splitOffsetYBottom?: Ref<number>;
+  volume?: Ref<number>;
 }
 
 export interface WorkspaceReactivityContext {
@@ -150,6 +175,7 @@ export interface WorkspaceReactivityContext {
 
   folderName?: Ref<string | null>;
   clipId?: Ref<string | null>;
+  fullTranscript?: Ref<TranscriptSegment[]>;
   jobStatus?: Ref<string>;
   activeHook?: Ref<{
     theme?: string;
@@ -192,8 +218,21 @@ export interface WorkspaceReactivityContext {
   landscapeBlurRadius?: Ref<number>;
   landscapeDarkness?: Ref<number>;
   autoAdaptiveSubtitles?: Ref<boolean>;
+  cropMode?: Ref<string>;
+  cropPercentX?: Ref<number>;
+  cropPercentXTop?: Ref<number>;
+  cropPercentXBottom?: Ref<number>;
+  splitZoomTop?: Ref<number>;
+  splitZoomBottom?: Ref<number>;
+  splitOffsetXTop?: Ref<number>;
+  splitOffsetYTop?: Ref<number>;
+  splitOffsetXBottom?: Ref<number>;
+  splitOffsetYBottom?: Ref<number>;
+  volume?: Ref<number>;
   saveStyleSettings?: () => Promise<void> | void;
   saveClipSession?: () => Promise<unknown> | void;
+  saveTranscript?: (isSilent?: boolean) => Promise<void> | void;
+  saveScheduler?: ClipSessionSaveScheduler;
 }
 
 export class WorkspacePersistenceCoordinator {
@@ -346,6 +385,7 @@ export class WorkspacePersistenceCoordinator {
     const editorSession: DomainEditorSessionReactivityContext = {
       folderName: ctx.editorSession?.folderName ?? ctx.folderName,
       clipId: ctx.editorSession?.clipId ?? ctx.clipId,
+      fullTranscript: ctx.editorSession?.fullTranscript ?? ctx.fullTranscript,
       saveStyleSettings:
         ctx.editorSession?.saveStyleSettings ?? ctx.saveStyleSettings,
       saveClipSession:
@@ -357,7 +397,9 @@ export class WorkspacePersistenceCoordinator {
         ctx.editorSession?.saveHistoryToBackend ??
         ctx.timeline?.saveHistoryToBackend,
       saveCoverConfig:
-        ctx.editorSession?.saveCoverConfig ?? ctx.cover?.saveCoverConfig
+        ctx.editorSession?.saveCoverConfig ?? ctx.cover?.saveCoverConfig,
+      saveTranscript: ctx.editorSession?.saveTranscript ?? ctx.saveTranscript,
+      saveScheduler: ctx.editorSession?.saveScheduler ?? ctx.saveScheduler
     };
 
     const timeline = ctx.timeline;
@@ -410,7 +452,25 @@ export class WorkspacePersistenceCoordinator {
       landscapeDarkness:
         ctx.subtitleStyle?.landscapeDarkness ?? ctx.landscapeDarkness,
       autoAdaptiveSubtitles:
-        ctx.subtitleStyle?.autoAdaptiveSubtitles ?? ctx.autoAdaptiveSubtitles
+        ctx.subtitleStyle?.autoAdaptiveSubtitles ?? ctx.autoAdaptiveSubtitles,
+      cropMode: ctx.subtitleStyle?.cropMode ?? ctx.cropMode,
+      cropPercentX: ctx.subtitleStyle?.cropPercentX ?? ctx.cropPercentX,
+      cropPercentXTop:
+        ctx.subtitleStyle?.cropPercentXTop ?? ctx.cropPercentXTop,
+      cropPercentXBottom:
+        ctx.subtitleStyle?.cropPercentXBottom ?? ctx.cropPercentXBottom,
+      splitZoomTop: ctx.subtitleStyle?.splitZoomTop ?? ctx.splitZoomTop,
+      splitZoomBottom:
+        ctx.subtitleStyle?.splitZoomBottom ?? ctx.splitZoomBottom,
+      splitOffsetXTop:
+        ctx.subtitleStyle?.splitOffsetXTop ?? ctx.splitOffsetXTop,
+      splitOffsetYTop:
+        ctx.subtitleStyle?.splitOffsetYTop ?? ctx.splitOffsetYTop,
+      splitOffsetXBottom:
+        ctx.subtitleStyle?.splitOffsetXBottom ?? ctx.splitOffsetXBottom,
+      splitOffsetYBottom:
+        ctx.subtitleStyle?.splitOffsetYBottom ?? ctx.splitOffsetYBottom,
+      volume: ctx.subtitleStyle?.volume ?? ctx.volume
     };
 
     // 2. Hydrate Blacklist & Custom Safety
@@ -536,27 +596,113 @@ export class WorkspacePersistenceCoordinator {
 
     const saveTimelineFn =
       editorSession.saveTimelineTracks ?? timeline?.saveTimelineTracks;
-    if (timeline?.timelineTracks && saveTimelineFn) {
+    const saveHistoryFn =
+      editorSession.saveHistoryToBackend ?? timeline?.saveHistoryToBackend;
+    const saveStyleFn = editorSession.saveStyleSettings;
+    const saveCoverFn = editorSession.saveCoverConfig ?? cover?.saveCoverConfig;
+    const saveTranscriptFn = editorSession.saveTranscript;
+
+    let localFallbackScheduler: ClipSessionSaveScheduler | null = null;
+    const activeScheduler =
+      editorSession.saveScheduler ??
+      (() => {
+        const hasAnySaveFn = Boolean(
+          saveTimelineFn ||
+          saveHistoryFn ||
+          saveStyleFn ||
+          saveCoverFn ||
+          saveTranscriptFn
+        );
+        if (!hasAnySaveFn) {
+          return null;
+        }
+        localFallbackScheduler = new ClipSessionSaveScheduler({
+          client: {
+            patchSession: async (folder, clip, patch) => {
+              if (patch.style_settings !== undefined) {
+                await saveStyleFn?.();
+              }
+              if (patch.timeline !== undefined) {
+                await saveTimelineFn?.();
+              }
+              if (patch.cover_config !== undefined) {
+                await saveCoverFn?.();
+              }
+              if (patch.history !== undefined) {
+                await saveHistoryFn?.();
+              }
+              if (patch.transcript !== undefined) {
+                await saveTranscriptFn?.(true);
+              }
+              return { status: 'ok', folder_name: folder, clip_id: clip };
+            }
+          },
+          source: {
+            getTarget: () => {
+              if (
+                !editorSession.folderName?.value ||
+                !editorSession.clipId?.value
+              ) {
+                return null;
+              }
+              return {
+                folderName: editorSession.folderName.value,
+                clipId: editorSession.clipId.value
+              };
+            },
+            isLocked: () => Boolean(timeline?.isSavingLocked?.value),
+            buildDomainPatch: domains => {
+              const patch: Record<string, any> = {};
+              if (domains.has('style_settings') && saveStyleFn) {
+                patch.style_settings = {};
+              }
+              if (domains.has('timeline') && saveTimelineFn) {
+                patch.timeline = [];
+              }
+              if (domains.has('cover_config') && saveCoverFn) {
+                patch.cover_config = {};
+              }
+              if (domains.has('history') && saveHistoryFn) {
+                patch.history = { undo_stack: [], redo_stack: [] };
+              }
+              if (domains.has('transcript') && saveTranscriptFn) {
+                patch.transcript = [];
+              }
+              return patch;
+            }
+          }
+        });
+        return localFallbackScheduler;
+      })();
+
+    // Debounced persistence for timeline tracks (400ms via coalescing scheduler)
+    if (
+      timeline?.timelineTracks &&
+      activeScheduler &&
+      (editorSession.saveScheduler || saveTimelineFn)
+    ) {
       unwatchList.push(
         watch(
           timeline.timelineTracks,
           () => {
-            if (timeline.isDraggingTimelineItem?.value) return;
-            saveTimelineFn();
+            if (
+              timeline.isSavingLocked?.value ||
+              timeline.isDraggingTimelineItem?.value
+            ) {
+              return;
+            }
+            activeScheduler.markDirty('timeline');
           },
           { deep: true }
         )
       );
     }
 
-    // Debounced persistence for history stacks
-    let historyDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const saveHistoryFn =
-      editorSession.saveHistoryToBackend ?? timeline?.saveHistoryToBackend;
+    // Debounced persistence for history stacks (1500ms via coalescing scheduler)
     if (
       timeline?.timelineUndoStack &&
       timeline?.timelineRedoStack &&
-      saveHistoryFn
+      (editorSession.saveScheduler || saveHistoryFn)
     ) {
       unwatchList.push(
         watch(
@@ -565,7 +711,12 @@ export class WorkspacePersistenceCoordinator {
             () => timeline.timelineRedoStack?.value.length ?? 0
           ],
           () => {
-            if (timeline.isHydratingHistory?.value) return;
+            if (
+              timeline.isHydratingHistory?.value ||
+              timeline.isSavingLocked?.value
+            ) {
+              return;
+            }
             if (
               (timeline.timelineUndoStack?.value.length ?? 0) === 0 &&
               (timeline.timelineRedoStack?.value.length ?? 0) === 0
@@ -576,10 +727,7 @@ export class WorkspacePersistenceCoordinator {
             if (timeline.hasUnsavedHistory) {
               timeline.hasUnsavedHistory.value = true;
             }
-            if (historyDebounceTimer) clearTimeout(historyDebounceTimer);
-            historyDebounceTimer = setTimeout(() => {
-              saveHistoryFn();
-            }, 1500);
+            activeScheduler?.markDirty('history');
           }
         )
       );
@@ -618,9 +766,8 @@ export class WorkspacePersistenceCoordinator {
       }
     }
 
-    // Debounced persistence for subtitle styles (800ms)
-    let styleDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-    if (editorSession.saveStyleSettings) {
+    // Debounced persistence for subtitle, layout, framing, and audio styles (800ms)
+    if (activeScheduler && (editorSession.saveScheduler || saveStyleFn)) {
       const watchedStyleRefs = [
         subtitleStyle.font,
         subtitleStyle.fontSize,
@@ -645,32 +792,36 @@ export class WorkspacePersistenceCoordinator {
         subtitleStyle.landscapeBackground,
         subtitleStyle.landscapeBlurRadius,
         subtitleStyle.landscapeDarkness,
-        subtitleStyle.autoAdaptiveSubtitles
+        subtitleStyle.autoAdaptiveSubtitles,
+        subtitleStyle.cropMode,
+        subtitleStyle.cropPercentX,
+        subtitleStyle.cropPercentXTop,
+        subtitleStyle.cropPercentXBottom,
+        subtitleStyle.splitZoomTop,
+        subtitleStyle.splitZoomBottom,
+        subtitleStyle.splitOffsetXTop,
+        subtitleStyle.splitOffsetYTop,
+        subtitleStyle.splitOffsetXBottom,
+        subtitleStyle.splitOffsetYBottom,
+        subtitleStyle.volume
       ].filter(Boolean) as Array<Ref<any>>;
 
       if (watchedStyleRefs.length > 0) {
         unwatchList.push(
           watch(watchedStyleRefs, () => {
             if (timeline?.isSavingLocked?.value) return;
-            if (
-              !editorSession.folderName?.value ||
-              !editorSession.clipId?.value
-            ) {
-              return;
-            }
-            if (styleDebounceTimer) clearTimeout(styleDebounceTimer);
-            styleDebounceTimer = setTimeout(() => {
-              editorSession.saveStyleSettings?.();
-            }, 800);
+            activeScheduler.markDirty('style_settings');
           })
         );
       }
     }
 
     // Debounced persistence for Cover Slide configuration (300ms)
-    let coverDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const saveCoverFn = editorSession.saveCoverConfig ?? cover?.saveCoverConfig;
-    if (saveCoverFn && cover) {
+    if (
+      cover &&
+      activeScheduler &&
+      (editorSession.saveScheduler || saveCoverFn)
+    ) {
       const watchedCoverRefs = [
         cover.coverEnabled,
         cover.coverDuration,
@@ -685,16 +836,7 @@ export class WorkspacePersistenceCoordinator {
             watchedCoverRefs,
             () => {
               if (timeline?.isSavingLocked?.value) return;
-              if (
-                !editorSession.folderName?.value ||
-                !editorSession.clipId?.value
-              ) {
-                return;
-              }
-              if (coverDebounceTimer) clearTimeout(coverDebounceTimer);
-              coverDebounceTimer = setTimeout(() => {
-                saveCoverFn();
-              }, 300);
+              activeScheduler.markDirty('cover_config');
             },
             { deep: true }
           )
@@ -702,19 +844,27 @@ export class WorkspacePersistenceCoordinator {
       }
     }
 
-    // 6. BeforeUnload Guard & Flush
+    // Shallow persistence for fullTranscript reference replacements (800ms)
+    if (
+      editorSession.fullTranscript &&
+      activeScheduler &&
+      (editorSession.saveScheduler || saveTranscriptFn)
+    ) {
+      unwatchList.push(
+        watch(editorSession.fullTranscript, () => {
+          if (timeline?.isSavingLocked?.value) return;
+          activeScheduler.markDirty('transcript');
+        })
+      );
+    }
+
+    // 6. BeforeUnload Guard & Coalesced Flush
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (styleDebounceTimer) {
-        clearTimeout(styleDebounceTimer);
-        styleDebounceTimer = null;
-        editorSession.saveStyleSettings?.();
-      }
-      if (coverDebounceTimer) {
-        clearTimeout(coverDebounceTimer);
-        coverDebounceTimer = null;
-        saveCoverFn?.();
+      if (activeScheduler?.hasPendingWork()) {
+        activeScheduler.flush();
       }
       if (
+        activeScheduler?.hasPendingWork() ||
         timeline?.hasUnsavedHistory?.value ||
         timeline?.isSavingHistory?.value
       ) {
@@ -726,18 +876,7 @@ export class WorkspacePersistenceCoordinator {
     // Return unbind cleanup
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (historyDebounceTimer) {
-        clearTimeout(historyDebounceTimer);
-        historyDebounceTimer = null;
-      }
-      if (styleDebounceTimer) {
-        clearTimeout(styleDebounceTimer);
-        styleDebounceTimer = null;
-      }
-      if (coverDebounceTimer) {
-        clearTimeout(coverDebounceTimer);
-        coverDebounceTimer = null;
-      }
+      localFallbackScheduler?.dispose();
       unwatchList.forEach(unwatch => unwatch());
     };
   }

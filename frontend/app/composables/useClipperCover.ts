@@ -5,12 +5,13 @@ import { CoverCompositionCoordinator } from '../utils/coverEngine';
 import type { CoverTextOverlay, DefaultCoverStyle } from '../types/clipper';
 
 export interface ClipperCoverDependencies {
+  timeline?: ReturnType<typeof useTimelineState>;
   onSaveCoverConfig?: () => Promise<void> | void;
 }
 
 export const useClipperCover = (deps: ClipperCoverDependencies = {}) => {
   const API_BASE = resolveApiBase();
-  const timeline = useTimelineState();
+  const timeline = deps.timeline ?? useTimelineState();
 
   // Ingestion & basic states shared via useState keys
   const jobId = useState<string | null>('jobId');

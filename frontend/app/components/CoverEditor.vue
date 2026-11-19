@@ -215,7 +215,6 @@
                     step="1"
                     :disabled="!state.coverUrl.value"
                     class="bg-transparent text-[9px] mono text-emerald-400 font-bold w-6 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:cursor-not-allowed"
-                    @input="state.saveCoverConfig()"
                   />
                   <span class="text-[10px] mono text-emerald-400/60 font-bold"
                     >%</span
@@ -230,7 +229,6 @@
                 step="1"
                 :disabled="!state.coverUrl.value"
                 class="w-full accent-emerald-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed"
-                @change="state.saveCoverConfig()"
               />
               <div class="flex justify-between text-[10px] text-slate-300 mt-1">
                 <span>L</span>

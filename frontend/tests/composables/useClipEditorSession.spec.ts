@@ -1,5 +1,5 @@
 // @vitest-environment nuxt
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { nextTick, ref } from 'vue';
 import {
   useClipEditorSession,
@@ -18,6 +18,10 @@ describe('useClipEditorSession Composable', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ status: 'ok' }));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('initialization and active clip identifiers', () => {
@@ -386,7 +390,7 @@ describe('useClipEditorSession Composable', () => {
       );
     });
 
-    it('toggles subtitles and persists change via saveStyleSettings', async () => {
+    it('toggles subtitles and persists change via saveScheduler', async () => {
       const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
       vi.stubGlobal('$fetch', mockFetch);
 
@@ -395,20 +399,31 @@ describe('useClipEditorSession Composable', () => {
       session.clipId.value = 'c1';
       session.subtitlesEnabled.value = true;
 
-      await session.toggleSubtitles();
+      session.toggleSubtitles();
       expect(session.subtitlesEnabled.value).toBe(false);
+      await session.flushSessionSaves();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch).toHaveBeenCalledWith(
         `${API_BASE}/api/clip-session/f1/c1`,
-        expect.anything()
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.objectContaining({
+            style_settings: expect.objectContaining({
+              subtitlesEnabled: false
+            })
+          })
+        })
       );
     });
 
-    it('applies preset via subtitleStyle and triggers saveStyleSettings', () => {
+    it('applies preset via subtitleStyle and schedules coalesced style persistence', async () => {
       const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
       vi.stubGlobal('$fetch', mockFetch);
       const mockSubtitleStyle = {
         applyPreset: vi.fn(),
-        getStyleSnapshot: vi.fn().mockReturnValue({})
+        getStyleSnapshot: vi
+          .fn()
+          .mockReturnValue({ subtitlePreset: 'bold-podcast' })
       };
 
       const session = useClipEditorSession({
@@ -421,6 +436,38 @@ describe('useClipEditorSession Composable', () => {
       expect(mockSubtitleStyle.applyPreset).toHaveBeenCalledWith(
         'bold-podcast'
       );
+      expect(mockFetch).not.toHaveBeenCalled();
+
+      await session.flushSessionSaves();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${API_BASE}/api/clip-session/f1/c1`,
+        expect.objectContaining({
+          method: 'PUT',
+          body: { style_settings: { subtitlePreset: 'bold-podcast' } }
+        })
+      );
+    });
+
+    it('omits cropMap from style_settings and default-style-settings payloads (ADR-0008)', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
+      vi.stubGlobal('$fetch', mockFetch);
+
+      const session = useClipEditorSession();
+      session.folderName.value = 'fClean';
+      session.clipId.value = 'cClean';
+      session.cropMap.value = [{ time: 0, x: 720 }];
+
+      await session.saveStyleSettings();
+      const stylePut = mockFetch.mock.calls[0]?.[1]?.body?.style_settings;
+      expect(stylePut).toBeDefined();
+      expect(stylePut).not.toHaveProperty('cropMap');
+
+      mockFetch.mockClear();
+      await session.saveDefaultStyleSettings();
+      const defaultPut = mockFetch.mock.calls[0]?.[1]?.body?.settings;
+      expect(defaultPut).toBeDefined();
+      expect(defaultPut).not.toHaveProperty('cropMap');
     });
 
     it('routes timeline, history, and cover_config patches through clipSessionClient', async () => {
@@ -528,6 +575,60 @@ describe('useClipEditorSession Composable', () => {
           }
         })
       );
+    });
+
+    it('flushes dirty domains + history once to outgoing clip on switch and cancels stale timers', async () => {
+      vi.useFakeTimers();
+      const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
+      vi.stubGlobal('$fetch', mockFetch);
+
+      const session = useClipEditorSession();
+      session.folderName.value = 'oldFolder';
+      session.clipId.value = 'oldClip';
+      session.fullTranscript.value = [
+        { start: 0, duration: 2, text: 'Old clip text' }
+      ];
+
+      session.scheduleSessionSave('style_settings');
+      session.scheduleSessionSave('transcript');
+
+      // Switching clips flushes dirty domains immediately to outgoing clip & cancels timer
+      session.clipId.value = 'newClip';
+      session.folderName.value = 'newFolder';
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${API_BASE}/api/clip-session/oldFolder/oldClip`,
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.objectContaining({
+            transcript: [{ start: 0, duration: 2, text: 'Old clip text' }],
+            style_settings: expect.any(Object)
+          })
+        })
+      );
+
+      // Advancing timers must not issue any stale PUTs to newFolder/newClip
+      mockFetch.mockClear();
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('saveClipSession cancels pending debounced timers without trailing duplicate PUTs', async () => {
+      vi.useFakeTimers();
+      const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
+      vi.stubGlobal('$fetch', mockFetch);
+
+      const session = useClipEditorSession();
+      session.folderName.value = 'fManual';
+      session.clipId.value = 'cManual';
+
+      session.scheduleSessionSave('style_settings');
+      await session.saveClipSession(undefined, true);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -657,7 +758,7 @@ describe('useClipEditorSession Composable', () => {
   });
 
   describe('undo and redo integration with silent transcript save', () => {
-    it('calls timeline undo and silent saveTranscript', () => {
+    it('calls timeline undo and schedules silent transcript save', async () => {
       const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
       vi.stubGlobal('$fetch', mockFetch);
       const mockTimeline = { undo: vi.fn(), redo: vi.fn() };
@@ -670,6 +771,7 @@ describe('useClipEditorSession Composable', () => {
       ];
 
       session.undo();
+      await session.flushSessionSaves();
 
       expect(mockTimeline.undo).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalledWith(
@@ -678,7 +780,7 @@ describe('useClipEditorSession Composable', () => {
       );
     });
 
-    it('calls timeline redo and silent saveTranscript', () => {
+    it('calls timeline redo and schedules silent transcript save', async () => {
       const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
       vi.stubGlobal('$fetch', mockFetch);
       const mockTimeline = { undo: vi.fn(), redo: vi.fn() };
@@ -691,6 +793,7 @@ describe('useClipEditorSession Composable', () => {
       ];
 
       session.redo();
+      await session.flushSessionSaves();
 
       expect(mockTimeline.redo).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalledWith(

@@ -201,7 +201,6 @@ export interface SubtitleStyleSettings {
   font?: string;
   fontSize?: number;
   cropMode?: string;
-  cropMap?: Array<CropMapPoint>;
   cropPercentX?: number;
   cropPercentXTop?: number;
   cropPercentXBottom?: number;

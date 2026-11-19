@@ -222,6 +222,15 @@ class ClipSessionStore:
             cover_image_path=cover_image_path,
         )
 
+    @staticmethod
+    def _sanitize_style_settings(settings: Dict[str, Any]) -> Dict[str, Any]:
+        """Strip clip-specific cropMap keyframes from style settings (ADR-0008)."""
+        return {
+            key: value
+            for key, value in settings.items()
+            if key not in ("cropMap", "crop_map")
+        }
+
     def _atomic_write_json(self, target_path: str, data: Any) -> None:
         """
         Atomically writes json data to target_path using a temporary staging file
@@ -267,7 +276,7 @@ class ClipSessionStore:
                     with open(default_style_path, "r", encoding="utf-8") as f:
                         loaded = json.load(f)
                         if isinstance(loaded, dict):
-                            style_data = loaded
+                            style_data = self._sanitize_style_settings(loaded)
                 except Exception:
                     style_data = CANONICAL_DEFAULT_STYLE_SETTINGS
             self._atomic_write_json(clip_style_path, style_data)
@@ -442,6 +451,7 @@ class ClipSessionStore:
         )
         if clip_style:
             style_settings.update(clip_style)
+        style_settings = self._sanitize_style_settings(style_settings)
 
         # 3. Timeline (auto-extract legacy inline data:audio/... URIs if present)
         timeline_path = os.path.join(clip_dir, "timeline.json")
@@ -522,7 +532,9 @@ class ClipSessionStore:
             if key not in payload:
                 continue
             value = payload[key]
-            if key == "timeline" and isinstance(value, list):
+            if key == "style_settings" and isinstance(value, dict):
+                value = self._sanitize_style_settings(value)
+            elif key == "timeline" and isinstance(value, list):
                 value, _ = self._extract_inline_audio_in_tracks(value)
             elif key == "history" and isinstance(value, dict):
                 value, _ = self._extract_inline_audio_in_history(value)
@@ -1022,7 +1034,7 @@ class ClipSessionStore:
                 with open(default_style_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, dict):
-                        return data
+                        return self._sanitize_style_settings(data)
             except Exception:
                 pass
         return dict(CANONICAL_DEFAULT_STYLE_SETTINGS)
@@ -1031,7 +1043,12 @@ class ClipSessionStore:
         """Atomically saves global default style settings."""
         default_style_path = os.path.join(self.output_dir, "default_style_settings.json")
         try:
-            self._atomic_write_json(default_style_path, settings)
+            clean_settings = (
+                self._sanitize_style_settings(settings)
+                if isinstance(settings, dict)
+                else settings
+            )
+            self._atomic_write_json(default_style_path, clean_settings)
             return True
         except Exception:
             return False
