@@ -152,14 +152,14 @@ describe('useTimelineState Multi-Track Behavior', () => {
         ?.items.some(i => i.id === 't2' && i.start === 12)
     ).toBe(true);
 
-    // 6. Rehydrate audio-2 inline data URL from currentTracks into loaded history
+    // 6. Hydrate audio-2 Audio Library URL directly from loaded history
     const audio2 = timeline.addTrack('audio');
     timeline.addTimelineItem(audio2.id, {
       id: 'a2-item',
       name: 'sfx.mp3',
       start: 0,
       duration: 3,
-      src: 'data:audio/mp3;base64,SUQz'
+      src: '/assets/audio_library/sfx.mp3'
     });
     timeline.loadHistoryFromResponse({
       undo_stack: [
@@ -178,7 +178,8 @@ describe('useTimelineState Multi-Track Behavior', () => {
                   name: 'sfx.mp3',
                   start: 0,
                   duration: 3,
-                  type: 'audio'
+                  type: 'audio',
+                  src: '/assets/audio_library/sfx.mp3'
                 }
               ]
             }
@@ -189,9 +190,9 @@ describe('useTimelineState Multi-Track Behavior', () => {
       ],
       redo_stack: []
     });
-    const rehydratedItem = timeline.timelineUndoStack.value[0]?.tracks.find(
+    const hydratedItem = timeline.timelineUndoStack.value[0]?.tracks.find(
       t => t.id === 'audio-2'
     )?.items[0];
-    expect(rehydratedItem?.src).toBe('data:audio/mp3;base64,SUQz');
+    expect(hydratedItem?.src).toBe('/assets/audio_library/sfx.mp3');
   });
 });

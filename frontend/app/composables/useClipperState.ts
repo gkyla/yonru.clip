@@ -89,7 +89,10 @@ function createClipperState() {
   const auditor = useSafetyAuditor();
   const timeline = useTimelineState();
   const job = useClipperJob();
-  const coverState = useClipperCover();
+  let editorSessionRef: ReturnType<typeof useClipEditorSession> | null = null;
+  const coverState = useClipperCover({
+    onSaveCoverConfig: () => editorSessionRef?.saveCoverConfig()
+  });
   const thumbnailState = coverState;
   const subtitleStyle = useSubtitleStyle();
   const notifier = useAppNotifier();
@@ -182,8 +185,6 @@ function createClipperState() {
     captureScreenshot,
     addCoverText,
     removeCoverText,
-    saveCoverConfig,
-    loadCoverConfig,
     toggleCover,
     deleteCover,
     loadDefaultCoverStyle,
@@ -204,8 +205,6 @@ function createClipperState() {
     resetThumbnailState,
     addThumbnailText,
     removeThumbnailText,
-    saveThumbnailConfig,
-    loadThumbnailConfig,
     toggleThumbnail,
     deleteThumbnail,
     loadDefaultThumbnailStyle,
@@ -242,6 +241,7 @@ function createClipperState() {
     coverState,
     exportState
   });
+  editorSessionRef = editorSession;
 
   const {
     folderName,
@@ -260,6 +260,9 @@ function createClipperState() {
     saveClipSession,
     updateHooks,
     saveStyleSettings,
+    saveTimelineTracks,
+    saveHistoryToBackend,
+    saveCoverConfig,
     saveDefaultStyleSettings,
     toggleSubtitles,
     applyPreset,
@@ -403,6 +406,14 @@ function createClipperState() {
       timeline,
       thumbnail: {
         loadDefaultThumbnailStyle: thumbnailState.loadDefaultThumbnailStyle
+      },
+      cover: {
+        coverEnabled,
+        coverDuration,
+        coverScreenshotTime,
+        coverTextOverlays,
+        coverXOffset,
+        saveCoverConfig
       },
       subtitleStyle
     });
@@ -631,7 +642,8 @@ function createClipperState() {
     fetchCached,
     setLastAccessed,
     setLastClip,
-    saveTimelineTracks: timeline.saveTimelineTracks,
+    saveTimelineTracks,
+    saveHistoryToBackend,
     setActiveTrack: timeline.setActiveTrack,
     canDeleteTrack: timeline.canDeleteTrack,
     addTrack: timeline.addTrack,
@@ -654,8 +666,7 @@ function createClipperState() {
     captureScreenshot,
     addThumbnailText,
     removeThumbnailText,
-    saveThumbnailConfig,
-    loadThumbnailConfig,
+    saveThumbnailConfig: saveCoverConfig,
     deleteThumbnail,
     toggleThumbnail,
     resetWorkspace,
@@ -684,7 +695,6 @@ function createClipperState() {
     addCoverText,
     removeCoverText,
     saveCoverConfig,
-    loadCoverConfig,
     toggleCover,
     deleteCover,
     loadDefaultCoverStyle,

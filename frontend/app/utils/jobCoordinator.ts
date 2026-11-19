@@ -1,5 +1,12 @@
 // jobCoordinator.ts - Ingestion Job Coordinator domain engine
 import { resolveApiBase } from './apiBase';
+import {
+  ClipSessionClient,
+  executeSessionFetch,
+  type ClipSessionData,
+  type HttpFetchOptions,
+  type HttpFetcher
+} from './clipSessionClient';
 import { normalizeTimelineTracks } from './timelineHelpers';
 import {
   DEFAULT_SUBTITLE_STYLES,
@@ -16,11 +23,6 @@ import type {
   HookExtractionMode,
   HookIntentPreset
 } from '../types/clipper';
-
-export type HttpFetcher = <T>(
-  url: string,
-  options?: { method?: string; body?: any; headers?: Record<string, string> }
-) => Promise<T>;
 
 export interface AnalysisSpec {
   url: string;
@@ -60,6 +62,7 @@ export interface ClipExtractSpec {
 export interface HydratedClipBundle {
   folderName: string;
   clipId: string;
+  status?: string;
   transcript: TranscriptSegment[];
   styleSettings: Partial<SubtitleStyleSettings>;
   cropMap: Array<{ time: number; x: number }>;
@@ -101,6 +104,7 @@ export interface JobUpdateCallbacks {
 export class IngestionJobCoordinator {
   private apiBase: string;
   private fetcher?: HttpFetcher;
+  private sessionClient: ClipSessionClient;
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private activeJobId: string | null = null;
   private pollIntervalMs: number;
@@ -112,6 +116,7 @@ export class IngestionJobCoordinator {
   ) {
     this.apiBase = apiBase;
     this.fetcher = fetcher;
+    this.sessionClient = new ClipSessionClient(this.apiBase, this.fetcher);
     this.pollIntervalMs = pollIntervalMs;
   }
 
@@ -121,28 +126,9 @@ export class IngestionJobCoordinator {
 
   private async executeFetch<T>(
     url: string,
-    options?: { method?: string; body?: any; headers?: Record<string, string> }
+    options?: HttpFetchOptions
   ): Promise<T> {
-    if (this.fetcher) {
-      return this.fetcher<T>(url, options);
-    }
-    if (typeof (globalThis as any).$fetch === 'function') {
-      return (globalThis as any).$fetch(url, options);
-    }
-    const res = await fetch(url, {
-      method: options?.method || 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options?.headers || {})
-      },
-      body: options?.body ? JSON.stringify(options.body) : undefined
-    });
-    if (!res.ok) {
-      const err: any = new Error(res.statusText);
-      err.status = res.status;
-      throw err;
-    }
-    return res.json();
+    return executeSessionFetch<T>(url, options, this.fetcher);
   }
 
   public isPolling(): boolean {
@@ -360,7 +346,7 @@ export class IngestionJobCoordinator {
         }
 
         // Clip is ready
-        if (res.clip && res.clip.asset_url) {
+        if (res.status === 'ready' && res.clip && res.clip.asset_url) {
           const parts = res.clip.asset_url.split('/');
           const clipId = parts.length >= 5 ? parts[4] : null;
           const folder =
@@ -369,28 +355,26 @@ export class IngestionJobCoordinator {
             (parts.length >= 5 && parts[2] === 'clips' ? parts[3] : '');
 
           if (folder && clipId) {
-            const bundle = await this.loadClipAssets(folder, clipId);
-            bundle.videoFps = res.fps || 30;
-            bundle.videoDuration = res.clip.duration;
-            bundle.hooks = res.hooks || [];
-            bundle.history = res.history || null;
-
-            if (res.clip.theme) {
-              bundle.activeHook = {
-                theme: res.clip.theme,
-                start: res.clip.start || 0,
-                end: res.clip.end || res.clip.duration || 0,
-                duration: res.clip.duration || 0,
-                transcript_quote: res.clip.transcript_quote || ''
-              };
-            }
-
+            const session = await this.sessionClient
+              .loadSession(folder, clipId)
+              .catch(() => null);
+            const bundle = this.hydrateBundleFromSession(
+              folder,
+              clipId,
+              session,
+              {
+                status: res.status,
+                fps: res.fps,
+                duration: res.clip.duration,
+                hooks: res.hooks,
+                history: res.history ?? null,
+                clip: res.clip
+              }
+            );
             callbacks.onClipReady?.(bundle);
           }
 
-          if (res.status === 'ready') {
-            this.stopPolling();
-          }
+          this.stopPolling();
         }
       } catch (err: any) {
         if (err?.status === 404) {
@@ -438,135 +422,80 @@ export class IngestionJobCoordinator {
     }
   }
 
-  public async backfillCropMap(
-    folderName: string,
-    clipId: string
-  ): Promise<Array<{ time: number; x: number }>> {
-    try {
-      const safeFolder = encodeURIComponent(folderName);
-      const safeClip = encodeURIComponent(clipId);
-      const res = await this.executeFetch<{
-        status: string;
-        crop_map: Array<{ time: number; x: number }>;
-      }>(`${this.apiBase}/api/clips/${safeFolder}/${safeClip}/track-face`, {
-        method: 'POST'
-      });
-      return res?.crop_map && Array.isArray(res.crop_map) ? res.crop_map : [];
-    } catch {
-      return [];
-    }
-  }
-
-  public async loadClipAssets(
+  private hydrateBundleFromSession(
     folderName: string,
     clipId: string,
-    baseClipUrl?: string
-  ): Promise<HydratedClipBundle> {
+    session: ClipSessionData | null | undefined,
+    meta: {
+      status?: string;
+      fps?: number;
+      duration?: number;
+      hooks?: Hook[];
+      savedHooks?: Hook[];
+      history?: {
+        undo_stack?: HistorySnapshot[];
+        redo_stack?: HistorySnapshot[];
+      } | null;
+      clip?: {
+        duration?: number;
+        start?: number;
+        end?: number;
+        theme?: string;
+        transcript_quote?: string;
+      };
+    } = {}
+  ): HydratedClipBundle {
     const safeFolder = encodeURIComponent(folderName);
     const safeClip = encodeURIComponent(clipId);
-    const targetBaseUrl =
-      baseClipUrl || `${this.apiBase}/assets/clips/${safeFolder}/${safeClip}`;
-    const now = Date.now();
+    const fallbackAssetUrl = `${this.apiBase}/assets/clips/${safeFolder}/${safeClip}/video.mp4`;
 
-    // 1. Fetch all assets concurrently with Promise.allSettled
-    const [
-      defaultStyleRes,
-      clipStyleRes,
-      transcriptRes,
-      cropMapRes,
-      timelineRes,
-      thumbConfigRes,
-      savedHooksRes
-    ] = await Promise.allSettled([
-      this.executeFetch<Record<string, unknown>>(
-        `${this.apiBase}/assets/default_style_settings.json?t=${now}`
-      ).catch(() => null),
-      this.executeFetch<Record<string, unknown>>(
-        `${targetBaseUrl}/style_settings.json?t=${now}`
-      ).catch(() => null),
-      this.executeFetch<TranscriptSegment[]>(
-        `${targetBaseUrl}/transcript.json?t=${now}`
-      ).catch(() => null),
-      this.executeFetch<Array<{ time: number; x: number }>>(
-        `${targetBaseUrl}/crop_map.json?t=${now}`
-      ).catch(() => null),
-      this.executeFetch<TimelineTrack[]>(
-        `${targetBaseUrl}/timeline.json?t=${now}`
-      ).catch(() => null),
-      this.executeFetch<{ config: ThumbnailConfig; cover_url?: string | null }>(
-        `${this.apiBase}/api/cover/config/${safeFolder}/${safeClip}`
-      ).catch(() => null),
-      this.executeFetch<{ saved_hooks: Hook[] }>(
-        `${this.apiBase}/api/cached/${safeFolder}/saved_hooks`
-      ).catch(() => null)
-    ]);
+    const styleSettings = SubtitleStyleCoordinator.merge(
+      { ...DEFAULT_SUBTITLE_STYLES },
+      session?.style_settings ?? {}
+    );
 
-    // Resolve style cascade: default -> custom clip
-    let styles = { ...DEFAULT_SUBTITLE_STYLES };
-    if (defaultStyleRes.status === 'fulfilled' && defaultStyleRes.value) {
-      const rawDefault = (defaultStyleRes.value.settings ||
-        defaultStyleRes.value) as Partial<SubtitleStyleSettings>;
-      styles = SubtitleStyleCoordinator.merge(styles, rawDefault);
-    }
-    if (clipStyleRes.status === 'fulfilled' && clipStyleRes.value) {
-      const rawClip = (clipStyleRes.value.settings ||
-        clipStyleRes.value) as Partial<SubtitleStyleSettings>;
-      styles = SubtitleStyleCoordinator.merge(styles, rawClip);
-    }
+    const transcript = Array.isArray(session?.transcript)
+      ? session.transcript
+      : [];
+    const cropMap = Array.isArray(session?.crop_map) ? session.crop_map : [];
+    const rawTracks = Array.isArray(session?.timeline)
+      ? session.timeline
+      : null;
+    const timelineTracks = normalizeTimelineTracks(rawTracks);
+    const assetUrl = session?.asset_url
+      ? session.asset_url.startsWith('http')
+        ? session.asset_url
+        : `${this.apiBase}${session.asset_url}`
+      : fallbackAssetUrl;
 
-    // Resolve transcript
-    const transcript: TranscriptSegment[] =
-      transcriptRes.status === 'fulfilled' && Array.isArray(transcriptRes.value)
-        ? transcriptRes.value
-        : [];
-
-    // Resolve crop map or trigger on-demand backfill if empty
-    let cropMap: Array<{ time: number; x: number }> =
-      cropMapRes.status === 'fulfilled' &&
-      Array.isArray(cropMapRes.value) &&
-      cropMapRes.value.length > 0
-        ? cropMapRes.value
-        : [];
-
-    if (cropMap.length === 0) {
-      cropMap = await this.backfillCropMap(folderName, clipId);
-    }
-
-    // Resolve timeline tracks, drop legacy subtitle track (ADR 0029), and normalize into NLE stack order (ADR 0031)
-    const rawTracks: TimelineTrack[] | null =
-      timelineRes.status === 'fulfilled' && Array.isArray(timelineRes.value)
-        ? timelineRes.value
-        : null;
-    const timelineTracks: TimelineTrack[] = normalizeTimelineTracks(rawTracks);
-
-    // Resolve thumbnail/cover config and cover URL
-    const thumbnailConfig: ThumbnailConfig | null =
-      thumbConfigRes.status === 'fulfilled' && thumbConfigRes.value?.config
-        ? thumbConfigRes.value.config
-        : null;
-    const coverUrl: string | null =
-      thumbConfigRes.status === 'fulfilled' && thumbConfigRes.value?.cover_url
-        ? thumbConfigRes.value.cover_url
-        : null;
-
-    // Resolve saved hooks
-    const savedHooks: Hook[] =
-      savedHooksRes.status === 'fulfilled' &&
-      Array.isArray(savedHooksRes.value?.saved_hooks)
-        ? savedHooksRes.value.saved_hooks
-        : [];
+    const clipMeta = meta.clip;
+    const duration = meta.duration ?? clipMeta?.duration ?? 0;
 
     return {
-      folderName,
-      clipId,
+      folderName: session?.folder_name || folderName,
+      clipId: session?.clip_id || clipId,
+      status: meta.status,
       transcript,
-      styleSettings: styles,
+      styleSettings,
       cropMap,
       timelineTracks,
-      thumbnailConfig,
-      coverUrl,
-      savedHooks,
-      assetUrl: `${targetBaseUrl}/video.mp4`
+      thumbnailConfig: session?.cover_config ?? null,
+      coverUrl: session?.cover_url ?? null,
+      history: session?.history ?? meta.history ?? null,
+      videoFps: meta.fps || 30,
+      videoDuration: duration,
+      assetUrl,
+      hooks: meta.hooks || [],
+      savedHooks: meta.savedHooks || [],
+      activeHook: clipMeta?.theme
+        ? {
+            theme: clipMeta.theme,
+            start: clipMeta.start || 0,
+            end: clipMeta.end || duration || 0,
+            duration,
+            transcript_quote: clipMeta.transcript_quote || ''
+          }
+        : undefined
     };
   }
 
@@ -575,42 +504,45 @@ export class IngestionJobCoordinator {
     clipId: string,
     whisperModel: string = 'base'
   ): Promise<HydratedClipBundle> {
-    const res = await this.executeFetch<any>(
-      `${this.apiBase}/api/load-ready-clip`,
-      {
-        method: 'POST',
-        body: {
-          folder_name: folderName,
-          clip_id: clipId,
-          whisper_model: whisperModel
-        }
+    const res = await this.executeFetch<{
+      job_id?: string;
+      status?: string;
+      fps?: number;
+      clip?: {
+        duration?: number;
+        start?: number;
+        end?: number;
+        theme?: string;
+        transcript_quote?: string;
+      };
+      hooks?: Hook[];
+      saved_hooks?: Hook[];
+      history?: {
+        undo_stack?: HistorySnapshot[];
+        redo_stack?: HistorySnapshot[];
+      } | null;
+      session?: ClipSessionData;
+    }>(`${this.apiBase}/api/load-ready-clip`, {
+      method: 'POST',
+      body: {
+        folder_name: folderName,
+        clip_id: clipId,
+        whisper_model: whisperModel
       }
-    );
+    });
 
     if (res?.job_id) {
       this.activeJobId = res.job_id;
     }
 
-    const bundle = await this.loadClipAssets(folderName, clipId);
-    bundle.videoFps = res?.fps || 30;
-    bundle.videoDuration = res?.clip?.duration || 0;
-    bundle.hooks = res?.hooks || [];
-    bundle.history = res?.history || null;
-
-    if (res?.cover_url) {
-      bundle.coverUrl = res.cover_url;
-    }
-
-    if (res?.clip?.theme) {
-      bundle.activeHook = {
-        theme: res.clip.theme,
-        start: res.clip.start || 0,
-        end: res.clip.end || res.clip.duration || 0,
-        duration: res.clip.duration || 0,
-        transcript_quote: res.clip.transcript_quote || ''
-      };
-    }
-
-    return bundle;
+    return this.hydrateBundleFromSession(folderName, clipId, res?.session, {
+      status: res?.status,
+      fps: res?.fps,
+      duration: res?.clip?.duration,
+      hooks: res?.hooks,
+      savedHooks: res?.saved_hooks,
+      history: res?.history,
+      clip: res?.clip
+    });
   }
 }

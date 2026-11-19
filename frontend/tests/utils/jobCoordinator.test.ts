@@ -275,38 +275,60 @@ describe('IngestionJobCoordinator Unit Tests', () => {
     });
   });
 
-  describe('loadClipAssets', () => {
-    it('fetches multi-file assets in parallel and resolves cascaded bundle', async () => {
+  describe('Clip Session hydration via startPolling & loadReadyClip', () => {
+    it('startPolling hydrates via clipSessionClient.loadSession without 7-fetch static JSON fan-out', async () => {
+      const requestedUrls: string[] = [];
       mockFetcher.mockImplementation((url: string) => {
-        if (url.includes('default_style_settings.json')) {
-          return Promise.resolve({ font: 'Roboto', fontSize: 40 });
-        }
-        if (url.includes('style_settings.json')) {
+        requestedUrls.push(url);
+        if (url.includes('/api/job/job-poll-1')) {
           return Promise.resolve({
-            fontSize: 60,
-            subtitleHighlightColor: '#FF0000'
+            status: 'ready',
+            fps: 30,
+            folder_name: '[SUARA] Title',
+            clip: {
+              asset_url:
+                '/assets/clips/[SUARA] Title/10_25_Cool Clip/video.mp4',
+              duration: 15,
+              start: 10,
+              end: 25,
+              theme: 'Cool Clip',
+              transcript_quote: 'Quote'
+            },
+            hooks: [{ theme: 'Cool Clip', start: 10, end: 25 }]
           });
         }
-        if (url.includes('transcript.json')) {
-          return Promise.resolve([
-            { start: 0, duration: 1.5, text: 'Hello world' }
-          ]);
-        }
-        if (url.includes('crop_map.json')) {
-          return Promise.resolve([{ time: 0, x: 960 }]);
-        }
-        if (url.includes('timeline.json')) {
-          return Promise.resolve([
-            { id: 'video', name: 'Video', type: 'video', items: [] }
-          ]);
-        }
-        if (url.includes('cover/config') || url.includes('thumbnail/config')) {
+        if (url.includes('/api/clip-session/')) {
           return Promise.resolve({
-            config: { enabled: true, duration: 2.0, xOffset: 50 },
-            cover_url: '/assets/clips/test-folder/clip-101/cover.jpg'
+            status: 'ok',
+            session: {
+              folder_name: '[SUARA] Title',
+              clip_id: '10_25_Cool Clip',
+              transcript: [{ start: 0, duration: 1.5, text: 'Hello' }],
+              style_settings: { font: 'Roboto', fontSize: 60 },
+              timeline: [
+                { id: 'video', name: 'Main Video', type: 'video', items: [] },
+                { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
+                { id: 'text', name: 'Text layers', type: 'text', items: [] },
+                {
+                  id: 'subtitle',
+                  name: 'Subtitle',
+                  type: 'subtitle',
+                  items: []
+                }
+              ],
+              history: { undo_stack: [], redo_stack: [] },
+              cover_config: { enabled: true, duration: 2.0, xOffset: 50 },
+              crop_map: [{ time: 0, x: 960 }],
+              asset_url:
+                '/assets/clips/%5BSUARA%5D%20Title/10_25_Cool%20Clip/video.mp4',
+              thumbnail_url:
+                '/assets/clips/%5BSUARA%5D%20Title/10_25_Cool%20Clip/thumbnail.jpg',
+              cover_url:
+                '/assets/clips/%5BSUARA%5D%20Title/10_25_Cool%20Clip/cover.jpg'
+            }
           });
         }
-        if (url.includes('saved_hooks')) {
+        if (url.includes('/saved_hooks')) {
           return Promise.resolve({
             saved_hooks: [{ id: 'saved-1', theme: 'Saved Hook' }]
           });
@@ -314,158 +336,127 @@ describe('IngestionJobCoordinator Unit Tests', () => {
         return Promise.resolve({});
       });
 
-      const bundle = await coordinator.loadClipAssets(
-        'test-folder',
-        'clip-101'
-      );
+      const onClipReady = vi.fn();
+      coordinator.startPolling('job-poll-1', {}, { onClipReady });
 
-      expect(bundle.folderName).toBe('test-folder');
-      expect(bundle.clipId).toBe('clip-101');
-      expect(bundle.transcript).toHaveLength(1);
-      expect(bundle.transcript[0]?.text).toBe('Hello world');
-      expect(bundle.styleSettings.font).toBe('Roboto'); // From default style
-      expect(bundle.styleSettings.fontSize).toBe(60); // Overridden by clip style
-      expect(bundle.styleSettings.subtitleHighlightColor).toBe('#FF0000');
+      await vi.advanceTimersByTimeAsync(10);
+
+      expect(onClipReady).toHaveBeenCalledTimes(1);
+      const bundle = onClipReady.mock.calls[0]![0];
+      expect(bundle.transcript).toEqual([
+        { start: 0, duration: 1.5, text: 'Hello' }
+      ]);
+      expect(bundle.styleSettings.font).toBe('Roboto');
+      expect(bundle.styleSettings.fontSize).toBe(60);
       expect(bundle.cropMap).toEqual([{ time: 0, x: 960 }]);
       expect(bundle.timelineTracks.map(t => t.id)).toEqual([
         'text',
         'video',
         'audio'
-      ]); // Normalized into NLE stack [text, video, audio] (ADR 0031)
+      ]);
       expect(bundle.thumbnailConfig?.enabled).toBe(true);
-      expect(bundle.coverUrl).toBe(
-        '/assets/clips/test-folder/clip-101/cover.jpg'
+      expect(bundle.coverUrl).toContain('cover.jpg');
+
+      // Ensure static 7-fetch JSON files and /api/cover/config are never called
+      expect(requestedUrls.some(u => u.includes('transcript.json'))).toBe(
+        false
       );
-      expect(bundle.savedHooks).toHaveLength(1);
+      expect(requestedUrls.some(u => u.includes('style_settings.json'))).toBe(
+        false
+      );
+      expect(requestedUrls.some(u => u.includes('/api/cover/config'))).toBe(
+        false
+      );
+      expect(requestedUrls.some(u => u.includes('/api/clip-session/'))).toBe(
+        true
+      );
     });
 
-    it('filters out legacy subtitle track from persisted timeline for backward compatibility (ADR 0029)', async () => {
+    it('startPolling skips loadSession while job status is queued even if clip metadata is present', async () => {
+      const requestedUrls: string[] = [];
       mockFetcher.mockImplementation((url: string) => {
-        if (url.includes('timeline.json')) {
-          return Promise.resolve([
-            { id: 'video', name: 'Main Video', type: 'video', items: [] },
-            { id: 'audio', name: 'Audio layers', type: 'audio', items: [] },
-            { id: 'text', name: 'Text layers', type: 'text', items: [] },
-            { id: 'subtitle', name: 'Subtitle', type: 'subtitle', items: [] }
-          ]);
-        }
-        return Promise.resolve({});
-      });
-
-      const bundle = await coordinator.loadClipAssets(
-        'folder-legacy',
-        'clip-legacy'
-      );
-      expect(bundle.timelineTracks).toHaveLength(3);
-      expect(
-        bundle.timelineTracks.some(t => (t.id as string) === 'subtitle')
-      ).toBe(false);
-      expect(bundle.timelineTracks.map(t => t.id)).toEqual([
-        'text',
-        'video',
-        'audio'
-      ]);
-      expect(bundle.timelineTracks.map(t => t.name)).toEqual([
-        'Text 1',
-        'Main Video',
-        'Audio 1'
-      ]);
-    });
-
-    it('triggers on-demand crop map backfill when crop_map.json is missing', async () => {
-      mockFetcher.mockImplementation((url: string, opts?: any) => {
-        if (url.includes('crop_map.json')) {
-          return Promise.reject(new Error('404 Not Found'));
-        }
-        if (url.includes('/track-face') && opts?.method === 'POST') {
+        requestedUrls.push(url);
+        if (url.includes('/api/job/job-queued-1')) {
           return Promise.resolve({
-            status: 'ready',
-            crop_map: [
-              { time: 0, x: 800 },
-              { time: 2.5, x: 820 }
-            ]
+            status: 'queued',
+            folder_name: 'f1',
+            clip: {
+              asset_url: '/assets/clips/f1/c1/video.mp4',
+              duration: 10
+            }
           });
         }
         return Promise.resolve({});
       });
 
-      const bundle = await coordinator.loadClipAssets(
-        'folder-crop',
-        'clip-crop'
+      const onClipReady = vi.fn();
+      coordinator.startPolling('job-queued-1', {}, { onClipReady });
+
+      await vi.advanceTimersByTimeAsync(10);
+
+      expect(onClipReady).not.toHaveBeenCalled();
+      expect(requestedUrls.some(u => u.includes('/api/clip-session/'))).toBe(
+        false
       );
-      expect(bundle.cropMap).toHaveLength(2);
-      expect(bundle.cropMap[0]?.x).toBe(800);
+      expect(coordinator.isPolling()).toBe(true);
     });
 
-    it('encodes folderName and clipId with special characters and spaces when requesting static assets', async () => {
-      const requestedUrls: string[] = [];
+    it('loadReadyClip hydrates complete bundle from single POST /api/load-ready-clip response and preserves queued status', async () => {
       mockFetcher.mockImplementation((url: string) => {
-        requestedUrls.push(url);
-        return Promise.resolve({});
-      });
-
-      const folder = '[SUARA BERKELAS] Title';
-      const clip = '587_755_Theme With Spaces';
-      const bundle = await coordinator.loadClipAssets(folder, clip);
-
-      const encodedFolder = encodeURIComponent(folder);
-      const encodedClip = encodeURIComponent(clip);
-
-      // Verify static asset URLs use encoded paths
-      const transcriptCall = requestedUrls.find(u =>
-        u.includes('transcript.json')
-      );
-      expect(transcriptCall).toBeDefined();
-      expect(transcriptCall).toContain(
-        `/assets/clips/${encodedFolder}/${encodedClip}/transcript.json`
-      );
-
-      // Verify cover config and saved hooks use encoded segments
-      const coverConfigCall = requestedUrls.find(u =>
-        u.includes('/api/cover/config')
-      );
-      expect(coverConfigCall).toBeDefined();
-      expect(coverConfigCall).toContain(
-        `/api/cover/config/${encodedFolder}/${encodedClip}`
-      );
-
-      // Verify assetUrl in returned bundle is encoded
-      expect(bundle.assetUrl).toBe(
-        `${coordinator.getApiBase()}/assets/clips/${encodedFolder}/${encodedClip}/video.mp4`
-      );
-    });
-  });
-
-  describe('loadReadyClip', () => {
-    it('invokes API and resolves complete hydrated bundle', async () => {
-      mockFetcher.mockImplementation((url: string, opts?: any) => {
         if (url.includes('/api/load-ready-clip')) {
           return Promise.resolve({
             job_id: 'load-job-1',
-            status: 'ready',
+            status: 'queued',
             fps: 60,
             clip: {
               duration: 45.0,
               theme: 'Loaded Ready Clip',
-              transcript_quote: 'Famous quote'
+              transcript_quote: 'Famous quote',
+              start: 0,
+              end: 45
             },
             hooks: [{ theme: 'Hook A' }],
-            history: { undo_stack: [], redo_stack: [] }
+            saved_hooks: [{ id: 's1', theme: 'Saved 1' }],
+            session: {
+              folder_name: 'folder-1',
+              clip_id: 'clip-1',
+              transcript: [{ start: 0, duration: 2, text: 'Sample' }],
+              style_settings: { font: 'Outfit', fontSize: 68 },
+              timeline: [
+                { id: 'video', name: 'Main Video', type: 'video', items: [] }
+              ],
+              history: { undo_stack: [{ selectedId: 'x' }], redo_stack: [] },
+              cover_config: { enabled: true, duration: 1.5, xOffset: 40 },
+              crop_map: [{ time: 0, x: 800 }],
+              asset_url: '/assets/clips/folder-1/clip-1/video.mp4',
+              thumbnail_url: '/assets/clips/folder-1/clip-1/thumbnail.jpg',
+              cover_url: '/assets/clips/folder-1/clip-1/cover.jpg'
+            }
           });
         }
-        if (url.includes('transcript.json')) {
-          return Promise.resolve([{ start: 0, duration: 2, text: 'Sample' }]);
-        }
-        return Promise.resolve({});
+        return Promise.reject(new Error(`Unexpected extra fetch to ${url}`));
       });
 
       const bundle = await coordinator.loadReadyClip('folder-1', 'clip-1');
 
+      expect(mockFetcher).toHaveBeenCalledTimes(1);
+      expect(bundle.status).toBe('queued');
       expect(bundle.videoFps).toBe(60);
       expect(bundle.videoDuration).toBe(45.0);
       expect(bundle.activeHook?.theme).toBe('Loaded Ready Clip');
       expect(bundle.activeHook?.transcript_quote).toBe('Famous quote');
-      expect(bundle.history).toEqual({ undo_stack: [], redo_stack: [] });
+      expect(bundle.savedHooks).toEqual([{ id: 's1', theme: 'Saved 1' }]);
+      expect(bundle.history).toEqual({
+        undo_stack: [{ selectedId: 'x' }],
+        redo_stack: []
+      });
+      expect(bundle.styleSettings.font).toBe('Outfit');
+      expect(bundle.cropMap).toEqual([{ time: 0, x: 800 }]);
+      expect(bundle.thumbnailConfig?.enabled).toBe(true);
+      expect(bundle.coverUrl).toBe('/assets/clips/folder-1/clip-1/cover.jpg');
+      expect(bundle.assetUrl).toBe(
+        'http://localhost:8000/assets/clips/folder-1/clip-1/video.mp4'
+      );
       expect(coordinator.getActiveJobId()).toBe('load-job-1');
     });
   });

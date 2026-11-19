@@ -315,6 +315,40 @@ export interface ThumbnailConfig {
 export type CoverTextOverlay = ThumbnailTextOverlay;
 export type CoverConfig = ThumbnailConfig;
 
+export interface ClipSessionHistoryPayload {
+  undo_stack?: HistorySnapshot[];
+  redo_stack?: HistorySnapshot[];
+}
+
+export interface ClipSessionData {
+  folder_name: string;
+  clip_id: string;
+  transcript: TranscriptSegment[];
+  style_settings: Partial<SubtitleStyleSettings>;
+  timeline: TimelineTrack[];
+  history: ClipSessionHistoryPayload;
+  cover_config: CoverConfig | null;
+  crop_map: CropMapPoint[] | null;
+  asset_url: string | null;
+  thumbnail_url: string | null;
+  cover_url: string | null;
+}
+
+export interface ClipSessionPatch {
+  transcript?: TranscriptSegment[];
+  style_settings?: Partial<SubtitleStyleSettings>;
+  timeline?: TimelineTrack[];
+  history?: ClipSessionHistoryPayload;
+  cover_config?: CoverConfig;
+  crop_map?: CropMapPoint[];
+}
+
+export interface ClipSessionAck {
+  status: string;
+  folder_name: string;
+  clip_id: string;
+}
+
 export interface JobApiResponse {
   job_id?: string;
   status: string;

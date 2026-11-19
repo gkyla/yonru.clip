@@ -24,12 +24,15 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
     def test_run_local_cut_generates_and_saves_crop_map(self):
         mock_job_store = {}
         mock_asset_repo = MagicMock()
+        clips_dir = os.path.join(self.test_dir, "clips")
+        mock_asset_repo.clips_dir = clips_dir
+        mock_asset_repo.output_dir = self.test_dir
         mock_youtube_client = MagicMock()
         mock_speech_transcriber = MagicMock()
         mock_prompt_repo = MagicMock()
         mock_config_store = MagicMock()
 
-        clip_dir = os.path.join(self.test_dir, "clip_10_20")
+        clip_dir = os.path.join(clips_dir, "src_folder", "clip_10_20")
         os.makedirs(clip_dir, exist_ok=True)
         clip_video_path = os.path.join(clip_dir, "video.mp4")
         with open(clip_video_path, "w") as f:
@@ -79,71 +82,12 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
         self.assertEqual(saved_crop_map, mock_crop_map)
         self.assertEqual(coordinator.jobs[job_id]["status"], "ready")
 
-    def test_ensure_crop_map_delegates_to_store_ensure_crop_map(self):
-        mock_job_store = {}
-        mock_asset_repo = MagicMock()
-        mock_tracker = MagicMock()
-        coordinator = ClipWorkflowCoordinator(
-            job_store=mock_job_store,
-            asset_repository=mock_asset_repo,
-            youtube_client=MagicMock(),
-            speech_transcriber=MagicMock(),
-            prompt_repository=MagicMock(),
-            config_store=MagicMock(),
-            face_tracker=mock_tracker,
-        )
-
-        clip_dir = os.path.join(self.test_dir, "test_folder", "clip_1")
-        os.makedirs(clip_dir, exist_ok=True)
-        clip_video_path = os.path.join(clip_dir, "video.mp4")
-        with open(clip_video_path, "w") as f:
-            f.write("video content")
-
-        from core.clip_session_store import ClipSessionStore
-        with patch.object(ClipSessionStore, "ensure_crop_map", return_value=[{"time": 0.0, "x": 640}]) as mock_ensure:
-            res = coordinator._ensure_crop_map(clip_video_path)
-            self.assertEqual(res, [{"time": 0.0, "x": 640}])
-            mock_ensure.assert_called_once_with(
-                "test_folder",
-                "clip_1",
-                video_path=clip_video_path,
-                tracker=mock_tracker,
-            )
-
-    def test_compute_and_cache_crop_map_delegates_to_store_ensure_crop_map(self):
-        mock_job_store = {}
-        mock_asset_repo = MagicMock()
-        mock_tracker = MagicMock()
-        coordinator = ClipWorkflowCoordinator(
-            job_store=mock_job_store,
-            asset_repository=mock_asset_repo,
-            youtube_client=MagicMock(),
-            speech_transcriber=MagicMock(),
-            prompt_repository=MagicMock(),
-            config_store=MagicMock(),
-            face_tracker=mock_tracker,
-        )
-
-        clip_dir = os.path.join(self.test_dir, "test_folder", "clip_2")
-        os.makedirs(clip_dir, exist_ok=True)
-        clip_video_path = os.path.join(clip_dir, "video.mp4")
-        with open(clip_video_path, "w") as f:
-            f.write("video content")
-
-        from core.clip_session_store import ClipSessionStore
-        with patch.object(ClipSessionStore, "ensure_crop_map", return_value=[{"time": 0.0, "x": 720}]) as mock_ensure:
-            res = coordinator._compute_and_cache_crop_map(clip_dir, clip_video_path, tracker=mock_tracker)
-            self.assertEqual(res, [{"time": 0.0, "x": 720}])
-            mock_ensure.assert_called_once_with(
-                "test_folder",
-                "clip_2",
-                video_path=clip_video_path,
-                tracker=mock_tracker,
-            )
-
     def test_get_or_create_crop_map_delegates_to_store_ensure_crop_map(self):
         mock_job_store = {}
         mock_asset_repo = MagicMock()
+        clips_dir = os.path.join(self.test_dir, "clips")
+        mock_asset_repo.clips_dir = clips_dir
+        mock_asset_repo.output_dir = self.test_dir
         mock_tracker = MagicMock()
         coordinator = ClipWorkflowCoordinator(
             job_store=mock_job_store,
@@ -155,8 +99,6 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
             face_tracker=mock_tracker,
         )
 
-        clips_dir = os.path.join(self.test_dir, "clips")
-        mock_asset_repo.clips_dir = clips_dir
         clip_dir = os.path.join(clips_dir, "folder_test", "clip_test")
         os.makedirs(clip_dir, exist_ok=True)
         video_path = os.path.join(clip_dir, "video.mp4")
@@ -177,6 +119,9 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
     def test_provision_clip_routes_through_store_ensure_crop_map(self):
         mock_job_store = {}
         mock_asset_repo = MagicMock()
+        clips_dir = os.path.join(self.test_dir, "clips")
+        mock_asset_repo.clips_dir = clips_dir
+        mock_asset_repo.output_dir = self.test_dir
         mock_tracker = MagicMock()
         coordinator = ClipWorkflowCoordinator(
             job_store=mock_job_store,
@@ -188,8 +133,6 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
             face_tracker=mock_tracker,
         )
 
-        clips_dir = os.path.join(self.test_dir, "clips")
-        mock_asset_repo.clips_dir = clips_dir
         folder_name = "test_vid_provision"
         clip_id = "10_20"
         clip_dir = os.path.join(clips_dir, folder_name, clip_id)
@@ -223,6 +166,9 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
     def test_load_ready_clip_routes_through_store_ensure_crop_map(self):
         mock_job_store = {}
         mock_asset_repo = MagicMock()
+        clips_dir = os.path.join(self.test_dir, "clips")
+        mock_asset_repo.clips_dir = clips_dir
+        mock_asset_repo.output_dir = self.test_dir
         mock_tracker = MagicMock()
         coordinator = ClipWorkflowCoordinator(
             job_store=mock_job_store,
@@ -234,8 +180,6 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
             face_tracker=mock_tracker,
         )
 
-        clips_dir = os.path.join(self.test_dir, "clips")
-        mock_asset_repo.clips_dir = clips_dir
         folder_name = "vid_load_ready"
         clip_id = "5_15"
         clip_dir = os.path.join(clips_dir, folder_name, clip_id)
@@ -260,16 +204,14 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
                 clip_id=clip_id,
             )
             self.assertEqual(res["status"], "ready")
-            mock_ensure.assert_called_once_with(
-                folder_name,
-                clip_id,
-                video_path=clip_path,
-                tracker=mock_tracker,
-            )
+            mock_ensure.assert_called_once_with(folder_name, clip_id)
 
     def test_run_local_cut_reusing_transcript_routes_through_store_ensure_crop_map(self):
         mock_job_store = {}
         mock_asset_repo = MagicMock()
+        clips_dir = os.path.join(self.test_dir, "clips")
+        mock_asset_repo.clips_dir = clips_dir
+        mock_asset_repo.output_dir = self.test_dir
         mock_tracker = MagicMock()
         coordinator = ClipWorkflowCoordinator(
             job_store=mock_job_store,
@@ -283,7 +225,7 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
 
         folder_name = "test_reuse_folder"
         clip_id = "0_10"
-        clip_dir = os.path.join(self.test_dir, folder_name, clip_id)
+        clip_dir = os.path.join(clips_dir, folder_name, clip_id)
         os.makedirs(clip_dir, exist_ok=True)
         clip_video_path = os.path.join(clip_dir, "video.mp4")
         with open(clip_video_path, "w") as f:

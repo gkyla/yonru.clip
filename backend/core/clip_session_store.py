@@ -3,11 +3,47 @@ import re
 import sys
 import json
 import uuid
+import base64
 import shutil
 import hashlib
 import subprocess
-from typing import Optional, Dict, Any, List, Set
+from typing import Optional, Dict, Any, List, Set, Literal, Protocol, runtime_checkable
 from core.media_transcoder import MediaTranscoder, MediaProcessAdapter
+
+_DATA_AUDIO_RE = re.compile(r"^data:audio/([a-zA-Z0-9.+-]+);base64,(.+)$", re.DOTALL)
+_AUDIO_MIME_EXTENSIONS = {
+    "mpeg": ".mp3",
+    "mp3": ".mp3",
+    "wav": ".wav",
+    "wave": ".wav",
+    "x-wav": ".wav",
+    "ogg": ".ogg",
+    "aac": ".aac",
+    "mp4": ".m4a",
+    "x-m4a": ".m4a",
+    "m4a": ".m4a",
+    "flac": ".flac",
+}
+
+_CANONICAL_MANIFEST_FILES = {
+    "transcript": "transcript.json",
+    "style_settings": "style_settings.json",
+    "timeline": "timeline.json",
+    "history": "history.json",
+    "cover_config": "cover_config.json",
+    "crop_map": "crop_map.json",
+}
+
+
+@runtime_checkable
+class AudioLibraryStorePort(Protocol):
+    def save_item(
+        self,
+        filename: str,
+        content_bytes: bytes,
+        duration: float = 0.0,
+        on_duplicate: Literal["prompt", "use_existing", "replace"] = "use_existing",
+    ) -> Dict[str, Any]: ...
 
 CANONICAL_DEFAULT_STYLE_SETTINGS: Dict[str, Any] = {
 
@@ -56,7 +92,8 @@ class ClipSessionStore:
         output_dir: Optional[str] = None,
         config_store: Optional[Any] = None,
         media_transcoder: Optional[MediaTranscoder] = None,
-        face_tracker: Optional[Any] = None
+        face_tracker: Optional[Any] = None,
+        audio_library_store: Optional[AudioLibraryStorePort] = None,
     ):
         self.clips_dir = clips_dir
         self.output_dir = output_dir if output_dir else os.path.dirname(self.clips_dir)
@@ -65,6 +102,7 @@ class ClipSessionStore:
         self.transcoder = media_transcoder or MediaTranscoder(config_store=self.config_store)
         self._env = getattr(self.transcoder.adapter, "_env", os.environ.copy())
         self.face_tracker = face_tracker
+        self.audio_library_store = audio_library_store
 
     def resolve_clip_dir(self, folder_name: str, clip_id: str) -> str:
 
@@ -208,11 +246,107 @@ class ClipSessionStore:
                 except Exception:
                     pass
 
-    def get_clip_session(self, folder_name: str, clip_id: str) -> Dict[str, Any]:
+    def _read_json(self, path: str, expected_type: type, default: Any) -> Any:
+        if not os.path.exists(path):
+            return default
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            if isinstance(loaded, expected_type):
+                return loaded
+        except Exception:
+            pass
+        return default
+
+    def _extract_inline_audio_src(self, item: Dict[str, Any]) -> Optional[str]:
+        """Extracts a legacy inline data:audio/... base64 URI into the Audio Library."""
+        src = item.get("src")
+        if not self.audio_library_store or not isinstance(src, str):
+            return None
+        match = _DATA_AUDIO_RE.match(src)
+        if not match:
+            return None
+
+        subtype, b64_payload = match.group(1).lower(), match.group(2)
+        ext = _AUDIO_MIME_EXTENSIONS.get(subtype, ".mp3")
+        try:
+            audio_bytes = base64.b64decode(b64_payload)
+        except Exception:
+            return None
+
+        sha8 = hashlib.sha256(audio_bytes).hexdigest()[:8]
+        raw_name = str(item.get("name") or item.get("id") or "audio")
+        stem, _ = os.path.splitext(os.path.basename(raw_name))
+        filename = f"{stem or 'audio'}_{sha8}{ext}"
+        duration = float(item.get("duration") or 0.0)
+
+        try:
+            res = self.audio_library_store.save_item(
+                filename, audio_bytes, duration=duration, on_duplicate="use_existing"
+            )
+            if isinstance(res, dict):
+                item_dict = res.get("item")
+                if isinstance(item_dict, dict):
+                    url = item_dict.get("url")
+                    return url if isinstance(url, str) else None
+        except Exception:
+            return None
+        return None
+
+    def _extract_inline_audio_in_tracks(self, tracks: List[Any]) -> tuple[List[Any], bool]:
+        if not self.audio_library_store or not isinstance(tracks, list):
+            return tracks, False
+        changed = False
+        new_tracks: List[Any] = []
+        for tr in tracks:
+            if not isinstance(tr, dict) or not isinstance(tr.get("items"), list):
+                new_tracks.append(tr)
+                continue
+            new_items: List[Any] = []
+            for it in tr["items"]:
+                if isinstance(it, dict):
+                    extracted_url = self._extract_inline_audio_src(it)
+                    if extracted_url:
+                        new_items.append({**it, "src": extracted_url})
+                        changed = True
+                        continue
+                new_items.append(it)
+            new_tracks.append({**tr, "items": new_items})
+        return new_tracks, changed
+
+    def _extract_inline_audio_in_history(self, history: Dict[str, Any]) -> tuple[Dict[str, Any], bool]:
+        if not self.audio_library_store or not isinstance(history, dict):
+            return history, False
+        changed = False
+        cleaned: Dict[str, Any] = {}
+        for key in ("undo_stack", "redo_stack"):
+            stack = history.get(key) or []
+            if not isinstance(stack, list):
+                cleaned[key] = []
+                continue
+            new_stack: List[Any] = []
+            for snap in stack:
+                if isinstance(snap, dict) and isinstance(snap.get("tracks"), list):
+                    new_tracks, snap_changed = self._extract_inline_audio_in_tracks(snap["tracks"])
+                    if snap_changed:
+                        changed = True
+                    new_stack.append({**snap, "tracks": new_tracks})
+                else:
+                    new_stack.append(snap)
+            cleaned[key] = new_stack
+        return cleaned, changed
+
+    def get_clip_session(
+        self,
+        folder_name: str,
+        clip_id: str,
+        *,
+        ensure_crop_map: bool = True,
+    ) -> Dict[str, Any]:
         """
-        Retrieves the complete aggregate state of a clip (transcript, style settings,
-        timeline tracks, history stacks, cover configuration, crop map), auto-healing
-        missing defaults if necessary.
+        Retrieves the canonical Clip Session aggregate (transcript, cascaded style settings,
+        timeline, history, cover config, crop map, asset URLs), healing defaults, migrating
+        legacy cover/audio assets, and computing crop_map when requested.
         """
         clip_dir = self.resolve_clip_dir(folder_name, clip_id)
         if not os.path.exists(clip_dir):
@@ -221,82 +355,74 @@ class ClipSessionStore:
         self.ensure_clip_defaults(folder_name, clip_id)
 
         # 1. Transcript
-        transcript: List[Any] = []
-        transcript_path = os.path.join(clip_dir, "transcript.json")
-        if os.path.exists(transcript_path):
-            try:
-                with open(transcript_path, "r", encoding="utf-8") as f:
-                    transcript = json.load(f)
-            except Exception:
-                transcript = []
+        transcript: List[Any] = self._read_json(
+            os.path.join(clip_dir, "transcript.json"), list, []
+        )
 
-        # 2. Style settings
+        # 2. Cascaded style settings: CANONICAL <- default_style_settings.json <- clip style_settings.json
         style_settings: Dict[str, Any] = dict(CANONICAL_DEFAULT_STYLE_SETTINGS)
-        style_path = os.path.join(clip_dir, "style_settings.json")
-        if os.path.exists(style_path):
-            try:
-                with open(style_path, "r", encoding="utf-8") as f:
-                    loaded = json.load(f)
-                    if isinstance(loaded, dict):
-                        style_settings = loaded
-            except Exception:
-                pass
+        default_style = self._read_json(
+            os.path.join(self.output_dir, "default_style_settings.json"), dict, None
+        )
+        if default_style:
+            style_settings.update(default_style)
+        clip_style = self._read_json(
+            os.path.join(clip_dir, "style_settings.json"), dict, None
+        )
+        if clip_style:
+            style_settings.update(clip_style)
 
-        # 3. Timeline
-        timeline: List[Any] = []
+        # 3. Timeline (auto-extract legacy inline data:audio/... URIs if present)
         timeline_path = os.path.join(clip_dir, "timeline.json")
-        if os.path.exists(timeline_path):
-            try:
-                with open(timeline_path, "r", encoding="utf-8") as f:
-                    loaded = json.load(f)
-                    if isinstance(loaded, list):
-                        timeline = loaded
-            except Exception:
-                timeline = []
+        timeline: List[Any] = self._read_json(timeline_path, list, [])
+        timeline, timeline_migrated = self._extract_inline_audio_in_tracks(timeline)
+        if timeline_migrated:
+            self._atomic_write_json(timeline_path, timeline)
 
-        # 4. History
-        history: Dict[str, List[Any]] = {"undo_stack": [], "redo_stack": []}
+        # 4. History (auto-extract legacy inline data:audio/... URIs if present)
         history_path = os.path.join(clip_dir, "history.json")
-        if os.path.exists(history_path):
-            try:
-                with open(history_path, "r", encoding="utf-8") as f:
-                    loaded = json.load(f)
-                    if isinstance(loaded, dict):
-                        history = {
-                            "undo_stack": loaded.get("undo_stack") or [],
-                            "redo_stack": loaded.get("redo_stack") or []
-                        }
-            except Exception:
-                history = {"undo_stack": [], "redo_stack": []}
+        raw_history = self._read_json(history_path, dict, {})
+        history: Dict[str, List[Any]] = {
+            "undo_stack": raw_history.get("undo_stack") or [],
+            "redo_stack": raw_history.get("redo_stack") or [],
+        }
+        history, history_migrated = self._extract_inline_audio_in_history(history)
+        if history_migrated:
+            self._atomic_write_json(history_path, history)
 
-        # 5. Cover config
+        # 5. Cover config + legacy thumbnail.jpg -> cover.jpg migration
         cover_config: Dict[str, Any] = dict(CANONICAL_DEFAULT_COVER_CONFIG)
         cover_path = os.path.join(clip_dir, "cover_config.json")
-        thumb_path = os.path.join(clip_dir, "thumbnail_config.json")
-        ref_cover = cover_path if os.path.exists(cover_path) else (thumb_path if os.path.exists(thumb_path) else None)
+        thumb_config_path = os.path.join(clip_dir, "thumbnail_config.json")
+        ref_cover = cover_path if os.path.exists(cover_path) else (
+            thumb_config_path if os.path.exists(thumb_config_path) else None
+        )
         if ref_cover:
+            loaded_cover = self._read_json(ref_cover, dict, None)
+            if loaded_cover:
+                cover_config = loaded_cover
+
+        cover_img_path = os.path.join(clip_dir, "cover.jpg")
+        thumb_img_path = os.path.join(clip_dir, "thumbnail.jpg")
+        if (
+            not os.path.exists(cover_img_path)
+            and cover_config.get("enabled")
+            and os.path.exists(thumb_img_path)
+        ):
             try:
-                with open(ref_cover, "r", encoding="utf-8") as f:
-                    loaded = json.load(f)
-                    if isinstance(loaded, dict):
-                        cover_config = loaded
+                shutil.copy2(thumb_img_path, cover_img_path)
             except Exception:
                 pass
 
         # 6. Crop map
-        crop_map = None
-        crop_map_path = os.path.join(clip_dir, "crop_map.json")
-        if os.path.exists(crop_map_path):
-            try:
-                with open(crop_map_path, "r", encoding="utf-8") as f:
-                    crop_map = json.load(f)
-            except Exception:
-                crop_map = None
-
-        # Asset presence & URLs
         has_video = os.path.exists(os.path.join(clip_dir, "video.mp4"))
-        has_thumb = os.path.exists(os.path.join(clip_dir, "thumbnail.jpg"))
-        has_cover = os.path.exists(os.path.join(clip_dir, "cover.jpg"))
+        if ensure_crop_map and has_video:
+            crop_map = self.ensure_crop_map(folder_name, clip_id)
+        else:
+            crop_map = self.get_crop_map(folder_name, clip_id)
+
+        has_thumb = os.path.exists(thumb_img_path)
+        has_cover = os.path.exists(cover_img_path)
 
         return {
             "folder_name": folder_name,
@@ -304,10 +430,7 @@ class ClipSessionStore:
             "transcript": transcript,
             "style_settings": style_settings,
             "timeline": timeline,
-            "timeline_tracks": timeline,
             "history": history,
-            "undo_stack": history["undo_stack"],
-            "redo_stack": history["redo_stack"],
             "cover_config": cover_config,
             "crop_map": crop_map,
             "asset_url": f"/assets/clips/{folder_name}/{clip_id}/video.mp4" if has_video else None,
@@ -315,126 +438,24 @@ class ClipSessionStore:
             "cover_url": f"/assets/clips/{folder_name}/{clip_id}/cover.jpg" if has_cover else None,
         }
 
-    @staticmethod
-    def _strip_heavy_media_from_history(history_data: Dict[str, Any]) -> Dict[str, Any]:
-        if not isinstance(history_data, dict):
-            return history_data
-        cleaned: Dict[str, Any] = {}
-        for key, stack in history_data.items():
-            if isinstance(stack, list):
-                new_stack = []
-                for snap in stack:
-                    if isinstance(snap, dict) and isinstance(snap.get("tracks"), list):
-                        new_tracks = []
-                        for tr in snap["tracks"]:
-                            if isinstance(tr, dict) and isinstance(tr.get("items"), list):
-                                new_items = []
-                                for it in tr["items"]:
-                                    if (
-                                        isinstance(it, dict)
-                                        and isinstance(it.get("src"), str)
-                                        and it["src"].startswith("data:")
-                                    ):
-                                        new_items.append({k: v for k, v in it.items() if k != "src"})
-                                    else:
-                                        new_items.append(it)
-                                new_tracks.append({**tr, "items": new_items})
-                            else:
-                                new_tracks.append(tr)
-                        new_stack.append({**snap, "tracks": new_tracks})
-                    else:
-                        new_stack.append(snap)
-                cleaned[key] = new_stack
-            else:
-                cleaned[key] = stack
-        return cleaned
-
     def save_clip_session(self, folder_name: str, clip_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Atomically persists partial or complete clip manifests.
-        Writes all updated files to temporary staging files (.tmp.<uuid>) before
-        atomically replacing target files with os.replace.
+        Atomically persists canonical clip session manifest patches without re-reading
+        untouched files. Returns {"folder_name": folder_name, "clip_id": clip_id}.
         """
         clip_dir = self.resolve_clip_dir(folder_name, clip_id)
         os.makedirs(clip_dir, exist_ok=True)
 
         updates: Dict[str, Any] = {}
-
-        if "transcript" in payload:
-            updates["transcript.json"] = payload["transcript"]
-
-        if "style_settings" in payload:
-            updates["style_settings.json"] = payload["style_settings"]
-        elif "settings" in payload:
-            updates["style_settings.json"] = payload["settings"]
-
-        if "timeline" in payload or "timeline_tracks" in payload:
-            incoming_tracks = payload.get("timeline") if "timeline" in payload else payload.get("timeline_tracks")
-            if isinstance(incoming_tracks, list):
-                has_cached_ref = any(
-                    isinstance(tr, dict) and any(
-                        isinstance(it, dict) and it.get("src") == "__cached_src__"
-                        for it in (tr.get("items") or [])
-                    )
-                    for tr in incoming_tracks
-                )
-                if has_cached_ref:
-                    existing_timeline_path = os.path.join(clip_dir, "timeline.json")
-                    src_by_id: Dict[str, Any] = {}
-                    src_by_name: Dict[str, Any] = {}
-                    if os.path.exists(existing_timeline_path):
-                        try:
-                            with open(existing_timeline_path, "r", encoding="utf-8") as f:
-                                existing_tracks = json.load(f)
-                                if isinstance(existing_tracks, list):
-                                    for etr in existing_tracks:
-                                        if isinstance(etr, dict):
-                                            for eit in (etr.get("items") or []):
-                                                if isinstance(eit, dict) and eit.get("src") and eit.get("src") != "__cached_src__":
-                                                    if eit.get("id"):
-                                                        src_by_id[str(eit["id"])] = eit["src"]
-                                                    if eit.get("name"):
-                                                        src_by_name[str(eit["name"])] = eit["src"]
-                        except Exception:
-                            pass
-                    for tr in incoming_tracks:
-                        if isinstance(tr, dict):
-                            for it in (tr.get("items") or []):
-                                if isinstance(it, dict) and it.get("src") == "__cached_src__":
-                                    restored = src_by_id.get(str(it.get("id") or "")) or src_by_name.get(str(it.get("name") or ""))
-                                    if restored:
-                                        it["src"] = restored
-            updates["timeline.json"] = incoming_tracks
-
-        if "history" in payload:
-            updates["history.json"] = self._strip_heavy_media_from_history(payload["history"])
-        elif "undo_stack" in payload or "redo_stack" in payload:
-            existing_history_path = os.path.join(clip_dir, "history.json")
-            undo_stack = payload.get("undo_stack", [])
-            redo_stack = payload.get("redo_stack", [])
-            if os.path.exists(existing_history_path):
-                try:
-                    with open(existing_history_path, "r", encoding="utf-8") as f:
-                        curr = json.load(f)
-                        if "undo_stack" not in payload:
-                            undo_stack = curr.get("undo_stack", [])
-                        if "redo_stack" not in payload:
-                            redo_stack = curr.get("redo_stack", [])
-                except Exception:
-                    pass
-            updates["history.json"] = self._strip_heavy_media_from_history(
-                {"undo_stack": undo_stack, "redo_stack": redo_stack}
-            )
-
-        if "cover_config" in payload:
-            updates["cover_config.json"] = payload["cover_config"]
-        elif "thumbnail_config" in payload:
-            updates["cover_config.json"] = payload["thumbnail_config"]
-        elif "config" in payload:
-            updates["cover_config.json"] = payload["config"]
-
-        if "crop_map" in payload:
-            updates["crop_map.json"] = payload["crop_map"]
+        for key, filename in _CANONICAL_MANIFEST_FILES.items():
+            if key not in payload:
+                continue
+            value = payload[key]
+            if key == "timeline" and isinstance(value, list):
+                value, _ = self._extract_inline_audio_in_tracks(value)
+            elif key == "history" and isinstance(value, dict):
+                value, _ = self._extract_inline_audio_in_history(value)
+            updates[filename] = value
 
         staged_files: List[tuple[str, str]] = []
         try:
@@ -447,7 +468,6 @@ class ClipSessionStore:
                     f.flush()
                     os.fsync(f.fileno())
 
-            # Atomically replace each target file
             for tmp_path, target_path in staged_files:
                 os.replace(tmp_path, target_path)
         except Exception:
@@ -459,55 +479,7 @@ class ClipSessionStore:
                         pass
             raise
 
-        if payload.get("_compact"):
-            return {"folder_name": folder_name, "clip_id": clip_id}
-
-        return self.get_clip_session(folder_name, clip_id)
-
-    # ── Convenience Methods & Backward Compatibility Adapters ────────
-
-    def save_transcript(self, folder_name: str, clip_id: str, transcript: List[Any]) -> bool:
-        """Saves clip transcript atomically."""
-        self.save_clip_session(folder_name, clip_id, {"transcript": transcript})
-        return True
-
-    def save_style_settings(self, folder_name: str, clip_id: str, settings: Dict[str, Any]) -> bool:
-        """Saves clip style settings atomically."""
-        self.save_clip_session(folder_name, clip_id, {"style_settings": settings})
-        return True
-
-    def save_timeline(self, folder_name: str, clip_id: str, timeline_tracks: List[Any]) -> bool:
-        """Saves clip timeline tracks atomically."""
-        self.save_clip_session(folder_name, clip_id, {"timeline": timeline_tracks})
-        return True
-
-    def save_history(self, folder_name: str, clip_id: str, undo_stack: List[Any], redo_stack: List[Any]) -> bool:
-        """Saves clip timeline undo/redo history stacks atomically."""
-        self.save_clip_session(folder_name, clip_id, {"undo_stack": undo_stack, "redo_stack": redo_stack})
-        return True
-
-    def save_cover_config(self, folder_name: str, clip_id: str, config: Dict[str, Any]) -> bool:
-        """Saves clip cover configuration atomically."""
-        self.save_clip_session(folder_name, clip_id, {"cover_config": config})
-        return True
-
-    def get_cover_config(self, folder_name: str, clip_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieves clip cover configuration with fallback to thumbnail_config.json."""
-        cover_path = self._resolve_clip_path(folder_name, clip_id, "cover_config.json")
-        if os.path.exists(cover_path):
-            try:
-                with open(cover_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        thumb_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail_config.json")
-        if os.path.exists(thumb_path):
-            try:
-                with open(thumb_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return None
+        return {"folder_name": folder_name, "clip_id": clip_id}
 
     def save_crop_map(self, folder_name: str, clip_id: str, crop_map: List[Any]) -> bool:
         """Saves auto-reframe crop map keyframes atomically."""
@@ -580,23 +552,6 @@ class ClipSessionStore:
             except Exception:
                 pass
         return True
-
-    def migrate_legacy_cover_if_needed(self, folder_name: str, clip_id: str) -> Optional[str]:
-        """Auto-migrates legacy cover.jpg from thumbnail.jpg if cover slide is enabled."""
-        cover_path = self._resolve_clip_path(folder_name, clip_id, "cover.jpg")
-        if os.path.exists(cover_path):
-            return f"/assets/clips/{folder_name}/{clip_id}/cover.jpg"
-
-        config = self.get_cover_config(folder_name, clip_id)
-        if config and config.get("enabled"):
-            thumb_path = self._resolve_clip_path(folder_name, clip_id, "thumbnail.jpg")
-            if os.path.exists(thumb_path):
-                try:
-                    shutil.copy2(thumb_path, cover_path)
-                    return f"/assets/clips/{folder_name}/{clip_id}/cover.jpg"
-                except Exception:
-                    pass
-        return None
 
     # ── Media Operations & Video Information ─────────────────────────
 

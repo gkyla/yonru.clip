@@ -168,8 +168,7 @@ describe('useClipEditorSession Composable', () => {
         expect.objectContaining({
           method: 'PUT',
           body: {
-            transcript: [{ start: 1.5, duration: 3.0, text: 'Sanitized edit' }],
-            _compact: true
+            transcript: [{ start: 1.5, duration: 3.0, text: 'Sanitized edit' }]
           }
         })
       );
@@ -312,13 +311,13 @@ describe('useClipEditorSession Composable', () => {
       session.folderName.value = 'folderCustom';
       session.clipId.value = 'clipCustom';
 
-      await session.saveClipSession({ customField: 'customValue' }, true);
+      await session.saveClipSession({ crop_map: [{ time: 0, x: 500 }] }, true);
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/clip-session/folderCustom/clipCustom'),
         expect.objectContaining({
           body: expect.objectContaining({
-            customField: 'customValue'
+            crop_map: [{ time: 0, x: 500 }]
           })
         })
       );
@@ -372,8 +371,7 @@ describe('useClipEditorSession Composable', () => {
         expect.objectContaining({
           method: 'PUT',
           body: {
-            style_settings: { fontSize: 48 },
-            _compact: true
+            style_settings: { fontSize: 48 }
           }
         })
       );
@@ -422,6 +420,113 @@ describe('useClipEditorSession Composable', () => {
       session.applyPreset('bold-podcast');
       expect(mockSubtitleStyle.applyPreset).toHaveBeenCalledWith(
         'bold-podcast'
+      );
+    });
+
+    it('routes timeline, history, and cover_config patches through clipSessionClient', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
+      vi.stubGlobal('$fetch', mockFetch);
+
+      const mockTimeline: Partial<ReturnType<typeof useTimelineState>> = {
+        isSavingLocked: ref(false),
+        isSavingHistory: ref(false),
+        hasUnsavedHistory: ref(true),
+        timelineTracks: ref([
+          { id: 'video', name: 'Main Video', type: 'video', items: [] }
+        ]),
+        timelineUndoStack: ref([
+          { tracks: [], transcript: [], selectedId: null }
+        ]),
+        timelineRedoStack: ref([])
+      };
+      const mockCover: Partial<ReturnType<typeof useClipperCover>> = {
+        coverEnabled: ref(true),
+        coverDuration: ref(1.5),
+        coverScreenshotTime: ref(2.0),
+        coverTextOverlays: ref([
+          {
+            id: 'c1',
+            text: 'Title',
+            fontFamily: 'Inter',
+            fontSize: 40,
+            fontWeight: 900,
+            color: '#fff',
+            x: 0,
+            y: 0
+          }
+        ]),
+        coverXOffset: ref(45)
+      };
+
+      const session = useClipEditorSession({
+        timeline: mockTimeline as ReturnType<typeof useTimelineState>,
+        coverState: mockCover as ReturnType<typeof useClipperCover>
+      });
+      session.folderName.value = 'fRoute';
+      session.clipId.value = 'cRoute';
+
+      await session.saveTimelineTracks();
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        `${API_BASE}/api/clip-session/fRoute/cRoute`,
+        {
+          method: 'PUT',
+          body: {
+            timeline: mockTimeline.timelineTracks!.value
+          }
+        }
+      );
+
+      await session.saveHistoryToBackend();
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        `${API_BASE}/api/clip-session/fRoute/cRoute`,
+        {
+          method: 'PUT',
+          body: {
+            history: {
+              undo_stack: mockTimeline.timelineUndoStack!.value,
+              redo_stack: []
+            }
+          }
+        }
+      );
+      expect(mockTimeline.hasUnsavedHistory!.value).toBe(false);
+
+      await session.saveCoverConfig();
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        `${API_BASE}/api/clip-session/fRoute/cRoute`,
+        {
+          method: 'PUT',
+          body: {
+            cover_config: {
+              enabled: true,
+              duration: 1.5,
+              screenshotTime: 2.0,
+              textOverlays: mockCover.coverTextOverlays!.value,
+              xOffset: 45
+            }
+          }
+        }
+      );
+
+      // Sequential clip switch across folders saves history once to oldFolder/oldClip
+      mockFetch.mockClear();
+      mockTimeline.timelineUndoStack!.value = [
+        { tracks: [], transcript: [], selectedId: 'x' }
+      ];
+      session.clipId.value = 'cNext';
+      session.folderName.value = 'fNext';
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${API_BASE}/api/clip-session/fRoute/cRoute`,
+        expect.objectContaining({
+          method: 'PUT',
+          body: {
+            history: {
+              undo_stack: [{ tracks: [], transcript: [], selectedId: 'x' }],
+              redo_stack: []
+            }
+          }
+        })
       );
     });
   });

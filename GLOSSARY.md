@@ -265,6 +265,10 @@ _Avoid_: Hook script, AI helper, hook fetcher, virality detector
 The backend data access module strictly responsible for ingesting, caching, querying, and managing Source Videos and their raw metadata on disk. It does not perform clip cutting, clip manifest serialization, or clip audio extraction.
 _Avoid_: Clip repository, media manager, unified asset store
 
+**Clip Session**:
+The complete, clip-scoped editing state for a Ready Clip, comprising its transcript, style settings, multi-track timeline, undo/redo history, cover slide configuration, auto-reframe crop map, and media asset references.
+_Avoid_: Clip bundle, clip assets, project state, editor payload
+
 **Clip Session Store**:
 The backend aggregate store responsible for cutting Ready Clips from source video intervals, extracting clip audio and thumbnails, managing individual clip session manifests (transcripts, style settings, timeline tracks, undo/redo history, and cover slide configuration), and executing auto-reframe face tracking via `ensure_crop_map` to compute, normalize, and cache pre-computed `crop_map.json` keyframes (per [ADR-0008](docs/adr/0008-precomputed-auto-reframe-and-default-face-tracking.md)).
 _Avoid_: Asset repository, clip manager, clip file handler

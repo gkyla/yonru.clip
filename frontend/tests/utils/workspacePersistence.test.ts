@@ -288,4 +288,44 @@ describe('WorkspacePersistenceCoordinator Unit Tests', () => {
 
     unbind();
   });
+
+  it('triggers debounced saveCoverConfig when cover slide refs change and flushes on beforeunload', async () => {
+    vi.useFakeTimers();
+    const saveCoverConfigSpy = vi.fn();
+    const coverEnabled = ref(false);
+    const coverDuration = ref(1.0);
+    const coverTextOverlays = ref([]);
+
+    const unbind = WorkspacePersistenceCoordinator.bindReactivity({
+      editorSession: {
+        folderName: ref('folder1'),
+        clipId: ref('clip1')
+      },
+      timeline: {
+        isSavingLocked: ref(false)
+      },
+      cover: {
+        coverEnabled,
+        coverDuration,
+        coverTextOverlays,
+        saveCoverConfig: saveCoverConfigSpy
+      }
+    });
+
+    coverEnabled.value = true;
+    await vi.advanceTimersByTimeAsync(100);
+    expect(saveCoverConfigSpy).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(300);
+    expect(saveCoverConfigSpy).toHaveBeenCalledTimes(1);
+
+    // Mutate again and flush immediately via beforeunload
+    coverDuration.value = 2.0;
+    await vi.advanceTimersByTimeAsync(50);
+    window.dispatchEvent(new Event('beforeunload'));
+    expect(saveCoverConfigSpy).toHaveBeenCalledTimes(2);
+
+    unbind();
+    vi.useRealTimers();
+  });
 });
