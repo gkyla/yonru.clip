@@ -2,7 +2,8 @@ import { resolveApiBase } from './apiBase';
 import type {
   ClipSessionAck,
   ClipSessionData,
-  ClipSessionPatch
+  ClipSessionPatch,
+  SubtitleStyleSettings
 } from '../types/clipper';
 
 export type {
@@ -91,6 +92,22 @@ export async function patchSession(
   );
 }
 
+export async function saveDefaultStyleSettings(
+  settings: SubtitleStyleSettings,
+  options?: ClipSessionClientOptions
+): Promise<unknown> {
+  const apiBase = options?.apiBase ?? resolveApiBase();
+  const url = `${apiBase}/api/default-style-settings`;
+  return executeSessionFetch<unknown>(
+    url,
+    {
+      method: 'PUT',
+      body: { settings }
+    },
+    options?.fetcher
+  );
+}
+
 /**
  * Client adapter bound to a fixed apiBase and HttpFetcher.
  */
@@ -119,6 +136,15 @@ export class ClipSessionClient {
     patch: ClipSessionPatch
   ): Promise<ClipSessionAck> {
     return patchSession(folderName, clipId, patch, {
+      apiBase: this.apiBase,
+      fetcher: this.fetcher
+    });
+  }
+
+  public saveDefaultStyleSettings(
+    settings: SubtitleStyleSettings
+  ): Promise<unknown> {
+    return saveDefaultStyleSettings(settings, {
       apiBase: this.apiBase,
       fetcher: this.fetcher
     });

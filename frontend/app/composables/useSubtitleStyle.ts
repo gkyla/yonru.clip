@@ -10,6 +10,7 @@ import {
 } from '../constants/subtitlePresets';
 import type { SubtitleStyleSettings, CropMapPoint } from '../types/clipper';
 import { resolveApiBase } from '../utils/apiBase';
+import { saveDefaultStyleSettings as saveDefaultStyleSettingsRequest } from '../utils/clipSessionClient';
 
 export const useSubtitleStyle = () => {
   const API_BASE = resolveApiBase();
@@ -63,10 +64,7 @@ export const useSubtitleStyle = () => {
     'cropMode',
     () => DEFAULT_SUBTITLE_STYLES.cropMode ?? 'face_tracking'
   );
-  const cropMap = useState<CropMapPoint[]>(
-    'cropMap',
-    () => DEFAULT_SUBTITLE_STYLES.cropMap ?? []
-  );
+  const cropMap = useState<CropMapPoint[]>('cropMap', () => []);
   const cropPercentX = useState<number>(
     'cropPercentX',
     () => DEFAULT_SUBTITLE_STYLES.cropPercentX ?? 50
@@ -180,7 +178,6 @@ export const useSubtitleStyle = () => {
       font: font.value,
       fontSize: fontSize.value,
       cropMode: cropMode.value,
-      cropMap: cropMap.value,
       cropPercentX: cropPercentX.value,
       cropPercentXTop: cropPercentXTop.value,
       cropPercentXBottom: cropPercentXBottom.value,
@@ -230,7 +227,6 @@ export const useSubtitleStyle = () => {
     if (merged.font !== undefined) font.value = merged.font;
     if (merged.fontSize !== undefined) fontSize.value = merged.fontSize;
     if (merged.cropMode !== undefined) cropMode.value = merged.cropMode;
-    if (merged.cropMap !== undefined) cropMap.value = merged.cropMap;
     if (merged.cropPercentX !== undefined)
       cropPercentX.value = merged.cropPercentX;
     if (merged.cropPercentXTop !== undefined)
@@ -326,11 +322,8 @@ export const useSubtitleStyle = () => {
 
   async function saveDefaultStyleSettings(): Promise<void> {
     try {
-      await $fetch(`${API_BASE}/api/default-style-settings`, {
-        method: 'PUT',
-        body: {
-          settings: getStyleSnapshot()
-        }
+      await saveDefaultStyleSettingsRequest(getStyleSnapshot(), {
+        apiBase: API_BASE
       });
     } catch (e) {
       console.error('Failed to save default style settings', e);

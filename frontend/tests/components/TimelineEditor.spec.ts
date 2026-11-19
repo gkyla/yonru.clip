@@ -751,10 +751,10 @@ describe('TimelineEditor Component', () => {
         }
       });
 
-      // 1. + Text and + Audio buttons trigger addTrack + save
+      // 1. + Text and + Audio buttons trigger addTrack cleanly without imperative saveTimelineTracks calls
       await wrapper.find('[data-testid="add-text-track-btn"]').trigger('click');
       expect(mockState.addTrack).toHaveBeenCalledWith('text');
-      expect(mockState.saveTimelineTracks).toHaveBeenCalled();
+      expect(mockState.saveTimelineTracks).not.toHaveBeenCalled();
 
       await wrapper
         .find('[data-testid="add-audio-track-btn"]')
@@ -892,7 +892,7 @@ describe('TimelineEditor Component', () => {
         0,
         4
       );
-      expect(mockState.saveTimelineTracks).toHaveBeenCalled();
+      expect(mockState.saveTimelineTracks).not.toHaveBeenCalled();
 
       // 2. Drag down 2 rows (+80px) from text-2 -> Video (incompatible type) -> blocked & no move
       mockState.moveTimelineItemToTrack.mockClear();

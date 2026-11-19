@@ -9,9 +9,15 @@ import type {
 import type { RenderSpec } from '../types/render';
 import { resolveApiBase } from '../utils/apiBase';
 import {
-  patchSession,
+  ClipSessionClient,
+  saveDefaultStyleSettings as saveDefaultStyleSettingsRequest,
   type ClipSessionPatch
 } from '../utils/clipSessionClient';
+import {
+  ClipSessionSaveScheduler,
+  type ClipSessionSaveDomain,
+  type ClipSessionTarget
+} from '../utils/clipSessionSaveScheduler';
 import { useAppNotifier } from './useAppNotifier';
 import { useCachedLibrary } from './useCachedLibrary';
 import { useTimelineState } from './useTimelineState';
@@ -96,6 +102,7 @@ export interface ClipEditorSessionDependencies {
   coverState?: ReturnType<typeof useClipperCover>;
   thumbnailState?: ReturnType<typeof useClipperCover>;
   exportState?: ReturnType<typeof useClipperExport>;
+  sessionClient?: Pick<ClipSessionClient, 'patchSession'>;
 }
 
 export const useClipEditorSession = (
@@ -125,7 +132,7 @@ export const useClipEditorSession = (
   const hooks = useState<Hook[]>('hooks', () => []);
   const activeHook = useState<Hook | null>('activeHook', () => null);
   const videoFps = useState<number>('videoFps', () => 30);
-  const volume = useState<number>('volume', () => 0.5);
+  const volume = subtitleStyle?.volume ?? useState<number>('volume', () => 0.5);
   const cropMode =
     subtitleStyle?.cropMode ??
     useState<string>('cropMode', () => 'face_tracking');
@@ -138,6 +145,109 @@ export const useClipEditorSession = (
   const autoAdaptiveSubtitles =
     subtitleStyle?.autoAdaptiveSubtitles ??
     useState<boolean>('autoAdaptiveSubtitles', () => true);
+  const isSessionSaving = useState<boolean>('isSessionSaving', () => false);
+
+  const sessionClient = deps.sessionClient ?? new ClipSessionClient(API_BASE);
+
+  let lastFlushedHistoryMeta: {
+    folder: string;
+    clip: string;
+    undoRef: HistorySnapshot[];
+    undoLen: number;
+    undoTop: HistorySnapshot | undefined;
+    redoRef: HistorySnapshot[];
+    redoLen: number;
+    redoTop: HistorySnapshot | undefined;
+  } | null = null;
+
+  function buildCoverConfigPayload() {
+    return {
+      enabled: coverState?.coverEnabled?.value ?? false,
+      duration: coverState?.coverDuration?.value ?? 1.0,
+      screenshotTime: coverState?.coverScreenshotTime?.value ?? 0,
+      textOverlays: coverState?.coverTextOverlays?.value || [],
+      xOffset: coverState?.coverXOffset?.value ?? 50
+    };
+  }
+
+  function buildDomainPatch(
+    domains: ReadonlySet<ClipSessionSaveDomain>
+  ): ClipSessionPatch {
+    const patch: ClipSessionPatch = {};
+
+    if (domains.has('transcript')) {
+      patch.transcript = sanitizeTranscript(fullTranscript.value || []);
+    }
+    if (domains.has('style_settings')) {
+      patch.style_settings = subtitleStyle?.getStyleSnapshot?.() ?? {};
+    }
+    if (
+      domains.has('timeline') &&
+      timeline.timelineTracks?.value !== undefined
+    ) {
+      patch.timeline = timeline.timelineTracks.value;
+    }
+    if (domains.has('cover_config')) {
+      patch.cover_config = buildCoverConfigPayload();
+    }
+    if (domains.has('history')) {
+      patch.history = {
+        undo_stack: timeline.timelineUndoStack?.value ?? [],
+        redo_stack: timeline.timelineRedoStack?.value ?? []
+      };
+    }
+
+    return patch;
+  }
+
+  const saveScheduler = new ClipSessionSaveScheduler({
+    client: sessionClient,
+    source: {
+      getTarget: (): ClipSessionTarget | null => {
+        if (!folderName.value || !clipId.value) return null;
+        return { folderName: folderName.value, clipId: clipId.value };
+      },
+      buildDomainPatch,
+      isLocked: () => Boolean(timeline.isSavingLocked?.value),
+      onPendingStateChange: pending => {
+        isSessionSaving.value = pending;
+      },
+      onBeforePatch: domains => {
+        if (domains.has('history') && timeline.isSavingHistory) {
+          timeline.isSavingHistory.value = true;
+        }
+      },
+      onAfterPatch: (domains, target, ok, error) => {
+        if (domains.has('history')) {
+          if (ok) {
+            if (timeline.hasUnsavedHistory) {
+              timeline.hasUnsavedHistory.value = false;
+            }
+            const undoStack = timeline.timelineUndoStack?.value ?? [];
+            const redoStack = timeline.timelineRedoStack?.value ?? [];
+            lastFlushedHistoryMeta = {
+              folder: target.folderName,
+              clip: target.clipId,
+              undoRef: undoStack,
+              undoLen: undoStack.length,
+              undoTop: undoStack[undoStack.length - 1],
+              redoRef: redoStack,
+              redoLen: redoStack.length,
+              redoTop: redoStack[redoStack.length - 1]
+            };
+          } else {
+            console.error('[timeline] Failed to save history:', error);
+          }
+          if (timeline.isSavingHistory) {
+            timeline.isSavingHistory.value = false;
+          }
+        }
+        if (!ok && domains.has('timeline')) {
+          console.error('[clipper] Failed to save timeline tracks:', error);
+        }
+      }
+    }
+  });
 
   async function loadReadyClipIntoEditor(folder: string, id: string) {
     await job.loadReadyClipIntoEditor(folder, id);
@@ -157,48 +267,90 @@ export const useClipEditorSession = (
     );
   }
 
-  // Flush undo/redo history once per clip switch before stacks clear
+  // Flush pending dirty domains & undo/redo history once per clip switch before stacks clear
   watch(
     [folderName, clipId],
     (_newVal, oldVal) => {
       const [oldFolder, oldClip] = oldVal || [null, null];
-      const undoLen = timeline.timelineUndoStack?.value?.length ?? 0;
-      const redoLen = timeline.timelineRedoStack?.value?.length ?? 0;
-      if (oldFolder && oldClip && (undoLen > 0 || redoLen > 0)) {
-        const snapshot = {
-          undo_stack: [...(timeline.timelineUndoStack?.value ?? [])],
-          redo_stack: [...(timeline.timelineRedoStack?.value ?? [])]
-        };
-        if (timeline.timelineUndoStack) timeline.timelineUndoStack.value = [];
-        if (timeline.timelineRedoStack) timeline.timelineRedoStack.value = [];
-        if (timeline.hasUnsavedHistory)
-          timeline.hasUnsavedHistory.value = false;
-        saveHistoryToBackend(oldFolder, oldClip, snapshot);
+      if (!oldFolder || !oldClip) {
+        saveScheduler.cancelPending();
+        return;
+      }
+
+      const oldTarget: ClipSessionTarget = {
+        folderName: oldFolder,
+        clipId: oldClip
+      };
+      const dirtyDomains = saveScheduler.hasDirtyDomains(oldTarget)
+        ? new Set<ClipSessionSaveDomain>(saveScheduler.getDirtyDomains())
+        : new Set<ClipSessionSaveDomain>();
+
+      const undoStack = timeline.timelineUndoStack?.value ?? [];
+      const redoStack = timeline.timelineRedoStack?.value ?? [];
+      const hasHistoryItems = undoStack.length > 0 || redoStack.length > 0;
+      const alreadyFlushedSameHistory =
+        lastFlushedHistoryMeta !== null &&
+        lastFlushedHistoryMeta.folder === oldFolder &&
+        lastFlushedHistoryMeta.clip === oldClip &&
+        lastFlushedHistoryMeta.undoRef === undoStack &&
+        lastFlushedHistoryMeta.undoLen === undoStack.length &&
+        lastFlushedHistoryMeta.undoTop === undoStack[undoStack.length - 1] &&
+        lastFlushedHistoryMeta.redoRef === redoStack &&
+        lastFlushedHistoryMeta.redoLen === redoStack.length &&
+        lastFlushedHistoryMeta.redoTop === redoStack[redoStack.length - 1];
+
+      if (hasHistoryItems && !alreadyFlushedSameHistory) {
+        dirtyDomains.add('history');
+      }
+
+      if (dirtyDomains.size > 0) {
+        const frozenPatch = buildDomainPatch(dirtyDomains);
+        if (frozenPatch.history) {
+          frozenPatch.history = {
+            undo_stack: [...undoStack],
+            redo_stack: [...redoStack]
+          };
+        }
+        if (hasHistoryItems) {
+          if (timeline.timelineUndoStack) timeline.timelineUndoStack.value = [];
+          if (timeline.timelineRedoStack) timeline.timelineRedoStack.value = [];
+          if (timeline.hasUnsavedHistory) {
+            timeline.hasUnsavedHistory.value = false;
+          }
+        }
+        saveScheduler.cancelPending();
+        saveScheduler.enqueueFrozenPatch(oldTarget, frozenPatch, dirtyDomains);
+      } else {
+        saveScheduler.cancelPending();
       }
     },
     { flush: 'sync' }
   );
 
-  function buildCoverConfigPayload() {
-    return {
-      enabled: coverState.coverEnabled.value ?? false,
-      duration: coverState.coverDuration.value ?? 1.0,
-      screenshotTime: coverState.coverScreenshotTime.value ?? 0,
-      textOverlays: coverState.coverTextOverlays.value || [],
-      xOffset: coverState.coverXOffset.value ?? 50
-    };
+  function scheduleSessionSave(
+    domain: ClipSessionSaveDomain,
+    delayMs?: number
+  ) {
+    return saveScheduler.markDirty(
+      domain,
+      delayMs !== undefined ? { delayMs } : undefined
+    );
+  }
+
+  function flushSessionSaves() {
+    return saveScheduler.flush();
+  }
+
+  function hasPendingSessionSaves() {
+    return saveScheduler.hasPendingWork();
   }
 
   async function saveTranscript(isSilent = false) {
     if (!folderName.value || !fullTranscript.value || !clipId.value) return;
     const silent = isSilent === true;
 
-    const cleanTranscript = sanitizeTranscript(fullTranscript.value);
-
     try {
-      await patchSession(folderName.value, clipId.value, {
-        transcript: cleanTranscript
-      });
+      await saveScheduler.saveNow(['transcript'], { throwOnError: true });
       if (!silent) {
         notifier.showToast('Edits saved successfully!', 'success');
       }
@@ -220,12 +372,12 @@ export const useClipEditorSession = (
 
     const defaultPayload: ClipSessionPatch = {
       transcript: cleanTranscript,
-      style_settings: subtitleStyle.getStyleSnapshot(),
-      timeline: timeline.timelineTracks.value,
+      style_settings: subtitleStyle?.getStyleSnapshot?.() ?? {},
+      timeline: timeline.timelineTracks?.value ?? [],
       cover_config: buildCoverConfigPayload(),
       history: {
-        undo_stack: timeline.timelineUndoStack.value,
-        redo_stack: timeline.timelineRedoStack.value
+        undo_stack: timeline.timelineUndoStack?.value ?? [],
+        redo_stack: timeline.timelineRedoStack?.value ?? []
       },
       ...(cropMap.value?.length > 0 ? { crop_map: cropMap.value } : {})
     };
@@ -235,7 +387,10 @@ export const useClipEditorSession = (
       : defaultPayload;
 
     try {
-      const res = await patchSession(folderName.value, clipId.value, payload);
+      const res = await saveScheduler.saveNow(
+        ['transcript', 'style_settings', 'timeline', 'cover_config', 'history'],
+        { customPatch: payload, throwOnError: true }
+      );
       if (!silent) {
         notifier.showToast('Edits saved successfully!', 'success');
       }
@@ -267,9 +422,7 @@ export const useClipEditorSession = (
   async function saveStyleSettings() {
     if (!folderName.value || !clipId.value) return;
     try {
-      await patchSession(folderName.value, clipId.value, {
-        style_settings: subtitleStyle.getStyleSnapshot()
-      });
+      await saveScheduler.saveNow(['style_settings']);
     } catch {}
   }
 
@@ -278,13 +431,7 @@ export const useClipEditorSession = (
       return;
     }
     if (!folderName.value || !clipId.value) return;
-    try {
-      await patchSession(folderName.value, clipId.value, {
-        timeline: timeline.timelineTracks.value
-      });
-    } catch (e) {
-      console.error('[clipper] Failed to save timeline tracks:', e);
-    }
+    await saveScheduler.saveNow(['timeline']);
   }
 
   async function saveHistoryToBackend(
@@ -298,48 +445,30 @@ export const useClipEditorSession = (
     const folder = targetFolder ?? folderName.value;
     const clip = targetClip ?? clipId.value;
     if (!folder || !clip) return;
-    if (timeline.isSavingHistory) {
-      timeline.isSavingHistory.value = true;
-    }
-    try {
-      await patchSession(folder, clip, {
-        history: stacksOverride ?? {
-          undo_stack: timeline.timelineUndoStack.value,
-          redo_stack: timeline.timelineRedoStack.value
-        }
-      });
-      if (timeline.hasUnsavedHistory) {
-        timeline.hasUnsavedHistory.value = false;
-      }
-    } catch (e) {
-      console.error('[timeline] Failed to save history:', e);
-    } finally {
-      if (timeline.isSavingHistory) {
-        timeline.isSavingHistory.value = false;
-      }
-    }
+    await saveScheduler.saveNow(['history'], {
+      targetOverride: { folderName: folder, clipId: clip },
+      ...(stacksOverride ? { customPatch: { history: stacksOverride } } : {})
+    });
   }
 
   async function saveCoverConfig() {
     if (!folderName.value || !clipId.value) return;
     try {
-      await patchSession(folderName.value, clipId.value, {
-        cover_config: buildCoverConfigPayload()
-      });
+      await saveScheduler.saveNow(['cover_config']);
     } catch {}
   }
 
-  async function toggleSubtitles() {
+  function toggleSubtitles() {
     subtitlesEnabled.value = !subtitlesEnabled.value;
-    await saveStyleSettings();
+    scheduleSessionSave('style_settings');
   }
 
   async function saveDefaultStyleSettings() {
     try {
-      await $fetch(`${API_BASE}/api/default-style-settings`, {
-        method: 'PUT',
-        body: { settings: subtitleStyle.getStyleSnapshot() }
-      });
+      await saveDefaultStyleSettingsRequest(
+        subtitleStyle?.getStyleSnapshot?.() ?? {},
+        { apiBase: API_BASE }
+      );
     } catch {}
   }
 
@@ -347,7 +476,7 @@ export const useClipEditorSession = (
     presetOrId: Parameters<typeof subtitleStyle.applyPreset>[0]
   ) {
     subtitleStyle.applyPreset(presetOrId);
-    saveStyleSettings();
+    scheduleSessionSave('style_settings');
   }
 
   function buildRenderSpec(hookIndex = 0, outputName?: string): RenderSpec {
@@ -417,7 +546,7 @@ export const useClipEditorSession = (
       | undefined
       | null;
     if (!res || res.transcriptChanged !== false) {
-      saveTranscript(true);
+      scheduleSessionSave('transcript');
     }
   }
 
@@ -427,11 +556,13 @@ export const useClipEditorSession = (
       | undefined
       | null;
     if (!res || res.transcriptChanged !== false) {
-      saveTranscript(true);
+      scheduleSessionSave('transcript');
     }
   }
 
   function resetSession() {
+    saveScheduler.cancelPending();
+    lastFlushedHistoryMeta = null;
     folderName.value = null;
     clipId.value = null;
     hooks.value = [];
@@ -452,6 +583,11 @@ export const useClipEditorSession = (
     cropMap,
     subtitlesEnabled,
     autoAdaptiveSubtitles,
+    isSessionSaving,
+    saveScheduler,
+    scheduleSessionSave,
+    flushSessionSaves,
+    hasPendingSessionSaves,
     loadReadyClipIntoEditor,
     saveTranscript,
     saveClipSession,

@@ -1,5 +1,5 @@
 // @vitest-environment nuxt
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ref } from 'vue';
 import { useClipEditorSession } from '../../app/composables/useClipEditorSession';
 import { useTimelineState } from '../../app/composables/useTimelineState';
@@ -11,6 +11,10 @@ describe('Timeline Undo/Redo Performance & Compact Payload Feedback Loop', () =>
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('saveTranscript sends canonical transcript patch without _compact flag', async () => {
@@ -66,6 +70,7 @@ describe('Timeline Undo/Redo Performance & Compact Payload Feedback Loop', () =>
     session.fullTranscript.value = [{ start: 0, duration: 1, text: 'Hello' }];
 
     session.undo();
+    await session.flushSessionSaves();
 
     expect(mockTimeline.undo).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledTimes(1);

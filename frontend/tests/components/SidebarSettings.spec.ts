@@ -389,17 +389,20 @@ describe('SidebarSettings Component', () => {
     expect(wordBtn?.attributes('disabled')).toBeDefined();
   });
 
-  it('persists style settings via state.saveStyleSettings when a preset is selected', async () => {
+  it('updates preset styles without issuing duplicate imperative saveStyleSettings calls', async () => {
     const wrapper = mount(SidebarSettings, {
       global: {
         stubs: { Icon: true, NuxtIcon: true, BlacklistSettings: true }
       }
     });
 
+    const targetPreset = SUBTITLE_PRESETS[0]!;
     const modal = wrapper.findComponent(PresetStudioModal);
-    modal.vm.$emit('select', SUBTITLE_PRESETS[0]!);
+    modal.vm.$emit('select', targetPreset);
 
-    expect(mockState.saveStyleSettings).toHaveBeenCalled();
+    expect(mockState.subtitlePreset.value).toBe(targetPreset.id);
+    expect(mockState.font.value).toBe(targetPreset.font);
+    expect(mockState.saveStyleSettings).not.toHaveBeenCalled();
   });
 
   it('dims and disables scrollable settings content view when isEditorLocked or in render preview', async () => {

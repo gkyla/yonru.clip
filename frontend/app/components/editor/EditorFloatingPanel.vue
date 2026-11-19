@@ -487,21 +487,25 @@ const quoteReadingTime = computed(() => {
 const subtitleContainer = ref<HTMLElement | null>(null);
 const isHoveringSubtitles = ref(false);
 const isAutoScrollEnabled = ref(true);
-const isAutoSaving = ref(false);
-let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+const isFallbackAutoSaving = ref(false);
+const isAutoSaving = computed(() =>
+  Boolean(state?.isSessionSaving?.value || isFallbackAutoSaving.value)
+);
 
-function triggerDebouncedAutoSave() {
-  isAutoSaving.value = true;
-  if (autoSaveTimer) clearTimeout(autoSaveTimer);
-  autoSaveTimer = setTimeout(async () => {
-    try {
-      await state.saveTranscript(true);
-    } catch {
-      // ignore
-    } finally {
-      isAutoSaving.value = false;
-    }
-  }, 1000);
+async function triggerDebouncedAutoSave() {
+  if (state?.scheduleSessionSave) {
+    state.scheduleSessionSave('transcript');
+    return;
+  }
+  if (!state?.saveTranscript) return;
+  isFallbackAutoSaving.value = true;
+  try {
+    await state.saveTranscript(true);
+  } catch {
+    // ignore
+  } finally {
+    isFallbackAutoSaving.value = false;
+  }
 }
 
 const absoluteTime = computed(() => state?.currentTime?.value || 0);

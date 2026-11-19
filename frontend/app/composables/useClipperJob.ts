@@ -20,9 +20,13 @@ import type {
   CachedVideo
 } from '../types/clipper';
 
-export const useClipperJob = () => {
+export interface ClipperJobDependencies {
+  timeline?: ReturnType<typeof useTimelineState>;
+}
+
+export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
   const API_BASE = resolveApiBase();
-  const timeline = useTimelineState();
+  const timeline = deps.timeline ?? useTimelineState();
   const coordinator = new IngestionJobCoordinator(API_BASE, undefined, 2000);
 
   // Ingestion global states (shared via useState keys)
@@ -111,6 +115,8 @@ export const useClipperJob = () => {
     () => []
   );
   const cropPercentX = useState<number>('cropPercentX', () => 50);
+  const cropPercentXTop = useState<number>('cropPercentXTop', () => 50);
+  const cropPercentXBottom = useState<number>('cropPercentXBottom', () => 50);
   const splitZoomTop = useState<number>('splitZoomTop', () => 1.0);
   const splitZoomBottom = useState<number>('splitZoomBottom', () => 1.0);
   const splitOffsetXTop = useState<number>('splitOffsetXTop', () => 0);
@@ -191,9 +197,12 @@ export const useClipperJob = () => {
     if (styles.font) font.value = styles.font;
     if (styles.fontSize !== undefined) fontSize.value = styles.fontSize;
     if (styles.cropMode) cropMode.value = styles.cropMode;
-    if (styles.cropMap) cropMap.value = styles.cropMap;
     if (styles.cropPercentX !== undefined)
       cropPercentX.value = styles.cropPercentX;
+    if (styles.cropPercentXTop !== undefined)
+      cropPercentXTop.value = styles.cropPercentXTop;
+    if (styles.cropPercentXBottom !== undefined)
+      cropPercentXBottom.value = styles.cropPercentXBottom;
     if (styles.splitZoomTop !== undefined)
       splitZoomTop.value = styles.splitZoomTop;
     if (styles.splitZoomBottom !== undefined)
@@ -268,7 +277,7 @@ export const useClipperJob = () => {
       applySubtitleStyles(bundle.styleSettings);
     }
 
-    if (bundle.cropMap && bundle.cropMap.length > 0) {
+    if (Array.isArray(bundle.cropMap)) {
       cropMap.value = bundle.cropMap;
     }
 
@@ -366,8 +375,20 @@ export const useClipperJob = () => {
       savedHooks.value = saved;
     },
     onClipReady: bundle => {
-      applyHydratedClipBundle(bundle);
-      isMediaLoading.value = false;
+      const wasLocked = timeline.isSavingLocked.value;
+      if (!wasLocked) {
+        timeline.isSavingLocked.value = true;
+      }
+      try {
+        applyHydratedClipBundle(bundle);
+      } finally {
+        isMediaLoading.value = false;
+        if (!wasLocked) {
+          nextTick(() => {
+            timeline.isSavingLocked.value = false;
+          });
+        }
+      }
     },
     onSelfHeal: async (selfHealFolder, selfHealClipId) => {
       await loadReadyClipIntoEditor(selfHealFolder, selfHealClipId);
@@ -591,13 +612,13 @@ export const useClipperJob = () => {
     };
     clipId.value = id;
     folderName.value = folder;
+    // Lock saving immediately during state initialization and fetch
+    timeline.isSavingLocked.value = true;
     videoUrl.value = null;
     outputUrl.value = null;
     renderStatus.value = 'idle';
     fullTranscript.value = [];
-
-    // Lock saving immediately during state initialization and fetch
-    timeline.isSavingLocked.value = true;
+    cropMap.value = [];
 
     const videoTrack = findVideoTrack(timeline.timelineTracks.value);
     if (videoTrack) {

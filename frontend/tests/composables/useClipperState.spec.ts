@@ -1,5 +1,5 @@
 // @vitest-environment nuxt
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ref, nextTick, watchEffect } from 'vue';
 import { useClipperState } from '../../app/composables/useClipperState';
 import { useState } from '#imports';
@@ -11,6 +11,10 @@ describe('useClipperState Composable', () => {
     const state = useClipperState();
     state.cropMode.value = 'face_tracking';
     state.cropMap.value = [];
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('does NOT prematurely update lastAccessedClip when background job status becomes ready', async () => {
@@ -491,7 +495,7 @@ describe('useClipperState Composable', () => {
     );
   });
 
-  it('delegates applyPreset to subtitleStyle and automatically persists via saveStyleSettings', async () => {
+  it('delegates applyPreset to subtitleStyle and schedules coalesced style persistence', async () => {
     const state = useClipperState();
     const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
     vi.stubGlobal('$fetch', mockFetch);
@@ -505,6 +509,8 @@ describe('useClipperState Composable', () => {
     expect(state.font.value).toBe('Outfit');
     expect(state.subtitleStrokeWidth.value).toBe(0);
 
+    await state.flushSessionSaves();
+
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/clip-session/folderPreset/clipPreset'),
       expect.objectContaining({
@@ -517,6 +523,27 @@ describe('useClipperState Composable', () => {
         })
       })
     );
+  });
+
+  it('omits cropMap from saveStyleSettings and saveDefaultStyleSettings even when cropMap is populated', async () => {
+    const state = useClipperState();
+    const mockFetch = vi.fn().mockResolvedValue({ status: 'ok' });
+    vi.stubGlobal('$fetch', mockFetch);
+
+    state.folderName.value = 'folderNoLeak';
+    state.clipId.value = 'clipNoLeak';
+    state.cropMap.value = [{ time: 0, x: 540 }];
+
+    await state.saveStyleSettings();
+    const clipStyleBody = mockFetch.mock.calls[0]?.[1]?.body?.style_settings;
+    expect(clipStyleBody).toBeDefined();
+    expect(clipStyleBody).not.toHaveProperty('cropMap');
+
+    mockFetch.mockClear();
+    await state.saveDefaultStyleSettings();
+    const defaultStyleBody = mockFetch.mock.calls[0]?.[1]?.body?.settings;
+    expect(defaultStyleBody).toBeDefined();
+    expect(defaultStyleBody).not.toHaveProperty('cropMap');
   });
 
   it('persists unified session payload atomically to PUT /api/clip-session', async () => {
@@ -820,6 +847,33 @@ describe('useClipperState Composable', () => {
       // Back to editor (outputUrl cleared) unlocks editor
       state.outputUrl.value = null;
       expect(state.isEditorLocked.value).toBe(false);
+    });
+
+    it('instantiates useTimelineState strictly once when initializing useClipperState', async () => {
+      vi.resetModules();
+      const timelineFactorySpy = vi.fn();
+      vi.doMock('../../app/composables/useTimelineState', async () => {
+        const actual = await vi.importActual<
+          typeof import('../../app/composables/useTimelineState')
+        >('../../app/composables/useTimelineState');
+        return {
+          ...actual,
+          useTimelineState: () => {
+            timelineFactorySpy();
+            return actual.useTimelineState();
+          }
+        };
+      });
+
+      try {
+        const freshModule =
+          await import('../../app/composables/useClipperState');
+        freshModule.useClipperState();
+        expect(timelineFactorySpy).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.doUnmock('../../app/composables/useTimelineState');
+        vi.resetModules();
+      }
     });
   });
 });

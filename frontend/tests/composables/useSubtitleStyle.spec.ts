@@ -52,6 +52,19 @@ describe('useSubtitleStyle Composable - Persistence & HTTP Semantics', () => {
     expect(subtitleStyle.subtitleMode.value).toBe('3_words');
   });
 
+  it('omits cropMap from getStyleSnapshot and saveDefaultStyleSettings payload (ADR-0008)', async () => {
+    const subtitleStyle = useSubtitleStyle();
+    subtitleStyle.cropMap.value = [{ time: 0, x: 640 }];
+
+    const snapshot = subtitleStyle.getStyleSnapshot();
+    expect(snapshot).not.toHaveProperty('cropMap');
+
+    await subtitleStyle.saveDefaultStyleSettings();
+    const callBody = mockFetch.mock.calls[0]?.[1]?.body;
+    expect(callBody?.settings).toBeDefined();
+    expect(callBody.settings).not.toHaveProperty('cropMap');
+  });
+
   it('derives getOuterStrokeShadow correctly from reactive properties', () => {
     const subtitleStyle = useSubtitleStyle();
 

@@ -1,14 +1,19 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ref } from 'vue';
 import {
   WorkspacePersistenceCoordinator,
   type WorkspaceReactivityContext
 } from '../../app/utils/workspacePersistence';
+import { ClipSessionSaveScheduler } from '../../app/utils/clipSessionSaveScheduler';
 
 describe('WorkspacePersistenceCoordinator Unit Tests', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('loads empty settings when localStorage is empty', () => {
@@ -327,5 +332,252 @@ describe('WorkspacePersistenceCoordinator Unit Tests', () => {
 
     unbind();
     vi.useRealTimers();
+  });
+
+  it('debounces rapid timelineTracks edits instead of firing 0ms PUT storms', async () => {
+    vi.useFakeTimers();
+    const saveTimelineSpy = vi.fn();
+    const timelineTracks = ref([
+      {
+        id: 'text',
+        name: 'Text 1',
+        type: 'text' as const,
+        items: [{ id: 't1', start: 0, duration: 2, fontSize: 40 }]
+      }
+    ]);
+
+    const unbind = WorkspacePersistenceCoordinator.bindReactivity({
+      editorSession: {
+        folderName: ref('f1'),
+        clipId: ref('c1'),
+        saveTimelineTracks: saveTimelineSpy
+      },
+      timeline: {
+        isSavingLocked: ref(false),
+        isDraggingTimelineItem: ref(false),
+        timelineTracks
+      }
+    });
+
+    for (let i = 1; i <= 15; i++) {
+      timelineTracks.value[0]!.items[0]!.fontSize = 40 + i;
+      await vi.advanceTimersByTimeAsync(20);
+    }
+
+    // Never fires on 0ms or mid-burst
+    expect(saveTimelineSpy).not.toHaveBeenCalled();
+
+    // Fires once after 400ms settle window
+    await vi.advanceTimersByTimeAsync(400);
+    expect(saveTimelineSpy).toHaveBeenCalledTimes(1);
+
+    unbind();
+  });
+
+  it('coalesces global style cascade + timeline sync into a single combined PUT behind ClipSessionSaveScheduler', async () => {
+    vi.useFakeTimers();
+    const patchSession = vi.fn().mockResolvedValue({ status: 'ok' });
+    const folderName = ref<string | null>('fCascade');
+    const clipId = ref<string | null>('cCascade');
+    const font = ref('Montserrat');
+    const timelineTracks = ref([
+      {
+        id: 'text',
+        name: 'Text 1',
+        type: 'text' as const,
+        items: [
+          {
+            id: 't1',
+            start: 0,
+            duration: 2,
+            linkToGlobal: true,
+            font: 'Montserrat'
+          }
+        ]
+      }
+    ]);
+
+    const saveScheduler = new ClipSessionSaveScheduler({
+      client: { patchSession },
+      source: {
+        getTarget: () =>
+          folderName.value && clipId.value
+            ? { folderName: folderName.value, clipId: clipId.value }
+            : null,
+        buildDomainPatch: domains => ({
+          ...(domains.has('style_settings')
+            ? { style_settings: { font: font.value } }
+            : {}),
+          ...(domains.has('timeline') ? { timeline: timelineTracks.value } : {})
+        })
+      }
+    });
+
+    const unbind = WorkspacePersistenceCoordinator.bindReactivity({
+      editorSession: {
+        folderName,
+        clipId,
+        saveScheduler
+      },
+      timeline: {
+        isSavingLocked: ref(false),
+        timelineTracks,
+        syncGlobalStylesToItem: item => {
+          item.font = font.value;
+        }
+      },
+      subtitleStyle: {
+        font
+      }
+    });
+
+    font.value = 'Bebas Neue';
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(patchSession).toHaveBeenCalledTimes(1);
+    expect(patchSession).toHaveBeenCalledWith('fCascade', 'cCascade', {
+      style_settings: { font: 'Bebas Neue' },
+      timeline: [
+        {
+          id: 'text',
+          name: 'Text 1',
+          type: 'text',
+          items: [
+            {
+              id: 't1',
+              start: 0,
+              duration: 2,
+              linkToGlobal: true,
+              font: 'Bebas Neue'
+            }
+          ]
+        }
+      ]
+    });
+
+    saveScheduler.dispose();
+    unbind();
+  });
+
+  it('auto-saves framing and audio refs (cropMode, cropPercentX, splitZoomTop, splitOffsetXTop, volume) and respects isSavingLocked', async () => {
+    vi.useFakeTimers();
+    const saveStyleSpy = vi.fn();
+    const isSavingLocked = ref(false);
+    const cropMode = ref('face_tracking');
+    const cropPercentX = ref(50);
+    const splitZoomTop = ref(1.0);
+    const splitOffsetXTop = ref(0);
+    const volume = ref(0.5);
+
+    const unbind = WorkspacePersistenceCoordinator.bindReactivity({
+      editorSession: {
+        folderName: ref('fFrame'),
+        clipId: ref('cFrame'),
+        saveStyleSettings: saveStyleSpy
+      },
+      timeline: {
+        isSavingLocked,
+        timelineTracks: ref([])
+      },
+      subtitleStyle: {
+        cropMode,
+        cropPercentX,
+        splitZoomTop,
+        splitOffsetXTop,
+        volume
+      }
+    });
+
+    cropMode.value = 'manual';
+    await vi.advanceTimersByTimeAsync(800);
+    expect(saveStyleSpy).toHaveBeenCalledTimes(1);
+
+    cropPercentX.value = 65;
+    splitZoomTop.value = 1.4;
+    splitOffsetXTop.value = 12;
+    volume.value = 0.8;
+    await vi.advanceTimersByTimeAsync(800);
+    expect(saveStyleSpy).toHaveBeenCalledTimes(2);
+
+    // Locked hydration mutations must not schedule style saves
+    isSavingLocked.value = true;
+    cropMode.value = 'face_tracking';
+    volume.value = 0.4;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(saveStyleSpy).toHaveBeenCalledTimes(2);
+
+    unbind();
+  });
+
+  it('watches fullTranscript shallowly, respects isSavingLocked, and flushes dirty domains in one beforeunload call', async () => {
+    vi.useFakeTimers();
+    const patchSession = vi.fn().mockResolvedValue({ status: 'ok' });
+    const folderName = ref<string | null>('fUnload');
+    const clipId = ref<string | null>('cUnload');
+    const fullTranscript = ref([{ start: 0, duration: 2, text: 'Initial' }]);
+    const font = ref('Montserrat');
+    const isSavingLocked = ref(false);
+
+    const saveScheduler = new ClipSessionSaveScheduler({
+      client: { patchSession },
+      source: {
+        getTarget: () =>
+          folderName.value && clipId.value
+            ? { folderName: folderName.value, clipId: clipId.value }
+            : null,
+        isLocked: () => isSavingLocked.value,
+        buildDomainPatch: domains => ({
+          ...(domains.has('transcript')
+            ? { transcript: fullTranscript.value }
+            : {}),
+          ...(domains.has('style_settings')
+            ? { style_settings: { font: font.value } }
+            : {})
+        })
+      }
+    });
+
+    const unbind = WorkspacePersistenceCoordinator.bindReactivity({
+      editorSession: {
+        folderName,
+        clipId,
+        fullTranscript,
+        saveScheduler
+      },
+      timeline: {
+        isSavingLocked,
+        timelineTracks: ref([])
+      },
+      subtitleStyle: { font }
+    });
+
+    // Shallow replacement triggers transcript dirty marking
+    fullTranscript.value = [{ start: 0, duration: 2, text: 'Updated' }];
+    await vi.advanceTimersByTimeAsync(800);
+    expect(patchSession).toHaveBeenCalledTimes(1);
+
+    // Locked replacement must not trigger save
+    isSavingLocked.value = true;
+    fullTranscript.value = [{ start: 0, duration: 2, text: 'Locked Hydrate' }];
+    await vi.advanceTimersByTimeAsync(800);
+    expect(patchSession).toHaveBeenCalledTimes(1);
+
+    // Dirty multiple domains & flush coherently on beforeunload
+    isSavingLocked.value = false;
+    font.value = 'Outfit';
+    fullTranscript.value = [{ start: 0, duration: 2, text: 'Unsaved Unload' }];
+    await vi.advanceTimersByTimeAsync(50);
+
+    const unloadEvent = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unloadEvent);
+    expect(unloadEvent.defaultPrevented).toBe(true);
+    expect(patchSession).toHaveBeenCalledTimes(2);
+    expect(patchSession).toHaveBeenLastCalledWith('fUnload', 'cUnload', {
+      transcript: [{ start: 0, duration: 2, text: 'Unsaved Unload' }],
+      style_settings: { font: 'Outfit' }
+    });
+
+    saveScheduler.dispose();
+    unbind();
   });
 });

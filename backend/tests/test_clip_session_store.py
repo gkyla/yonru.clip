@@ -928,5 +928,96 @@ def test_ensure_crop_map_forwards_words_data_and_handles_scalar_cache():
         assert scalar_result == [{"time": 0.0, "x": 720}]
 
 
+def test_style_settings_defensive_crop_map_sanitization_on_write():
+    """Verify save_clip_session and save_default_style_settings strip cropMap while keeping top-level crop_map.json (ADR-0008)."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        crop_keyframes = [{"time": 0.0, "x": 640}, {"time": 1.0, "x": 720}]
+        store.save_clip_session(
+            "vid_clean",
+            "0_10_hook",
+            {
+                "style_settings": {
+                    "font": "Outfit",
+                    "cropMode": "face_tracking",
+                    "cropMap": crop_keyframes,
+                    "crop_map": crop_keyframes,
+                },
+                "crop_map": crop_keyframes,
+            },
+        )
+
+        clip_dir = store.resolve_clip_dir("vid_clean", "0_10_hook")
+        with open(os.path.join(clip_dir, "style_settings.json"), "r", encoding="utf-8") as f:
+            saved_style = json.load(f)
+        assert saved_style == {"font": "Outfit", "cropMode": "face_tracking"}
+        assert "cropMap" not in saved_style
+        assert "crop_map" not in saved_style
+
+        with open(os.path.join(clip_dir, "crop_map.json"), "r", encoding="utf-8") as f:
+            assert json.load(f) == crop_keyframes
+
+        assert store.save_default_style_settings(
+            {
+                "font": "Inter",
+                "cropMap": crop_keyframes,
+                "crop_map": crop_keyframes,
+            }
+        )
+        with open(os.path.join(temp_dir, "default_style_settings.json"), "r", encoding="utf-8") as f:
+            saved_default = json.load(f)
+        assert saved_default == {"font": "Inter"}
+        assert "cropMap" not in saved_default
+        assert "crop_map" not in saved_default
+
+
+def test_style_settings_defensive_crop_map_sanitization_on_legacy_read_and_heal():
+    """Verify legacy polluted default/clip style_settings.json files strip cropMap on read without rewriting during GET or tainting new clips."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        os.makedirs(clips_dir, exist_ok=True)
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        legacy_default_path = os.path.join(temp_dir, "default_style_settings.json")
+        legacy_default_raw = '{"font": "Montserrat", "cropMap": [{"time": 0, "x": 500}], "crop_map": [{"time": 0, "x": 500}]}'
+        with open(legacy_default_path, "w", encoding="utf-8") as f:
+            f.write(legacy_default_raw)
+
+        legacy_clip_dir = os.path.join(clips_dir, "vid_legacy", "0_15_clip")
+        os.makedirs(legacy_clip_dir, exist_ok=True)
+        legacy_clip_style_path = os.path.join(legacy_clip_dir, "style_settings.json")
+        legacy_clip_raw = '{"fontSize": 56, "cropMap": [{"time": 1, "x": 800}]}'
+        with open(legacy_clip_style_path, "w", encoding="utf-8") as f:
+            f.write(legacy_clip_raw)
+
+        # In-memory sanitization on GET default and GET clip session without rewriting existing files
+        default_styles = store.get_default_style_settings()
+        assert default_styles["font"] == "Montserrat"
+        assert "cropMap" not in default_styles
+        assert "crop_map" not in default_styles
+
+        session = store.get_clip_session("vid_legacy", "0_15_clip", ensure_crop_map=False)
+        assert session["style_settings"]["fontSize"] == 56
+        assert "cropMap" not in session["style_settings"]
+        assert "crop_map" not in session["style_settings"]
+
+        with open(legacy_default_path, "r", encoding="utf-8") as f:
+            assert f.read() == legacy_default_raw
+        with open(legacy_clip_style_path, "r", encoding="utf-8") as f:
+            assert f.read() == legacy_clip_raw
+
+        # ensure_clip_defaults must not copy legacy cropMap into newly healed clips
+        fresh_clip_dir = os.path.join(clips_dir, "vid_fresh", "0_15_clip")
+        os.makedirs(fresh_clip_dir, exist_ok=True)
+        store.ensure_clip_defaults("vid_fresh", "0_15_clip")
+        with open(os.path.join(fresh_clip_dir, "style_settings.json"), "r", encoding="utf-8") as f:
+            fresh_style = json.load(f)
+        assert fresh_style["font"] == "Montserrat"
+        assert "cropMap" not in fresh_style
+        assert "crop_map" not in fresh_style
+
+
 
 
