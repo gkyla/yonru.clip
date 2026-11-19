@@ -1,18 +1,40 @@
+import type { YonruClipProps } from '@yonru/remotion';
+
+export type PreviewProps = Partial<YonruClipProps>;
+
+/** Events the preview player sends back across the bridge. */
+export type PlayerBridgeEvent =
+  | { type: 'IFRAME_READY' }
+  | { type: 'REMOTION_TIMEUPDATE'; currentTime: number; frame: number }
+  | { type: 'REMOTION_PAUSED' }
+  | { type: 'REMOTION_ENDED' };
+
+export type PlayerBridgeListener = (event: PlayerBridgeEvent) => void;
+
 export abstract class PlayerBridge {
-  abstract updateProps(props: any): void;
+  abstract updateProps(patch: PreviewProps): void;
   abstract seek(frame: number): void;
   abstract play(): void;
   abstract pause(): void;
-  abstract onMessage(listener: (data: any) => void): () => void;
+  abstract onMessage(listener: PlayerBridgeListener): () => void;
   abstract destroy(): void;
 }
 
-export class MockPlayerBridge implements PlayerBridge {
-  public calls: { type: string; payload?: any; frame?: number }[] = [];
-  private listeners: Set<(data: any) => void> = new Set();
+export type MockBridgeCall =
+  | { type: 'updateProps'; payload: PreviewProps }
+  | { type: 'seek'; frame: number }
+  | { type: 'play' }
+  | { type: 'pause' };
 
-  public updateProps(props: any): void {
-    this.calls.push({ type: 'updateProps', payload: props });
+/** Test double: records every call and keeps the merged props. */
+export class MockPlayerBridge implements PlayerBridge {
+  public calls: MockBridgeCall[] = [];
+  public currentProps: PreviewProps = {};
+  private listeners: Set<PlayerBridgeListener> = new Set();
+
+  public updateProps(patch: PreviewProps): void {
+    this.calls.push({ type: 'updateProps', payload: patch });
+    this.currentProps = { ...this.currentProps, ...patch };
   }
 
   public seek(frame: number): void {
@@ -27,15 +49,15 @@ export class MockPlayerBridge implements PlayerBridge {
     this.calls.push({ type: 'pause' });
   }
 
-  public onMessage(listener: (data: any) => void): () => void {
+  public onMessage(listener: PlayerBridgeListener): () => void {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
     };
   }
 
-  public emitMessage(data: any): void {
-    this.listeners.forEach(listener => listener(data));
+  public emitMessage(event: PlayerBridgeEvent): void {
+    this.listeners.forEach(listener => listener(event));
   }
 
   public destroy(): void {
@@ -43,13 +65,35 @@ export class MockPlayerBridge implements PlayerBridge {
   }
 }
 
-export type PlayerRefTarget = { current: any } | { value: any } | any;
+/** The parts of the Remotion PlayerRef the bridge drives. */
+export interface PreviewPlayer {
+  seekTo(frame: number): void;
+  play(): void;
+  pause(): void;
+  getCurrentFrame?(): number;
+  isPlaying?(): boolean;
+  addEventListener(
+    name: string,
+    callback: (event: { detail?: { frame?: number } }) => void
+  ): void;
+  removeEventListener(
+    name: string,
+    callback: (event: { detail?: { frame?: number } }) => void
+  ): void;
+}
+
+export type PlayerRefTarget =
+  | { current: PreviewPlayer | null }
+  | { value: PreviewPlayer | null }
+  | PreviewPlayer;
+
+const EMPTY_PROPS: PreviewProps = Object.freeze({}) as PreviewProps;
 
 export class DirectPlayerBridge implements PlayerBridge {
   private playerRef: PlayerRefTarget | null = null;
-  private listeners: Set<(data: any) => void> = new Set();
-  private propsListeners: Set<(props: any) => void> = new Set();
-  public currentProps: any = null;
+  private listeners: Set<PlayerBridgeListener> = new Set();
+  private propsListeners: Set<() => void> = new Set();
+  public currentProps: PreviewProps | null = null;
 
   constructor(playerRef?: PlayerRefTarget | null) {
     if (playerRef) {
@@ -59,170 +103,139 @@ export class DirectPlayerBridge implements PlayerBridge {
 
   /**
    * Bind or re-bind the player reference.
-   * Supports React ref ({ current: ... }), Vue ref ({ value: ... }), or direct Player instance.
+   * Supports React ref ({ current: ... }), Vue ref ({ value: ... }), or a direct Player.
    */
   public bindPlayer(playerRef: PlayerRefTarget | null): void {
     this.playerRef = playerRef;
   }
 
-  /**
-   * Resolve the active Player instance from the bound reference.
-   */
-  public getPlayer(): any {
-    if (!this.playerRef) return null;
-    if (typeof this.playerRef === 'object') {
-      if ('current' in this.playerRef) return this.playerRef.current;
-      if ('value' in this.playerRef) return this.playerRef.value;
-    }
-    return this.playerRef;
+  public getPlayer(): PreviewPlayer | null {
+    const ref = this.playerRef;
+    if (!ref) return null;
+    if ('current' in ref) return ref.current;
+    if ('value' in ref) return ref.value;
+    return ref;
   }
 
   /**
-   * Update Remotion composition inputProps synchronously in-memory.
-   * Notifies props listeners and emits an UPDATE_PROPS message for any subscribers.
+   * Bind a mounted player, forward its events, then announce IFRAME_READY.
+   * Returns a function that unbinds the player and removes the listeners.
    */
-  public updateProps(props: any): void {
-    this.currentProps = { ...(this.currentProps || {}), ...props };
+  public attachPlayer(player: PreviewPlayer): () => void {
+    const onFrameUpdate = (e: { detail?: { frame?: number } }) => {
+      const frame = e?.detail?.frame ?? 0;
+      const fps = this.currentProps?.fps || 30;
+      this.emitTimeUpdate(frame / fps, frame);
+    };
+    const onPause = () => this.emitPaused();
+    const onEnded = () => this.emitEnded();
+
+    this.bindPlayer(player);
+    player.addEventListener('frameupdate', onFrameUpdate);
+    player.addEventListener('pause', onPause);
+    player.addEventListener('ended', onEnded);
+    this.emitReady();
+
+    return () => {
+      player.removeEventListener('frameupdate', onFrameUpdate);
+      player.removeEventListener('pause', onPause);
+      player.removeEventListener('ended', onEnded);
+      if (this.getPlayer() === player) this.bindPlayer(null);
+    };
+  }
+
+  /**
+   * Merge a props patch. Keys whose value did not change (Object.is) are
+   * skipped; a patch with no changes does not allocate or notify.
+   */
+  public updateProps(patch: PreviewProps): void {
+    const current = this.currentProps ?? EMPTY_PROPS;
+    let next: PreviewProps | null = null;
+    for (const key of Object.keys(patch) as Array<keyof PreviewProps>) {
+      if (current === EMPTY_PROPS || !Object.is(current[key], patch[key])) {
+        next ??= { ...current };
+        (next as Record<string, unknown>)[key] = patch[key];
+      }
+    }
+    if (!next) return;
+    this.currentProps = next;
     this.propsListeners.forEach(listener => {
       try {
-        listener(this.currentProps);
+        listener();
       } catch (err) {
         console.error('[DirectPlayerBridge] Error in props listener:', err);
       }
     });
-    this.emitMessage({
-      type: 'UPDATE_PROPS',
-      payload: props
-    });
   }
 
-  /**
-   * Seek player to a specific frame.
-   */
+  /** useSyncExternalStore subscribe function. */
+  public subscribeProps = (listener: () => void): (() => void) => {
+    this.propsListeners.add(listener);
+    return () => {
+      this.propsListeners.delete(listener);
+    };
+  };
+
+  /** useSyncExternalStore snapshot function (stable until props change). */
+  public getPropsSnapshot = (): PreviewProps => {
+    return this.currentProps ?? EMPTY_PROPS;
+  };
+
   public seek(frame: number): void {
-    const player = this.getPlayer();
-    if (player && typeof player.seekTo === 'function') {
-      player.seekTo(frame);
-    }
+    this.getPlayer()?.seekTo(frame);
   }
 
-  /**
-   * Play player synchronously.
-   */
   public play(): void {
-    const player = this.getPlayer();
-    if (player && typeof player.play === 'function') {
-      player.play();
-    }
+    this.getPlayer()?.play();
   }
 
-  /**
-   * Pause player synchronously.
-   */
   public pause(): void {
-    const player = this.getPlayer();
-    if (player && typeof player.pause === 'function') {
-      player.pause();
-    }
+    this.getPlayer()?.pause();
   }
 
-  /**
-   * Get current frame from player if available.
-   */
   public getCurrentFrame(): number | null {
-    const player = this.getPlayer();
-    if (player && typeof player.getCurrentFrame === 'function') {
-      return player.getCurrentFrame();
-    }
-    return null;
+    return this.getPlayer()?.getCurrentFrame?.() ?? null;
   }
 
-  /**
-   * Check if player is playing if available.
-   */
   public isPlaying(): boolean | null {
-    const player = this.getPlayer();
-    if (player && typeof player.isPlaying === 'function') {
-      return player.isPlaying();
-    }
-    return null;
+    return this.getPlayer()?.isPlaying?.() ?? null;
   }
 
-  /**
-   * Subscribe to messages/events emitted by the player bridge.
-   */
-  public onMessage(listener: (data: any) => void): () => void {
+  public onMessage(listener: PlayerBridgeListener): () => void {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
     };
   }
 
-  /**
-   * Subscribe directly to props updates.
-   */
-  public onPropsChange(listener: (props: any) => void): () => void {
-    this.propsListeners.add(listener);
-    return () => {
-      this.propsListeners.delete(listener);
-    };
-  }
-
-  /**
-   * Emit an event message to all registered listeners.
-   */
-  public emitMessage(data: any): void {
-    if (!data) return;
+  public emitMessage(event: PlayerBridgeEvent): void {
+    if (!event) return;
     this.listeners.forEach(listener => {
       try {
-        listener(data);
+        listener(event);
       } catch (err) {
         console.error('[DirectPlayerBridge] Error in message listener:', err);
       }
     });
   }
 
-  /**
-   * Convenience emitter for time updates from Remotion frameupdate events.
-   */
   public emitTimeUpdate(currentTime: number, frame: number): void {
-    this.emitMessage({
-      type: 'REMOTION_TIMEUPDATE',
-      currentTime,
-      frame
-    });
+    this.emitMessage({ type: 'REMOTION_TIMEUPDATE', currentTime, frame });
   }
 
-  /**
-   * Convenience emitter for pause events.
-   */
   public emitPaused(): void {
-    this.emitMessage({
-      type: 'REMOTION_PAUSED'
-    });
+    this.emitMessage({ type: 'REMOTION_PAUSED' });
   }
 
-  /**
-   * Convenience emitter for ended events.
-   */
   public emitEnded(): void {
-    this.emitMessage({
-      type: 'REMOTION_ENDED'
-    });
+    this.emitMessage({ type: 'REMOTION_ENDED' });
   }
 
-  /**
-   * Convenience emitter for ready events.
-   */
   public emitReady(): void {
-    this.emitMessage({
-      type: 'IFRAME_READY'
-    });
+    this.emitMessage({ type: 'IFRAME_READY' });
   }
 
-  /**
-   * Cleanup listeners and release bound player reference.
-   */
+  /** Clear listeners and release the bound player. */
   public destroy(): void {
     this.listeners.clear();
     this.propsListeners.clear();

@@ -1,7 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useSyncExternalStore } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
 import { YonruClip } from '@yonru/remotion';
-import type { DirectPlayerBridge } from '../../utils/playerBridge';
+import type {
+  DirectPlayerBridge,
+  PreviewPlayer
+} from '../../utils/playerBridge';
 
 export interface RemotionPlayerViewProps {
   bridge: DirectPlayerBridge;
@@ -19,63 +22,16 @@ export const RemotionPlayerView: React.FC<RemotionPlayerViewProps> = ({
   className
 }) => {
   const playerRef = useRef<PlayerRef>(null);
-  const [playerProps, setPlayerProps] = useState<Record<string, any>>(
-    () => bridge.currentProps || {}
+  const playerProps = useSyncExternalStore(
+    bridge.subscribeProps,
+    bridge.getPropsSnapshot,
+    bridge.getPropsSnapshot
   );
 
-  // Keep a stable ref to current playerProps so event listeners use latest fps
-  const playerPropsRef = useRef(playerProps);
-  useEffect(() => {
-    playerPropsRef.current = playerProps;
-  }, [playerProps]);
-
-  // Subscribe to prop updates from DirectPlayerBridge
-  useEffect(() => {
-    const unsubscribe = bridge.onPropsChange(newProps => {
-      if (newProps) {
-        setPlayerProps(prev => ({ ...prev, ...newProps }));
-      }
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, [bridge]);
-
-  // Bind player instance and wire up Remotion player events
+  // Bind the mounted player to the bridge (events + IFRAME_READY).
   useEffect(() => {
     const player = playerRef.current;
-    if (!player) return;
-
-    bridge.bindPlayer(player);
-
-    const onFrameUpdate = (e: { detail: { frame: number } }) => {
-      const activeFps = playerPropsRef.current?.fps || 30;
-      const frame = e.detail?.frame ?? 0;
-      const currentTime = frame / activeFps;
-      bridge.emitTimeUpdate(currentTime, frame);
-    };
-
-    const onPause = () => {
-      bridge.emitPaused();
-    };
-
-    const onEnded = () => {
-      bridge.emitEnded();
-    };
-
-    player.addEventListener('frameupdate', onFrameUpdate);
-    player.addEventListener('pause', onPause);
-    player.addEventListener('ended', onEnded);
-
-    // Notify bridge and consumers that player is ready
-    bridge.emitReady();
-
-    return () => {
-      player.removeEventListener('frameupdate', onFrameUpdate);
-      player.removeEventListener('pause', onPause);
-      player.removeEventListener('ended', onEnded);
-      bridge.bindPlayer(null);
-    };
+    return player ? bridge.attachPlayer(player as PreviewPlayer) : undefined;
   }, [bridge]);
 
   const durationInFrames = Math.max(
@@ -97,8 +53,10 @@ export const RemotionPlayerView: React.FC<RemotionPlayerViewProps> = ({
     >
       <Player
         ref={playerRef}
-        component={YonruClip as any}
-        inputProps={playerProps as any}
+        component={
+          YonruClip as unknown as React.ComponentType<Record<string, unknown>>
+        }
+        inputProps={playerProps as Record<string, unknown>}
         durationInFrames={durationInFrames}
         fps={fps}
         compositionWidth={compositionWidth}

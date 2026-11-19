@@ -268,8 +268,6 @@
           @loadeddata="onVideoReady"
           @canplay="onVideoReady"
           @canplaythrough="onVideoReady"
-          @timeupdate="onNativeTimeUpdate"
-          @ended="onNativeVideoEnded"
           @error="e => onNativeVideoError(e)"
         ></video>
 
@@ -277,7 +275,7 @@
         <ClientOnly>
           <RemotionPlayer
             v-if="!state?.useNativePlayer?.value"
-            :bridge="directBridge"
+            :bridge="preview.bridge"
             class="absolute inset-0 w-full h-full pointer-events-none z-20 transition-opacity duration-300"
             :class="!state.useNativePlayer.value ? 'opacity-100' : 'opacity-0'"
           />
@@ -907,9 +905,8 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useClipperState } from '../composables/useClipperState';
 import { useCropDrag } from '../composables/useCropDrag';
-import { useRemotionBridge } from '../composables/useRemotionBridge';
+import { usePreviewProjection } from '../composables/usePreviewProjection';
 import { useInteractiveText } from '../composables/useInteractiveText';
-import { DirectPlayerBridge } from '../utils/playerBridge';
 import { transformText } from '../utils/styleHelpers';
 import {
   findVideoTrack,
@@ -926,7 +923,6 @@ const { activeSafeZone, safeZoneOpacity, safeZoneColor } = state;
 const previewVideo = ref<HTMLVideoElement | null>(null);
 const renderedVideo = ref<HTMLVideoElement | null>(null);
 const transformerRef = ref<any>(null);
-const stableVideoBuster = ref<string>(Date.now().toString());
 
 // --- RENDERED VIDEO CUSTOM STUDIO PLAYBACK DECK ---
 const isRenderedPlaying = ref(false);
@@ -1441,16 +1437,7 @@ const {
   onDragTouch
 } = cropState;
 
-const directBridge = new DirectPlayerBridge();
-const bridgeState = useRemotionBridge(
-  directBridge,
-  previewVideo,
-  computed(() => videoTime.value),
-  computed(() => isInThumbnailWindow.value),
-  stableVideoBuster
-);
-const { isInternalTimeUpdate, setNativeVideoStarted, syncRemotionProps } =
-  bridgeState;
+const preview = usePreviewProjection({ nativeVideo: previewVideo });
 
 // --- VIDEO LOADER EVENTS ---
 let readyTimeout: any = null;
@@ -1485,69 +1472,15 @@ function onVideoLoaded(e: Event) {
   }
 }
 
-function onNativeTimeUpdate(e: Event) {
-  if (!state.useNativePlayer.value) return;
-  const video = e.target as HTMLVideoElement;
-  if (!video || video.paused) return;
-
-  isInternalTimeUpdate.value = true;
-  const thumbSec = state.thumbnailEnabled.value
-    ? state.thumbnailDuration.value
-    : 0;
-  const videoTrack = findVideoTrack(state.timelineTracks.value);
-
-  if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0) {
-    state.currentTime.value = video.currentTime + thumbSec;
-  } else {
-    const activeItem =
-      videoTrack.items.find((i: any) => {
-        const mediaStart = i.mediaStart !== undefined ? i.mediaStart : i.start;
-        return (
-          video.currentTime >= mediaStart &&
-          video.currentTime <= mediaStart + i.duration
-        );
-      }) || videoTrack.items[videoTrack.items.length - 1];
-
-    if (activeItem) {
-      const mediaStart =
-        activeItem.mediaStart !== undefined
-          ? activeItem.mediaStart
-          : activeItem.start;
-      const relativeOffset = video.currentTime - mediaStart;
-      state.currentTime.value = activeItem.start + relativeOffset + thumbSec;
-    } else {
-      state.currentTime.value = video.currentTime + thumbSec;
-    }
-  }
-
-  if (state.currentTime.value >= state.timelineDuration.value) {
-    state.currentTime.value = state.timelineDuration.value;
-    state.isPlaying.value = false;
-    video.pause();
-  }
-
-  nextTick(() => {
-    isInternalTimeUpdate.value = false;
-  });
-}
-
 function onNativeVideoError(e: Event) {
   console.error('[VideoPreview] Native video error:', e);
   state.isMediaLoading.value = false;
-}
-
-function onNativeVideoEnded() {
-  state.isPlaying.value = false;
 }
 
 let safetyTimeout: any = null;
 watch(
   () => state.videoUrl.value,
   url => {
-    if (url) {
-      stableVideoBuster.value = Date.now().toString();
-      setNativeVideoStarted(false);
-    }
     if (readyTimeout) clearTimeout(readyTimeout);
     if (safetyTimeout) clearTimeout(safetyTimeout);
     if (url) {
@@ -1819,7 +1752,6 @@ onUnmounted(() => {
   window.removeEventListener('touchmove', onVolumeScrubTouchMove);
   window.removeEventListener('touchend', stopVolumeScrubTouch);
   window.removeEventListener('keydown', handleRenderedKeydown);
-  directBridge.destroy();
 });
 
 const statusLabel = computed(() => {
