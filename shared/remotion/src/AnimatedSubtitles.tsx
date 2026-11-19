@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -7,12 +7,18 @@ import {
   type SubtitleStyle,
   type AnimationType
 } from './types';
+import {
+  createSubtitleChunkIndex,
+  type IndexedSubtitleChunk,
+  type SubtitleChunkIndex
+} from './TimelineFramingIndex';
 import { getFont } from './fonts';
 import './fonts.css';
 
-interface AnimatedSubtitlesProps {
+export interface AnimatedSubtitlesProps {
   words: SubtitleWord[];
   wordTimings?: SubtitleWord[];
+  subtitleIndex?: SubtitleChunkIndex;
   showDebug?: boolean;
   style?: SubtitleStyle;
 }
@@ -20,22 +26,56 @@ interface AnimatedSubtitlesProps {
 export const AnimatedSubtitles: React.FC<AnimatedSubtitlesProps> = ({
   words = [],
   wordTimings = [],
+  subtitleIndex,
   showDebug,
   style: styleProp
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const currentTime = frame / fps;
-  const s = { ...DEFAULT_SUBTITLE_STYLE, ...styleProp };
-  const fontFamily = getFont(s.fontFamily);
 
-  // Find currently active chunk
-  const activeWord = (words || []).find(
-    w => currentTime >= w.start && currentTime <= w.end
+  const activeIndex = useMemo(
+    () => subtitleIndex ?? createSubtitleChunkIndex(words, wordTimings),
+    [subtitleIndex, words, wordTimings]
   );
 
-  if (!activeWord) {
-    const firstWord = words[0];
+  const { s, baseTextStyle, bgStyle } = useMemo(() => {
+    const merged: SubtitleStyle = { ...DEFAULT_SUBTITLE_STYLE, ...styleProp };
+    const fontFamily = getFont(merged.fontFamily);
+    const textStyle: React.CSSProperties = {
+      fontFamily,
+      fontSize: `${merged.fontSize}px`,
+      fontWeight: merged.fontWeight,
+      color: merged.color,
+      paintOrder: merged.strokeWidth > 0 ? 'stroke fill' : undefined,
+      WebkitTextStroke:
+        merged.strokeWidth > 0
+          ? `${merged.strokeWidth * 2}px ${merged.strokeColor}`
+          : undefined,
+      textShadow:
+        merged.strokeWidth > 0
+          ? `-${merged.strokeWidth}px -${merged.strokeWidth}px 0 ${merged.strokeColor}, ${merged.strokeWidth}px -${merged.strokeWidth}px 0 ${merged.strokeColor}, -${merged.strokeWidth}px ${merged.strokeWidth}px 0 ${merged.strokeColor}, ${merged.strokeWidth}px ${merged.strokeWidth}px 0 ${merged.strokeColor}, 0 10px 20px rgba(0,0,0,0.8)`
+          : `0 10px 20px rgba(0,0,0,0.8)`,
+      textTransform: merged.textTransform,
+      wordSpacing: merged.wordSpacing ? `${merged.wordSpacing}px` : undefined,
+      lineHeight: 1.1,
+      textAlign: 'center' as const,
+      maxWidth: '900px',
+      wordBreak: 'break-word' as const
+    };
+
+    return {
+      s: merged,
+      baseTextStyle: textStyle,
+      bgStyle: getBackgroundStyle(merged)
+    };
+  }, [styleProp]);
+
+  const activeEntry = activeIndex.findActiveChunk(currentTime);
+
+  if (!activeEntry) {
+    const firstWord = words[0] ?? activeIndex.firstChunk;
+    const wordCount = words.length || activeIndex.length;
     if (showDebug && firstWord) {
       return (
         <div
@@ -49,13 +89,13 @@ export const AnimatedSubtitles: React.FC<AnimatedSubtitlesProps> = ({
             padding: '20px'
           }}
         >
-          Debug: Found {words.length} words. Time: {currentTime.toFixed(2)}s.
+          Debug: Found {wordCount} words. Time: {currentTime.toFixed(2)}s.
           First: {firstWord.word} ({firstWord.start.toFixed(2)}-
           {firstWord.end.toFixed(2)})
         </div>
       );
     }
-    if (showDebug && words.length === 0) {
+    if (showDebug && wordCount === 0) {
       return (
         <div
           style={{
@@ -75,35 +115,10 @@ export const AnimatedSubtitles: React.FC<AnimatedSubtitlesProps> = ({
     return null;
   }
 
-  // Base text style
-  const baseTextStyle: React.CSSProperties = {
-    fontFamily,
-    fontSize: `${s.fontSize}px`,
-    fontWeight: s.fontWeight,
-    color: s.color,
-    paintOrder: s.strokeWidth > 0 ? 'stroke fill' : undefined,
-    WebkitTextStroke:
-      s.strokeWidth > 0 ? `${s.strokeWidth * 2}px ${s.strokeColor}` : undefined,
-    textShadow:
-      s.strokeWidth > 0
-        ? `-${s.strokeWidth}px -${s.strokeWidth}px 0 ${s.strokeColor}, ${s.strokeWidth}px -${s.strokeWidth}px 0 ${s.strokeColor}, -${s.strokeWidth}px ${s.strokeWidth}px 0 ${s.strokeColor}, ${s.strokeWidth}px ${s.strokeWidth}px 0 ${s.strokeColor}, 0 10px 20px rgba(0,0,0,0.8)`
-        : `0 10px 20px rgba(0,0,0,0.8)`,
-    textTransform: s.textTransform,
-    wordSpacing: s.wordSpacing ? `${s.wordSpacing}px` : undefined,
-    lineHeight: 1.1,
-    textAlign: 'center' as const,
-    maxWidth: '900px',
-    wordBreak: 'break-word' as const
-  };
-
-  // Background wrapper
-  const bgStyle = getBackgroundStyle(s);
-
   // Delegate to animation renderer
   const content = renderAnimation(
     s.animation,
-    activeWord,
-    wordTimings,
+    activeEntry,
     s,
     baseTextStyle,
     frame,
@@ -152,8 +167,7 @@ function getBackgroundStyle(s: SubtitleStyle): React.CSSProperties {
 // --- Animation Router ---
 function renderAnimation(
   animation: AnimationType,
-  activeWord: SubtitleWord,
-  wordTimings: SubtitleWord[] | undefined,
+  activeEntry: IndexedSubtitleChunk,
   s: SubtitleStyle,
   baseStyle: React.CSSProperties,
   frame: number,
@@ -162,75 +176,29 @@ function renderAnimation(
 ): React.ReactElement {
   switch (animation) {
     case 'pop':
-      return renderPop(
-        activeWord,
-        s,
-        baseStyle,
-        frame,
-        fps,
-        wordTimings,
-        currentTime
-      );
+      return renderPop(activeEntry, s, baseStyle, frame, fps, currentTime);
     case 'slide-up':
-      return renderSlideUp(
-        activeWord,
-        s,
-        baseStyle,
-        frame,
-        fps,
-        wordTimings,
-        currentTime
-      );
+      return renderSlideUp(activeEntry, s, baseStyle, frame, fps, currentTime);
     case 'fade':
-      return renderFade(
-        activeWord,
-        s,
-        baseStyle,
-        frame,
-        fps,
-        wordTimings,
-        currentTime
-      );
+      return renderFade(activeEntry, s, baseStyle, frame, fps, currentTime);
     case 'bounce':
-      return renderBounce(
-        activeWord,
-        s,
-        baseStyle,
-        frame,
-        fps,
-        wordTimings,
-        currentTime
-      );
+      return renderBounce(activeEntry, s, baseStyle, frame, fps, currentTime);
     case 'typewriter':
       return renderTypewriter(
-        activeWord,
+        activeEntry,
         s,
         baseStyle,
         frame,
         fps,
-        wordTimings,
         currentTime
       );
     case 'karaoke':
-      return renderKaraoke(
-        activeWord,
-        wordTimings,
-        s,
-        baseStyle,
-        frame,
-        fps,
-        currentTime
-      );
+      return renderKaraoke(activeEntry, s, baseStyle, frame, fps, currentTime);
     case 'none':
     default:
       return (
         <span style={{ ...baseStyle, display: 'inline-block' }}>
-          {renderChunkTextWithHighlight(
-            activeWord,
-            wordTimings,
-            s,
-            currentTime
-          )}
+          {renderChunkTextWithHighlight(activeEntry, s, currentTime)}
         </span>
       );
   }
@@ -238,37 +206,17 @@ function renderAnimation(
 
 // --- HIGHLIGHT UTILITY FOR CHUNKS ---
 function renderChunkTextWithHighlight(
-  activeChunk: SubtitleWord,
-  wordTimings: SubtitleWord[] | undefined,
+  activeEntry: IndexedSubtitleChunk,
   s: SubtitleStyle,
   currentTime: number,
   options?: { dimPast?: boolean }
 ) {
+  const activeChunk = activeEntry.chunk;
   if (s.highlightMode === 'none' || !s.highlightMode) {
     return activeChunk.word;
   }
 
-  // Find per-word timings within this chunk's time range
-  const chunkWords =
-    wordTimings?.filter(
-      w =>
-        w.start >= activeChunk.start - 0.05 && w.end <= activeChunk.end + 0.05
-    ) || [];
-
-  // Fallback: split chunk text into individual words with evenly distributed timing
-  if (chunkWords.length === 0) {
-    const splitWords = activeChunk.word.split(/\s+/);
-    const chunkDuration = activeChunk.end - activeChunk.start;
-    const wordDur = chunkDuration / splitWords.length;
-    splitWords.forEach((w, i) => {
-      chunkWords.push({
-        word: w,
-        start: activeChunk.start + i * wordDur,
-        end: activeChunk.start + (i + 1) * wordDur
-      });
-    });
-  }
-
+  const chunkWords = activeEntry.words;
   const dimPast = options?.dimPast ?? false;
 
   return (
@@ -277,7 +225,7 @@ function renderChunkTextWithHighlight(
         const isActive = currentTime >= w.start && currentTime <= w.end;
         const isPast = currentTime > w.end;
 
-        let wordStyle: React.CSSProperties = {
+        const wordStyle: React.CSSProperties = {
           display: 'inline',
           transition: 'all 0.1s',
           position: 'relative'
@@ -340,15 +288,14 @@ function renderChunkTextWithHighlight(
 
 // --- POP (Elastic Spring Pop) ---
 function renderPop(
-  word: SubtitleWord,
+  activeEntry: IndexedSubtitleChunk,
   s: SubtitleStyle,
   style: React.CSSProperties,
   frame: number,
   fps: number,
-  wordTimings: SubtitleWord[] | undefined,
   currentTime: number
 ) {
-  const startFrame = word.start * fps;
+  const startFrame = activeEntry.chunk.start * fps;
   const progress = spring({
     fps,
     frame: frame - startFrame,
@@ -371,22 +318,21 @@ function renderPop(
         opacity
       }}
     >
-      {renderChunkTextWithHighlight(word, wordTimings, s, currentTime)}
+      {renderChunkTextWithHighlight(activeEntry, s, currentTime)}
     </span>
   );
 }
 
 // --- SLIDE UP ---
 function renderSlideUp(
-  word: SubtitleWord,
+  activeEntry: IndexedSubtitleChunk,
   s: SubtitleStyle,
   style: React.CSSProperties,
   frame: number,
   fps: number,
-  wordTimings: SubtitleWord[] | undefined,
   currentTime: number
 ) {
-  const startFrame = word.start * fps;
+  const startFrame = activeEntry.chunk.start * fps;
   const progress = spring({
     fps,
     frame: frame - startFrame,
@@ -406,23 +352,22 @@ function renderSlideUp(
         opacity
       }}
     >
-      {renderChunkTextWithHighlight(word, wordTimings, s, currentTime)}
+      {renderChunkTextWithHighlight(activeEntry, s, currentTime)}
     </span>
   );
 }
 
 // --- FADE ---
 function renderFade(
-  word: SubtitleWord,
+  activeEntry: IndexedSubtitleChunk,
   s: SubtitleStyle,
   style: React.CSSProperties,
   frame: number,
   fps: number,
-  wordTimings: SubtitleWord[] | undefined,
   currentTime: number
 ) {
-  const startFrame = word.start * fps;
-  const endFrame = word.end * fps;
+  const startFrame = activeEntry.chunk.start * fps;
+  const endFrame = activeEntry.chunk.end * fps;
   const duration = endFrame - startFrame;
   const localFrame = frame - startFrame;
 
@@ -446,22 +391,21 @@ function renderFade(
         opacity
       }}
     >
-      {renderChunkTextWithHighlight(word, wordTimings, s, currentTime)}
+      {renderChunkTextWithHighlight(activeEntry, s, currentTime)}
     </span>
   );
 }
 
 // --- BOUNCE (Elastic Spring Dynamic Pop) ---
 function renderBounce(
-  word: SubtitleWord,
+  activeEntry: IndexedSubtitleChunk,
   s: SubtitleStyle,
   style: React.CSSProperties,
   frame: number,
   fps: number,
-  wordTimings: SubtitleWord[] | undefined,
   currentTime: number
 ) {
-  const startFrame = word.start * fps;
+  const startFrame = activeEntry.chunk.start * fps;
   const progress = spring({
     fps,
     frame: frame - startFrame,
@@ -483,38 +427,21 @@ function renderBounce(
         opacity
       }}
     >
-      {renderChunkTextWithHighlight(word, wordTimings, s, currentTime)}
+      {renderChunkTextWithHighlight(activeEntry, s, currentTime)}
     </span>
   );
 }
 
 // --- TYPEWRITER (Word Wave Reveal) ---
 function renderTypewriter(
-  word: SubtitleWord,
+  activeEntry: IndexedSubtitleChunk,
   s: SubtitleStyle,
   style: React.CSSProperties,
   frame: number,
   fps: number,
-  wordTimings?: SubtitleWord[],
   currentTime?: number
 ) {
-  const chunkWords =
-    wordTimings?.filter(
-      w => w.start >= word.start - 0.05 && w.end <= word.end + 0.05
-    ) || [];
-
-  if (chunkWords.length === 0) {
-    const splitWords = word.word.split(/\s+/);
-    const chunkDuration = word.end - word.start;
-    const wordDur = chunkDuration / splitWords.length;
-    splitWords.forEach((w, i) => {
-      chunkWords.push({
-        word: w,
-        start: word.start + i * wordDur,
-        end: word.start + (i + 1) * wordDur
-      });
-    });
-  }
+  const chunkWords = activeEntry.words;
 
   return (
     <span style={{ ...style, display: 'inline-block' }}>
@@ -531,7 +458,7 @@ function renderTypewriter(
         const isActive =
           (currentTime ?? 0) >= w.start && (currentTime ?? 0) <= w.end;
 
-        let wordStyle: React.CSSProperties = {
+        const wordStyle: React.CSSProperties = {
           display: 'inline-block',
           opacity: wordOpacity,
           transform: `translateY(${wordTranslateY}px)`,
@@ -588,8 +515,7 @@ function renderTypewriter(
 
 // --- KARAOKE ---
 function renderKaraoke(
-  activeChunk: SubtitleWord,
-  wordTimings: SubtitleWord[] | undefined,
+  activeEntry: IndexedSubtitleChunk,
   s: SubtitleStyle,
   style: React.CSSProperties,
   frame: number,
@@ -597,7 +523,7 @@ function renderKaraoke(
   currentTime: number
 ) {
   // Entry animation for the whole chunk
-  const chunkStartFrame = activeChunk.start * fps;
+  const chunkStartFrame = activeEntry.chunk.start * fps;
   const entryProgress = spring({
     fps,
     frame: frame - chunkStartFrame,
@@ -616,7 +542,7 @@ function renderKaraoke(
         opacity: chunkOpacity
       }}
     >
-      {renderChunkTextWithHighlight(activeChunk, wordTimings, s, currentTime, {
+      {renderChunkTextWithHighlight(activeEntry, s, currentTime, {
         dimPast: true
       })}
     </span>

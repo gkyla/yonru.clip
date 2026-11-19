@@ -10,6 +10,7 @@
     "./types": "./src/types.ts",
     "./Composition": "./src/Composition.tsx",
     "./CanvasVideoCompositor": "./src/CanvasVideoCompositor.tsx",
+    "./TimelineFramingIndex": "./src/TimelineFramingIndex.ts",
     "./AnimatedSubtitles": "./src/AnimatedSubtitles.tsx",
     "./Root": "./src/Root.tsx",
     "./fonts": "./src/fonts.ts",

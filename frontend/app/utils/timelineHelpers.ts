@@ -1,3 +1,4 @@
+import { getOrCreateCropMapIndex } from '@yonru/remotion/TimelineFramingIndex';
 import type {
   CropMapPoint,
   TimelineTrack,
@@ -712,19 +713,7 @@ export function getCropEntryAtMediaTime(
   cropMap: ReadonlyArray<CropMapPoint> | undefined,
   mediaTime: number
 ): CropMapPoint | null {
-  if (!cropMap || cropMap.length === 0) {
-    return null;
-  }
-  const timeEpsilon = 0.001;
-  let active = cropMap[0]!;
-  for (const entry of cropMap) {
-    if (entry.time <= mediaTime + timeEpsilon) {
-      active = entry;
-    } else {
-      break;
-    }
-  }
-  return active;
+  return getOrCreateCropMapIndex(cropMap).getEntryAt(mediaTime);
 }
 
 export function isSplitFramingAtTimelineTime(
@@ -766,24 +755,7 @@ export function findSplitTimelineJumpTime(
     .sort((a, b) => a.start - b.start);
 
   // Collect contiguous split windows in source media time
-  const splitWindows: Array<{ start: number; end: number }> = [];
-  let i = 0;
-  while (i < cropMap.length) {
-    const entry = cropMap[i]!;
-    if (entry.mode === 'split') {
-      const winStart = entry.time;
-      let j = i + 1;
-      while (j < cropMap.length && cropMap[j]!.mode === 'split') {
-        j++;
-      }
-      const winEnd =
-        j < cropMap.length ? cropMap[j]!.time : Number.POSITIVE_INFINITY;
-      splitWindows.push({ start: winStart, end: winEnd });
-      i = j;
-    } else {
-      i++;
-    }
-  }
+  const splitWindows = getOrCreateCropMapIndex(cropMap).getSplitWindows();
 
   if (splitWindows.length === 0) {
     return null;
