@@ -1,17 +1,14 @@
 // useClipperCover.ts - Lean reactive composable delegating to CoverCompositionCoordinator
 import { useTimelineState } from './useTimelineState';
 import { useAppNotifier } from './useAppNotifier';
-import {
-  CoverCompositionCoordinator,
-  mapCoverOverlays
-} from '../utils/coverEngine';
-import type {
-  CoverTextOverlay,
-  CoverConfig,
-  DefaultCoverStyle
-} from '../types/clipper';
+import { CoverCompositionCoordinator } from '../utils/coverEngine';
+import type { CoverTextOverlay, DefaultCoverStyle } from '../types/clipper';
 
-export const useClipperCover = () => {
+export interface ClipperCoverDependencies {
+  onSaveCoverConfig?: () => Promise<void> | void;
+}
+
+export const useClipperCover = (deps: ClipperCoverDependencies = {}) => {
   const API_BASE = resolveApiBase();
   const timeline = useTimelineState();
 
@@ -60,16 +57,6 @@ export const useClipperCover = () => {
     );
     prevDuration = newVal;
   });
-
-  watch(
-    [coverEnabled, coverDuration, coverTextOverlays],
-    () => {
-      if (!timeline.isSavingLocked.value) {
-        saveCoverConfig();
-      }
-    },
-    { deep: true }
-  );
 
   // --- Operations ---
 
@@ -148,63 +135,6 @@ export const useClipperCover = () => {
     coverTextOverlays.value = coverTextOverlays.value.filter(t => t.id !== id);
   }
 
-  async function saveCoverConfig() {
-    if (!folderName.value || !clipId.value) return;
-    try {
-      await $fetch(`${API_BASE}/api/cover/config`, {
-        method: 'PUT',
-        body: {
-          folder_name: folderName.value,
-          clip_id: clipId.value,
-          config: {
-            enabled: coverEnabled.value,
-            duration: coverDuration.value,
-            screenshotTime: coverScreenshotTime.value,
-            textOverlays: coverTextOverlays.value,
-            xOffset: coverXOffset.value
-          }
-        }
-      });
-    } catch {}
-  }
-
-  async function loadCoverConfig() {
-    if (!folderName.value || !clipId.value) return;
-    try {
-      if (!defaultCoverStyle.value) {
-        await loadDefaultCoverStyle();
-      }
-      const res = await $fetch<{ config: CoverConfig; cover_url?: string }>(
-        `${API_BASE}/api/cover/config/${folderName.value}/${clipId.value}`
-      );
-      if (res.config) {
-        timeline.isSavingLocked.value = true;
-        coverEnabled.value = res.config.enabled ?? false;
-        coverDuration.value = res.config.duration ?? 1.0;
-        coverScreenshotTime.value = res.config.screenshotTime ?? 0;
-        coverXOffset.value = res.config.xOffset ?? 50;
-        coverTextOverlays.value = mapCoverOverlays(res.config.textOverlays);
-
-        const baseClipUrl = `${API_BASE}/assets/clips/${folderName.value}/${clipId.value}`;
-        try {
-          const cUrl =
-            res.cover_url || `${baseClipUrl}/cover.jpg?t=${Date.now()}`;
-          coverUrl.value = cUrl.startsWith('http')
-            ? cUrl
-            : `${API_BASE}${cUrl}?t=${Date.now()}`;
-        } catch {}
-
-        nextTick(() => {
-          timeline.isSavingLocked.value = false;
-        });
-      } else {
-        resetCoverState();
-      }
-    } catch {
-      resetCoverState();
-    }
-  }
-
   async function toggleCover() {
     timeline.isTimelineShifting.value = true;
     timeline.isSavingLocked.value = true;
@@ -249,7 +179,7 @@ export const useClipperCover = () => {
         coverEnabled.value = false;
       }
 
-      await saveCoverConfig();
+      await deps.onSaveCoverConfig?.();
     } finally {
       isCapturingCover.value = false;
       nextTick(() => {
@@ -371,8 +301,6 @@ export const useClipperCover = () => {
     captureScreenshot,
     addCoverText,
     removeCoverText,
-    saveCoverConfig,
-    loadCoverConfig,
     toggleCover,
     deleteCover,
     loadDefaultCoverStyle,
@@ -394,8 +322,6 @@ export const useClipperCover = () => {
     resetThumbnailState: resetCoverState,
     addThumbnailText: addCoverText,
     removeThumbnailText: removeCoverText,
-    saveThumbnailConfig: saveCoverConfig,
-    loadThumbnailConfig: loadCoverConfig,
     toggleThumbnail: toggleCover,
     deleteThumbnail: deleteCover,
     loadDefaultThumbnailStyle: loadDefaultCoverStyle,

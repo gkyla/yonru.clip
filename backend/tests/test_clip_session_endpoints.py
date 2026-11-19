@@ -14,17 +14,26 @@ from core.clip_session_store import ClipSessionStore
 
 @pytest.fixture
 def client_with_temp_storage(tmp_path, monkeypatch):
-    """Configures FastAPI TestClient with isolated temp clips and output directories."""
+    """Configures FastAPI TestClient with isolated temp clips, sources, and output directories."""
+    from core.face_tracker import MockFaceTracker
+
     clips_dir = tmp_path / "temp_assets" / "clips"
+    sources_dir = tmp_path / "temp_assets" / "sources"
     output_dir = tmp_path / "temp_assets"
     clips_dir.mkdir(parents=True, exist_ok=True)
+    sources_dir.mkdir(parents=True, exist_ok=True)
 
-    test_store = ClipSessionStore(clips_dir=str(clips_dir), output_dir=str(output_dir))
+    mock_tracker = MockFaceTracker(mock_result=[{"time": 0.0, "x": 960}])
+    test_store = ClipSessionStore(
+        clips_dir=str(clips_dir),
+        output_dir=str(output_dir),
+        face_tracker=mock_tracker,
+    )
 
-    # Monkeypatch the module-level instances in main
     monkeypatch.setattr(main, "clip_session_store", test_store)
     if hasattr(main, "asset_repository"):
         monkeypatch.setattr(main.asset_repository, "clips_dir", str(clips_dir))
+        monkeypatch.setattr(main.asset_repository, "source_dir", str(sources_dir))
         monkeypatch.setattr(main.asset_repository, "output_dir", str(output_dir))
     if hasattr(main, "workflow_coordinator"):
         monkeypatch.setattr(main.workflow_coordinator, "clip_session_store", test_store)
@@ -33,14 +42,13 @@ def client_with_temp_storage(tmp_path, monkeypatch):
 
 
 def test_get_clip_session_endpoint_and_healing(client_with_temp_storage):
-    """GET /api/clip-session/{folder_name}/{clip_id} returns aggregate session and heals defaults."""
+    """GET /api/clip-session/{folder_name}/{clip_id} returns canonical {status, session} and heals defaults."""
     client, clips_dir, _ = client_with_temp_storage
     folder_name = "test_vid_session"
     clip_id = "clip_0_10"
     clip_dir = os.path.join(clips_dir, folder_name, clip_id)
     os.makedirs(clip_dir, exist_ok=True)
 
-    # Pre-seed a dummy video
     with open(os.path.join(clip_dir, "video.mp4"), "w") as f:
         f.write("dummy video")
 
@@ -48,26 +56,28 @@ def test_get_clip_session_endpoint_and_healing(client_with_temp_storage):
     assert res.status_code == 200
     data = res.json()
 
+    assert set(data.keys()) == {"status", "session"}
     assert data["status"] == "ok"
-    assert data["folder_name"] == folder_name
-    assert data["clip_id"] == clip_id
-    assert data["transcript"] == []
-    assert isinstance(data["style_settings"], dict)
-    assert data["style_settings"]["videoLayout"] == "vertical"
-    assert data["timeline"] == []
-    assert data["history"] == {"undo_stack": [], "redo_stack": []}
-    assert isinstance(data["cover_config"], dict)
-    assert data["crop_map"] is None
-    assert data["asset_url"] == f"/assets/clips/{folder_name}/{clip_id}/video.mp4"
 
-    # Verify files were healed on disk
+    session = data["session"]
+    assert session["folder_name"] == folder_name
+    assert session["clip_id"] == clip_id
+    assert session["transcript"] == []
+    assert isinstance(session["style_settings"], dict)
+    assert session["style_settings"]["videoLayout"] == "vertical"
+    assert session["timeline"] == []
+    assert session["history"] == {"undo_stack": [], "redo_stack": []}
+    assert isinstance(session["cover_config"], dict)
+    assert session["crop_map"] == [{"time": 0.0, "x": 960}]
+    assert session["asset_url"] == f"/assets/clips/{folder_name}/{clip_id}/video.mp4"
+
     assert os.path.exists(os.path.join(clip_dir, "style_settings.json"))
     assert os.path.exists(os.path.join(clip_dir, "cover_config.json"))
     assert os.path.exists(os.path.join(clip_dir, "transcript.json"))
 
 
 def test_put_clip_session_endpoint_partial_and_complete(client_with_temp_storage):
-    """PUT /api/clip-session/{folder_name}/{clip_id} saves partial and complete manifests atomically."""
+    """PUT /api/clip-session/{folder_name}/{clip_id} saves canonical partial manifests and returns compact ack."""
     client, clips_dir, _ = client_with_temp_storage
     folder_name = "test_vid_put"
     clip_id = "clip_put_1"
@@ -80,28 +90,22 @@ def test_put_clip_session_endpoint_partial_and_complete(client_with_temp_storage
         "transcript": sample_transcript
     })
     assert res1.status_code == 200
-    d1 = res1.json()
-    assert d1["transcript"] == sample_transcript
+    assert res1.json() == {"status": "ok", "folder_name": folder_name, "clip_id": clip_id}
 
     with open(os.path.join(clip_dir, "transcript.json"), "r") as f:
         assert json.load(f) == sample_transcript
 
-    # 2. Partial update: style_settings, timeline_tracks, and history
+    # 2. Partial update: style_settings, timeline, and history
     sample_styles = {"font": "Montserrat", "fontSize": 64, "videoLayout": "portrait"}
-    sample_tracks = [{"id": "t1", "type": "subtitle"}]
-    sample_undo = ["u1", "u2"]
+    sample_tracks = [{"id": "video", "type": "video", "items": []}]
+    sample_history = {"undo_stack": ["u1", "u2"], "redo_stack": []}
     res2 = client.put(f"/api/clip-session/{folder_name}/{clip_id}", json={
         "style_settings": sample_styles,
-        "timeline_tracks": sample_tracks,
-        "undo_stack": sample_undo
+        "timeline": sample_tracks,
+        "history": sample_history,
     })
     assert res2.status_code == 200
-    d2 = res2.json()
-    assert d2["style_settings"]["font"] == "Montserrat"
-    assert d2["timeline"] == sample_tracks
-    assert d2["history"]["undo_stack"] == sample_undo
-    # Transcript preserved
-    assert d2["transcript"] == sample_transcript
+    assert res2.json() == {"status": "ok", "folder_name": folder_name, "clip_id": clip_id}
 
     # 3. Partial update: cover_config and crop_map
     sample_crop = [{"time": 0.0, "x": 960}]
@@ -111,15 +115,19 @@ def test_put_clip_session_endpoint_partial_and_complete(client_with_temp_storage
         "crop_map": sample_crop
     })
     assert res3.status_code == 200
-    d3 = res3.json()
-    assert d3["cover_config"]["enabled"] is True
-    assert d3["crop_map"] == sample_crop
+    assert res3.json() == {"status": "ok", "folder_name": folder_name, "clip_id": clip_id}
 
-    with open(os.path.join(clip_dir, "cover_config.json"), "r") as f:
-        assert json.load(f)["duration"] == 2.5
+    # Verify via GET /api/clip-session
+    get_res = client.get(f"/api/clip-session/{folder_name}/{clip_id}")
+    assert get_res.status_code == 200
+    session = get_res.json()["session"]
+    assert session["transcript"] == sample_transcript
+    assert session["style_settings"]["fontSize"] == 64
+    assert session["timeline"] == sample_tracks
+    assert session["history"] == sample_history
+    assert session["cover_config"]["enabled"] is True
+    assert session["crop_map"] == sample_crop
     assert not os.path.exists(os.path.join(clip_dir, "thumbnail_config.json"))
-    with open(os.path.join(clip_dir, "crop_map.json"), "r") as f:
-        assert json.load(f) == sample_crop
 
 
 def test_clip_session_path_traversal_rejection(client_with_temp_storage):
@@ -143,98 +151,71 @@ def test_clip_session_path_traversal_rejection(client_with_temp_storage):
         assert res_put.status_code == 400
         assert "Path traversal detected" in res_put.json()["detail"]
 
-    # Also test legacy endpoint JSON body path traversal rejection
-    legacy_traversal = client.put("/api/transcript", json={
-        "folder_name": "../../etc",
-        "clip_id": "passwd",
-        "transcript": []
-    })
-    assert legacy_traversal.status_code == 400
-    assert "Path traversal detected" in legacy_traversal.json()["detail"]
 
-
-def test_legacy_endpoints_backward_compatibility(client_with_temp_storage):
-    """Verify legacy endpoints (/api/transcript, /api/style-settings, etc.) delegate to ClipSessionStore."""
+def test_removed_legacy_routes_and_cover_delete(client_with_temp_storage):
+    """Verify removed single-field PUT and /api/cover/config routes are gone while DELETE /api/cover still preserves thumbnail.jpg."""
     client, clips_dir, _ = client_with_temp_storage
-    folder_name = "test_vid_legacy"
-    clip_id = "clip_legacy_1"
+    folder_name = "test_vid_cover_del"
+    clip_id = "clip_del_1"
     clip_dir = os.path.join(clips_dir, folder_name, clip_id)
     os.makedirs(clip_dir, exist_ok=True)
 
-    # 1. PUT /api/transcript
-    t_words = [{"text": "legacy word", "start": 0.0, "end": 0.5}]
-    res1 = client.put("/api/transcript", json={
-        "folder_name": folder_name,
-        "clip_id": clip_id,
-        "transcript": t_words
-    })
-    assert res1.status_code == 200
-    assert res1.json() == {"status": "ok"}
-    with open(os.path.join(clip_dir, "transcript.json"), "r") as f:
-        assert json.load(f) == t_words
+    # Removed routes should return 404 or 405 (caught by SPA fallback on GET, 404/405 on PUT)
+    assert client.put("/api/transcript", json={"folder_name": folder_name, "clip_id": clip_id, "transcript": []}).status_code in (404, 405)
+    assert client.put("/api/style-settings", json={"folder_name": folder_name, "clip_id": clip_id, "settings": {}}).status_code in (404, 405)
+    assert client.put("/api/timeline", json={"folder_name": folder_name, "clip_id": clip_id, "timeline_tracks": []}).status_code in (404, 405)
+    assert client.put("/api/timeline-history", json={"folder_name": folder_name, "clip_id": clip_id, "undo_stack": [], "redo_stack": []}).status_code in (404, 405)
+    assert client.put("/api/cover/config", json={"folder_name": folder_name, "clip_id": clip_id, "config": {}}).status_code in (404, 405)
+    assert client.get(f"/api/cover/config/{folder_name}/{clip_id}").status_code == 404
 
-    # 2. PUT /api/style-settings
-    styles = {"fontSize": 48, "videoLayout": "vertical"}
-    res2 = client.put("/api/style-settings", json={
-        "folder_name": folder_name,
-        "clip_id": clip_id,
-        "settings": styles
-    })
-    assert res2.status_code == 200
-    assert res2.json() == {"status": "ok"}
-    with open(os.path.join(clip_dir, "style_settings.json"), "r") as f:
-        assert json.load(f)["fontSize"] == 48
-
-    # 3. PUT /api/timeline
-    tracks = [{"id": "trk_legacy", "type": "text"}]
-    res3 = client.put("/api/timeline", json={
-        "folder_name": folder_name,
-        "clip_id": clip_id,
-        "timeline_tracks": tracks
-    })
-    assert res3.status_code == 200
-    assert res3.json() == {"status": "ok"}
-    with open(os.path.join(clip_dir, "timeline.json"), "r") as f:
-        assert json.load(f) == tracks
-
-    # 4. PUT /api/timeline-history
-    res4 = client.put("/api/timeline-history", json={
-        "folder_name": folder_name,
-        "clip_id": clip_id,
-        "undo_stack": ["action1"],
-        "redo_stack": ["action2"]
-    })
-    assert res4.status_code == 200
-    assert res4.json() == {"status": "ok"}
-    with open(os.path.join(clip_dir, "history.json"), "r") as f:
-        hist = json.load(f)
-        assert hist["undo_stack"] == ["action1"]
-        assert hist["redo_stack"] == ["action2"]
-
-    # 5. PUT and GET /api/cover/config
-    cover_cfg = {"enabled": True, "duration": 1.5, "xOffset": 50, "textOverlays": []}
-    res5 = client.put("/api/cover/config", json={
-        "folder_name": folder_name,
-        "clip_id": clip_id,
-        "config": cover_cfg
-    })
-    assert res5.status_code == 200
-    assert res5.json() == {"status": "ok"}
-
-    res6 = client.get(f"/api/cover/config/{folder_name}/{clip_id}")
-    assert res6.status_code == 200
-    assert res6.json()["config"]["duration"] == 1.5
-
-    # 6. DELETE /api/cover/{folder_name}/{clip_id}
     with open(os.path.join(clip_dir, "cover.jpg"), "w") as f:
         f.write("cover data")
     with open(os.path.join(clip_dir, "thumbnail.jpg"), "w") as f:
         f.write("thumb data")
 
-    res7 = client.delete(f"/api/cover/{folder_name}/{clip_id}")
-    assert res7.status_code == 200
+    res = client.delete(f"/api/cover/{folder_name}/{clip_id}")
+    assert res.status_code == 200
     assert not os.path.exists(os.path.join(clip_dir, "cover.jpg"))
     assert os.path.exists(os.path.join(clip_dir, "thumbnail.jpg"))
+
+
+def test_load_ready_clip_endpoint_returns_unified_session_and_saved_hooks(client_with_temp_storage):
+    """POST /api/load-ready-clip returns job metadata, saved_hooks, and canonical session in one round-trip."""
+    client, clips_dir, output_dir = client_with_temp_storage
+    folder_name = "test_vid_load_ready"
+    clip_id = "10_25_viral_hook"
+
+    source_dir = os.path.join(output_dir, "sources", folder_name)
+    os.makedirs(source_dir, exist_ok=True)
+    with open(os.path.join(source_dir, "metadata.json"), "w", encoding="utf-8") as f:
+        json.dump({"video_id": "yt_abc", "title": "Source Title", "fps": 30.0}, f)
+    with open(os.path.join(source_dir, "full.mp4"), "w") as f:
+        f.write("source video")
+    with open(os.path.join(source_dir, "hooks.json"), "w", encoding="utf-8") as f:
+        json.dump([{"start": 10.0, "end": 25.0, "theme": "Viral Hook"}], f)
+    with open(os.path.join(source_dir, "saved_hooks.json"), "w", encoding="utf-8") as f:
+        json.dump([{"id": "saved-1", "theme": "Saved Hook"}], f)
+
+    clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+    os.makedirs(clip_dir, exist_ok=True)
+    with open(os.path.join(clip_dir, "video.mp4"), "w") as f:
+        f.write("clip video")
+    with open(os.path.join(clip_dir, "transcript.json"), "w", encoding="utf-8") as f:
+        json.dump([{"start": 0.0, "duration": 1.2, "text": "Hello"}], f)
+
+    res = client.post("/api/load-ready-clip", json={
+        "folder_name": folder_name,
+        "clip_id": clip_id,
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert set(data.keys()) == {"job_id", "status", "clip", "hooks", "saved_hooks", "fps", "session"}
+    assert data["status"] == "ready"
+    assert data["saved_hooks"] == [{"id": "saved-1", "theme": "Saved Hook"}]
+    assert data["session"]["folder_name"] == folder_name
+    assert data["session"]["clip_id"] == clip_id
+    assert data["session"]["transcript"] == [{"start": 0.0, "duration": 1.2, "text": "Hello"}]
+    assert data["session"]["crop_map"] == [{"time": 0.0, "x": 960}]
 
 
 def test_track_face_endpoint_existing_clip_and_cache(client_with_temp_storage, monkeypatch):
@@ -297,58 +278,4 @@ def test_track_face_endpoint_path_traversal_400(client_with_temp_storage):
         assert "Path traversal detected" in res.json()["detail"]
 
 
-def test_put_clip_session_cached_audio_src_and_compact_response(client_with_temp_storage):
-    """PUT /api/clip-session preserves existing base64 audio src on __cached_src__ and returns compact response when _compact=True."""
-    client, clips_dir, _ = client_with_temp_storage
-    folder_name = "test_vid_audio_cache"
-    clip_id = "clip_audio_1"
-    clip_dir = os.path.join(clips_dir, folder_name, clip_id)
-    os.makedirs(clip_dir, exist_ok=True)
 
-    heavy_src = "data:audio/mp3;base64," + ("A" * 10000)
-
-    # 1. Initial save with full base64 src and _compact=True
-    res1 = client.put(f"/api/clip-session/{folder_name}/{clip_id}", json={
-        "timeline_tracks": [
-            {"id": "audio", "type": "audio", "items": [{"id": "a1", "name": "bgm.mp3", "start": 0.0, "duration": 10.0, "src": heavy_src}]}
-        ],
-        "_compact": True
-    })
-    assert res1.status_code == 200
-    d1 = res1.json()
-    assert d1["status"] == "ok"
-    assert "timeline" not in d1
-
-    # 2. Subsequent save after moving audio item to start=2.5s using __cached_src__
-    res2 = client.put(f"/api/clip-session/{folder_name}/{clip_id}", json={
-        "timeline_tracks": [
-            {"id": "audio", "type": "audio", "items": [{"id": "a1", "name": "bgm.mp3", "start": 2.5, "duration": 10.0, "src": "__cached_src__"}]}
-        ],
-        "_compact": True
-    })
-    assert res2.status_code == 200
-
-    # Verify on-disk timeline.json preserved the full heavy_src and updated start to 2.5
-    with open(os.path.join(clip_dir, "timeline.json"), "r", encoding="utf-8") as f:
-        saved_tracks = json.load(f)
-    assert saved_tracks[0]["items"][0]["start"] == 2.5
-    assert saved_tracks[0]["items"][0]["src"] == heavy_src
-
-    # 3. Saving history snapshots with embedded data: URIs strips src from history.json on disk
-    res3 = client.put(f"/api/clip-session/{folder_name}/{clip_id}", json={
-        "undo_stack": [
-            {
-                "tracks": [
-                    {"id": "audio", "type": "audio", "items": [{"id": "a1", "name": "bgm.mp3", "start": 0.0, "duration": 10.0, "src": heavy_src}]}
-                ],
-                "transcript": [],
-                "selectedId": "a1"
-            }
-        ],
-        "_compact": True
-    })
-    assert res3.status_code == 200
-    with open(os.path.join(clip_dir, "history.json"), "r", encoding="utf-8") as f:
-        saved_history = json.load(f)
-    assert "src" not in saved_history["undo_stack"][0]["tracks"][0]["items"][0]
-    assert saved_history["undo_stack"][0]["tracks"][0]["items"][0]["id"] == "a1"

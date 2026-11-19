@@ -53,42 +53,9 @@ class ClipWorkflowCoordinator:
                 media_transcoder=getattr(self.asset_repository, "transcoder", None),
             )
 
-    def _get_clip_session_store(self, clip_dir: Optional[str] = None) -> ClipSessionStore:
-        if self._clip_session_store and not isinstance(self._clip_session_store, ClipSessionStore):
-            return self._clip_session_store
-
-        raw_out = getattr(self.asset_repository, "output_dir", None) or getattr(self._clip_session_store, "output_dir", None)
-        output_dir = raw_out if isinstance(raw_out, str) and raw_out else "temp_assets"
-
-        raw_clips = getattr(self.asset_repository, "clips_dir", None) or getattr(self._clip_session_store, "clips_dir", None)
-        if clip_dir:
-            target_clips_dir = os.path.dirname(os.path.dirname(os.path.abspath(clip_dir)))
-        elif isinstance(raw_clips, str) and raw_clips:
-            target_clips_dir = raw_clips
-        else:
-            target_clips_dir = os.path.join(output_dir, "clips")
-
-        if (
-            self._clip_session_store
-            and isinstance(self._clip_session_store, ClipSessionStore)
-            and os.path.abspath(self._clip_session_store.clips_dir) == os.path.abspath(target_clips_dir)
-            and os.path.abspath(self._clip_session_store.output_dir) == os.path.abspath(output_dir)
-        ):
-            return self._clip_session_store
-
-        return ClipSessionStore(
-            clips_dir=target_clips_dir,
-            output_dir=output_dir,
-            config_store=self.config_store,
-            face_tracker=getattr(self, "face_tracker", None),
-            media_transcoder=getattr(self.asset_repository, "transcoder", None),
-        )
-
     @property
     def clip_session_store(self) -> ClipSessionStore:
-        if self._clip_session_store and not isinstance(self._clip_session_store, ClipSessionStore):
-            return self._clip_session_store
-        return self._get_clip_session_store()
+        return self._clip_session_store
 
     @clip_session_store.setter
     def clip_session_store(self, value: Any) -> None:
@@ -100,55 +67,6 @@ class ClipWorkflowCoordinator:
         except:
             pass
 
-    def _ensure_defaults(self, clip_dir: str):
-        """Ensures default style settings and thumbnail config are seeded in clip directory."""
-        clip_id = os.path.basename(clip_dir)
-        folder_name = os.path.basename(os.path.dirname(clip_dir))
-        store = self._get_clip_session_store(clip_dir)
-        store.ensure_clip_defaults(folder_name, clip_id)
-
-        # Check for fallback Clip Thumbnail image generation from video if thumbnail.jpg is still missing
-        clip_thumb_img_path = os.path.join(clip_dir, "thumbnail.jpg")
-        clip_video_path = os.path.join(clip_dir, "video.mp4")
-        if not os.path.exists(clip_thumb_img_path) and os.path.exists(clip_video_path):
-            try:
-                store.extract_clip_screenshot(clip_video_path, 0.0, clip_thumb_img_path)
-                print(f"[defaults] Generated initial Clip Thumbnail at {clip_thumb_img_path}")
-            except Exception as e:
-                print(f"[defaults] Failed to generate initial Clip Thumbnail: {e}")
-
-
-    def _compute_and_cache_crop_map(
-        self, clip_dir: str, video_path: str, tracker: Optional[Any] = None
-    ) -> List[Dict[str, Any]]:
-        """Internal helper delegating Auto-Reframe crop map computation to ClipSessionStore."""
-        clip_id = os.path.basename(clip_dir)
-        folder_name = os.path.basename(os.path.dirname(clip_dir))
-        store = self._get_clip_session_store(clip_dir)
-        active_tracker = tracker or getattr(self, "face_tracker", None)
-        return store.ensure_crop_map(
-            folder_name,
-            clip_id,
-            video_path=video_path,
-            tracker=active_tracker,
-        )
-
-    def _ensure_crop_map(
-        self, clip_path: str, tracker: Optional[Any] = None
-    ) -> List[Dict[str, Any]]:
-        """Generates and caches Auto-Reframe crop_map.json for the clip if not already present."""
-        clip_dir = os.path.dirname(clip_path)
-        clip_id = os.path.basename(clip_dir)
-        folder_name = os.path.basename(os.path.dirname(clip_dir))
-        store = self._get_clip_session_store(clip_dir)
-        active_tracker = tracker or getattr(self, "face_tracker", None)
-        return store.ensure_crop_map(
-            folder_name,
-            clip_id,
-            video_path=clip_path,
-            tracker=active_tracker,
-        )
-
     def get_or_create_crop_map(
         self, folder_name: str, clip_id: str, tracker: Optional[Any] = None
     ) -> Dict[str, Any]:
@@ -156,15 +74,14 @@ class ClipWorkflowCoordinator:
         Generates, caches, and returns Auto-Reframe crop_map.json for a clip.
         Validates path traversal on folder_name and clip_id.
         """
-        store = self._get_clip_session_store()
-        clip_dir = store.resolve_clip_dir(folder_name, clip_id)
+        clip_dir = self.clip_session_store.resolve_clip_dir(folder_name, clip_id)
 
         video_path = os.path.join(clip_dir, "video.mp4")
         if not os.path.exists(video_path):
             raise FileNotFoundError("Clip video not found")
 
         active_tracker = tracker or getattr(self, "face_tracker", None)
-        points = store.ensure_crop_map(
+        points = self.clip_session_store.ensure_crop_map(
             folder_name,
             clip_id,
             video_path=video_path,
@@ -225,8 +142,9 @@ class ClipWorkflowCoordinator:
                 clip_id = os.path.basename(clip_dir)
                 folder_name = os.path.basename(os.path.dirname(clip_dir))
                 try:
-                    store = self._get_clip_session_store(clip_dir)
-                    session = store.get_clip_session(folder_name, clip_id)
+                    session = self.clip_session_store.get_clip_session(
+                        folder_name, clip_id, ensure_crop_map=False
+                    )
                     if session.get("transcript"):
                         clip_data["transcript"] = session["transcript"]
                     if session.get("history"):
@@ -258,8 +176,7 @@ class ClipWorkflowCoordinator:
         clip_id = os.path.basename(clip_dir)
         folder_name = os.path.basename(os.path.dirname(clip_dir))
 
-        store = self._get_clip_session_store(clip_dir)
-        return store.extract_cover_frame(folder_name, clip_id, timestamp=timestamp)
+        return self.clip_session_store.extract_cover_frame(folder_name, clip_id, timestamp=timestamp)
 
 
     def extract_clip_thumbnail(self, job_id: str, timestamp: Optional[float] = None) -> Dict[str, Any]:
@@ -496,9 +413,8 @@ class ClipWorkflowCoordinator:
 
             if os.path.exists(video_file) and is_transcript_valid:
                 print(f"[provision] Clip {clip_id} already ready on disk. Ensuring defaults and crop map...")
-                self._ensure_defaults(target_dir)
-                store = self._get_clip_session_store(target_dir)
-                store.ensure_crop_map(
+                self.clip_session_store.ensure_clip_defaults(folder_name, clip_id)
+                self.clip_session_store.ensure_crop_map(
                     folder_name,
                     clip_id,
                     video_path=video_file,
@@ -561,8 +477,7 @@ class ClipWorkflowCoordinator:
         """
         Loads and initializes a job state from an existing ready clip on disk.
         """
-        clips_dir = getattr(self.clip_session_store, "clips_dir", getattr(self.asset_repository, "clips_dir", os.path.join("temp_assets", "clips")))
-        clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+        clip_dir = self.clip_session_store.resolve_clip_dir(folder_name, clip_id)
         clip_path = os.path.join(clip_dir, "video.mp4")
         transcript_path = os.path.join(clip_dir, "transcript.json")
 
@@ -670,15 +585,9 @@ class ClipWorkflowCoordinator:
                 snapped_start = h_start
                 snapped_end = h_end
 
-        # Ensure defaults and crop map
-        self._ensure_defaults(clip_dir)
-        store = self._get_clip_session_store(clip_dir)
-        store.ensure_crop_map(
-            folder_name,
-            clip_id,
-            video_path=clip_path,
-            tracker=getattr(self, "face_tracker", None),
-        )
+        # Load unified Clip Session once (heals defaults, migrates legacy cover/audio, computes crop_map)
+        session = self.clip_session_store.get_clip_session(folder_name, clip_id)
+        saved_hooks = self.asset_repository.get_saved_hooks(folder_name)
 
         status = "ready" if is_transcript_valid else "queued"
         job_data = {
@@ -690,8 +599,8 @@ class ClipWorkflowCoordinator:
             "clip_path": clip_path,
             "clip_duration": duration,
             "clip": {
-                "asset_url": f"/assets/clips/{folder_name}/{clip_id}/video.mp4",
-                "thumbnail_url": f"/assets/clips/{folder_name}/{clip_id}/thumbnail.jpg",
+                "asset_url": session.get("asset_url") or f"/assets/clips/{folder_name}/{clip_id}/video.mp4",
+                "thumbnail_url": session.get("thumbnail_url") or f"/assets/clips/{folder_name}/{clip_id}/thumbnail.jpg",
                 "duration": duration,
                 "file_path": clip_path,
                 "start": snapped_start,
@@ -723,34 +632,12 @@ class ClipWorkflowCoordinator:
                 t.daemon = True
                 t.start()
 
-        # Load persisted session manifests via ClipSessionStore
-        store = self._get_clip_session_store(clip_dir)
-        session = store.get_clip_session(folder_name, clip_id)
-
-        cover_config_data = store.get_cover_config(folder_name, clip_id)
-        if cover_config_data is None:
-            cover_config_data = session.get("cover_config")
-        cover_url = store.migrate_legacy_cover_if_needed(folder_name, clip_id)
-        if not cover_url:
-            cover_url = session.get("cover_url")
-        if not cover_url:
-            cover_path = os.path.join(clip_dir, "cover.jpg")
-            cover_url = f"/assets/clips/{folder_name}/{clip_id}/cover.jpg" if os.path.exists(cover_path) else None
-        thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
-        thumbnail_url = f"/assets/clips/{folder_name}/{clip_id}/thumbnail.jpg" if os.path.exists(thumb_path) else session.get("thumbnail_url")
-
         return {
             "job_id": job_id,
             "status": status,
             "job": job_data,
-            "style_settings": session.get("style_settings"),
-            "history": session.get("history"),
-            "crop_map": session.get("crop_map"),
-            "cover_config": cover_config_data,
-            "cover_url": cover_url,
-            "thumbnail_config": cover_config_data,
-            "thumbnail_url": thumbnail_url,
-            "poster_url": thumbnail_url
+            "saved_hooks": saved_hooks,
+            "session": session,
         }
 
 
@@ -1007,9 +894,8 @@ class ClipWorkflowCoordinator:
                 clip_dir = os.path.dirname(clip["file_path"])
                 clip_id = os.path.basename(clip_dir)
                 folder_name = os.path.basename(os.path.dirname(clip_dir))
-                self._ensure_defaults(clip_dir)
-                store = self._get_clip_session_store(clip_dir)
-                store.ensure_crop_map(
+                self.clip_session_store.ensure_clip_defaults(folder_name, clip_id)
+                self.clip_session_store.ensure_crop_map(
                     folder_name,
                     clip_id,
                     video_path=clip["file_path"],
@@ -1033,8 +919,7 @@ class ClipWorkflowCoordinator:
             precise_words = None
             try:
                 # Extract audio from clip
-                store = self._get_clip_session_store(os.path.dirname(clip["file_path"]))
-                clip_audio = store.extract_clip_audio(clip["file_path"])
+                clip_audio = self.clip_session_store.extract_clip_audio(clip["file_path"])
                 print(f"[transcribe] Transcribing clip audio...")
                 precise_words = self.speech_transcriber.transcribe(clip_audio, model_size=whisper_model)
             except Exception as e:
@@ -1069,12 +954,12 @@ class ClipWorkflowCoordinator:
             clip_dir = os.path.dirname(clip["file_path"])
             clip_id = os.path.basename(clip_dir)
             folder_name = os.path.basename(os.path.dirname(clip_dir))
-            store = self._get_clip_session_store(clip_dir)
-
 
             if precise_words:
                 # Save precise transcript atomically via ClipSessionStore
-                store.save_transcript(folder_name, clip_id, precise_words)
+                self.clip_session_store.save_clip_session(
+                    folder_name, clip_id, {"transcript": precise_words}
+                )
                 print(f"[transcribe] Saved high-precision clip transcript ({len(precise_words)} words)")
                 
                 c_quote = " ".join([s.get("text", "") for s in precise_words]).strip()
@@ -1089,11 +974,10 @@ class ClipWorkflowCoordinator:
                     print(f"[transcribe] Updated in-memory clip quote for job {job_id}")
             else:
                 # Fallback: ensure defaults seeds empty transcript if missing
-                store.ensure_clip_defaults(folder_name, clip_id)
+                self.clip_session_store.ensure_clip_defaults(folder_name, clip_id)
 
-            clip_dir = os.path.dirname(clip["file_path"])
-            self._ensure_defaults(clip_dir)
-            store.ensure_crop_map(
+            self.clip_session_store.ensure_clip_defaults(folder_name, clip_id)
+            self.clip_session_store.ensure_crop_map(
                 folder_name,
                 clip_id,
                 video_path=clip["file_path"],

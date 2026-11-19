@@ -167,7 +167,9 @@ describe('Timeline Drag Performance & Player Sync Bug Repro', () => {
     expect(tracks.value[1]!.items[0]!.start).toBe(0.5);
   });
 
-  it('prevents base64 audio payload duplication across undo_stack snapshots during saveHistoryToBackend', async () => {
+  it('routes timeline and history saves through useClipEditorSession with lightweight Audio Library URLs', async () => {
+    const { useClipEditorSession } =
+      await import('../../app/composables/useClipEditorSession');
     const { useTimelineState } =
       await import('../../app/composables/useTimelineState');
     const { useState } = await import('#app');
@@ -180,7 +182,7 @@ describe('Timeline Drag Performance & Player Sync Bug Repro', () => {
     useState<string | null>('clipId', () => 'test_clip').value = 'test_clip';
 
     const timeline = useTimelineState();
-    const heavyBase64 = 'data:audio/mp3;base64,' + 'A'.repeat(50000);
+    const session = useClipEditorSession({ timeline });
     timeline.timelineTracks.value = [
       {
         id: 'video',
@@ -196,10 +198,10 @@ describe('Timeline Drag Performance & Player Sync Bug Repro', () => {
           {
             id: 'a1',
             type: 'audio',
-            name: 'heavy-audio.mp3',
+            name: 'bgm.mp3',
             start: 0,
             duration: 10,
-            src: heavyBase64
+            src: '/assets/audio_library/bgm.mp3'
           }
         ]
       }
@@ -207,35 +209,20 @@ describe('Timeline Drag Performance & Player Sync Bug Repro', () => {
     timeline.timelineUndoStack.value = [];
     timeline.timelineRedoStack.value = [];
 
-    // Simulate 5 sequential drag-and-drop commits of the audio block
     for (let i = 1; i <= 5; i++) {
       timeline.commitToHistory();
       timeline.timelineTracks.value[1]!.items[0]!.start = i;
     }
 
-    await timeline.saveHistoryToBackend();
-
+    await session.saveHistoryToBackend();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const serializedBody = JSON.stringify(fetchMock.mock.calls[0]![1].body);
+    expect(fetchMock.mock.calls[0]![1].body).toHaveProperty('history');
 
-    // Without deduplication/stripping, 5 snapshots * 50KB = >250,000 bytes!
-    // With base64 stripping/deduplication in history snapshots, serialized history body must be lightweight (< 10,000 bytes)
-    expect(serializedBody.length).toBeLessThan(10000);
-
-    // Also verify saveTimelineTracks deduplicates inline base64 src on subsequent saves
     fetchMock.mockClear();
-    await timeline.saveTimelineTracks(); // 1st save sends full base64 src
+    await session.saveTimelineTracks();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const firstTrackPayload = JSON.stringify(fetchMock.mock.calls[0]![1].body);
-    expect(firstTrackPayload.length).toBeGreaterThan(50000);
-
-    // Move audio item and save again -> 2nd save sends __cached_src__ (< 1KB!)
-    timeline.timelineTracks.value[1]!.items[0]!.start = 2.5;
-    fetchMock.mockClear();
-    await timeline.saveTimelineTracks();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const secondTrackPayload = JSON.stringify(fetchMock.mock.calls[0]![1].body);
-    expect(secondTrackPayload.length).toBeLessThan(1000);
-    expect(secondTrackPayload).toContain('__cached_src__');
+    expect(fetchMock.mock.calls[0]![1].body).toEqual({
+      timeline: timeline.timelineTracks.value
+    });
   });
 });

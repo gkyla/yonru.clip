@@ -2,6 +2,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useClipperJob } from '../../app/composables/useClipperJob';
 
+import type { ClipSessionData, CropMapPoint } from '../../app/types/clipper';
+
 // Mock useTimelineState
 const mockTimelineTracks = {
   value: [
@@ -24,16 +26,15 @@ vi.mock('../../app/utils/thumbnailHelpers', () => ({
   mapThumbnailOverlays: vi.fn().mockReturnValue([])
 }));
 
-describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
-  let mockStyleResponse: any = null;
-  let mockDefaultStyleResponse: any = null;
+describe('useClipperJob Sub-composable - Clip Session Hydration', () => {
+  let mockSessionResponse: Partial<ClipSessionData> | null = null;
+  let mockLoadReadyStatus = 'ready';
 
   beforeEach(() => {
-    mockStyleResponse = null;
-    mockDefaultStyleResponse = null;
+    mockSessionResponse = null;
+    mockLoadReadyStatus = 'ready';
     mockIsSavingLocked.value = false;
 
-    // Reset state values to defaults before each test
     const font = useState<string>('font');
     const fontSize = useState<number>('fontSize');
     const subtitlePreset = useState<string>('subtitlePreset');
@@ -45,33 +46,25 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
       '$fetch',
       vi.fn().mockImplementation(url => {
         const urlStr = String(url);
-        if (urlStr.includes('/style_settings.json')) {
-          if (mockStyleResponse) {
-            return Promise.resolve(mockStyleResponse);
-          }
-          return Promise.reject({ status: 404 });
-        }
-        if (urlStr.includes('/default_style_settings.json')) {
-          if (mockDefaultStyleResponse) {
-            return Promise.resolve(mockDefaultStyleResponse);
-          }
-          return Promise.reject({ status: 404 });
-        }
         if (urlStr.includes('/api/load-ready-clip')) {
           return Promise.resolve({
             job_id: 'job-123',
-            status: 'ready',
+            status: mockLoadReadyStatus,
             clip: {
               asset_url: '/assets/clips/folder/10_20_clip/video.mp4',
               duration: 10
+            },
+            session: mockSessionResponse || {
+              folder_name: 'folder',
+              clip_id: '10_20_clip',
+              transcript: [],
+              style_settings: {},
+              timeline: [],
+              history: { undo_stack: [], redo_stack: [] },
+              cover_config: { enabled: false },
+              crop_map: []
             }
           });
-        }
-        if (
-          urlStr.includes('/api/cover/config') ||
-          urlStr.includes('/api/thumbnail/config')
-        ) {
-          return Promise.resolve({ config: null });
         }
         return Promise.resolve({});
       })
@@ -83,102 +76,66 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     stopPolling();
   });
 
-  it('resets subtitle styles to defaults before loading custom styles', async () => {
+  it('hydrates custom styles from session and resets omitted keys to defaults', async () => {
     const font = useState<string>('font');
     const fontSize = useState<number>('fontSize');
 
-    // Set non-default values first
     font.value = 'Impact';
     fontSize.value = 150;
 
-    mockStyleResponse = {
-      font: 'Arial',
-      fontSize: 120
+    mockSessionResponse = {
+      style_settings: {
+        font: 'Arial',
+        fontSize: 120
+      }
     };
 
-    const { loadReadyClipIntoEditor } = useClipperJob();
+    const { loadReadyClipIntoEditor, jobStatus, isMediaLoading } =
+      useClipperJob();
     await loadReadyClipIntoEditor('folder', '10_20_clip');
 
     const jobId = useState<string | null>('jobId');
     expect(jobId.value).toBe('job-123');
+    expect(jobStatus.value).toBe('ready');
+    expect(isMediaLoading.value).toBe(false);
     expect(font.value).toBe('Arial');
     expect(fontSize.value).toBe(120);
   });
 
-  it('falls back to global default style settings if custom style settings 404', async () => {
-    const font = useState<string>('font');
-    const fontSize = useState<number>('fontSize');
+  it('preserves queued status when load-ready-clip returns status === queued', async () => {
+    vi.useFakeTimers();
+    mockLoadReadyStatus = 'queued';
+    const { loadReadyClipIntoEditor, jobStatus, stopPolling } = useClipperJob();
 
-    font.value = 'Impact';
-    fontSize.value = 150;
-
-    // No custom style, but global default exists
-    mockDefaultStyleResponse = {
-      font: 'Open Sans',
-      fontSize: 90
-    };
-
-    const { loadReadyClipIntoEditor } = useClipperJob();
     await loadReadyClipIntoEditor('folder', '10_20_clip');
 
-    expect(font.value).toBe('Open Sans');
-    expect(fontSize.value).toBe(90);
+    expect(jobStatus.value).toBe('queued');
+    stopPolling();
+    vi.useRealTimers();
   });
 
-  it('falls back to hardcoded defaults if both custom and global style settings 404', async () => {
+  it('falls back to hardcoded defaults when session.style_settings is empty', async () => {
     const font = useState<string>('font');
     const fontSize = useState<number>('fontSize');
 
     font.value = 'Impact';
     fontSize.value = 150;
 
-    // Both style fetches will 404 based on mock implementation
-
     const { loadReadyClipIntoEditor } = useClipperJob();
     await loadReadyClipIntoEditor('folder', '10_20_clip');
 
-    // Montserrat and 50 are the hardcoded defaults
     expect(font.value).toBe('Montserrat');
     expect(fontSize.value).toBe(50);
   });
 
-  it('cascades global default settings under custom style settings overrides', async () => {
-    const font = useState<string>('font');
-    const fontSize = useState<number>('fontSize');
-    const subtitlePreset = useState<string>('subtitlePreset');
-
-    font.value = 'Impact';
-    fontSize.value = 150;
-    subtitlePreset.value = 'clean-vlog';
-
-    mockDefaultStyleResponse = {
-      font: 'Open Sans',
-      fontSize: 90,
-      subtitlePreset: 'minimal'
-    };
-
-    mockStyleResponse = {
-      fontSize: 110
-    };
-
-    const { loadReadyClipIntoEditor } = useClipperJob();
-    await loadReadyClipIntoEditor('folder', '10_20_clip');
-
-    // font and subtitlePreset should be inherited from global default
-    // fontSize should be overridden by custom style
-    expect(font.value).toBe('Open Sans');
-    expect(fontSize.value).toBe(110);
-    expect(subtitlePreset.value).toBe('minimal');
-  });
-
-  it('loads timeline when polling returns ready job and timeline is empty', async () => {
+  it('loads timeline via GET /api/clip-session when polling returns ready job', async () => {
     vi.useFakeTimers();
     const { startPolling, stopPolling, jobId } = useClipperJob();
 
     jobId.value = 'job-123';
     mockTimelineTracks.value = [
       { id: 'video', name: 'Main Video', type: 'video', items: [] }
-    ]; // Empty timeline
+    ];
 
     vi.stubGlobal(
       '$fetch',
@@ -194,15 +151,25 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
             }
           });
         }
-        if (urlStr.includes('/timeline.json')) {
-          return Promise.resolve([
-            {
-              id: 'video',
-              name: 'Main Video',
-              type: 'video',
-              items: [{ id: 'mock-item-from-file' }]
+        if (urlStr.includes('/api/clip-session/folder/clip-1')) {
+          return Promise.resolve({
+            status: 'ok',
+            session: {
+              folder_name: 'folder',
+              clip_id: 'clip-1',
+              timeline: [
+                {
+                  id: 'video',
+                  name: 'Main Video',
+                  type: 'video',
+                  items: [{ id: 'mock-item-from-session' }]
+                }
+              ],
+              style_settings: {},
+              transcript: [],
+              crop_map: []
             }
-          ]);
+          });
         }
         return Promise.resolve({});
       })
@@ -216,7 +183,7 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
       t => t.type === 'video' || t.id === 'video'
     );
     expect(videoTrack?.items.length).toBe(1);
-    expect(videoTrack?.items[0]?.id).toBe('mock-item-from-file');
+    expect(videoTrack?.items[0]?.id).toBe('mock-item-from-session');
 
     stopPolling();
     vi.useRealTimers();
@@ -229,31 +196,14 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
       { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
     ];
 
-    vi.stubGlobal(
-      '$fetch',
-      vi.fn().mockImplementation(url => {
-        const urlStr = String(url);
-        if (urlStr.includes('/timeline.json')) {
-          return Promise.resolve([
-            { id: 'text-2', name: 'Text 2', type: 'text', items: [] },
-            { id: 'text', name: 'Text 1', type: 'text', items: [] },
-            { id: 'video', name: 'Main Video', type: 'video', items: [] },
-            { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
-          ]);
-        }
-        if (urlStr.includes('/api/load-ready-clip')) {
-          return Promise.resolve({
-            job_id: 'job-nle',
-            status: 'ready',
-            clip: {
-              asset_url: '/assets/clips/folder/clip-nle/video.mp4',
-              duration: 15
-            }
-          });
-        }
-        return Promise.resolve({});
-      })
-    );
+    mockSessionResponse = {
+      timeline: [
+        { id: 'text-2', name: 'Text 2', type: 'text', items: [] },
+        { id: 'text', name: 'Text 1', type: 'text', items: [] },
+        { id: 'video', name: 'Main Video', type: 'video', items: [] },
+        { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+      ]
+    };
 
     const { loadReadyClipIntoEditor } = useClipperJob();
     await loadReadyClipIntoEditor('folder', 'clip-nle');
@@ -345,8 +295,8 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
     vi.useRealTimers();
   });
 
-  it('loads crop_map.json into cropMap state when available on clip load', async () => {
-    const cropMap = useState<any[]>('cropMap');
+  it('loads crop_map from session into cropMap state when available on clip load', async () => {
+    const cropMap = useState<CropMapPoint[]>('cropMap');
     const cropMode = useState<string>('cropMode');
     cropMap.value = [];
     cropMode.value = 'manual';
@@ -356,75 +306,15 @@ describe('useClipperJob Sub-composable - Subtitle Style Loading', () => {
       { time: 2.5, x: 750 }
     ];
 
-    vi.stubGlobal(
-      '$fetch',
-      vi.fn().mockImplementation(url => {
-        const urlStr = String(url);
-        if (urlStr.includes('crop_map.json')) {
-          return Promise.resolve(mockCropMap);
-        }
-        if (urlStr.includes('/api/load-ready-clip')) {
-          return Promise.resolve({
-            job_id: 'job-123',
-            status: 'ready',
-            clip: {
-              asset_url: '/assets/clips/folder/clip_id/video.mp4',
-              duration: 10
-            }
-          });
-        }
-        return Promise.resolve({});
-      })
-    );
+    mockSessionResponse = {
+      crop_map: mockCropMap
+    };
 
     const { loadReadyClipIntoEditor } = useClipperJob();
     await loadReadyClipIntoEditor('folder', '10_20_clip');
 
     expect(cropMap.value).toEqual(mockCropMap);
     expect(cropMode.value).toBe('face_tracking');
-  });
-
-  it('calls track-face backfill when crop_map.json 404s', async () => {
-    const cropMap = useState<any[]>('cropMap');
-    cropMap.value = [];
-
-    const mockBackfillCropMap = [{ time: 0, x: 960 }];
-    const trackFaceSpy = vi
-      .fn()
-      .mockResolvedValue({ status: 'ready', crop_map: mockBackfillCropMap });
-
-    vi.stubGlobal(
-      '$fetch',
-      vi.fn().mockImplementation((url, options) => {
-        const urlStr = String(url);
-        if (urlStr.includes('crop_map.json')) {
-          return Promise.reject({ status: 404 });
-        }
-        if (urlStr.includes('/api/clips/folder/10_20_clip/track-face')) {
-          return trackFaceSpy(url, options);
-        }
-        if (urlStr.includes('/api/load-ready-clip')) {
-          return Promise.resolve({
-            job_id: 'job-123',
-            status: 'ready',
-            clip: {
-              asset_url: '/assets/clips/folder/clip_id/video.mp4',
-              duration: 10
-            }
-          });
-        }
-        return Promise.resolve({});
-      })
-    );
-
-    const { loadReadyClipIntoEditor } = useClipperJob();
-    await loadReadyClipIntoEditor('folder', '10_20_clip');
-
-    expect(trackFaceSpy).toHaveBeenCalledWith(
-      expect.stringContaining('/api/clips/folder/10_20_clip/track-face'),
-      expect.objectContaining({ method: 'POST' })
-    );
-    expect(cropMap.value).toEqual(mockBackfillCropMap);
   });
 
   it('populates videoUrl during analyzeCached even when activeHook is populated', async () => {

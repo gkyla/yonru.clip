@@ -13,7 +13,7 @@ describe('Timeline Undo/Redo Performance & Compact Payload Feedback Loop', () =>
     vi.clearAllMocks();
   });
 
-  it('saveTranscript MUST send _compact: true to prevent heavy session dump from backend', async () => {
+  it('saveTranscript sends canonical transcript patch without _compact flag', async () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue({ status: 'ok', folder_name: 'f1', clip_id: 'c1' });
@@ -29,10 +29,12 @@ describe('Timeline Undo/Redo Performance & Compact Payload Feedback Loop', () =>
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const fetchArgs = mockFetch.mock.calls[0];
     expect(fetchArgs[0]).toBe(`${API_BASE}/api/clip-session/f1/c1`);
-    expect(fetchArgs[1]?.body).toHaveProperty('_compact', true);
+    expect(fetchArgs[1]?.body).toEqual({
+      transcript: [{ start: 0, duration: 1, text: 'Hello' }]
+    });
   });
 
-  it('undo MUST NOT send un-compact payload that causes backend to echo heavy timeline audio', async () => {
+  it('undo sends canonical transcript patch without _compact flag when transcript changes', async () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue({ status: 'ok', folder_name: 'f1', clip_id: 'c1' });
@@ -50,7 +52,7 @@ describe('Timeline Undo/Redo Performance & Compact Payload Feedback Loop', () =>
               id: 'a1',
               start: 0,
               duration: 10,
-              src: 'data:audio/mp3;base64,' + 'A'.repeat(1000)
+              src: '/assets/audio_library/bgm.mp3'
             }
           ]
         }
@@ -66,10 +68,8 @@ describe('Timeline Undo/Redo Performance & Compact Payload Feedback Loop', () =>
     session.undo();
 
     expect(mockTimeline.undo).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalled();
-    for (const call of mockFetch.mock.calls) {
-      expect(call[1]?.body).toHaveProperty('_compact', true);
-    }
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0]?.[1]?.body).not.toHaveProperty('_compact');
   });
 
   it('skips redundant saveTranscript network request when undo only reverts timeline tracks (e.g. audio block drag)', () => {

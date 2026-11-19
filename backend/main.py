@@ -86,6 +86,7 @@ clip_session_store = ClipSessionStore("temp_assets/clips", output_dir="temp_asse
 
 from core.audio_library_repository import AudioLibraryRepository, DuplicateHandlingMode
 audio_library_repository = AudioLibraryRepository(output_dir="temp_assets", clip_session_store=clip_session_store)
+clip_session_store.audio_library_store = audio_library_repository
 
 youtube_client = YouTubeClient(cookie_path=cookie_path)
 asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=youtube_client, config_store=config_store, media_transcoder=media_transcoder)
@@ -218,30 +219,9 @@ class LoadReadyClipRequest(BaseModel):
     # Output
     output_name: Optional[str] = None
 
-class TranscriptEditRequest(BaseModel):
-    folder_name: str
-    clip_id: str
-    transcript: list  # List of {start, duration, text}
-
-class TimelineSaveRequest(BaseModel):
-    folder_name: str
-    clip_id: str
-    timeline_tracks: list
-
 class HookUpdateRequest(BaseModel):
     folder_name: str
     hooks: list
-
-class StyleSettingsRequest(BaseModel):
-    folder_name: str
-    clip_id: str
-    settings: dict
-
-class TimelineHistoryRequest(BaseModel):
-    folder_name: str
-    clip_id: str
-    undo_stack: list
-    redo_stack: list
 
 class DefaultStyleSettingsRequest(BaseModel):
     settings: dict
@@ -286,13 +266,6 @@ class CoverScreenshotRequest(BaseModel):
     timestamp: Optional[float] = None  # None = random
 
 ThumbnailScreenshotRequest = CoverScreenshotRequest
-
-class CoverConfigRequest(BaseModel):
-    folder_name: str
-    clip_id: str
-    config: dict  # { enabled, duration, screenshotTime, textOverlays }
-
-ThumbnailConfigRequest = CoverConfigRequest
 
 class BatchDeleteClipsRequest(BaseModel):
     clips: list[dict] # list of {folder_name, clip_id}
@@ -639,7 +612,6 @@ def get_clip_session(folder_name: str, clip_id: str):
         return {
             "status": "ok",
             "session": session,
-            **session
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -650,30 +622,15 @@ def get_clip_session(folder_name: str, clip_id: str):
 def update_clip_session(folder_name: str, clip_id: str, payload: dict):
     """Atomically update partial or complete clip session manifests."""
     try:
-        session = clip_session_store.save_clip_session(folder_name, clip_id, payload)
+        ack = clip_session_store.save_clip_session(folder_name, clip_id, payload)
         return {
             "status": "ok",
-            "session": session,
-            **session
+            **ack,
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.put("/api/transcript")
-async def update_transcript(req: TranscriptEditRequest):
-    """(Deprecated backward-compatible adapter) Manually update the transcript for a specific clip."""
-    try:
-        clip_session_store.save_transcript(req.folder_name, req.clip_id, req.transcript)
-        print(f"[edit] Updated isolated clip transcript for {req.folder_name}/{req.clip_id} ({len(req.transcript)} words)")
-        return {"status": "ok"}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        print(f"[edit] Clip save failed for {req.folder_name}/{req.clip_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.put("/api/hooks")
 async def update_hooks(req: HookUpdateRequest):
@@ -692,45 +649,6 @@ async def update_hooks(req: HookUpdateRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.put("/api/style-settings")
-async def update_style_settings(req: StyleSettingsRequest):
-    """(Deprecated backward-compatible adapter) Persist style settings via ClipSessionStore."""
-    try:
-        clip_session_store.save_style_settings(req.folder_name, req.clip_id, req.settings)
-        print(f"[edit] Updated style settings for {req.folder_name}/{req.clip_id}")
-        return {"status": "ok"}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        print(f"[edit] Style save failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.put("/api/timeline")
-async def update_timeline(req: TimelineSaveRequest):
-    """(Deprecated backward-compatible adapter) Persist timeline tracks via ClipSessionStore."""
-    try:
-        clip_session_store.save_timeline(req.folder_name, req.clip_id, req.timeline_tracks)
-        print(f"[edit] Updated timeline tracks for {req.folder_name}/{req.clip_id}")
-        return {"status": "ok"}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        print(f"[edit] Timeline save failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.put("/api/timeline-history")
-async def update_timeline_history(req: TimelineHistoryRequest):
-    """(Deprecated backward-compatible adapter) Persist undo/redo history stacks via ClipSessionStore."""
-    try:
-        clip_session_store.save_history(req.folder_name, req.clip_id, req.undo_stack, req.redo_stack)
-        print(f"[edit] Saved timeline history for {req.folder_name}/{req.clip_id}")
-        return {"status": "ok"}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        print(f"[edit] Timeline history save failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/default-style-settings")
@@ -855,44 +773,6 @@ async def cover_screenshot(req: CoverScreenshotRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/api/cover/config")
-async def save_cover_config(req: CoverConfigRequest):
-    """Save Cover Slide configuration for a clip."""
-    try:
-        clip_session_store.save_cover_config(req.folder_name, req.clip_id, req.config)
-        return {"status": "ok"}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/cover/config/{folder_name}/{clip_id}")
-async def get_cover_config(folder_name: str, clip_id: str):
-    """Load Cover Slide configuration for a clip with backward-compatible fallback."""
-    try:
-        config = clip_session_store.get_cover_config(folder_name, clip_id)
-        cover_url = clip_session_store.migrate_legacy_cover_if_needed(folder_name, clip_id)
-        if config is not None:
-            return {"config": config, "cover_url": cover_url}
-        
-        default_style = clip_session_store.get_default_cover_style()
-        if default_style:
-            duration = default_style.get("thumbnailDuration", 1.0)
-            initial_config = {
-                "enabled": False,
-                "duration": duration,
-                "screenshotTime": 0,
-                "textOverlays": [],
-                "xOffset": 50
-            }
-            clip_session_store.save_cover_config(folder_name, clip_id, initial_config)
-            return {"config": initial_config, "cover_url": cover_url}
-        return {"config": None, "cover_url": cover_url}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.delete("/api/cover/{folder_name}/{clip_id}")
 async def delete_cover(folder_name: str, clip_id: str):
     """Reset/delete cover image (cover.jpg) while strictly preserving Clip Thumbnail (thumbnail.jpg)."""
@@ -917,20 +797,18 @@ async def load_ready_clip(req: LoadReadyClipRequest, background_tasks: Backgroun
             background_tasks=background_tasks
         )
         return {
-            "job_id": res["job_id"], 
+            "job_id": res["job_id"],
             "status": res["status"],
             "clip": res["job"]["clip"],
             "hooks": res["job"]["hooks"],
+            "saved_hooks": res.get("saved_hooks", []),
             "fps": res["job"]["fps"],
-            "history": res.get("history"),
-            "cover_url": res.get("cover_url"),
-            "cover_config": res.get("cover_config"),
-            "thumbnail_url": res.get("thumbnail_url"),
-            "thumbnail_config": res.get("thumbnail_config"),
-            "poster_url": res.get("poster_url")
+            "session": res["session"],
         }
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

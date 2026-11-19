@@ -613,10 +613,14 @@ export const useClipperJob = () => {
         whisperModel.value
       );
       jobId.value = coordinator.getActiveJobId();
-      jobStatus.value = 'ready';
+      jobStatus.value = bundle.status || 'ready';
 
       applyHydratedClipBundle(bundle);
-      startPolling();
+      if (jobStatus.value !== 'ready') {
+        startPolling();
+      } else {
+        isMediaLoading.value = false;
+      }
     } catch (e: any) {
       jobStatus.value = 'error';
       jobError.value = e instanceof Error ? e.message : 'Failed to load clip';

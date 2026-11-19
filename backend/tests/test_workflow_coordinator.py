@@ -176,186 +176,165 @@ def test_run_full_analysis_no_transcript(mock_dependencies):
 
 def test_run_local_cut_success_flow(mock_dependencies, tmp_path):
     """Verify run_local_cut successfully cuts and transcribes the clip, and saves it."""
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    mock_dependencies["asset_repository"].clips_dir = str(clips_dir)
+    mock_dependencies["asset_repository"].output_dir = str(tmp_path)
+
+    mock_tracker = MagicMock()
+    mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 960}]
+
     coordinator = ClipWorkflowCoordinator(
         job_store=mock_dependencies["job_store"],
         asset_repository=mock_dependencies["asset_repository"],
         youtube_client=mock_dependencies["youtube_client"],
         speech_transcriber=mock_dependencies["speech_transcriber"],
         prompt_repository=mock_dependencies["prompt_repository"],
-        config_store=mock_dependencies["config_store"]
+        config_store=mock_dependencies["config_store"],
+        face_tracker=mock_tracker,
     )
-    
+
     job_id = "test_job"
     video_file = tmp_path / "video.mp4"
     video_file.write_text("dummy")
-    
+
     coordinator.jobs[job_id] = {
         "status": "queued",
         "full_video_path": str(video_file),
         "video_info": {"fps": 30.0},
         "clip": None
     }
-    
-    clip_dir = tmp_path / "clip_10_30"
-    clip_dir.mkdir()
+
+    clip_dir = clips_dir / "src_folder" / "clip_10_30"
+    clip_dir.mkdir(parents=True)
     clip_file = clip_dir / "video.mp4"
     clip_file.write_text("dummy clip")
-    
+
     mock_dependencies["speech_transcriber"].transcribe.return_value = [
         {"start": 0.5, "duration": 1.0, "text": "Hello"}
     ]
-    
-    # Backup existing default style settings and thumbnail styles
-    style_settings_backup = None
-    if os.path.exists("temp_assets/default_style_settings.json"):
-        try:
-            with open("temp_assets/default_style_settings.json", "r", encoding="utf-8") as f:
-                style_settings_backup = f.read()
-        except Exception:
-            pass
 
-    thumbnail_style_backup = None
-    if os.path.exists("temp_assets/default_thumbnail_style.json"):
-        try:
-            with open("temp_assets/default_thumbnail_style.json", "r", encoding="utf-8") as f:
-                thumbnail_style_backup = f.read()
-        except Exception:
-            pass
+    (tmp_path / "default_style_settings.json").write_text(json.dumps({"font": "Arial"}), encoding="utf-8")
+    (tmp_path / "default_thumbnail_style.json").write_text(json.dumps({"thumbnailDuration": 2.5, "fontSize": 80}), encoding="utf-8")
 
-    # Mock default style settings file and default thumbnail style
-    os.makedirs("temp_assets", exist_ok=True)
-    with open("temp_assets/default_style_settings.json", "w", encoding="utf-8") as f:
-        json.dump({"font": "Arial"}, f)
-    with open("temp_assets/default_thumbnail_style.json", "w", encoding="utf-8") as f:
-        json.dump({"thumbnailDuration": 2.5, "fontSize": 80}, f)
-        
-    try:
-        with patch.object(ClipSessionStore, "create_clip", return_value={"file_path": str(clip_file), "duration": 20.0}), \
-             patch.object(ClipSessionStore, "extract_clip_audio", return_value="dummy_audio.wav"):
-            coordinator.run_local_cut(job_id, 10.0, 30.0)
-        
-        # Assertions
-        assert coordinator.jobs[job_id]["status"] == "ready"
-        assert coordinator.jobs[job_id]["clip_path"] == str(clip_file)
-        assert coordinator.jobs[job_id]["clip_duration"] == 20.0
-        clip = coordinator.jobs[job_id]["clip"]
-        assert clip is not None
-        assert clip["transcript_quote"] == "Hello"
-        
-        # Verify transcription file created
-        transcript_path = clip_dir / "transcript.json"
-        assert transcript_path.exists()
-        with open(transcript_path, "r") as f:
-            saved_transcript = json.load(f)
-        assert len(saved_transcript) == 1
-        assert saved_transcript[0]["text"] == "Hello"
-        
-        # Verify style settings file copied
-        style_settings_path = clip_dir / "style_settings.json"
-        assert style_settings_path.exists()
+    with patch.object(ClipSessionStore, "create_clip", return_value={"file_path": str(clip_file), "duration": 20.0}), \
+         patch.object(ClipSessionStore, "extract_clip_audio", return_value="dummy_audio.wav"):
+        coordinator.run_local_cut(job_id, 10.0, 30.0)
 
-        # Verify default cover config populated
-        cover_config_path = clip_dir / "cover_config.json"
-        assert cover_config_path.exists()
-        with open(cover_config_path, "r") as f:
-            cover_config = json.load(f)
-        assert cover_config["duration"] == 2.5
-        assert cover_config["enabled"] is False
-        assert not (clip_dir / "thumbnail_config.json").exists()
-    finally:
-        # Restore backups or clean up
-        if style_settings_backup is not None:
-            with open("temp_assets/default_style_settings.json", "w", encoding="utf-8") as f:
-                f.write(style_settings_backup)
-        elif os.path.exists("temp_assets/default_style_settings.json"):
-            os.remove("temp_assets/default_style_settings.json")
+    assert coordinator.jobs[job_id]["status"] == "ready"
+    assert coordinator.jobs[job_id]["clip_path"] == str(clip_file)
+    assert coordinator.jobs[job_id]["clip_duration"] == 20.0
+    clip = coordinator.jobs[job_id]["clip"]
+    assert clip is not None
+    assert clip["transcript_quote"] == "Hello"
 
-        if thumbnail_style_backup is not None:
-            with open("temp_assets/default_thumbnail_style.json", "w", encoding="utf-8") as f:
-                f.write(thumbnail_style_backup)
-        elif os.path.exists("temp_assets/default_thumbnail_style.json"):
-            os.remove("temp_assets/default_thumbnail_style.json")
+    with open(clip_dir / "transcript.json", "r") as f:
+        saved_transcript = json.load(f)
+    assert len(saved_transcript) == 1
+    assert saved_transcript[0]["text"] == "Hello"
+
+    assert (clip_dir / "style_settings.json").exists()
+    with open(clip_dir / "cover_config.json", "r") as f:
+        cover_config = json.load(f)
+    assert cover_config["duration"] == 2.5
+    assert cover_config["enabled"] is False
+    assert not (clip_dir / "thumbnail_config.json").exists()
+
 
 def test_run_local_cut_reuse_transcript(mock_dependencies, tmp_path):
     """Verify run_local_cut reuses the existing transcript and style if present."""
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    mock_dependencies["asset_repository"].clips_dir = str(clips_dir)
+    mock_dependencies["asset_repository"].output_dir = str(tmp_path)
+
+    mock_tracker = MagicMock()
+    mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 960}]
+
     coordinator = ClipWorkflowCoordinator(
         job_store=mock_dependencies["job_store"],
         asset_repository=mock_dependencies["asset_repository"],
         youtube_client=mock_dependencies["youtube_client"],
         speech_transcriber=mock_dependencies["speech_transcriber"],
         prompt_repository=mock_dependencies["prompt_repository"],
-        config_store=mock_dependencies["config_store"]
+        config_store=mock_dependencies["config_store"],
+        face_tracker=mock_tracker,
     )
-    
+
     job_id = "test_job"
     video_file = tmp_path / "video.mp4"
     video_file.write_text("dummy")
-    
+
     coordinator.jobs[job_id] = {
         "status": "queued",
         "full_video_path": str(video_file),
         "video_info": {"fps": 30.0},
         "clip": None
     }
-    
-    clip_dir = tmp_path / "clip_10_30_reuse"
-    clip_dir.mkdir()
+
+    clip_dir = clips_dir / "src_folder" / "clip_10_30_reuse"
+    clip_dir.mkdir(parents=True)
     clip_file = clip_dir / "video.mp4"
     clip_file.write_text("dummy clip")
-    
+
     transcript_file = clip_dir / "transcript.json"
     transcript_file.write_text(json.dumps([
         {"start": 0.5, "duration": 1.0, "text": "Reused"}
     ]))
-    
+
     with patch.object(ClipSessionStore, "create_clip", return_value={"file_path": str(clip_file), "duration": 20.0}):
         coordinator.run_local_cut(job_id, 10.0, 30.0)
-    
-    # Assertions
+
     assert coordinator.jobs[job_id]["status"] == "ready"
     assert coordinator.jobs[job_id]["clip_path"] == str(clip_file)
-    
-    # Ensure speech transcriber was NOT called
     mock_dependencies["speech_transcriber"].transcribe.assert_not_called()
+
 
 def test_run_local_cut_whisper_fails(mock_dependencies, tmp_path):
     """Verify run_local_cut writes a fallback empty transcript and finishes normally if Whisper fails."""
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    mock_dependencies["asset_repository"].clips_dir = str(clips_dir)
+    mock_dependencies["asset_repository"].output_dir = str(tmp_path)
+
+    mock_tracker = MagicMock()
+    mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 960}]
+
     coordinator = ClipWorkflowCoordinator(
         job_store=mock_dependencies["job_store"],
         asset_repository=mock_dependencies["asset_repository"],
         youtube_client=mock_dependencies["youtube_client"],
         speech_transcriber=mock_dependencies["speech_transcriber"],
         prompt_repository=mock_dependencies["prompt_repository"],
-        config_store=mock_dependencies["config_store"]
+        config_store=mock_dependencies["config_store"],
+        face_tracker=mock_tracker,
     )
-    
+
     job_id = "test_job_fail"
     video_file = tmp_path / "video.mp4"
     video_file.write_text("dummy")
-    
+
     coordinator.jobs[job_id] = {
         "status": "queued",
         "full_video_path": str(video_file),
         "video_info": {"fps": 30.0},
         "clip": None
     }
-    
-    clip_dir = tmp_path / "clip_10_30_fail"
-    clip_dir.mkdir()
+
+    clip_dir = clips_dir / "src_folder" / "clip_10_30_fail"
+    clip_dir.mkdir(parents=True)
     clip_file = clip_dir / "video.mp4"
     clip_file.write_text("dummy clip")
-    
+
     mock_dependencies["speech_transcriber"].transcribe.side_effect = Exception("Whisper failed")
-    
+
     with patch.object(ClipSessionStore, "create_clip", return_value={"file_path": str(clip_file), "duration": 20.0}), \
          patch.object(ClipSessionStore, "extract_clip_audio", return_value="dummy_audio.wav"):
         coordinator.run_local_cut(job_id, 10.0, 30.0)
-    
-    # Assertions
+
     assert coordinator.jobs[job_id]["status"] == "ready"
     assert coordinator.jobs[job_id]["clip_path"] == str(clip_file)
-    
-    # Verify fallback empty transcript was created
+
     transcript_path = clip_dir / "transcript.json"
     assert transcript_path.exists()
     with open(transcript_path, "r") as f:
@@ -365,13 +344,22 @@ def test_run_local_cut_whisper_fails(mock_dependencies, tmp_path):
 
 def test_run_local_cut_whisper_fails_fallback_to_global_transcript(mock_dependencies, tmp_path):
     """Verify run_local_cut recovers and slices cached youtube-transcript.json when Whisper fails."""
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    mock_dependencies["asset_repository"].clips_dir = str(clips_dir)
+    mock_dependencies["asset_repository"].output_dir = str(tmp_path)
+
+    mock_tracker = MagicMock()
+    mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 960}]
+
     coordinator = ClipWorkflowCoordinator(
         job_store=mock_dependencies["job_store"],
         asset_repository=mock_dependencies["asset_repository"],
         youtube_client=mock_dependencies["youtube_client"],
         speech_transcriber=mock_dependencies["speech_transcriber"],
         prompt_repository=mock_dependencies["prompt_repository"],
-        config_store=mock_dependencies["config_store"]
+        config_store=mock_dependencies["config_store"],
+        face_tracker=mock_tracker,
     )
     
     job_id = "test_job_fail_with_global"
@@ -396,8 +384,8 @@ def test_run_local_cut_whisper_fails_fallback_to_global_transcript(mock_dependen
         "clip": None
     }
     
-    clip_dir = tmp_path / "clip_10_30_recovered"
-    clip_dir.mkdir()
+    clip_dir = clips_dir / "src_folder" / "clip_10_30_recovered"
+    clip_dir.mkdir(parents=True)
     clip_file = clip_dir / "video.mp4"
     clip_file.write_text("dummy clip")
     
@@ -498,31 +486,34 @@ def test_run_full_analysis_uses_cached_youtube_transcript(mock_dependencies, tmp
 
 def test_provision_clip_cached_ready(mock_dependencies, tmp_path):
     """Verify provision_clip returns status 'ready' immediately if clip and transcript exist on disk."""
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    mock_dependencies["asset_repository"].clips_dir = str(clips_dir)
+    mock_dependencies["asset_repository"].output_dir = str(tmp_path)
+
+    mock_tracker = MagicMock()
+    mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 960}]
+
     coordinator = ClipWorkflowCoordinator(
         job_store=mock_dependencies["job_store"],
         asset_repository=mock_dependencies["asset_repository"],
         youtube_client=mock_dependencies["youtube_client"],
         speech_transcriber=mock_dependencies["speech_transcriber"],
         prompt_repository=mock_dependencies["prompt_repository"],
-        config_store=mock_dependencies["config_store"]
+        config_store=mock_dependencies["config_store"],
+        face_tracker=mock_tracker,
     )
-    
-    # Setup mock asset repository clips_dir and output_dir
-    clips_dir = tmp_path / "clips"
-    clips_dir.mkdir()
-    coordinator.asset_repository.clips_dir = str(clips_dir)
-    coordinator.asset_repository.output_dir = str(tmp_path)
-    
+
     # Create fake default files in output_dir
     (tmp_path / "default_style_settings.json").write_text(json.dumps({"fontSize": 48}))
     (tmp_path / "default_thumbnail_style.json").write_text(json.dumps({"thumbnailDuration": 2.0}))
-    
+
     # Setup job
     job_id = "job_cached_ready"
     video_path = tmp_path / "sources" / "vid1" / "video.mp4"
     video_path.parent.mkdir(parents=True)
     video_path.write_text("dummy video")
-    
+
     coordinator.jobs[job_id] = {
         "status": "pending",
         "video_info": {
@@ -531,17 +522,12 @@ def test_provision_clip_cached_ready(mock_dependencies, tmp_path):
             "duration": 60.0
         }
     }
-    
+
     # Setup clip directory on disk with valid transcript
     clip_dir = clips_dir / "vid1" / "10_25_test_theme"
     clip_dir.mkdir(parents=True)
     (clip_dir / "video.mp4").write_text("dummy clip")
     (clip_dir / "transcript.json").write_text(json.dumps([{"text": "hello", "start": 0.0, "duration": 1.0}]))
-    
-    # Mock face tracker on coordinator to avoid mediapipe overhead
-    mock_tracker = MagicMock()
-    mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 960}]
-    coordinator.face_tracker = mock_tracker
     
     # Provision clip
     res = coordinator.provision_clip(
@@ -674,25 +660,29 @@ def test_provision_clip_corrupt_transcript_cleans_and_schedules(mock_dependencie
 
 
 def test_load_ready_clip_success(mock_dependencies, tmp_path):
-    """Verify load_ready_clip loads existing clip, seeds defaults and crop map, and returns complete payload."""
+    """Verify load_ready_clip loads existing clip via single get_clip_session call and returns unified payload."""
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    sources_dir = tmp_path / "sources"
+    sources_dir.mkdir()
+    mock_dependencies["asset_repository"].clips_dir = str(clips_dir)
+    mock_dependencies["asset_repository"].source_dir = str(sources_dir)
+    mock_dependencies["asset_repository"].output_dir = str(tmp_path)
+    mock_dependencies["asset_repository"].get_saved_hooks.return_value = [{"id": "sh1", "theme": "Saved"}]
+
+    mock_tracker = MagicMock()
+    mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 960}]
+
     coordinator = ClipWorkflowCoordinator(
         job_store=mock_dependencies["job_store"],
         asset_repository=mock_dependencies["asset_repository"],
         youtube_client=mock_dependencies["youtube_client"],
         speech_transcriber=mock_dependencies["speech_transcriber"],
         prompt_repository=mock_dependencies["prompt_repository"],
-        config_store=mock_dependencies["config_store"]
+        config_store=mock_dependencies["config_store"],
+        face_tracker=mock_tracker,
     )
-    
-    clips_dir = tmp_path / "clips"
-    clips_dir.mkdir()
-    sources_dir = tmp_path / "sources"
-    sources_dir.mkdir()
-    coordinator.asset_repository.clips_dir = str(clips_dir)
-    coordinator.asset_repository.source_dir = str(sources_dir)
-    coordinator.asset_repository.output_dir = str(tmp_path)
-    
-    # Mock video info
+
     mock_dependencies["asset_repository"].get_cached_video_by_folder.return_value = {
         "folder_name": "vid_folder_1",
         "video_id": "yt_123",
@@ -701,30 +691,27 @@ def test_load_ready_clip_success(mock_dependencies, tmp_path):
         "duration": 120.0
     }
     mock_dependencies["asset_repository"].get_video_duration.return_value = 15.0
-    
-    # Create clip on disk
+
     clip_dir = clips_dir / "vid_folder_1" / "10_25_awesome_clip"
     clip_dir.mkdir(parents=True)
     (clip_dir / "video.mp4").write_text("dummy video")
     (clip_dir / "transcript.json").write_text(json.dumps([{"text": "Sample clip text", "start": 0.0, "duration": 2.0}]))
-    
-    # Create source hooks
+
     source_folder = sources_dir / "vid_folder_1"
     source_folder.mkdir(parents=True)
     (source_folder / "hooks.json").write_text(json.dumps([{"start": 10.0, "end": 25.0, "title": "Hook 1"}]))
-    
-    # Mock face tracker
-    mock_tracker = MagicMock()
-    mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 960}]
-    coordinator.face_tracker = mock_tracker
-    
+
     res = coordinator.load_ready_clip("vid_folder_1", "10_25_awesome_clip", whisper_model="base")
-    
+
     assert res["status"] == "ready"
     assert "job_id" in res
     assert res["job"]["clip"]["transcript_quote"] == "Sample clip text"
     assert res["job"]["clip"]["theme"] == "awesome clip"
     assert len(res["job"]["hooks"]) == 1
+    assert res["saved_hooks"] == [{"id": "sh1", "theme": "Saved"}]
+    assert res["session"]["folder_name"] == "vid_folder_1"
+    assert res["session"]["clip_id"] == "10_25_awesome_clip"
+    assert res["session"]["crop_map"] == [{"time": 0.0, "x": 960}]
     assert (clip_dir / "crop_map.json").exists()
 
 
@@ -818,6 +805,11 @@ def test_replay_cached_analysis_not_found_raises(mock_dependencies):
 
 
 def test_get_job_summary_hydration(mock_dependencies, tmp_path):
+    clips_dir = tmp_path / "clips"
+    clips_dir.mkdir()
+    mock_dependencies["asset_repository"].clips_dir = str(clips_dir)
+    mock_dependencies["asset_repository"].output_dir = str(tmp_path)
+
     coordinator = ClipWorkflowCoordinator(
         job_store=mock_dependencies["job_store"],
         asset_repository=mock_dependencies["asset_repository"],
@@ -827,7 +819,7 @@ def test_get_job_summary_hydration(mock_dependencies, tmp_path):
         config_store=mock_dependencies["config_store"]
     )
     
-    clip_dir = tmp_path / "clips" / "folder_abc" / "clip_xyz"
+    clip_dir = clips_dir / "folder_abc" / "clip_xyz"
     clip_dir.mkdir(parents=True)
     clip_video = clip_dir / "video.mp4"
     clip_video.write_text("clip content")
@@ -918,7 +910,7 @@ def test_coordinator_injects_transcoder_into_session_store(mock_dependencies, tm
         config_store=mock_dependencies["config_store"],
     )
 
-    store = coordinator._get_clip_session_store()
+    store = coordinator.clip_session_store
     assert store.transcoder is mock_transcoder
 
 
@@ -979,12 +971,39 @@ def test_get_or_create_crop_map_path_traversal(mock_dependencies, tmp_path):
         coordinator.get_or_create_crop_map("../../etc", "passwd")
 
 
-def test_ensure_defaults_auto_seeds_canonical_style(mock_dependencies, tmp_path):
+def test_load_ready_clip_calls_get_clip_session_once(mock_dependencies, tmp_path):
+    """Verify load_ready_clip hydrates via single clip_session_store.get_clip_session call."""
     output_dir = tmp_path / "custom_output"
-    clip_dir = output_dir / "clips" / "video1" / "clip1"
+    clips_dir = output_dir / "clips"
+    clip_dir = clips_dir / "video1" / "0_10"
     clip_dir.mkdir(parents=True)
+    (clip_dir / "video.mp4").write_text("dummy")
 
     mock_dependencies["asset_repository"].output_dir = str(output_dir)
+    mock_dependencies["asset_repository"].clips_dir = str(clips_dir)
+    mock_dependencies["asset_repository"].get_cached_video_by_folder.return_value = {
+        "folder_name": "video1",
+        "video_id": "yt1",
+        "file_path": str(tmp_path / "full.mp4"),
+        "fps": 30.0,
+    }
+    mock_dependencies["asset_repository"].get_saved_hooks.return_value = []
+
+    mock_store = MagicMock()
+    mock_store.resolve_clip_dir.return_value = str(clip_dir)
+    mock_store.get_clip_session.return_value = {
+        "folder_name": "video1",
+        "clip_id": "0_10",
+        "transcript": [],
+        "style_settings": {"videoLayout": "vertical"},
+        "timeline": [],
+        "history": {"undo_stack": [], "redo_stack": []},
+        "cover_config": {"enabled": False},
+        "crop_map": [{"time": 0.0, "x": 960}],
+        "asset_url": "/assets/clips/video1/0_10/video.mp4",
+        "thumbnail_url": "/assets/clips/video1/0_10/thumbnail.jpg",
+        "cover_url": None,
+    }
 
     coordinator = ClipWorkflowCoordinator(
         job_store=mock_dependencies["job_store"],
@@ -992,29 +1011,15 @@ def test_ensure_defaults_auto_seeds_canonical_style(mock_dependencies, tmp_path)
         youtube_client=mock_dependencies["youtube_client"],
         speech_transcriber=mock_dependencies["speech_transcriber"],
         prompt_repository=mock_dependencies["prompt_repository"],
-        config_store=mock_dependencies["config_store"]
+        config_store=mock_dependencies["config_store"],
+        clip_session_store=mock_store,
     )
 
-    default_style_path = output_dir / "default_style_settings.json"
-    clip_style_path = clip_dir / "style_settings.json"
+    with patch("threading.Thread"):
+        res = coordinator.load_ready_clip("video1", "0_10")
 
-    assert not default_style_path.exists()
-    assert not clip_style_path.exists()
-
-    coordinator._ensure_defaults(str(clip_dir))
-
-    assert default_style_path.exists()
-    assert clip_style_path.exists()
-
-    with open(default_style_path, "r", encoding="utf-8") as f:
-        default_data = json.load(f)
-    assert default_data["videoLayout"] == "vertical"
-    assert default_data["cropMode"] == "face_tracking"
-
-    with open(clip_style_path, "r", encoding="utf-8") as f:
-        clip_data = json.load(f)
-    assert clip_data["videoLayout"] == "vertical"
-    assert clip_data["cropMode"] == "face_tracking"
+    mock_store.get_clip_session.assert_called_once_with("video1", "0_10")
+    assert res["session"]["crop_map"] == [{"time": 0.0, "x": 960}]
 
 
 def test_delete_source_video_cascading(mock_dependencies):

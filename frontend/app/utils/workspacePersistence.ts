@@ -11,7 +11,8 @@ import type {
   CachedVideo,
   LastAccessedClip,
   TimelineTrack,
-  TimelineTrackItem
+  TimelineTrackItem,
+  CoverTextOverlay
 } from '../types/clipper';
 
 export interface WorkspaceSettingsSchema {
@@ -58,7 +59,19 @@ export interface DomainEditorSessionReactivityContext {
   folderName?: Ref<string | null>;
   clipId?: Ref<string | null>;
   saveStyleSettings?: () => Promise<void> | void;
-  saveClipSession?: () => Promise<void> | void;
+  saveClipSession?: () => Promise<unknown> | void;
+  saveTimelineTracks?: () => Promise<void> | void;
+  saveHistoryToBackend?: () => Promise<void> | void;
+  saveCoverConfig?: () => Promise<void> | void;
+}
+
+export interface DomainCoverReactivityContext {
+  coverEnabled?: Ref<boolean>;
+  coverDuration?: Ref<number>;
+  coverScreenshotTime?: Ref<number>;
+  coverTextOverlays?: Ref<CoverTextOverlay[]>;
+  coverXOffset?: Ref<number>;
+  saveCoverConfig?: () => Promise<void> | void;
 }
 
 export interface DomainAuditorReactivityContext {
@@ -74,6 +87,7 @@ export interface DomainTimelineReactivityContext {
   hasUnsavedHistory?: Ref<boolean>;
   isSavingHistory?: Ref<boolean>;
   isSavingLocked?: Ref<boolean>;
+  isDraggingTimelineItem?: Ref<boolean>;
   saveTimelineTracks?: () => void;
   saveHistoryToBackend?: () => void;
   syncGlobalStylesToItem?: (item: TimelineTrackItem) => void;
@@ -118,6 +132,7 @@ export interface WorkspaceReactivityContext {
   auditor?: DomainAuditorReactivityContext;
   timeline?: DomainTimelineReactivityContext;
   thumbnail?: DomainThumbnailReactivityContext;
+  cover?: DomainCoverReactivityContext;
   subtitleStyle?: DomainSubtitleStyleReactivityContext;
 
   // Backward-compatible flat context fields
@@ -178,7 +193,7 @@ export interface WorkspaceReactivityContext {
   landscapeDarkness?: Ref<number>;
   autoAdaptiveSubtitles?: Ref<boolean>;
   saveStyleSettings?: () => Promise<void> | void;
-  saveClipSession?: () => Promise<void> | void;
+  saveClipSession?: () => Promise<unknown> | void;
 }
 
 export class WorkspacePersistenceCoordinator {
@@ -333,7 +348,16 @@ export class WorkspacePersistenceCoordinator {
       clipId: ctx.editorSession?.clipId ?? ctx.clipId,
       saveStyleSettings:
         ctx.editorSession?.saveStyleSettings ?? ctx.saveStyleSettings,
-      saveClipSession: ctx.editorSession?.saveClipSession ?? ctx.saveClipSession
+      saveClipSession:
+        ctx.editorSession?.saveClipSession ?? ctx.saveClipSession,
+      saveTimelineTracks:
+        ctx.editorSession?.saveTimelineTracks ??
+        ctx.timeline?.saveTimelineTracks,
+      saveHistoryToBackend:
+        ctx.editorSession?.saveHistoryToBackend ??
+        ctx.timeline?.saveHistoryToBackend,
+      saveCoverConfig:
+        ctx.editorSession?.saveCoverConfig ?? ctx.cover?.saveCoverConfig
     };
 
     const timeline = ctx.timeline;
@@ -341,6 +365,7 @@ export class WorkspacePersistenceCoordinator {
     const thumbnail = ctx.thumbnail ?? {
       loadDefaultThumbnailStyle: ctx.loadDefaultThumbnailStyle
     };
+    const cover = ctx.cover;
 
     const subtitleStyle: DomainSubtitleStyleReactivityContext = {
       font: ctx.subtitleStyle?.font ?? ctx.font,
@@ -509,13 +534,15 @@ export class WorkspacePersistenceCoordinator {
       );
     }
 
-    if (timeline?.timelineTracks && timeline.saveTimelineTracks) {
+    const saveTimelineFn =
+      editorSession.saveTimelineTracks ?? timeline?.saveTimelineTracks;
+    if (timeline?.timelineTracks && saveTimelineFn) {
       unwatchList.push(
         watch(
           timeline.timelineTracks,
           () => {
             if (timeline.isDraggingTimelineItem?.value) return;
-            timeline.saveTimelineTracks?.();
+            saveTimelineFn();
           },
           { deep: true }
         )
@@ -524,10 +551,12 @@ export class WorkspacePersistenceCoordinator {
 
     // Debounced persistence for history stacks
     let historyDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const saveHistoryFn =
+      editorSession.saveHistoryToBackend ?? timeline?.saveHistoryToBackend;
     if (
       timeline?.timelineUndoStack &&
       timeline?.timelineRedoStack &&
-      timeline.saveHistoryToBackend
+      saveHistoryFn
     ) {
       unwatchList.push(
         watch(
@@ -549,7 +578,7 @@ export class WorkspacePersistenceCoordinator {
             }
             if (historyDebounceTimer) clearTimeout(historyDebounceTimer);
             historyDebounceTimer = setTimeout(() => {
-              timeline.saveHistoryToBackend?.();
+              saveHistoryFn();
             }, 1500);
           }
         )
@@ -638,12 +667,52 @@ export class WorkspacePersistenceCoordinator {
       }
     }
 
+    // Debounced persistence for Cover Slide configuration (300ms)
+    let coverDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const saveCoverFn = editorSession.saveCoverConfig ?? cover?.saveCoverConfig;
+    if (saveCoverFn && cover) {
+      const watchedCoverRefs = [
+        cover.coverEnabled,
+        cover.coverDuration,
+        cover.coverScreenshotTime,
+        cover.coverTextOverlays,
+        cover.coverXOffset
+      ].filter((r): r is Ref<unknown> => Boolean(r));
+
+      if (watchedCoverRefs.length > 0) {
+        unwatchList.push(
+          watch(
+            watchedCoverRefs,
+            () => {
+              if (timeline?.isSavingLocked?.value) return;
+              if (
+                !editorSession.folderName?.value ||
+                !editorSession.clipId?.value
+              ) {
+                return;
+              }
+              if (coverDebounceTimer) clearTimeout(coverDebounceTimer);
+              coverDebounceTimer = setTimeout(() => {
+                saveCoverFn();
+              }, 300);
+            },
+            { deep: true }
+          )
+        );
+      }
+    }
+
     // 6. BeforeUnload Guard & Flush
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (styleDebounceTimer) {
         clearTimeout(styleDebounceTimer);
         styleDebounceTimer = null;
         editorSession.saveStyleSettings?.();
+      }
+      if (coverDebounceTimer) {
+        clearTimeout(coverDebounceTimer);
+        coverDebounceTimer = null;
+        saveCoverFn?.();
       }
       if (
         timeline?.hasUnsavedHistory?.value ||
@@ -664,6 +733,10 @@ export class WorkspacePersistenceCoordinator {
       if (styleDebounceTimer) {
         clearTimeout(styleDebounceTimer);
         styleDebounceTimer = null;
+      }
+      if (coverDebounceTimer) {
+        clearTimeout(coverDebounceTimer);
+        coverDebounceTimer = null;
       }
       unwatchList.forEach(unwatch => unwatch());
     };

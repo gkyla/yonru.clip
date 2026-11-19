@@ -324,27 +324,6 @@ export const useSubtitleStyle = () => {
     );
   }
 
-  async function saveStyleSettings(
-    folderName: string,
-    clipId: string
-  ): Promise<void> {
-    if (!folderName || !clipId) return;
-    try {
-      await $fetch(
-        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName)}/${encodeURIComponent(clipId)}`,
-        {
-          method: 'PUT',
-          body: {
-            style_settings: getStyleSnapshot(),
-            _compact: true
-          }
-        }
-      );
-    } catch (e) {
-      console.error('Failed to save style settings', e);
-    }
-  }
-
   async function saveDefaultStyleSettings(): Promise<void> {
     try {
       await $fetch(`${API_BASE}/api/default-style-settings`, {
@@ -409,7 +388,6 @@ export const useSubtitleStyle = () => {
     resetStyleSettings,
     applyPreset,
     toggleSubtitles,
-    saveStyleSettings,
     saveDefaultStyleSettings
   };
 };

@@ -17,16 +17,14 @@ describe('useClipperCover Composable', () => {
             cover_url: '/assets/clips/folderA/clipA/cover.jpg'
           });
         }
-        if (url.includes('/api/cover/config')) {
-          return Promise.resolve({ status: 'ok' });
-        }
         return Promise.resolve({});
       })
     );
   });
 
-  it('reproduces Bug 1: toggleCover does not get stuck in isCapturingCover when capturing frame', async () => {
-    const cover = useClipperCover();
+  it('reproduces Bug 1: toggleCover does not get stuck in isCapturingCover and invokes onSaveCoverConfig callback', async () => {
+    const onSaveCoverConfig = vi.fn().mockResolvedValue(undefined);
+    const cover = useClipperCover({ onSaveCoverConfig });
     const jobId = useState<string | null>('jobId');
     jobId.value = 'test-job-123';
 
@@ -34,19 +32,15 @@ describe('useClipperCover Composable', () => {
     cover.coverUrl.value = null;
     cover.isCapturingCover.value = false;
 
-    // Trigger toggle
     await cover.toggleCover();
 
-    // After toggle completes:
-    // 1. isCapturingCover MUST be false (not stuck at true)
     expect(cover.isCapturingCover.value).toBe(false);
-    // 2. coverEnabled must be true
     expect(cover.coverEnabled.value).toBe(true);
-    // 3. coverUrl should be captured
     expect(cover.coverUrl.value).toContain('cover.jpg');
+    expect(onSaveCoverConfig).toHaveBeenCalledTimes(1);
   });
 
-  it('reproduces Bug 2: loading a clip with cover config populates useClipperCover state seamlessly', async () => {
+  it('reproduces Bug 2: loading a clip with cover config in session populates useClipperCover state seamlessly', async () => {
     vi.stubGlobal(
       '$fetch',
       vi.fn().mockImplementation((url: string) => {
@@ -56,32 +50,36 @@ describe('useClipperCover Composable', () => {
             status: 'ready',
             clip: { duration: 120, start: 0, end: 120, theme: 'Clip Theme' },
             hooks: [],
+            saved_hooks: [],
             fps: 30,
-            history: null,
-            cover_url: '/assets/clips/folderA/2253_2377_clip/cover.jpg'
-          });
-        }
-        if (url.includes('/api/cover/config/')) {
-          return Promise.resolve({
-            config: {
-              enabled: true,
-              duration: 1.5,
-              screenshotTime: 40.1,
-              textOverlays: [
-                {
-                  id: 'overlay-1',
-                  text: 'KEBANYAKAN DUDUK BIKIN VARISES?',
-                  x: 200,
-                  y: 1200,
-                  fontSize: 65,
-                  fontFamily: 'Lilita One',
-                  fontWeight: 900,
-                  color: '#ffea00'
-                }
-              ],
-              xOffset: 45
-            },
-            cover_url: '/assets/clips/folderA/2253_2377_clip/cover.jpg'
+            session: {
+              folder_name: 'folderA',
+              clip_id: '2253_2377_clip',
+              transcript: [],
+              style_settings: {},
+              timeline: [],
+              history: { undo_stack: [], redo_stack: [] },
+              cover_config: {
+                enabled: true,
+                duration: 1.5,
+                screenshotTime: 40.1,
+                textOverlays: [
+                  {
+                    id: 'overlay-1',
+                    text: 'KEBANYAKAN DUDUK BIKIN VARISES?',
+                    x: 200,
+                    y: 1200,
+                    fontSize: 65,
+                    fontFamily: 'Lilita One',
+                    fontWeight: 900,
+                    color: '#ffea00'
+                  }
+                ],
+                xOffset: 45
+              },
+              crop_map: [],
+              cover_url: '/assets/clips/folderA/2253_2377_clip/cover.jpg'
+            }
           });
         }
         return Promise.resolve({});

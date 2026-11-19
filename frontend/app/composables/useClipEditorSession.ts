@@ -1,8 +1,17 @@
 // Composable for managing the clip editor session, transcript editing & sanitization,
 // multi-track timeline autosave, style snapshot persistence, and render spec assembly.
-import type { Hook, TranscriptSegment, CropMapPoint } from '../types/clipper';
+import type {
+  Hook,
+  TranscriptSegment,
+  CropMapPoint,
+  HistorySnapshot
+} from '../types/clipper';
 import type { RenderSpec } from '../types/render';
 import { resolveApiBase } from '../utils/apiBase';
+import {
+  patchSession,
+  type ClipSessionPatch
+} from '../utils/clipSessionClient';
 import { useAppNotifier } from './useAppNotifier';
 import { useCachedLibrary } from './useCachedLibrary';
 import { useTimelineState } from './useTimelineState';
@@ -148,6 +157,38 @@ export const useClipEditorSession = (
     );
   }
 
+  // Flush undo/redo history once per clip switch before stacks clear
+  watch(
+    [folderName, clipId],
+    (_newVal, oldVal) => {
+      const [oldFolder, oldClip] = oldVal || [null, null];
+      const undoLen = timeline.timelineUndoStack?.value?.length ?? 0;
+      const redoLen = timeline.timelineRedoStack?.value?.length ?? 0;
+      if (oldFolder && oldClip && (undoLen > 0 || redoLen > 0)) {
+        const snapshot = {
+          undo_stack: [...(timeline.timelineUndoStack?.value ?? [])],
+          redo_stack: [...(timeline.timelineRedoStack?.value ?? [])]
+        };
+        if (timeline.timelineUndoStack) timeline.timelineUndoStack.value = [];
+        if (timeline.timelineRedoStack) timeline.timelineRedoStack.value = [];
+        if (timeline.hasUnsavedHistory)
+          timeline.hasUnsavedHistory.value = false;
+        saveHistoryToBackend(oldFolder, oldClip, snapshot);
+      }
+    },
+    { flush: 'sync' }
+  );
+
+  function buildCoverConfigPayload() {
+    return {
+      enabled: coverState.coverEnabled.value ?? false,
+      duration: coverState.coverDuration.value ?? 1.0,
+      screenshotTime: coverState.coverScreenshotTime.value ?? 0,
+      textOverlays: coverState.coverTextOverlays.value || [],
+      xOffset: coverState.coverXOffset.value ?? 50
+    };
+  }
+
   async function saveTranscript(isSilent = false) {
     if (!folderName.value || !fullTranscript.value || !clipId.value) return;
     const silent = isSilent === true;
@@ -155,20 +196,13 @@ export const useClipEditorSession = (
     const cleanTranscript = sanitizeTranscript(fullTranscript.value);
 
     try {
-      await $fetch(
-        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`,
-        {
-          method: 'PUT',
-          body: {
-            transcript: cleanTranscript,
-            _compact: true
-          }
-        }
-      );
+      await patchSession(folderName.value, clipId.value, {
+        transcript: cleanTranscript
+      });
       if (!silent) {
         notifier.showToast('Edits saved successfully!', 'success');
       }
-    } catch (e) {
+    } catch {
       if (!silent) {
         notifier.showToast('Failed to save edits', 'error');
       }
@@ -176,7 +210,7 @@ export const useClipEditorSession = (
   }
 
   async function saveClipSession(
-    customPayload?: Record<string, any>,
+    customPayload?: Partial<ClipSessionPatch>,
     isSilent = false
   ) {
     if (!folderName.value || !clipId.value) return;
@@ -184,37 +218,24 @@ export const useClipEditorSession = (
 
     const cleanTranscript = sanitizeTranscript(fullTranscript.value || []);
 
-    const defaultPayload = {
+    const defaultPayload: ClipSessionPatch = {
       transcript: cleanTranscript,
       style_settings: subtitleStyle.getStyleSnapshot(),
       timeline: timeline.timelineTracks.value,
-      cover_config: {
-        enabled: coverState.coverEnabled.value ?? false,
-        duration: coverState.coverDuration.value ?? 1.0,
-        screenshotTime: coverState.coverScreenshotTime.value ?? 0,
-        textOverlays: coverState.coverTextOverlays.value || [],
-        xOffset: coverState.coverXOffset.value ?? 50
-      },
+      cover_config: buildCoverConfigPayload(),
       history: {
         undo_stack: timeline.timelineUndoStack.value,
         redo_stack: timeline.timelineRedoStack.value
       },
-      _compact: true,
       ...(cropMap.value?.length > 0 ? { crop_map: cropMap.value } : {})
     };
 
-    const payload = customPayload
+    const payload: ClipSessionPatch = customPayload
       ? { ...defaultPayload, ...customPayload }
       : defaultPayload;
 
     try {
-      const res = await $fetch<{ status: string; session?: any }>(
-        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`,
-        {
-          method: 'PUT',
-          body: payload
-        }
-      );
+      const res = await patchSession(folderName.value, clipId.value, payload);
       if (!silent) {
         notifier.showToast('Edits saved successfully!', 'success');
       }
@@ -238,7 +259,7 @@ export const useClipEditorSession = (
         }
       });
       notifier.showToast('Hook names updated', 'success');
-    } catch (e: any) {
+    } catch {
       notifier.showToast('Failed to update hook names', 'error');
     }
   }
@@ -246,16 +267,65 @@ export const useClipEditorSession = (
   async function saveStyleSettings() {
     if (!folderName.value || !clipId.value) return;
     try {
-      await $fetch(
-        `${API_BASE}/api/clip-session/${encodeURIComponent(folderName.value)}/${encodeURIComponent(clipId.value)}`,
-        {
-          method: 'PUT',
-          body: {
-            style_settings: subtitleStyle.getStyleSnapshot(),
-            _compact: true
-          }
+      await patchSession(folderName.value, clipId.value, {
+        style_settings: subtitleStyle.getStyleSnapshot()
+      });
+    } catch {}
+  }
+
+  async function saveTimelineTracks() {
+    if (timeline.isSavingLocked?.value) {
+      return;
+    }
+    if (!folderName.value || !clipId.value) return;
+    try {
+      await patchSession(folderName.value, clipId.value, {
+        timeline: timeline.timelineTracks.value
+      });
+    } catch (e) {
+      console.error('[clipper] Failed to save timeline tracks:', e);
+    }
+  }
+
+  async function saveHistoryToBackend(
+    targetFolder?: string,
+    targetClip?: string,
+    stacksOverride?: {
+      undo_stack: HistorySnapshot[];
+      redo_stack: HistorySnapshot[];
+    }
+  ) {
+    const folder = targetFolder ?? folderName.value;
+    const clip = targetClip ?? clipId.value;
+    if (!folder || !clip) return;
+    if (timeline.isSavingHistory) {
+      timeline.isSavingHistory.value = true;
+    }
+    try {
+      await patchSession(folder, clip, {
+        history: stacksOverride ?? {
+          undo_stack: timeline.timelineUndoStack.value,
+          redo_stack: timeline.timelineRedoStack.value
         }
-      );
+      });
+      if (timeline.hasUnsavedHistory) {
+        timeline.hasUnsavedHistory.value = false;
+      }
+    } catch (e) {
+      console.error('[timeline] Failed to save history:', e);
+    } finally {
+      if (timeline.isSavingHistory) {
+        timeline.isSavingHistory.value = false;
+      }
+    }
+  }
+
+  async function saveCoverConfig() {
+    if (!folderName.value || !clipId.value) return;
+    try {
+      await patchSession(folderName.value, clipId.value, {
+        cover_config: buildCoverConfigPayload()
+      });
     } catch {}
   }
 
@@ -330,20 +400,14 @@ export const useClipEditorSession = (
     try {
       if (folderName.value && clipId.value) {
         await saveClipSession(undefined, true);
-      } else {
-        await Promise.all([
-          saveTranscript(true),
-          saveStyleSettings(),
-          timeline.saveTimelineTracks(),
-          coverState.saveCoverConfig()
-        ]);
       }
 
       const spec = buildRenderSpec(hookIndex, outputName);
       await exportState.exportClip(spec);
-    } catch (e: any) {
+    } catch (e: unknown) {
       exportState.renderStatus.value = 'error';
-      job.jobError.value = e.message || 'Render initiation failed';
+      job.jobError.value =
+        e instanceof Error ? e.message : 'Render initiation failed';
     }
   }
 
@@ -393,6 +457,9 @@ export const useClipEditorSession = (
     saveClipSession,
     updateHooks,
     saveStyleSettings,
+    saveTimelineTracks,
+    saveHistoryToBackend,
+    saveCoverConfig,
     saveDefaultStyleSettings,
     toggleSubtitles,
     applyPreset,

@@ -35,11 +35,18 @@ def test_path_traversal_detection():
 
 
 def test_get_clip_session_and_defaults_auto_healing():
-    """Verify get_clip_session loads all manifests and auto-heals missing defaults."""
+    """Verify get_clip_session returns canonical keys, heals defaults, and respects ensure_crop_map flag."""
+    from core.face_tracker import MockFaceTracker
+
     with tempfile.TemporaryDirectory() as temp_dir:
         clips_dir = os.path.join(temp_dir, "clips")
         output_dir = temp_dir
-        store = ClipSessionStore(clips_dir=clips_dir, output_dir=output_dir)
+        mock_tracker = MockFaceTracker(mock_result=[{"time": 0.0, "x": 640}])
+        store = ClipSessionStore(
+            clips_dir=clips_dir,
+            output_dir=output_dir,
+            face_tracker=mock_tracker,
+        )
 
         folder_name = "test_video_123"
         clip_id = "0.0_15.0_hook"
@@ -51,9 +58,28 @@ def test_get_clip_session_and_defaults_auto_healing():
         with open(os.path.join(clip_dir, "poster.jpg"), "w") as f:
             f.write("fake poster content")
 
+        # 1. Calling with ensure_crop_map=False skips face tracking
+        session_no_crop = store.get_clip_session(folder_name, clip_id, ensure_crop_map=False)
+        assert session_no_crop["crop_map"] is None
+        assert len(mock_tracker.analyzed_paths) == 0
+
+        # 2. Default ensure_crop_map=True computes and caches crop_map
         session = store.get_clip_session(folder_name, clip_id)
 
-        # Verify unified payload structure
+        expected_keys = {
+            "folder_name",
+            "clip_id",
+            "transcript",
+            "style_settings",
+            "timeline",
+            "history",
+            "cover_config",
+            "crop_map",
+            "asset_url",
+            "thumbnail_url",
+            "cover_url",
+        }
+        assert set(session.keys()) == expected_keys
         assert session["folder_name"] == folder_name
         assert session["clip_id"] == clip_id
         assert session["transcript"] == []
@@ -61,30 +87,143 @@ def test_get_clip_session_and_defaults_auto_healing():
         assert session["style_settings"]["videoLayout"] == "vertical"
         assert session["style_settings"]["subtitlePreset"] == "bold-podcast"
         assert session["timeline"] == []
-        assert session["timeline_tracks"] == []
         assert session["history"] == {"undo_stack": [], "redo_stack": []}
-        assert session["undo_stack"] == []
-        assert session["redo_stack"] == []
         assert isinstance(session["cover_config"], dict)
         assert session["cover_config"]["enabled"] is False
         assert session["cover_config"]["duration"] == 1.0
-        assert session["crop_map"] is None
+        assert session["crop_map"] == [{"time": 0.0, "x": 640}]
+        assert len(mock_tracker.analyzed_paths) == 1
         assert session["asset_url"] == f"/assets/clips/{folder_name}/{clip_id}/video.mp4"
         assert session["thumbnail_url"] == f"/assets/clips/{folder_name}/{clip_id}/thumbnail.jpg"
+        assert session["cover_url"] is None
 
         # Verify files were healed on disk
         assert os.path.exists(os.path.join(clip_dir, "style_settings.json"))
         assert os.path.exists(os.path.join(clip_dir, "cover_config.json"))
         assert not os.path.exists(os.path.join(clip_dir, "thumbnail_config.json"))
         assert os.path.exists(os.path.join(clip_dir, "transcript.json"))
-        # Verify poster was copied to thumbnail.jpg
-        assert os.path.exists(os.path.join(clip_dir, "thumbnail.jpg"))
+        assert os.path.exists(os.path.join(clip_dir, "crop_map.json"))
         with open(os.path.join(clip_dir, "thumbnail.jpg"), "r") as f:
             assert f.read() == "fake poster content"
 
 
+def test_get_clip_session_cascades_style_settings():
+    """Verify get_clip_session cascades CANONICAL_DEFAULT_STYLE_SETTINGS <- default_style_settings.json <- clip style_settings.json."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+        store.save_default_style_settings({"font": "Outfit", "fontSize": 60})
+
+        folder_name = "vid_cascade"
+        clip_id = "0_10"
+        clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+        with open(os.path.join(clip_dir, "style_settings.json"), "w", encoding="utf-8") as f:
+            json.dump({"fontSize": 72}, f)
+
+        session = store.get_clip_session(folder_name, clip_id, ensure_crop_map=False)
+        assert session["style_settings"]["fontSize"] == 72
+        assert session["style_settings"]["font"] == "Outfit"
+        assert session["style_settings"]["subtitleSyncOffset"] == 150
+
+
+def test_get_clip_session_migrates_legacy_cover_assets():
+    """Verify get_clip_session migrates thumbnail_config.json -> cover_config.json and thumbnail.jpg -> cover.jpg internally."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        folder_name = "vid_legacy_cover"
+        clip_id = "0_10"
+        clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+        with open(os.path.join(clip_dir, "thumbnail_config.json"), "w", encoding="utf-8") as f:
+            json.dump({"enabled": True, "duration": 2.0, "textOverlays": [], "xOffset": 50}, f)
+        with open(os.path.join(clip_dir, "thumbnail.jpg"), "w", encoding="utf-8") as f:
+            f.write("legacy thumb image")
+
+        session = store.get_clip_session(folder_name, clip_id, ensure_crop_map=False)
+        assert session["cover_config"]["enabled"] is True
+        assert session["cover_config"]["duration"] == 2.0
+        assert session["cover_url"] == f"/assets/clips/{folder_name}/{clip_id}/cover.jpg"
+        assert os.path.exists(os.path.join(clip_dir, "cover_config.json"))
+        assert os.path.exists(os.path.join(clip_dir, "cover.jpg"))
+        assert os.path.exists(os.path.join(clip_dir, "thumbnail.jpg"))
+
+
+def test_get_clip_session_extracts_legacy_inline_audio_to_library():
+    """Verify legacy data:audio/... URIs in timeline and history are extracted to AudioLibraryStore."""
+    import base64
+    from core.audio_library_repository import AudioLibraryRepository
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        audio_repo = AudioLibraryRepository(output_dir=temp_dir)
+        store = ClipSessionStore(
+            clips_dir=clips_dir,
+            output_dir=temp_dir,
+            audio_library_store=audio_repo,
+        )
+        audio_repo.clip_session_store = store
+
+        folder_name = "vid_legacy_audio"
+        clip_id = "0_10"
+        clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+
+        raw_bytes = b"fake-mp3-audio-payload"
+        data_uri = "data:audio/mp3;base64," + base64.b64encode(raw_bytes).decode("ascii")
+
+        with open(os.path.join(clip_dir, "timeline.json"), "w", encoding="utf-8") as f:
+            json.dump(
+                [
+                    {
+                        "id": "audio",
+                        "type": "audio",
+                        "items": [
+                            {"id": "a1", "name": "whoosh.mp3", "start": 0.0, "duration": 2.5, "src": data_uri}
+                        ],
+                    }
+                ],
+                f,
+            )
+        with open(os.path.join(clip_dir, "history.json"), "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "undo_stack": [
+                        {
+                            "tracks": [
+                                {
+                                    "id": "audio",
+                                    "type": "audio",
+                                    "items": [
+                                        {"id": "a1", "name": "whoosh.mp3", "start": 0.0, "duration": 2.5, "src": data_uri}
+                                    ],
+                                }
+                            ],
+                            "transcript": [],
+                            "selectedId": None,
+                        }
+                    ],
+                    "redo_stack": [],
+                },
+                f,
+            )
+
+        session = store.get_clip_session(folder_name, clip_id, ensure_crop_map=False)
+
+        extracted_src = session["timeline"][0]["items"][0]["src"]
+        assert extracted_src.startswith("/assets/audio_library/")
+        assert session["history"]["undo_stack"][0]["tracks"][0]["items"][0]["src"] == extracted_src
+
+        # Disk manifests updated so future reads and reference checks use Audio Library URL
+        with open(os.path.join(clip_dir, "timeline.json"), "r", encoding="utf-8") as f:
+            assert json.load(f)[0]["items"][0]["src"] == extracted_src
+        assert len(audio_repo.list_items()) == 1
+
+
 def test_atomic_partial_and_complete_persistence():
-    """Verify that save_clip_session saves partial and complete payloads atomically."""
+    """Verify save_clip_session performs pure atomic partial-patch writes for canonical keys and returns compact ack."""
     with tempfile.TemporaryDirectory() as temp_dir:
         clips_dir = os.path.join(temp_dir, "clips")
         store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
@@ -97,34 +236,29 @@ def test_atomic_partial_and_complete_persistence():
         # 1. Partial save: transcript
         sample_transcript = [{"text": "Hello world", "start": 0.0, "end": 2.0}]
         res1 = store.save_clip_session(folder_name, clip_id, {"transcript": sample_transcript})
-        assert res1["transcript"] == sample_transcript
+        assert res1 == {"folder_name": folder_name, "clip_id": clip_id}
         with open(os.path.join(clip_dir, "transcript.json"), "r") as f:
             assert json.load(f) == sample_transcript
 
-        # 2. Partial save: style settings and timeline tracks alias
+        # 2. Partial save: canonical style_settings and timeline; alias keys are ignored
         new_styles = {"font": "Outfit", "fontSize": 72, "cropMode": "manual"}
-        timeline_items = [{"id": "item1", "type": "subtitle", "start": 0.0, "duration": 2.0}]
+        timeline_items = [{"id": "video", "type": "video", "items": [{"id": "v1", "start": 0.0, "duration": 2.0}]}]
         res2 = store.save_clip_session(folder_name, clip_id, {
             "style_settings": new_styles,
-            "timeline_tracks": timeline_items
+            "timeline": timeline_items,
+            "timeline_tracks": [{"ignored": True}],
+            "settings": {"ignored": True},
         })
-        assert res2["style_settings"]["font"] == "Outfit"
-        assert res2["timeline"] == timeline_items
-        assert res2["timeline_tracks"] == timeline_items
-        # Transcript preserved
-        assert res2["transcript"] == sample_transcript
+        assert res2 == {"folder_name": folder_name, "clip_id": clip_id}
         with open(os.path.join(clip_dir, "timeline.json"), "r") as f:
             assert json.load(f) == timeline_items
 
-        # 3. Partial save: history (via undo_stack / redo_stack) and cover_config
+        # 3. Partial save: canonical history and cover_config
         res3 = store.save_clip_session(folder_name, clip_id, {
-            "undo_stack": ["state1"],
-            "redo_stack": ["state2"],
+            "history": {"undo_stack": ["state1"], "redo_stack": ["state2"]},
             "cover_config": {"enabled": True, "duration": 3.0, "xOffset": 45}
         })
-        assert res3["history"] == {"undo_stack": ["state1"], "redo_stack": ["state2"]}
-        assert res3["cover_config"]["enabled"] is True
-        # Check cover_config saved and no dual write of thumbnail_config
+        assert res3 == {"folder_name": folder_name, "clip_id": clip_id}
         with open(os.path.join(clip_dir, "cover_config.json"), "r") as f:
             assert json.load(f)["duration"] == 3.0
         assert not os.path.exists(os.path.join(clip_dir, "thumbnail_config.json"))
@@ -132,9 +266,16 @@ def test_atomic_partial_and_complete_persistence():
         # 4. Partial save: crop_map
         crop_points = [{"time": 0.0, "x": 800}, {"time": 1.5, "x": 920}]
         res4 = store.save_clip_session(folder_name, clip_id, {"crop_map": crop_points})
-        assert res4["crop_map"] == crop_points
-        with open(os.path.join(clip_dir, "crop_map.json"), "r") as f:
-            assert json.load(f) == crop_points
+        assert res4 == {"folder_name": folder_name, "clip_id": clip_id}
+
+        # Verify combined state via get_clip_session
+        session = store.get_clip_session(folder_name, clip_id, ensure_crop_map=False)
+        assert session["transcript"] == sample_transcript
+        assert session["style_settings"]["font"] == "Outfit"
+        assert session["timeline"] == timeline_items
+        assert session["history"] == {"undo_stack": ["state1"], "redo_stack": ["state2"]}
+        assert session["cover_config"]["enabled"] is True
+        assert session["crop_map"] == crop_points
 
 
 def test_atomic_rollback_on_failure():
@@ -175,8 +316,8 @@ def test_atomic_rollback_on_failure():
         assert len(tmp_files) == 0
 
 
-def test_convenience_methods_and_adapters():
-    """Verify individual convenience methods delegate correctly to atomic store."""
+def test_crop_map_and_delete_cover():
+    """Verify crop_map persistence and delete_cover preserving thumbnail.jpg."""
     with tempfile.TemporaryDirectory() as temp_dir:
         clips_dir = os.path.join(temp_dir, "clips")
         store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
@@ -186,41 +327,10 @@ def test_convenience_methods_and_adapters():
         clip_dir = os.path.join(clips_dir, folder_name, clip_id)
         os.makedirs(clip_dir, exist_ok=True)
 
-        # 1. save_transcript
-        assert store.save_transcript(folder_name, clip_id, [{"text": "word", "start": 0.0, "end": 0.5}])
-        with open(os.path.join(clip_dir, "transcript.json"), "r") as f:
-            assert json.load(f)[0]["text"] == "word"
-
-        # 2. save_style_settings
-        assert store.save_style_settings(folder_name, clip_id, {"fontSize": 42})
-        with open(os.path.join(clip_dir, "style_settings.json"), "r") as f:
-            assert json.load(f)["fontSize"] == 42
-
-        # 3. save_timeline
-        assert store.save_timeline(folder_name, clip_id, [{"id": "trk1"}])
-        with open(os.path.join(clip_dir, "timeline.json"), "r") as f:
-            assert json.load(f)[0]["id"] == "trk1"
-
-        # 4. save_history
-        assert store.save_history(folder_name, clip_id, ["u1"], ["r1"])
-        with open(os.path.join(clip_dir, "history.json"), "r") as f:
-            hist = json.load(f)
-            assert hist["undo_stack"] == ["u1"]
-            assert hist["redo_stack"] == ["r1"]
-
-        # 5. save_cover_config & get_cover_config
-        assert store.save_cover_config(folder_name, clip_id, {"enabled": True, "xOffset": 60})
-        cover_cfg = store.get_cover_config(folder_name, clip_id)
-        assert cover_cfg is not None
-        assert cover_cfg["enabled"] is True
-        assert cover_cfg["xOffset"] == 60
-
-        # 6. save_crop_map & get_crop_map
         assert store.save_crop_map(folder_name, clip_id, [{"time": 0.0, "x": 960}])
         crop_data = store.get_crop_map(folder_name, clip_id)
         assert crop_data == [{"time": 0.0, "x": 960}]
 
-        # 7. delete_cover (preserves thumbnail.jpg)
         with open(os.path.join(clip_dir, "cover.jpg"), "w") as f:
             f.write("cover data")
         with open(os.path.join(clip_dir, "thumbnail.jpg"), "w") as f:
