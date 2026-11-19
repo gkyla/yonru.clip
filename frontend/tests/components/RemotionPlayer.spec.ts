@@ -1,7 +1,5 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
-import { createRoot } from 'react-dom/client';
 import { mount } from '@vue/test-utils';
 import { DirectPlayerBridge } from '../../app/utils/playerBridge';
 import { RemotionPlayerView } from '../../app/components/preview/RemotionPlayerView';
@@ -20,10 +18,15 @@ describe('RemotionPlayer and RemotionPlayerView (Issue #183)', () => {
       expect(typeof RemotionPlayerView).toBe('function');
     });
 
-    it('binds player and wires frameupdate, pause, and ended events to DirectPlayerBridge', () => {
+    it('attaches player and wires frameupdate, pause, and ended events via DirectPlayerBridge.attachPlayer', () => {
+      const listeners: Record<string, (e?: any) => void> = {};
       const mockPlayer: any = {
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
+        addEventListener: vi.fn((event: string, cb: (e?: any) => void) => {
+          listeners[event] = cb;
+        }),
+        removeEventListener: vi.fn((event: string) => {
+          delete listeners[event];
+        }),
         seekTo: vi.fn(),
         play: vi.fn(),
         pause: vi.fn(),
@@ -31,39 +34,17 @@ describe('RemotionPlayer and RemotionPlayerView (Issue #183)', () => {
         isPlaying: vi.fn().mockReturnValue(true)
       };
 
-      // Track listeners added
-      const listeners: Record<string, Function> = {};
-      mockPlayer.addEventListener.mockImplementation(
-        (event: string, cb: Function) => {
-          listeners[event] = cb;
-        }
-      );
-
       const messageSpy = vi.fn();
       bridge.onMessage(messageSpy);
 
-      // Test event handler wiring logic
-      bridge.bindPlayer(mockPlayer);
+      const detach = bridge.attachPlayer(mockPlayer);
       expect(bridge.getPlayer()).toBe(mockPlayer);
 
-      // Simulate wiring Remotion events
-      const onFrameUpdate = (e: { detail: { frame: number } }) => {
-        const fps = 30;
-        bridge.emitTimeUpdate(e.detail.frame / fps, e.detail.frame);
-      };
-      const onPause = () => bridge.emitPaused();
-      const onEnded = () => bridge.emitEnded();
-
-      mockPlayer.addEventListener('frameupdate', onFrameUpdate);
-      mockPlayer.addEventListener('pause', onPause);
-      mockPlayer.addEventListener('ended', onEnded);
-      bridge.emitReady();
-
-      // 1. Verify emitReady sent IFRAME_READY
+      // 1. Verify attachPlayer emitted IFRAME_READY after binding player
       expect(messageSpy).toHaveBeenCalledWith({ type: 'IFRAME_READY' });
 
       // 2. Trigger frameupdate event -> should emit REMOTION_TIMEUPDATE
-      listeners['frameupdate']({ detail: { frame: 90 } });
+      listeners['frameupdate']?.({ detail: { frame: 90 } });
       expect(messageSpy).toHaveBeenCalledWith({
         type: 'REMOTION_TIMEUPDATE',
         currentTime: 3,
@@ -79,16 +60,13 @@ describe('RemotionPlayer and RemotionPlayerView (Issue #183)', () => {
       expect(messageSpy).toHaveBeenCalledWith({ type: 'REMOTION_ENDED' });
 
       // Cleanup
-      mockPlayer.removeEventListener('frameupdate', onFrameUpdate);
-      mockPlayer.removeEventListener('pause', onPause);
-      mockPlayer.removeEventListener('ended', onEnded);
-      bridge.bindPlayer(null);
+      detach();
       expect(bridge.getPlayer()).toBeNull();
     });
 
-    it('receives synchronous prop updates via bridge.updateProps without latency', () => {
+    it('exposes synchronous prop snapshots via subscribeProps and getPropsSnapshot', () => {
       const propsSpy = vi.fn();
-      bridge.onPropsChange(propsSpy);
+      bridge.subscribeProps(propsSpy);
 
       const testProps = {
         videoPath: 'http://localhost:8000/sample.mp4',
@@ -98,8 +76,8 @@ describe('RemotionPlayer and RemotionPlayerView (Issue #183)', () => {
       };
 
       bridge.updateProps(testProps);
-      expect(bridge.currentProps).toEqual(testProps);
-      expect(propsSpy).toHaveBeenCalledWith(testProps);
+      expect(bridge.getPropsSnapshot()).toEqual(testProps);
+      expect(propsSpy).toHaveBeenCalledTimes(1);
     });
   });
 
