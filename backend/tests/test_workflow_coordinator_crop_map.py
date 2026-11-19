@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from core.workflow_coordinator import ClipWorkflowCoordinator
 from core.face_tracker import MockFaceTracker
+from core.job_store import InMemoryJobStore
 
 
 class TestWorkflowCoordinatorCropMap(unittest.TestCase):
@@ -22,7 +23,7 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
             shutil.rmtree(self.test_dir)
 
     def test_run_local_cut_generates_and_saves_crop_map(self):
-        mock_job_store = {}
+        mock_job_store = InMemoryJobStore()
         mock_asset_repo = MagicMock()
         clips_dir = os.path.join(self.test_dir, "clips")
         mock_asset_repo.clips_dir = clips_dir
@@ -83,7 +84,7 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
         self.assertEqual(coordinator.jobs[job_id]["status"], "ready")
 
     def test_get_or_create_crop_map_delegates_to_store_ensure_crop_map(self):
-        mock_job_store = {}
+        mock_job_store = InMemoryJobStore()
         mock_asset_repo = MagicMock()
         clips_dir = os.path.join(self.test_dir, "clips")
         mock_asset_repo.clips_dir = clips_dir
@@ -117,7 +118,7 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
             )
 
     def test_provision_clip_routes_through_store_ensure_crop_map(self):
-        mock_job_store = {}
+        mock_job_store = InMemoryJobStore()
         mock_asset_repo = MagicMock()
         clips_dir = os.path.join(self.test_dir, "clips")
         mock_asset_repo.clips_dir = clips_dir
@@ -164,7 +165,7 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
             )
 
     def test_load_ready_clip_routes_through_store_ensure_crop_map(self):
-        mock_job_store = {}
+        mock_job_store = InMemoryJobStore()
         mock_asset_repo = MagicMock()
         clips_dir = os.path.join(self.test_dir, "clips")
         mock_asset_repo.clips_dir = clips_dir
@@ -207,7 +208,7 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
             mock_ensure.assert_called_once_with(folder_name, clip_id)
 
     def test_run_local_cut_reusing_transcript_routes_through_store_ensure_crop_map(self):
-        mock_job_store = {}
+        mock_job_store = InMemoryJobStore()
         mock_asset_repo = MagicMock()
         clips_dir = os.path.join(self.test_dir, "clips")
         mock_asset_repo.clips_dir = clips_dir

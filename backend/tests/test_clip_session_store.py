@@ -4,6 +4,7 @@ import tempfile
 from unittest.mock import MagicMock
 import pytest
 from core.clip_session_store import ClipSessionStore
+from core.job_store import InMemoryJobStore
 from core.media_transcoder import FakeMediaAdapter, MediaSpecs, MediaTranscoder
 
 def test_path_traversal_detection():
@@ -444,7 +445,8 @@ def test_delete_clip_and_delete_with_job():
 
         import hashlib
         job_id = hashlib.md5(f"{folder_name}_{clip_id}".encode("utf-8")).hexdigest()[:8]
-        fake_jobs = {job_id: {"status": "ready"}}
+        fake_jobs = InMemoryJobStore()
+        fake_jobs.create_job(job_id, {"status": "ready"})
 
         assert os.path.exists(clip_dir)
         success = store.delete_clip_with_job(folder_name, clip_id, job_store=fake_jobs)
@@ -491,11 +493,12 @@ def test_delete_source_clips_and_job_cancellation():
             os.makedirs(cdir, exist_ok=True)
             open(os.path.join(cdir, "video.mp4"), "w").close()
 
-        fake_jobs = {
-            "job1": {"status": "cutting", "clip": {"folder_name": folder_name, "clip_id": "clip_a"}},
-            "job2": {"status": "transcribing", "folder_name": folder_name},
-            "job3": {"status": "ready", "clip": {"folder_name": "other_folder", "clip_id": "clip_c"}},
-        }
+        fake_jobs = InMemoryJobStore()
+        fake_jobs.create_job("job1", {"status": "cutting", "clip": {"folder_name": folder_name, "clip_id": "clip_a"}})
+        fake_jobs.create_job("job2", {"status": "transcribing", "folder_name": folder_name})
+        fake_jobs.create_job("job3", {"status": "ready", "clip": {"folder_name": "other_folder", "clip_id": "clip_c"}})
+        fake_jobs.create_job("job4", {"status": "transcribing", "clip_path": os.path.join(source_clips_dir, "clip_a", "video.mp4")})
+        fake_jobs.create_job("job5", {"status": "cutting", "video_info": {"folder_name": folder_name}})
 
         assert os.path.exists(source_clips_dir)
         count = store.delete_source_clips(folder_name, job_store=fake_jobs)
@@ -504,6 +507,8 @@ def test_delete_source_clips_and_job_cancellation():
         assert fake_jobs["job1"]["status"] == "cancelled"
         assert fake_jobs["job2"]["status"] == "cancelled"
         assert fake_jobs["job3"]["status"] == "ready"
+        assert fake_jobs["job4"]["status"] == "cancelled"
+        assert fake_jobs["job5"]["status"] == "cancelled"
 
         # Traversal protection
         with pytest.raises(ValueError, match="Path traversal detected"):

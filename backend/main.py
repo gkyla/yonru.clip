@@ -117,14 +117,6 @@ workflow_coordinator = ClipWorkflowCoordinator(
 )
 
 
-
-def save_jobs():
-    try:
-        jobs.save()
-    except:
-        pass
-
-
 # --- Request Models ---
 
 class AnalyzeRequest(BaseModel):
@@ -401,7 +393,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, fo
     import uuid
     job_id = str(uuid.uuid4())[:8]
     
-    jobs[job_id] = {
+    jobs.create_job(job_id, {
         "status": "queued",
         "url": req.url,
         "video_info": None,
@@ -411,7 +403,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, fo
         "clip_duration": None,
         "hooks": None,
         "error": None
-    }
+    })
     
     background_tasks.add_task(
         workflow_coordinator.run_full_analysis,
@@ -428,13 +420,12 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, fo
         req.min_duration or 30,
         req.max_duration or 180
     )
-    save_jobs()
     return {"job_id": job_id, "status": "queued"}
 
 @app.post("/api/extract-clip")
 async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
     """Phase 2: Cut segment from cached full video (no re-download)"""
-    if req.job_id not in jobs:
+    if jobs.get_job(req.job_id) is None:
         raise HTTPException(status_code=404, detail="Job not found")
     
     return workflow_coordinator.provision_clip(
@@ -463,11 +454,12 @@ async def generate_hooks():
 @app.post("/api/render")
 async def render_clip(req: RenderRequest):
     """Render final 9:16 clip from cut segment with manual or AI crop"""
-    if req.job_id not in jobs:
+    job = jobs.get_job(req.job_id)
+    if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     
     with render_activity_tracker.track():
-        result = render_engine.render(jobs[req.job_id], req, output_name=req.output_name)
+        result = render_engine.render(job, req, output_name=req.output_name)
     if result:
         return {"status": "done", "output_url": result["output_url"]}
     else:
@@ -476,12 +468,13 @@ async def render_clip(req: RenderRequest):
 @app.post("/api/render-stream")
 async def render_clip_stream(req: RenderRequest):
     """Render clip with real-time progress streaming via SSE."""
-    if req.job_id not in jobs:
+    job = jobs.get_job(req.job_id)
+    if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     
     def sse_generator():
         with render_activity_tracker.track():
-            for progress in render_engine.render_stream(jobs[req.job_id], req, output_name=req.output_name):
+            for progress in render_engine.render_stream(job, req, output_name=req.output_name):
                 yield f"data: {json.dumps(progress)}\n\n"
     
     return StreamingResponse(sse_generator(), media_type="text/event-stream", headers={
@@ -513,15 +506,11 @@ async def list_cached(
 @app.get("/api/ready-clips")
 async def list_ready_clips():
     """List all segments that have been cut and transcribed."""
-    active_clip_ids = set()
     try:
-        for job_id, job in jobs.items():
-            if job.get("status") in ["cutting", "transcribing", "queued"]:
-                c_id = job.get("clip_id") or (job.get("clip") or {}).get("clip_id")
-                if c_id:
-                    active_clip_ids.add(c_id)
+        active_clip_ids = jobs.list_active_clip_ids()
     except Exception as e:
         print(f"[api] Error reading active jobs for ready-clips: {e}")
+        active_clip_ids = set()
         
     filtered_clips = clip_session_store.list_ready_clips(active_clip_ids=active_clip_ids)
     return {"clips": filtered_clips}
@@ -644,10 +633,7 @@ async def update_hooks(req: HookUpdateRequest):
         updated = asset_repository.update_source_hooks(req.folder_name, req.hooks)
         if not updated:
             raise HTTPException(status_code=404, detail="hooks.json not found")
-        # Also update in-memory jobs if active
-        for job in jobs.values():
-            if job.get("video_info") and job["video_info"].get("folder_name") == req.folder_name:
-                job["hooks"] = req.hooks
+        jobs.sync_source_hooks(req.folder_name, req.hooks)
         return {"status": "ok"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
