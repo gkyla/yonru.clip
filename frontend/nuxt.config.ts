@@ -35,6 +35,12 @@ export default defineNuxtConfig({
     typeCheck: false,
     strict: true,
     tsConfig: {
+      compilerOptions: {
+        paths: {
+          '@yonru/remotion': ['../../shared/remotion/src/index.ts'],
+          '@yonru/remotion/*': ['../../shared/remotion/src/*']
+        }
+      },
       include: ['../tests/**/*'],
       exclude: ['../shared/remotion/**/*']
     }

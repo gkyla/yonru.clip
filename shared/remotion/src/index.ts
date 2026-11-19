@@ -33,5 +33,23 @@ export type {
   InitialDecoderFrameAlignmentParams
 } from './TimelineFrameRetention';
 export { AnimatedSubtitles } from './AnimatedSubtitles';
+export type { AnimatedSubtitlesProps } from './AnimatedSubtitles';
+export {
+  TimelineFramingIndex,
+  CropMapIndex,
+  TimelineSegmentIndex,
+  SubtitleChunkIndex,
+  createTimelineFramingIndex,
+  createCropMapIndex,
+  getOrCreateCropMapIndex,
+  createTimelineSegmentIndex,
+  getOrCreateTimelineSegmentIndex,
+  createSubtitleChunkIndex
+} from './TimelineFramingIndex';
+export type {
+  IndexedVideoSegment,
+  IndexedSubtitleChunk,
+  CropSplitWindow
+} from './TimelineFramingIndex';
 export * from './types';
 export * from './fonts';

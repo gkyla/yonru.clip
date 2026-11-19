@@ -439,4 +439,151 @@ describe('YonruClip Cut Boundary Frame Retention & Seamless Coalescing Integrati
       vi.useRealTimers();
     }
   });
+
+  it('bypasses retention canvas and blit on single-segment and coalesced single-window clips', () => {
+    const drawImageSpy = vi.fn();
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({
+        drawImage: drawImageSpy,
+        fillRect: vi.fn(),
+        save: vi.fn(),
+        restore: vi.fn(),
+        fillStyle: '#000000',
+        filter: 'none'
+      } as unknown as CanvasRenderingContext2D);
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    // Two contiguous segments coalesce into a single window
+    const coalescableItems = [
+      { id: 'part-1', start: 0, duration: 3, mediaStart: 0 },
+      { id: 'part-2', start: 3, duration: 4, mediaStart: 3 }
+    ];
+
+    try {
+      act(() => {
+        root.render(
+          React.createElement(
+            FrameContext.Provider,
+            { value: 15 },
+            React.createElement(YonruClip, {
+              videoPath: 'http://localhost/clip.mp4',
+              words: [],
+              cropX: 960,
+              position: 'bottom',
+              fps: 30,
+              sourceWidth: 1920,
+              sourceHeight: 1080,
+              hideSubtitles: true,
+              timelineVideoItems: coalescableItems
+            })
+          )
+        );
+      });
+
+      expect(
+        container.querySelector('[data-testid="timeline-retention-canvas"]')
+      ).toBeNull();
+
+      const compositorCanvas = container.querySelector(
+        '[data-testid="compositor-canvas"]'
+      ) as HTMLCanvasElement;
+      expect(compositorCanvas).toBeTruthy();
+      expect(compositorCanvas.style.opacity).toBe('1');
+
+      const video = container.querySelector(
+        'video[data-remotion-video="true"]'
+      ) as HTMLVideoElement;
+      drawImageSpy.mockClear();
+      configureMockVideo(video, 0.5);
+      act(() => {
+        video.dispatchEvent(new Event('seeked'));
+      });
+
+      // Only the single compositor drawImage happens — zero retention canvas blit
+      expect(drawImageSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+      getContextSpy.mockRestore();
+    }
+  });
+
+  it('caches the 2D canvas context across frame ticks instead of calling getContext every frame', () => {
+    const drawImageSpy = vi.fn();
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({
+        drawImage: drawImageSpy,
+        fillRect: vi.fn(),
+        save: vi.fn(),
+        restore: vi.fn(),
+        fillStyle: '#000000',
+        filter: 'none'
+      } as unknown as CanvasRenderingContext2D);
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    const renderFrame = (frame: number) => {
+      act(() => {
+        root.render(
+          React.createElement(
+            FrameContext.Provider,
+            { value: frame },
+            React.createElement(YonruClip, {
+              videoPath: 'http://localhost/clip.mp4',
+              words: [],
+              cropX: 960,
+              cropMap: [
+                { time: 0, x: 500, mode: 'single' },
+                { time: 1, x: 700, mode: 'single' }
+              ],
+              position: 'bottom',
+              fps: 30,
+              sourceWidth: 1920,
+              sourceHeight: 1080,
+              hideSubtitles: true,
+              timelineVideoItems: [
+                { id: 'v1', start: 0, duration: 5, mediaStart: 0 }
+              ]
+            })
+          )
+        );
+      });
+    };
+
+    try {
+      renderFrame(0);
+      const video = container.querySelector(
+        'video[data-remotion-video="true"]'
+      ) as HTMLVideoElement;
+      configureMockVideo(video, 0);
+
+      // Called once on compositor canvas mount
+      expect(getContextSpy).toHaveBeenCalledTimes(1);
+
+      drawImageSpy.mockClear();
+      for (const f of [1, 2, 3]) {
+        video.currentTime = f / 30;
+        renderFrame(f);
+      }
+
+      // Frame renders still draw, while getContext is never re-invoked
+      expect(drawImageSpy).toHaveBeenCalledTimes(3);
+      expect(getContextSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+      getContextSpy.mockRestore();
+    }
+  });
 });

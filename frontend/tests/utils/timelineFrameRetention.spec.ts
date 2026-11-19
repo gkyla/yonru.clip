@@ -240,4 +240,84 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
       getContextSpy.mockRestore();
     }
   });
+
+  it('skips mounting retention canvas and retention blits when given 0 or 1 coalesced segment', () => {
+    const drawImageSpy = vi.fn();
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({
+        drawImage: drawImageSpy,
+        fillRect: vi.fn(),
+        save: vi.fn(),
+        restore: vi.fn()
+      } as unknown as CanvasRenderingContext2D);
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    let capturedCallback: ((canvas: HTMLCanvasElement) => void) | null = null;
+
+    const renderWithItems = (
+      items: Array<{
+        id: string;
+        start: number;
+        duration: number;
+        mediaStart: number;
+      }>
+    ) => {
+      act(() => {
+        root.render(
+          React.createElement(TimelineFrameRetention, {
+            videoSrc: 'http://localhost/single.mp4',
+            width: 1080,
+            height: 1920,
+            mainVideoFrame: 10,
+            fps: 30,
+            timelineVideoItems: items,
+            children: (
+              onFrameRendered: (canvas: HTMLCanvasElement) => void
+            ) => {
+              capturedCallback = onFrameRendered;
+              return React.createElement('canvas', {
+                'data-testid': 'single-seg-canvas'
+              });
+            }
+          })
+        );
+      });
+    };
+
+    try {
+      renderWithItems([]);
+      expect(
+        container.querySelector('[data-testid="timeline-retention-canvas"]')
+      ).toBeNull();
+      const sourceCanvas = container.querySelector(
+        '[data-testid="single-seg-canvas"]'
+      ) as HTMLCanvasElement;
+      act(() => {
+        capturedCallback!(sourceCanvas);
+      });
+      expect(drawImageSpy).not.toHaveBeenCalled();
+
+      renderWithItems([
+        { id: 'seg-1', start: 0, duration: 5, mediaStart: 0 },
+        { id: 'seg-2', start: 5, duration: 5, mediaStart: 5 }
+      ]);
+      expect(
+        container.querySelector('[data-testid="timeline-retention-canvas"]')
+      ).toBeNull();
+      act(() => {
+        capturedCallback!(sourceCanvas);
+      });
+      expect(drawImageSpy).not.toHaveBeenCalled();
+    } finally {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+      getContextSpy.mockRestore();
+    }
+  });
 });

@@ -13,17 +13,13 @@ import {
   useRemotionEnvironment
 } from 'remotion';
 import { AnimatedSubtitles } from './AnimatedSubtitles';
+import { CanvasVideoCompositor } from './CanvasVideoCompositor';
+import { TimelineFrameRetention } from './TimelineFrameRetention';
 import {
-  CanvasVideoCompositor,
-  computeViewportFraming
-} from './CanvasVideoCompositor';
-import type { ViewportFramingParams } from './CanvasVideoCompositor';
-import {
-  TimelineFrameRetention,
-  coalesceContiguousVideoSegments,
-  getSegmentFrameWindow,
-  resolveTimelineMediaTime
-} from './TimelineFrameRetention';
+  createTimelineFramingIndex,
+  createTimelineSegmentIndex,
+  type TimelineFramingIndex
+} from './TimelineFramingIndex';
 import type { YonruClipProps, ThumbnailTextOverlay } from './types';
 import { getFont } from './fonts';
 
@@ -34,7 +30,7 @@ interface HeadlessMediaViewportsProps {
   durationFrames?: number;
   fps: number;
   fallbackMediaTime: number;
-  framingParams: ViewportFramingParams;
+  framingIndex: TimelineFramingIndex;
   isLandscape: boolean;
   landscapeBackground?: 'black' | 'blur';
   landscapeBlurRadius?: number;
@@ -53,7 +49,7 @@ const HeadlessMediaViewports: React.FC<HeadlessMediaViewportsProps> = ({
   durationFrames,
   fps,
   fallbackMediaTime,
-  framingParams,
+  framingIndex,
   isLandscape,
   landscapeBackground = 'black',
   landscapeBlurRadius = 25,
@@ -70,7 +66,7 @@ const HeadlessMediaViewports: React.FC<HeadlessMediaViewportsProps> = ({
       ? (mediaStartFrame + Math.max(0, localFrame)) / fps
       : fallbackMediaTime;
 
-  const segFraming = computeViewportFraming(segmentMediaTime, framingParams);
+  const segFraming = framingIndex.computeFraming(segmentMediaTime);
   const segIsSplit = segFraming.isSplitActive;
 
   return (
@@ -369,10 +365,10 @@ export const YonruClip: React.FC<YonruClipProps> = ({
       currentTime >= item.start && currentTime < item.start + item.duration
   );
 
-  // Coalesce unsorted split segments that are contiguous in both timeline time and media time
-  const coalescedVideoSegments = useMemo(
-    () => coalesceContiguousVideoSegments(timelineVideoItems),
-    [timelineVideoItems]
+  // Pre-index contiguous video segments and frame windows once per clip edit
+  const segmentIndex = useMemo(
+    () => createTimelineSegmentIndex(timelineVideoItems, fps),
+    [timelineVideoItems, fps]
   );
 
   // Exact math from VideoPreview.vue to guarantee 1:1 match
@@ -390,30 +386,31 @@ export const YonruClip: React.FC<YonruClipProps> = ({
 
   const mainVideoFrame = frame - thumbnailFrames;
   const activeMediaTime = useMemo(
-    () => resolveTimelineMediaTime(mainVideoFrame, coalescedVideoSegments, fps),
-    [mainVideoFrame, coalescedVideoSegments, fps]
+    () => segmentIndex.resolveMediaTime(mainVideoFrame),
+    [mainVideoFrame, segmentIndex]
   );
 
-  const framingParams: ViewportFramingParams = useMemo(
-    () => ({
-      cropMap,
-      cropX,
-      cropPercentXTop,
-      cropPercentXBottom,
-      splitZoomTop,
-      splitZoomBottom,
-      splitOffsetXTop,
-      splitOffsetYTop,
-      splitOffsetXBottom,
-      splitOffsetYBottom,
-      rawSourceW,
-      isLandscape,
-      videoDisplayW,
-      videoDisplayH,
-      CONTAINER_W,
-      CONTAINER_H,
-      PANEL_H
-    }),
+  const framingIndex = useMemo(
+    () =>
+      createTimelineFramingIndex({
+        cropMap,
+        cropX,
+        cropPercentXTop,
+        cropPercentXBottom,
+        splitZoomTop,
+        splitZoomBottom,
+        splitOffsetXTop,
+        splitOffsetYTop,
+        splitOffsetXBottom,
+        splitOffsetYBottom,
+        rawSourceW,
+        isLandscape,
+        videoDisplayW,
+        videoDisplayH,
+        CONTAINER_W,
+        CONTAINER_H,
+        PANEL_H
+      }),
     [
       cropMap,
       cropX,
@@ -432,27 +429,17 @@ export const YonruClip: React.FC<YonruClipProps> = ({
     ]
   );
 
-  // Determine active framing from physical source media time (never raw timeline time)
-  const activeFraming = useMemo(
-    () => computeViewportFraming(activeMediaTime, framingParams),
-    [activeMediaTime, framingParams]
-  );
-
   if (frame % 30 === 0) {
+    const activeFraming = framingIndex.computeFraming(activeMediaTime);
     console.log(
       `[Remotion] frame=${frame} time=${currentTime.toFixed(2)} mediaTime=${activeMediaTime.toFixed(2)} mode=${activeFraming.mode} activeX=${activeFraming.x.toFixed(0)}`
     );
   }
 
-  const isSplit = activeFraming.isSplitActive;
-  const translateX = activeFraming.curTranslateX;
-  const translateY = activeFraming.curTranslateY;
-  const topTranslateX = activeFraming.curTopTranslateX;
-  const topTranslateY = activeFraming.curTopTranslateY;
-  const currentScaleTop = activeFraming.curScaleTop;
-  const bottomTranslateX = activeFraming.curBottomTranslateX;
-  const bottomTranslateY = activeFraming.curBottomTranslateY;
-  const currentScaleBottom = activeFraming.curScaleBottom;
+  const isSplit =
+    !hideSubtitles && autoAdaptiveSubtitles
+      ? framingIndex.isSplitAt(activeMediaTime)
+      : false;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'black', overflow: 'hidden' }}>
@@ -538,7 +525,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   durationFrames={durationFrames}
                   fps={fps}
                   fallbackMediaTime={activeMediaTime}
-                  framingParams={framingParams}
+                  framingIndex={framingIndex}
                   isLandscape={isLandscape}
                   landscapeBackground={landscapeBackground}
                   landscapeBlurRadius={landscapeBlurRadius}
@@ -568,29 +555,11 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   landscapeBackground={landscapeBackground}
                   landscapeBlurRadius={landscapeBlurRadius}
                   landscapeDarkness={landscapeDarkness}
-                  isSplit={isSplit}
                   videoDisplayW={videoDisplayW}
                   videoDisplayH={videoDisplayH}
                   rawSourceW={rawSourceW}
                   sourceHeight={sourceHeight}
-                  translateX={translateX}
-                  translateY={translateY}
-                  topTranslateX={topTranslateX}
-                  topTranslateY={topTranslateY}
-                  currentScaleTop={currentScaleTop}
-                  bottomTranslateX={bottomTranslateX}
-                  bottomTranslateY={bottomTranslateY}
-                  currentScaleBottom={currentScaleBottom}
-                  cropMap={cropMap}
-                  cropX={cropX}
-                  cropPercentXTop={cropPercentXTop}
-                  cropPercentXBottom={cropPercentXBottom}
-                  splitZoomTop={splitZoomTop}
-                  splitZoomBottom={splitZoomBottom}
-                  splitOffsetXTop={splitOffsetXTop}
-                  splitOffsetYTop={splitOffsetYTop}
-                  splitOffsetXBottom={splitOffsetXBottom}
-                  splitOffsetYBottom={splitOffsetYBottom}
+                  framingIndex={framingIndex}
                   isActive={isActive}
                   onFrameRendered={onFrameRendered}
                 />
@@ -610,47 +579,50 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                 height={CONTAINER_H}
                 mainVideoFrame={mainVideoFrame}
                 fps={fps}
-                timelineVideoItems={coalescedVideoSegments}
+                timelineVideoItems={segmentIndex.coalesced}
+                segmentIndex={segmentIndex}
               >
                 {onFrameRendered => {
-                  if (coalescedVideoSegments.length > 0) {
-                    return coalescedVideoSegments.map((item, idx) => {
-                      const {
-                        startFrame,
-                        endFrame,
-                        durationFrames,
-                        mediaStartFrame
-                      } = getSegmentFrameWindow(item, fps);
-                      if (durationFrames <= 0) {
-                        return null;
+                  if (segmentIndex.coalesced.length > 0) {
+                    const retentionCallback = segmentIndex.needsRetention
+                      ? onFrameRendered
+                      : undefined;
+                    return segmentIndex.windows.map(
+                      ({ segment, window }, idx) => {
+                        const {
+                          startFrame,
+                          endFrame,
+                          durationFrames,
+                          mediaStartFrame
+                        } = window;
+                        const isSegmentActive =
+                          mainVideoFrame >= startFrame &&
+                          mainVideoFrame < endFrame;
+                        const premountFrames =
+                          startFrame > 0
+                            ? Math.min(Math.round(fps * 1.5), startFrame)
+                            : 0;
+                        return (
+                          <Sequence
+                            key={segment.id ?? `seg-${idx}`}
+                            from={startFrame}
+                            durationInFrames={durationFrames}
+                            premountFor={
+                              premountFrames > 0 ? premountFrames : undefined
+                            }
+                            name={`VideoSegment-${segment.id ?? idx}`}
+                            style={{ zIndex: 1 }}
+                          >
+                            {renderMediaViewports(
+                              mediaStartFrame,
+                              durationFrames,
+                              retentionCallback,
+                              isSegmentActive
+                            )}
+                          </Sequence>
+                        );
                       }
-                      const isSegmentActive =
-                        mainVideoFrame >= startFrame &&
-                        mainVideoFrame < endFrame;
-                      const premountFrames =
-                        startFrame > 0
-                          ? Math.min(Math.round(fps * 1.5), startFrame)
-                          : 0;
-                      return (
-                        <Sequence
-                          key={item.id ?? `seg-${idx}`}
-                          from={startFrame}
-                          durationInFrames={durationFrames}
-                          premountFor={
-                            premountFrames > 0 ? premountFrames : undefined
-                          }
-                          name={`VideoSegment-${item.id ?? idx}`}
-                          style={{ zIndex: 1 }}
-                        >
-                          {renderMediaViewports(
-                            mediaStartFrame,
-                            durationFrames,
-                            onFrameRendered,
-                            isSegmentActive
-                          )}
-                        </Sequence>
-                      );
-                    });
+                    );
                   }
 
                   return (
@@ -658,7 +630,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                       {renderMediaViewports(
                         undefined,
                         undefined,
-                        onFrameRendered,
+                        undefined,
                         true
                       )}
                     </AbsoluteFill>
@@ -668,24 +640,20 @@ export const YonruClip: React.FC<YonruClipProps> = ({
             );
           }
 
-          if (coalescedVideoSegments.length > 0) {
-            return coalescedVideoSegments.map((item, idx) => {
-              const { startFrame, durationFrames, mediaStartFrame } =
-                getSegmentFrameWindow(item, fps);
-              if (durationFrames <= 0) {
-                return null;
-              }
-              return (
-                <Sequence
-                  key={item.id ?? `seg-${idx}`}
-                  from={startFrame}
-                  durationInFrames={durationFrames}
-                  name={`VideoSegment-${item.id ?? idx}`}
-                >
-                  {renderMediaViewports(mediaStartFrame, durationFrames)}
-                </Sequence>
-              );
-            });
+          if (segmentIndex.coalesced.length > 0) {
+            return segmentIndex.windows.map(({ segment, window }, idx) => (
+              <Sequence
+                key={segment.id ?? `seg-${idx}`}
+                from={window.startFrame}
+                durationInFrames={window.durationFrames}
+                name={`VideoSegment-${segment.id ?? idx}`}
+              >
+                {renderMediaViewports(
+                  window.mediaStartFrame,
+                  window.durationFrames
+                )}
+              </Sequence>
+            ));
           }
 
           return renderMediaViewports();
