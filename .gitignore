@@ -39,6 +39,7 @@ bun.lockb
 # Shared Remotion
 shared/remotion/node_modules/
 shared/remotion/out/
+shared/remotion/.bundle/
 shared/remotion/.remotion/
 shared/remotion/src/assets/fonts/
 

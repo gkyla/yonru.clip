@@ -811,4 +811,117 @@ def test_ensure_crop_map_missing_video_raises_filenotfound():
             store.ensure_crop_map("nonexistent_folder", "nonexistent_clip")
 
 
+def test_resolve_clip_artifacts_by_video_path_and_cover_precedence():
+    """Verify resolve_clip_artifacts locates clip manifests and prefers cover.jpg over thumbnail.jpg."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        folder_name = "source_vid"
+        clip_id = "0_15_hook"
+        clip_dir = os.path.join(clips_dir, folder_name, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+
+        video_path = os.path.join(clip_dir, "video.mp4")
+        transcript_path = os.path.join(clip_dir, "transcript.json")
+        crop_map_path = os.path.join(clip_dir, "crop_map.json")
+        thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
+        cover_path = os.path.join(clip_dir, "cover.jpg")
+
+        for path, content in (
+            (video_path, "video"),
+            (transcript_path, "[]"),
+            (crop_map_path, '[{"time": 0.0, "x": 640}]'),
+            (thumb_path, "thumb"),
+            (cover_path, "cover"),
+        ):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+
+        artifacts = store.resolve_clip_artifacts(video_path)
+        assert artifacts is not None
+        assert artifacts.folder_name == folder_name
+        assert artifacts.clip_id == clip_id
+        assert artifacts.clip_dir == clip_dir
+        assert artifacts.video_path == video_path
+        assert artifacts.transcript_path == transcript_path
+        assert artifacts.crop_map_path == crop_map_path
+        assert artifacts.cover_image_path == cover_path
+
+        os.remove(cover_path)
+        artifacts_thumb = store.resolve_clip_artifacts(video_path)
+        assert artifacts_thumb is not None
+        assert artifacts_thumb.cover_image_path == thumb_path
+
+        os.remove(thumb_path)
+        artifacts_no_cover = store.resolve_clip_artifacts(video_path)
+        assert artifacts_no_cover is not None
+        assert artifacts_no_cover.cover_image_path is None
+
+
+def test_resolve_clip_artifacts_non_clip_and_traversal():
+    """Verify resolve_clip_artifacts returns None for source videos and rejects traversal."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        sources_dir = os.path.join(temp_dir, "sources", "vid_1")
+        os.makedirs(clips_dir, exist_ok=True)
+        os.makedirs(sources_dir, exist_ok=True)
+        source_video = os.path.join(sources_dir, "video.mp4")
+        with open(source_video, "w", encoding="utf-8") as f:
+            f.write("source")
+
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+        assert store.resolve_clip_artifacts(source_video) is None
+        assert store.resolve_clip_artifacts() is None
+
+        with pytest.raises(ValueError, match="Path traversal detected"):
+            store.resolve_clip_artifacts(folder_name="../malicious", clip_id="clip_1")
+
+        # Stale folder_name/clip_id must not override an explicit Ready Clip video_path
+        clip_dir = os.path.join(clips_dir, "fresh_vid", "10_20_fresh")
+        os.makedirs(clip_dir, exist_ok=True)
+        fresh_video = os.path.join(clip_dir, "video.mp4")
+        with open(fresh_video, "w", encoding="utf-8") as f:
+            f.write("fresh")
+        resolved = store.resolve_clip_artifacts(fresh_video, folder_name="stale_vid", clip_id="0_5_stale")
+        assert resolved is not None
+        assert resolved.folder_name == "fresh_vid"
+        assert resolved.clip_id == "10_20_fresh"
+
+
+def test_ensure_crop_map_forwards_words_data_and_handles_scalar_cache():
+    """Verify ensure_crop_map passes words_data when provided and normalizes scalar crop_map.json."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        clip_dir = os.path.join(clips_dir, "vid_words", "0_10_hook")
+        os.makedirs(clip_dir, exist_ok=True)
+        video_path = os.path.join(clip_dir, "video.mp4")
+        with open(video_path, "w", encoding="utf-8") as f:
+            f.write("video")
+
+        captured = []
+
+        class RecordingTracker:
+            def analyze_video(self, path, words_data=None):
+                captured.append((path, words_data))
+                return [{"time": 0.0, "x": 540}]
+
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, face_tracker=RecordingTracker())
+        words = [{"word": "hello", "start": 0.0, "end": 0.5}]
+        result = store.ensure_crop_map("vid_words", "0_10_hook", words_data=words)
+        assert result == [{"time": 0.0, "x": 540}]
+        assert captured == [(video_path, words)]
+        assert store.get_crop_map("vid_words", "0_10_hook") == [{"time": 0.0, "x": 540}]
+
+        # Legacy scalar number in crop_map.json should normalize cleanly without len() crash
+        scalar_dir = os.path.join(clips_dir, "vid_scalar", "0_10_scalar")
+        os.makedirs(scalar_dir, exist_ok=True)
+        with open(os.path.join(scalar_dir, "crop_map.json"), "w", encoding="utf-8") as f:
+            json.dump(720, f)
+
+        scalar_result = store.ensure_crop_map("vid_scalar", "0_10_scalar")
+        assert scalar_result == [{"time": 0.0, "x": 720}]
+
+
+
 

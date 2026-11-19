@@ -7,6 +7,7 @@ import base64
 import shutil
 import hashlib
 import subprocess
+from dataclasses import dataclass
 from typing import Optional, Dict, Any, List, Set, Literal, Protocol, runtime_checkable
 from core.media_transcoder import MediaTranscoder, MediaProcessAdapter
 
@@ -44,6 +45,19 @@ class AudioLibraryStorePort(Protocol):
         duration: float = 0.0,
         on_duplicate: Literal["prompt", "use_existing", "replace"] = "use_existing",
     ) -> Dict[str, Any]: ...
+
+
+@dataclass(frozen=True)
+class ClipRenderArtifacts:
+    """Resolved on-disk artifact paths for a Ready Clip managed by ClipSessionStore."""
+
+    folder_name: str
+    clip_id: str
+    clip_dir: str
+    video_path: str
+    transcript_path: Optional[str]
+    crop_map_path: Optional[str]
+    cover_image_path: Optional[str]
 
 CANONICAL_DEFAULT_STYLE_SETTINGS: Dict[str, Any] = {
 
@@ -150,6 +164,63 @@ class ClipSessionStore:
             raise ValueError(f"Path traversal detected in filename: {filename}")
         clip_dir = self.resolve_clip_dir(folder_name, clip_id)
         return os.path.join(clip_dir, filename)
+
+    def resolve_clip_artifacts(
+        self,
+        video_path: Optional[str] = None,
+        *,
+        folder_name: Optional[str] = None,
+        clip_id: Optional[str] = None,
+    ) -> Optional[ClipRenderArtifacts]:
+        """Resolve canonical artifact paths for a Ready Clip from video_path or IDs."""
+        if video_path:
+            base = os.path.realpath(self.clips_dir)
+            real_video_dir = os.path.realpath(os.path.dirname(video_path))
+            try:
+                rel = os.path.relpath(real_video_dir, base)
+            except ValueError:
+                return None
+            parts = rel.split(os.sep)
+            if len(parts) != 2 or any(part in {"", ".", ".."} for part in parts):
+                return None
+            resolved_folder, resolved_clip_id = parts[0], parts[1]
+            clip_dir = self.resolve_clip_dir(resolved_folder, resolved_clip_id)
+            real_clip_dir = os.path.realpath(clip_dir)
+            real_video = os.path.realpath(video_path)
+            try:
+                if os.path.commonpath([real_clip_dir, real_video]) != real_clip_dir:
+                    return None
+            except ValueError:
+                return None
+            resolved_video = video_path
+        elif folder_name and clip_id:
+            clip_dir = self.resolve_clip_dir(folder_name, clip_id)
+            resolved_folder = folder_name
+            resolved_clip_id = clip_id
+            resolved_video = os.path.join(clip_dir, "video.mp4")
+        else:
+            return None
+
+        transcript_candidate = os.path.join(clip_dir, "transcript.json")
+        crop_map_candidate = os.path.join(clip_dir, "crop_map.json")
+        cover_candidate = os.path.join(clip_dir, "cover.jpg")
+        thumb_candidate = os.path.join(clip_dir, "thumbnail.jpg")
+
+        cover_image_path = (
+            cover_candidate
+            if os.path.exists(cover_candidate)
+            else (thumb_candidate if os.path.exists(thumb_candidate) else None)
+        )
+
+        return ClipRenderArtifacts(
+            folder_name=resolved_folder,
+            clip_id=resolved_clip_id,
+            clip_dir=clip_dir,
+            video_path=resolved_video,
+            transcript_path=transcript_candidate if os.path.exists(transcript_candidate) else None,
+            crop_map_path=crop_map_candidate if os.path.exists(crop_map_candidate) else None,
+            cover_image_path=cover_image_path,
+        )
 
     def _atomic_write_json(self, target_path: str, data: Any) -> None:
         """
@@ -502,7 +573,8 @@ class ClipSessionStore:
         folder_name: str,
         clip_id: str,
         video_path: Optional[str] = None,
-        tracker: Optional[Any] = None
+        tracker: Optional[Any] = None,
+        words_data: Optional[List[Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieves cached Auto-Reframe crop map if present, or executes face tracking
@@ -510,9 +582,11 @@ class ClipSessionStore:
         Falls back to centered framing ([{"time": 0.0, "x": 960}]) on empty results
         or tracker exceptions.
         """
-        existing = self.get_crop_map(folder_name, clip_id)
-        if existing and len(existing) > 0:
+        existing: Any = self.get_crop_map(folder_name, clip_id)
+        if isinstance(existing, list) and len(existing) > 0:
             return existing
+        if isinstance(existing, (int, float)) and not isinstance(existing, bool):
+            return [{"time": 0.0, "x": int(existing)}]
 
         active_tracker = tracker or self.face_tracker
         if not active_tracker:
@@ -525,7 +599,10 @@ class ClipSessionStore:
 
         crop_map_points: List[Dict[str, Any]]
         try:
-            crop_data = active_tracker.analyze_video(resolved_video_path)
+            if words_data is not None:
+                crop_data = active_tracker.analyze_video(resolved_video_path, words_data=words_data)
+            else:
+                crop_data = active_tracker.analyze_video(resolved_video_path)
             if isinstance(crop_data, (int, float)):
                 crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
             elif isinstance(crop_data, list) and len(crop_data) > 0:

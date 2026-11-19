@@ -1116,6 +1116,7 @@ def test_launcher_run_passes_supervisor_env_cleans_stale_request_and_executes_up
     assert coord_cls.call_args.kwargs["update_request_file"] == str(stale_req)
     assert len(spawned_services) == 1
     backend_env = spawned_services[0].env
+    assert backend_env["PYTHONUNBUFFERED"] == "1"
     assert backend_env["YONRU_SUPERVISOR_PID"] == str(os.getpid())
     assert backend_env["YONRU_UPDATE_IPC_DIR"] == str(ipc_dir)
     assert backend_env["YONRU_SUPERVISOR_DEV"] == "0"

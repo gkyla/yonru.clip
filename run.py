@@ -1410,6 +1410,7 @@ class BootstrappedLauncher:
         frontend_cmd = ["npm", "run", "dev"]
 
         backend_env = {
+            "PYTHONUNBUFFERED": "1",
             "YONRU_SUPERVISOR_PID": str(os.getpid()),
             "YONRU_UPDATE_IPC_DIR": self.ipc_dir,
             "YONRU_SUPERVISOR_DEV": "1" if self.dev else "0",

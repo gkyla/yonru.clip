@@ -125,62 +125,6 @@ class TestRenderEngine(unittest.TestCase):
             comp_no_sub = engine.compile_composition(mock_job, mock_req)
             self.assertTrue(comp_no_sub.hide_subtitles)
 
-    def test_compile_and_render_methods(self):
-        mock_req = MagicMock()
-        mock_req.fps = 30.0
-        mock_req.hook_index = 0
-        mock_req.timeline_tracks = []
-        mock_req.transcript = None
-        mock_req.subtitle_mode = "word"
-        mock_req.subtitle_sync_offset = 0.0
-        mock_req.font = "Arial"
-        mock_req.font_size = 24
-        mock_req.subtitle_offset = 50
-        mock_req.subtitle_font_weight = 900
-        mock_req.subtitle_text_color = "#FFFFFF"
-        mock_req.subtitle_highlight_color = "#CFFF50"
-        mock_req.subtitle_stroke_color = "#000000"
-        mock_req.subtitle_stroke_width = 4.0
-        mock_req.subtitle_text_transform = "uppercase"
-        mock_req.subtitle_animation = "pop"
-        mock_req.subtitle_highlight_mode = "color"
-        mock_req.subtitle_background = "none"
-        mock_req.subtitle_background_opacity = 0.7
-        mock_req.subtitle_word_spacing = 0
-        mock_req.volume = 0.5
-        mock_req.thumbnail_enabled = False
-        mock_req.face_tracking = False
-        mock_req.crop_percent_x = 50.0
-        mock_req.subtitle_position = "bottom"
-
-        mock_job = {
-            "clip_path": "temp_assets/sources/video.mp4",
-            "video_info": {"file_path": "temp_assets/sources/video.mp4", "duration": 10.0, "fps": 30.0},
-            "hooks": []
-        }
-
-        mock_asset_repo = MagicMock()
-        mock_asset_repo.transcoder = None
-
-        with patch("os.path.exists", return_value=False):
-            engine = FakeRenderEngine()
-            
-            # Test compile_and_render decoupled from asset_repository
-            path_decoupled = engine.compile_and_render(mock_job, mock_req, out_filename="output.mp4")
-            self.assertEqual(path_decoupled, "static/output/output.mp4")
-
-            # Test legacy compile_and_render with asset_repository
-            path = engine.compile_and_render(mock_job, mock_req, mock_asset_repo, "output.mp4")
-            self.assertEqual(path, "static/output/output.mp4")
-
-            # Test compile_and_render_streaming decoupled
-            yields_decoupled = list(engine.compile_and_render_streaming(mock_job, mock_req, out_filename="output.mp4"))
-            self.assertEqual(yields_decoupled[-1]["stage"], "done")
-
-            # Test compile_and_render_streaming legacy
-            yields = list(engine.compile_and_render_streaming(mock_job, mock_req, mock_asset_repo, "output.mp4"))
-            self.assertEqual(yields[-1]["stage"], "done")
-
     def test_compile_composition_with_mock_face_tracker(self):
         from core.face_tracker import MockFaceTracker
         from core.render_engine import RemotionRenderEngine
@@ -615,6 +559,7 @@ class TestRenderEngine(unittest.TestCase):
             cmd = coordinator._build_remotion_cmd(mock_ctx, comp, "static/output/clip.mp4")
             self.assertEqual(cmd[0], "remotion")
             self.assertEqual(cmd[1], "render")
+            self.assertEqual(cmd[2], ".bundle")
             self.assertIn("--overwrite", cmd)
             self.assertNotIn("--force", cmd)
             # Props path must have forward slashes
@@ -627,30 +572,50 @@ class TestRenderEngine(unittest.TestCase):
             self.assertNotIn("\\", cmd[out_idx])
 
     def test_render_streaming_captures_error_ring_buffer(self):
-        coordinator = RenderPipelineCoordinator()
-        comp = RenderComposition("test.mp4", 960, fps=30.0, clip_duration=2.0)
+        import subprocess
+        import tempfile
 
-        mock_proc = MagicMock()
-        mock_proc.stdout.readline.side_effect = [
-            "Bundling 10%\n",
-            "Error: [Chrome Headless Shell] GPU process launch failed\n",
-            "at /shared/remotion/node_modules/remotion/render.js:42\n",
-            ""
-        ]
-        mock_proc.poll.return_value = 1
-        mock_proc.returncode = 1
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            remotion_dir = self._create_temp_remotion_project(tmp_dir)
+            out_dir = os.path.join(tmp_dir, "output")
+            video_src = os.path.join(tmp_dir, "test.mp4")
+            with open(video_src, "wb") as f:
+                f.write(b"VIDEO")
 
-        with patch.object(coordinator, "_build_remotion_cmd", return_value=["npx", "remotion", "render"]), \
-             patch("core.render_engine.StagedRenderContext.__enter__", return_value=MagicMock(frames=60, remotion_dir=".")), \
-             patch("core.render_engine.StagedRenderContext.__exit__"), \
-             patch("subprocess.Popen", return_value=mock_proc):
+            coordinator = RenderPipelineCoordinator(output_dir=out_dir, remotion_dir=remotion_dir)
+            comp = RenderComposition(video_src, 960, fps=30.0, clip_duration=2.0)
 
-            events = list(coordinator.render_streaming(comp, "test_out.mp4"))
-            error_events = [e for e in events if e.get("stage") == "error"]
-            self.assertEqual(len(error_events), 1)
-            err_msg = error_events[0]["message"]
-            self.assertIn("Remotion exited with code 1", err_msg)
-            self.assertIn("GPU process launch failed", err_msg)
+            def fake_seed_bundle(cmd, cwd=None, **kwargs):
+                if "bundle" in cmd:
+                    bundle_dir = os.path.join(cwd or remotion_dir, ".bundle")
+                    os.makedirs(bundle_dir, exist_ok=True)
+                    with open(os.path.join(bundle_dir, "index.html"), "w", encoding="utf-8") as f:
+                        f.write("<html>warm</html>")
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+
+            with patch.object(coordinator, "resolve_remotion_command", return_value=["remotion"]), \
+                 patch("subprocess.run", side_effect=fake_seed_bundle):
+                self.assertIsNotNone(coordinator.render(comp, "seed_out.mp4"))
+
+            mock_proc = MagicMock()
+            mock_proc.stdout.readline.side_effect = [
+                "Bundling 10%\n",
+                "Error: [Chrome Headless Shell] GPU process launch failed\n",
+                "at /shared/remotion/node_modules/remotion/render.js:42\n",
+                ""
+            ]
+            mock_proc.poll.return_value = 1
+            mock_proc.returncode = 1
+
+            with patch.object(coordinator, "resolve_remotion_command", return_value=["remotion"]), \
+                 patch("subprocess.Popen", return_value=mock_proc):
+
+                events = list(coordinator.render_streaming(comp, "test_out.mp4"))
+                error_events = [e for e in events if e.get("stage") == "error"]
+                self.assertEqual(len(error_events), 1)
+                err_msg = error_events[0]["message"]
+                self.assertIn("Remotion exited with code 1", err_msg)
+                self.assertIn("GPU process launch failed", err_msg)
 
     def test_render_engine_decoupled_from_asset_repository(self):
         from core.media_transcoder import MediaTranscoder, FakeMediaAdapter
@@ -767,14 +732,14 @@ class TestRenderEngine(unittest.TestCase):
         tmp_pub = os.path.join(tmp_out, "public")
         os.makedirs(tmp_pub, exist_ok=True)
         try:
-            ctx = StagedRenderContext(comp, "adaptive_test.mp4", output_dir=tmp_out)
-            ctx.public_dir = tmp_pub
-            with patch("shutil.copy2", side_effect=lambda src, dst: None):
-                ctx.__enter__()
+            dummy_video = os.path.join(tmp_out, "video.mp4")
+            with open(dummy_video, "wb") as vf:
+                vf.write(b"VIDEO")
+            comp.original_video = dummy_video
+            with StagedRenderContext(comp, "adaptive_test.mp4", output_dir=tmp_out, public_dir=tmp_pub) as ctx:
                 assert ctx.props_path is not None
                 with open(ctx.props_path, "r", encoding="utf-8") as pf:
                     staged_props = json.load(pf)
-                ctx.__exit__(None, None, None)
 
             self.assertFalse(staged_props.get("autoAdaptiveSubtitles"))
             self.assertEqual(staged_props["timelineVideoItems"][0]["mediaStart"], 10.78)
@@ -878,6 +843,408 @@ class TestRenderEngine(unittest.TestCase):
         with patch("os.path.exists", side_effect=fake_exists):
             comp_empty = engine.compile_composition(mock_job, req_empty_video)
         self.assertEqual(comp_empty.timeline_video_items, [])
+
+    def test_compile_composition_uses_clip_session_store_and_persists_crop_map(self):
+        import tempfile
+        import main as backend_main
+        from core.clip_session_store import ClipSessionStore
+        from core.face_tracker import MockFaceTracker
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            clips_dir = os.path.join(tmp_dir, "clips")
+            clip_dir = os.path.join(clips_dir, "demo_src", "0_12_hook")
+            os.makedirs(clip_dir, exist_ok=True)
+            video_path = os.path.join(clip_dir, "video.mp4")
+            with open(video_path, "wb") as f:
+                f.write(b"VIDEO")
+            with open(os.path.join(clip_dir, "transcript.json"), "w", encoding="utf-8") as f:
+                json.dump([{"text": "Hello clip", "start": 0.0, "duration": 1.0}], f)
+            cover_path = os.path.join(clip_dir, "cover.jpg")
+            with open(cover_path, "wb") as f:
+                f.write(b"COVER_JPG")
+
+            store = ClipSessionStore(clips_dir=clips_dir, output_dir=tmp_dir)
+            tracker = MockFaceTracker(mock_result=[{"time": 0.0, "x": 615}, {"time": 1.5, "x": 640}])
+            engine = FakeRenderEngine(face_tracker=tracker, clip_session_store=store)
+
+            req = backend_main.RenderRequest(
+                job_id="job_store_test",
+                face_tracking=True,
+                cover_enabled=True,
+                cover_duration=1.5,
+            )
+            job = {
+                "job_id": "job_store_test",
+                "clip_path": video_path,
+                "clip_duration": 12.0,
+                "folder_name": "demo_src",
+                "clip_id": "0_12_hook",
+                "video_info": {"file_path": os.path.join(tmp_dir, "sources", "demo_src", "video.mp4"), "duration": 12.0, "fps": 30.0},
+                "hooks": [],
+            }
+
+            comp1 = engine.compile_composition(job, req)
+            self.assertEqual([w["word"] for w in (comp1.words_data or [])], ["Hello", "clip"])
+            self.assertIsNotNone(comp1.thumbnail_config)
+            assert comp1.thumbnail_config is not None
+            self.assertEqual(comp1.thumbnail_config["imagePath"], cover_path)
+            self.assertTrue(comp1.thumbnail_config["enabled"])
+            self.assertEqual(comp1.crop_center_x, [{"time": 0.0, "x": 615}, {"time": 1.5, "x": 640}])
+            self.assertEqual(tracker.analyzed_paths, [video_path])
+            # ADR-0008 §6: cache-miss tracking must persist crop_map.json
+            self.assertEqual(store.get_crop_map("demo_src", "0_12_hook"), [{"time": 0.0, "x": 615}, {"time": 1.5, "x": 640}])
+
+            # Second compile_composition hits persisted crop_map.json with zero tracker invocations
+            comp2 = engine.compile_composition(job, req)
+            self.assertEqual(comp2.crop_center_x, [{"time": 0.0, "x": 615}, {"time": 1.5, "x": 640}])
+            self.assertEqual(tracker.analyzed_paths, [video_path])
+
+    def test_shallow_passthrough_render_helpers_are_deleted(self):
+        from core.render_engine import RenderEngine
+        self.assertFalse(hasattr(RenderEngine, "compile_and_render"))
+        self.assertFalse(hasattr(RenderEngine, "compile_and_render_streaming"))
+        self.assertFalse(hasattr(RenderPipelineCoordinator, "_prepare_props_and_paths"))
+
+    def test_staged_render_context_hardlinks_video_cover_and_audio_and_preserves_originals(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            src_dir = os.path.join(tmp_dir, "sources")
+            audio_dir = os.path.join(tmp_dir, "audio_library")
+            out_dir = os.path.join(tmp_dir, "output")
+            pub_dir = os.path.join(tmp_dir, "bundle_public")
+            os.makedirs(src_dir, exist_ok=True)
+            os.makedirs(audio_dir, exist_ok=True)
+
+            video_src = os.path.join(src_dir, "video.mp4")
+            cover_src = os.path.join(src_dir, "cover.jpg")
+            audio_src = os.path.join(audio_dir, "bgm.mp3")
+
+            with open(video_src, "wb") as f:
+                f.write(b"VIDEO_BYTES_123")
+            with open(cover_src, "wb") as f:
+                f.write(b"COVER_BYTES_456")
+            with open(audio_src, "wb") as f:
+                f.write(b"AUDIO_BYTES_789")
+
+            comp = RenderComposition(
+                original_video=video_src,
+                crop_center_x=960,
+                clip_duration=2.0,
+                fps=30.0,
+                thumbnail_config={"enabled": True, "duration": 1.0, "imagePath": cover_src},
+                timeline_audio_items=[
+                    {"id": "aud-1", "src": "/assets/audio_library/bgm.mp3", "start": 0.0, "duration": 2.0}
+                ],
+            )
+
+            with StagedRenderContext(
+                comp,
+                "clip_link.mp4",
+                output_dir=out_dir,
+                public_dir=pub_dir,
+                audio_library_dir=audio_dir,
+            ) as ctx:
+                assert ctx.public_video_path is not None
+                assert ctx.thumbnail_image_path is not None
+                assert len(ctx.staged_audio_paths) == 1
+
+                self.assertEqual(os.stat(ctx.public_video_path).st_ino, os.stat(video_src).st_ino)
+                self.assertEqual(os.stat(ctx.thumbnail_image_path).st_ino, os.stat(cover_src).st_ino)
+                self.assertEqual(os.stat(ctx.staged_audio_paths[0]).st_ino, os.stat(audio_src).st_ino)
+
+                staged_video = ctx.public_video_path
+                staged_cover = ctx.thumbnail_image_path
+                staged_audio = ctx.staged_audio_paths[0]
+                staged_props = ctx.props_path
+
+            self.assertFalse(os.path.exists(staged_video))
+            self.assertFalse(os.path.exists(staged_cover))
+            self.assertFalse(os.path.exists(staged_audio))
+            assert staged_props is not None
+            self.assertFalse(os.path.exists(staged_props))
+
+            with open(video_src, "rb") as f:
+                self.assertEqual(f.read(), b"VIDEO_BYTES_123")
+            with open(cover_src, "rb") as f:
+                self.assertEqual(f.read(), b"COVER_BYTES_456")
+            with open(audio_src, "rb") as f:
+                self.assertEqual(f.read(), b"AUDIO_BYTES_789")
+
+    def test_staged_render_context_falls_back_to_copy_on_exdev(self):
+        import errno
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_dir = os.path.join(tmp_dir, "output")
+            pub_dir = os.path.join(tmp_dir, "public")
+            video_src = os.path.join(tmp_dir, "video.mp4")
+            with open(video_src, "wb") as f:
+                f.write(b"CROSS_DEVICE_BYTES")
+
+            comp = RenderComposition(original_video=video_src, crop_center_x=960, clip_duration=1.0, fps=30.0)
+            exdev_err = OSError(errno.EXDEV, "Invalid cross-device link")
+
+            with patch("os.link", side_effect=exdev_err):
+                with StagedRenderContext(comp, "exdev_clip.mp4", output_dir=out_dir, public_dir=pub_dir) as ctx:
+                    assert ctx.public_video_path is not None
+                    self.assertTrue(os.path.exists(ctx.public_video_path))
+                    with open(ctx.public_video_path, "rb") as f:
+                        self.assertEqual(f.read(), b"CROSS_DEVICE_BYTES")
+                    staged_video = ctx.public_video_path
+
+            self.assertFalse(os.path.exists(staged_video))
+            self.assertTrue(os.path.exists(video_src))
+
+    def test_staged_render_context_replaces_stale_dest_and_cleans_on_enter_error(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_dir = os.path.join(tmp_dir, "output")
+            pub_dir = os.path.join(tmp_dir, "public")
+            os.makedirs(pub_dir, exist_ok=True)
+
+            video_src = os.path.join(tmp_dir, "video.mp4")
+            with open(video_src, "wb") as f:
+                f.write(b"FRESH_VIDEO")
+
+            stale_dst = os.path.join(pub_dir, "source_stale_clip.mp4")
+            with open(stale_dst, "wb") as f:
+                f.write(b"STALE_CONTENT")
+
+            comp = RenderComposition(original_video=video_src, crop_center_x=960, clip_duration=1.0, fps=30.0)
+
+            with patch("json.dump", side_effect=OSError("disk full")):
+                ctx = StagedRenderContext(comp, "stale_clip.mp4", output_dir=out_dir, public_dir=pub_dir)
+                with self.assertRaises(OSError):
+                    ctx.__enter__()
+
+            self.assertFalse(os.path.exists(stale_dst))
+            with open(video_src, "rb") as f:
+                self.assertEqual(f.read(), b"FRESH_VIDEO")
+
+    def test_staged_render_context_rejects_unsafe_out_filename_and_dereferences_symlinks(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_dir = os.path.join(tmp_dir, "output")
+            pub_dir = os.path.join(tmp_dir, "public")
+            real_video = os.path.join(tmp_dir, "real_video.mp4")
+            symlink_video = os.path.join(tmp_dir, "link_video.mp4")
+            with open(real_video, "wb") as f:
+                f.write(b"SYMLINK_TARGET_BYTES")
+            os.symlink(real_video, symlink_video)
+
+            bad_comp = RenderComposition(original_video=real_video, crop_center_x=960, clip_duration=1.0, fps=30.0)
+            with self.assertRaises(ValueError):
+                StagedRenderContext(bad_comp, "../evil.mp4", output_dir=out_dir, public_dir=pub_dir).__enter__()
+
+            sym_comp = RenderComposition(original_video=symlink_video, crop_center_x=960, clip_duration=1.0, fps=30.0)
+            with StagedRenderContext(sym_comp, "sym_clip.mp4", output_dir=out_dir, public_dir=pub_dir) as ctx:
+                assert ctx.public_video_path is not None
+                self.assertFalse(os.path.islink(ctx.public_video_path))
+                self.assertEqual(os.stat(ctx.public_video_path).st_ino, os.stat(real_video).st_ino)
+
+    def _create_temp_remotion_project(self, root_dir: str) -> str:
+        remotion_dir = os.path.join(root_dir, "shared", "remotion")
+        src_dir = os.path.join(remotion_dir, "src")
+        os.makedirs(src_dir, exist_ok=True)
+        files = {
+            "package.json": '{"name": "@yonru/remotion", "version": "0.3.0"}\n',
+            "package-lock.json": '{"lockfileVersion": 3}\n',
+            "remotion.config.ts": "export default {};\n",
+            "tsconfig.json": '{"compilerOptions": {}}\n',
+            os.path.join("src", "index.ts"): "import { registerRoot } from 'remotion';\n",
+            os.path.join("src", "Composition.tsx"): "export const Composition = () => null;\n",
+        }
+        for rel_path, content in files.items():
+            full_path = os.path.join(remotion_dir, rel_path)
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(content)
+        return remotion_dir
+
+    def test_bundle_cache_cold_build_then_warm_hit_and_source_invalidation(self):
+        import subprocess
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            remotion_dir = self._create_temp_remotion_project(tmp_dir)
+            out_dir = os.path.join(tmp_dir, "output")
+            video_src = os.path.join(tmp_dir, "clip_src.mp4")
+            with open(video_src, "wb") as f:
+                f.write(b"VIDEO_CONTENT_FOR_BUNDLE")
+
+            coordinator = RenderPipelineCoordinator(output_dir=out_dir, remotion_dir=remotion_dir)
+            comp = RenderComposition(original_video=video_src, crop_center_x=960, clip_duration=2.0, fps=30.0)
+
+            recorded_cmds = []
+            seen_inodes = []
+
+            def fake_run(cmd, cwd=None, **kwargs):
+                recorded_cmds.append(list(cmd))
+                if "bundle" in cmd:
+                    out_idx = cmd.index("--out-dir")
+                    bundle_path = os.path.join(cwd or remotion_dir, cmd[out_idx + 1])
+                    os.makedirs(bundle_path, exist_ok=True)
+                    with open(os.path.join(bundle_path, "index.html"), "w", encoding="utf-8") as f:
+                        f.write("<html><body>bundle</body></html>")
+                elif "render" in cmd:
+                    staged = os.path.join(cwd or remotion_dir, ".bundle", "public", "source_clip1.mp4")
+                    self.assertTrue(os.path.exists(staged))
+                    seen_inodes.append(os.stat(staged).st_ino)
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+
+            with patch.object(coordinator, "resolve_remotion_command", return_value=["remotion"]), \
+                 patch("subprocess.run", side_effect=fake_run):
+                res1 = coordinator.render(comp, "clip1.mp4")
+                self.assertEqual(res1, os.path.join(out_dir, "clip1.mp4"))
+
+                bundle_cmds_1 = [c for c in recorded_cmds if "bundle" in c]
+                render_cmds_1 = [c for c in recorded_cmds if "render" in c]
+                self.assertEqual(len(bundle_cmds_1), 1)
+                self.assertEqual(bundle_cmds_1[0], ["remotion", "bundle", "src/index.ts", "--out-dir", ".bundle"])
+                self.assertEqual(len(render_cmds_1), 1)
+                self.assertEqual(render_cmds_1[0][2], ".bundle")
+
+                bundle_dir = os.path.join(remotion_dir, ".bundle")
+                hash_file = os.path.join(bundle_dir, ".bundle.hash")
+                self.assertTrue(os.path.isfile(hash_file))
+                with open(hash_file, "r", encoding="utf-8") as f:
+                    hash1 = f.read().strip()
+                self.assertTrue(len(hash1) == 64)
+                self.assertEqual(seen_inodes, [os.stat(video_src).st_ino])
+                self.assertFalse(os.path.exists(os.path.join(bundle_dir, "public", "source_clip1.mp4")))
+
+                # Second export with unchanged sources: 0 bundle calls and logs cache hit
+                recorded_cmds.clear()
+                printed_logs = []
+                with patch("builtins.print", side_effect=lambda *args, **kwargs: printed_logs.append(" ".join(str(a) for a in args))):
+                    res2 = coordinator.render(comp, "clip1.mp4")
+                self.assertEqual(res2, os.path.join(out_dir, "clip1.mp4"))
+                self.assertEqual([c for c in recorded_cmds if "bundle" in c], [])
+                self.assertEqual(len([c for c in recorded_cmds if "render" in c]), 1)
+                self.assertTrue(
+                    any("[render-engine] Reusing cached Remotion bundle:" in msg for msg in printed_logs),
+                    f"Expected cache-hit log in {printed_logs}",
+                )
+
+                # Modify source file: triggers re-bundle and updates hash
+                with open(os.path.join(remotion_dir, "src", "Composition.tsx"), "w", encoding="utf-8") as f:
+                    f.write("export const Composition = () => 1;\n")
+
+                recorded_cmds.clear()
+                res3 = coordinator.render(comp, "clip1.mp4")
+                self.assertEqual(res3, os.path.join(out_dir, "clip1.mp4"))
+                self.assertEqual(len([c for c in recorded_cmds if "bundle" in c]), 1)
+                self.assertEqual(len([c for c in recorded_cmds if "render" in c]), 1)
+                with open(hash_file, "r", encoding="utf-8") as f:
+                    hash2 = f.read().strip()
+                self.assertNotEqual(hash1, hash2)
+
+    def test_bundle_cache_recovers_corrupt_dir_and_handles_bundle_failure(self):
+        import subprocess
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            remotion_dir = self._create_temp_remotion_project(tmp_dir)
+            out_dir = os.path.join(tmp_dir, "output")
+            video_src = os.path.join(tmp_dir, "clip_src.mp4")
+            with open(video_src, "wb") as f:
+                f.write(b"VIDEO")
+
+            bundle_dir = os.path.join(remotion_dir, ".bundle")
+            os.makedirs(bundle_dir, exist_ok=True)
+            garbage_path = os.path.join(bundle_dir, "garbage.txt")
+            with open(garbage_path, "w", encoding="utf-8") as f:
+                f.write("corrupt")
+
+            coordinator = RenderPipelineCoordinator(output_dir=out_dir, remotion_dir=remotion_dir)
+            comp = RenderComposition(original_video=video_src, crop_center_x=960, clip_duration=2.0, fps=30.0)
+
+            def fake_run_recover(cmd, cwd=None, **kwargs):
+                if "bundle" in cmd:
+                    self.assertFalse(os.path.exists(bundle_dir))
+                    os.makedirs(bundle_dir, exist_ok=True)
+                    with open(os.path.join(bundle_dir, "index.html"), "w", encoding="utf-8") as f:
+                        f.write("<html>recovered</html>")
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+
+            with patch.object(coordinator, "resolve_remotion_command", return_value=["remotion"]), \
+                 patch("subprocess.run", side_effect=fake_run_recover):
+                self.assertEqual(coordinator.render(comp, "recovered.mp4"), os.path.join(out_dir, "recovered.mp4"))
+
+            # Force cache miss and simulate bundle failure
+            shutil.rmtree(bundle_dir)
+
+            def fake_run_fail(cmd, cwd=None, **kwargs):
+                return subprocess.CompletedProcess(cmd, 1, "", "bundle boom")
+
+            with patch.object(coordinator, "resolve_remotion_command", return_value=["remotion"]), \
+                 patch("subprocess.run", side_effect=fake_run_fail):
+                self.assertIsNone(coordinator.render(comp, "fail.mp4"))
+                self.assertFalse(os.path.exists(os.path.join(bundle_dir, ".bundle.hash")))
+
+                events = list(coordinator.render_streaming(comp, "fail.mp4"))
+                error_events = [e for e in events if e.get("stage") == "error"]
+                self.assertEqual(len(error_events), 1)
+                self.assertIn("bundle boom", error_events[0]["message"])
+
+    def test_render_streaming_emits_immediate_done_without_sleep(self):
+        import subprocess
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            remotion_dir = self._create_temp_remotion_project(tmp_dir)
+            out_dir = os.path.join(tmp_dir, "output")
+            video_src = os.path.join(tmp_dir, "clip_src.mp4")
+            with open(video_src, "wb") as f:
+                f.write(b"VIDEO")
+
+            coordinator = RenderPipelineCoordinator(output_dir=out_dir, remotion_dir=remotion_dir)
+            comp = RenderComposition(original_video=video_src, crop_center_x=960, clip_duration=2.0, fps=30.0)
+
+            def fake_bundle_then_render(cmd, cwd=None, **kwargs):
+                if "bundle" in cmd:
+                    bundle_dir = os.path.join(cwd or remotion_dir, ".bundle")
+                    os.makedirs(bundle_dir, exist_ok=True)
+                    with open(os.path.join(bundle_dir, "index.html"), "w", encoding="utf-8") as f:
+                        f.write("<html>warm</html>")
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+
+            with patch.object(coordinator, "resolve_remotion_command", return_value=["remotion"]), \
+                 patch("subprocess.run", side_effect=fake_bundle_then_render):
+                self.assertIsNotNone(coordinator.render(comp, "warm_seed.mp4"))
+
+            mock_proc = MagicMock()
+            mock_proc.stdout.readline.side_effect = [
+                "Rendered 0/60\n",
+                "Rendered 60/60\n",
+                "Encoding and muxing audio...\n",
+                "",
+            ]
+            mock_proc.poll.return_value = 0
+            mock_proc.returncode = 0
+
+            with patch.object(coordinator, "resolve_remotion_command", return_value=["remotion"]), \
+                 patch("subprocess.Popen", return_value=mock_proc) as mock_popen, \
+                 patch("core.render_engine.time.sleep") as mock_sleep:
+                events = list(coordinator.render_streaming(comp, "fast_clip.mp4"))
+
+            mock_sleep.assert_not_called()
+            popen_cmd = mock_popen.call_args[0][0]
+            self.assertEqual(popen_cmd[2], ".bundle")
+            self.assertFalse(any(e.get("stage") == "encoding" and e.get("percent") == 98 for e in events))
+            self.assertEqual(
+                events[-1],
+                {
+                    "stage": "done",
+                    "percent": 100,
+                    "frame": 60,
+                    "totalFrames": 60,
+                    "outputPath": os.path.join(out_dir, "fast_clip.mp4"),
+                    "outputUrl": "/static/output/fast_clip.mp4",
+                },
+            )
 
 
 

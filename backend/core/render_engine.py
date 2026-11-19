@@ -1,12 +1,18 @@
 from abc import ABC, abstractmethod
+import hashlib
 import os
 import sys
 import subprocess
 import json
 import shutil
 import re
+import threading
 import time
+import uuid
 from typing import Generator, Any, Optional, Dict, List, Tuple
+
+
+_BUNDLE_LOCK = threading.Lock()
 
 
 def _resolve_track_type(track: Any) -> str:
@@ -42,6 +48,20 @@ def _compute_timeline_duration(tracks: Optional[List[Dict[str, Any]]]) -> float:
             if end > max_timeline_end:
                 max_timeline_end = end
     return max_timeline_end
+
+
+def _stage_file(src: str, dst: str) -> None:
+    """Stage a media file via zero-copy hardlink, falling back to copy across filesystems."""
+    real_src = os.path.realpath(src)
+    real_dst = os.path.realpath(dst)
+    if real_src == real_dst:
+        return
+    if os.path.lexists(dst):
+        os.remove(dst)
+    try:
+        os.link(real_src, dst)
+    except OSError:
+        shutil.copy2(real_src, dst)
 
 
 class RenderComposition:
@@ -85,6 +105,25 @@ class RenderComposition:
             self.hide_subtitles = not subtitles_enabled
         else:
             self.hide_subtitles = kwargs.get("hide_subtitles", False)
+
+    def compute_total_frames(self) -> Tuple[int, float]:
+        """Compute total composition frames and active cover slide duration in seconds."""
+        cover_duration = 0.0
+        cover_cfg = getattr(self, "cover_config", None) or getattr(self, "thumbnail_config", None)
+        if cover_cfg and cover_cfg.get("enabled"):
+            cover_src = cover_cfg.get("imagePath")
+            if cover_src and os.path.exists(cover_src):
+                raw_duration = cover_cfg.get("duration", 1.0)
+                cover_duration = float(1.0 if raw_duration is None else raw_duration)
+
+        clip_dur = self.clip_duration
+        max_timeline_end = _compute_timeline_duration(self.timeline_tracks)
+        if max_timeline_end > 0.0:
+            clip_dur = max_timeline_end
+
+        video_frames = max(1, int((clip_dur or 10.0) * self.fps))
+        cover_frames = int(cover_duration * self.fps)
+        return video_frames + cover_frames, cover_duration
 
 
 class SafeEncoder(json.JSONEncoder):
@@ -231,6 +270,15 @@ class RemotionProgressParser:
     def starting_event(self) -> Dict[str, Any]:
         return {"stage": "starting", "percent": 0, "frame": 0, "totalFrames": self.total_frames}
 
+    def bundling_event(self, percent: int = 5) -> Dict[str, Any]:
+        return {
+            "stage": "bundling",
+            "percent": percent,
+            "frame": 0,
+            "totalFrames": self.total_frames,
+            "etaSeconds": 0,
+        }
+
     def complete_event(self, output_path: str, output_url: str) -> Dict[str, Any]:
         return {
             "stage": "done",
@@ -251,13 +299,23 @@ class StagedRenderContext:
     in shared/remotion/public/ and static/output/ for Remotion rendering.
     Guarantees cleanup on normal completion, failures, and exceptions.
     """
-    def __init__(self, comp: RenderComposition, out_filename: str, output_dir: str = "static/output"):
+    def __init__(
+        self,
+        comp: RenderComposition,
+        out_filename: str,
+        output_dir: str = "static/output",
+        remotion_dir: Optional[str] = None,
+        public_dir: Optional[str] = None,
+        audio_library_dir: Optional[str] = None,
+    ):
         self.comp = comp
         self.out_filename = out_filename
         self.output_dir = output_dir
-        self.remotion_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../shared/remotion"))
-        self.public_dir = os.path.join(self.remotion_dir, "public")
-        self.audio_library_dir = os.path.abspath("temp_assets/audio_library")
+        self.remotion_dir = os.path.abspath(
+            remotion_dir or os.path.join(os.path.dirname(__file__), "../../shared/remotion")
+        )
+        self.public_dir = os.path.abspath(public_dir or os.path.join(self.remotion_dir, "public"))
+        self.audio_library_dir = os.path.abspath(audio_library_dir or "temp_assets/audio_library")
         self.public_video_path: Optional[str] = None
         self.thumbnail_image_path: Optional[str] = None
         self.staged_audio_paths: List[str] = []
@@ -265,135 +323,140 @@ class StagedRenderContext:
         self.frames: int = 0
 
     def __enter__(self):
+        self.staged_audio_paths = []
         os.makedirs(self.public_dir, exist_ok=True)
         os.makedirs(self.output_dir, exist_ok=True)
 
-        temp_public_video_name = f"source_{self.out_filename}"
-        self.public_video_path = os.path.join(self.public_dir, temp_public_video_name)
-        shutil.copy2(self.comp.original_video, self.public_video_path)
+        safe_out_filename = os.path.basename(self.out_filename)
+        if not safe_out_filename or safe_out_filename in {".", ".."} or safe_out_filename != self.out_filename:
+            raise ValueError(f"Unsafe output filename for staging: {self.out_filename}")
 
-        cover_image_name = None
-        cover_duration = 0.0
-        cover_cfg = getattr(self.comp, "cover_config", None) or getattr(self.comp, "thumbnail_config", None)
-        if cover_cfg and cover_cfg.get("enabled"):
-            cover_src = cover_cfg.get("imagePath")
-            if cover_src and os.path.exists(cover_src):
-                cover_image_name = f"cover_{self.out_filename}.jpg"
-                self.thumbnail_image_path = os.path.join(self.public_dir, cover_image_name)
-                shutil.copy2(cover_src, self.thumbnail_image_path)
-                cover_duration = cover_cfg.get("duration", 1.0)
-
-        clip_dur = self.comp.clip_duration
-        max_timeline_end = _compute_timeline_duration(self.comp.timeline_tracks)
-        if max_timeline_end > 0.0:
-            clip_dur = max_timeline_end
-
-        timeline_video_items = self.comp.timeline_video_items
-        if timeline_video_items is None and self.comp.timeline_tracks:
-            video_track = next(
-                (t for t in self.comp.timeline_tracks if _resolve_track_type(t) == "video"),
-                None,
-            )
-            timeline_video_items = video_track.get("items", []) if video_track else []
-        timeline_video_items = timeline_video_items or []
-
-        video_frames = max(1, int((clip_dur or 10.0) * self.comp.fps))
-        cover_frames = int(cover_duration * self.comp.fps)
-        self.frames = video_frames + cover_frames
-
-        staged_audio_items = []
-        base_audio_dir = os.path.abspath(self.audio_library_dir)
         base_public_dir = os.path.abspath(self.public_dir)
-        for idx, item in enumerate(self.comp.timeline_audio_items or []):
-            item_copy = dict(item)
-            src = str(item_copy.get("src") or "")
-            if "/assets/audio_library/" in src:
-                raw_filename = src.split("/assets/audio_library/")[-1].split("?")[0]
-                audio_filename = os.path.basename(raw_filename)
-                local_audio_path = os.path.abspath(os.path.join(base_audio_dir, audio_filename))
-                if (
-                    audio_filename
-                    and os.path.commonpath([base_audio_dir, local_audio_path]) == base_audio_dir
-                    and os.path.isfile(local_audio_path)
-                ):
-                    staged_audio_name = f"audio_{os.path.basename(self.out_filename)}_{idx}_{audio_filename}"
-                    staged_audio_dest = os.path.abspath(os.path.join(base_public_dir, staged_audio_name))
-                    if os.path.commonpath([base_public_dir, staged_audio_dest]) == base_public_dir:
-                        shutil.copy2(local_audio_path, staged_audio_dest)
-                        self.staged_audio_paths.append(staged_audio_dest)
-                        item_copy["src"] = staged_audio_name
-            staged_audio_items.append(item_copy)
+        base_output_dir = os.path.abspath(self.output_dir)
 
-        props = {
-            "videoPath": temp_public_video_name,
-            "words": self.comp.words_data or [],
-            "cropX": self.comp.crop_center_x if isinstance(self.comp.crop_center_x, (int, float)) else (self.comp.crop_center_x[0]["x"] if isinstance(self.comp.crop_center_x, list) and len(self.comp.crop_center_x) > 0 else 960),
-            "cropMap": self.comp.crop_center_x if isinstance(self.comp.crop_center_x, list) else [],
-            "position": self.comp.position,
-            "videoLayout": self.comp.video_layout,
-            "landscapeBackground": self.comp.landscape_background,
-            "landscapeBlurRadius": self.comp.landscape_blur_radius,
-            "landscapeDarkness": self.comp.landscape_darkness,
-            "subtitleOffset": self.comp.subtitle_style.get("subtitleOffset", 50) if self.comp.subtitle_style else 50,
-            "autoAdaptiveSubtitles": getattr(self.comp, "auto_adaptive_subtitles", True),
-            "hideSubtitles": getattr(self.comp, "hide_subtitles", False),
-            "durationInFrames": self.frames,
-            "subtitleStyle": self.comp.subtitle_style or {},
-            "timelineTextItems": self.comp.timeline_text_items or [],
-            "timelineAudioItems": staged_audio_items,
-            "timelineVideoItems": timeline_video_items,
-            "censoredSegments": self.comp.censored_segments or [],
-            "bleepAudioSrc": self.comp.bleep_audio_src,
-            "volume": self.comp.volume,
-            "fps": self.comp.fps,
-            "coverEnabled": cover_image_name is not None,
-            "coverDuration": cover_duration,
-            "coverImagePath": cover_image_name,
-            "coverTextOverlays": cover_cfg.get("textOverlays", []) if cover_cfg else [],
-            "coverXOffset": cover_cfg.get("xOffset", 50.0) if cover_cfg else 50.0,
-            "thumbnailEnabled": cover_image_name is not None,
-            "thumbnailDuration": cover_duration,
-            "thumbnailImagePath": cover_image_name,
-            "thumbnailTextOverlays": cover_cfg.get("textOverlays", []) if cover_cfg else [],
-            "thumbnailXOffset": cover_cfg.get("xOffset", 50.0) if cover_cfg else 50.0,
-            "sourceWidth": self.comp.source_width,
-            "sourceHeight": self.comp.source_height,
-            "splitZoomTop": getattr(self.comp, "split_zoom_top", 1.0) or 1.0,
-            "splitZoomBottom": getattr(self.comp, "split_zoom_bottom", 1.0) or 1.0,
-            "splitOffsetXTop": getattr(self.comp, "split_offset_x_top", 0.0) or 0.0,
-            "splitOffsetYTop": getattr(self.comp, "split_offset_y_top", 0.0) or 0.0,
-            "splitOffsetXBottom": getattr(self.comp, "split_offset_x_bottom", 0.0) or 0.0,
-            "splitOffsetYBottom": getattr(self.comp, "split_offset_y_bottom", 0.0) or 0.0,
-        }
+        try:
+            temp_public_video_name = f"source_{safe_out_filename}"
+            public_video_dest = os.path.abspath(os.path.join(base_public_dir, temp_public_video_name))
+            if os.path.commonpath([base_public_dir, public_video_dest]) != base_public_dir:
+                raise ValueError(f"Unsafe staged video destination: {public_video_dest}")
+            self.public_video_path = public_video_dest
+            _stage_file(self.comp.original_video, self.public_video_path)
 
-        self.props_path = os.path.abspath(os.path.join(self.output_dir, f"props_{self.out_filename}.json"))
-        with open(self.props_path, "w", encoding="utf-8") as f:
-            json.dump(props, f, cls=SafeEncoder)
+            cover_image_name = None
+            cover_cfg = getattr(self.comp, "cover_config", None) or getattr(self.comp, "thumbnail_config", None)
+            if cover_cfg and cover_cfg.get("enabled"):
+                cover_src = cover_cfg.get("imagePath")
+                if cover_src and os.path.exists(cover_src):
+                    cover_image_name = f"cover_{safe_out_filename}.jpg"
+                    cover_dest = os.path.abspath(os.path.join(base_public_dir, cover_image_name))
+                    if os.path.commonpath([base_public_dir, cover_dest]) != base_public_dir:
+                        raise ValueError(f"Unsafe staged cover destination: {cover_dest}")
+                    self.thumbnail_image_path = cover_dest
+                    _stage_file(cover_src, self.thumbnail_image_path)
+
+            timeline_video_items = self.comp.timeline_video_items
+            if timeline_video_items is None and self.comp.timeline_tracks:
+                video_track = next(
+                    (t for t in self.comp.timeline_tracks if _resolve_track_type(t) == "video"),
+                    None,
+                )
+                timeline_video_items = video_track.get("items", []) if video_track else []
+            timeline_video_items = timeline_video_items or []
+
+            self.frames, cover_duration = self.comp.compute_total_frames()
+
+            staged_audio_items = []
+            base_audio_dir = os.path.abspath(self.audio_library_dir)
+            for idx, item in enumerate(self.comp.timeline_audio_items or []):
+                item_copy = dict(item)
+                src = str(item_copy.get("src") or "")
+                if "/assets/audio_library/" in src:
+                    raw_filename = src.split("/assets/audio_library/")[-1].split("?")[0]
+                    audio_filename = os.path.basename(raw_filename)
+                    local_audio_path = os.path.abspath(os.path.join(base_audio_dir, audio_filename))
+                    if (
+                        audio_filename
+                        and os.path.commonpath([base_audio_dir, local_audio_path]) == base_audio_dir
+                        and os.path.isfile(local_audio_path)
+                    ):
+                        staged_audio_name = f"audio_{safe_out_filename}_{idx}_{audio_filename}"
+                        staged_audio_dest = os.path.abspath(os.path.join(base_public_dir, staged_audio_name))
+                        if os.path.commonpath([base_public_dir, staged_audio_dest]) == base_public_dir:
+                            _stage_file(local_audio_path, staged_audio_dest)
+                            self.staged_audio_paths.append(staged_audio_dest)
+                            item_copy["src"] = staged_audio_name
+                staged_audio_items.append(item_copy)
+
+            props = {
+                "videoPath": temp_public_video_name,
+                "words": self.comp.words_data or [],
+                "cropX": self.comp.crop_center_x if isinstance(self.comp.crop_center_x, (int, float)) else (self.comp.crop_center_x[0]["x"] if isinstance(self.comp.crop_center_x, list) and len(self.comp.crop_center_x) > 0 else 960),
+                "cropMap": self.comp.crop_center_x if isinstance(self.comp.crop_center_x, list) else [],
+                "position": self.comp.position,
+                "videoLayout": self.comp.video_layout,
+                "landscapeBackground": self.comp.landscape_background,
+                "landscapeBlurRadius": self.comp.landscape_blur_radius,
+                "landscapeDarkness": self.comp.landscape_darkness,
+                "subtitleOffset": self.comp.subtitle_style.get("subtitleOffset", 50) if self.comp.subtitle_style else 50,
+                "autoAdaptiveSubtitles": getattr(self.comp, "auto_adaptive_subtitles", True),
+                "hideSubtitles": getattr(self.comp, "hide_subtitles", False),
+                "durationInFrames": self.frames,
+                "subtitleStyle": self.comp.subtitle_style or {},
+                "timelineTextItems": self.comp.timeline_text_items or [],
+                "timelineAudioItems": staged_audio_items,
+                "timelineVideoItems": timeline_video_items,
+                "censoredSegments": self.comp.censored_segments or [],
+                "bleepAudioSrc": self.comp.bleep_audio_src,
+                "volume": self.comp.volume,
+                "fps": self.comp.fps,
+                "coverEnabled": cover_image_name is not None,
+                "coverDuration": cover_duration,
+                "coverImagePath": cover_image_name,
+                "coverTextOverlays": cover_cfg.get("textOverlays", []) if cover_cfg else [],
+                "coverXOffset": cover_cfg.get("xOffset", 50.0) if cover_cfg else 50.0,
+                "thumbnailEnabled": cover_image_name is not None,
+                "thumbnailDuration": cover_duration,
+                "thumbnailImagePath": cover_image_name,
+                "thumbnailTextOverlays": cover_cfg.get("textOverlays", []) if cover_cfg else [],
+                "thumbnailXOffset": cover_cfg.get("xOffset", 50.0) if cover_cfg else 50.0,
+                "sourceWidth": self.comp.source_width,
+                "sourceHeight": self.comp.source_height,
+                "splitZoomTop": getattr(self.comp, "split_zoom_top", 1.0) or 1.0,
+                "splitZoomBottom": getattr(self.comp, "split_zoom_bottom", 1.0) or 1.0,
+                "splitOffsetXTop": getattr(self.comp, "split_offset_x_top", 0.0) or 0.0,
+                "splitOffsetYTop": getattr(self.comp, "split_offset_y_top", 0.0) or 0.0,
+                "splitOffsetXBottom": getattr(self.comp, "split_offset_x_bottom", 0.0) or 0.0,
+                "splitOffsetYBottom": getattr(self.comp, "split_offset_y_bottom", 0.0) or 0.0,
+            }
+
+            props_dest = os.path.abspath(os.path.join(base_output_dir, f"props_{safe_out_filename}.json"))
+            if os.path.commonpath([base_output_dir, props_dest]) != base_output_dir:
+                raise ValueError(f"Unsafe props destination: {props_dest}")
+            self.props_path = props_dest
+            with open(self.props_path, "w", encoding="utf-8") as f:
+                json.dump(props, f, cls=SafeEncoder)
+        except Exception:
+            self._cleanup()
+            raise
 
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.props_path and os.path.exists(self.props_path):
-            try:
-                os.remove(self.props_path)
-            except Exception:
-                pass
-        if self.public_video_path and os.path.exists(self.public_video_path):
-            try:
-                os.remove(self.public_video_path)
-            except Exception:
-                pass
-        if self.thumbnail_image_path and os.path.exists(self.thumbnail_image_path):
-            try:
-                os.remove(self.thumbnail_image_path)
-            except Exception:
-                pass
-        for audio_path in self.staged_audio_paths:
-            if audio_path and os.path.exists(audio_path):
+    def _cleanup(self) -> None:
+        paths_to_remove: List[Optional[str]] = [
+            self.props_path,
+            self.public_video_path,
+            self.thumbnail_image_path,
+            *self.staged_audio_paths,
+        ]
+        for path in paths_to_remove:
+            if path and os.path.lexists(path):
                 try:
-                    os.remove(audio_path)
+                    os.remove(path)
                 except Exception:
                     pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._cleanup()
 
 
 class RenderEngine(ABC):
@@ -424,11 +487,13 @@ class RenderEngine(ABC):
         self,
         media_transcoder: Optional[Any] = None,
         face_tracker: Optional[Any] = None,
-        subtitle_engine: Optional[Any] = None
+        subtitle_engine: Optional[Any] = None,
+        clip_session_store: Optional[Any] = None,
     ):
         self.media_transcoder = media_transcoder
         self.face_tracker = face_tracker
         self.subtitle_engine = subtitle_engine
+        self.clip_session_store = clip_session_store
 
     @abstractmethod
     def _render_comp(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
@@ -566,14 +631,31 @@ class RenderEngine(ABC):
 
         max_timeline_end = _compute_timeline_duration(req.timeline_tracks)
         if max_timeline_end > 0.0:
-            print(f"[render-engine] Overriding clip_duration with timeline duration: {max_timeline_end:.2f}s (was: {clip_duration}s)")
+            print(f"[render-engine] Overriding clip_duration with timeline duration: {max_timeline_end:.2f}s (was: {clip_duration}s)", flush=True)
             clip_duration = max_timeline_end
 
-        clip_transcript = os.path.join(os.path.dirname(video_path), "transcript.json")
-        if os.path.exists(clip_transcript):
-            transcript_path = clip_transcript
+        clip_meta = job.get("clip") or {}
+        folder_name = job.get("folder_name") or (clip_meta.get("folder_name") if isinstance(clip_meta, dict) else None)
+        clip_id = job.get("clip_id") or (clip_meta.get("clip_id") if isinstance(clip_meta, dict) else None)
+        artifacts = None
+        if self.clip_session_store is not None and hasattr(self.clip_session_store, "resolve_clip_artifacts"):
+            try:
+                artifacts = self.clip_session_store.resolve_clip_artifacts(
+                    video_path,
+                    folder_name=folder_name,
+                    clip_id=clip_id,
+                )
+            except ValueError:
+                artifacts = None
+
+        if artifacts is not None and artifacts.transcript_path:
+            transcript_path = artifacts.transcript_path
         else:
-            transcript_path = os.path.join(os.path.dirname(job["video_info"]["file_path"]), "transcript.json")
+            clip_transcript = os.path.join(os.path.dirname(video_path), "transcript.json")
+            if os.path.exists(clip_transcript):
+                transcript_path = clip_transcript
+            else:
+                transcript_path = os.path.join(os.path.dirname(job["video_info"]["file_path"]), "transcript.json")
 
         if req.transcript:
             segments = req.transcript
@@ -583,7 +665,11 @@ class RenderEngine(ABC):
         else:
             segments = []
 
-        is_relative = "/clips/" in transcript_path.replace("\\", "/") or req.transcript is not None
+        is_relative = (
+            (artifacts is not None and artifacts.transcript_path is not None)
+            or "/clips/" in transcript_path.replace("\\", "/")
+            or req.transcript is not None
+        )
 
         subtitle_engine = getattr(self, "subtitle_engine", None)
         if subtitle_engine is None:
@@ -616,25 +702,34 @@ class RenderEngine(ABC):
         source_height = h if h > 0 else 1080
 
         if req.face_tracking:
-            clip_dir = os.path.dirname(video_path)
-            cached_crop_map_path = os.path.join(clip_dir, "crop_map.json")
-            crop_x = None
-            if os.path.exists(cached_crop_map_path):
-                try:
-                    with open(cached_crop_map_path, "r", encoding="utf-8") as f:
-                        cached_data = json.load(f)
-                        if (isinstance(cached_data, list) and len(cached_data) > 0) or isinstance(cached_data, (int, float)):
-                            crop_x = cached_data
-                except Exception as e:
-                    print(f"[render-engine] Failed to load cached crop_map.json: {e}")
-                    crop_x = None
+            if artifacts is not None and self.clip_session_store is not None:
+                crop_x = self.clip_session_store.ensure_crop_map(
+                    artifacts.folder_name,
+                    artifacts.clip_id,
+                    video_path=video_path,
+                    tracker=getattr(self, "face_tracker", None),
+                    words_data=words_data,
+                )
+            else:
+                clip_dir = os.path.dirname(video_path)
+                cached_crop_map_path = os.path.join(clip_dir, "crop_map.json")
+                crop_x = None
+                if os.path.exists(cached_crop_map_path):
+                    try:
+                        with open(cached_crop_map_path, "r", encoding="utf-8") as f:
+                            cached_data = json.load(f)
+                            if (isinstance(cached_data, list) and len(cached_data) > 0) or isinstance(cached_data, (int, float)):
+                                crop_x = cached_data
+                    except Exception as e:
+                        print(f"[render-engine] Failed to load cached crop_map.json: {e}", flush=True)
+                        crop_x = None
 
-            if crop_x is None:
-                tracker = getattr(self, "face_tracker", None)
-                if not tracker:
-                    from core.face_tracker import FaceTracker
-                    tracker = FaceTracker()
-                crop_x = tracker.analyze_video(video_path, words_data=words_data)
+                if crop_x is None:
+                    tracker = getattr(self, "face_tracker", None)
+                    if not tracker:
+                        from core.face_tracker import FaceTracker
+                        tracker = FaceTracker()
+                    crop_x = tracker.analyze_video(video_path, words_data=words_data)
         else:
             crop_x = int((req.crop_percent_x / 100.0) * source_width)
 
@@ -662,15 +757,21 @@ class RenderEngine(ABC):
                 "textOverlays": cover_overlays,
                 "xOffset": cover_off,
             }
-            clip_dir = os.path.dirname(video_path)
-            cover_path = os.path.join(clip_dir, "cover.jpg")
-            thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
-            if os.path.exists(cover_path):
-                thumbnail_config["imagePath"] = cover_path
-            elif os.path.exists(thumb_path):
-                thumbnail_config["imagePath"] = thumb_path
+            if artifacts is not None:
+                if artifacts.cover_image_path:
+                    thumbnail_config["imagePath"] = artifacts.cover_image_path
+                else:
+                    thumbnail_config["enabled"] = False
             else:
-                thumbnail_config["enabled"] = False
+                clip_dir = os.path.dirname(video_path)
+                cover_path = os.path.join(clip_dir, "cover.jpg")
+                thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
+                if os.path.exists(cover_path):
+                    thumbnail_config["imagePath"] = cover_path
+                elif os.path.exists(thumb_path):
+                    thumbnail_config["imagePath"] = thumb_path
+                else:
+                    thumbnail_config["enabled"] = False
 
         censored_segments = []
         bleep_audio_src = None
@@ -730,40 +831,6 @@ class RenderEngine(ABC):
             hide_subtitles=not getattr(req, "subtitles_enabled", True),
         )
 
-    def compile_and_render(
-        self,
-        job: dict,
-        req: Any,
-        asset_repository: Any = None,
-        out_filename: str = "",
-        media_transcoder: Optional[Any] = None
-    ) -> Optional[str]:
-        """Legacy helper: compiles composition properties and triggers rendering."""
-        comp = self.compile_composition(
-            job,
-            req,
-            asset_repository=asset_repository,
-            media_transcoder=media_transcoder
-        )
-        return self._render_comp(comp, out_filename)
-
-    def compile_and_render_streaming(
-        self,
-        job: dict,
-        req: Any,
-        asset_repository: Any = None,
-        out_filename: str = "",
-        media_transcoder: Optional[Any] = None
-    ) -> Generator[dict, None, None]:
-        """Legacy helper: compiles composition properties and yields progress dicts streaming."""
-        comp = self.compile_composition(
-            job,
-            req,
-            asset_repository=asset_repository,
-            media_transcoder=media_transcoder
-        )
-        yield from self.render_streaming(comp, out_filename)
-
 
 class RenderPipelineCoordinator(RenderEngine):
     """
@@ -776,14 +843,22 @@ class RenderPipelineCoordinator(RenderEngine):
         config_store: Any = None,
         face_tracker: Any = None,
         media_transcoder: Optional[Any] = None,
-        subtitle_engine: Optional[Any] = None
+        subtitle_engine: Optional[Any] = None,
+        clip_session_store: Optional[Any] = None,
+        remotion_dir: Optional[str] = None,
+        audio_library_dir: Optional[str] = None,
     ):
         super().__init__(
             media_transcoder=media_transcoder,
             face_tracker=face_tracker,
-            subtitle_engine=subtitle_engine
+            subtitle_engine=subtitle_engine,
+            clip_session_store=clip_session_store,
         )
         self.output_dir = output_dir
+        self.remotion_dir = os.path.abspath(
+            remotion_dir or os.path.join(os.path.dirname(__file__), "../../shared/remotion")
+        )
+        self.audio_library_dir = os.path.abspath(audio_library_dir) if audio_library_dir else None
         os.makedirs(output_dir, exist_ok=True)
 
         if config_store is None:
@@ -802,6 +877,16 @@ class RenderPipelineCoordinator(RenderEngine):
                 self.media_transcoder = MediaTranscoder(config_store=self.config_store)
             except Exception:
                 self.media_transcoder = None
+
+        if self.clip_session_store is None:
+            try:
+                from core.clip_session_store import ClipSessionStore
+                self.clip_session_store = ClipSessionStore(
+                    config_store=self.config_store,
+                    media_transcoder=self.media_transcoder,
+                )
+            except Exception:
+                self.clip_session_store = None
 
         # Setup and verify FFmpeg binary path
         env_path = os.environ.get("PATH", "")
@@ -845,7 +930,140 @@ class RenderPipelineCoordinator(RenderEngine):
         npx_bin = shutil.which("npx.cmd") or shutil.which("npx") or "npx.cmd" if sys.platform == "win32" else (shutil.which("npx") or "npx")
         return [npx_bin, "--package=@remotion/cli", "remotion"]
 
-    def _build_remotion_cmd(self, ctx: StagedRenderContext, comp: RenderComposition, output_path: str) -> List[str]:
+    @staticmethod
+    def _compute_remotion_bundle_hash(remotion_dir: str) -> str:
+        """Compute deterministic SHA-256 hash of Remotion dependencies, config, src/, and public/."""
+        hasher = hashlib.sha256()
+        hasher.update(b"remotion-bundle-v1\0")
+
+        for fname in ("package.json", "package-lock.json", "remotion.config.ts", "tsconfig.json"):
+            fpath = os.path.join(remotion_dir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            hasher.update(fname.encode("utf-8"))
+            try:
+                with open(fpath, "rb") as f:
+                    hasher.update(f.read())
+            except OSError:
+                pass
+
+        transient_prefixes = ("source_", "cover_", "audio_", "props_")
+        for subdir in ("src", "public"):
+            dir_path = os.path.join(remotion_dir, subdir)
+            if not os.path.isdir(dir_path):
+                continue
+            file_entries: List[Tuple[str, int, int]] = []
+            for root, _, files in os.walk(dir_path):
+                for file in files:
+                    if file == ".DS_Store":
+                        continue
+                    if subdir == "public" and file.startswith(transient_prefixes):
+                        continue
+                    full_p = os.path.join(root, file)
+                    rel_posix = os.path.relpath(full_p, remotion_dir).replace("\\", "/")
+                    try:
+                        st = os.stat(full_p)
+                        file_entries.append((rel_posix, st.st_size, st.st_mtime_ns))
+                    except OSError:
+                        pass
+            file_entries.sort()
+            for rel_posix, size, mtime_ns in file_entries:
+                hasher.update(f"{rel_posix}:{size}:{mtime_ns}\0".encode("utf-8"))
+
+        return hasher.hexdigest()
+
+    def _inspect_bundle_state(self, remotion_dir: str) -> Tuple[bool, str, str]:
+        """Inspect whether .bundle/index.html exists and matches the current source SHA-256 hash."""
+        bundle_dir = os.path.join(remotion_dir, ".bundle")
+        index_html = os.path.join(bundle_dir, "index.html")
+        hash_file = os.path.join(bundle_dir, ".bundle.hash")
+        current_hash = self._compute_remotion_bundle_hash(remotion_dir)
+
+        stored_hash = ""
+        if os.path.isfile(hash_file):
+            try:
+                with open(hash_file, "r", encoding="utf-8") as f:
+                    stored_hash = f.read().strip()
+            except OSError:
+                stored_hash = ""
+
+        is_fresh = os.path.isfile(index_html) and bool(current_hash) and stored_hash == current_hash
+        return is_fresh, bundle_dir, current_hash
+
+    def _ensure_remotion_bundle(self, remotion_dir: str) -> str:
+        """Build or reuse a SHA-256 cached Remotion Webpack bundle inside .bundle/."""
+        with _BUNDLE_LOCK:
+            is_fresh, bundle_dir, current_hash = self._inspect_bundle_state(remotion_dir)
+            if is_fresh:
+                os.makedirs(os.path.join(bundle_dir, "public"), exist_ok=True)
+                print(f"[render-engine] Reusing cached Remotion bundle: {bundle_dir}", flush=True)
+                return bundle_dir
+
+            if os.path.isdir(bundle_dir) and not os.path.isfile(os.path.join(bundle_dir, "index.html")):
+                real_remotion = os.path.realpath(remotion_dir)
+                real_bundle = os.path.realpath(bundle_dir)
+                if os.path.commonpath([real_remotion, real_bundle]) == real_remotion and real_bundle != real_remotion:
+                    shutil.rmtree(bundle_dir, ignore_errors=True)
+
+            remotion_cmd = self.resolve_remotion_command(remotion_dir)
+            bundle_cmd = remotion_cmd + ["bundle", "src/index.ts", "--out-dir", ".bundle"]
+            print(f"[render-engine] Building cached Remotion bundle: {' '.join(bundle_cmd)}", flush=True)
+
+            result = subprocess.run(
+                bundle_cmd,
+                cwd=remotion_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                shell=(sys.platform == "win32"),
+                encoding="utf-8",
+            )
+
+            index_html = os.path.join(bundle_dir, "index.html")
+            if result.returncode != 0 or not os.path.isfile(index_html):
+                stdout_tail = (result.stdout or "").strip()
+                stderr_tail = (result.stderr or "").strip()
+                detail = f"Stdout:\n{stdout_tail}\nStderr:\n{stderr_tail}" if stdout_tail else stderr_tail
+                raise RuntimeError(f"Remotion bundle failed with code {result.returncode}: {detail}".strip())
+
+            os.makedirs(os.path.join(bundle_dir, "public"), exist_ok=True)
+            hash_file = os.path.join(bundle_dir, ".bundle.hash")
+            tmp_hash = f"{hash_file}.tmp.{uuid.uuid4().hex}"
+            try:
+                with open(tmp_hash, "w", encoding="utf-8") as f:
+                    f.write(current_hash)
+                os.replace(tmp_hash, hash_file)
+            finally:
+                if os.path.exists(tmp_hash):
+                    try:
+                        os.remove(tmp_hash)
+                    except OSError:
+                        pass
+
+            return bundle_dir
+
+    def _stage_render_context(
+        self,
+        comp: RenderComposition,
+        out_filename: str,
+        bundle_dir: str,
+    ) -> StagedRenderContext:
+        """Create a StagedRenderContext targeting the cached .bundle/public/ directory."""
+        return StagedRenderContext(
+            comp,
+            out_filename,
+            self.output_dir,
+            remotion_dir=self.remotion_dir,
+            public_dir=os.path.join(bundle_dir, "public"),
+            audio_library_dir=self.audio_library_dir,
+        )
+
+    def _build_remotion_cmd(
+        self,
+        ctx: StagedRenderContext,
+        comp: RenderComposition,
+        output_path: str,
+    ) -> List[str]:
         remotion_cmd = self.resolve_remotion_command(ctx.remotion_dir)
         # Normalize paths with forward slashes to prevent backslash escape collisions on Windows
         props_path = (ctx.props_path or "").replace("\\", "/")
@@ -853,7 +1071,7 @@ class RenderPipelineCoordinator(RenderEngine):
 
         return remotion_cmd + [
             "render",
-            "src/index.ts", "YonruClip",
+            ".bundle", "YonruClip",
             "--props", props_path,
             norm_output_path,
             "--overwrite",
@@ -863,19 +1081,18 @@ class RenderPipelineCoordinator(RenderEngine):
             "--frames", f"0-{ctx.frames-1}"
         ]
 
-    def _prepare_props_and_paths(self, comp: RenderComposition, out_filename: str) -> tuple:
-        """Legacy helper for testing and direct staging inspection."""
-        ctx = StagedRenderContext(comp, out_filename, self.output_dir)
-        ctx.__enter__()
-        return ctx.remotion_dir, ctx.public_video_path, ctx.props_path, ctx.frames
-
     def _render_comp(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
         output_path = os.path.join(self.output_dir, out_filename)
+        try:
+            bundle_dir = self._ensure_remotion_bundle(self.remotion_dir)
+        except Exception as e:
+            print(f"[render-engine] {e}", flush=True)
+            return None
 
-        with StagedRenderContext(comp, out_filename, self.output_dir) as ctx:
+        with self._stage_render_context(comp, out_filename, bundle_dir) as ctx:
             cmd = self._build_remotion_cmd(ctx, comp, output_path)
 
-            print(f"[render-engine] Executing Remotion: {' '.join(cmd)}")
+            print(f"[render-engine] Executing Remotion: {' '.join(cmd)}", flush=True)
             result = subprocess.run(
                 cmd,
                 cwd=ctx.remotion_dir,
@@ -890,26 +1107,31 @@ class RenderPipelineCoordinator(RenderEngine):
                 stdout_tail = (result.stdout or "").strip()
                 stderr_tail = (result.stderr or "").strip()
                 err_detail = f"Stdout:\n{stdout_tail}\nStderr:\n{stderr_tail}" if stdout_tail else stderr_tail
-                print(f"[render-engine] Remotion failed with code {result.returncode}:\n{err_detail}")
+                print(f"[render-engine] Remotion failed with code {result.returncode}:\n{err_detail}", flush=True)
                 return None
 
             return output_path
 
     def render_streaming(self, comp: RenderComposition, out_filename: str) -> Generator[dict, None, None]:
         output_path = os.path.join(self.output_dir, out_filename)
+        total_frames, _ = comp.compute_total_frames()
+        parser = RemotionProgressParser(total_frames)
+        yield parser.starting_event()
 
-        with StagedRenderContext(comp, out_filename, self.output_dir) as ctx:
-            cmd = self._build_remotion_cmd(ctx, comp, output_path)
+        try:
+            if not self._inspect_bundle_state(self.remotion_dir)[0]:
+                yield parser.bundling_event(5)
 
-            print(f"[render-engine-stream] Executing Remotion: {' '.join(cmd)}")
-            parser = RemotionProgressParser(ctx.frames)
-            yield parser.starting_event()
+            bundle_dir = self._ensure_remotion_bundle(self.remotion_dir)
 
-            env = os.environ.copy()
-            env["FORCE_COLOR"] = "0"
-            env["NO_COLOR"] = "1"
+            with self._stage_render_context(comp, out_filename, bundle_dir) as ctx:
+                cmd = self._build_remotion_cmd(ctx, comp, output_path)
+                print(f"[render-engine-stream] Executing Remotion: {' '.join(cmd)}", flush=True)
 
-            try:
+                env = os.environ.copy()
+                env["FORCE_COLOR"] = "0"
+                env["NO_COLOR"] = "1"
+
                 process = subprocess.Popen(
                     cmd,
                     cwd=ctx.remotion_dir,
@@ -947,34 +1169,24 @@ class RenderPipelineCoordinator(RenderEngine):
                     elif cleaned:
                         # Log unrecognized lines containing warnings or errors directly to backend console
                         if any(token in cleaned.lower() for token in ["error", "warn", "fail", "exit", "cannot", "unable", "fatal"]):
-                            print(f"[render-engine-stream] Remotion output: {cleaned}")
+                            print(f"[render-engine-stream] Remotion output: {cleaned}", flush=True)
 
                 process.wait()
 
                 if process.returncode != 0:
                     tail_output = "\n".join(output_history[-20:])
-                    print(f"[render-engine-stream] Remotion failed with code {process.returncode}:\n{tail_output}")
+                    print(f"[render-engine-stream] Remotion failed with code {process.returncode}:\n{tail_output}", flush=True)
                     error_msg = f"Remotion exited with code {process.returncode}"
                     if tail_output:
                         error_msg += f":\n{tail_output}"
                     yield parser.error_event(error_msg)
                     return
 
-                # Graceful transition: Emit encoding stage for seamless UX completion gratification
-                yield {
-                    "stage": "encoding",
-                    "percent": 98,
-                    "frame": ctx.frames,
-                    "totalFrames": ctx.frames,
-                    "etaSeconds": 0
-                }
-                time.sleep(1.0)
-
                 yield parser.complete_event(output_path, f"/static/output/{out_filename}")
 
-            except Exception as e:
-                print(f"[render-engine-stream] Error: {str(e)}")
-                yield parser.error_event(str(e))
+        except Exception as e:
+            print(f"[render-engine-stream] Error: {str(e)}", flush=True)
+            yield parser.error_event(str(e))
 
 
 # Backward-compatible alias
@@ -988,7 +1200,8 @@ class FakeRenderEngine(RenderEngine):
         should_fail: bool = False,
         media_transcoder: Optional[Any] = None,
         face_tracker: Optional[Any] = None,
-        subtitle_engine: Optional[Any] = None
+        subtitle_engine: Optional[Any] = None,
+        clip_session_store: Optional[Any] = None,
     ):
         if media_transcoder is None:
             try:
@@ -999,7 +1212,8 @@ class FakeRenderEngine(RenderEngine):
         super().__init__(
             media_transcoder=media_transcoder,
             face_tracker=face_tracker,
-            subtitle_engine=subtitle_engine
+            subtitle_engine=subtitle_engine,
+            clip_session_store=clip_session_store,
         )
         self.output_dir = output_dir
         self.should_fail = should_fail
