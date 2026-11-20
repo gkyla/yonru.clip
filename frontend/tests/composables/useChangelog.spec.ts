@@ -4,6 +4,7 @@ import {
   useReleaseUpdates,
   type ReleasesApiResponse
 } from '../../app/composables/useReleaseUpdates';
+import pkg from '../../package.json';
 
 function createSilentFetcher(
   payload: ReleasesApiResponse = { currentVersion: '0.3.0', releases: [] }
@@ -181,7 +182,7 @@ describe('useChangelog Composable', () => {
   it('keeps local releases rendering when remote check fails offline', async () => {
     const mockLocal = [
       {
-        version: '0.3.0',
+        version: pkg.version,
         date: '2026-11-13',
         title: 'Local Release',
         badge: 'Latest'
@@ -208,7 +209,7 @@ describe('useChangelog Composable', () => {
     expect(isOffline.value).toBe(true);
     expect(remoteError.value).toBeTruthy();
     expect(releases.value).toHaveLength(1);
-    expect(releases.value[0]?.version).toBe('0.3.0');
+    expect(releases.value[0]?.version).toBe(pkg.version);
     expect(releases.value[0]?.isInstalled).toBe(true);
     // Avoid unverified static "Latest" when offline
     expect(releases.value[0]?.badge).toBeUndefined();

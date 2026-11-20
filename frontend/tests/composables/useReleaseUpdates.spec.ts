@@ -3,6 +3,7 @@ import {
   useReleaseUpdates,
   type ReleasesApiResponse
 } from '../../app/composables/useReleaseUpdates';
+import pkg from '../../package.json';
 
 describe('useReleaseUpdates Composable', () => {
   beforeEach(() => {
@@ -100,7 +101,7 @@ describe('useReleaseUpdates Composable', () => {
     expect(updates.remoteOffline.value).toBe(true);
     expect(updates.remoteError.value).toBeTruthy();
     expect(updates.hasAvailableUpdate.value).toBe(false);
-    expect(updates.installedVersion.value).toBe('0.3.0');
+    expect(updates.installedVersion.value).toBe(pkg.version);
   });
 
   it('prevents stale earlier check from overwriting a newer forced check', async () => {

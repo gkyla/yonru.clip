@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils';
 import SidebarNavList from '~/components/sidebar/SidebarNavList.vue';
 import SidebarWorkspaceCard from '~/components/sidebar/SidebarWorkspaceCard.vue';
 import SidebarUtilityFooter from '~/components/sidebar/SidebarUtilityFooter.vue';
+import pkg from '../../package.json';
 
 const globalStubs = {
   stubs: {
@@ -230,7 +231,7 @@ describe('Sidebar Sub-Modules Isolated Unit Tests', () => {
       expect(wrapper.text()).toContain('Saweria');
       expect(wrapper.text()).toContain('Trakteer');
       expect(wrapper.text()).toContain('IDLE');
-      expect(wrapper.text()).toContain('v0.3.0');
+      expect(wrapper.text()).toContain(`v${pkg.version}`);
       expect(wrapper.text()).not.toContain('v0.1.0');
 
       const saweriaLink = wrapper.find('a[title*="Saweria"]');
