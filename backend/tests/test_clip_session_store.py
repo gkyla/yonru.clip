@@ -361,7 +361,7 @@ def test_global_default_style_settings_and_cover_style():
 
 
 def test_list_all_and_ready_clips():
-    """Verify list_all_clips and list_ready_clips scan directory and auto-heal manifests."""
+    """Verify list_all_clips and list_ready_clips perform read-only scanning and active filtering."""
     with tempfile.TemporaryDirectory() as temp_dir:
         clips_dir = os.path.join(temp_dir, "clips")
         adapter = FakeMediaAdapter()
@@ -404,18 +404,21 @@ def test_clip_session_store_media_delegations():
 
         store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, media_transcoder=mock_transcoder)
 
-        # 1. ensure_clip_defaults generates thumbnail via extract_clip_screenshot directly
         clip_dir = os.path.join(clips_dir, "f1", "c1")
         os.makedirs(clip_dir, exist_ok=True)
         clip_vid = os.path.join(clip_dir, "video.mp4")
         open(clip_vid, "w").close()
 
-        # 2. list_all_clips delegates duration probe directly to transcoder.probe_video
+        # 1. list_all_clips falls back to probe_video for non-numeric clip_id without triggering screenshot/healing
         clips = store.list_all_clips()
         assert len(clips) == 1
         assert clips[0]["duration"] == 18.5
         mock_transcoder.probe_video.assert_called_once_with(clip_vid)
-        mock_transcoder.capture_screenshot.assert_called_with(
+        mock_transcoder.capture_screenshot.assert_not_called()
+
+        # 2. ensure_clip_defaults generates thumbnail via extract_clip_screenshot explicitly
+        store.ensure_clip_defaults("f1", "c1")
+        mock_transcoder.capture_screenshot.assert_called_once_with(
             clip_vid, 0.0, os.path.join(clip_dir, "thumbnail.jpg")
         )
 
@@ -1017,6 +1020,124 @@ def test_style_settings_defensive_crop_map_sanitization_on_legacy_read_and_heal(
         assert fresh_style["font"] == "Montserrat"
         assert "cropMap" not in fresh_style
         assert "crop_map" not in fresh_style
+
+
+def test_list_ready_clips_is_strictly_read_only_and_uses_clip_id_bounds():
+    """list_ready_clips performs zero disk writes, healing, or ffprobe when clip_id has numeric bounds."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        mock_transcoder = MagicMock()
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, media_transcoder=mock_transcoder)
+
+        c1_dir = os.path.join(clips_dir, "folder_a", "10_25_hook_one")
+        c2_dir = os.path.join(clips_dir, "folder_a", "30_50_hook_two")
+        c3_dir = os.path.join(clips_dir, "folder_a", "55_70_hook_three")
+        for d in (c1_dir, c2_dir, c3_dir):
+            os.makedirs(d, exist_ok=True)
+            with open(os.path.join(d, "video.mp4"), "wb") as f:
+                f.write(b"vid")
+
+        with open(os.path.join(c2_dir, "poster.jpg"), "wb") as f:
+            f.write(b"poster")
+        with open(os.path.join(c3_dir, "thumbnail.jpg"), "wb") as f:
+            f.write(b"thumb")
+        with open(os.path.join(c3_dir, "poster.jpg"), "wb") as f:
+            f.write(b"poster")
+        with open(os.path.join(c3_dir, "cover.jpg"), "wb") as f:
+            f.write(b"cover")
+
+        clips = store.list_ready_clips()
+        by_id = {c["clip_id"]: c for c in clips}
+
+        mock_transcoder.probe_video.assert_not_called()
+        mock_transcoder.capture_screenshot.assert_not_called()
+
+        # Zero manifests or images written on read
+        for fname in ("style_settings.json", "cover_config.json", "transcript.json", "thumbnail.jpg"):
+            assert not os.path.exists(os.path.join(c1_dir, fname))
+        assert not os.path.exists(os.path.join(temp_dir, "default_style_settings.json"))
+
+        assert by_id["10_25_hook_one"]["duration"] == 15.0
+        assert by_id["30_50_hook_two"]["duration"] == 20.0
+        assert by_id["55_70_hook_three"]["duration"] == 15.0
+
+        assert by_id["10_25_hook_one"]["thumbnail_url"] is None
+        assert by_id["10_25_hook_one"]["poster_url"] is None
+        assert by_id["10_25_hook_one"]["cover_url"] is None
+
+        assert by_id["30_50_hook_two"]["thumbnail_url"] == "/assets/clips/folder_a/30_50_hook_two/poster.jpg"
+        assert by_id["30_50_hook_two"]["poster_url"] == "/assets/clips/folder_a/30_50_hook_two/poster.jpg"
+        assert by_id["30_50_hook_two"]["cover_url"] is None
+
+        assert by_id["55_70_hook_three"]["thumbnail_url"] == "/assets/clips/folder_a/55_70_hook_three/thumbnail.jpg"
+        assert by_id["55_70_hook_three"]["poster_url"] == "/assets/clips/folder_a/55_70_hook_three/thumbnail.jpg"
+        assert by_id["55_70_hook_three"]["cover_url"] == "/assets/clips/folder_a/55_70_hook_three/cover.jpg"
+
+
+def test_list_all_clips_caches_probes_and_titles_and_invalidates_on_writes():
+    """list_all_clips caches fallback probe durations and titles across reads and reflects writes cleanly."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        source_dir = os.path.join(temp_dir, "sources", "folder_a")
+        clip_dir = os.path.join(clips_dir, "folder_a", "custom_clip")
+        os.makedirs(source_dir, exist_ok=True)
+        os.makedirs(clip_dir, exist_ok=True)
+
+        meta_path = os.path.join(source_dir, "metadata.json")
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump({"title": "Original Title"}, f)
+        with open(os.path.join(clip_dir, "video.mp4"), "wb") as f:
+            f.write(b"video-bytes")
+
+        def fake_screenshot(_video_path, _ts, output_path):
+            with open(output_path, "wb") as out_f:
+                out_f.write(b"jpg")
+            return True
+
+        mock_transcoder = MagicMock()
+        mock_transcoder.probe_video.return_value = MediaSpecs(duration=18.5)
+        mock_transcoder.capture_screenshot.side_effect = fake_screenshot
+
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, media_transcoder=mock_transcoder)
+
+        first = store.list_all_clips()
+        assert len(first) == 1
+        assert mock_transcoder.probe_video.call_count == 1
+        assert first[0]["title"] == "Original Title"
+        assert first[0]["duration"] == 18.5
+        assert first[0]["thumbnail_url"] is None
+        assert first[0]["cover_url"] is None
+
+        # Mutate caller dict to verify cache returns isolated copies
+        first[0]["title"] = "Mutated"
+        second = store.list_all_clips()
+        assert mock_transcoder.probe_video.call_count == 1
+        assert second[0]["title"] == "Original Title"
+
+        # Cover creation & deletion invalidate and reflect immediately
+        store.extract_cover_frame("folder_a", "custom_clip", timestamp=5.0)
+        after_cover = store.list_all_clips()
+        assert after_cover[0]["cover_url"] == "/assets/clips/folder_a/custom_clip/cover.jpg"
+
+        store.delete_cover("folder_a", "custom_clip")
+        after_delete_cover = store.list_all_clips()
+        assert after_delete_cover[0]["cover_url"] is None
+
+        # Healing creates thumbnail.jpg and invalidates cache
+        store.ensure_clip_defaults("folder_a", "custom_clip")
+        after_heal = store.list_all_clips()
+        assert after_heal[0]["thumbnail_url"] == "/assets/clips/folder_a/custom_clip/thumbnail.jpg"
+
+        # Metadata update (different size/mtime) updates title cleanly
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump({"title": "Updated Title Longer"}, f)
+        after_meta = store.list_all_clips()
+        assert after_meta[0]["title"] == "Updated Title Longer"
+
+        # Deleting clip invalidates cache
+        assert store.delete_clip("folder_a", "custom_clip") is True
+        assert store.list_all_clips() == []
+
 
 
 
