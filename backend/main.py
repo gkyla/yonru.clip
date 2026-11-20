@@ -343,7 +343,7 @@ def list_prompts():
     return {"prompts": [p.to_dict() for p in prompts]}
 
 @app.post("/api/prompts/add")
-async def add_prompt(req: AddPromptRequest):
+def add_prompt(req: AddPromptRequest):
     """Append a new prompt template to prompt.json"""
     try:
         prompt_repository.add_prompt(
@@ -359,7 +359,7 @@ async def add_prompt(req: AddPromptRequest):
 
 
 @app.put("/api/prompts/edit")
-async def edit_prompt(req: EditPromptRequest):
+def edit_prompt(req: EditPromptRequest):
     """Edit an existing prompt template"""
     try:
         prompt_repository.edit_prompt(
@@ -376,7 +376,7 @@ async def edit_prompt(req: EditPromptRequest):
 
 
 @app.delete("/api/prompts/{id}")
-async def delete_prompt(id: str):
+def delete_prompt(id: str):
     """Delete an existing prompt template by its unique ID"""
     try:
         prompt_repository.delete_prompt(id)
@@ -388,7 +388,7 @@ async def delete_prompt(id: str):
 
 
 @app.post("/api/analyze-url")
-async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, force: bool = False):
+def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, force: bool = False):
     """Phase 1: Download full 1080p → extract audio → generate hooks"""
     import uuid
     job_id = str(uuid.uuid4())[:8]
@@ -423,7 +423,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, fo
     return {"job_id": job_id, "status": "queued"}
 
 @app.post("/api/extract-clip")
-async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
+def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
     """Phase 2: Cut segment from cached full video (no re-download)"""
     if jobs.get_job(req.job_id) is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -439,7 +439,7 @@ async def extract_clip(req: ExtractRequest, background_tasks: BackgroundTasks):
 
 
 @app.get("/api/job/{job_id}")
-async def get_job(job_id: str):
+def get_job(job_id: str):
     """Poll job status"""
     try:
         return workflow_coordinator.get_job_summary(job_id)
@@ -448,11 +448,11 @@ async def get_job(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
 
 @app.post("/api/generate-hooks")
-async def generate_hooks():
+def generate_hooks():
     return {"status": "deprecated, now handled internally during analyze-url"}
 
 @app.post("/api/render")
-async def render_clip(req: RenderRequest):
+def render_clip(req: RenderRequest):
     """Render final 9:16 clip from cut segment with manual or AI crop"""
     job = jobs.get_job(req.job_id)
     if job is None:
@@ -466,7 +466,7 @@ async def render_clip(req: RenderRequest):
         raise HTTPException(status_code=500, detail="Render failed")
 
 @app.post("/api/render-stream")
-async def render_clip_stream(req: RenderRequest):
+def render_clip_stream(req: RenderRequest):
     """Render clip with real-time progress streaming via SSE."""
     job = jobs.get_job(req.job_id)
     if job is None:
@@ -487,7 +487,7 @@ async def render_clip_stream(req: RenderRequest):
 # --- Cache Management ---
 
 @app.get("/api/cached")
-async def list_cached(
+def list_cached(
     page: int = 1,
     limit: int = 6,
     search: Optional[str] = None,
@@ -504,7 +504,7 @@ async def list_cached(
     )
 
 @app.get("/api/ready-clips")
-async def list_ready_clips():
+def list_ready_clips():
     """List all segments that have been cut and transcribed."""
     try:
         active_clip_ids = jobs.list_active_clip_ids()
@@ -516,7 +516,7 @@ async def list_ready_clips():
     return {"clips": filtered_clips}
 
 @app.delete("/api/ready-clips/{folder_name}/{clip_id}")
-async def delete_ready_clip(folder_name: str, clip_id: str):
+def delete_ready_clip(folder_name: str, clip_id: str):
     """Delete a specific clip folder."""
     try:
         success = clip_session_store.delete_clip_with_job(folder_name, clip_id, job_store=jobs)
@@ -527,12 +527,12 @@ async def delete_ready_clip(folder_name: str, clip_id: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/ready-clips/delete-batch")
-async def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
+def delete_ready_clips_batch(req: BatchDeleteClipsRequest):
     """Delete multiple clips in one go."""
     return {"status": "ok", "results": clip_session_store.delete_batch(req.clips, job_store=jobs)}
 
 @app.delete("/api/cached/{folder_name}")
-async def delete_cached(folder_name: str):
+def delete_cached(folder_name: str):
     """Delete titled folders in sources and clips with graceful job cancellation and strict security checks."""
     try:
         res = workflow_coordinator.delete_source_video(folder_name)
@@ -556,7 +556,7 @@ class AnalyzeCachedRequest(BaseModel):
     max_duration: Optional[int] = 180
 
 @app.post("/api/analyze-cached/{video_id}")
-async def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force: bool = False, req: AnalyzeCachedRequest = AnalyzeCachedRequest()):
+def analyze_cached(video_id: str, background_tasks: BackgroundTasks, force: bool = False, req: AnalyzeCachedRequest = AnalyzeCachedRequest()):
     """Re-analyze a cached video using the new folder lookup. Supports forcing a re-analysis bypassing hooks.json."""
     try:
         return workflow_coordinator.replay_cached_analysis(
@@ -627,7 +627,7 @@ def update_clip_session(folder_name: str, clip_id: str, payload: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/hooks")
-async def update_hooks(req: HookUpdateRequest):
+def update_hooks(req: HookUpdateRequest):
     """Update themes/names in the source hooks.json"""
     try:
         updated = asset_repository.update_source_hooks(req.folder_name, req.hooks)
@@ -643,7 +643,7 @@ async def update_hooks(req: HookUpdateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/default-style-settings")
-async def update_default_style_settings(req: DefaultStyleSettingsRequest):
+def update_default_style_settings(req: DefaultStyleSettingsRequest):
     """Persist default style settings for all future clips."""
     try:
         clip_session_store.save_default_style_settings(req.settings)
@@ -654,13 +654,13 @@ async def update_default_style_settings(req: DefaultStyleSettingsRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/default-cover-style")
-async def get_default_cover_style():
+def get_default_cover_style():
     """Retrieve default cover style settings."""
     style = clip_session_store.get_default_cover_style()
     return {"style": style}
 
 @app.put("/api/default-cover-style")
-async def update_default_cover_style(req: DefaultCoverStyleRequest):
+def update_default_cover_style(req: DefaultCoverStyleRequest):
     """Persist default cover style settings for all future clips."""
     try:
         clip_session_store.save_default_cover_style(req.style)
@@ -672,12 +672,12 @@ async def update_default_cover_style(req: DefaultCoverStyleRequest):
 
 
 @app.get("/api/system-settings")
-async def get_system_settings():
+def get_system_settings():
     """Retrieve system settings from system repository."""
     return {"settings": system_repository.get_settings()}
 
 @app.put("/api/system-settings")
-async def update_system_settings(req: SystemSettingsRequest):
+def update_system_settings(req: SystemSettingsRequest):
     """Update system settings in system repository."""
     try:
         system_repository.update_settings(
@@ -691,25 +691,25 @@ async def update_system_settings(req: SystemSettingsRequest):
 
 
 @app.post("/api/validate-gemini-key")
-async def validate_gemini_key(req: ValidateKeyRequest):
+def validate_gemini_key(req: ValidateKeyRequest):
     """Validate if the given Gemini API keys are active and functional."""
     return system_repository.validate_gemini_keys(req.api_key)
 
 
 @app.post("/api/validate-binary-path")
-async def validate_binary_path(req: ValidateBinaryPathRequest):
+def validate_binary_path(req: ValidateBinaryPathRequest):
     """Validate if a specified path contains a usable binary for the tool (ffmpeg or node)."""
     return system_repository.validate_binary_path(req.tool, req.path)
 
 
 
 @app.get("/api/cookies-status")
-async def get_cookies_status():
+def get_cookies_status():
     """Check if cookies.txt exists and return metadata."""
     return system_repository.get_cookies_status()
 
 @app.post("/api/upload-cookies")
-async def upload_cookies(req: UploadCookiesRequest):
+def upload_cookies(req: UploadCookiesRequest):
     """Validate and write cookies.txt locally."""
     try:
         system_repository.save_cookies(req.cookies_text)
@@ -720,7 +720,7 @@ async def upload_cookies(req: UploadCookiesRequest):
         raise HTTPException(status_code=500, detail=f"Failed to write cookie file: {e}")
 
 @app.delete("/api/delete-cookies")
-async def delete_cookies():
+def delete_cookies():
     """Safely delete cookies.txt locally."""
     try:
         deleted = system_repository.delete_cookies()
@@ -731,17 +731,17 @@ async def delete_cookies():
         raise HTTPException(status_code=500, detail=f"Failed to delete cookie file: {e}")
 
 @app.get("/api/system-health")
-async def system_health():
+def system_health():
     """Perform a diagnostic check on system dependencies."""
     return system_repository.check_system_health()
 
 @app.get("/api/system/hardware-profile")
-async def hardware_profile():
+def hardware_profile():
     """Detect host machine hardware specs and recommend optimal Whisper transcription model."""
     return system_repository.detect_hardware_profile()
 
 @app.post("/api/open-folder")
-async def open_output_folder(req: OpenFolderRequest):
+def open_output_folder(req: OpenFolderRequest):
     """Open host operating system file manager revealing rendered clip or output directory."""
     target = req.filename or req.output_url or ""
     res = system_repository.reveal_in_file_manager(target, base_dir=render_engine.output_dir)
@@ -753,7 +753,7 @@ async def open_output_folder(req: OpenFolderRequest):
 # --- Cover Slide Endpoints ---
 
 @app.post("/api/cover/screenshot")
-async def cover_screenshot(req: CoverScreenshotRequest):
+def cover_screenshot(req: CoverScreenshotRequest):
     """Extract a single frame from the clip video as Cover Slide frame (cover.jpg)."""
     try:
         return workflow_coordinator.extract_clip_cover(job_id=req.job_id, timestamp=req.timestamp)
@@ -765,7 +765,7 @@ async def cover_screenshot(req: CoverScreenshotRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/cover/{folder_name}/{clip_id}")
-async def delete_cover(folder_name: str, clip_id: str):
+def delete_cover(folder_name: str, clip_id: str):
     """Reset/delete cover image (cover.jpg) while strictly preserving Clip Thumbnail (thumbnail.jpg)."""
     try:
         clip_session_store.delete_cover(folder_name, clip_id)
@@ -778,7 +778,7 @@ async def delete_cover(folder_name: str, clip_id: str):
 
 
 @app.post("/api/load-ready-clip")
-async def load_ready_clip(req: LoadReadyClipRequest, background_tasks: BackgroundTasks):
+def load_ready_clip(req: LoadReadyClipRequest, background_tasks: BackgroundTasks):
     """Initialize a job state from an existing ready clip."""
     try:
         res = workflow_coordinator.load_ready_clip(
@@ -806,7 +806,7 @@ async def load_ready_clip(req: LoadReadyClipRequest, background_tasks: Backgroun
 
 
 @app.post("/api/clips/{folder_name}/{clip_id}/track-face")
-async def track_face_for_clip(folder_name: str, clip_id: str):
+def track_face_for_clip(folder_name: str, clip_id: str):
     """Generates, saves, and returns Auto-Reframe crop_map.json for a clip."""
     try:
         points = clip_session_store.ensure_crop_map(folder_name=folder_name, clip_id=clip_id)
@@ -822,7 +822,7 @@ async def track_face_for_clip(folder_name: str, clip_id: str):
 # --- Workspace Audio Library Endpoints ---
 
 @app.get("/api/audio-library")
-async def list_audio_library():
+def list_audio_library():
     """Returns all audio items persisted in the workspace Audio Library."""
     items = audio_library_repository.list_items()
     return {"status": "ok", "items": items}
@@ -837,7 +837,8 @@ async def upload_audio_library_item(
     """Saves an uploaded audio file to the workspace Audio Library with duplicate handling."""
     try:
         content_bytes = await file.read()
-        result = audio_library_repository.save_item(
+        result = await asyncio.to_thread(
+            audio_library_repository.save_item,
             filename=file.filename or "audio.mp3",
             content_bytes=content_bytes,
             duration=duration,
@@ -851,7 +852,7 @@ async def upload_audio_library_item(
 
 
 @app.delete("/api/audio-library/{item_id}")
-async def delete_audio_library_item(item_id: str):
+def delete_audio_library_item(item_id: str):
     """Deletes an item from the Audio Library catalog and cleans up disk file if unreferenced."""
     try:
         return audio_library_repository.delete_item(item_id)
@@ -864,7 +865,7 @@ async def delete_audio_library_item(item_id: str):
 # --- Frontend SPA Serving and Route Fallback ---
 
 @app.get("/")
-async def serve_root():
+def serve_root():
     index_file = os.path.join(frontend_dist, "index.html")
     if os.path.isfile(index_file):
         return FileResponse(index_file)
@@ -872,7 +873,7 @@ async def serve_root():
 
 
 @app.get("/{full_path:path}")
-async def serve_spa_fallback(full_path: str):
+def serve_spa_fallback(full_path: str):
     # Strictly protect internal API, static, and assets routes from SPA fallback
     if (
         full_path == "api"

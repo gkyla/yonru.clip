@@ -1,14 +1,16 @@
 import os
 import re
 import sys
+import math
 import json
 import uuid
 import base64
 import shutil
 import hashlib
 import subprocess
+import threading
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List, Set, Literal, Protocol, runtime_checkable
+from typing import Optional, Dict, Any, List, Set, Tuple, Literal, Protocol, runtime_checkable
 from core.media_transcoder import MediaTranscoder, MediaProcessAdapter
 
 _DATA_AUDIO_RE = re.compile(r"^data:audio/([a-zA-Z0-9.+-]+);base64,(.+)$", re.DOTALL)
@@ -117,6 +119,10 @@ class ClipSessionStore:
         self._env = getattr(self.transcoder.adapter, "_env", os.environ.copy())
         self.face_tracker = face_tracker
         self.audio_library_store = audio_library_store
+        self._index_lock = threading.RLock()
+        self._cache_epoch: int = 0
+        self._ready_clip_cache: Dict[Tuple[str, str], Tuple[Tuple[Any, ...], Dict[str, Any]]] = {}
+        self._parent_title_cache: Dict[str, Tuple[Optional[Tuple[int, int]], str]] = {}
 
     def resolve_clip_dir(self, folder_name: str, clip_id: str) -> str:
 
@@ -325,6 +331,8 @@ class ClipSessionStore:
                     self.extract_clip_screenshot(video_path, 0.0, thumb_img_path)
                 except Exception:
                     pass
+
+        self.invalidate_ready_clips_cache(folder_name, clip_id)
 
     def _read_json(self, path: str, expected_type: type, default: Any) -> Any:
         if not os.path.exists(path):
@@ -640,6 +648,7 @@ class ClipSessionStore:
                 os.remove(cover_path)
             except Exception:
                 pass
+        self.invalidate_ready_clips_cache(folder_name, clip_id)
         return True
 
     # ── Media Operations & Video Information ─────────────────────────
@@ -697,6 +706,7 @@ class ClipSessionStore:
                     except Exception as e:
                         print(f"[clip_session_store] Failed to extract thumbnail for existing clip: {e}")
             self.ensure_clip_defaults(folder_name, clip_id)
+            self.invalidate_ready_clips_cache(folder_name, clip_id)
             return {
                 "file_path": out_path,
                 "asset_url": f"/assets/clips/{folder_name}/{clip_id}/{out_name}",
@@ -731,6 +741,7 @@ class ClipSessionStore:
             print(f"[clip_session_store] Failed to extract thumbnail for new clip: {e}")
 
         self.ensure_clip_defaults(folder_name, clip_id)
+        self.invalidate_ready_clips_cache(folder_name, clip_id)
 
         return {
             "file_path": out_path,
@@ -805,6 +816,7 @@ class ClipSessionStore:
         if not success:
             raise RuntimeError("Failed to extract cover frame")
 
+        self.invalidate_ready_clips_cache(folder_name, clip_id)
         asset_url = f"/assets/clips/{folder_name}/{clip_id}/cover.jpg"
         print(f"[cover] Captured frame at {ts:.3f}s -> {cover_path}")
         return {"status": "ok", "timestamp": round(ts, 3), "cover_url": asset_url, "thumbnail_url": asset_url}
@@ -846,14 +858,70 @@ class ClipSessionStore:
 
     # ── Ready Clips Discovery & Lifecycle ────────────────────────────
 
-    def _resolve_parent_title(self, parent_name: str, title_cache: Dict[str, str]) -> str:
+    def invalidate_ready_clips_cache(
+        self,
+        folder_name: Optional[str] = None,
+        clip_id: Optional[str] = None,
+    ) -> None:
+        """Invalidate cached Ready Clip metadata entries safely across threads."""
+        with self._index_lock:
+            self._cache_epoch += 1
+            if folder_name is None:
+                self._ready_clip_cache.clear()
+                self._parent_title_cache.clear()
+                return
+            if clip_id is not None:
+                self._ready_clip_cache.pop((folder_name, clip_id), None)
+                return
+            stale_keys = [k for k in self._ready_clip_cache if k[0] == folder_name]
+            for key in stale_keys:
+                self._ready_clip_cache.pop(key, None)
+            self._parent_title_cache.pop(folder_name, None)
+
+    @staticmethod
+    def _parse_clip_id_metadata(clip_id: str) -> Tuple[float, float, str, bool]:
+        """Parse start/end timestamps, display theme, and numeric bound validity from clip_id."""
+        parts = clip_id.split("_")
+        if len(parts) >= 2:
+            try:
+                start_time = float(parts[0])
+                end_time = float(parts[1])
+                if math.isfinite(start_time) and math.isfinite(end_time):
+                    if len(parts) >= 3:
+                        theme = " ".join(parts[2:]).replace("_", " ")
+                    else:
+                        m1, s1 = divmod(int(start_time), 60)
+                        m2, s2 = divmod(int(end_time), 60)
+                        theme = f"Clip {m1:02d}:{s1:02d} - {m2:02d}:{s2:02d}"
+                    return start_time, end_time, theme, end_time > start_time
+            except Exception:
+                pass
+        return 0.0, 0.0, "", False
+
+    def _resolve_parent_title(
+        self, parent_name: str, title_cache: Optional[Dict[str, str]] = None
+    ) -> str:
         """Read and cache parent video title from metadata.json with folder-name fallback."""
-        if parent_name in title_cache:
+        if title_cache is not None and parent_name in title_cache:
             return title_cache[parent_name]
 
-        title = "Unknown Clip"
         meta_path = os.path.join(self.source_dir, parent_name, "metadata.json")
-        if os.path.exists(meta_path):
+        meta_sig: Optional[Tuple[int, int]] = None
+        try:
+            st = os.stat(meta_path)
+            meta_sig = (st.st_mtime_ns, st.st_size)
+        except OSError:
+            meta_sig = None
+
+        with self._index_lock:
+            cached = self._parent_title_cache.get(parent_name)
+            if cached is not None and cached[0] == meta_sig:
+                if title_cache is not None:
+                    title_cache[parent_name] = cached[1]
+                return cached[1]
+
+        title = "Unknown Clip"
+        if meta_sig is not None:
             try:
                 with open(meta_path, "r", encoding="utf-8") as mf:
                     meta = json.load(mf)
@@ -866,84 +934,130 @@ class ClipSessionStore:
                 raw_p = raw_p.split("] ", 1)[1]
             title = raw_p
 
-        title_cache[parent_name] = title
+        with self._index_lock:
+            self._parent_title_cache[parent_name] = (meta_sig, title)
+        if title_cache is not None:
+            title_cache[parent_name] = title
         return title
 
     def list_all_clips(self) -> List[Dict[str, Any]]:
-        """Scans the clips directory and returns metadata for all ready clips."""
-        results = []
+        """Scans the clips directory read-only and returns mtime-cached metadata for all ready clips."""
+        with self._index_lock:
+            start_epoch = self._cache_epoch
+
         if not os.path.exists(self.clips_dir):
-            return results
+            with self._index_lock:
+                if self._cache_epoch == start_epoch:
+                    self._ready_clip_cache.clear()
+                    self._parent_title_cache.clear()
+            return []
 
         try:
             video_entries = list(os.scandir(self.clips_dir))
         except OSError:
-            return results
+            return []
 
-        title_cache: Dict[str, str] = {}
+        results: List[Dict[str, Any]] = []
+        call_title_cache: Dict[str, str] = {}
+        seen_keys: Set[Tuple[str, str]] = set()
+        seen_parents: Set[str] = set()
+        new_entries: Dict[Tuple[str, str], Tuple[Tuple[Any, ...], Dict[str, Any]]] = {}
 
         for video_entry in video_entries:
-            if video_entry.is_dir():
-                parent_name = video_entry.name
+            if not video_entry.is_dir():
+                continue
+            parent_name = video_entry.name
+            seen_parents.add(parent_name)
+            try:
+                clip_entries = list(os.scandir(video_entry.path))
+            except OSError:
+                continue
+
+            title = self._resolve_parent_title(parent_name, call_title_cache)
+
+            for clip_entry in clip_entries:
+                if not clip_entry.is_dir():
+                    continue
+                clip_id = clip_entry.name
+                video_path = os.path.join(clip_entry.path, "video.mp4")
                 try:
-                    clip_entries = list(os.scandir(video_entry.path))
+                    video_stat = os.stat(video_path)
                 except OSError:
                     continue
 
-                title = self._resolve_parent_title(parent_name, title_cache)
+                mtime = video_stat.st_mtime
+                has_thumb = os.path.exists(os.path.join(clip_entry.path, "thumbnail.jpg"))
+                has_poster = (not has_thumb) and os.path.exists(os.path.join(clip_entry.path, "poster.jpg"))
+                has_cover = os.path.exists(os.path.join(clip_entry.path, "cover.jpg"))
 
-                for clip_entry in clip_entries:
-                    if not clip_entry.is_dir():
-                        continue
-                    clip_id = clip_entry.name
-                    video_path = os.path.join(clip_entry.path, "video.mp4")
-                    if not os.path.exists(video_path):
-                        continue
+                fingerprint = (
+                    video_stat.st_mtime_ns,
+                    video_stat.st_size,
+                    has_thumb,
+                    has_poster,
+                    has_cover,
+                    title,
+                )
+                cache_key = (parent_name, clip_id)
+                seen_keys.add(cache_key)
 
-                    # Ensure defaults / thumbnail auto-healing
-                    try:
-                        self.ensure_clip_defaults(parent_name, clip_id)
-                    except Exception:
-                        pass
+                cached_entry: Optional[Dict[str, Any]] = None
+                with self._index_lock:
+                    cached = self._ready_clip_cache.get(cache_key)
+                    if cached is not None and cached[0] == fingerprint:
+                        cached_entry = cached[1]
 
-                    mtime = os.path.getmtime(video_path)
+                if cached_entry is not None:
+                    results.append(dict(cached_entry))
+                    continue
+
+                start_time, end_time, theme, has_valid_bounds = self._parse_clip_id_metadata(clip_id)
+                if has_valid_bounds:
+                    duration = round(end_time - start_time, 3)
+                else:
                     duration = self.transcoder.probe_video(video_path).duration if self.transcoder else 0.0
 
-                    theme = ""
-                    start_time = 0.0
-                    end_time = 0.0
-                    parts = clip_id.split("_")
-                    if len(parts) >= 2:
-                        try:
-                            start_time = float(parts[0])
-                            end_time = float(parts[1])
-                            if len(parts) >= 3:
-                                theme = " ".join(parts[2:])
-                            else:
-                                m1, s1 = divmod(int(start_time), 60)
-                                m2, s2 = divmod(int(end_time), 60)
-                                theme = f"Clip {m1:02d}:{s1:02d} - {m2:02d}:{s2:02d}"
-                        except Exception:
-                            pass
+                thumbnail_url = (
+                    f"/assets/clips/{parent_name}/{clip_id}/thumbnail.jpg"
+                    if has_thumb
+                    else (
+                        f"/assets/clips/{parent_name}/{clip_id}/poster.jpg"
+                        if has_poster
+                        else None
+                    )
+                )
+                cover_url = (
+                    f"/assets/clips/{parent_name}/{clip_id}/cover.jpg"
+                    if has_cover
+                    else None
+                )
 
-                    thumbnail_url = f"/assets/clips/{parent_name}/{clip_id}/thumbnail.jpg"
-                    cover_path = os.path.join(clip_entry.path, "cover.jpg")
-                    cover_url = f"/assets/clips/{parent_name}/{clip_id}/cover.jpg" if os.path.exists(cover_path) else None
+                entry: Dict[str, Any] = {
+                    "clip_id": clip_id,
+                    "folder_name": parent_name,
+                    "title": title,
+                    "theme": theme,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "duration": duration,
+                    "mtime": mtime,
+                    "asset_url": f"/assets/clips/{parent_name}/{clip_id}/video.mp4",
+                    "thumbnail_url": thumbnail_url,
+                    "poster_url": thumbnail_url,
+                    "cover_url": cover_url,
+                }
+                new_entries[cache_key] = (fingerprint, entry)
+                results.append(dict(entry))
 
-                    results.append({
-                        "clip_id": clip_id,
-                        "folder_name": parent_name,
-                        "title": title,
-                        "theme": theme.replace("_", " "),
-                        "start_time": start_time,
-                        "end_time": end_time,
-                        "duration": duration,
-                        "mtime": mtime,
-                        "asset_url": f"/assets/clips/{parent_name}/{clip_id}/video.mp4",
-                        "thumbnail_url": thumbnail_url,
-                        "poster_url": thumbnail_url,
-                        "cover_url": cover_url
-                    })
+        with self._index_lock:
+            if self._cache_epoch == start_epoch:
+                self._ready_clip_cache.update(new_entries)
+                stale_clip_keys = [k for k in self._ready_clip_cache if k not in seen_keys]
+                for key in stale_clip_keys:
+                    self._ready_clip_cache.pop(key, None)
+                stale_parent_keys = [p for p in self._parent_title_cache if p not in seen_parents]
+                for parent in stale_parent_keys:
+                    self._parent_title_cache.pop(parent, None)
 
         results.sort(key=lambda x: x["mtime"], reverse=True)
         return results
@@ -971,6 +1085,7 @@ class ClipSessionStore:
                         os.rmdir(parent_dir)
                     except OSError:
                         pass
+            self.invalidate_ready_clips_cache(folder_name, clip_id)
             return True
         return False
 
@@ -1021,6 +1136,9 @@ class ClipSessionStore:
             clip_dirs = [d for d in os.listdir(source_clips_dir) if os.path.isdir(os.path.join(source_clips_dir, d))]
             deleted_count = len(clip_dirs) or 1
             shutil.rmtree(source_clips_dir)
+
+        if deleted_count > 0:
+            self.invalidate_ready_clips_cache(folder_name)
 
         return deleted_count
 

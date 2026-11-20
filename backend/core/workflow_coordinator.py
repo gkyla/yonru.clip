@@ -92,7 +92,7 @@ class ClipWorkflowCoordinator:
 
     def get_job_summary(self, job_id: str) -> Dict[str, Any]:
         """
-        Retrieves and fully hydrates job status, video metadata, cut clip details, transcript, and persisted history.
+        Return a lightweight JobStore poll projection for job status, video metadata, and cut clip summary.
         """
         job = self.jobs.get_job(job_id)
         if not job:
@@ -128,7 +128,7 @@ class ClipWorkflowCoordinator:
             response["folder_name"] = folder_name
 
         if job.get("clip"):
-            clip_data = {
+            response["clip"] = {
                 "asset_url": job["clip"].get("asset_url"),
                 "duration": job["clip"].get("duration"),
                 "start": job["clip"].get("start"),
@@ -136,24 +136,6 @@ class ClipWorkflowCoordinator:
                 "theme": job["clip"].get("theme"),
                 "transcript_quote": job["clip"].get("transcript_quote", ""),
             }
-
-            clip_path = job.get("clip_path")
-            if clip_path:
-                clip_dir = os.path.dirname(clip_path)
-                clip_id = os.path.basename(clip_dir)
-                folder_name = os.path.basename(os.path.dirname(clip_dir))
-                try:
-                    session = self.clip_session_store.get_clip_session(
-                        folder_name, clip_id, ensure_crop_map=False
-                    )
-                    if session.get("transcript"):
-                        clip_data["transcript"] = session["transcript"]
-                    if session.get("history"):
-                        response["history"] = session["history"]
-                except Exception:
-                    pass
-
-            response["clip"] = clip_data
 
         if job.get("hooks"):
             response["hooks"] = job["hooks"]
@@ -487,18 +469,19 @@ class ClipWorkflowCoordinator:
             except Exception:
                 pass
 
-        # Verify transcript validity
+        # Load unified Clip Session once (heals defaults, migrates legacy cover/audio, computes crop_map)
+        session = self.clip_session_store.get_clip_session(folder_name, clip_id)
+        transcript_data = session.get("transcript")
         is_transcript_valid = False
-        if os.path.exists(transcript_path):
-            try:
-                with open(transcript_path, "r", encoding="utf-8") as f:
-                    t_data = json.load(f)
-                    if isinstance(t_data, list) and len(t_data) > 0:
-                        is_transcript_valid = True
-            except Exception:
-                pass
-
-        if not is_transcript_valid and os.path.exists(transcript_path):
+        active_quote = "No transcript preview available."
+        if isinstance(transcript_data, list) and len(transcript_data) > 0:
+            is_transcript_valid = True
+            active_quote = " ".join(
+                [s.get("text", "") for s in transcript_data if isinstance(s, dict)]
+            ).strip()
+            if len(active_quote) > 1000:
+                active_quote = active_quote[:997] + "..."
+        elif os.path.exists(transcript_path):
             try:
                 os.remove(transcript_path)
             except Exception:
@@ -529,17 +512,20 @@ class ClipWorkflowCoordinator:
             except Exception:
                 pass
 
-
-        # Load generated hooks from sources folder if present
+        # Load generated hooks from sources folder using real source video_info
         ready_hooks = []
         sources_dir = getattr(self.asset_repository, "source_dir", os.path.join("temp_assets", "sources"))
-        source_video_path = os.path.join(sources_dir, folder_name, "video.mp4")
-        cached_hooks = self.hook_discovery_engine.load_cached_hooks({
-            "file_path": source_video_path,
-            "folder_name": folder_name,
-            "duration": duration,
-        })
-        if cached_hooks:
+        hook_video_info = {
+            **video_info,
+            "file_path": video_info.get("file_path") or os.path.join(sources_dir, folder_name, "full.mp4"),
+            "folder_name": video_info.get("folder_name") or folder_name,
+        }
+        source_duration = hook_video_info.get("duration")
+        if not isinstance(source_duration, (int, float)) or source_duration <= 0:
+            hook_video_info.pop("duration", None)
+
+        cached_hooks = self.hook_discovery_engine.load_cached_hooks(hook_video_info)
+        if cached_hooks is not None:
             ready_hooks = cached_hooks
         elif os.path.exists(os.path.join(sources_dir, folder_name, "hooks.json")):
             try:
@@ -547,18 +533,6 @@ class ClipWorkflowCoordinator:
                     ready_hooks = json.load(f)
             except Exception as e:
                 print(f"[load-ready-clip] Failed to read source hooks: {e}")
-
-        # Extract transcript quote
-        active_quote = "No transcript preview available."
-        if is_transcript_valid:
-            try:
-                with open(transcript_path, "r", encoding="utf-8") as f:
-                    t_data = json.load(f)
-                    active_quote = " ".join([s.get("text", "") for s in t_data]).strip()
-                    if len(active_quote) > 1000:
-                        active_quote = active_quote[:997] + "..."
-            except Exception as e:
-                print(f"[load-ready-clip] Failed to read active transcript: {e}")
 
         ready_hooks.sort(key=lambda x: x.get("start", 0.0))
 
@@ -574,8 +548,6 @@ class ClipWorkflowCoordinator:
                 snapped_start = h_start
                 snapped_end = h_end
 
-        # Load unified Clip Session once (heals defaults, migrates legacy cover/audio, computes crop_map)
-        session = self.clip_session_store.get_clip_session(folder_name, clip_id)
         saved_hooks = self.asset_repository.get_saved_hooks(folder_name)
 
         status = "ready" if is_transcript_valid else "queued"
@@ -954,9 +926,6 @@ class ClipWorkflowCoordinator:
                     updated_clip["transcript_quote"] = c_quote
                     self.jobs.update_job(job_id, clip=updated_clip)
                     print(f"[transcribe] Updated in-memory clip quote for job {job_id}")
-            else:
-                # Fallback: ensure defaults seeds empty transcript if missing
-                self.clip_session_store.ensure_clip_defaults(folder_name, clip_id)
 
             self.clip_session_store.ensure_clip_defaults(folder_name, clip_id)
             self.clip_session_store.ensure_crop_map(
