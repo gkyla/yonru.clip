@@ -83,7 +83,7 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
   );
 
   // Timeline Text Overlays (ordered bottom-to-top so upper tracks paint & hit-test on top)
-  const activeTextItems = computed(() => {
+  const activeTextItems = computed<TimelineTrackItem[]>(previous => {
     const visibleTextTracks = state.timelineTracks.value.filter(
       (t: TimelineTrack) => isTextTrack(t) && !t.hidden
     );
@@ -104,8 +104,22 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
         }
       }
     }
+    if (
+      previous &&
+      previous.length === items.length &&
+      previous.every((prevItem, idx) => prevItem === items[idx])
+    ) {
+      return previous;
+    }
     return items;
   });
+
+  const hasVisibleTimelineTextItems = computed(() =>
+    state.timelineTracks.value.some(
+      (t: TimelineTrack) =>
+        isTextTrack(t) && !t.hidden && (t.items?.length ?? 0) > 0
+    )
+  );
 
   function onTextDragMove(e: any, _item: any) {
     const node = e.target;
@@ -149,6 +163,18 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     );
   });
 
+  const selectedLabelRenderKey = computed(() => {
+    const item = state.selectedTimelineItem.value;
+    if (
+      !item ||
+      item.type !== 'text' ||
+      !isTimelineTextActiveAndSelected.value
+    ) {
+      return '';
+    }
+    return `${fontsLoaded.value}-${item.id}-${item.content}-${item.fontSize}-${item.font}-${item.fontWeight}-${item.showStroke}-${item.showBackground}-${item.textTransform}-${item.color}`;
+  });
+
   function updateTransformer() {
     if (!transformerRef.value) return;
     const transformerNode = transformerRef.value.getNode();
@@ -171,8 +197,8 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
   watch(
     [
       () => state.selectedTimelineItem.value,
-      () => state.currentTime.value,
-      isTimelineTextActiveAndSelected
+      isTimelineTextActiveAndSelected,
+      selectedLabelRenderKey
     ],
     () => {
       nextTick(() => {
@@ -272,6 +298,7 @@ export const useInteractiveText = (transformerRef: { value: any }) => {
     fontsLoaded,
     allUsedFonts,
     activeTextItems,
+    hasVisibleTimelineTextItems,
     isTimelineTextActiveAndSelected,
     editingItemId,
     originalContent,

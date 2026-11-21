@@ -4,27 +4,14 @@
 // Each slice watches only the session fields it needs and pushes only its own
 // props. Pushes are merged to at most one per animation frame. Timeline Text
 // Layers and Cover Slide text are drawn by Konva/HTML in VideoPreview.vue, so
-// they are never watched here. The native <video> fallback (ADR-0004/0005)
-// only runs while `useNativePlayer` is on.
-import {
-  computed,
-  effectScope,
-  onScopeDispose,
-  toRaw,
-  watch,
-  type EffectScope,
-  type WatchSource
-} from 'vue';
+// they are never watched here.
+import { effectScope, toRaw, watch, type WatchSource } from 'vue';
 import type { YonruClipProps } from '@yonru/remotion';
 import type { useClipperState } from '../composables/useClipperState';
 import { resolveApiBase } from './apiBase';
 import { SubtitleLayoutEngine } from './subtitleChunker';
 import { SubtitleStyleCoordinator } from './subtitleStyleCoordinator';
-import {
-  calculateVideoTime,
-  findVideoTrack,
-  isAudioTrack
-} from './timelineHelpers';
+import { findVideoTrack, isAudioTrack } from './timelineHelpers';
 import type { PlayerBridge, PlayerBridgeEvent } from './playerBridge';
 import type { TimelineTrackItem } from '../types/clipper';
 
@@ -39,7 +26,6 @@ export type PreviewSessionSource = Pick<
   | 'isDraggingTimelineItem'
   | 'isMediaLoading'
   | 'isCapturingThumbnail'
-  | 'useNativePlayer'
   | 'videoUrl'
   | 'outputUrl'
   | 'videoFps'
@@ -89,25 +75,10 @@ export type PreviewSessionSource = Pick<
   | 'audioBleepSource'
   | 'customBleepFile'
   | 'contentAudit'
->;
-
-/** The parts of the editor <video> element the projection uses. */
-export interface NativeVideoAdapter {
-  paused: boolean;
-  muted: boolean;
-  volume: number;
-  currentTime: number;
-  videoWidth?: number;
-  videoHeight?: number;
-  play(): Promise<void>;
-  pause(): void;
-  addEventListener(type: string, listener: () => void): void;
-  removeEventListener(type: string, listener: () => void): void;
-}
+> &
+  Partial<Pick<ClipperState, 'videoDuration'>>;
 
 export interface PreviewProjectionOptions {
-  /** The editor <video> element. Gives source size and runs native playback. */
-  nativeVideo?: { readonly value: NativeVideoAdapter | null };
   scheduleFrame?: (cb: () => void) => number;
   cancelFrame?: (handle: number) => void;
   now?: () => number;
@@ -138,7 +109,6 @@ interface Slice {
   build: () => ProjectedProps;
 }
 
-const NATIVE_DRIFT_LIMIT_SEC = 0.25;
 const END_OF_TIMELINE_EPSILON_SEC = 0.05;
 
 function mergeCensoredSegments(
@@ -221,7 +191,6 @@ export function createPreviewProjection(
   const scheduleFrame = options.scheduleFrame ?? defaultScheduleFrame;
   const cancelFrame = options.cancelFrame ?? defaultCancelFrame;
   const now = options.now ?? Date.now;
-  const nativeVideo = () => options.nativeVideo?.value ?? null;
 
   const fps = () => session.videoFps.value || 30;
   const coverActive = () => !!session.coverEnabled.value;
@@ -559,17 +528,6 @@ export function createPreviewProjection(
     scheduleFlush();
   }
 
-  function readSourceSize(el: NativeVideoAdapter | null) {
-    if (!el?.videoWidth || !el?.videoHeight) return;
-    if (
-      el.videoWidth === sourceSize.width &&
-      el.videoHeight === sourceSize.height
-    )
-      return;
-    sourceSize = { width: el.videoWidth, height: el.videoHeight };
-    markDirty(framing);
-  }
-
   // --- bridge events ---
   function onBridgeEvent(event: PlayerBridgeEvent) {
     switch (event.type) {
@@ -598,172 +556,33 @@ export function createPreviewProjection(
         flushNow();
         session.isMediaLoading.value = false;
         break;
+      case 'REMOTION_MEDIA_METADATA': {
+        if (
+          event.width > 0 &&
+          event.height > 0 &&
+          (event.width !== sourceSize.width ||
+            event.height !== sourceSize.height)
+        ) {
+          sourceSize = { width: event.width, height: event.height };
+          markDirty(framing);
+        }
+        if (
+          session.videoDuration &&
+          Number.isFinite(event.duration) &&
+          event.duration > 0
+        ) {
+          session.videoDuration.value = event.duration;
+        }
+        break;
+      }
+      case 'REMOTION_MEDIA_READY':
+        session.isMediaLoading.value = false;
+        break;
     }
-  }
-
-  // --- native fallback (ADR-0004 / ADR-0005), only while useNativePlayer ---
-  function runNativeMode() {
-    const inCoverWindow = computed(
-      () =>
-        coverActive() &&
-        session.currentTime.value < coverDuration() &&
-        !session.isCapturingThumbnail.value
-    );
-    const mediaTime = () =>
-      calculateVideoTime(
-        session.currentTime.value,
-        coverActive(),
-        coverDuration(),
-        session.timelineTracks.value
-      );
-    const insideFlagged = computed(() => {
-      if (!session.audioBleepEnabled.value) return false;
-      const hook = session.activeHook.value;
-      const firstStart = session.fullTranscript.value?.[0]?.start || 0;
-      const zeroBased = hook ? firstStart < (hook.start || 0) - 2 : true;
-      const relative = Math.max(
-        0,
-        session.currentTime.value - (coverActive() ? coverDuration() : 0)
-      );
-      const searchTime = zeroBased ? relative : (hook?.start || 0) + relative;
-      return (session.contentAudit.value?.flaggedSegments ?? []).some(
-        seg => searchTime >= seg.start && searchTime <= seg.start + seg.duration
-      );
-    });
-    const censored = computed(
-      () => insideFlagged.value && session.isPlaying.value
-    );
-    let started = false;
-
-    const applyAudio = (el: NativeVideoAdapter) => {
-      el.muted = censored.value;
-      el.volume = censored.value ? 0 : session.volume.value;
-    };
-
-    const onTimeUpdate = () => {
-      const el = nativeVideo();
-      if (!el || el.paused) return;
-      const offset = coverActive() ? coverDuration() : 0;
-      const items = findVideoTrack(session.timelineTracks.value)?.items ?? [];
-      let time = el.currentTime + offset;
-      if (items.length > 0) {
-        const media = (i: TimelineTrackItem) => i.mediaStart ?? i.start;
-        const active =
-          items.find(
-            i =>
-              el.currentTime >= media(i) &&
-              el.currentTime <= media(i) + i.duration
-          ) ?? items[items.length - 1]!;
-        time = active.start + (el.currentTime - media(active)) + offset;
-      }
-      if (time >= session.timelineDuration.value) {
-        time = session.timelineDuration.value;
-        session.isPlaying.value = false;
-        el.pause();
-      }
-      lastReportedTime = time;
-      session.currentTime.value = time;
-    };
-    const onEnded = () => {
-      session.isPlaying.value = false;
-    };
-
-    watch(
-      () => options.nativeVideo?.value ?? null,
-      (el, _prev, onCleanup) => {
-        if (!el) return;
-        el.addEventListener('timeupdate', onTimeUpdate);
-        el.addEventListener('ended', onEnded);
-        onCleanup(() => {
-          el.removeEventListener('timeupdate', onTimeUpdate);
-          el.removeEventListener('ended', onEnded);
-        });
-      },
-      { immediate: true }
-    );
-
-    watch(
-      () => session.isPlaying.value,
-      playing => {
-        const el = nativeVideo();
-        if (!playing) started = false;
-        if (!el) return;
-        if (!playing) {
-          if (!el.paused) el.pause();
-          return;
-        }
-        if (inCoverWindow.value) {
-          el.currentTime = 0;
-          el.muted = true;
-          return;
-        }
-        applyAudio(el);
-        el.currentTime = mediaTime();
-        el.play().catch(e => console.warn('Native play blocked:', e));
-      }
-    );
-
-    watch(
-      () => session.currentTime.value,
-      time => {
-        const el = nativeVideo();
-        if (!el || time === lastReportedTime) return;
-        if (session.isTimelineShifting.value) return;
-        if (session.isPlaying.value && coverActive()) {
-          if (inCoverWindow.value) {
-            if (!el.paused) el.pause();
-            el.currentTime = 0;
-            el.muted = true;
-            started = false;
-          } else if (!started) {
-            started = true;
-            el.currentTime = mediaTime();
-            applyAudio(el);
-            el.play().catch(e => console.warn('Native play at boundary:', e));
-          }
-        }
-        if (inCoverWindow.value) {
-          if (el.currentTime !== 0) el.currentTime = 0;
-        } else {
-          const target = mediaTime();
-          if (Math.abs(el.currentTime - target) > 0.001)
-            el.currentTime = target;
-        }
-      }
-    );
-
-    // ADR-0005: only touch the element when the mute state or level changes.
-    watch(
-      [censored, () => session.volume.value],
-      () => {
-        const el = nativeVideo();
-        if (!el || inCoverWindow.value) return;
-        applyAudio(el);
-      },
-      { immediate: true }
-    );
-
-    // ADR-0004: re-sync the native element if it drifts from the playhead.
-    const stopDrift = bridge.onMessage(event => {
-      if (event.type !== 'REMOTION_TIMEUPDATE') return;
-      const el = nativeVideo();
-      if (!el || !session.isPlaying.value || inCoverWindow.value) return;
-      const target = mediaTime();
-      if (Math.abs(el.currentTime - target) > NATIVE_DRIFT_LIMIT_SEC) {
-        el.currentTime = target;
-      }
-    });
-
-    onScopeDispose(() => {
-      stopDrift();
-      const el = nativeVideo();
-      if (el && !el.paused) el.pause();
-    });
   }
 
   // --- wiring ---
   const scope = effectScope();
-  let nativeScope: EffectScope | null = null;
   let stopBridge: (() => void) | null = null;
 
   scope.run(() => {
@@ -804,31 +623,6 @@ export function createPreviewProjection(
       shifting => {
         if (!shifting) seekTo(session.currentTime.value, false);
       }
-    );
-
-    watch(
-      () => options.nativeVideo?.value ?? null,
-      (el, _prev, onCleanup) => {
-        if (!el) return;
-        readSourceSize(el);
-        const onLoaded = () => readSourceSize(el);
-        el.addEventListener('loadedmetadata', onLoaded);
-        onCleanup(() => el.removeEventListener('loadedmetadata', onLoaded));
-      },
-      { immediate: true }
-    );
-
-    watch(
-      () => session.useNativePlayer.value,
-      enabled => {
-        nativeScope?.stop();
-        nativeScope = null;
-        if (enabled) {
-          nativeScope = effectScope();
-          nativeScope.run(runNativeMode);
-        }
-      },
-      { immediate: true }
     );
 
     stopBridge = bridge.onMessage(onBridgeEvent);

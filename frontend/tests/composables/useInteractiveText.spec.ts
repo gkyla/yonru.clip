@@ -1,6 +1,7 @@
 // @vitest-environment nuxt
-import { describe, it, expect, beforeEach } from 'vitest';
-import { ref } from 'vue';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { defineComponent, nextTick, ref } from 'vue';
+import { mount } from '@vue/test-utils';
 import { useClipperState } from '../../app/composables/useClipperState';
 import { useInteractiveText } from '../../app/composables/useInteractiveText';
 import {
@@ -283,5 +284,111 @@ describe('useInteractiveText & addTimelineItem Cover Slide Synchronization', () 
       'bottom-item'
     ]);
     expect(isTimelineTextActiveAndSelected.value).toBe(false);
+  });
+
+  it('keeps activeTextItems identity stable and triggers 0 Konva batchDraw calls across currentTime ticks in the same cue', async () => {
+    const state = useClipperState();
+    state.coverEnabled.value = false;
+    state.coverDuration.value = 0;
+    state.currentTime.value = 1.0;
+
+    const textItem = {
+      id: 'txt-stable',
+      type: 'text' as const,
+      content: 'Hello World',
+      start: 0,
+      duration: 8,
+      font: 'Outfit',
+      fontSize: 80,
+      fontWeight: 900,
+      showStroke: true,
+      showBackground: false,
+      textTransform: 'uppercase',
+      color: '#ffffff'
+    };
+
+    state.timelineTracks.value = [
+      {
+        id: 'text',
+        name: 'Text 1',
+        type: 'text',
+        hidden: false,
+        items: [textItem]
+      },
+      {
+        id: 'video',
+        name: 'Main Video',
+        type: 'video',
+        items: [{ id: 'v1', type: 'video', start: 0, duration: 12 }]
+      }
+    ];
+
+    const nodesSpy = vi.fn();
+    const batchDrawSpy = vi.fn();
+    const mockLabelNode = { id: 'konva-label-node' };
+    const transformerRef = ref<any>({
+      getNode: () => ({
+        getStage: () => ({
+          findOne: (selector: string) =>
+            selector === `.${textItem.id}` ? mockLabelNode : null
+        }),
+        nodes: nodesSpy,
+        getLayer: () => ({
+          batchDraw: batchDrawSpy
+        })
+      })
+    });
+
+    let exposed: ReturnType<typeof useInteractiveText> | null = null;
+    const Host = defineComponent({
+      setup() {
+        exposed = useInteractiveText(transformerRef);
+        return {};
+      },
+      template: '<div />'
+    });
+    const wrapper = mount(Host);
+
+    // Select the active text item
+    state.selectedTimelineItem.value = textItem;
+    await nextTick();
+    await nextTick();
+
+    expect(nodesSpy).toHaveBeenCalledWith([mockLabelNode]);
+    expect(batchDrawSpy).toHaveBeenCalledTimes(1);
+
+    const initialRef = exposed!.activeTextItems.value;
+    expect(initialRef).toHaveLength(1);
+
+    nodesSpy.mockClear();
+    batchDrawSpy.mockClear();
+
+    // Advance playback across multiple frames within the same cue [0..8)
+    for (const t of [1.5, 2.25, 3.8, 5.1, 7.4]) {
+      state.currentTime.value = t;
+      await nextTick();
+      await nextTick();
+      expect(exposed!.activeTextItems.value).toBe(initialRef);
+    }
+    expect(batchDrawSpy).toHaveBeenCalledTimes(0);
+    expect(nodesSpy).toHaveBeenCalledTimes(0);
+
+    // Editing content/style re-attaches transformer once
+    state.selectedTimelineItem.value!.content = 'Edited Caption';
+    await nextTick();
+    await nextTick();
+    expect(nodesSpy).toHaveBeenCalledWith([mockLabelNode]);
+    expect(batchDrawSpy).toHaveBeenCalledTimes(1);
+
+    // Scrubbing past the cue detaches transformer cleanly
+    nodesSpy.mockClear();
+    batchDrawSpy.mockClear();
+    state.currentTime.value = 9.0;
+    await nextTick();
+    await nextTick();
+    expect(nodesSpy).toHaveBeenCalledWith([]);
+    expect(batchDrawSpy).toHaveBeenCalledTimes(1);
+
+    wrapper.unmount();
   });
 });

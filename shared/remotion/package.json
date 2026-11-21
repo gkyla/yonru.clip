@@ -13,6 +13,7 @@
     "./TimelineFramingIndex": "./src/TimelineFramingIndex.ts",
     "./AnimatedSubtitles": "./src/AnimatedSubtitles.tsx",
     "./Root": "./src/Root.tsx",
+    "./PreviewMediaContext": "./src/PreviewMediaContext.ts",
     "./fonts": "./src/fonts.ts",
     "./fonts.css": "./src/fonts.css"
   },

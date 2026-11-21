@@ -48,7 +48,6 @@ const mockState = {
   videoDuration: ref(60),
   thumbnailEnabled: ref(false),
   thumbnailDuration: ref(3),
-  useNativePlayer: ref(false),
   canUndo: ref(false),
   canRedo: ref(false),
   isSavingHistory: ref(false),

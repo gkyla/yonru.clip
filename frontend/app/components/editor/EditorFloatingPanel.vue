@@ -414,7 +414,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import {
   createSubtitleLayoutEngine,
   updateSegmentText,
@@ -424,7 +424,7 @@ import {
 import type { Hook } from '../../types/clipper';
 import { useClipperState } from '../../composables/useClipperState';
 
-defineProps<{
+const props = defineProps<{
   isPanelOpen: boolean;
   editorTab: 'edit' | 'quote' | 'thumbnail';
 }>();
@@ -508,7 +508,9 @@ async function triggerDebouncedAutoSave() {
   }
 }
 
-const absoluteTime = computed(() => state?.currentTime?.value || 0);
+const isEditPanelVisible = computed(
+  () => props.isPanelOpen && props.editorTab === 'edit'
+);
 
 const layoutEngine = computed(() => {
   return createSubtitleLayoutEngine(
@@ -520,8 +522,9 @@ const layoutEngine = computed(() => {
 const visibleSegments = computed(() => layoutEngine.value.chunks);
 
 const activeSegIdx = computed(() => {
+  if (!isEditPanelVisible.value) return -1;
   if (!state?.fullTranscript?.value || !state?.activeHook?.value) return -1;
-  return layoutEngine.value.findChunkIndexAt(absoluteTime.value, {
+  return layoutEngine.value.findChunkIndexAt(state?.currentTime?.value || 0, {
     syncOffsetMs: state?.subtitleSyncOffset?.value || 0,
     hookStart: state?.activeHook?.value?.start || 0,
     thumbnailDuration: state?.thumbnailEnabled?.value
@@ -531,6 +534,7 @@ const activeSegIdx = computed(() => {
 });
 
 watch(activeSegIdx, idx => {
+  if (!isEditPanelVisible.value) return;
   if (
     isAutoScrollEnabled.value &&
     idx !== -1 &&

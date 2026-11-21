@@ -47,6 +47,8 @@ export interface RemotionSubtitleTiming {
 
 export type RemotionTranscriptSegment = TranscriptSegment;
 
+const MONOTONIC_FLOAT_EPSILON = 1e-9;
+
 /**
  * Deep Subtitle Layout Engine encapsulating transcript grouping,
  * sequence alignment, duration scaling, and time searches.
@@ -56,6 +58,7 @@ export class SubtitleLayoutEngine {
   private _mode: string = 'word';
   private _flatWords: ChunkerFlatWord[] = [];
   private _chunks: SubtitleChunk[] = [];
+  private _isMonotonic: boolean = true;
 
   constructor(
     masterTranscript: TranscriptSegment[] = [],
@@ -86,6 +89,10 @@ export class SubtitleLayoutEngine {
 
   public get flatWords(): ChunkerFlatWord[] {
     return this._flatWords;
+  }
+
+  public get isMonotonic(): boolean {
+    return this._isMonotonic;
   }
 
   public setTranscript(segments: TranscriptSegment[]): void {
@@ -261,10 +268,35 @@ export class SubtitleLayoutEngine {
 
   // --- Chunk Building & Layout Logic ---
 
+  private _recomputeMonotonic(): void {
+    let prevStart = -Infinity;
+    let prevEnd = -Infinity;
+    for (let i = 0; i < this._chunks.length; i++) {
+      const chunk = this._chunks[i]!;
+      const start = chunk.start;
+      const end = chunk.end ?? start + chunk.duration;
+      if (
+        !Number.isFinite(start) ||
+        !Number.isFinite(end) ||
+        end < start ||
+        start < prevStart ||
+        end < prevEnd ||
+        start < prevEnd - MONOTONIC_FLOAT_EPSILON
+      ) {
+        this._isMonotonic = false;
+        return;
+      }
+      prevStart = start;
+      prevEnd = end;
+    }
+    this._isMonotonic = true;
+  }
+
   private _rebuildChunks(): void {
     if (!this._masterTranscript || this._masterTranscript.length === 0) {
       this._flatWords = [];
       this._chunks = [];
+      this._isMonotonic = true;
       return;
     }
 
@@ -369,6 +401,7 @@ export class SubtitleLayoutEngine {
     }
 
     this._chunks = grouped;
+    this._recomputeMonotonic();
   }
 
   // --- Playback & Time Lookups ---
@@ -390,6 +423,34 @@ export class SubtitleLayoutEngine {
     const searchTime = isZeroBased
       ? relativeTime + offsetSec
       : hookStart + relativeTime + offsetSec;
+
+    if (this._isMonotonic) {
+      let lo = 0;
+      let hi = this._chunks.length - 1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >>> 1;
+        const chunk = this._chunks[mid]!;
+        const end = chunk.end ?? chunk.start + chunk.duration;
+        if (searchTime < chunk.start) {
+          hi = mid - 1;
+        } else if (searchTime >= end) {
+          lo = mid + 1;
+        } else {
+          let match = mid;
+          while (match > 0) {
+            const prev = this._chunks[match - 1]!;
+            const prevEnd = prev.end ?? prev.start + prev.duration;
+            if (searchTime >= prev.start && searchTime < prevEnd) {
+              match--;
+            } else {
+              break;
+            }
+          }
+          return match;
+        }
+      }
+      return -1;
+    }
 
     return this._chunks.findIndex(chunk => {
       const end = chunk.end ?? chunk.start + chunk.duration;
@@ -558,6 +619,7 @@ export class SubtitleLayoutEngine {
       }
     });
 
+    this._recomputeMonotonic();
     return true;
   }
 
@@ -597,6 +659,7 @@ export class SubtitleLayoutEngine {
       }
     });
 
+    this._recomputeMonotonic();
     return true;
   }
 

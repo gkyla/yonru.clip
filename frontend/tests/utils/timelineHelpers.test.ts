@@ -387,6 +387,25 @@ describe('Timeline Helpers TDD', () => {
       const majorTicks = ticks.filter(t => t.major && t.label);
       expect(majorTicks.length).toBeGreaterThan(0);
     });
+
+    it('windows ticks accurately by pixel or second bounds matching the full ruler', () => {
+      const fullTicks = calculateRulerTicks(12000, 200);
+      expect(fullTicks).toHaveLength(601); // 0..60s at 0.1s step
+
+      const pxWindowed = calculateRulerTicks(12000, 200, {
+        startPx: 2000,
+        endPx: 4000
+      });
+      expect(pxWindowed).toEqual(
+        fullTicks.filter(t => t.pos >= 2000 - 1e-6 && t.pos <= 4000 + 1e-6)
+      );
+
+      const secWindowed = calculateRulerTicks(12000, 200, {
+        startSec: 10,
+        endSec: 20
+      });
+      expect(secWindowed).toEqual(pxWindowed);
+    });
   });
 
   describe('Cover Slide Global Timeline Coordinate Sync', () => {

@@ -53,7 +53,6 @@ vi.mock('../../app/composables/useClipperState', () => ({
     cropPercentX: { value: 50 },
     volume: { value: 0.5 },
     subtitleMode: { value: 'word' },
-    useNativePlayer: { value: false },
     showIframeDebug: { value: false },
     subtitleOffset: { value: 50 },
     subtitleSyncOffset: { value: 150 },

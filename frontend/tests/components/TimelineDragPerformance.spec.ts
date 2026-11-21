@@ -51,7 +51,6 @@ const mockState = {
   commitToHistory: mockCommitToHistory,
   formatDuration: (sec: number) => `${sec}s`,
   seekTo: vi.fn(),
-  useNativePlayer: ref(false),
   isRenderPreviewActive: ref(false),
   isEditorLocked: ref(false),
   fullTranscript: ref([]),

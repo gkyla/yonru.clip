@@ -17,6 +17,13 @@ export interface RulerTick {
   label: string | null;
 }
 
+export interface RulerTickRange {
+  startSec?: number;
+  endSec?: number;
+  startPx?: number;
+  endPx?: number;
+}
+
 export function resolveCoverOffsetSec(
   coverEnabled?: boolean,
   coverDuration?: number
@@ -1078,8 +1085,10 @@ export function calculateDragBounds(
 
 export function calculateRulerTicks(
   totalW: number,
-  pxPerSec: number
+  pxPerSec: number,
+  range?: RulerTickRange
 ): RulerTick[] {
+  if (totalW <= 0 || pxPerSec <= 0) return [];
   const ticks: RulerTick[] = [];
   const dur = totalW / pxPerSec;
   let step: number;
@@ -1099,7 +1108,28 @@ export function calculateRulerTicks(
     labelEvery = 5;
   }
 
-  for (let t = 0; t <= dur; t = Math.round((t + step) * 1000) / 1000) {
+  let minSec = 0;
+  let maxSec = dur;
+  if (range) {
+    if (typeof range.startSec === 'number') {
+      minSec = Math.max(0, range.startSec);
+    } else if (typeof range.startPx === 'number') {
+      minSec = Math.max(0, range.startPx / pxPerSec);
+    }
+    if (typeof range.endSec === 'number') {
+      maxSec = Math.min(dur, range.endSec);
+    } else if (typeof range.endPx === 'number') {
+      maxSec = Math.min(dur, range.endPx / pxPerSec);
+    }
+  }
+  if (maxSec < minSec) return [];
+
+  const startIndex = Math.max(0, Math.floor(minSec / step + 1e-9));
+  const endIndex = Math.floor(maxSec / step + 1e-9);
+
+  for (let i = startIndex; i <= endIndex; i++) {
+    const t = Math.round(i * step * 1000) / 1000;
+    if (t > dur + 1e-9) break;
     const pos = t * pxPerSec;
     const isMajor =
       Math.abs(t % labelEvery) < 0.001 ||

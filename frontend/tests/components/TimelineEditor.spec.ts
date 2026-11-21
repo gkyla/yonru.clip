@@ -1,8 +1,10 @@
 // @vitest-environment nuxt
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import TimelineEditor from '../../app/components/TimelineEditor.vue';
 import { ref } from 'vue';
+
+enableAutoUnmount(afterEach);
 
 const mockCurrentTime = ref(0);
 const mockIsPlaying = ref(false);
@@ -19,7 +21,6 @@ const mockState = {
   videoDuration: ref(60),
   thumbnailEnabled: ref(false),
   thumbnailDuration: ref(3),
-  useNativePlayer: ref(false),
   canUndo: ref(false),
   canRedo: ref(false),
   isSavingHistory: ref(false),
@@ -1074,6 +1075,60 @@ describe('TimelineEditor Component', () => {
         mockState.addTimelineItem = origAdd;
         mockState.timelineTracks.value = prevTracks;
       }
+    });
+
+    it('suspends playback and detaches/reattaches window keydown listeners across keepalive deactivation', async () => {
+      mockIsPlaying.value = true;
+      mockState.undo.mockClear();
+
+      const wrapper = mount(TimelineEditor, {
+        global: {
+          stubs: {
+            Icon: true,
+            NuxtIcon: true,
+            Teleport: true,
+            Transition: true,
+            TimelinePropertiesInspector: true
+          }
+        }
+      });
+
+      const instance = wrapper.vm.$.vnode.component as {
+        da?: Array<() => void>;
+        a?: Array<() => void>;
+      } | null;
+      expect(instance?.da?.length).toBeGreaterThan(0);
+
+      // Deactivate (navigating off-route under keepalive)
+      instance?.da?.forEach(hook => hook());
+      await wrapper.vm.$nextTick();
+
+      expect(mockIsPlaying.value).toBe(false);
+
+      // Space & Cmd+Z must be ignored while deactivated
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', code: 'Space' })
+      );
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'z', metaKey: true })
+      );
+      await wrapper.vm.$nextTick();
+
+      expect(mockIsPlaying.value).toBe(false);
+      expect(mockState.undo).not.toHaveBeenCalled();
+
+      // Re-activate (twice to verify no duplicate listeners)
+      instance?.a?.forEach(hook => hook());
+      instance?.a?.forEach(hook => hook());
+      await wrapper.vm.$nextTick();
+
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', code: 'Space' })
+      );
+      await wrapper.vm.$nextTick();
+      expect(mockIsPlaying.value).toBe(true);
+
+      wrapper.unmount();
     });
   });
 });

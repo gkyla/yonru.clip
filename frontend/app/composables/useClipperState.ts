@@ -333,7 +333,6 @@ function createClipperState() {
     () => 'word'
   );
   const whisperModel = useState<string>('whisperModel', () => 'base');
-  const useNativePlayer = useState<boolean>('useNativePlayer', () => false);
   const showIframeDebug = useState<boolean>('showIframeDebug', () => false);
 
   // Subtitle style
@@ -541,7 +540,6 @@ function createClipperState() {
     splitOffsetYBottom,
     subtitleMode,
     whisperModel,
-    useNativePlayer,
     showIframeDebug,
     whisperModels: WHISPER_MODELS,
     activeSafeZone,

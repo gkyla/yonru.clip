@@ -123,15 +123,7 @@
               class="text-base"
             />
           </button>
-          <div class="mono text-[10px] flex items-center gap-1">
-            <span class="text-red-400 font-bold">{{
-              state.formatDuration(state.currentTime.value)
-            }}</span>
-            <span class="text-slate-600">/</span>
-            <span class="text-slate-500">{{
-              state.formatDuration(state.timelineDuration.value)
-            }}</span>
-          </div>
+          <TimelineTimecode />
         </div>
         <div class="flex items-center gap-0.5 bg-white/5 rounded p-0.5">
           <button
@@ -317,55 +309,14 @@
         @wheel="onWheel"
       >
         <!-- Sticky Time Ruler & Pinned Scrubbing Head -->
-        <div
-          class="sticky top-0 z-40 bg-[#0d0d0f] border-b border-white/5 cursor-pointer select-none timeline-ruler"
-          :style="{ height: '24px', width: totalW + 'px' }"
-          @mousedown="startRulerScrub"
-        >
-          <div
-            class="relative h-full ruler-container"
-            :style="{ width: totalW + 'px' }"
-          >
-            <template v-for="tick in rulerTicks" :key="tick.pos">
-              <div
-                class="absolute bottom-0 border-l"
-                :class="
-                  tick.major
-                    ? 'border-white/25 h-[10px]'
-                    : 'border-white/10 h-[5px]'
-                "
-                :style="{ left: tick.pos + 'px' }"
-              >
-                <span
-                  v-if="tick.label"
-                  class="absolute -top-[12px] left-[3px] text-[8px] mono text-slate-400 whitespace-nowrap select-none"
-                  >{{ tick.label }}</span
-                >
-              </div>
-            </template>
-
-            <!-- Scrubbing head stays pinned inside the sticky ruler while tracks scroll vertically -->
-            <div
-              data-testid="timeline-playhead-head"
-              class="absolute top-0 bottom-[-1px] z-20 pointer-events-none"
-              :style="{ left: playheadPx + 'px', width: '2px' }"
-            >
-              <div
-                data-testid="timeline-playhead-handle"
-                class="w-0 h-0 absolute -left-[5px] top-0 cursor-ew-resize pointer-events-auto"
-                style="
-                  border-left: 6px solid transparent;
-                  border-right: 6px solid transparent;
-                  border-top: 8px solid #ff3b30;
-                "
-                @mousedown.stop="startRulerScrub"
-              ></div>
-              <div
-                class="absolute top-[8px] bottom-0 left-0 w-[2px] bg-[#ff3b30]"
-              ></div>
-            </div>
-          </div>
-        </div>
+        <TimelineRuler
+          ref="timelineRulerRef"
+          :total-w="totalW"
+          :px-per-sec="pxPerSec"
+          :container-w="containerW"
+          :get-scroll-left="getScrollLeft"
+          @scrub-start="startRulerScrub"
+        />
 
         <!-- Track Content Area -->
         <div
@@ -490,11 +441,7 @@
           </div>
 
           <!-- Playhead vertical guide across all track lanes down to the bottom layer -->
-          <div
-            data-testid="timeline-playhead"
-            class="absolute top-0 bottom-0 z-30 pointer-events-none bg-[#ff3b30]"
-            :style="{ left: playheadPx + 'px', width: '2px' }"
-          ></div>
+          <TimelinePlayhead variant="line" :px-per-sec="pxPerSec" />
         </div>
       </div>
     </div>
@@ -534,9 +481,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import {
-  calculateRulerTicks,
+  ref,
+  computed,
+  onMounted,
+  onActivated,
+  onDeactivated,
+  onUnmounted,
+  watch
+} from 'vue';
+import {
   calculateSnapTime,
   calculateDragBounds,
   splitTimelineItem,
@@ -565,6 +519,11 @@ import type {
 
 import TimelinePropertiesInspector from './editor/TimelinePropertiesInspector.vue';
 import AudioLibraryPopover from './editor/AudioLibraryPopover.vue';
+import TimelineTimecode from './editor/TimelineTimecode.vue';
+import TimelinePlayhead from './editor/TimelinePlayhead.vue';
+import TimelineRuler, {
+  type RulerScrubStartPayload
+} from './editor/TimelineRuler.vue';
 
 const state = useClipperState();
 const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
@@ -572,6 +531,7 @@ const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
 const pxPerSec = ref(100);
 const scrollEl = ref<HTMLElement | null>(null);
 const headerScrollEl = ref<HTMLElement | null>(null);
+const timelineRulerRef = ref<InstanceType<typeof TimelineRuler> | null>(null);
 const audioInput = ref<HTMLInputElement | null>(null);
 const audioBtnEl = ref<HTMLElement | null>(null);
 const isAudioLibraryOpen = ref(false);
@@ -630,15 +590,39 @@ const totalW = computed(() => {
   return Math.max(state.timelineDuration.value * pxPerSec.value, 2000);
 });
 
-const containerW = computed(() => scrollEl.value?.clientWidth || 800);
+const containerW = ref(800);
+let scrollResizeObserver: ResizeObserver | null = null;
 
-// Playhead position in content coordinates
-const playheadPx = computed(() => state.currentTime.value * pxPerSec.value);
+function updateContainerWidth() {
+  if (scrollEl.value && scrollEl.value.clientWidth > 0) {
+    containerW.value = scrollEl.value.clientWidth;
+  }
+}
 
-// --- Ruler ---
-const rulerTicks = computed(() =>
-  calculateRulerTicks(totalW.value, pxPerSec.value)
-);
+function attachScrollResizeObserver() {
+  if (
+    typeof ResizeObserver === 'undefined' ||
+    !scrollEl.value ||
+    scrollResizeObserver
+  ) {
+    return;
+  }
+  scrollResizeObserver = new ResizeObserver(() => {
+    updateContainerWidth();
+  });
+  scrollResizeObserver.observe(scrollEl.value);
+}
+
+function detachScrollResizeObserver() {
+  if (scrollResizeObserver) {
+    scrollResizeObserver.disconnect();
+    scrollResizeObserver = null;
+  }
+}
+
+function getScrollLeft(): number {
+  return scrollEl.value?.scrollLeft ?? 0;
+}
 
 // --- Track helpers ---
 interface TrackStyleConfig {
@@ -813,12 +797,20 @@ function onHeaderScroll() {
   syncVerticalScroll(headerScrollEl.value, scrollEl.value);
 }
 
+function clearScrollTimeout() {
+  if (scrollTimeout) {
+    clearTimeout(scrollTimeout);
+    scrollTimeout = null;
+  }
+}
+
 function onScroll() {
   if (!scrollEl.value) return;
   syncVerticalScroll(scrollEl.value, headerScrollEl.value);
+  timelineRulerRef.value?.syncScrollLeft(scrollEl.value.scrollLeft);
   if (isProgrammaticScroll || state.isPlaying.value) return;
   isUserScrolling.value = true;
-  if (scrollTimeout) clearTimeout(scrollTimeout);
+  clearScrollTimeout();
   scrollTimeout = setTimeout(() => {
     isUserScrolling.value = false;
   }, 150);
@@ -826,17 +818,22 @@ function onScroll() {
 
 // --- Ruler Drag-to-Scrub ---
 const isRulerDragging = ref(false);
+let edgeScrollRafId: number | null = null;
+let latestScrubClientX = 0;
+let cachedScrollRect: DOMRect | null = null;
+let activeScrubComputeTime:
+  ((clientX: number, currentScrollLeft?: number) => number) | null = null;
+let activeScrubMouseMove: ((e: MouseEvent) => void) | null = null;
+let activeScrubMouseUp: (() => void) | null = null;
 
-function seekFromRulerEvent(e: MouseEvent) {
-  if (!scrollEl.value) return;
-  const rulerContainer = scrollEl.value.querySelector(
-    '.ruler-container'
-  ) as HTMLElement;
-  if (!rulerContainer) return;
-  const rect = rulerContainer.getBoundingClientRect();
-  const x = Math.max(0, e.clientX - rect.left);
+function seekAtClientX(clientX: number) {
+  if (!activeScrubComputeTime) return;
   const maxTime = state.timelineDuration.value || 0;
-  const targetTime = Math.min(maxTime, Math.max(0, x / pxPerSec.value));
+  const rawTime = activeScrubComputeTime(
+    clientX,
+    scrollEl.value?.scrollLeft ?? 0
+  );
+  const targetTime = Math.min(maxTime, Math.max(0, rawTime));
   state.seekTo(targetTime);
 }
 
@@ -844,21 +841,20 @@ function smoothCenterPlayhead(targetTime?: number) {
   if (!scrollEl.value) return;
   const time =
     typeof targetTime === 'number' ? targetTime : state.currentTime.value;
+  const visibleW = scrollEl.value.clientWidth || containerW.value;
   const targetPx = time * pxPerSec.value;
-  const targetScroll = Math.max(0, targetPx - containerW.value / 2);
+  const targetScroll = Math.max(0, targetPx - visibleW / 2);
 
   isProgrammaticScroll = true;
   scrollEl.value.scrollTo({
     left: targetScroll,
     behavior: 'smooth'
   });
+  timelineRulerRef.value?.syncScrollLeft(targetScroll);
   setTimeout(() => {
     isProgrammaticScroll = false;
   }, 400);
 }
-
-let edgeScrollRafId: number | null = null;
-let latestScrubEvent: MouseEvent | null = null;
 
 function stopEdgeScroll() {
   if (edgeScrollRafId) {
@@ -869,7 +865,7 @@ function stopEdgeScroll() {
 
 function checkEdgeScroll(clientX: number) {
   if (!scrollEl.value) return;
-  const rect = scrollEl.value.getBoundingClientRect();
+  const rect = cachedScrollRect ?? scrollEl.value.getBoundingClientRect();
   const edgeZone = 60;
   const leftDist = clientX - rect.left;
   const rightDist = rect.right - clientX;
@@ -891,10 +887,10 @@ function checkEdgeScroll(clientX: number) {
           stopEdgeScroll();
           return;
         }
-        scrollEl.value.scrollLeft += speed;
-        if (latestScrubEvent) {
-          seekFromRulerEvent(latestScrubEvent);
-        }
+        const nextScrollLeft = Math.max(0, scrollEl.value.scrollLeft + speed);
+        scrollEl.value.scrollLeft = nextScrollLeft;
+        timelineRulerRef.value?.syncScrollLeft(nextScrollLeft);
+        seekAtClientX(latestScrubClientX);
         edgeScrollRafId = requestAnimationFrame(step);
       };
       edgeScrollRafId = requestAnimationFrame(step);
@@ -904,31 +900,51 @@ function checkEdgeScroll(clientX: number) {
   }
 }
 
-function startRulerScrub(e: MouseEvent) {
+function cancelRulerScrub() {
+  isRulerDragging.value = false;
+  stopEdgeScroll();
+  if (typeof window !== 'undefined') {
+    if (activeScrubMouseMove) {
+      window.removeEventListener('mousemove', activeScrubMouseMove);
+    }
+    if (activeScrubMouseUp) {
+      window.removeEventListener('mouseup', activeScrubMouseUp);
+    }
+  }
+  activeScrubMouseMove = null;
+  activeScrubMouseUp = null;
+  activeScrubComputeTime = null;
+  cachedScrollRect = null;
+}
+
+function startRulerScrub(payload: RulerScrubStartPayload) {
+  const { event: e, computeTimeFromClientX } = payload;
   if (e.button !== 0) return;
+  cancelRulerScrub();
   isRulerDragging.value = true;
   state.selectedTimelineItem.value = null;
-  latestScrubEvent = e;
+  latestScrubClientX = e.clientX;
+  cachedScrollRect = scrollEl.value?.getBoundingClientRect() ?? null;
+  activeScrubComputeTime = computeTimeFromClientX;
 
-  seekFromRulerEvent(e);
+  seekAtClientX(e.clientX);
 
   const onMouseMove = (moveEvent: MouseEvent) => {
     if (!isRulerDragging.value) return;
-    latestScrubEvent = moveEvent;
-    seekFromRulerEvent(moveEvent);
+    latestScrubClientX = moveEvent.clientX;
+    seekAtClientX(moveEvent.clientX);
     checkEdgeScroll(moveEvent.clientX);
   };
 
   const onMouseUp = () => {
-    isRulerDragging.value = false;
-    stopEdgeScroll();
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', onMouseUp);
+    cancelRulerScrub();
 
     // Smooth glide to center playhead on release (Option A)
     smoothCenterPlayhead();
   };
 
+  activeScrubMouseMove = onMouseMove;
+  activeScrubMouseUp = onMouseUp;
   window.addEventListener('mousemove', onMouseMove);
   window.addEventListener('mouseup', onMouseUp);
 }
@@ -943,10 +959,6 @@ function startRaf() {
       stopRaf();
       return;
     }
-    const video = document.getElementById(
-      'preview-video-element'
-    ) as HTMLVideoElement;
-    const thumbSec = isCoverActive.value ? activeCoverDuration.value : 0;
 
     // Stop playback if end of timeline reached
     if (state.currentTime.value >= state.timelineDuration.value) {
@@ -955,24 +967,14 @@ function startRaf() {
       return;
     }
 
-    // Use native video to drive timeline AFTER the thumbnail window.
-    // During thumbnail, Remotion is the sole clock (via REMOTION_TIMEUPDATE messages).
-    // In Remotion mode, REMOTION_TIMEUPDATE overrides this, so this only matters
-    // for useNativePlayer fallback mode.
-    if (
-      state.useNativePlayer.value &&
-      video &&
-      !video.paused &&
-      video.volume > 0 &&
-      state.currentTime.value >= thumbSec
-    ) {
-      state.currentTime.value = video.currentTime + thumbSec;
-    }
     // Auto-scroll to center playhead
     if (scrollEl.value && !isUserScrolling.value) {
-      const targetScroll = Math.max(0, playheadPx.value - containerW.value / 2);
+      const visibleW = scrollEl.value.clientWidth || containerW.value;
+      const playheadPosPx = state.currentTime.value * pxPerSec.value;
+      const targetScroll = Math.max(0, playheadPosPx - visibleW / 2);
       if (Math.abs(scrollEl.value.scrollLeft - targetScroll) >= 0.5) {
         scrollEl.value.scrollLeft = targetScroll;
+        timelineRulerRef.value?.syncScrollLeft(targetScroll);
       }
     }
     rafId = requestAnimationFrame(loop);
@@ -991,13 +993,14 @@ function stopRaf() {
 function ensurePlayheadInView() {
   if (!scrollEl.value) return;
   const currentScroll = scrollEl.value.scrollLeft;
-  const visibleWidth = containerW.value;
-  const playhead = playheadPx.value;
+  const visibleWidth = scrollEl.value.clientWidth || containerW.value;
+  const playhead = state.currentTime.value * pxPerSec.value;
 
   if (playhead < currentScroll || playhead > currentScroll + visibleWidth) {
     const targetScroll = Math.max(0, playhead - visibleWidth / 2);
     isProgrammaticScroll = true;
     scrollEl.value.scrollLeft = targetScroll;
+    timelineRulerRef.value?.syncScrollLeft(targetScroll);
     setTimeout(() => {
       isProgrammaticScroll = false;
     }, 50);
@@ -1550,15 +1553,57 @@ function onKeyDown(e: KeyboardEvent) {
   else if (e.key === 'k' || e.key === 'K') splitSelected();
 }
 
-onMounted(() => {
+let isKeydownAttached = false;
+
+function attachKeydown() {
+  if (typeof window === 'undefined' || isKeydownAttached) return;
   window.addEventListener('keydown', onKeyDown);
-});
-onUnmounted(() => {
+  isKeydownAttached = true;
+}
+
+function detachKeydown() {
+  if (typeof window === 'undefined' || !isKeydownAttached) return;
   window.removeEventListener('keydown', onKeyDown);
-  window.removeEventListener('mousemove', onDrag);
-  window.removeEventListener('mouseup', stopDrag);
+  isKeydownAttached = false;
+}
+
+onMounted(() => {
+  attachKeydown();
+  updateContainerWidth();
+  attachScrollResizeObserver();
+});
+
+onActivated(() => {
+  attachKeydown();
+  updateContainerWidth();
+  attachScrollResizeObserver();
+});
+
+onDeactivated(() => {
+  detachKeydown();
+  if (state?.isPlaying) {
+    state.isPlaying.value = false;
+  }
   stopRaf();
   stopEdgeScroll();
+  cancelRulerScrub();
+  clearScrollTimeout();
+  if (draggingItem) {
+    stopDrag();
+  }
+});
+
+onUnmounted(() => {
+  detachKeydown();
+  detachScrollResizeObserver();
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('mousemove', onDrag);
+    window.removeEventListener('mouseup', stopDrag);
+  }
+  stopRaf();
+  stopEdgeScroll();
+  cancelRulerScrub();
+  clearScrollTimeout();
 });
 </script>
 

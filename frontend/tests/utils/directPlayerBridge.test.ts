@@ -232,6 +232,17 @@ describe('DirectPlayerBridge Unit Tests', () => {
 
       bridge.emitReady();
       expect(listener).toHaveBeenCalledWith({ type: 'IFRAME_READY' });
+
+      bridge.emitMediaMetadata(1280, 720, 24.5);
+      expect(listener).toHaveBeenCalledWith({
+        type: 'REMOTION_MEDIA_METADATA',
+        width: 1280,
+        height: 720,
+        duration: 24.5
+      });
+
+      bridge.emitMediaReady();
+      expect(listener).toHaveBeenCalledWith({ type: 'REMOTION_MEDIA_READY' });
     });
   });
 
@@ -268,7 +279,7 @@ describe('DirectPlayerBridge Unit Tests', () => {
         isDraggingTimelineItem: ref(false),
         isMediaLoading: ref(true),
         isCapturingThumbnail: ref(false),
-        useNativePlayer: ref(false),
+        videoDuration: ref(0),
         videoUrl: ref<string | null>('http://localhost:8765/assets/video.mp4'),
         outputUrl: ref<string | null>(null),
         videoFps: ref(30),

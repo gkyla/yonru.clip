@@ -1,14 +1,18 @@
 // @vitest-environment nuxt
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import editor from '../../app/pages/editor.vue';
+
+enableAutoUnmount(afterEach);
 
 import { useRouter } from '#imports';
 
 const mockJobStatus = ref('idle');
 const mockJobError = ref<string | null>(null);
 const mockIsMediaLoading = ref(false);
+const mockIsPlaying = ref(false);
+const mockFlushSessionSaves = vi.fn().mockResolvedValue(undefined);
 const mockActiveHook = ref<any>(null);
 const mockExtractClip = vi.fn();
 const mockSubtitleMode = ref('word');
@@ -56,6 +60,8 @@ vi.mock('../../app/composables/useClipperState', () => ({
     initPersistence: vi.fn(),
     stopPolling: vi.fn(),
     startPolling: vi.fn(),
+    isPlaying: mockIsPlaying,
+    flushSessionSaves: mockFlushSessionSaves,
     renderStatus: { value: 'idle' },
     outputUrl: mockOutputUrl,
     isRenderPreviewActive: mockIsRenderPreviewActive,
@@ -82,6 +88,8 @@ describe('Editor Page', () => {
     mockJobStatus.value = 'idle';
     mockJobError.value = null;
     mockIsMediaLoading.value = false;
+    mockIsPlaying.value = false;
+    mockFlushSessionSaves.mockClear();
     mockActiveHook.value = null;
     mockExtractClip.mockReset();
     mockFolderName.value = 'test_folder';
@@ -490,5 +498,69 @@ describe('Editor Page', () => {
     await wrapper.vm.$nextTick();
     expect(panel.attributes('style')).toContain('height: 180px');
     window.dispatchEvent(new PointerEvent('pointerup'));
+  });
+
+  it('pauses playback, detaches global keydown, and flushes pending saves on keepalive deactivation', async () => {
+    mockActiveHook.value = {
+      theme: 'Keepalive Test Hook',
+      start: 10,
+      end: 25,
+      transcript_quote: 'Testing deactivation cleanup'
+    };
+    mockIsPlaying.value = true;
+
+    const wrapper = mount(editor, {
+      global: {
+        stubs: {
+          HomeSidebar: true,
+          SidebarSettings: true,
+          VideoPreview: true,
+          TimelineEditor: true,
+          BlacklistSettings: true,
+          ContentAuditPanel: true,
+          CoverEditor: true,
+          Icon: true
+        }
+      }
+    });
+    await wrapper.vm.$nextTick();
+
+    // Open floating panel
+    const actionBtn = wrapper
+      .findAll('button')
+      .find(b => b.html().includes('ri:edit-box-line'));
+    if (actionBtn) {
+      await actionBtn.trigger('click');
+    } else {
+      await wrapper.find('button').trigger('click');
+    }
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.w-\\[500px\\]').exists()).toBe(true);
+
+    const instance = wrapper.vm.$.vnode.component as {
+      da?: Array<() => void>;
+      a?: Array<() => void>;
+    } | null;
+    expect(instance?.da?.length).toBeGreaterThan(0);
+
+    // Deactivate route -> stops playback, flushes saves, detaches Escape keydown
+    instance?.da?.forEach(hook => hook());
+    await wrapper.vm.$nextTick();
+
+    expect(mockIsPlaying.value).toBe(false);
+    expect(mockFlushSessionSaves).toHaveBeenCalledTimes(1);
+
+    // Escape pressed off-route should NOT close the panel
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.w-\\[500px\\]').exists()).toBe(true);
+
+    // Re-activate route -> Escape listener reattaches cleanly
+    instance?.a?.forEach(hook => hook());
+    await wrapper.vm.$nextTick();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.w-\\[500px\\]').exists()).toBe(false);
   });
 });
