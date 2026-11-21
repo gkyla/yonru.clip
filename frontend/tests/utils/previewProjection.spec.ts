@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { nextTick, ref } from 'vue';
 import {
   createPreviewProjection,
-  type NativeVideoAdapter,
   type PreviewProjection,
   type PreviewSessionSource
 } from '../../app/utils/previewProjection';
@@ -16,7 +15,7 @@ function makeSession() {
     isDraggingTimelineItem: ref(false),
     isMediaLoading: ref(true),
     isCapturingThumbnail: ref(false),
-    useNativePlayer: ref(false),
+    videoDuration: ref(0),
     videoUrl: ref<string | null>('http://localhost:8765/assets/clip.mp4'),
     outputUrl: ref<string | null>(null),
     videoFps: ref(30),
@@ -93,41 +92,11 @@ function makeSession() {
 
 type FakeSession = ReturnType<typeof makeSession>;
 
-class FakeVideo implements NativeVideoAdapter {
-  paused = true;
-  muted = false;
-  volume = 1;
-  currentTime = 0;
-  videoWidth = 0;
-  videoHeight = 0;
-  listeners = new Map<string, Set<() => void>>();
-  play = vi.fn(async () => {
-    this.paused = false;
-  });
-  pause = vi.fn(() => {
-    this.paused = true;
-  });
-  addEventListener(type: string, listener: () => void) {
-    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
-    this.listeners.get(type)!.add(listener);
-  }
-  removeEventListener(type: string, listener: () => void) {
-    this.listeners.get(type)?.delete(listener);
-  }
-  emit(type: string) {
-    this.listeners.get(type)?.forEach(l => l());
-  }
-  count(type: string) {
-    return this.listeners.get(type)?.size ?? 0;
-  }
-}
-
 describe('Preview Projection', () => {
   let session: FakeSession;
   let bridge: MockPlayerBridge;
   let frames: Array<() => void>;
   let projection: PreviewProjection | null;
-  let video: FakeVideo;
 
   const runFrame = () => {
     const pending = frames;
@@ -146,12 +115,11 @@ describe('Preview Projection', () => {
     }>;
   const lastPayload = () => updates().at(-1)?.payload ?? {};
 
-  function create(withVideo = false) {
+  function create() {
     projection = createPreviewProjection(
       session as unknown as PreviewSessionSource,
       bridge,
       {
-        nativeVideo: withVideo ? ref(video) : undefined,
         scheduleFrame: cb => frames.push(cb),
         cancelFrame: () => {
           frames = [];
@@ -173,7 +141,6 @@ describe('Preview Projection', () => {
     bridge = new MockPlayerBridge();
     frames = [];
     projection = null;
-    video = new FakeVideo();
   });
 
   afterEach(() => {
@@ -379,18 +346,53 @@ describe('Preview Projection', () => {
       );
     });
 
-    it('reads the source size from the editor video element', async () => {
-      create(true);
+    it('reads source dimensions and fallback duration from REMOTION_MEDIA_METADATA', () => {
+      create();
       expect(lastPayload().sourceWidth).toBe(1920);
+      expect(lastPayload().sourceHeight).toBe(1080);
       bridge.calls = [];
 
-      video.videoWidth = 1280;
-      video.videoHeight = 720;
-      video.emit('loadedmetadata');
+      bridge.emitMessage({
+        type: 'REMOTION_MEDIA_METADATA',
+        width: 1280,
+        height: 720,
+        duration: 42.5
+      });
       runFrame();
 
       expect(lastPayload()).toEqual(
         expect.objectContaining({ sourceWidth: 1280, sourceHeight: 720 })
+      );
+      expect(session.videoDuration.value).toBe(42.5);
+
+      // Re-emitting identical dimensions with invalid duration does not dirty framing
+      bridge.calls = [];
+      bridge.emitMessage({
+        type: 'REMOTION_MEDIA_METADATA',
+        width: 1280,
+        height: 720,
+        duration: 0
+      });
+      runFrame();
+      expect(updates()).toHaveLength(0);
+      expect(session.videoDuration.value).toBe(42.5);
+    });
+
+    it('projects auto-adaptive subtitle settings into Remotion style props', async () => {
+      create();
+      bridge.calls = [];
+
+      session.autoAdaptiveSubtitles.value = false;
+      session.subtitlePosition.value = 'bottom';
+      session.subtitleOffset.value = 110;
+      await settle();
+
+      expect(lastPayload()).toEqual(
+        expect.objectContaining({
+          autoAdaptiveSubtitles: false,
+          position: 'bottom',
+          subtitleOffset: 110
+        })
       );
     });
   });
@@ -614,6 +616,21 @@ describe('Preview Projection', () => {
       expect(session.isMediaLoading.value).toBe(false);
     });
 
+    it('clears isMediaLoading on REMOTION_MEDIA_READY even on clip switches', () => {
+      create();
+      expect(session.isMediaLoading.value).toBe(true);
+
+      bridge.emitMessage({ type: 'IFRAME_READY' });
+      expect(session.isMediaLoading.value).toBe(false);
+
+      // Simulate switching to a new clip while Remotion Player stays mounted
+      session.isMediaLoading.value = true;
+      session.videoUrl.value = 'http://localhost:8765/assets/next-clip.mp4';
+      bridge.emitMessage({ type: 'REMOTION_MEDIA_READY' });
+
+      expect(session.isMediaLoading.value).toBe(false);
+    });
+
     it('stops all work after dispose', async () => {
       const p = create();
       bridge.calls = [];
@@ -624,108 +641,9 @@ describe('Preview Projection', () => {
       session.isPlaying.value = true;
       await settle();
       bridge.emitMessage({ type: 'IFRAME_READY' });
+      bridge.emitMessage({ type: 'REMOTION_MEDIA_READY' });
 
       expect(bridge.calls).toEqual([]);
-    });
-  });
-
-  describe('Remotion mode (default)', () => {
-    it('never drives the native video element', async () => {
-      create(true);
-      session.audioBleepEnabled.value = true;
-      session.contentAudit.value = {
-        flaggedSegments: [{ start: 2, duration: 1.5 }]
-      };
-      session.isPlaying.value = true;
-      await settle();
-      bridge.calls = [];
-
-      bridge.emitMessage({
-        type: 'REMOTION_TIMEUPDATE',
-        currentTime: 2.5,
-        frame: 75
-      });
-      await settle();
-
-      expect(video.count('timeupdate')).toBe(0);
-      expect(video.count('ended')).toBe(0);
-      expect(video.play).not.toHaveBeenCalled();
-      expect(video.muted).toBe(false);
-      expect(video.volume).toBe(1);
-      // Censorship ducking is frame-locked in Composition.tsx (ADR-0018).
-      expect(updates()).toHaveLength(0);
-    });
-  });
-
-  describe('native fallback mode (ADR-0004 / ADR-0005)', () => {
-    it('plays the native video at the mapped media time', async () => {
-      session.useNativePlayer.value = true;
-      create(true);
-      expect(video.count('timeupdate')).toBe(1);
-
-      session.currentTime.value = 2;
-      await nextTick();
-      session.isPlaying.value = true;
-      await nextTick();
-
-      expect(video.play).toHaveBeenCalled();
-      expect(video.currentTime).toBe(7); // mediaStart 5 + 2
-      expect(video.muted).toBe(false);
-      expect(video.volume).toBe(0.8);
-    });
-
-    it('mutes the native video only inside flagged segments while playing', async () => {
-      session.useNativePlayer.value = true;
-      session.audioBleepEnabled.value = true;
-      session.volume.value = 0.5;
-      session.contentAudit.value = {
-        flaggedSegments: [{ start: 2, duration: 1.5 }]
-      };
-      session.isPlaying.value = true;
-      create(true);
-      await nextTick();
-
-      session.currentTime.value = 0.5;
-      await nextTick();
-      expect(video.muted).toBe(false);
-      expect(video.volume).toBe(0.5);
-
-      session.currentTime.value = 2.5;
-      await nextTick();
-      expect(video.muted).toBe(true);
-      expect(video.volume).toBe(0);
-
-      session.currentTime.value = 4;
-      await nextTick();
-      expect(video.muted).toBe(false);
-      expect(video.volume).toBe(0.5);
-    });
-
-    it('maps native timeupdate back to the playhead', async () => {
-      session.useNativePlayer.value = true;
-      create(true);
-      bridge.calls = [];
-
-      video.paused = false;
-      video.currentTime = 9; // media 9 => timeline 4
-      video.emit('timeupdate');
-      await nextTick();
-
-      expect(session.currentTime.value).toBe(4);
-      expect(seeks()).toHaveLength(0);
-    });
-
-    it('detaches listeners and pauses when switching back to Remotion', async () => {
-      session.useNativePlayer.value = true;
-      create(true);
-      video.paused = false;
-
-      session.useNativePlayer.value = false;
-      await nextTick();
-
-      expect(video.count('timeupdate')).toBe(0);
-      expect(video.count('ended')).toBe(0);
-      expect(video.pause).toHaveBeenCalled();
     });
   });
 });

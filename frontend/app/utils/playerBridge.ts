@@ -7,7 +7,14 @@ export type PlayerBridgeEvent =
   | { type: 'IFRAME_READY' }
   | { type: 'REMOTION_TIMEUPDATE'; currentTime: number; frame: number }
   | { type: 'REMOTION_PAUSED' }
-  | { type: 'REMOTION_ENDED' };
+  | { type: 'REMOTION_ENDED' }
+  | {
+      type: 'REMOTION_MEDIA_METADATA';
+      width: number;
+      height: number;
+      duration: number;
+    }
+  | { type: 'REMOTION_MEDIA_READY' };
 
 export type PlayerBridgeListener = (event: PlayerBridgeEvent) => void;
 
@@ -233,6 +240,23 @@ export class DirectPlayerBridge implements PlayerBridge {
 
   public emitReady(): void {
     this.emitMessage({ type: 'IFRAME_READY' });
+  }
+
+  public emitMediaMetadata(
+    width: number,
+    height: number,
+    duration: number
+  ): void {
+    this.emitMessage({
+      type: 'REMOTION_MEDIA_METADATA',
+      width,
+      height,
+      duration
+    });
+  }
+
+  public emitMediaReady(): void {
+    this.emitMessage({ type: 'REMOTION_MEDIA_READY' });
   }
 
   /** Clear listeners and release the bound player. */

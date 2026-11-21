@@ -14,6 +14,7 @@ import {
   continueRender
 } from 'remotion';
 import { isInitialDecoderFrameAligned } from './TimelineFrameRetention';
+import { usePreviewMediaCallbacks } from './PreviewMediaContext';
 import {
   computeViewportFraming,
   createTimelineFramingIndex,
@@ -105,6 +106,10 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
   const hasRenderedValidFrameRef = useRef<boolean>(false);
   const mountFallbackUnlockedRef = useRef<boolean>(false);
   const lastVideoSrcRef = useRef<string>(videoSrc);
+  const previewMedia = usePreviewMediaCallbacks();
+  const previewMediaRef = useRef(previewMedia);
+  previewMediaRef.current = previewMedia;
+  const prevMediaSrcRef = useRef<string | null>(null);
 
   if (lastVideoSrcRef.current !== videoSrc) {
     lastVideoSrcRef.current = videoSrc;
@@ -453,6 +458,68 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
 
     draw(false);
   }, [frame, isRendering, draw]);
+
+  // Report source metadata and playback readiness through PreviewMediaContext
+  useEffect(() => {
+    if (isRendering) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const isSrcSwitch =
+      prevMediaSrcRef.current !== null && prevMediaSrcRef.current !== videoSrc;
+    prevMediaSrcRef.current = videoSrc;
+
+    let metadataReported = false;
+    let readyReported = false;
+
+    const reportMetadata = () => {
+      const width = video.videoWidth || 0;
+      const height = video.videoHeight || 0;
+      const duration =
+        Number.isFinite(video.duration) && video.duration > 0
+          ? video.duration
+          : 0;
+      if (width <= 0 && height <= 0 && duration <= 0) return;
+      metadataReported = true;
+      previewMediaRef.current?.onMediaMetadata?.({ width, height, duration });
+    };
+
+    const reportReady = () => {
+      if (readyReported) return;
+      readyReported = true;
+      previewMediaRef.current?.onMediaReady?.();
+    };
+
+    const onLoadedMetadata = () => {
+      reportMetadata();
+    };
+    const onMediaReadyEvent = () => {
+      if (!metadataReported) reportMetadata();
+      reportReady();
+    };
+
+    video.addEventListener('loadedmetadata', onLoadedMetadata);
+    video.addEventListener('loadeddata', onMediaReadyEvent);
+    video.addEventListener('canplay', onMediaReadyEvent);
+
+    const srcAlreadyMatches =
+      !isSrcSwitch ||
+      (Boolean(video.currentSrc) && video.currentSrc === video.src);
+    if (srcAlreadyMatches) {
+      if (video.readyState >= 1) {
+        reportMetadata();
+      }
+      if (video.readyState >= 2) {
+        reportReady();
+      }
+    }
+
+    return () => {
+      video.removeEventListener('loadedmetadata', onLoadedMetadata);
+      video.removeEventListener('loadeddata', onMediaReadyEvent);
+      video.removeEventListener('canplay', onMediaReadyEvent);
+    };
+  }, [videoSrc, isRendering]);
 
   // Video event-driven updates (scrubbing, seeking, loadeddata)
   useEffect(() => {

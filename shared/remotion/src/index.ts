@@ -51,5 +51,13 @@ export type {
   IndexedSubtitleChunk,
   CropSplitWindow
 } from './TimelineFramingIndex';
+export {
+  PreviewMediaContext,
+  usePreviewMediaCallbacks
+} from './PreviewMediaContext';
+export type {
+  PreviewMediaCallbacks,
+  PreviewMediaMetadata
+} from './PreviewMediaContext';
 export * from './types';
 export * from './fonts';

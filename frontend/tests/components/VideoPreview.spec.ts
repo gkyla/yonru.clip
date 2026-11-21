@@ -1,15 +1,32 @@
 // @vitest-environment nuxt
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import VideoPreview from '../../app/components/VideoPreview.vue';
 import { useClipperState } from '../../app/composables/useClipperState';
+import type { DirectPlayerBridge } from '../../app/utils/playerBridge';
+
+enableAutoUnmount(afterEach);
 
 describe('VideoPreview Component', () => {
   beforeEach(() => {
     const state = useClipperState();
     state.videoUrl.value = null;
     state.outputUrl.value = null;
-    state.useNativePlayer.value = false;
+    state.isPlaying.value = false;
+    state.isMediaLoading.value = false;
+    state.videoDuration.value = 0;
+    state.thumbnailEditMode.value = false;
+    state.thumbnailEnabled.value = false;
+    state.thumbnailUrl.value = null;
+    state.coverEnabled.value = false;
+    state.coverUrl.value = null;
+    state.currentTime.value = 0;
+    state.timelineTracks.value = [
+      { id: 'text', name: 'Text 1', type: 'text', items: [] },
+      { id: 'video', name: 'Main Video', type: 'video', items: [] },
+      { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+    ];
   });
 
   it('mounts successfully without TDZ ReferenceError on videoTime or isInThumbnailWindow', () => {
@@ -33,10 +50,9 @@ describe('VideoPreview Component', () => {
     expect(wrapper.exists()).toBe(true);
   });
 
-  it('mounts in-memory RemotionPlayer component inside ClientOnly instead of legacy iframe', async () => {
+  it('mounts in-memory RemotionPlayer component inside ClientOnly with zero native preview <video> element', async () => {
     const state = useClipperState();
     state.videoUrl.value = 'http://localhost:8000/sample.mp4';
-    state.useNativePlayer.value = false;
 
     const wrapper = mount(VideoPreview, {
       global: {
@@ -60,8 +76,10 @@ describe('VideoPreview Component', () => {
       }
     });
 
-    // Confirm legacy iframe is completely eliminated
+    // Confirm legacy iframe and dead dual-decoder #preview-video-element are eliminated
     expect(wrapper.find('iframe').exists()).toBe(false);
+    expect(wrapper.find('#preview-video-element').exists()).toBe(false);
+    expect(wrapper.find('video').exists()).toBe(false);
 
     // Confirm RemotionPlayer is mounted
     const playerStub = wrapper.find('.remotion-player-stub');
@@ -71,7 +89,6 @@ describe('VideoPreview Component', () => {
   it('renders ClientOnly fallback placeholder when client fallback is active', async () => {
     const state = useClipperState();
     state.videoUrl.value = 'http://localhost:8000/sample.mp4';
-    state.useNativePlayer.value = false;
 
     const wrapper = mount(VideoPreview, {
       global: {
@@ -96,25 +113,29 @@ describe('VideoPreview Component', () => {
     expect(wrapper.text()).toContain('Loading video player...');
   });
 
-  it('centers auto-adaptive subtitles strictly at 50% without offset when in split mode', async () => {
+  it('projects single-decoder metadata, readiness, and auto-adaptive subtitle settings through the Remotion bridge', async () => {
     const state = useClipperState();
     state.videoUrl.value = 'http://localhost:8000/sample.mp4';
-    state.useNativePlayer.value = true;
+    state.isMediaLoading.value = true;
+    state.videoDuration.value = 0;
     state.autoAdaptiveSubtitles.value = true;
     state.subtitlePosition.value = 'bottom';
     state.subtitleOffset.value = 120;
-    state.currentTime.value = 5.0;
-    state.cropMap.value = [
-      { time: 0, x: 500, mode: 'single' },
-      { time: 4.0, x: 500, mode: 'split', top_x: 400, bottom_x: 600 }
-    ];
 
+    let capturedBridge: DirectPlayerBridge | null = null;
     const wrapper = mount(VideoPreview, {
       global: {
         stubs: {
           Icon: true,
           ClientOnly: { template: '<div><slot /></div>' },
-          RemotionPlayer: true,
+          RemotionPlayer: {
+            props: ['bridge'],
+            setup(props: Record<string, unknown>) {
+              capturedBridge = props.bridge as DirectPlayerBridge;
+              return {};
+            },
+            template: '<div class="remotion-player-stub"></div>'
+          },
           'v-stage': true,
           'v-layer': true,
           'v-label': true,
@@ -126,28 +147,97 @@ describe('VideoPreview Component', () => {
       }
     });
 
-    const overlay = wrapper.find(
-      '.absolute.left-1\\/2.-translate-x-1\\/2.z-40'
+    expect(capturedBridge).not.toBeNull();
+    capturedBridge!.emitMediaMetadata(1280, 720, 18.5);
+    capturedBridge!.emitMediaReady();
+    await nextTick();
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+
+    expect(state.videoDuration.value).toBe(18.5);
+    expect(state.isMediaLoading.value).toBe(false);
+    expect(capturedBridge!.currentProps).toEqual(
+      expect.objectContaining({
+        sourceWidth: 1280,
+        sourceHeight: 720,
+        autoAdaptiveSubtitles: true,
+        position: 'bottom',
+        subtitleOffset: 120
+      })
     );
-    expect(overlay.exists()).toBe(true);
-    const styleAttr = overlay.attributes('style') || '';
-    expect(styleAttr).toContain('top: 50%');
-    expect(styleAttr).toContain('transform: translate(-50%, -50%)');
-    expect(styleAttr).not.toContain('120px');
+    expect((wrapper.vm as any).videoAspect).toBeCloseTo(1280 / 720);
   });
 
-  it('respects user-selected position and subtitleOffset in single-speaker mode', async () => {
+  it('gates Timeline Text Layer and Cover Slide Konva stages on item visibility and cover state', async () => {
     const state = useClipperState();
     state.videoUrl.value = 'http://localhost:8000/sample.mp4';
-    state.useNativePlayer.value = true;
-    state.autoAdaptiveSubtitles.value = true;
-    state.subtitlePosition.value = 'bottom';
-    state.subtitleOffset.value = 85;
-    state.currentTime.value = 1.0;
-    state.cropMap.value = [
-      { time: 0, x: 500, mode: 'single' },
-      { time: 4.0, x: 500, mode: 'split', top_x: 400, bottom_x: 600 }
+    state.thumbnailUrl.value = 'http://localhost:8000/cover.jpg';
+    state.thumbnailEnabled.value = true;
+    state.thumbnailDuration.value = 2.0;
+    state.currentTime.value = 3.0; // outside cover window
+    state.thumbnailEditMode.value = false;
+
+    const wrapper = mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': {
+            name: 'v-stage',
+            template: '<div data-testid="konva-stage"><slot /></div>'
+          },
+          'v-layer': {
+            template: '<div data-testid="konva-layer"><slot /></div>'
+          },
+          'v-label': {
+            name: 'v-label',
+            template: '<div data-testid="konva-label"><slot /></div>'
+          },
+          'v-tag': true,
+          'v-text': true,
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    // Zero timeline text items and outside cover window => 0 Konva stages mounted
+    expect(wrapper.findAll('[data-testid="konva-stage"]')).toHaveLength(0);
+    expect(wrapper.find('[data-testid="cover-slide-preview"]').exists()).toBe(
+      false
+    );
+
+    // Add a visible text item starting later (5s..10s); currentTime is 3s (cue gap)
+    // Stage mounts and remains mounted across cue gaps
+    state.timelineTracks.value = [
+      {
+        id: 'text',
+        name: 'Text 1',
+        type: 'text',
+        hidden: false,
+        items: [{ id: 't1', start: 5, duration: 5, content: 'Later' }]
+      },
+      { id: 'video', name: 'Main Video', type: 'video', items: [] }
     ];
+    await nextTick();
+    expect(wrapper.findAll('[data-testid="konva-stage"]')).toHaveLength(1);
+    expect(wrapper.findAll('[data-testid="konva-label"]')).toHaveLength(0);
+
+    // Entering Cover Slide edit mode mounts Cover Slide Konva stage and unmounts Timeline Text stage
+    state.thumbnailEditMode.value = true;
+    await nextTick();
+    const coverStage = wrapper.find('[data-testid="cover-slide-preview"]');
+    expect(coverStage.exists()).toBe(true);
+    expect(coverStage.find('[data-testid="konva-stage"]').exists()).toBe(true);
+  });
+
+  it('pauses playback and detaches/reattaches window keydown and resize listeners cleanly across keepalive deactivation', async () => {
+    const state = useClipperState();
+    state.outputUrl.value = 'http://localhost:8000/static/output/rendered.mp4';
+    state.isPlaying.value = true;
+
+    const addSpy = vi.spyOn(window, 'addEventListener');
+    const removeSpy = vi.spyOn(window, 'removeEventListener');
 
     const wrapper = mount(VideoPreview, {
       global: {
@@ -166,12 +256,71 @@ describe('VideoPreview Component', () => {
       }
     });
 
-    const overlay = wrapper.find(
-      '.absolute.left-1\\/2.-translate-x-1\\/2.z-40'
+    const videoEl = wrapper.find<HTMLVideoElement>(
+      '[data-testid="rendered-video-element"]'
     );
-    expect(overlay.exists()).toBe(true);
-    const styleAttr = overlay.attributes('style') || '';
-    expect(styleAttr).toContain('bottom: 85px');
+    let isPaused = false;
+    const playSpy = vi
+      .spyOn(videoEl.element, 'play')
+      .mockImplementation(async () => {
+        isPaused = false;
+      });
+    const pauseSpy = vi
+      .spyOn(videoEl.element, 'pause')
+      .mockImplementation(() => {
+        isPaused = true;
+      });
+    Object.defineProperty(videoEl.element, 'paused', {
+      get: () => isPaused,
+      configurable: true
+    });
+
+    const instance = wrapper.vm.$.vnode.component as {
+      da?: Array<() => void>;
+      a?: Array<() => void>;
+    } | null;
+    expect(instance?.da?.length).toBeGreaterThan(0);
+
+    // Deactivate (navigating away under keepalive)
+    instance?.da?.forEach(hook => hook());
+    await nextTick();
+
+    expect(state.isPlaying.value).toBe(false);
+    expect(pauseSpy).toHaveBeenCalled();
+    expect(removeSpy).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(removeSpy).toHaveBeenCalledWith('resize', expect.any(Function));
+
+    // Space keydown while deactivated must not trigger play()
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: ' ', code: 'Space' })
+    );
+    await nextTick();
+    expect(playSpy).not.toHaveBeenCalled();
+
+    // Re-activate -> listeners reattach without duplicates
+    addSpy.mockClear();
+    instance?.a?.forEach(hook => hook());
+    await nextTick();
+    expect(
+      addSpy.mock.calls.filter(call => String(call[0]) === 'keydown')
+    ).toHaveLength(1);
+    expect(
+      addSpy.mock.calls.filter(call => String(call[0]) === 'resize')
+    ).toHaveLength(1);
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: ' ', code: 'Space' })
+    );
+    await nextTick();
+    expect(playSpy).toHaveBeenCalledTimes(1);
+
+    removeSpy.mockClear();
+    wrapper.unmount();
+    expect(removeSpy).toHaveBeenCalledWith('resize', expect.any(Function));
+    expect(removeSpy).toHaveBeenCalledWith('keydown', expect.any(Function));
+
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
   });
 
   it('renders realistic TikTokSafeZoneOverlay when activeSafeZone is set to tiktok', async () => {

@@ -312,6 +312,75 @@ describe('Subtitle Chunker & LayoutEngine Unit Tests', () => {
       expect(exported[0]!.words).toHaveLength(2);
       expect(exported[0]!.words![0]!.start).toBe(0.1);
     });
+
+    it('uses monotonic binary search for ordered chunks and falls back cleanly for unsorted or overlapping timestamps', () => {
+      const orderedTranscript: TranscriptSegment[] = Array.from(
+        { length: 200 },
+        (_, i) => ({
+          text: `word${i}`,
+          start: i * 1.0,
+          duration: 0.8
+        })
+      );
+      const monotonicEngine = new SubtitleLayoutEngine(
+        orderedTranscript,
+        '1_word'
+      );
+      expect(monotonicEngine.isMonotonic).toBe(true);
+      expect(monotonicEngine.findChunkIndexAt(0.2)).toBe(0);
+      expect(monotonicEngine.findChunkIndexAt(0.9)).toBe(-1); // gap between [0..0.8) and [1..1.8)
+      expect(monotonicEngine.findChunkIndexAt(142.3)).toBe(142);
+      expect(monotonicEngine.findChunkIndexAt(199.7)).toBe(199);
+      expect(monotonicEngine.findChunkIndexAt(250)).toBe(-1);
+
+      // Re-evaluates monotonicity after in-place chunk edits
+      monotonicEngine.updateChunkStart(0, 5.0); // now chunk 0 overlaps chunk 5
+      expect(monotonicEngine.isMonotonic).toBe(false);
+      expect(monotonicEngine.findChunkIndexAt(5.2)).toBe(0);
+
+      // Unsorted / overlapping transcript uses linear scan fallback
+      const unsortedTranscript: TranscriptSegment[] = [
+        { text: 'late', start: 10.0, duration: 2.0 },
+        { text: 'early', start: 2.0, duration: 2.0 },
+        { text: 'overlap', start: 3.0, duration: 3.0 }
+      ];
+      const fallbackEngine = new SubtitleLayoutEngine(
+        unsortedTranscript,
+        '1_word'
+      );
+      expect(fallbackEngine.isMonotonic).toBe(false);
+      expect(fallbackEngine.findChunkIndexAt(10.5)).toBe(0);
+      expect(fallbackEngine.findChunkIndexAt(2.5)).toBe(1);
+      expect(fallbackEngine.findChunkIndexAt(4.5)).toBe(2);
+      expect(fallbackEngine.findChunkIndexAt(0.5)).toBe(-1);
+    });
+
+    it('keeps binary search active across IEEE-754 float drift on contiguous decimal Whisper timestamps', () => {
+      const whisperLike: TranscriptSegment[] = Array.from(
+        { length: 500 },
+        (_, i) => ({
+          text: `word${i}`,
+          start: Number((i * 0.24).toFixed(4)),
+          duration: 0.24
+        })
+      );
+      const engine = new SubtitleLayoutEngine(whisperLike, 'word');
+      expect(engine.isMonotonic).toBe(true);
+      // 2.16 + 0.24 === 2.4000000000000004 (> 2.4); query on float seam matches linear findIndex (chunk 9)
+      expect(engine.findChunkIndexAt(2.4)).toBe(9);
+      expect(engine.findChunkIndexAt(2.4001)).toBe(10);
+
+      // Genuine overlap beyond float tolerance disables monotonic binary search and preserves linear first-match
+      const realOverlap = new SubtitleLayoutEngine(
+        [
+          { text: 'first', start: 0, duration: 1.01 },
+          { text: 'second', start: 1.0, duration: 1.0 }
+        ],
+        'word'
+      );
+      expect(realOverlap.isMonotonic).toBe(false);
+      expect(realOverlap.findChunkIndexAt(1.005)).toBe(0);
+    });
   });
 
   describe('Remotion Timing Projections (Deep Interface)', () => {

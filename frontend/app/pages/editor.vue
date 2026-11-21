@@ -251,6 +251,20 @@ function handleGlobalKeydown(e: KeyboardEvent) {
   }
 }
 
+let isGlobalKeydownAttached = false;
+
+function attachGlobalKeydown() {
+  if (typeof window === 'undefined' || isGlobalKeydownAttached) return;
+  window.addEventListener('keydown', handleGlobalKeydown);
+  isGlobalKeydownAttached = true;
+}
+
+function detachGlobalKeydown() {
+  if (typeof window === 'undefined' || !isGlobalKeydownAttached) return;
+  window.removeEventListener('keydown', handleGlobalKeydown);
+  isGlobalKeydownAttached = false;
+}
+
 const showBlacklistSettings = ref(false);
 const panelTab = ref<'generated' | 'saved'>(
   (route.query.tab as any) || 'generated'
@@ -669,15 +683,14 @@ onMounted(async () => {
   }
   restoreStateFromQuery();
   state.initPersistence();
-  if (typeof window !== 'undefined') {
-    window.addEventListener('keydown', handleGlobalKeydown);
-  }
+  attachGlobalKeydown();
   nextTick(() => {
     hasBeenMounted.value = true;
   });
 });
 
 onActivated(() => {
+  attachGlobalKeydown();
   if (hasBeenMounted.value) {
     console.log('[yonru] Editor activated (returned from cache)');
     sidebarView.value = 'editor';
@@ -691,7 +704,13 @@ onActivated(() => {
 
 onDeactivated(() => {
   console.log('[yonru] Editor deactivated — stopping background polling');
+  if (state?.isPlaying) {
+    state.isPlaying.value = false;
+  }
+  detachGlobalKeydown();
+  stopTimelineResize();
   state.stopPolling();
+  void state?.flushSessionSaves?.();
   if (restoreQueryWatcher) {
     restoreQueryWatcher();
     restoreQueryWatcher = null;
@@ -704,9 +723,7 @@ onDeactivated(() => {
 
 onUnmounted(() => {
   stopTimelineResize();
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('keydown', handleGlobalKeydown);
-  }
+  detachGlobalKeydown();
   if (restoreQueryWatcher) {
     restoreQueryWatcher();
     restoreQueryWatcher = null;

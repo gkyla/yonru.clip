@@ -253,35 +253,14 @@
         @touchmove.prevent="onDragTouch"
         @touchend="stopDrag"
       >
-        <video
-          id="preview-video-element"
-          ref="previewVideo"
-          :src="state?.videoUrl?.value"
-          :muted="false"
-          class="absolute inset-0 pointer-events-none transition-opacity duration-300"
-          :class="state?.useNativePlayer?.value ? 'opacity-100' : 'opacity-0'"
-          :style="videoTransformStyle"
-          playsinline
-          crossorigin="anonymous"
-          preload="auto"
-          @loadedmetadata="onVideoLoaded"
-          @loadeddata="onVideoReady"
-          @canplay="onVideoReady"
-          @canplaythrough="onVideoReady"
-          @error="e => onNativeVideoError(e)"
-        ></video>
-
         <!-- Remotion In-Memory Player -->
         <ClientOnly>
           <RemotionPlayer
-            v-if="!state?.useNativePlayer?.value"
             :bridge="preview.bridge"
-            class="absolute inset-0 w-full h-full pointer-events-none z-20 transition-opacity duration-300"
-            :class="!state.useNativePlayer.value ? 'opacity-100' : 'opacity-0'"
+            class="absolute inset-0 w-full h-full pointer-events-none z-20 opacity-100 transition-opacity duration-300"
           />
           <template #fallback>
             <div
-              v-if="!state?.useNativePlayer?.value"
               class="absolute inset-0 w-full h-full bg-black/40 flex items-center justify-center pointer-events-none z-20"
             >
               <div
@@ -390,67 +369,12 @@
         </p>
       </div>
 
-      <!-- Subtitle Overlay / position indicator (Hidden if Remotion handles it) -->
-      <div
-        class="absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none w-full px-[5%] flex justify-center transition-opacity duration-300"
-        :class="
-          state.useNativePlayer.value && !state.outputUrl?.value
-            ? 'opacity-100'
-            : 'opacity-0 hidden'
-        "
-        :style="subtitleIndicatorStyle"
-      >
-        <div
-          v-if="activeSubtitleWords && activeSubtitleWords.length > 0"
-          class="font-bold text-center leading-tight tracking-wide flex flex-wrap justify-center items-center gap-x-4 gap-y-2"
-          :style="{
-            fontFamily: state.font.value,
-            fontSize: `${state.fontSize.value}px`,
-            color: 'white',
-            fontWeight: state.subtitleFontWeight.value
-              ? String(state.subtitleFontWeight.value)
-              : '900',
-            wordSpacing: `${state.subtitleWordSpacing.value}px`,
-            ...subtitleBackgroundStyle
-          }"
-        >
-          <template v-for="(w, idx) in activeSubtitleWords" :key="idx">
-            <span :style="getWordStyle(w)" class="relative inline-block">
-              {{ formatWordText(w.text) }}
-              <span
-                v-if="
-                  state.subtitleHighlightMode.value === 'underline' &&
-                  w.isActive
-                "
-                class="absolute -bottom-1 left-0.5 right-0.5 h-1.5 rounded-full pointer-events-none"
-                :style="{
-                  backgroundColor: state.subtitleHighlightColor.value,
-                  boxShadow: `0 0 10px ${state.subtitleHighlightColor.value}80`
-                }"
-              ></span>
-            </span>
-            <span
-              v-if="idx < activeSubtitleWords.length - 1"
-              style="display: inline-block; white-space: pre"
-              class="select-none"
-            >
-            </span>
-          </template>
-        </div>
-        <div
-          v-else
-          class="bg-accent-500/20 border-[3px] border-accent-500/40 rounded-xl px-12 py-4 text-[30px] text-accent-500 mono text-center whitespace-nowrap backdrop-blur-md transition-opacity duration-500"
-          :class="state.isPlaying.value ? 'opacity-0' : 'opacity-100'"
-        >
-          SUBTITLE — {{ state.font.value }} {{ state.fontSize.value }}px
-        </div>
-      </div>
-
       <!-- Text Layers (Konva) -->
       <ClientOnly>
         <div
           v-if="
             state.videoUrl.value &&
+            hasVisibleTimelineTextItems &&
             !state.thumbnailEditMode.value &&
             !isInThumbnailWindow &&
             !state.outputUrl?.value
@@ -586,10 +510,11 @@
         leave-to-class="opacity-0"
       >
         <div
-          v-show="
+          v-if="
             (state.thumbnailEditMode.value || isInThumbnailWindow) &&
             state.thumbnailUrl.value
           "
+          data-testid="cover-slide-preview"
           class="absolute inset-0 z-[50] bg-black select-none"
           :class="
             isInThumbnailWindow
@@ -902,14 +827,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import {
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onActivated,
+  onDeactivated,
+  onUnmounted,
+  nextTick
+} from 'vue';
 import { useClipperState } from '../composables/useClipperState';
 import { useCropDrag } from '../composables/useCropDrag';
 import { usePreviewProjection } from '../composables/usePreviewProjection';
 import { useInteractiveText } from '../composables/useInteractiveText';
 import { transformText } from '../utils/styleHelpers';
 import {
-  findVideoTrack,
+  calculateVideoTime,
   getCropEntryAtMediaTime
 } from '../utils/timelineHelpers';
 import RemotionPlayer from './RemotionPlayer.client.vue';
@@ -920,7 +854,6 @@ import YouTubeShortsSafeZoneOverlay from './preview/YouTubeShortsSafeZoneOverlay
 const state = useClipperState();
 const { activeSafeZone, safeZoneOpacity, safeZoneColor } = state;
 
-const previewVideo = ref<HTMLVideoElement | null>(null);
 const renderedVideo = ref<HTMLVideoElement | null>(null);
 const transformerRef = ref<any>(null);
 
@@ -1266,9 +1199,19 @@ function handleRenderedKeydown(e: KeyboardEvent) {
   }
 }
 
-onMounted(() => {
+let isRenderedKeydownAttached = false;
+
+function attachRenderedKeydown() {
+  if (typeof window === 'undefined' || isRenderedKeydownAttached) return;
   window.addEventListener('keydown', handleRenderedKeydown);
-});
+  isRenderedKeydownAttached = true;
+}
+
+function detachRenderedKeydown() {
+  if (typeof window === 'undefined' || !isRenderedKeydownAttached) return;
+  window.removeEventListener('keydown', handleRenderedKeydown);
+  isRenderedKeydownAttached = false;
+}
 
 watch(
   () => state?.shouldPlayRendered?.value,
@@ -1292,7 +1235,9 @@ watch(
 );
 
 // --- LAYOUT & SIZING LOGIC ---
-const videoAspect = ref(16 / 9);
+const sourceWidth = ref(1920);
+const sourceHeight = ref(1080);
+const videoAspect = computed(() => sourceWidth.value / sourceHeight.value);
 const container = ref<HTMLElement | null>(null);
 const containerHeight = ref(640);
 const previewScale = computed(() => containerHeight.value / 1920);
@@ -1320,29 +1265,44 @@ const contentStyle = computed(() => ({
   transform: `translate(-50%, -50%) scale(${previewScale.value})`
 }));
 
-const videoTransformStyle = computed(() => {
-  const pct = state.cropPercentX.value / 100;
-  const offset = -(pct * maxOffset.value);
-  return {
-    width: `${videoDisplayW.value}px`,
-    transform: `translateX(${offset}px)`
-  };
-});
-
 // Observe height changes
-if (import.meta.client) {
-  const updateSize = () => {
-    if (container.value) {
-      containerHeight.value = container.value.offsetHeight;
+const updateSize = () => {
+  if (container.value) {
+    const h = container.value.offsetHeight;
+    if (h > 0) {
+      containerHeight.value = h;
     }
-  };
-  const observer = new ResizeObserver(updateSize);
-  onMounted(() => {
-    if (container.value) observer.observe(container.value);
-    updateSize();
-  });
-  onUnmounted(() => observer.disconnect());
-  window.addEventListener('resize', updateSize);
+  }
+};
+
+let containerResizeObserver: ResizeObserver | null = null;
+let isResizeAttached = false;
+
+function attachResizeListeners() {
+  if (!import.meta.client || isResizeAttached) return;
+  if (typeof ResizeObserver !== 'undefined') {
+    containerResizeObserver = new ResizeObserver(updateSize);
+    if (container.value) {
+      containerResizeObserver.observe(container.value);
+    }
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', updateSize);
+  }
+  isResizeAttached = true;
+  updateSize();
+}
+
+function detachResizeListeners() {
+  if (!isResizeAttached) return;
+  if (containerResizeObserver) {
+    containerResizeObserver.disconnect();
+    containerResizeObserver = null;
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', updateSize);
+  }
+  isResizeAttached = false;
 }
 
 // --- TIMING & THUMBNAIL TIMINGS ---
@@ -1362,32 +1322,21 @@ const isInThumbnailWindow = computed(
     !state.isCapturingThumbnail.value
 );
 
-const videoTime = computed(() => {
-  const t = Math.max(0, state.currentTime.value - thumbOffset.value);
-  const videoTrack = findVideoTrack(state.timelineTracks.value);
-  if (!videoTrack || !videoTrack.items || videoTrack.items.length === 0)
-    return t;
-
-  const activeItem =
-    videoTrack.items.find(
-      (i: any) => t >= i.start && t <= i.start + i.duration
-    ) || videoTrack.items[videoTrack.items.length - 1];
-
-  if (activeItem) {
-    const mediaStart =
-      activeItem.mediaStart !== undefined
-        ? activeItem.mediaStart
-        : activeItem.start;
-    return mediaStart + (t - activeItem.start);
-  }
-  return t;
-});
+const videoTime = computed(() =>
+  calculateVideoTime(
+    state.currentTime.value,
+    isCoverActive.value,
+    activeCoverDuration.value,
+    state.timelineTracks.value
+  )
+);
 
 // --- SUB-COMPOSABLES INSTANTIATION ---
 const textState = useInteractiveText(transformerRef);
 const {
   fontsLoaded,
   activeTextItems,
+  hasVisibleTimelineTextItems,
   isTimelineTextActiveAndSelected,
   editingItemId,
   editingInputRef,
@@ -1437,52 +1386,34 @@ const {
   onDragTouch
 } = cropState;
 
-const preview = usePreviewProjection({ nativeVideo: previewVideo });
+const preview = usePreviewProjection();
 
-// --- VIDEO LOADER EVENTS ---
-let readyTimeout: any = null;
-
-function onVideoReady() {
-  if (!state.videoUrl.value) return;
-
-  if (previewVideo.value) {
-    const targetTime = videoTime.value;
-    if (Math.abs(previewVideo.value.currentTime - targetTime) > 0.01) {
-      previewVideo.value.currentTime = targetTime;
+// --- SINGLE-DECODER MEDIA METADATA & READINESS ---
+let safetyTimeout: ReturnType<typeof setTimeout> | null = null;
+const stopPreviewMediaListener = preview.bridge.onMessage(event => {
+  if (event.type === 'REMOTION_MEDIA_METADATA') {
+    if (event.width > 0 && event.height > 0) {
+      sourceWidth.value = event.width;
+      sourceHeight.value = event.height;
+    }
+  } else if (
+    event.type === 'REMOTION_MEDIA_READY' ||
+    event.type === 'IFRAME_READY'
+  ) {
+    if (safetyTimeout) {
+      clearTimeout(safetyTimeout);
+      safetyTimeout = null;
     }
   }
+});
 
-  if (readyTimeout) clearTimeout(readyTimeout);
-  readyTimeout = setTimeout(() => {
-    state.isMediaLoading.value = false;
-    if (previewVideo.value) {
-      previewVideo.value.currentTime = videoTime.value;
-    }
-  }, 400);
-}
-
-function onVideoLoaded(e: Event) {
-  onVideoReady();
-  const target = e.target as HTMLVideoElement;
-  if (target.duration && isFinite(target.duration)) {
-    state.videoDuration.value = target.duration;
-  }
-  if (target.videoWidth && target.videoHeight) {
-    videoAspect.value = target.videoWidth / target.videoHeight;
-  }
-}
-
-function onNativeVideoError(e: Event) {
-  console.error('[VideoPreview] Native video error:', e);
-  state.isMediaLoading.value = false;
-}
-
-let safetyTimeout: any = null;
 watch(
   () => state.videoUrl.value,
   url => {
-    if (readyTimeout) clearTimeout(readyTimeout);
-    if (safetyTimeout) clearTimeout(safetyTimeout);
+    if (safetyTimeout) {
+      clearTimeout(safetyTimeout);
+      safetyTimeout = null;
+    }
     if (url) {
       state.isMediaLoading.value = true;
       safetyTimeout = setTimeout(() => {
@@ -1502,8 +1433,8 @@ function handleWindowMouseMove(e: MouseEvent) {
   if (!isThumbBgDragging.value) return;
   const dx = e.clientX - thumbBgDragStartX.value;
   const scaledDx = dx / previewScale.value;
-  const srcW = previewVideo.value?.videoWidth || 1920;
-  const srcH = previewVideo.value?.videoHeight || 1080;
+  const srcW = sourceWidth.value || 1920;
+  const srcH = sourceHeight.value || 1080;
   const imgWidth = 1920 * (srcW / srcH);
   const excessWidth = Math.max(1, imgWidth - 1080);
   const percentDelta = (scaledDx / excessWidth) * -100;
@@ -1538,8 +1469,8 @@ function handleWindowTouchMove(e: TouchEvent) {
   if (touch) {
     const dx = touch.clientX - thumbBgDragStartX.value;
     const scaledDx = dx / previewScale.value;
-    const srcW = previewVideo.value?.videoWidth || 1920;
-    const srcH = previewVideo.value?.videoHeight || 1080;
+    const srcW = sourceWidth.value || 1920;
+    const srcH = sourceHeight.value || 1080;
     const imgWidth = 1920 * (srcW / srcH);
     const excessWidth = Math.max(1, imgWidth - 1080);
     const percentDelta = (scaledDx / excessWidth) * -100;
@@ -1731,23 +1662,71 @@ function getThumbOverlayEditingStyle(overlay: any) {
   };
 }
 
-onUnmounted(() => {
+function cleanupTransientPreviewListeners() {
   handleWindowMouseUp();
   handleWindowTouchEnd();
-  if (readyTimeout) clearTimeout(readyTimeout);
-  if (safetyTimeout) clearTimeout(safetyTimeout);
-  if (controlsHideTimer) clearTimeout(controlsHideTimer);
-  if (centerFlashTimer) clearTimeout(centerFlashTimer);
-  if (volumePopoverTimer) clearTimeout(volumePopoverTimer);
-  window.removeEventListener('mousemove', onRenderedScrubMove);
-  window.removeEventListener('mouseup', stopRenderedScrub);
-  window.removeEventListener('touchmove', onRenderedScrubTouchMove);
-  window.removeEventListener('touchend', stopRenderedScrubTouch);
-  window.removeEventListener('mousemove', onVolumeScrubMove);
-  window.removeEventListener('mouseup', stopVolumeScrub);
-  window.removeEventListener('touchmove', onVolumeScrubTouchMove);
-  window.removeEventListener('touchend', stopVolumeScrubTouch);
-  window.removeEventListener('keydown', handleRenderedKeydown);
+  if (controlsHideTimer) {
+    clearTimeout(controlsHideTimer);
+    controlsHideTimer = null;
+  }
+  if (centerFlashTimer) {
+    clearTimeout(centerFlashTimer);
+    centerFlashTimer = null;
+  }
+  if (volumePopoverTimer) {
+    clearTimeout(volumePopoverTimer);
+    volumePopoverTimer = null;
+  }
+  isScrubbingRendered.value = false;
+  isScrubbingVolume.value = false;
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('mousemove', onRenderedScrubMove);
+    window.removeEventListener('mouseup', stopRenderedScrub);
+    window.removeEventListener('touchmove', onRenderedScrubTouchMove);
+    window.removeEventListener('touchend', stopRenderedScrubTouch);
+    window.removeEventListener('mousemove', onVolumeScrubMove);
+    window.removeEventListener('mouseup', stopVolumeScrub);
+    window.removeEventListener('touchmove', onVolumeScrubTouchMove);
+    window.removeEventListener('touchend', stopVolumeScrubTouch);
+  }
+}
+
+onMounted(() => {
+  attachRenderedKeydown();
+  attachResizeListeners();
+});
+
+onActivated(() => {
+  attachRenderedKeydown();
+  attachResizeListeners();
+});
+
+onDeactivated(() => {
+  if (state?.isPlaying) {
+    state.isPlaying.value = false;
+  }
+  if (renderedVideo.value && !renderedVideo.value.paused) {
+    try {
+      renderedVideo.value.pause();
+    } catch {
+      // ignore
+    }
+  }
+  isRenderedPlaying.value = false;
+  detachRenderedKeydown();
+  detachResizeListeners();
+  cleanupTransientPreviewListeners();
+});
+
+onUnmounted(() => {
+  stopPreviewMediaListener();
+  if (safetyTimeout) {
+    clearTimeout(safetyTimeout);
+    safetyTimeout = null;
+  }
+  detachRenderedKeydown();
+  detachResizeListeners();
+  cleanupTransientPreviewListeners();
 });
 
 const statusLabel = computed(() => {
@@ -1788,223 +1767,12 @@ const isSplitActive = computed(() => {
 const canDragCanvas = computed(() => {
   if (state?.videoLayout?.value === 'landscape') return false;
   if (state?.cropMode?.value === 'manual') return true;
-  if (state?.cropMode?.value === 'face_tracking' && isSplitActive.value) {
-    return (
+  if (state?.cropMode?.value === 'face_tracking') {
+    const hasSplitZoom =
       (state.splitZoomTop?.value ?? 1.0) > 1.0 ||
-      (state.splitZoomBottom?.value ?? 1.0) > 1.0
-    );
+      (state.splitZoomBottom?.value ?? 1.0) > 1.0;
+    return hasSplitZoom && isSplitActive.value;
   }
   return false;
 });
-
-const subtitleIndicatorStyle = computed(() => {
-  const isSplit =
-    isSplitActive.value && (state.autoAdaptiveSubtitles?.value ?? true);
-  if (isSplit) {
-    return { top: '50%', transform: 'translate(-50%, -50%)' };
-  }
-  const pos = state.subtitlePosition.value;
-  const offset = state.subtitleOffset.value;
-  if (pos === 'top') return { top: `${offset}px` };
-  if (pos === 'bottom') return { bottom: `${offset}px` };
-  return { top: '50%', transform: 'translate(-50%, -50%)' };
-});
-
-// Memoized subtitle segments grouped by mode to prevent heavy re-calculation on every tick
-const groupedSegments = computed(() => {
-  if (!state?.fullTranscript?.value || !state?.activeHook?.value) return [];
-
-  // 1. Flatten all segments in fullTranscript into individual words
-  const flatWords: {
-    text: string;
-    start: number;
-    duration: number;
-    end: number;
-  }[] = [];
-
-  for (const seg of state.fullTranscript.value) {
-    const segText = (seg.text || '').trim();
-    if (!segText) continue;
-
-    const words = segText.split(/\s+/);
-    if (words.length === 1) {
-      flatWords.push({
-        text: words[0] || '',
-        start: seg.start,
-        duration: seg.duration,
-        end: seg.start + seg.duration
-      });
-    } else {
-      const wordDur = seg.duration / words.length;
-      words.forEach((w: string, idx: number) => {
-        flatWords.push({
-          text: w,
-          start: seg.start + idx * wordDur,
-          duration: wordDur,
-          end: seg.start + (idx + 1) * wordDur
-        });
-      });
-    }
-  }
-
-  if (flatWords.length === 0) return [];
-
-  const mode: string = state.subtitleMode.value;
-
-  // 2. Group flatWords based on subtitleMode
-  let groups: {
-    words: typeof flatWords;
-    start: number;
-    duration: number;
-    end: number;
-  }[] = [];
-
-  if (mode === 'word' || mode === '1_word') {
-    groups = flatWords.map(w => ({
-      words: [w],
-      start: w.start,
-      duration: w.duration,
-      end: w.end
-    }));
-  } else if (mode.endsWith('_words')) {
-    let numWords = 1;
-    const match = mode.match(/^(\d+)_(?:word|words)$/);
-    if (match && match[1]) {
-      numWords = parseInt(match[1]) || 1;
-    }
-
-    for (let i = 0; i < flatWords.length; i += numWords) {
-      const chunk = flatWords.slice(i, i + numWords);
-      if (chunk.length > 0) {
-        const first = chunk[0];
-        const last = chunk[chunk.length - 1];
-        if (first && last) {
-          const start = first.start;
-          const end = last.end;
-          groups.push({ words: chunk, start, duration: end - start, end });
-        }
-      }
-    }
-  } else {
-    groups = flatWords.map(w => ({
-      words: [w],
-      start: w.start,
-      duration: w.duration,
-      end: w.end
-    }));
-  }
-
-  return groups;
-});
-
-const activeSubtitleWords = computed(() => {
-  if (!state?.fullTranscript?.value || !state?.activeHook?.value) return [];
-
-  const offsetSec = state.subtitleSyncOffset.value / 1000;
-  const firstStart = state.fullTranscript.value[0]?.start || 0;
-  const isTranscriptZeroBased =
-    firstStart < (state?.activeHook?.value?.start || 0) - 2;
-
-  const thumbSec = state.thumbnailEnabled.value
-    ? state.thumbnailDuration.value
-    : 0;
-  const relativeTime = Math.max(0, state.currentTime.value - thumbSec);
-
-  const searchTime = isTranscriptZeroBased
-    ? relativeTime + offsetSec
-    : (state?.activeHook?.value?.start || 0) + relativeTime + offsetSec;
-
-  // 3. Find the active grouped segment matching searchTime from pre-memoized groups
-  const activeGroup = groupedSegments.value.find(
-    s => searchTime >= s.start && searchTime <= s.end
-  );
-  if (!activeGroup) return [];
-
-  // 4. Return the words in the active group, with their individual timing and state relative to searchTime
-  return activeGroup.words.map(w => {
-    const isActive = searchTime >= w.start && searchTime <= w.end;
-    const isPast = searchTime > w.end;
-    return {
-      text: w.text,
-      start: w.start,
-      end: w.end,
-      isActive,
-      isPast
-    };
-  });
-});
-
-const subtitleBackgroundStyle = computed(() => {
-  const bg = state.subtitleBackground.value;
-  const opacity = state.subtitleBackgroundOpacity.value;
-
-  if (bg === 'box') {
-    return {
-      background: `rgba(0,0,0,${opacity})`,
-      borderRadius: '16px',
-      padding: '16px 32px'
-    };
-  }
-  if (bg === 'blur') {
-    return {
-      backdropFilter: 'blur(12px)',
-      WebkitBackdropFilter: 'blur(12px)',
-      background: `rgba(0,0,0,${opacity * 0.4})`,
-      borderRadius: '20px',
-      padding: '16px 32px',
-      border: '1px solid rgba(255,255,255,0.1)'
-    };
-  }
-  return {};
-});
-
-const getWordStyle = (w: {
-  text: string;
-  isActive: boolean;
-  isPast: boolean;
-}) => {
-  const hlMode = state.subtitleHighlightMode.value;
-  const hlColor = state.subtitleHighlightColor.value;
-  const strokeWidth = state.subtitleStrokeWidth.value;
-  const strokeColor = state.subtitleStrokeColor.value;
-
-  const baseStyle: Record<string, string | number> = {
-    display: 'inline-block',
-    transition: 'all 0.1s ease',
-    position: 'relative'
-  };
-
-  // Apply base stroke/textShadow to each word span
-  if (strokeWidth > 0) {
-    baseStyle.paintOrder = 'stroke fill';
-    baseStyle.WebkitTextStroke = `${strokeWidth * 2}px ${strokeColor}`;
-    baseStyle.textShadow = `-${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, -${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}, 0 8px 16px rgba(0,0,0,0.8)`;
-  } else {
-    baseStyle.textShadow = '0 8px 16px rgba(0,0,0,0.8)';
-  }
-
-  if (w.isActive) {
-    if (hlMode === 'color') {
-      baseStyle.color = hlColor;
-      baseStyle.transform = 'scale(1.08)';
-    } else if (hlMode === 'scale') {
-      baseStyle.transform = 'scale(1.15)';
-    } else if (hlMode === 'underline') {
-      // Capsule marker rendered via pseudo pill in template
-    } else if (hlMode === 'box') {
-      baseStyle.background = hlColor;
-      baseStyle.color = '#000000';
-      baseStyle.borderRadius = '12px';
-      baseStyle.padding = '4px 16px';
-      baseStyle.textShadow = 'none'; // Remove text shadow for box highlight
-      baseStyle.transform = 'scale(1.05)';
-    }
-  }
-
-  return baseStyle;
-};
-
-const formatWordText = (text: string) => {
-  return transformText(text, state.subtitleTextTransform.value);
-};
 </script>

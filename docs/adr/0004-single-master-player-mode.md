@@ -4,7 +4,7 @@ Date: 2026-07-26
 
 ## Status
 
-Accepted
+Accepted (Amended 2026-11-22 — Issue #343)
 
 ## Context
 
@@ -25,3 +25,9 @@ Previously, when `useNativePlayer` was set to `false`, the background native `<v
 
 ### Negative / Trade-offs
 - Switching between Remotion mode and Native player mode during active playback requires a quick seek alignment.
+
+## Amendment (2026-11-22 — Issue #343)
+
+Remotion's **Compositor Engine** ([ADR 0015](./0015-single-video-canvas-compositor.md)) is now the sole preview player. The unused `useNativePlayer` fallback flag, `#preview-video-element` `<video>` element, `runNativeMode()`, `NativeVideoAdapter`, and the CSS-hidden native subtitle overlay have been retired completely so preview playback never spawns a second hardware decoder.
+
+Source video dimensions (`width`, `height`), fallback `duration`, and initial/clip-switch readiness (`isMediaLoading = false`) are now supplied from `CanvasVideoCompositor`'s single `<Video>` element through the optional `@yonru/remotion` `PreviewMediaContext` seam to `DirectPlayerBridge` (`REMOTION_MEDIA_METADATA` / `REMOTION_MEDIA_READY`).

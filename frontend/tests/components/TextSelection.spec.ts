@@ -83,7 +83,6 @@ const mockState = {
   isSavingHistory: ref(false),
   thumbnailEnabled: ref(false),
   thumbnailDuration: ref(3),
-  useNativePlayer: ref(true),
   font: ref('Outfit'),
   fontSize: ref(24),
   subtitleFontWeight: ref(700),
