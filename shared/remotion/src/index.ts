@@ -20,6 +20,8 @@ export type {
 } from './CanvasVideoCompositor';
 export {
   TimelineFrameRetention,
+  TimelineFrameRetentionContext,
+  useFrameRetention,
   coalesceContiguousVideoSegments,
   getSegmentFrameWindow,
   isMainVideoFrameCovered,
@@ -27,6 +29,7 @@ export {
   resolveTimelineMediaTime
 } from './TimelineFrameRetention';
 export type {
+  FrameRetentionCallback,
   TimelineFrameRetentionProps,
   TimelineVideoSegmentBounds,
   SegmentFrameWindow,

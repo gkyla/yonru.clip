@@ -6,7 +6,8 @@ import {
   getSegmentFrameWindow,
   isMainVideoFrameCovered,
   isInitialDecoderFrameAligned,
-  TimelineFrameRetention
+  TimelineFrameRetention,
+  useFrameRetention
 } from '@yonru/remotion';
 
 describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
@@ -177,6 +178,13 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
 
     let capturedCallback: ((canvas: HTMLCanvasElement) => void) | null = null;
 
+    const RetentionConsumer: React.FC<{ testId: string }> = ({ testId }) => {
+      capturedCallback = useFrameRetention();
+      return React.createElement('canvas', {
+        'data-testid': testId
+      });
+    };
+
     const renderScene = (frame: number, src: string, activeSegId: string) => {
       act(() => {
         root.render(
@@ -187,15 +195,10 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
             mainVideoFrame: frame,
             fps: 30,
             timelineVideoItems: segments,
-            children: (
-              onFrameRendered: (canvas: HTMLCanvasElement) => void
-            ) => {
-              capturedCallback = onFrameRendered;
-              return React.createElement('canvas', {
-                key: activeSegId,
-                'data-testid': `segment-canvas-${activeSegId}`
-              });
-            }
+            children: React.createElement(RetentionConsumer, {
+              key: activeSegId,
+              testId: `segment-canvas-${activeSegId}`
+            })
           })
         );
       });
@@ -208,6 +211,7 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
       ) as HTMLCanvasElement;
       expect(retentionCanvas).toBeTruthy();
       expect(retentionCanvas.style.opacity).toBe('0');
+      expect(capturedCallback).toEqual(expect.any(Function));
 
       const seg1Canvas = container.querySelector(
         '[data-testid="segment-canvas-seg-1"]'
@@ -258,6 +262,13 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
 
     let capturedCallback: ((canvas: HTMLCanvasElement) => void) | null = null;
 
+    const SingleSegConsumer: React.FC = () => {
+      capturedCallback = useFrameRetention();
+      return React.createElement('canvas', {
+        'data-testid': 'single-seg-canvas'
+      });
+    };
+
     const renderWithItems = (
       items: Array<{
         id: string;
@@ -275,14 +286,7 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
             mainVideoFrame: 10,
             fps: 30,
             timelineVideoItems: items,
-            children: (
-              onFrameRendered: (canvas: HTMLCanvasElement) => void
-            ) => {
-              capturedCallback = onFrameRendered;
-              return React.createElement('canvas', {
-                'data-testid': 'single-seg-canvas'
-              });
-            }
+            children: React.createElement(SingleSegConsumer)
           })
         );
       });
@@ -293,12 +297,7 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
       expect(
         container.querySelector('[data-testid="timeline-retention-canvas"]')
       ).toBeNull();
-      const sourceCanvas = container.querySelector(
-        '[data-testid="single-seg-canvas"]'
-      ) as HTMLCanvasElement;
-      act(() => {
-        capturedCallback!(sourceCanvas);
-      });
+      expect(capturedCallback).toBeNull();
       expect(drawImageSpy).not.toHaveBeenCalled();
 
       renderWithItems([
@@ -308,9 +307,7 @@ describe('Timeline Frame Retention & Contiguous Segment Coalescing', () => {
       expect(
         container.querySelector('[data-testid="timeline-retention-canvas"]')
       ).toBeNull();
-      act(() => {
-        capturedCallback!(sourceCanvas);
-      });
+      expect(capturedCallback).toBeNull();
       expect(drawImageSpy).not.toHaveBeenCalled();
     } finally {
       act(() => {

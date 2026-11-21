@@ -12,7 +12,13 @@ describe('Shared Remotion TSX Transpilation', () => {
     expect(typeof YonruClip).toBe('function');
 
     expect(CanvasVideoCompositor).toBeDefined();
-    expect(typeof CanvasVideoCompositor).toBe('function');
+    expect(
+      typeof CanvasVideoCompositor === 'function' ||
+        (typeof CanvasVideoCompositor === 'object' &&
+          CanvasVideoCompositor !== null &&
+          typeof (CanvasVideoCompositor as { type?: unknown }).type ===
+            'function')
+    ).toBe(true);
 
     expect(AnimatedSubtitles).toBeDefined();
     expect(typeof AnimatedSubtitles).toBe('function');
