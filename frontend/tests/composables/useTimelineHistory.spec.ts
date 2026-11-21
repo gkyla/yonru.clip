@@ -211,6 +211,7 @@ describe('useTimelineState History Tracking - Undo/Redo', () => {
     addTimelineItem('video', { id: 'segment-2', start: 10, duration: 10 });
 
     expect(timelineTracks.value[0]!.items.length).toBe(2);
+    expect(timelineTracks.value[0]!.items[1]!.duration).toBe(10);
 
     // 3. User undoes the split
     undo();

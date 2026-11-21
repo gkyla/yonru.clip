@@ -195,4 +195,172 @@ describe('useTimelineState Multi-Track Behavior', () => {
     )?.items[0];
     expect(hydratedItem?.src).toBe('/assets/audio_library/sfx.mp3');
   });
+
+  it('preserves explicit duration when splitting video, text, or audio items and when adding video segments, while still clamping newly inserted long audio/text items', () => {
+    const timeline = useTimelineState();
+
+    // 1. Video split [0..20] at t=8 -> [0..8] + [8..20]
+    timeline.timelineTracks.value = [
+      { id: 'text', name: 'Text 1', type: 'text', items: [] },
+      {
+        id: 'video',
+        name: 'Main Video',
+        type: 'video',
+        items: [{ id: 'v1', start: 0, duration: 20, mediaStart: 0 }]
+      },
+      { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+    ];
+    useState<number>('videoDuration').value = 20;
+
+    timeline.timelineTracks.value.find(
+      t => t.type === 'video'
+    )!.items[0]!.duration = 8;
+    timeline.addTimelineItem(
+      'video',
+      { id: 'v2', start: 8, duration: 12, mediaStart: 8 },
+      { forceTrack: true }
+    );
+
+    let videoItems = timeline.timelineTracks.value.find(
+      t => t.type === 'video'
+    )!.items;
+    expect(videoItems).toHaveLength(2);
+    expect(videoItems[1]).toMatchObject({
+      id: 'v2',
+      start: 8,
+      duration: 12,
+      mediaStart: 8
+    });
+
+    // 2. Short video split tail < 0.5s preserves exact 0.2s duration
+    videoItems[1]!.duration = 11.8;
+    timeline.addTimelineItem(
+      'video',
+      { id: 'v3', start: 19.8, duration: 0.2, mediaStart: 19.8 },
+      { forceTrack: true }
+    );
+
+    videoItems = timeline.timelineTracks.value.find(
+      t => t.type === 'video'
+    )!.items;
+    expect(videoItems[2]).toMatchObject({
+      id: 'v3',
+      start: 19.8,
+      duration: 0.2,
+      mediaStart: 19.8
+    });
+
+    // 3. Direct video segment append without forceTrack preserves explicit duration
+    timeline.addTimelineItem('video', {
+      id: 'v4',
+      start: 20,
+      duration: 5,
+      mediaStart: 20
+    });
+    videoItems = timeline.timelineTracks.value.find(
+      t => t.type === 'video'
+    )!.items;
+    expect(videoItems[3]).toMatchObject({
+      id: 'v4',
+      start: 20,
+      duration: 5,
+      mediaStart: 20
+    });
+
+    // 4. Text split when text extends past video [0..10]
+    timeline.timelineTracks.value = [
+      {
+        id: 'text',
+        name: 'Text 1',
+        type: 'text',
+        items: [{ id: 't1', start: 0, duration: 25, content: 'Long text' }]
+      },
+      {
+        id: 'video',
+        name: 'Main Video',
+        type: 'video',
+        items: [{ id: 'v1', start: 0, duration: 10 }]
+      },
+      { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+    ];
+    useState<number>('videoDuration').value = 10;
+
+    timeline.timelineTracks.value.find(
+      t => t.id === 'text'
+    )!.items[0]!.duration = 22;
+    timeline.addTimelineItem(
+      'text',
+      { id: 't2', start: 22, duration: 3, content: 'Tail' },
+      { forceTrack: true }
+    );
+    const textItems = timeline.timelineTracks.value.find(
+      t => t.id === 'text'
+    )!.items;
+    expect(textItems[1]?.duration).toBe(3);
+
+    // 5. Audio split when audio extends past video [0..10]
+    timeline.timelineTracks.value = [
+      { id: 'text', name: 'Text 1', type: 'text', items: [] },
+      {
+        id: 'video',
+        name: 'Main Video',
+        type: 'video',
+        items: [{ id: 'v1', start: 0, duration: 10 }]
+      },
+      {
+        id: 'audio',
+        name: 'Audio 1',
+        type: 'audio',
+        items: [{ id: 'a1', start: 0, duration: 40, name: 'Song.mp3' }]
+      }
+    ];
+    timeline.timelineTracks.value.find(
+      t => t.id === 'audio'
+    )!.items[0]!.duration = 20;
+    timeline.addTimelineItem(
+      'audio',
+      { id: 'a2', start: 20, duration: 20, name: 'Song.mp3' },
+      { forceTrack: true }
+    );
+    const audioItems = timeline.timelineTracks.value.find(
+      t => t.id === 'audio'
+    )!.items;
+    expect(audioItems[1]?.duration).toBe(20);
+
+    // 6. Clamping guard: newly inserted long audio or default text WITHOUT forceTrack still clamps
+    timeline.timelineTracks.value = [
+      { id: 'text', name: 'Text 1', type: 'text', items: [] },
+      {
+        id: 'video',
+        name: 'Main Video',
+        type: 'video',
+        items: [{ id: 'v1', start: 0, duration: 20 }]
+      },
+      { id: 'audio', name: 'Audio 1', type: 'audio', items: [] }
+    ];
+    useState<number>('videoDuration').value = 20;
+    useState<boolean>('coverEnabled').value = false;
+    useState<number>('coverDuration').value = 0;
+
+    timeline.addTimelineItem('audio', {
+      id: 'a-long',
+      name: 'bgm.mp3',
+      start: 5,
+      duration: 180
+    });
+    const clampedAudio = timeline.timelineTracks.value
+      .find(t => t.id === 'audio')
+      ?.items.find(i => i.id === 'a-long');
+    expect(clampedAudio?.duration).toBe(15);
+
+    timeline.addTimelineItem('text', {
+      id: 't-default',
+      start: 18,
+      content: 'End'
+    });
+    const clampedText = timeline.timelineTracks.value
+      .find(t => t.id === 'text')
+      ?.items.find(i => i.id === 't-default');
+    expect(clampedText?.duration).toBe(2);
+  });
 });

@@ -373,7 +373,7 @@ export const useTimelineState = () => {
   function addTimelineItem(
     trackId: string,
     item: Partial<TimelineTrackItem>,
-    options?: { forceTrack?: boolean }
+    options?: { forceTrack?: boolean; preserveDuration?: boolean }
   ) {
     const explicitTrack = timelineTracks.value.find(t => t.id === trackId);
     const trackType = resolveTrackType(explicitTrack ?? trackId);
@@ -413,8 +413,19 @@ export const useTimelineState = () => {
           0.5,
           Math.max(0.5, timelineDuration.value - coverOffset) - startSec
         );
+    const hasValidExplicitDuration =
+      typeof item.duration === 'number' &&
+      Number.isFinite(item.duration) &&
+      item.duration > 0;
+    const shouldPreserveDuration =
+      hasValidExplicitDuration &&
+      (trackType === 'video' ||
+        Boolean(options?.forceTrack) ||
+        Boolean(options?.preserveDuration));
     const defaultDuration = item.duration ?? 5;
-    const durationSec = Math.min(defaultDuration, maxRemaining);
+    const durationSec = shouldPreserveDuration
+      ? item.duration!
+      : Math.min(defaultDuration, maxRemaining);
 
     let styleOverrides: Partial<TimelineTrackItem> = {};
     if (trackType === 'text') {
