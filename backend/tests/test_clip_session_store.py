@@ -809,6 +809,37 @@ def test_ensure_crop_map_lazy_tracker_instantiation():
             mock_ft_cls.assert_called_once()
             mock_lazy_instance.analyze_video.assert_called_once_with(os.path.join(clip_dir, "video.mp4"))
 
+
+def test_ensure_crop_map_reuses_lazily_cached_tracker_across_clips():
+    """Verify ensure_crop_map caches lazily created FaceTracker on the store and reuses it."""
+    from unittest.mock import patch, MagicMock
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, face_tracker=None)
+
+        clip_dir_a = os.path.join(clips_dir, "vid_a", "c_1")
+        clip_dir_b = os.path.join(clips_dir, "vid_b", "c_2")
+        os.makedirs(clip_dir_a, exist_ok=True)
+        os.makedirs(clip_dir_b, exist_ok=True)
+        with open(os.path.join(clip_dir_a, "video.mp4"), "w") as f:
+            f.write("video a")
+        with open(os.path.join(clip_dir_b, "video.mp4"), "w") as f:
+            f.write("video b")
+
+        mock_lazy_instance = MagicMock()
+        mock_lazy_instance.analyze_video.return_value = [{"time": 0.0, "x": 640}]
+
+        with patch("core.face_tracker.FaceTracker", return_value=mock_lazy_instance) as mock_ft_cls:
+            res_a = store.ensure_crop_map("vid_a", "c_1")
+            res_b = store.ensure_crop_map("vid_b", "c_2")
+
+        assert res_a == [{"time": 0.0, "x": 640}]
+        assert res_b == [{"time": 0.0, "x": 640}]
+        assert mock_ft_cls.call_count == 1
+        assert mock_lazy_instance.analyze_video.call_count == 2
+        assert store.face_tracker is mock_lazy_instance
+
 def test_ensure_crop_map_missing_video_raises_filenotfound():
     """Verify ensure_crop_map raises FileNotFoundError when video.mp4 does not exist."""
     with tempfile.TemporaryDirectory() as temp_dir:

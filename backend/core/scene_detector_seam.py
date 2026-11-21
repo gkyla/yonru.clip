@@ -2,12 +2,17 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Sequence
 import cv2
 import numpy as np
-from core.frame_source import FrameSource
+
 
 class SceneDetectorSeam(ABC):
     @abstractmethod
-    def detect_cuts(self, frame_source: FrameSource) -> List[float]:
-        """Scans video frames and returns a list of visual cut timestamps in seconds."""
+    def reset(self) -> None:
+        """Resets any per-stream state before scanning a new video stream."""
+        pass
+
+    @abstractmethod
+    def evaluate_frame(self, frame: np.ndarray, t_sec: float) -> Optional[float]:
+        """Evaluates one sequential frame at t_sec and returns cut timestamp if detected."""
         pass
 
 
@@ -16,7 +21,7 @@ class OpenCVSceneDetector(SceneDetectorSeam):
         self,
         threshold: float = 0.75,
         min_refractory_sec: float = 0.5,
-        target_size: tuple = (160, 90)
+        target_size: tuple[int, int] = (160, 90)
     ):
         """
         Detects hard camera cuts using 3D HSV color histogram correlation.
@@ -27,6 +32,13 @@ class OpenCVSceneDetector(SceneDetectorSeam):
         self.threshold = threshold
         self.min_refractory_sec = min_refractory_sec
         self.target_size = target_size
+        self._prev_hist: Optional[np.ndarray] = None
+        self._last_cut_time: float = -self.min_refractory_sec
+        self.reset()
+
+    def reset(self) -> None:
+        self._prev_hist = None
+        self._last_cut_time = -self.min_refractory_sec
 
     def _calc_hist(self, frame: np.ndarray) -> np.ndarray:
         # Resize to micro thumbnail
@@ -37,43 +49,33 @@ class OpenCVSceneDetector(SceneDetectorSeam):
         cv2.normalize(hist, hist, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
         return hist
 
-    def detect_cuts(self, frame_source: FrameSource) -> List[float]:
-        fps = frame_source.fps
-        if fps <= 0:
-            fps = 30.0
-        start_time = getattr(frame_source, "start_time", 0.0)
+    def evaluate_frame(self, frame: np.ndarray, t_sec: float) -> Optional[float]:
+        current_hist = self._calc_hist(frame)
+        cut_time: Optional[float] = None
 
-        cut_timestamps: List[float] = []
-        prev_hist: Optional[np.ndarray] = None
-        frame_idx = 0
-        last_cut_time = -self.min_refractory_sec
+        if self._prev_hist is not None:
+            # Compare histogram correlation (1.0 = identical, < 0.65 = distinct camera cut)
+            correlation = cv2.compareHist(self._prev_hist, current_hist, cv2.HISTCMP_CORREL)
+            if correlation < self.threshold:
+                if (t_sec - self._last_cut_time) >= self.min_refractory_sec:
+                    cut_time = round(t_sec, 3)
+                    self._last_cut_time = t_sec
 
-        while True:
-            ret, frame = frame_source.read()
-            if not ret or frame is None:
-                break
-
-            t_sec = start_time + (frame_idx / fps)
-            current_hist = self._calc_hist(frame)
-
-            if prev_hist is not None:
-                # Compare histogram correlation (1.0 = identical, < 0.65 = distinct camera cut)
-                correlation = cv2.compareHist(prev_hist, current_hist, cv2.HISTCMP_CORREL)
-                if correlation < self.threshold:
-                    if (t_sec - last_cut_time) >= self.min_refractory_sec:
-                        cut_timestamps.append(round(t_sec, 3))
-                        last_cut_time = t_sec
-
-            prev_hist = current_hist
-            frame_idx += 1
-
-        print(f"[scene-detect] Detected {len(cut_timestamps)} visual cuts: {cut_timestamps}")
-        return cut_timestamps
+        self._prev_hist = current_hist
+        return cut_time
 
 
 class MockSceneDetector(SceneDetectorSeam):
     def __init__(self, cut_timestamps: Optional[Sequence[float]] = None):
-        self.cut_timestamps = list(cut_timestamps) if cut_timestamps is not None else []
+        self.cut_timestamps: List[float] = sorted(float(t) for t in cut_timestamps) if cut_timestamps is not None else []
+        self._next_idx: int = 0
 
-    def detect_cuts(self, frame_source: FrameSource) -> List[float]:
-        return self.cut_timestamps
+    def reset(self) -> None:
+        self._next_idx = 0
+
+    def evaluate_frame(self, frame: np.ndarray, t_sec: float) -> Optional[float]:
+        if self._next_idx < len(self.cut_timestamps) and self.cut_timestamps[self._next_idx] <= t_sec + 1e-6:
+            cut_time = self.cut_timestamps[self._next_idx]
+            self._next_idx += 1
+            return cut_time
+        return None

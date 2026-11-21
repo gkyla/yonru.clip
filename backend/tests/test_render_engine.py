@@ -899,6 +899,41 @@ class TestRenderEngine(unittest.TestCase):
             self.assertEqual(comp2.crop_center_x, [{"time": 0.0, "x": 615}, {"time": 1.5, "x": 640}])
             self.assertEqual(tracker.analyzed_paths, [video_path])
 
+    def test_compile_composition_fallback_closes_temporary_face_tracker(self):
+        import tempfile
+        import main as backend_main
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            video_path = os.path.join(tmp_dir, "video.mp4")
+            with open(video_path, "wb") as f:
+                f.write(b"VIDEO")
+
+            req = backend_main.RenderRequest(job_id="job_fallback_close", face_tracking=True)
+            job = {
+                "job_id": "job_fallback_close",
+                "clip_path": video_path,
+                "clip_duration": 5.0,
+                "video_info": {"file_path": video_path, "duration": 5.0, "fps": 30.0},
+                "hooks": [],
+            }
+
+            mock_tracker = MagicMock()
+            mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 640}]
+            engine = FakeRenderEngine(face_tracker=None, clip_session_store=None)
+
+            with patch("core.face_tracker.FaceTracker", return_value=mock_tracker):
+                comp = engine.compile_composition(job, req)
+
+            self.assertEqual(comp.crop_center_x, [{"time": 0.0, "x": 640}])
+            mock_tracker.close.assert_called_once()
+
+            failing_tracker = MagicMock()
+            failing_tracker.analyze_video.side_effect = RuntimeError("boom")
+            with patch("core.face_tracker.FaceTracker", return_value=failing_tracker):
+                with self.assertRaises(RuntimeError):
+                    engine.compile_composition(job, req)
+            failing_tracker.close.assert_called_once()
+
     def test_shallow_passthrough_render_helpers_are_deleted(self):
         from core.render_engine import RenderEngine
         self.assertFalse(hasattr(RenderEngine, "compile_and_render"))

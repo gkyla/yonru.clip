@@ -118,6 +118,7 @@ class ClipSessionStore:
         self.transcoder = media_transcoder or MediaTranscoder(config_store=self.config_store)
         self._env = getattr(self.transcoder.adapter, "_env", os.environ.copy())
         self.face_tracker = face_tracker
+        self._face_tracker_lock = threading.Lock()
         self.audio_library_store = audio_library_store
         self._index_lock = threading.RLock()
         self._cache_epoch: int = 0
@@ -610,8 +611,11 @@ class ClipSessionStore:
 
         active_tracker = tracker or self.face_tracker
         if not active_tracker:
-            from core.face_tracker import FaceTracker
-            active_tracker = FaceTracker()
+            with self._face_tracker_lock:
+                if not self.face_tracker:
+                    from core.face_tracker import FaceTracker
+                    self.face_tracker = FaceTracker()
+                active_tracker = self.face_tracker
 
         resolved_video_path = video_path or self._resolve_clip_path(folder_name, clip_id, "video.mp4")
         if not os.path.exists(resolved_video_path):

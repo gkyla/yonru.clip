@@ -81,8 +81,11 @@ self_update_service = SelfUpdateService(
 from core.media_transcoder import MediaTranscoder
 media_transcoder = MediaTranscoder(config_store=config_store)
 
+from core.face_tracker import FaceTracker
+face_tracker = FaceTracker()
+
 from core.clip_session_store import ClipSessionStore
-clip_session_store = ClipSessionStore("temp_assets/clips", output_dir="temp_assets", config_store=config_store, media_transcoder=media_transcoder)
+clip_session_store = ClipSessionStore("temp_assets/clips", output_dir="temp_assets", config_store=config_store, media_transcoder=media_transcoder, face_tracker=face_tracker)
 
 from core.audio_library_repository import AudioLibraryRepository, DuplicateHandlingMode
 audio_library_repository = AudioLibraryRepository(output_dir="temp_assets", clip_session_store=clip_session_store)
@@ -93,6 +96,7 @@ asset_repository = AssetRepository(output_dir="temp_assets", youtube_client=yout
 render_engine = RemotionRenderEngine(
     output_dir="static/output",
     config_store=config_store,
+    face_tracker=face_tracker,
     media_transcoder=media_transcoder,
     clip_session_store=clip_session_store,
 )
