@@ -346,6 +346,235 @@ class TestFaceTracker(unittest.TestCase):
         timestamps = [p["time"] for p in crop_map]
         self.assertEqual(len(timestamps), len(set(timestamps)), f"Found duplicate timestamps in crop_map: {timestamps}")
 
+    def test_single_pass_reads_each_frame_once_and_removes_reset_and_dead_helper(self):
+        import core.frame_source as frame_source_module
+        from core.frame_source import FrameSource, OpenCVFrameSource
+
+        class CountingInMemoryFrameSource(InMemoryFrameSource):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.read_calls = 0
+                self.closed = False
+
+            def read(self):
+                self.read_calls += 1
+                return super().read()
+
+            def close(self):
+                self.closed = True
+
+        source = CountingInMemoryFrameSource(total_frames=10, width=1000, height=1000, fps=10.0)
+        detector = MockFaceDetector([500.0] * 5)
+        scene_detector = MockSceneDetector([0.5])
+
+        tracker = FaceTracker(frame_source=source, face_detector=detector, scene_detector=scene_detector)
+        crop_map = tracker.analyze_video("dummy_path")
+
+        self.assertTrue(len(crop_map) > 0)
+        self.assertEqual(source.read_calls, 11)
+        self.assertTrue(source.closed)
+        self.assertFalse(hasattr(FrameSource, "reset"))
+        self.assertFalse(hasattr(OpenCVFrameSource, "reset"))
+        self.assertFalse(hasattr(InMemoryFrameSource, "reset"))
+        self.assertFalse(hasattr(frame_source_module, "get_video_start_time"))
+
+    def test_analyze_video_closes_frame_source_on_detector_exception(self):
+        from core.face_detector_seam import FaceDetectorSeam
+
+        class ClosingFrameSource(InMemoryFrameSource):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.closed = False
+
+            def close(self):
+                self.closed = True
+
+        class FailingFaceDetector(FaceDetectorSeam):
+            def locate_face(self, frame, width):
+                raise RuntimeError("detector failure")
+
+            def locate_faces(self, frame, width, height):
+                raise RuntimeError("detector failure")
+
+        source = ClosingFrameSource(total_frames=6, width=1000, height=1000, fps=10.0)
+        tracker = FaceTracker(
+            frame_source=source,
+            face_detector=FailingFaceDetector(),
+            scene_detector=MockSceneDetector(),
+        )
+
+        with self.assertRaises(RuntimeError):
+            tracker.analyze_video("dummy_path")
+        self.assertTrue(source.closed)
+
+    def test_mediapipe_face_detector_downscales_large_frame_before_rgb_and_preserves_width_scale(self):
+        from unittest.mock import MagicMock, patch
+        from core.face_detector_seam import MediaPipeFaceDetector
+
+        mock_fd = MagicMock()
+        detection = MagicMock()
+        detection.location_data.relative_bounding_box.xmin = 0.2
+        detection.location_data.relative_bounding_box.width = 0.1
+        detection.location_data.relative_bounding_box.height = 0.2
+        results = MagicMock()
+        results.detections = [detection]
+        mock_fd.process.return_value = results
+
+        with patch("mediapipe.solutions.face_detection.FaceDetection", return_value=mock_fd):
+            detector = MediaPipeFaceDetector()
+
+        self.assertEqual(detector.max_width, 640)
+
+        large_frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+        faces = detector.locate_faces(large_frame, width=1920, height=1080)
+        passed_large = mock_fd.process.call_args_list[0].args[0]
+        self.assertEqual(passed_large.shape, (360, 640, 3))
+        self.assertEqual(len(faces), 1)
+        self.assertAlmostEqual(faces[0], 480.0)
+
+        small_frame = np.zeros((180, 320, 3), dtype=np.uint8)
+        detector.locate_faces(small_frame, width=320, height=180)
+        passed_small = mock_fd.process.call_args_list[1].args[0]
+        self.assertEqual(passed_small.shape, (180, 320, 3))
+
+    def test_mediapipe_face_detector_serializes_concurrent_calls_and_closes_idempotently(self):
+        import threading
+        import time
+        from unittest.mock import MagicMock, patch
+        from core.face_detector_seam import MediaPipeFaceDetector
+
+        state_lock = threading.Lock()
+        active = 0
+        max_active = 0
+
+        def fake_process(rgb_frame):
+            nonlocal active, max_active
+            with state_lock:
+                active += 1
+                if active > max_active:
+                    max_active = active
+            time.sleep(0.05)
+            with state_lock:
+                active -= 1
+            res = MagicMock()
+            res.detections = []
+            return res
+
+        fake_fd = MagicMock()
+        fake_fd.process.side_effect = fake_process
+
+        with patch("mediapipe.solutions.face_detection.FaceDetection", return_value=fake_fd):
+            detector = MediaPipeFaceDetector()
+
+        barrier = threading.Barrier(2)
+        errors = []
+        frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+        def worker():
+            try:
+                barrier.wait(timeout=2.0)
+                detector.locate_faces(frame, width=100, height=100)
+            except Exception as exc:
+                errors.append(exc)
+
+        t1 = threading.Thread(target=worker)
+        t2 = threading.Thread(target=worker)
+        t1.start()
+        t2.start()
+        t1.join(timeout=5.0)
+        t2.join(timeout=5.0)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(max_active, 1)
+
+        detector.close()
+        detector.close()
+        self.assertEqual(fake_fd.close.call_count, 1)
+        self.assertEqual(detector.locate_faces(frame, width=100, height=100), [])
+
+        mock_detector = MockFaceDetector([500.0])
+        mock_detector.close()
+
+    def test_face_tracker_lazily_caches_detector_reuses_across_clips_and_closes(self):
+        from unittest.mock import MagicMock, patch
+
+        mock_detector = MagicMock()
+        mock_detector.locate_faces.return_value = [500.0]
+
+        with patch("core.face_tracker.MediaPipeFaceDetector", return_value=mock_detector) as mock_cls, \
+             patch("core.face_tracker.OpenCVFrameSource", side_effect=[
+                 InMemoryFrameSource(total_frames=4, width=1000, height=1000, fps=10.0),
+                 InMemoryFrameSource(total_frames=4, width=1000, height=1000, fps=10.0),
+             ]):
+            tracker = FaceTracker()
+            self.assertEqual(mock_cls.call_count, 0)
+
+            crop_map_1 = tracker.analyze_video("clip1.mp4")
+            crop_map_2 = tracker.analyze_video("clip2.mp4")
+
+            self.assertTrue(len(crop_map_1) > 0)
+            self.assertTrue(len(crop_map_2) > 0)
+            self.assertEqual(mock_cls.call_count, 1)
+            self.assertEqual(mock_detector.locate_faces.call_count, 4)
+
+            tracker.close()
+            tracker.close()
+            self.assertEqual(mock_detector.close.call_count, 1)
+
+    def test_face_tracker_resets_scene_detector_state_between_clips(self):
+        from core.frame_source import FrameSource
+        from core.scene_detector_seam import OpenCVSceneDetector
+
+        class SolidColorFrameSource(FrameSource):
+            def __init__(self, bgr, total_frames=4, fps=10.0):
+                self._bgr = bgr
+                self._total_frames = total_frames
+                self._fps = fps
+                self._idx = 0
+
+            def read(self):
+                if self._idx >= self._total_frames:
+                    return False, None
+                self._idx += 1
+                return True, np.full((100, 100, 3), self._bgr, dtype=np.uint8)
+
+            @property
+            def width(self):
+                return 1000
+
+            @property
+            def height(self):
+                return 1000
+
+            @property
+            def fps(self):
+                return self._fps
+
+            @property
+            def start_time(self):
+                return 0.0
+
+            def close(self):
+                pass
+
+        shared_scene = OpenCVSceneDetector(threshold=0.65, min_refractory_sec=0.5)
+        tracker = FaceTracker(
+            frame_source=SolidColorFrameSource((0, 0, 255)),
+            face_detector=MockFaceDetector([500.0, 500.0]),
+            scene_detector=shared_scene,
+        )
+        tracker.analyze_video("clip1.mp4")
+
+        # Clip 2 starts immediately with solid blue and 1 frame of dense faces (< hold threshold).
+        # If clip 1's red histogram leaked into frame 0 of clip 2, it would trigger a false cut at t=0.0
+        # and snap straight into split mode.
+        tracker.frame_source = SolidColorFrameSource((255, 0, 0))
+        tracker.face_detector = MockFaceDetector([[480.0, 520.0], 500.0])
+        crop_map_2 = tracker.analyze_video("clip2.mp4")
+
+        split_entries = [p for p in crop_map_2 if p.get("mode") == "split"]
+        self.assertEqual(split_entries, [])
+
 if __name__ == '__main__':
     unittest.main()
 

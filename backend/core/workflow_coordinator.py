@@ -3,6 +3,7 @@ import json
 import shutil
 import re
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any, List
 from core.clip_session_store import ClipSessionStore, CANONICAL_DEFAULT_STYLE_SETTINGS, CANONICAL_DEFAULT_COVER_CONFIG
 
@@ -827,9 +828,13 @@ class ClipWorkflowCoordinator:
             if not clip:
                 self.jobs.update_job(job_id, status="error", error="Failed to cut segment")
                 return
-            
+
+            clip_dir = os.path.dirname(clip["file_path"])
+            clip_id = os.path.basename(clip_dir)
+            folder_name = os.path.basename(os.path.dirname(clip_dir))
+
             # Step 3: Use existing transcript if available (prevents overwriting manual edits)
-            transcript_path = os.path.join(os.path.dirname(clip["file_path"]), "transcript.json")
+            transcript_path = os.path.join(clip_dir, "transcript.json")
             is_transcript_valid = False
             if os.path.exists(transcript_path):
                 try:
@@ -842,10 +847,7 @@ class ClipWorkflowCoordinator:
 
             if is_transcript_valid:
                 print(f"[transcribe] Reuse existing transcript at {transcript_path}")
-                
-                clip_dir = os.path.dirname(clip["file_path"])
-                clip_id = os.path.basename(clip_dir)
-                folder_name = os.path.basename(os.path.dirname(clip_dir))
+
                 self.clip_session_store.ensure_clip_defaults(folder_name, clip_id)
                 self.clip_session_store.ensure_crop_map(
                     folder_name,
@@ -868,72 +870,79 @@ class ClipWorkflowCoordinator:
                 return
 
             self.jobs.update_job(job_id, status="transcribing")
-            
-            precise_words = None
-            try:
-                # Extract audio from clip
-                clip_audio = self.clip_session_store.extract_clip_audio(clip["file_path"])
-                print(f"[transcribe] Transcribing clip audio...")
-                precise_words = self.speech_transcriber.transcribe(clip_audio, model_size=whisper_model)
-            except Exception as e:
-                print(f"[transcribe] Whisper failed for clip, falling back to global: {e}")
-                
-            if not precise_words:
-                source_dir = os.path.dirname(full_path) if full_path else ""
-                global_transcript_path = os.path.join(source_dir, "youtube-transcript.json")
-                if os.path.exists(global_transcript_path):
-                    try:
-                        with open(global_transcript_path, "r", encoding="utf-8") as f:
-                            global_segments = json.load(f)
-                        if isinstance(global_segments, list):
-                            fallback_words = []
-                            for seg in global_segments:
-                                s_start = float(seg.get("start", 0.0))
-                                s_dur = float(seg.get("duration", 0.0))
-                                s_end = s_start + s_dur
-                                if s_end > start_time and s_start < end_time:
-                                    rel_start = max(0.0, round(s_start - start_time, 3))
-                                    fallback_words.append({
-                                        "start": rel_start,
-                                        "duration": round(s_dur, 3),
-                                        "text": str(seg.get("text", "")).strip()
-                                    })
-                            if fallback_words:
-                                print(f"[transcribe] Recovered {len(fallback_words)} segments from global transcript fallback")
-                                precise_words = fallback_words
-                    except Exception as ge:
-                        print(f"[transcribe] Failed to parse global transcript fallback: {ge}")
-
-            clip_dir = os.path.dirname(clip["file_path"])
-            clip_id = os.path.basename(clip_dir)
-            folder_name = os.path.basename(os.path.dirname(clip_dir))
-
-            if precise_words:
-                # Save precise transcript atomically via ClipSessionStore
-                self.clip_session_store.save_clip_session(
-                    folder_name, clip_id, {"transcript": precise_words}
-                )
-                print(f"[transcribe] Saved high-precision clip transcript ({len(precise_words)} words)")
-                
-                c_quote = " ".join([s.get("text", "") for s in precise_words]).strip()
-                if len(c_quote) > 1000: c_quote = c_quote[:997] + "..."
-                clip["transcript_quote"] = c_quote
-                
-                # Update in-memory job object so polling picks it up immediately
-                job = self.jobs.get_job(job_id)
-                if job and isinstance(job.get("clip"), dict):
-                    updated_clip = dict(job["clip"])
-                    updated_clip["transcript_quote"] = c_quote
-                    self.jobs.update_job(job_id, clip=updated_clip)
-                    print(f"[transcribe] Updated in-memory clip quote for job {job_id}")
-
             self.clip_session_store.ensure_clip_defaults(folder_name, clip_id)
-            self.clip_session_store.ensure_crop_map(
-                folder_name,
-                clip_id,
-                video_path=clip["file_path"],
-                tracker=getattr(self, "face_tracker", None),
-            )
+
+            crop_error: Optional[Exception] = None
+            with ThreadPoolExecutor(max_workers=1) as crop_executor:
+                crop_future = crop_executor.submit(
+                    self.clip_session_store.ensure_crop_map,
+                    folder_name,
+                    clip_id,
+                    video_path=clip["file_path"],
+                    tracker=getattr(self, "face_tracker", None),
+                )
+                try:
+                    precise_words = None
+                    try:
+                        # Extract audio from clip
+                        clip_audio = self.clip_session_store.extract_clip_audio(clip["file_path"])
+                        print(f"[transcribe] Transcribing clip audio...")
+                        precise_words = self.speech_transcriber.transcribe(clip_audio, model_size=whisper_model)
+                    except Exception as e:
+                        print(f"[transcribe] Whisper failed for clip, falling back to global: {e}")
+
+                    if not precise_words:
+                        source_dir = os.path.dirname(full_path) if full_path else ""
+                        global_transcript_path = os.path.join(source_dir, "youtube-transcript.json")
+                        if os.path.exists(global_transcript_path):
+                            try:
+                                with open(global_transcript_path, "r", encoding="utf-8") as f:
+                                    global_segments = json.load(f)
+                                if isinstance(global_segments, list):
+                                    fallback_words = []
+                                    for seg in global_segments:
+                                        s_start = float(seg.get("start", 0.0))
+                                        s_dur = float(seg.get("duration", 0.0))
+                                        s_end = s_start + s_dur
+                                        if s_end > start_time and s_start < end_time:
+                                            rel_start = max(0.0, round(s_start - start_time, 3))
+                                            fallback_words.append({
+                                                "start": rel_start,
+                                                "duration": round(s_dur, 3),
+                                                "text": str(seg.get("text", "")).strip()
+                                            })
+                                    if fallback_words:
+                                        print(f"[transcribe] Recovered {len(fallback_words)} segments from global transcript fallback")
+                                        precise_words = fallback_words
+                            except Exception as ge:
+                                print(f"[transcribe] Failed to parse global transcript fallback: {ge}")
+
+                    if precise_words:
+                        # Save precise transcript atomically via ClipSessionStore
+                        self.clip_session_store.save_clip_session(
+                            folder_name, clip_id, {"transcript": precise_words}
+                        )
+                        print(f"[transcribe] Saved high-precision clip transcript ({len(precise_words)} words)")
+
+                        c_quote = " ".join([s.get("text", "") for s in precise_words]).strip()
+                        if len(c_quote) > 1000: c_quote = c_quote[:997] + "..."
+                        clip["transcript_quote"] = c_quote
+
+                        # Update in-memory job object so polling picks it up immediately
+                        job = self.jobs.get_job(job_id)
+                        if job and isinstance(job.get("clip"), dict):
+                            updated_clip = dict(job["clip"])
+                            updated_clip["transcript_quote"] = c_quote
+                            self.jobs.update_job(job_id, clip=updated_clip)
+                            print(f"[transcribe] Updated in-memory clip quote for job {job_id}")
+                finally:
+                    try:
+                        crop_future.result()
+                    except Exception as ce:
+                        crop_error = ce
+
+            if crop_error is not None:
+                raise crop_error
 
             # Store full clip metadata
             job = self.jobs.get_job(job_id)

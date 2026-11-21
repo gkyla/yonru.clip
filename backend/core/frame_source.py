@@ -1,31 +1,7 @@
-import subprocess
-import json
 from abc import ABC, abstractmethod
 import cv2
-from typing import Tuple, Optional, Any
+from typing import Tuple, Optional
 import numpy as np
-
-def get_video_start_time(video_path: str) -> float:
-    """Extracts container video stream start presentation timestamp (PTS) in seconds via ffprobe."""
-    try:
-        cmd = [
-            "ffprobe", "-v", "quiet",
-            "-print_format", "json",
-            "-show_entries", "stream=start_time",
-            "-select_streams", "v:0",
-            video_path
-        ]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
-        if res.returncode == 0 and res.stdout:
-            data = json.loads(res.stdout)
-            streams = data.get("streams", [])
-            if streams and "start_time" in streams[0]:
-                val = streams[0]["start_time"]
-                if val is not None:
-                    return float(val)
-    except Exception:
-        pass
-    return 0.0
 
 class FrameSource(ABC):
     @abstractmethod
@@ -57,11 +33,6 @@ class FrameSource(ABC):
     @abstractmethod
     def close(self) -> None:
         """Releases the frame source."""
-        pass
-
-    @abstractmethod
-    def reset(self) -> None:
-        """Rewinds the frame source back to the beginning (frame 0)."""
         pass
 
 
@@ -107,10 +78,6 @@ class OpenCVFrameSource(FrameSource):
         if self.cap.isOpened():
             self.cap.release()
 
-    def reset(self) -> None:
-        if self.cap.isOpened():
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-
 
 class InMemoryFrameSource(FrameSource):
     def __init__(self, total_frames: int = 100, width: int = 1920, height: int = 1080, fps: float = 30.0, start_time: float = 0.0):
@@ -147,7 +114,4 @@ class InMemoryFrameSource(FrameSource):
 
     def close(self) -> None:
         pass
-
-    def reset(self) -> None:
-        self._current_frame = 0
 

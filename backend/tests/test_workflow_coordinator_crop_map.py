@@ -259,6 +259,222 @@ class TestWorkflowCoordinatorCropMap(unittest.TestCase):
                 tracker=mock_tracker,
             )
 
+    def test_run_local_cut_runs_crop_map_concurrently_with_whisper(self):
+        import threading
+
+        mock_job_store = InMemoryJobStore()
+        mock_asset_repo = MagicMock()
+        clips_dir = os.path.join(self.test_dir, "clips")
+        mock_asset_repo.clips_dir = clips_dir
+        mock_asset_repo.output_dir = self.test_dir
+        mock_speech_transcriber = MagicMock()
+
+        clip_dir = os.path.join(clips_dir, "src_concurrent", "clip_0_10")
+        os.makedirs(clip_dir, exist_ok=True)
+        clip_video_path = os.path.join(clip_dir, "video.mp4")
+        with open(clip_video_path, "w") as f:
+            f.write("dummy video")
+
+        transcribe_entered = threading.Event()
+        crop_entered = threading.Event()
+        transcribe_saw_crop = []
+        crop_saw_transcribe = []
+
+        def fake_transcribe(*args, **kwargs):
+            transcribe_entered.set()
+            transcribe_saw_crop.append(crop_entered.wait(timeout=2.0))
+            return [{"start": 0.0, "duration": 1.0, "text": "hello"}]
+
+        mock_speech_transcriber.transcribe.side_effect = fake_transcribe
+
+        class ConcurrentStubTracker:
+            def __init__(self):
+                self.calls = 0
+
+            def analyze_video(self, video_path, words_data=None):
+                self.calls += 1
+                crop_entered.set()
+                crop_saw_transcribe.append(transcribe_entered.wait(timeout=2.0))
+                return [{"time": 0.0, "x": 640}]
+
+        stub_tracker = ConcurrentStubTracker()
+        coordinator = ClipWorkflowCoordinator(
+            job_store=mock_job_store,
+            asset_repository=mock_asset_repo,
+            youtube_client=MagicMock(),
+            speech_transcriber=mock_speech_transcriber,
+            prompt_repository=MagicMock(),
+            config_store=MagicMock(),
+            face_tracker=stub_tracker,
+        )
+
+        job_id = "job_concurrent_crop_whisper"
+        full_video_path = os.path.join(self.test_dir, "full_source_concurrent.mp4")
+        with open(full_video_path, "w") as f:
+            f.write("dummy full source")
+        coordinator.jobs[job_id] = {"status": "queued", "full_video_path": full_video_path}
+
+        from core.clip_session_store import ClipSessionStore
+        with patch.object(ClipSessionStore, "create_clip", return_value={
+            "file_path": clip_video_path,
+            "duration": 10.0,
+            "start": 0.0,
+            "end": 10.0,
+        }), patch.object(ClipSessionStore, "extract_clip_audio", return_value="dummy_audio.wav"):
+            coordinator.run_local_cut(job_id, 0.0, 10.0)
+
+        self.assertEqual(transcribe_saw_crop, [True])
+        self.assertEqual(crop_saw_transcribe, [True])
+        self.assertEqual(stub_tracker.calls, 1)
+        self.assertEqual(coordinator.jobs[job_id]["status"], "ready")
+
+        self.assertEqual(
+            coordinator.clip_session_store.get_crop_map("src_concurrent", "clip_0_10"),
+            [{"time": 0.0, "x": 640}],
+        )
+        session = coordinator.clip_session_store.get_clip_session(
+            "src_concurrent", "clip_0_10", ensure_crop_map=False
+        )
+        self.assertEqual(session["transcript"], [{"start": 0.0, "duration": 1.0, "text": "hello"}])
+
+    def test_run_local_cut_joins_crop_map_when_whisper_fails(self):
+        import time
+
+        mock_job_store = InMemoryJobStore()
+        mock_asset_repo = MagicMock()
+        clips_dir = os.path.join(self.test_dir, "clips")
+        mock_asset_repo.clips_dir = clips_dir
+        mock_asset_repo.output_dir = self.test_dir
+        mock_speech_transcriber = MagicMock()
+        mock_speech_transcriber.transcribe.side_effect = RuntimeError("whisper failed")
+
+        clip_dir = os.path.join(clips_dir, "src_fail_join", "clip_0_10")
+        os.makedirs(clip_dir, exist_ok=True)
+        clip_video_path = os.path.join(clip_dir, "video.mp4")
+        with open(clip_video_path, "w") as f:
+            f.write("dummy video")
+
+        class SlowStubTracker:
+            def __init__(self):
+                self.calls = 0
+
+            def analyze_video(self, video_path, words_data=None):
+                self.calls += 1
+                time.sleep(0.15)
+                return [{"time": 0.0, "x": 720}]
+
+        stub_tracker = SlowStubTracker()
+        coordinator = ClipWorkflowCoordinator(
+            job_store=mock_job_store,
+            asset_repository=mock_asset_repo,
+            youtube_client=MagicMock(),
+            speech_transcriber=mock_speech_transcriber,
+            prompt_repository=MagicMock(),
+            config_store=MagicMock(),
+            face_tracker=stub_tracker,
+        )
+
+        job_id = "job_whisper_fails_join"
+        full_video_path = os.path.join(self.test_dir, "full_source_fail_join.mp4")
+        with open(full_video_path, "w") as f:
+            f.write("dummy full source")
+        coordinator.jobs[job_id] = {"status": "queued", "full_video_path": full_video_path}
+
+        from core.clip_session_store import ClipSessionStore
+        with patch.object(ClipSessionStore, "create_clip", return_value={
+            "file_path": clip_video_path,
+            "duration": 10.0,
+            "start": 0.0,
+            "end": 10.0,
+        }), patch.object(ClipSessionStore, "extract_clip_audio", return_value="dummy_audio.wav"):
+            coordinator.run_local_cut(job_id, 0.0, 10.0)
+
+        self.assertEqual(stub_tracker.calls, 1)
+        self.assertEqual(coordinator.jobs[job_id]["status"], "ready")
+        self.assertEqual(
+            coordinator.clip_session_store.get_crop_map("src_fail_join", "clip_0_10"),
+            [{"time": 0.0, "x": 720}],
+        )
+        session = coordinator.clip_session_store.get_clip_session(
+            "src_fail_join", "clip_0_10", ensure_crop_map=False
+        )
+        self.assertEqual(session["transcript"], [])
+
+    def test_run_local_cut_joins_crop_map_when_whisper_falls_back_to_global_transcript(self):
+        import time
+
+        mock_job_store = InMemoryJobStore()
+        mock_asset_repo = MagicMock()
+        clips_dir = os.path.join(self.test_dir, "clips")
+        mock_asset_repo.clips_dir = clips_dir
+        mock_asset_repo.output_dir = self.test_dir
+        mock_speech_transcriber = MagicMock()
+        mock_speech_transcriber.transcribe.side_effect = RuntimeError("whisper failed")
+
+        source_dir = os.path.join(self.test_dir, "src_global_fallback")
+        os.makedirs(source_dir, exist_ok=True)
+        full_video_path = os.path.join(source_dir, "full.mp4")
+        with open(full_video_path, "w") as f:
+            f.write("dummy full source")
+        with open(os.path.join(source_dir, "youtube-transcript.json"), "w", encoding="utf-8") as f:
+            json.dump([
+                {"start": 5.0, "duration": 2.0, "text": "Before clip"},
+                {"start": 12.0, "duration": 3.0, "text": "Inside segment"},
+                {"start": 25.0, "duration": 2.0, "text": "After clip"},
+            ], f)
+
+        clip_dir = os.path.join(clips_dir, "src_global_fallback", "clip_10_20")
+        os.makedirs(clip_dir, exist_ok=True)
+        clip_video_path = os.path.join(clip_dir, "video.mp4")
+        with open(clip_video_path, "w") as f:
+            f.write("dummy video")
+
+        class SlowStubTracker:
+            def __init__(self):
+                self.calls = 0
+
+            def analyze_video(self, video_path, words_data=None):
+                self.calls += 1
+                time.sleep(0.15)
+                return [{"time": 0.0, "x": 810}]
+
+        stub_tracker = SlowStubTracker()
+        coordinator = ClipWorkflowCoordinator(
+            job_store=mock_job_store,
+            asset_repository=mock_asset_repo,
+            youtube_client=MagicMock(),
+            speech_transcriber=mock_speech_transcriber,
+            prompt_repository=MagicMock(),
+            config_store=MagicMock(),
+            face_tracker=stub_tracker,
+        )
+
+        job_id = "job_whisper_fallback_join"
+        coordinator.jobs[job_id] = {"status": "queued", "full_video_path": full_video_path}
+
+        from core.clip_session_store import ClipSessionStore
+        with patch.object(ClipSessionStore, "create_clip", return_value={
+            "file_path": clip_video_path,
+            "duration": 10.0,
+            "start": 10.0,
+            "end": 20.0,
+        }), patch.object(ClipSessionStore, "extract_clip_audio", return_value="dummy_audio.wav"):
+            coordinator.run_local_cut(job_id, 10.0, 20.0)
+
+        self.assertEqual(stub_tracker.calls, 1)
+        self.assertEqual(coordinator.jobs[job_id]["status"], "ready")
+        self.assertEqual(
+            coordinator.clip_session_store.get_crop_map("src_global_fallback", "clip_10_20"),
+            [{"time": 0.0, "x": 810}],
+        )
+        session = coordinator.clip_session_store.get_clip_session(
+            "src_global_fallback", "clip_10_20", ensure_crop_map=False
+        )
+        self.assertEqual(
+            session["transcript"],
+            [{"start": 2.0, "duration": 3.0, "text": "Inside segment"}],
+        )
+
     def test_workflow_coordinator_has_no_low_level_facetracker_or_fallback_points(self):
         """Verifies that duplicate FaceTracker instantiation and fallback 960 points are removed."""
         coord_file = os.path.abspath(

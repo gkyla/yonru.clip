@@ -726,10 +726,18 @@ class RenderEngine(ABC):
 
                 if crop_x is None:
                     tracker = getattr(self, "face_tracker", None)
+                    if not tracker and self.clip_session_store is not None:
+                        tracker = getattr(self.clip_session_store, "face_tracker", None)
+                    created_local_tracker = False
                     if not tracker:
                         from core.face_tracker import FaceTracker
                         tracker = FaceTracker()
-                    crop_x = tracker.analyze_video(video_path, words_data=words_data)
+                        created_local_tracker = True
+                    try:
+                        crop_x = tracker.analyze_video(video_path, words_data=words_data)
+                    finally:
+                        if created_local_tracker and hasattr(tracker, "close"):
+                            tracker.close()
         else:
             crop_x = int((req.crop_percent_x / 100.0) * source_width)
 

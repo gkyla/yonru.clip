@@ -48,16 +48,48 @@ class SyntheticColoredFrameSource(FrameSource):
     def close(self) -> None:
         pass
 
-    def reset(self) -> None:
-        self._current_frame = 0
+
+def _scan_cuts(detector, source: FrameSource) -> List[float]:
+    detector.reset()
+    cuts: List[float] = []
+    fps = source.fps if source.fps > 0 else 30.0
+    start_time = getattr(source, "start_time", 0.0)
+    frame_idx = 0
+    while True:
+        ret, frame = source.read()
+        if not ret or frame is None:
+            break
+        t_sec = start_time + (frame_idx / fps)
+        cut_t = detector.evaluate_frame(frame, t_sec)
+        if cut_t is not None:
+            cuts.append(cut_t)
+        frame_idx += 1
+    return cuts
 
 
 class TestSceneDetector(unittest.TestCase):
     def test_mock_scene_detector(self):
         detector = MockSceneDetector([1.5, 4.2])
-        source = SyntheticColoredFrameSource([(255, 0, 0)], frames_per_color=2)
-        cuts = detector.detect_cuts(source)
-        self.assertEqual(cuts, [1.5, 4.2])
+        dummy_frame = np.zeros((10, 10, 3), dtype=np.uint8)
+
+        detector.reset()
+        self.assertIsNone(detector.evaluate_frame(dummy_frame, 0.0))
+        self.assertIsNone(detector.evaluate_frame(dummy_frame, 1.4))
+        self.assertEqual(detector.evaluate_frame(dummy_frame, 1.5), 1.5)
+        self.assertIsNone(detector.evaluate_frame(dummy_frame, 2.0))
+        self.assertEqual(detector.evaluate_frame(dummy_frame, 4.2), 4.2)
+
+        # Calling reset() replays the mock cut sequence cleanly
+        detector.reset()
+        self.assertIsNone(detector.evaluate_frame(dummy_frame, 1.0))
+        self.assertEqual(detector.evaluate_frame(dummy_frame, 1.5), 1.5)
+
+        # Odd-frame cut timestamp (e.g. 0.5s) is emitted at 0.5s
+        odd_detector = MockSceneDetector([0.5])
+        odd_detector.reset()
+        self.assertIsNone(odd_detector.evaluate_frame(dummy_frame, 0.4))
+        self.assertEqual(odd_detector.evaluate_frame(dummy_frame, 0.5), 0.5)
+        self.assertIsNone(odd_detector.evaluate_frame(dummy_frame, 0.6))
 
     def test_opencv_scene_detector_detects_color_cuts(self):
         # 3 colors: Red, Blue, Green (6 frames each at 10 fps -> 0.6s per color)
@@ -70,7 +102,7 @@ class TestSceneDetector(unittest.TestCase):
         ]
         source = SyntheticColoredFrameSource(colors, frames_per_color=6, fps=10.0)
         detector = OpenCVSceneDetector(threshold=0.65, min_refractory_sec=0.5)
-        cuts = detector.detect_cuts(source)
+        cuts = _scan_cuts(detector, source)
 
         self.assertEqual(len(cuts), 2)
         self.assertAlmostEqual(cuts[0], 0.6, places=2)
@@ -87,7 +119,7 @@ class TestSceneDetector(unittest.TestCase):
         ]
         source = SyntheticColoredFrameSource(colors, frames_per_color=2, fps=10.0)
         detector = OpenCVSceneDetector(threshold=0.65, min_refractory_sec=0.5)
-        cuts = detector.detect_cuts(source)
+        cuts = _scan_cuts(detector, source)
 
         # Only the first cut at 0.2s should be recorded
         self.assertEqual(cuts, [0.2])
@@ -101,10 +133,21 @@ class TestSceneDetector(unittest.TestCase):
         start_offset = 0.083
         source = SyntheticColoredFrameSource(colors, frames_per_color=6, fps=10.0, start_time=start_offset)
         detector = OpenCVSceneDetector(threshold=0.65, min_refractory_sec=0.5)
-        cuts = detector.detect_cuts(source)
+        cuts = _scan_cuts(detector, source)
 
         self.assertEqual(len(cuts), 1)
         self.assertAlmostEqual(cuts[0], 0.6 + start_offset, places=3)
+
+    def test_opencv_scene_detector_reset_isolates_consecutive_streams(self):
+        detector = OpenCVSceneDetector(threshold=0.65, min_refractory_sec=0.5)
+        stream_one = SyntheticColoredFrameSource([(0, 0, 255)], frames_per_color=4, fps=10.0)
+        stream_two = SyntheticColoredFrameSource([(255, 0, 0)], frames_per_color=4, fps=10.0)
+
+        cuts_one = _scan_cuts(detector, stream_one)
+        cuts_two = _scan_cuts(detector, stream_two)
+
+        self.assertEqual(cuts_one, [])
+        self.assertEqual(cuts_two, [])
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,7 +4,7 @@ Date: 2026-09-23
 
 ## Status
 
-Accepted (Amends [ADR 0013](./0013-responsive-face-tracking-and-stacked-multi-speaker-reframe.md))
+Accepted (Amends [ADR 0013](./0013-responsive-face-tracking-and-stacked-multi-speaker-reframe.md); §1 and §3 `get_video_start_time()` amended by [ADR 0033](./0033-single-pass-streaming-face-tracking.md) to use causal single-pass streaming while keeping §2 unchanged)
 
 ## Context
 
