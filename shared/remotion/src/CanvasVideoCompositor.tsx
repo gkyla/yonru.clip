@@ -13,7 +13,10 @@ import {
   delayRender,
   continueRender
 } from 'remotion';
-import { isInitialDecoderFrameAligned } from './TimelineFrameRetention';
+import {
+  isInitialDecoderFrameAligned,
+  useFrameRetention
+} from './TimelineFrameRetention';
 import { usePreviewMediaCallbacks } from './PreviewMediaContext';
 import {
   computeViewportFraming,
@@ -60,7 +63,7 @@ export interface CanvasVideoCompositorProps {
   onFrameRendered?: (canvas: HTMLCanvasElement) => void;
 }
 
-export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
+const CanvasVideoCompositorInner: React.FC<CanvasVideoCompositorProps> = ({
   videoSrc,
   volume,
   mediaStartFrame,
@@ -99,10 +102,17 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const lastValidCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const blurCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const blurCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const isActiveRef = useRef<boolean>(isActive);
   isActiveRef.current = isActive;
-  const onFrameRenderedRef = useRef(onFrameRendered);
-  onFrameRenderedRef.current = onFrameRendered;
+  const contextFrameRetention = useFrameRetention();
+  const effectiveOnFrameRendered =
+    onFrameRendered ?? contextFrameRetention ?? undefined;
+  const hasRetention = Boolean(effectiveOnFrameRendered);
+  const onFrameRenderedRef = useRef(effectiveOnFrameRendered);
+  onFrameRenderedRef.current = effectiveOnFrameRendered;
   const hasRenderedValidFrameRef = useRef<boolean>(false);
   const mountFallbackUnlockedRef = useRef<boolean>(false);
   const lastVideoSrcRef = useRef<string>(videoSrc);
@@ -115,6 +125,7 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
     lastVideoSrcRef.current = videoSrc;
     hasRenderedValidFrameRef.current = false;
     mountFallbackUnlockedRef.current = false;
+    lastValidCanvasRef.current = null;
   }
 
   const fallbackFramingIndex = useMemo(
@@ -185,6 +196,14 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
 
   const draw = useCallback(
     (force: boolean = false, explicitMediaTime?: number) => {
+      if (
+        !isRendering &&
+        !isActiveRef.current &&
+        hasRenderedValidFrameRef.current
+      ) {
+        return;
+      }
+
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (!video || !canvas) return;
@@ -250,18 +269,63 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
 
         if (landscapeBackground === 'blur') {
           try {
-            // 1. Draw blurred video scaled to cover the 9:16 canvas with 8% overscan
-            ctx.save();
-            const blurRad = Math.max(1, landscapeBlurRadius ?? 25);
-            ctx.filter = `blur(${blurRad}px)`;
-            const coverScale =
-              Math.max(CONTAINER_W / vW, CONTAINER_H / vH) * 1.08;
-            const bgW = vW * coverScale;
-            const bgH = vH * coverScale;
-            const bgX = (CONTAINER_W - bgW) / 2;
-            const bgY = (CONTAINER_H - bgH) / 2;
-            ctx.drawImage(video, 0, 0, vW, vH, bgX, bgY, bgW, bgH);
-            ctx.restore();
+            // 1. Draw blurred video onto cached 1/8-scale offscreen canvas with 8% overscan
+            const blurW = Math.max(1, Math.round(CONTAINER_W / 8));
+            const blurH = Math.max(1, Math.round(CONTAINER_H / 8));
+            let blurCanvas = blurCanvasRef.current;
+            if (!blurCanvas) {
+              blurCanvas = document.createElement('canvas');
+              blurCanvas.width = blurW;
+              blurCanvas.height = blurH;
+              blurCanvasRef.current = blurCanvas;
+              blurCtxRef.current = blurCanvas.getContext('2d', {
+                alpha: false
+              });
+            } else if (
+              blurCanvas.width !== blurW ||
+              blurCanvas.height !== blurH
+            ) {
+              blurCanvas.width = blurW;
+              blurCanvas.height = blurH;
+            }
+            const blurCtx =
+              blurCtxRef.current ??
+              (blurCtxRef.current = blurCanvas.getContext('2d', {
+                alpha: false
+              }));
+
+            if (blurCtx) {
+              const blurRad = Math.max(1, landscapeBlurRadius ?? 25);
+              const scaledBlurRad = Math.max(1, Math.round(blurRad / 8));
+              const coverScale = Math.max(blurW / vW, blurH / vH) * 1.08;
+              const bgW = vW * coverScale;
+              const bgH = vH * coverScale;
+              const bgX = (blurW - bgW) / 2;
+              const bgY = (blurH - bgH) / 2;
+
+              blurCtx.save();
+              blurCtx.filter = `blur(${scaledBlurRad}px)`;
+              blurCtx.drawImage(video, 0, 0, vW, vH, bgX, bgY, bgW, bgH);
+              blurCtx.restore();
+
+              ctx.save();
+              ctx.imageSmoothingEnabled = true;
+              ctx.drawImage(
+                blurCanvas,
+                0,
+                0,
+                blurW,
+                blurH,
+                0,
+                0,
+                CONTAINER_W,
+                CONTAINER_H
+              );
+              ctx.restore();
+            } else {
+              ctx.fillStyle = '#000000';
+              ctx.fillRect(0, 0, CONTAINER_W, CONTAINER_H);
+            }
 
             // 2. Dimming overlay
             const darkness = Math.max(
@@ -358,11 +422,12 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
       }
 
       if (didDrawFrame) {
+        lastValidCanvasRef.current = canvas;
         if (!hasRenderedValidFrameRef.current) {
           hasRenderedValidFrameRef.current = true;
           canvas.style.opacity = '1';
         }
-        if (isActiveRef.current) {
+        if (isActiveRef.current && (force || video.paused)) {
           onFrameRenderedRef.current?.(canvas);
         }
       }
@@ -389,6 +454,13 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
   const drawRef = useRef(draw);
   drawRef.current = draw;
 
+  useEffect(() => {
+    return () => {
+      blurCanvasRef.current = null;
+      blurCtxRef.current = null;
+    };
+  }, []);
+
   // Sync initial canvas opacity when videoSrc changes and provide safety fallback timer
   useLayoutEffect(() => {
     const el = canvasRef.current;
@@ -402,12 +474,24 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
     } else {
       el.style.opacity = '1';
     }
-  }, [videoSrc, isRendering]);
+  }, [videoSrc, isRendering, hasRetention]);
 
+  // Refresh immediately on activation and snapshot the last painted canvas once on deactivation or unmount
   useLayoutEffect(() => {
-    if (isActive && hasRenderedValidFrameRef.current && canvasRef.current) {
-      onFrameRenderedRef.current?.(canvasRef.current);
+    if (!isActive) {
+      return;
     }
+
+    if (hasRenderedValidFrameRef.current) {
+      drawRef.current(false);
+    }
+
+    return () => {
+      const lastCanvas = lastValidCanvasRef.current ?? canvasRef.current;
+      if (hasRenderedValidFrameRef.current && lastCanvas) {
+        onFrameRenderedRef.current?.(lastCanvas);
+      }
+    };
   }, [isActive]);
 
   useEffect(() => {
@@ -426,7 +510,7 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
       }
     }, 180);
     return () => clearTimeout(timer);
-  }, [isActive, videoSrc, isRendering]);
+  }, [isActive, videoSrc, isRendering, hasRetention]);
 
   // Draw on layout effect whenever frame or draw dependencies change
   useLayoutEffect(() => {
@@ -648,3 +732,6 @@ export const CanvasVideoCompositor: React.FC<CanvasVideoCompositorProps> = ({
     </div>
   );
 };
+
+export const CanvasVideoCompositor = React.memo(CanvasVideoCompositorInner);
+CanvasVideoCompositor.displayName = 'CanvasVideoCompositor';

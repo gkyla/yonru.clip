@@ -2,7 +2,6 @@
 import React, { useMemo } from 'react';
 import {
   AbsoluteFill,
-  Video,
   OffthreadVideo,
   Audio,
   Img,
@@ -18,10 +17,18 @@ import { TimelineFrameRetention } from './TimelineFrameRetention';
 import {
   createTimelineFramingIndex,
   createTimelineSegmentIndex,
-  type TimelineFramingIndex
+  type TimelineFramingIndex,
+  type TimelineSegmentIndex
 } from './TimelineFramingIndex';
 import type { YonruClipProps, ThumbnailTextOverlay } from './types';
 import { getFont } from './fonts';
+
+const OVERFLOW_HIDDEN_STYLE: React.CSSProperties = { overflow: 'hidden' };
+const Z_INDEX_1_STYLE: React.CSSProperties = { zIndex: 1 };
+const Z_INDEX_1_OVERFLOW_HIDDEN_STYLE: React.CSSProperties = {
+  zIndex: 1,
+  overflow: 'hidden'
+};
 
 interface HeadlessMediaViewportsProps {
   videoSrc: string;
@@ -29,7 +36,7 @@ interface HeadlessMediaViewportsProps {
   mediaStartFrame?: number;
   durationFrames?: number;
   fps: number;
-  fallbackMediaTime: number;
+  segmentIndex?: TimelineSegmentIndex;
   framingIndex: TimelineFramingIndex;
   isLandscape: boolean;
   landscapeBackground?: 'black' | 'blur';
@@ -48,7 +55,7 @@ const HeadlessMediaViewports: React.FC<HeadlessMediaViewportsProps> = ({
   mediaStartFrame,
   durationFrames,
   fps,
-  fallbackMediaTime,
+  segmentIndex,
   framingIndex,
   isLandscape,
   landscapeBackground = 'black',
@@ -64,13 +71,15 @@ const HeadlessMediaViewports: React.FC<HeadlessMediaViewportsProps> = ({
   const segmentMediaTime =
     mediaStartFrame !== undefined
       ? (mediaStartFrame + Math.max(0, localFrame)) / fps
-      : fallbackMediaTime;
+      : segmentIndex
+        ? segmentIndex.resolveMediaTime(localFrame)
+        : Math.max(0, localFrame) / fps;
 
   const segFraming = framingIndex.computeFraming(segmentMediaTime);
   const segIsSplit = segFraming.isSplitActive;
 
   return (
-    <AbsoluteFill style={{ overflow: 'hidden' }}>
+    <AbsoluteFill style={OVERFLOW_HIDDEN_STYLE}>
       {/* Landscape Blurred Video Background (Headless Render parity) */}
       {isLandscape && landscapeBackground === 'blur' && (
         <div
@@ -205,6 +214,302 @@ const HeadlessMediaViewports: React.FC<HeadlessMediaViewportsProps> = ({
   );
 };
 
+interface PreviewVideoSegmentSlotProps {
+  segmentId: string | number;
+  startFrame: number;
+  endFrame: number;
+  durationFrames: number;
+  mediaStartFrame: number;
+  fps: number;
+  videoSrc: string;
+  frameVolume: number | ((f: number) => number);
+  CONTAINER_W: number;
+  CONTAINER_H: number;
+  PANEL_H: number;
+  isLandscape: boolean;
+  landscapeBackground: 'black' | 'blur';
+  landscapeBlurRadius: number;
+  landscapeDarkness: number;
+  videoDisplayW: number;
+  videoDisplayH: number;
+  rawSourceW: number;
+  sourceHeight?: number;
+  framingIndex: TimelineFramingIndex;
+}
+
+const PreviewVideoSegmentSlot: React.FC<PreviewVideoSegmentSlotProps> = ({
+  segmentId,
+  startFrame,
+  endFrame,
+  durationFrames,
+  mediaStartFrame,
+  fps,
+  videoSrc,
+  frameVolume,
+  CONTAINER_W,
+  CONTAINER_H,
+  PANEL_H,
+  isLandscape,
+  landscapeBackground,
+  landscapeBlurRadius,
+  landscapeDarkness,
+  videoDisplayW,
+  videoDisplayH,
+  rawSourceW,
+  sourceHeight,
+  framingIndex
+}) => {
+  // Compute active status outside <Sequence premountFor>: Remotion freezes
+  // useCurrentFrame() at 0 inside premounted sequences.
+  const mainVideoFrame = useCurrentFrame();
+  const isSegmentActive =
+    mainVideoFrame >= startFrame && mainVideoFrame < endFrame;
+  const premountFrames =
+    startFrame > 0 ? Math.min(Math.round(fps * 1.5), startFrame) : 0;
+
+  return (
+    <Sequence
+      from={startFrame}
+      durationInFrames={durationFrames}
+      premountFor={premountFrames > 0 ? premountFrames : undefined}
+      name={`VideoSegment-${segmentId}`}
+      style={Z_INDEX_1_STYLE}
+    >
+      <AbsoluteFill style={OVERFLOW_HIDDEN_STYLE}>
+        <CanvasVideoCompositor
+          videoSrc={videoSrc}
+          volume={frameVolume}
+          mediaStartFrame={mediaStartFrame}
+          durationFrames={durationFrames}
+          fps={fps}
+          CONTAINER_W={CONTAINER_W}
+          CONTAINER_H={CONTAINER_H}
+          PANEL_H={PANEL_H}
+          isLandscape={isLandscape}
+          landscapeBackground={landscapeBackground}
+          landscapeBlurRadius={landscapeBlurRadius}
+          landscapeDarkness={landscapeDarkness}
+          videoDisplayW={videoDisplayW}
+          videoDisplayH={videoDisplayH}
+          rawSourceW={rawSourceW}
+          sourceHeight={sourceHeight}
+          framingIndex={framingIndex}
+          isActive={isSegmentActive}
+        />
+      </AbsoluteFill>
+    </Sequence>
+  );
+};
+
+interface AdaptiveSubtitleLayerProps {
+  segmentIndex: TimelineSegmentIndex;
+  framingIndex: TimelineFramingIndex;
+  autoAdaptiveSubtitles: boolean;
+  position: YonruClipProps['position'];
+  subtitleOffset: number;
+  words: YonruClipProps['words'];
+  wordTimings: YonruClipProps['wordTimings'];
+  showDebug?: boolean;
+  subtitleStyle?: YonruClipProps['subtitleStyle'];
+}
+
+const AdaptiveSubtitleLayer: React.FC<AdaptiveSubtitleLayerProps> = ({
+  segmentIndex,
+  framingIndex,
+  autoAdaptiveSubtitles,
+  position,
+  subtitleOffset,
+  words,
+  wordTimings,
+  showDebug,
+  subtitleStyle
+}) => {
+  const mainVideoFrame = useCurrentFrame();
+  const activeMediaTime = segmentIndex.resolveMediaTime(mainVideoFrame);
+  const isSplit = autoAdaptiveSubtitles
+    ? framingIndex.isSplitAt(activeMediaTime)
+    : false;
+  const useCenterSeam = isSplit && autoAdaptiveSubtitles;
+
+  return (
+    <AbsoluteFill
+      style={{
+        justifyContent: useCenterSeam
+          ? 'center'
+          : position === 'top'
+            ? 'flex-start'
+            : position === 'center'
+              ? 'center'
+              : 'flex-end',
+        alignItems: 'center',
+        paddingTop:
+          !useCenterSeam && position === 'top' ? `${subtitleOffset}px` : 0,
+        paddingBottom:
+          !useCenterSeam && position === 'bottom' ? `${subtitleOffset}px` : 0,
+        transform: undefined,
+        zIndex: 20
+      }}
+    >
+      <AnimatedSubtitles
+        words={words}
+        wordTimings={wordTimings}
+        showDebug={showDebug}
+        style={subtitleStyle}
+      />
+    </AbsoluteFill>
+  );
+};
+
+interface TimelineTextOverlayItem {
+  id: string;
+  content?: string;
+  start: number;
+  duration: number;
+  x: number;
+  y: number;
+  color?: string;
+  fontSize?: number;
+  font?: string;
+  fontWeight?: React.CSSProperties['fontWeight'];
+  fontStyle?: React.CSSProperties['fontStyle'];
+  textDecoration?: React.CSSProperties['textDecoration'];
+  textTransform?: React.CSSProperties['textTransform'];
+  textAlign?: React.CSSProperties['textAlign'];
+  letterSpacing?: number;
+  wordSpacing?: number;
+  lineHeight?: number;
+  opacity?: number;
+  showBackground?: boolean;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  backgroundPadding?: number;
+  backgroundRoundness?: number;
+  showStroke?: boolean;
+  strokeWidth?: number;
+  strokeColor?: string;
+  shadowGlow?: string;
+  glowColor?: string;
+  shadowDistance?: number;
+  shadowBlur?: number;
+  shadowColor?: string;
+}
+
+function getTextOverlayBgColor(item: TimelineTextOverlayItem): string {
+  if (!item.showBackground) return 'transparent';
+  const baseColor = item.backgroundColor || '#000000';
+  if (baseColor.startsWith('#')) {
+    const opacityVal =
+      item.backgroundOpacity !== undefined ? item.backgroundOpacity : 0.7;
+    const hexOpacity = Math.round(opacityVal * 255)
+      .toString(16)
+      .padStart(2, '0');
+    return `${baseColor}${hexOpacity}`;
+  }
+  return baseColor;
+}
+
+function getTextOverlayShadow(item: TimelineTextOverlayItem): string {
+  if (item.shadowGlow === 'glow') {
+    const glow = item.glowColor || '#FFFFFF';
+    return `0 0 10px ${glow}, 0 0 20px ${glow}, 0 0 30px ${glow}`;
+  }
+  if (item.shadowGlow === 'shadow') {
+    const dist = item.shadowDistance !== undefined ? item.shadowDistance : 4;
+    const blur = item.shadowBlur !== undefined ? item.shadowBlur : 8;
+    const color = item.shadowColor || 'rgba(0,0,0,0.6)';
+    return `${dist}px ${dist}px ${blur}px ${color}`;
+  }
+  return 'none';
+}
+
+interface ActiveTextOverlaysProps {
+  timelineTextItems: readonly TimelineTextOverlayItem[];
+  fps: number;
+}
+
+const ActiveTextOverlays: React.FC<ActiveTextOverlaysProps> = ({
+  timelineTextItems,
+  fps
+}) => {
+  const mainVideoFrame = useCurrentFrame();
+  const currentTime = Math.max(0, mainVideoFrame) / fps;
+  const activeTextItems = timelineTextItems.filter(
+    item =>
+      currentTime >= item.start && currentTime < item.start + item.duration
+  );
+
+  if (activeTextItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      {activeTextItems.map((item, idx) => {
+        const textStroke =
+          item.strokeWidth && item.strokeWidth > 0
+            ? `${item.strokeWidth}px ${item.strokeColor || '#000000'}`
+            : undefined;
+
+        return (
+          <AbsoluteFill
+            key={item.id}
+            style={{
+              zIndex: 21 + idx,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              pointerEvents: 'none'
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                left: `${item.x}px`,
+                top: `${item.y}px`,
+                color: item.color || '#FFFFFF',
+                fontSize: `${item.fontSize || 80}px`,
+                fontFamily: getFont(item.font || 'Outfit'),
+                fontWeight: item.fontWeight || 900,
+                fontStyle: item.fontStyle || 'normal',
+                textDecoration: item.textDecoration || 'none',
+                textTransform: item.textTransform || 'none',
+                textAlign: item.textAlign || 'center',
+                letterSpacing: `${item.letterSpacing !== undefined ? item.letterSpacing : 0}px`,
+                wordSpacing: `${item.wordSpacing !== undefined ? item.wordSpacing : 0}px`,
+                lineHeight:
+                  item.lineHeight !== undefined ? item.lineHeight : 1.1,
+                opacity: item.opacity !== undefined ? item.opacity : 1.0,
+                // No transform: Konva label config resets offset to {x:0,y:0} on every
+                // reactive update, so stored coordinates are top-left based, not center.
+                whiteSpace: 'pre-wrap',
+                maxWidth: '900px',
+                // Background Box
+                backgroundColor: getTextOverlayBgColor(item),
+                padding: `${item.showBackground ? (item.backgroundPadding !== undefined ? item.backgroundPadding : 15) : 15}px`,
+                borderRadius: item.showBackground
+                  ? `${item.backgroundRoundness !== undefined ? item.backgroundRoundness : 10}px`
+                  : 0,
+                display: 'inline-block',
+                width: 'fit-content',
+                // Text Stroke
+                paintOrder: item.showStroke ? 'stroke fill' : undefined,
+                WebkitTextStroke:
+                  item.showStroke && item.strokeWidth
+                    ? `${item.strokeWidth * 2}px ${item.strokeColor || '#000000'}`
+                    : textStroke,
+                // Text Shadow / Glow
+                textShadow: getTextOverlayShadow(item)
+              }}
+            >
+              {item.content || ''}
+            </div>
+          </AbsoluteFill>
+        );
+      })}
+    </>
+  );
+};
+
 function transformText(text: string, transform?: string): string {
   if (!text) return '';
   if (transform === 'uppercase') return text.toUpperCase();
@@ -258,7 +563,6 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   censoredSegments = [],
   bleepAudioSrc
 }) => {
-  const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const { isRendering } = useRemotionEnvironment();
 
@@ -271,7 +575,6 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   const thumbnailFrames = isCoverActive
     ? Math.round(activeCoverDuration * fps)
     : 0;
-  const currentTime = Math.max(0, frame - thumbnailFrames) / fps;
 
   // Automated Micro-Envelope (15ms zero-crossing) & Frame-Locked Volume Ducking
   const baseVolume = volume;
@@ -348,23 +651,6 @@ export const YonruClip: React.FC<YonruClipProps> = ({
     (videoPath.startsWith('http') || videoPath.startsWith('blob:'));
   const videoSrc = videoPath ? (isUrl ? videoPath : staticFile(videoPath)) : '';
 
-  if (isRendering) {
-    console.log('[Remotion Render] Props:', {
-      videoPath,
-      wordsCount: words?.length,
-      position,
-      videoLayout,
-      thumbnailEnabled,
-      thumbnailFrames
-    });
-  }
-
-  // Filter active text items (adjusted for thumbnail offset)
-  const activeTextItems = timelineTextItems.filter(
-    item =>
-      currentTime >= item.start && currentTime < item.start + item.duration
-  );
-
   // Pre-index contiguous video segments and frame windows once per clip edit
   const segmentIndex = useMemo(
     () => createTimelineSegmentIndex(timelineVideoItems, fps),
@@ -383,12 +669,6 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   const videoDisplayW = isLandscape ? CONTAINER_W : CONTAINER_H * videoAspect;
   const videoDisplayH = isLandscape ? CONTAINER_W / videoAspect : CONTAINER_H;
   const rawSourceW = sourceWidth || (isLandscape ? 1080 : 1920);
-
-  const mainVideoFrame = frame - thumbnailFrames;
-  const activeMediaTime = useMemo(
-    () => segmentIndex.resolveMediaTime(mainVideoFrame),
-    [mainVideoFrame, segmentIndex]
-  );
 
   const framingIndex = useMemo(
     () =>
@@ -428,18 +708,6 @@ export const YonruClip: React.FC<YonruClipProps> = ({
       videoDisplayH
     ]
   );
-
-  if (frame % 30 === 0) {
-    const activeFraming = framingIndex.computeFraming(activeMediaTime);
-    console.log(
-      `[Remotion] frame=${frame} time=${currentTime.toFixed(2)} mediaTime=${activeMediaTime.toFixed(2)} mode=${activeFraming.mode} activeX=${activeFraming.x.toFixed(0)}`
-    );
-  }
-
-  const isSplit =
-    !hideSubtitles && autoAdaptiveSubtitles
-      ? framingIndex.isSplitAt(activeMediaTime)
-      : false;
 
   return (
     <AbsoluteFill style={{ backgroundColor: 'black', overflow: 'hidden' }}>
@@ -508,45 +776,46 @@ export const YonruClip: React.FC<YonruClipProps> = ({
 
       {/* ===== MAIN VIDEO ===== */}
       <Sequence from={thumbnailFrames} name="MainVideo">
-        {(() => {
-          const renderMediaViewports = (
-            mediaStartFrame?: number,
-            durationFrames?: number,
-            onFrameRendered?: (canvas: HTMLCanvasElement) => void,
-            isActive: boolean = true
-          ) => {
-            if (isRendering) {
-              // HEADLESS RENDER: Frame-accurate native Remotion OffthreadVideo synced to segment media time
-              return (
-                <HeadlessMediaViewports
+        {videoPath && !isRendering && (
+          <TimelineFrameRetention
+            videoSrc={videoSrc}
+            width={CONTAINER_W}
+            height={CONTAINER_H}
+            fps={fps}
+            timelineVideoItems={segmentIndex.coalesced}
+            segmentIndex={segmentIndex}
+          >
+            {segmentIndex.coalesced.length > 0 ? (
+              segmentIndex.windows.map(({ segment, window }, idx) => (
+                <PreviewVideoSegmentSlot
+                  key={segment.id ?? `seg-${idx}`}
+                  segmentId={segment.id ?? idx}
+                  startFrame={window.startFrame}
+                  endFrame={window.endFrame}
+                  durationFrames={window.durationFrames}
+                  mediaStartFrame={window.mediaStartFrame}
+                  fps={fps}
                   videoSrc={videoSrc}
                   frameVolume={frameVolume}
-                  mediaStartFrame={mediaStartFrame}
-                  durationFrames={durationFrames}
-                  fps={fps}
-                  fallbackMediaTime={activeMediaTime}
-                  framingIndex={framingIndex}
+                  CONTAINER_W={CONTAINER_W}
+                  CONTAINER_H={CONTAINER_H}
+                  PANEL_H={PANEL_H}
                   isLandscape={isLandscape}
                   landscapeBackground={landscapeBackground}
                   landscapeBlurRadius={landscapeBlurRadius}
                   landscapeDarkness={landscapeDarkness}
-                  CONTAINER_W={CONTAINER_W}
-                  CONTAINER_H={CONTAINER_H}
-                  PANEL_H={PANEL_H}
                   videoDisplayW={videoDisplayW}
                   videoDisplayH={videoDisplayH}
+                  rawSourceW={rawSourceW}
+                  sourceHeight={sourceHeight}
+                  framingIndex={framingIndex}
                 />
-              );
-            }
-
-            // EDITOR PREVIEW: Single-decoder HTML5 Canvas Compositor (Zero "muka kembar", fast scrubbing)
-            return (
-              <AbsoluteFill style={{ overflow: 'hidden' }}>
+              ))
+            ) : (
+              <AbsoluteFill style={Z_INDEX_1_OVERFLOW_HIDDEN_STYLE}>
                 <CanvasVideoCompositor
                   videoSrc={videoSrc}
                   volume={frameVolume}
-                  mediaStartFrame={mediaStartFrame}
-                  durationFrames={durationFrames}
                   fps={fps}
                   CONTAINER_W={CONTAINER_W}
                   CONTAINER_H={CONTAINER_H}
@@ -560,234 +829,81 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   rawSourceW={rawSourceW}
                   sourceHeight={sourceHeight}
                   framingIndex={framingIndex}
-                  isActive={isActive}
-                  onFrameRendered={onFrameRendered}
+                  isActive={true}
                 />
               </AbsoluteFill>
-            );
-          };
+            )}
+          </TimelineFrameRetention>
+        )}
 
-          if (!videoPath) {
-            return null;
-          }
-
-          if (!isRendering) {
-            return (
-              <TimelineFrameRetention
-                videoSrc={videoSrc}
-                width={CONTAINER_W}
-                height={CONTAINER_H}
-                mainVideoFrame={mainVideoFrame}
-                fps={fps}
-                timelineVideoItems={segmentIndex.coalesced}
-                segmentIndex={segmentIndex}
-              >
-                {onFrameRendered => {
-                  if (segmentIndex.coalesced.length > 0) {
-                    const retentionCallback = segmentIndex.needsRetention
-                      ? onFrameRendered
-                      : undefined;
-                    return segmentIndex.windows.map(
-                      ({ segment, window }, idx) => {
-                        const {
-                          startFrame,
-                          endFrame,
-                          durationFrames,
-                          mediaStartFrame
-                        } = window;
-                        const isSegmentActive =
-                          mainVideoFrame >= startFrame &&
-                          mainVideoFrame < endFrame;
-                        const premountFrames =
-                          startFrame > 0
-                            ? Math.min(Math.round(fps * 1.5), startFrame)
-                            : 0;
-                        return (
-                          <Sequence
-                            key={segment.id ?? `seg-${idx}`}
-                            from={startFrame}
-                            durationInFrames={durationFrames}
-                            premountFor={
-                              premountFrames > 0 ? premountFrames : undefined
-                            }
-                            name={`VideoSegment-${segment.id ?? idx}`}
-                            style={{ zIndex: 1 }}
-                          >
-                            {renderMediaViewports(
-                              mediaStartFrame,
-                              durationFrames,
-                              retentionCallback,
-                              isSegmentActive
-                            )}
-                          </Sequence>
-                        );
-                      }
-                    );
-                  }
-
-                  return (
-                    <AbsoluteFill style={{ zIndex: 1 }}>
-                      {renderMediaViewports(
-                        undefined,
-                        undefined,
-                        undefined,
-                        true
-                      )}
-                    </AbsoluteFill>
-                  );
-                }}
-              </TimelineFrameRetention>
-            );
-          }
-
-          if (segmentIndex.coalesced.length > 0) {
-            return segmentIndex.windows.map(({ segment, window }, idx) => (
+        {videoPath &&
+          isRendering &&
+          (segmentIndex.coalesced.length > 0 ? (
+            segmentIndex.windows.map(({ segment, window }, idx) => (
               <Sequence
                 key={segment.id ?? `seg-${idx}`}
                 from={window.startFrame}
                 durationInFrames={window.durationFrames}
                 name={`VideoSegment-${segment.id ?? idx}`}
               >
-                {renderMediaViewports(
-                  window.mediaStartFrame,
-                  window.durationFrames
-                )}
+                <HeadlessMediaViewports
+                  videoSrc={videoSrc}
+                  frameVolume={frameVolume}
+                  mediaStartFrame={window.mediaStartFrame}
+                  durationFrames={window.durationFrames}
+                  fps={fps}
+                  segmentIndex={segmentIndex}
+                  framingIndex={framingIndex}
+                  isLandscape={isLandscape}
+                  landscapeBackground={landscapeBackground}
+                  landscapeBlurRadius={landscapeBlurRadius}
+                  landscapeDarkness={landscapeDarkness}
+                  CONTAINER_W={CONTAINER_W}
+                  CONTAINER_H={CONTAINER_H}
+                  PANEL_H={PANEL_H}
+                  videoDisplayW={videoDisplayW}
+                  videoDisplayH={videoDisplayH}
+                />
               </Sequence>
-            ));
-          }
-
-          return renderMediaViewports();
-        })()}
+            ))
+          ) : (
+            <HeadlessMediaViewports
+              videoSrc={videoSrc}
+              frameVolume={frameVolume}
+              fps={fps}
+              segmentIndex={segmentIndex}
+              framingIndex={framingIndex}
+              isLandscape={isLandscape}
+              landscapeBackground={landscapeBackground}
+              landscapeBlurRadius={landscapeBlurRadius}
+              landscapeDarkness={landscapeDarkness}
+              CONTAINER_W={CONTAINER_W}
+              CONTAINER_H={CONTAINER_H}
+              PANEL_H={PANEL_H}
+              videoDisplayW={videoDisplayW}
+              videoDisplayH={videoDisplayH}
+            />
+          ))}
 
         {/* Subtitles layer */}
-        {!hideSubtitles &&
-          (() => {
-            const useCenterSeam = isSplit && autoAdaptiveSubtitles;
-            return (
-              <AbsoluteFill
-                style={{
-                  justifyContent: useCenterSeam
-                    ? 'center'
-                    : position === 'top'
-                      ? 'flex-start'
-                      : position === 'center'
-                        ? 'center'
-                        : 'flex-end',
-                  alignItems: 'center',
-                  paddingTop:
-                    !useCenterSeam && position === 'top'
-                      ? `${subtitleOffset}px`
-                      : 0,
-                  paddingBottom:
-                    !useCenterSeam && position === 'bottom'
-                      ? `${subtitleOffset}px`
-                      : 0,
-                  transform: undefined,
-                  zIndex: 20
-                }}
-              >
-                <AnimatedSubtitles
-                  words={words}
-                  wordTimings={wordTimings}
-                  showDebug={showDebug}
-                  style={subtitleStyle}
-                />
-              </AbsoluteFill>
-            );
-          })()}
+        {!hideSubtitles && (
+          <AdaptiveSubtitleLayer
+            segmentIndex={segmentIndex}
+            framingIndex={framingIndex}
+            autoAdaptiveSubtitles={autoAdaptiveSubtitles}
+            position={position}
+            subtitleOffset={subtitleOffset}
+            words={words}
+            wordTimings={wordTimings}
+            showDebug={showDebug}
+            subtitleStyle={subtitleStyle}
+          />
+        )}
 
         {/* Timeline Text layers (ordered bottom-to-top so upper tracks paint above lower tracks) */}
-        {activeTextItems.map((item, idx) => {
-          const getBgColor = (it: any) => {
-            if (!it.showBackground) return 'transparent';
-            const baseColor = it.backgroundColor || '#000000';
-            if (baseColor.startsWith('#')) {
-              const opacityVal =
-                it.backgroundOpacity !== undefined ? it.backgroundOpacity : 0.7;
-              const hexOpacity = Math.round(opacityVal * 255)
-                .toString(16)
-                .padStart(2, '0');
-              return `${baseColor}${hexOpacity}`;
-            }
-            return baseColor;
-          };
-
-          const getTextShadow = (it: any) => {
-            if (it.shadowGlow === 'glow') {
-              const glow = it.glowColor || '#FFFFFF';
-              return `0 0 10px ${glow}, 0 0 20px ${glow}, 0 0 30px ${glow}`;
-            }
-            if (it.shadowGlow === 'shadow') {
-              const dist =
-                it.shadowDistance !== undefined ? it.shadowDistance : 4;
-              const blur = it.shadowBlur !== undefined ? it.shadowBlur : 8;
-              const color = it.shadowColor || 'rgba(0,0,0,0.6)';
-              return `${dist}px ${dist}px ${blur}px ${color}`;
-            }
-            return 'none';
-          };
-
-          const textStroke =
-            item.strokeWidth && item.strokeWidth > 0
-              ? `${item.strokeWidth}px ${item.strokeColor || '#000000'}`
-              : undefined;
-
-          return (
-            <AbsoluteFill
-              key={item.id}
-              style={{
-                zIndex: 21 + idx,
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                pointerEvents: 'none'
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  left: `${item.x}px`,
-                  top: `${item.y}px`,
-                  color: item.color || '#FFFFFF',
-                  fontSize: `${item.fontSize || 80}px`,
-                  fontFamily: getFont(item.font || 'Outfit'),
-                  fontWeight: item.fontWeight || 900,
-                  fontStyle: item.fontStyle || 'normal',
-                  textDecoration: item.textDecoration || 'none',
-                  textTransform: item.textTransform || 'none',
-                  textAlign: item.textAlign || 'center',
-                  letterSpacing: `${item.letterSpacing !== undefined ? item.letterSpacing : 0}px`,
-                  wordSpacing: `${item.wordSpacing !== undefined ? item.wordSpacing : 0}px`,
-                  lineHeight:
-                    item.lineHeight !== undefined ? item.lineHeight : 1.1,
-                  opacity: item.opacity !== undefined ? item.opacity : 1.0,
-                  // No transform: Konva label config resets offset to {x:0,y:0} on every
-                  // reactive update, so stored coordinates are top-left based, not center.
-                  whiteSpace: 'pre-wrap',
-                  maxWidth: '900px',
-                  // Background Box
-                  backgroundColor: getBgColor(item),
-                  padding: `${item.showBackground ? (item.backgroundPadding !== undefined ? item.backgroundPadding : 15) : 15}px`,
-                  borderRadius: item.showBackground
-                    ? `${item.backgroundRoundness !== undefined ? item.backgroundRoundness : 10}px`
-                    : 0,
-                  display: 'inline-block',
-                  width: 'fit-content',
-                  // Text Stroke
-                  paintOrder: item.showStroke ? 'stroke fill' : undefined,
-                  WebkitTextStroke:
-                    item.showStroke && item.strokeWidth
-                      ? `${item.strokeWidth * 2}px ${item.strokeColor || '#000000'}`
-                      : textStroke,
-                  // Text Shadow / Glow
-                  textShadow: getTextShadow(item)
-                }}
-              >
-                {item.content || ''}
-              </div>
-            </AbsoluteFill>
-          );
-        })}
+        {timelineTextItems.length > 0 && (
+          <ActiveTextOverlays timelineTextItems={timelineTextItems} fps={fps} />
+        )}
 
         {/* Frame-Locked Censorship Bleep Audio Layers */}
         {bleepAudioSrc &&

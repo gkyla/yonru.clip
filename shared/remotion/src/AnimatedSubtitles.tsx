@@ -227,7 +227,6 @@ function renderChunkTextWithHighlight(
 
         const wordStyle: React.CSSProperties = {
           display: 'inline',
-          transition: 'all 0.1s',
           position: 'relative'
         };
 
@@ -462,8 +461,7 @@ function renderTypewriter(
           display: 'inline-block',
           opacity: wordOpacity,
           transform: `translateY(${wordTranslateY}px)`,
-          position: 'relative',
-          transition: 'all 0.1s ease'
+          position: 'relative'
         };
 
         if (isActive) {

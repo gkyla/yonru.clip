@@ -362,6 +362,9 @@ describe('TimelineFramingIndex module', () => {
         expect(wordSpans.map(s => s.textContent)).toEqual(['ONE', 'TWO']);
         expect((wordSpans[0] as HTMLElement).style.color).not.toBe('');
         expect((wordSpans[1] as HTMLElement).style.color).toBe('');
+        for (const span of wordSpans) {
+          expect((span as HTMLElement).style.transition).toBe('');
+        }
 
         // Advance to frame 21 (0.7s -> 'TWO' highlighted)
         renderSubs(21, 'pop');
@@ -374,6 +377,9 @@ describe('TimelineFramingIndex module', () => {
         wordSpans = Array.from(container.querySelectorAll('span span'));
         expect((wordSpans[0] as HTMLElement).style.opacity).toBe('0.5');
         expect((wordSpans[1] as HTMLElement).style.color).not.toBe('');
+        for (const span of wordSpans) {
+          expect((span as HTMLElement).style.transition).toBe('');
+        }
 
         // 3. Gap returns null
         renderSubs(45, 'pop');
@@ -385,12 +391,18 @@ describe('TimelineFramingIndex module', () => {
         expect(wordSpans.map(s => s.textContent)).toEqual(['ONE', 'TWO']);
         expect((wordSpans[0] as HTMLElement).style.color).not.toBe('');
         expect((wordSpans[1] as HTMLElement).style.color).toBe('');
+        for (const span of wordSpans) {
+          expect((span as HTMLElement).style.transition).toBe('');
+        }
 
         renderSubs(81, 'typewriter');
         wordSpans = Array.from(container.querySelectorAll('span span'));
         expect(wordSpans.map(s => s.textContent)).toEqual(['ALPHA', 'BETA']);
         expect((wordSpans[0] as HTMLElement).style.color).toBe('');
         expect((wordSpans[1] as HTMLElement).style.color).not.toBe('');
+        for (const span of wordSpans) {
+          expect((span as HTMLElement).style.transition).toBe('');
+        }
       } finally {
         act(() => {
           root.unmount();

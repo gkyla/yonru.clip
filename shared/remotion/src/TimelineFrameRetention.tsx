@@ -1,5 +1,12 @@
 /** @jsxImportSource react */
-import React, { useRef, useCallback, useLayoutEffect, useMemo } from 'react';
+import React, {
+  useRef,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo
+} from 'react';
+import { useCurrentFrame } from 'remotion';
 import {
   coalesceContiguousVideoSegments,
   createTimelineSegmentIndex,
@@ -19,7 +26,18 @@ export {
 };
 export type { SegmentFrameWindow, TimelineVideoSegmentBounds };
 
-const NOOP_ON_FRAME_RENDERED = (_sourceCanvas: HTMLCanvasElement): void => {};
+export type FrameRetentionCallback = (sourceCanvas: HTMLCanvasElement) => void;
+
+export const TimelineFrameRetentionContext =
+  React.createContext<FrameRetentionCallback | null>(null);
+
+/**
+ * Consumes the nearest TimelineFrameRetention snapshot callback, or null when
+ * retention is inactive or outside a TimelineFrameRetention provider.
+ */
+export function useFrameRetention(): FrameRetentionCallback | null {
+  return useContext(TimelineFrameRetentionContext);
+}
 
 export function isMainVideoFrameCovered(
   mainVideoFrame: number,
@@ -76,14 +94,34 @@ export interface TimelineFrameRetentionProps {
   videoSrc: string;
   width: number;
   height: number;
-  mainVideoFrame: number;
+  mainVideoFrame?: number;
   fps: number;
   timelineVideoItems?: readonly TimelineVideoSegmentBounds[];
   segmentIndex?: TimelineSegmentIndex;
-  children: (
-    onFrameRendered: (sourceCanvas: HTMLCanvasElement) => void
-  ) => React.ReactNode;
+  children: React.ReactNode;
 }
+
+interface RetentionCoverageSyncProps {
+  segmentIndex: TimelineSegmentIndex;
+  isCoveredRef: React.MutableRefObject<boolean>;
+  syncVisibility: () => void;
+}
+
+const RetentionCoverageSync: React.FC<RetentionCoverageSyncProps> = ({
+  segmentIndex,
+  isCoveredRef,
+  syncVisibility
+}) => {
+  const frame = useCurrentFrame();
+  const isCovered = segmentIndex.isFrameCovered(frame);
+  isCoveredRef.current = isCovered;
+
+  useLayoutEffect(() => {
+    syncVisibility();
+  }, [isCovered, syncVisibility]);
+
+  return null;
+};
 
 export const TimelineFrameRetention: React.FC<TimelineFrameRetentionProps> = ({
   videoSrc,
@@ -116,11 +154,18 @@ export const TimelineFrameRetention: React.FC<TimelineFrameRetentionProps> = ({
     hasRetainedFrameRef.current = false;
   }
 
-  const isCovered = needsRetention
-    ? activeIndex.isFrameCovered(mainVideoFrame)
-    : true;
-  const isCoveredRef = useRef<boolean>(isCovered);
-  isCoveredRef.current = isCovered;
+  const explicitIsCovered =
+    mainVideoFrame !== undefined
+      ? needsRetention
+        ? activeIndex.isFrameCovered(mainVideoFrame)
+        : true
+      : undefined;
+  const isCoveredRef = useRef<boolean>(explicitIsCovered ?? true);
+  if (explicitIsCovered !== undefined) {
+    isCoveredRef.current = explicitIsCovered;
+  } else if (!needsRetention) {
+    isCoveredRef.current = true;
+  }
 
   const syncVisibility = useCallback(() => {
     const el = retentionCanvasRef.current;
@@ -146,9 +191,9 @@ export const TimelineFrameRetention: React.FC<TimelineFrameRetentionProps> = ({
     if (needsRetention) {
       syncVisibility();
     }
-  }, [needsRetention, isCovered, videoSrc, syncVisibility]);
+  }, [needsRetention, explicitIsCovered, videoSrc, syncVisibility]);
 
-  const handleFrameRendered = useCallback(
+  const handleFrameRendered = useCallback<FrameRetentionCallback>(
     (sourceCanvas: HTMLCanvasElement) => {
       const retentionCanvas = retentionCanvasRef.current;
       if (!retentionCanvas || !sourceCanvas) return;
@@ -170,7 +215,9 @@ export const TimelineFrameRetention: React.FC<TimelineFrameRetentionProps> = ({
   );
 
   return (
-    <>
+    <TimelineFrameRetentionContext.Provider
+      value={needsRetention ? handleFrameRendered : null}
+    >
       {needsRetention && (
         <canvas
           ref={setRetentionCanvasRef}
@@ -188,7 +235,14 @@ export const TimelineFrameRetention: React.FC<TimelineFrameRetentionProps> = ({
           }}
         />
       )}
-      {children(needsRetention ? handleFrameRendered : NOOP_ON_FRAME_RENDERED)}
-    </>
+      {needsRetention && mainVideoFrame === undefined && (
+        <RetentionCoverageSync
+          segmentIndex={activeIndex}
+          isCoveredRef={isCoveredRef}
+          syncVisibility={syncVisibility}
+        />
+      )}
+      {children}
+    </TimelineFrameRetentionContext.Provider>
   );
 };
