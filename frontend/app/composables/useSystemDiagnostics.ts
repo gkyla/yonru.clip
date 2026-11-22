@@ -1,6 +1,10 @@
 import { isPrerequisiteMissing } from '../utils/systemDiagnostics';
 import type { SystemHealth } from '../utils/systemDiagnostics';
-import type { HardwareProfile } from '../types/clipper';
+import type { HardwareProfile, HookDiscoveryModelId } from '../types/clipper';
+import {
+  DEFAULT_HOOK_DISCOVERY_MODEL,
+  normalizeHookDiscoveryModel
+} from '../utils/hookDiscoveryModels';
 
 export const useSystemDiagnostics = () => {
   const API_BASE = resolveApiBase();
@@ -13,6 +17,10 @@ export const useSystemDiagnostics = () => {
   const settingsScrollTarget = useState<string | null>(
     'settingsScrollTarget',
     () => null
+  );
+  const geminiModel = useState<HookDiscoveryModelId>(
+    'geminiModel',
+    () => DEFAULT_HOOK_DISCOVERY_MODEL
   );
 
   const hardwareProfile = useState<HardwareProfile | null>(
@@ -42,6 +50,9 @@ export const useSystemDiagnostics = () => {
     try {
       const res = await $fetch<SystemHealth>(`${API_BASE}/api/system-health`);
       systemHealth.value = res;
+      if (res?.gemini_api?.model) {
+        geminiModel.value = normalizeHookDiscoveryModel(res.gemini_api.model);
+      }
     } catch (e) {
       console.error('Failed to fetch system health', e);
     } finally {
@@ -72,6 +83,7 @@ export const useSystemDiagnostics = () => {
     systemHealth,
     checkingHealth,
     settingsScrollTarget,
+    geminiModel,
     isAnyPrerequisiteMissing,
     checkSystemHealth,
     hardwareProfile,

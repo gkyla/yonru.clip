@@ -1,18 +1,157 @@
 <template>
   <div id="settings-api" key="api" class="scroll-mt-24 flex flex-col gap-6">
     <div>
+      <h3 class="text-lg font-bold text-white mb-1 flex items-center gap-2">
+        <Icon
+          name="ri:equalizer-line"
+          class="text-accent-500"
+          aria-hidden="true"
+        />
+        <span>AI Model</span>
+      </h3>
+      <p class="text-sm text-slate-400">
+        Select the Hook Discovery Model and manage Gemini API failover keys.
+      </p>
+    </div>
+
+    <!-- Hook Discovery Model Selection -->
+    <section
+      aria-labelledby="hook-discovery-model-label"
+      class="p-4 border bg-surface-dark/40 border-surface-border/60 flex flex-col gap-3.5 shadow-sm"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <label
+          id="hook-discovery-model-label"
+          for="hook-discovery-model-select"
+          class="text-sm font-semibold text-white"
+        >
+          Hook Discovery Model
+        </label>
+
+        <div class="flex items-center gap-2.5 text-xs">
+          <span
+            v-if="savingModel"
+            role="status"
+            aria-live="polite"
+            class="inline-flex items-center gap-1.5 text-accent-400 font-medium"
+          >
+            <Icon
+              name="ri:loader-4-line"
+              class="animate-spin text-xs"
+              aria-hidden="true"
+            />
+            <span>Saving...</span>
+          </span>
+          <span class="text-slate-400">
+            Provider:
+            <span class="text-slate-200 font-medium">
+              {{ activeModelOption.providerLabel }}
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <div class="relative">
+        <select
+          id="hook-discovery-model-select"
+          name="gemini_model"
+          :value="activeModelId"
+          :disabled="savingModel"
+          aria-describedby="hook-discovery-model-desc"
+          :aria-invalid="modelSaveError ? 'true' : undefined"
+          class="hook-model-select w-full min-h-[44px] bg-[#0c0e14] border border-surface-border hover:border-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70 focus-visible:border-accent-500 text-white text-sm font-medium pl-3.5 pr-10 py-2.5 appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          @change="handleModelChange"
+        >
+          <option
+            v-for="option in resolvedModelOptions"
+            :key="option.id"
+            :value="option.id"
+            class="bg-[#0c0e14] text-slate-100"
+          >
+            {{ option.name }} ({{ option.tier }})
+          </option>
+        </select>
+        <Icon
+          name="ri:arrow-down-s-line"
+          aria-hidden="true"
+          class="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base"
+        />
+      </div>
+
+      <div id="hook-discovery-model-desc" class="flex flex-col gap-2.5">
+        <p class="text-xs text-slate-300 leading-relaxed max-w-[72ch]">
+          {{ activeModelOption.desc }}
+        </p>
+
+        <div
+          class="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-surface-border/40 text-xs"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <code
+              class="font-mono text-[11px] text-slate-300 bg-black/40 border border-white/10 px-2 py-0.5 whitespace-nowrap"
+            >
+              {{ activeModelOption.id }}
+            </code>
+            <span class="text-slate-400">
+              {{ activeModelOption.quotaNote }}
+            </span>
+          </div>
+
+          <a
+            href="https://aistudio.google.com/rate-limit"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-slate-300 hover:text-accent-400 underline underline-offset-4 decoration-slate-600 hover:decoration-accent-400 transition-colors inline-flex items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70 whitespace-nowrap"
+          >
+            <span>Check Google AI Studio rate limits</span>
+            <Icon
+              name="ri:external-link-line"
+              aria-hidden="true"
+              class="text-xs"
+            />
+          </a>
+        </div>
+      </div>
+
+      <div
+        v-if="modelSaveError"
+        role="alert"
+        class="p-2.5 border border-red-500/30 bg-red-500/10 text-xs text-red-300 flex items-center gap-2"
+      >
+        <Icon
+          name="ri:error-warning-line"
+          aria-hidden="true"
+          class="text-sm text-red-400 shrink-0"
+        />
+        <span>{{ modelSaveError }}</span>
+      </div>
+    </section>
+
+    <hr class="border-surface-border/50" />
+
+    <!-- Gemini API Keys Section -->
+    <div>
       <div class="flex justify-between items-center mb-2">
-        <h3 class="text-lg font-bold text-white flex items-center gap-2">
-          <Icon name="ri:key-2-fill" class="text-accent-500" />
+        <h4 class="text-base font-bold text-white flex items-center gap-2">
+          <Icon
+            name="ri:key-2-fill"
+            class="text-accent-500"
+            aria-hidden="true"
+          />
           <span>Gemini API Keys</span>
-        </h3>
+        </h4>
 
         <button
           v-if="keysList.length > 0"
-          class="flex items-center gap-1.5 px-3.5 py-1.5 bg-surface-dark hover:bg-surface-card border border-surface-border hover:border-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer shadow-sm"
+          type="button"
+          class="flex items-center gap-1.5 px-3.5 py-1.5 bg-surface-dark hover:bg-surface-card border border-surface-border hover:border-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70 shadow-sm"
           @click="emit('addKey')"
         >
-          <Icon name="ri:add-line" class="text-accent-500 text-sm" />
+          <Icon
+            name="ri:add-line"
+            class="text-accent-500 text-sm"
+            aria-hidden="true"
+          />
           <span>Add Fallback Key</span>
         </button>
       </div>
@@ -81,20 +220,32 @@
               class="flex items-center bg-black/40 border border-white/5 rounded-md p-0.5 shrink-0"
             >
               <button
+                type="button"
                 :disabled="index === 0"
-                class="p-0.5 text-slate-500 hover:text-white transition-colors disabled:opacity-20 disabled:hover:text-slate-500 cursor-pointer flex items-center justify-center"
+                class="p-0.5 text-slate-500 hover:text-white transition-colors disabled:opacity-20 disabled:hover:text-slate-500 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70"
                 title="Move Up"
+                aria-label="Move key up"
                 @click="emit('moveKey', index, -1)"
               >
-                <Icon name="ri:arrow-up-s-line" class="text-xs" />
+                <Icon
+                  name="ri:arrow-up-s-line"
+                  class="text-xs"
+                  aria-hidden="true"
+                />
               </button>
               <button
+                type="button"
                 :disabled="index === keysList.length - 1"
-                class="p-0.5 text-slate-500 hover:text-white transition-colors disabled:opacity-20 disabled:hover:text-slate-500 cursor-pointer flex items-center justify-center"
+                class="p-0.5 text-slate-500 hover:text-white transition-colors disabled:opacity-20 disabled:hover:text-slate-500 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70"
                 title="Move Down"
+                aria-label="Move key down"
                 @click="emit('moveKey', index, 1)"
               >
-                <Icon name="ri:arrow-down-s-line" class="text-xs" />
+                <Icon
+                  name="ri:arrow-down-s-line"
+                  class="text-xs"
+                  aria-hidden="true"
+                />
               </button>
             </div>
           </div>
@@ -108,6 +259,7 @@
               <input
                 v-model="keyItem.title"
                 type="text"
+                aria-label="API key label"
                 placeholder="Label (e.g. Work Key)"
                 class="w-full bg-[#0c0e14] border border-surface-border/60 hover:border-slate-700 focus:border-accent-500/50 text-slate-200 placeholder-slate-600 px-2.5 py-1.5 rounded-lg focus:outline-none text-xs"
               />
@@ -118,17 +270,21 @@
               <input
                 v-model="keyItem.value"
                 :type="keyItem.show ? 'text' : 'password'"
+                aria-label="Gemini API key value"
                 placeholder="AIzaSy..."
                 class="w-full bg-[#0c0e14] border border-surface-border/60 hover:border-slate-700 focus:border-accent-500/50 text-white placeholder-slate-600 px-2.5 py-1.5 rounded-lg focus:outline-none font-mono text-xs pr-8"
               />
               <button
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors cursor-pointer p-0.5"
+                type="button"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors cursor-pointer p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70"
                 :title="keyItem.show ? 'Hide key' : 'Reveal key'"
+                :aria-label="keyItem.show ? 'Hide key' : 'Reveal key'"
                 @click="keyItem.show = !keyItem.show"
               >
                 <Icon
                   :name="keyItem.show ? 'ri:eye-off-line' : 'ri:eye-line'"
                   class="text-xs"
+                  aria-hidden="true"
                 />
               </button>
             </div>
@@ -172,11 +328,17 @@
 
             <!-- Delete Button -->
             <button
-              class="p-1 text-slate-500 hover:text-red-400 transition-colors cursor-pointer rounded hover:bg-red-500/10"
+              type="button"
+              class="p-1 text-slate-500 hover:text-red-400 transition-colors cursor-pointer rounded hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70"
               title="Remove Key"
+              aria-label="Remove API key"
               @click="emit('removeKey', index)"
             >
-              <Icon name="ri:delete-bin-6-line" class="text-xs" />
+              <Icon
+                name="ri:delete-bin-6-line"
+                class="text-xs"
+                aria-hidden="true"
+              />
             </button>
           </div>
         </div>
@@ -217,7 +379,8 @@
 
               <button
                 v-if="keyItem.raw_error"
-                class="text-[10px] px-2 py-0.5 bg-black/40 hover:bg-black/60 text-slate-400 hover:text-slate-200 border border-white/10 rounded-md font-mono transition-colors flex items-center gap-1 cursor-pointer"
+                type="button"
+                class="text-[10px] px-2 py-0.5 bg-black/40 hover:bg-black/60 text-slate-400 hover:text-slate-200 border border-white/10 rounded-md font-mono transition-colors flex items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70"
                 :title="
                   keyItem.showRawError
                     ? 'Hide technical details'
@@ -258,7 +421,8 @@
           No API keys configured. Gemini features will not be available.
         </p>
         <button
-          class="px-3.5 py-1.5 bg-surface-card border border-surface-border hover:border-accent-500/50 text-white rounded-lg text-xs font-medium transition-all cursor-pointer"
+          type="button"
+          class="px-3.5 py-1.5 bg-surface-card border border-surface-border hover:border-accent-500/50 text-white rounded-lg text-xs font-medium transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70"
           @click="emit('addKey')"
         >
           Add API Key
@@ -304,7 +468,8 @@
         <!-- Save Keys Button -->
         <button
           v-if="keysList.length > 0"
-          class="px-3.5 py-1.5 bg-surface-dark hover:bg-surface-card border border-surface-border hover:border-slate-700 text-slate-200 hover:text-white font-medium text-xs rounded-lg transition-all shrink-0 cursor-pointer shadow-sm"
+          type="button"
+          class="px-3.5 py-1.5 bg-surface-dark hover:bg-surface-card border border-surface-border hover:border-slate-700 text-slate-200 hover:text-white font-medium text-xs rounded-lg transition-all shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70 shadow-sm"
           @click="emit('saveApiKeys')"
         >
           Save Keys
@@ -313,8 +478,9 @@
         <!-- Test Connections Button -->
         <button
           v-if="keysList.length > 0"
+          type="button"
           :disabled="testingKey"
-          class="px-3.5 py-1.5 bg-accent-500 hover:bg-accent-400 text-black font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50 shrink-0 cursor-pointer shadow-sm"
+          class="px-3.5 py-1.5 bg-accent-500 hover:bg-accent-400 text-black font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/70 shadow-sm"
           @click="emit('testApiKeys')"
         >
           <Icon name="ri:flashlight-fill" class="text-xs" />
@@ -365,21 +531,45 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { KeyListItem } from '../HomeSettings.vue';
+import type {
+  HookDiscoveryModelId,
+  HookDiscoveryModelOption
+} from '../../types/clipper';
+import {
+  DEFAULT_HOOK_DISCOVERY_MODEL,
+  HOOK_DISCOVERY_MODELS,
+  getHookDiscoveryModelOption,
+  normalizeHookDiscoveryModel
+} from '../../utils/hookDiscoveryModels';
 
 const keysList = defineModel<KeyListItem[]>('keysList', { required: true });
 
-const props = defineProps<{
-  hasUnsavedChanges: boolean;
-  testingKey: boolean;
-  testResult: {
-    status: 'idle' | 'valid' | 'invalid';
-    message: string;
-  };
-  draggedIndex: number | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    selectedModel?: HookDiscoveryModelId;
+    modelOptions?: readonly HookDiscoveryModelOption[];
+    savingModel?: boolean;
+    modelSaveError?: string;
+    hasUnsavedChanges: boolean;
+    testingKey: boolean;
+    testResult: {
+      status: 'idle' | 'valid' | 'invalid';
+      message: string;
+    };
+    draggedIndex: number | null;
+  }>(),
+  {
+    selectedModel: DEFAULT_HOOK_DISCOVERY_MODEL,
+    modelOptions: () => HOOK_DISCOVERY_MODELS,
+    savingModel: false,
+    modelSaveError: ''
+  }
+);
 
 const emit = defineEmits<{
+  (e: 'selectModel', modelId: HookDiscoveryModelId): void;
   (e: 'addKey'): void;
   (e: 'removeKey', index: number): void;
   (e: 'moveKey', index: number, direction: number): void;
@@ -389,9 +579,59 @@ const emit = defineEmits<{
   (e: 'saveApiKeys'): void;
   (e: 'testApiKeys'): void;
 }>();
+
+const resolvedModelOptions = computed(() =>
+  props.modelOptions.length > 0 ? props.modelOptions : HOOK_DISCOVERY_MODELS
+);
+
+const activeModelId = computed(() =>
+  normalizeHookDiscoveryModel(props.selectedModel)
+);
+
+const activeModelOption = computed(() => {
+  const fromProp = resolvedModelOptions.value.find(
+    m => m.id === activeModelId.value
+  );
+  return fromProp ?? getHookDiscoveryModelOption(activeModelId.value);
+});
+
+function handleModelChange(event: Event) {
+  const target = event.target as HTMLSelectElement | null;
+  if (!target) return;
+  emit('selectModel', normalizeHookDiscoveryModel(target.value));
+}
 </script>
 
 <style scoped>
+/* Progressive enhancement for Customizable Select in Chromium 135+ / Safari 27+ */
+@supports (appearance: base-select) {
+  .hook-model-select,
+  .hook-model-select::picker(select) {
+    appearance: base-select;
+  }
+
+  .hook-model-select::picker-icon {
+    display: none;
+  }
+
+  .hook-model-select::picker(select) {
+    background-color: #0c0e14;
+    border: 1px solid #27272a;
+    border-radius: 0;
+    color: #f1f5f9;
+    padding: 0.25rem;
+  }
+
+  .hook-model-select option {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+  }
+
+  .hook-model-select option::checkmark {
+    color: #ffd700;
+  }
+}
+
 /* FLIP list transition for reordering fallback key cards */
 .list-keys-move,
 .list-keys-enter-active,

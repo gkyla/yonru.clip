@@ -18,6 +18,7 @@ import { useCachedLibrary } from './useCachedLibrary';
 import { useClipEditorSession } from './useClipEditorSession';
 import { useAudioLibrary } from './useAudioLibrary';
 import { useReleaseUpdates } from './useReleaseUpdates';
+import { HOOK_DISCOVERY_MODELS } from '../utils/hookDiscoveryModels';
 
 import fontsManifest from '../../../shared/fonts_manifest.json';
 import type {
@@ -542,6 +543,8 @@ function createClipperState() {
     whisperModel,
     showIframeDebug,
     whisperModels: WHISPER_MODELS,
+    geminiModel: diagnostics.geminiModel,
+    hookDiscoveryModels: HOOK_DISCOVERY_MODELS,
     activeSafeZone,
     safeZoneOpacity,
     safeZoneColor,

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { ref } from 'vue';
 import HomeSettings from '../../app/components/HomeSettings.vue';
+import { HOOK_DISCOVERY_MODELS } from '../../app/utils/hookDiscoveryModels';
 import { useRouter, useRoute } from '#imports';
 
 // Mock useClipperState
@@ -12,6 +13,9 @@ const mockHardwareProfile = ref<any>(null);
 const mockDetectingHardware = ref(false);
 const mockDetectHardwareProfile = vi.fn();
 const mockWhisperModel = ref('base');
+const mockGeminiModel = ref('gemini-3.5-flash-lite');
+const mockShowToast = vi.fn();
+const mockCheckSystemHealth = vi.fn();
 
 vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => ({
@@ -23,6 +27,8 @@ vi.mock('../../app/composables/useClipperState', () => ({
     detectingHardware: mockDetectingHardware,
     detectHardwareProfile: mockDetectHardwareProfile,
     whisperModel: mockWhisperModel,
+    geminiModel: mockGeminiModel,
+    hookDiscoveryModels: HOOK_DISCOVERY_MODELS,
     language: ref('auto'),
     whisperModels: [
       {
@@ -61,8 +67,8 @@ vi.mock('../../app/composables/useClipperState', () => ({
         desc: 'Highest accuracy possible. Best for complex dialogue.'
       }
     ],
-    showToast: vi.fn(),
-    checkSystemHealth: vi.fn()
+    showToast: mockShowToast,
+    checkSystemHealth: mockCheckSystemHealth
   })
 }));
 
@@ -73,6 +79,9 @@ describe('HomeSettings Component', () => {
     mockEnvConfig = 'key_1, key_2';
     mockSettingsScrollTarget.value = null;
     mockSystemHealth.value = {};
+    mockGeminiModel.value = 'gemini-3.5-flash-lite';
+    mockShowToast.mockClear();
+    mockCheckSystemHealth.mockClear();
 
     // Mock global $fetch to return mock settings
     vi.stubGlobal(
@@ -947,6 +956,167 @@ describe('HomeSettings Component', () => {
     );
     expect(wrapper.text()).toContain(
       'Requires ~10 GB free memory; likely slow on standard systems.'
+    );
+  });
+
+  it('renames api tab to AI Model with Required badge when unconfigured and model pill once configured', async () => {
+    mockEnvConfig = '';
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    });
+
+    await flushPromises();
+    const vm = wrapper.vm as any;
+
+    let apiSection = vm.sections.find((s: any) => s.id === 'api');
+    expect(apiSection.label).toBe('AI Model');
+    expect(apiSection.badgeType).toBe('warning');
+    expect(apiSection.badgeText).toBe('Required');
+
+    mockSystemHealth.value = { gemini_api: { has_key: true } };
+    await wrapper.vm.$nextTick();
+
+    apiSection = vm.sections.find((s: any) => s.id === 'api');
+    expect(apiSection.badgeType).toBe('neutral');
+    expect(apiSection.badgeText).toBe('3.5 LITE');
+  });
+
+  it('hydrates GEMINI_MODEL (normalizing legacy 2.5), auto-saves selection changes, and sends model_name on key validation', async () => {
+    let putBodies: any[] = [];
+    let validateBody: any = null;
+
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn().mockImplementation((url, options) => {
+        const urlStr = String(url);
+        if (
+          urlStr.includes('/api/system-settings') &&
+          options?.method === 'PUT'
+        ) {
+          putBodies.push(options.body);
+          return Promise.resolve({ status: 'ok' });
+        }
+        if (urlStr.includes('/api/system-settings')) {
+          return Promise.resolve({
+            settings: {
+              GEMINI_API_KEY: 'AIzaSy_test_key',
+              GEMINI_MODEL: 'gemini-2.5-flash',
+              FFMPEG_PATH: '',
+              NODE_PATH: ''
+            }
+          });
+        }
+        if (urlStr.includes('/api/validate-gemini-key')) {
+          validateBody = options?.body;
+          return Promise.resolve({
+            status: 'valid',
+            results: [
+              {
+                key: 'AIzaSy_test_key',
+                status: 'valid',
+                error: null,
+                raw_error: null
+              }
+            ]
+          });
+        }
+        return Promise.resolve({});
+      })
+    );
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    });
+
+    await flushPromises();
+    const vm = wrapper.vm as any;
+    expect(vm.selectedGeminiModel).toBe('gemini-3.5-flash-lite');
+
+    vm.switchTab('api');
+    await wrapper.vm.$nextTick();
+
+    const select = wrapper.find('#hook-discovery-model-select');
+    expect(select.exists()).toBe(true);
+    await select.setValue('gemini-3.8-flash');
+    await flushPromises();
+
+    expect(putBodies).toEqual([{ GEMINI_MODEL: 'gemini-3.8-flash' }]);
+    expect(mockGeminiModel.value).toBe('gemini-3.8-flash');
+    expect(mockShowToast).toHaveBeenCalledWith(
+      'Hook Discovery Model switched to Gemini 3.8 Flash.',
+      'success'
+    );
+
+    await vm.testApiKeys();
+    expect(validateBody).toMatchObject({ model_name: 'gemini-3.8-flash' });
+  });
+
+  it('rolls back selectedGeminiModel and displays error alert if PUT fails', async () => {
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn().mockImplementation((url, options) => {
+        const urlStr = String(url);
+        if (
+          urlStr.includes('/api/system-settings') &&
+          options?.method === 'PUT'
+        ) {
+          return Promise.reject({
+            data: { detail: 'Unsupported Hook Discovery Model' }
+          });
+        }
+        if (urlStr.includes('/api/system-settings')) {
+          return Promise.resolve({
+            settings: {
+              GEMINI_API_KEY: 'AIzaSy_test_key',
+              GEMINI_MODEL: 'gemini-3.6-flash',
+              FFMPEG_PATH: '',
+              NODE_PATH: ''
+            }
+          });
+        }
+        return Promise.resolve({});
+      })
+    );
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    });
+
+    await flushPromises();
+    const vm = wrapper.vm as any;
+    vm.switchTab('api');
+    await wrapper.vm.$nextTick();
+
+    expect(vm.selectedGeminiModel).toBe('gemini-3.6-flash');
+
+    const select = wrapper.find('#hook-discovery-model-select');
+    await select.setValue('gemini-3.8-flash');
+    await flushPromises();
+
+    expect(vm.selectedGeminiModel).toBe('gemini-3.6-flash');
+    expect(mockGeminiModel.value).toBe('gemini-3.6-flash');
+    expect(wrapper.find('[role="alert"]').text()).toContain(
+      'Unsupported Hook Discovery Model'
+    );
+    expect(mockShowToast).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to switch Hook Discovery Model'),
+      'error'
     );
   });
 });

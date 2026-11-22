@@ -6,6 +6,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any, List
 from core.clip_session_store import ClipSessionStore, CANONICAL_DEFAULT_STYLE_SETTINGS, CANONICAL_DEFAULT_COVER_CONFIG
+from core.hook_discovery_engine import HookDiscoveryOptions, HookDiscoveryQuotaError
 
 class ClipWorkflowCoordinator:
     def __init__(
@@ -713,7 +714,6 @@ class ClipWorkflowCoordinator:
                 status="generating_hooks",
             )
 
-            from core.hook_discovery_engine import HookDiscoveryOptions
             options = HookDiscoveryOptions(
                 num_hooks=num_hooks or 10,
                 auto_hooks=auto_hooks or False,
@@ -755,6 +755,9 @@ class ClipWorkflowCoordinator:
             t.daemon = True
             t.start()
             
+        except HookDiscoveryQuotaError as e:
+            print(f"[workflow] Hook discovery quota exhausted for job {job_id}: {e}")
+            self.jobs.update_job(job_id, status="error", error=str(e))
         except Exception as e:
             self.jobs.update_job(job_id, status="error", error=str(e))
 

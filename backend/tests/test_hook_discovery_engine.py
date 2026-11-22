@@ -7,7 +7,13 @@ from pathlib import Path
 # Dynamic path resolution to backend root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from core.hook_discovery_engine import HookDiscoveryEngine, HookDiscoveryOptions
+from core.hook_discovery_engine import (
+    DEFAULT_GEMINI_MODEL,
+    HookDiscoveryEngine,
+    HookDiscoveryOptions,
+    HookDiscoveryQuotaError,
+)
+from core.config_store import InMemoryConfigStore
 from core.media_transcoder import MediaTranscoder, FakeMediaAdapter
 from core.genai_client import MockGenAIClient, GenAIClient
 
@@ -251,7 +257,7 @@ def test_transient_error_retry(sample_transcript, sample_gemini_response, fake_t
         def generate_json(self, prompt, model_name):
             self.calls += 1
             if self.calls == 1:
-                raise MockAPIError("Rate limited", 429)
+                raise MockAPIError("Service Unavailable", 503)
             return sample_gemini_response
             
     client = TransientClient()
@@ -371,4 +377,89 @@ def test_find_hooks_from_transcript_backward_compat(sample_transcript, sample_ge
     parsed = json.loads(raw_json)
     assert len(parsed) == 2
     assert parsed[0]["theme"] == "Top Viral Intro"
+
+
+def test_discover_from_transcript_uses_default_and_dynamic_config_models(
+    sample_transcript, sample_gemini_response, fake_transcoder
+):
+    """Default model is gemini-3.5-flash-lite, legacy 2.5 normalizes, and config updates take effect dynamically."""
+    config_store = InMemoryConfigStore()
+    mock_client = MockGenAIClient(sample_gemini_response)
+    engine = HookDiscoveryEngine(
+        config_store=config_store,
+        genai_client=mock_client,
+        media_transcoder=fake_transcoder,
+    )
+
+    engine.discover_from_transcript(sample_transcript)
+    assert mock_client.last_model_name == DEFAULT_GEMINI_MODEL == "gemini-3.5-flash-lite"
+
+    config_store.set("GEMINI_MODEL", "gemini-2.5-flash")
+    engine.discover_from_transcript(sample_transcript)
+    assert mock_client.last_model_name == "gemini-3.5-flash-lite"
+
+    config_store.set("GEMINI_MODEL", "gemini-3.6-flash")
+    engine.discover_from_transcript(sample_transcript)
+    assert mock_client.last_model_name == "gemini-3.6-flash"
+
+    config_store.set("GEMINI_MODEL", "gemini-3.8-flash")
+    engine.discover_from_transcript(sample_transcript)
+    assert mock_client.last_model_name == "gemini-3.8-flash"
+
+
+def test_quota_exhaustion_fails_fast_without_retries_or_downgrade(sample_transcript, fake_transcoder):
+    """429/quota errors must fail fast on the first attempt with actionable model guidance."""
+    config_store = InMemoryConfigStore({"GEMINI_MODEL": "gemini-3.8-flash"})
+
+    class QuotaClient(GenAIClient):
+        def __init__(self):
+            self.calls = 0
+            self.models_called = []
+
+        def generate_json(self, prompt, model_name):
+            self.calls += 1
+            self.models_called.append(model_name)
+            raise MockAPIError("429 RESOURCE_EXHAUSTED Quota exceeded", 429)
+
+    client = QuotaClient()
+    engine = HookDiscoveryEngine(
+        config_store=config_store,
+        genai_client=client,
+        media_transcoder=fake_transcoder,
+    )
+
+    with pytest.raises(HookDiscoveryQuotaError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
+    assert client.calls == 1
+    assert client.models_called == ["gemini-3.8-flash"]
+    assert "Gemini 3.8 Flash" in str(exc_info.value)
+    assert "Gemini 3.5 Flash-Lite" in str(exc_info.value)
+
+
+def test_quota_exhaustion_on_default_model_names_active_model(sample_transcript, fake_transcoder):
+    """When already on gemini-3.5-flash-lite, 429 error avoids suggesting switching to itself."""
+    config_store = InMemoryConfigStore({"GEMINI_MODEL": "gemini-3.5-flash-lite"})
+
+    class QuotaClient(GenAIClient):
+        def __init__(self):
+            self.calls = 0
+
+        def generate_json(self, prompt, model_name):
+            self.calls += 1
+            raise MockAPIError("Quota exceeded for free tier", 429)
+
+    client = QuotaClient()
+    engine = HookDiscoveryEngine(
+        config_store=config_store,
+        genai_client=client,
+        media_transcoder=fake_transcoder,
+    )
+
+    with pytest.raises(HookDiscoveryQuotaError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
+    assert client.calls == 1
+    assert "Gemini 3.5 Flash-Lite" in str(exc_info.value)
+    assert "Switch to" not in str(exc_info.value)
 

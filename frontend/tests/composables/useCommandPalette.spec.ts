@@ -81,6 +81,9 @@ describe('useCommandPalette Composable', () => {
     expect(items.some(i => i.id === 'setting-cookies')).toBe(true);
     expect(items.some(i => i.id === 'setting-env')).toBe(true);
     expect(items.some(i => i.id === 'prompt-preset-auto')).toBe(true);
+
+    const apiSetting = items.find(i => i.id === 'setting-api');
+    expect(apiSetting?.title).toBe('AI Model');
   });
 
   it('groups prompts under Prompt Template parent category with Preset Prompt and Custom Prompt subgroups in groupedItems', () => {
@@ -151,6 +154,19 @@ describe('useCommandPalette Composable', () => {
         i => i.id === 'nav-settings' || i.id === 'setting-health'
       )
     ).toBe(true);
+
+    palette.searchQuery.value = 'hook discovery';
+    const apiMatch = palette.filteredItems.value.find(
+      i => i.id === 'setting-api'
+    );
+    expect(apiMatch).toBeDefined();
+    expect(apiMatch?.title).toBe('AI Model');
+
+    palette.executeItem(apiMatch!);
+    expect(pushSpy).toHaveBeenCalledWith({
+      path: '/settings',
+      query: { tab: 'api' }
+    });
   });
 
   it('navigates selected index up and down with wrapping', () => {
