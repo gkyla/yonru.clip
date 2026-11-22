@@ -4,7 +4,8 @@
 
 export interface DependencyStatus {
   status: string;
-  [key: string]: any;
+  model?: string;
+  [key: string]: unknown;
 }
 
 export interface SystemHealth {

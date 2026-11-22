@@ -27,12 +27,14 @@ class SystemRepository:
     def get_settings(self) -> Dict[str, str]:
         """Retrieve system settings from config store, sanitizing placeholder API keys."""
         from core.genai_client import sanitize_gemini_api_key_config
+        from core.hook_discovery_engine import normalize_gemini_model
 
         raw_gemini = self.config_store.get("GEMINI_API_KEY", "") or ""
         sanitized_gemini = sanitize_gemini_api_key_config(raw_gemini)
 
         return {
             "GEMINI_API_KEY": sanitized_gemini,
+            "GEMINI_MODEL": normalize_gemini_model(self.config_store.get("GEMINI_MODEL", "")),
             "FFMPEG_PATH": self.config_store.get("FFMPEG_PATH", "") or "",
             "NODE_PATH": self.config_store.get("NODE_PATH", "") or "",
         }
@@ -40,27 +42,53 @@ class SystemRepository:
     def update_settings(
         self,
         gemini_api_key: Optional[str] = None,
+        gemini_model: Optional[str] = None,
         ffmpeg_path: Optional[str] = None,
         node_path: Optional[str] = None,
     ) -> None:
         """Update system settings in config store."""
         if gemini_api_key is not None:
             self.config_store.set("GEMINI_API_KEY", gemini_api_key)
+        if gemini_model is not None:
+            from core.hook_discovery_engine import validate_gemini_model
+
+            validated_model = validate_gemini_model(gemini_model)
+            self.config_store.set("GEMINI_MODEL", validated_model)
         if ffmpeg_path is not None:
             self.config_store.set("FFMPEG_PATH", ffmpeg_path)
         if node_path is not None:
             self.config_store.set("NODE_PATH", node_path)
 
-    def validate_gemini_keys(self, api_key_string: str) -> Dict[str, Any]:
-        """Validate if the given Gemini API keys are active and functional."""
+    def validate_gemini_keys(
+        self,
+        api_key_string: str,
+        model_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Validate if the given Gemini API keys are active and functional for the selected model."""
         from google import genai
         from core.genai_client import GeminiGenAIClient
+        from core.hook_discovery_engine import (
+            DEFAULT_GEMINI_MODEL,
+            get_gemini_model_label,
+            normalize_gemini_model,
+            validate_gemini_model,
+        )
+
+        if model_name is not None:
+            active_model = validate_gemini_model(model_name)
+        else:
+            active_model = normalize_gemini_model(self.config_store.get("GEMINI_MODEL", ""))
 
         temp_client = GeminiGenAIClient(api_key=api_key_string)
         keys = temp_client.api_keys
 
         if not keys:
-            return {"status": "invalid", "error": "No API keys provided.", "results": []}
+            return {
+                "status": "invalid",
+                "error": "No API keys provided.",
+                "model": active_model,
+                "results": [],
+            }
 
         results = []
         all_valid = True
@@ -69,7 +97,7 @@ class SystemRepository:
             try:
                 client = genai.Client(api_key=key)
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model=active_model,
                     contents="Say 'OK'",
                 )
                 if response.text:
@@ -88,9 +116,23 @@ class SystemRepository:
                 elif "api_key_invalid" in raw_lower or "400" in raw_err or "invalid_argument" in raw_lower:
                     user_msg = "Invalid API Key (400): Key characters not recognized. Please copy the key from Google AI Studio."
                 elif "429" in raw_err or "quota" in raw_lower or "resource_exhausted" in raw_lower:
-                    user_msg = "Rate Limit / Quota exceeded (429): Free tier RPM limit reached. Please wait a moment or use a fallback key."
+                    model_label = get_gemini_model_label(active_model)
+                    if active_model != DEFAULT_GEMINI_MODEL:
+                        user_msg = (
+                            f"Rate Limit / Quota exceeded (429) for {model_label} ({active_model}): "
+                            "Free tier limit reached. Switch to Gemini 3.5 Flash-Lite or use a fallback key."
+                        )
+                    else:
+                        user_msg = (
+                            f"Rate Limit / Quota exceeded (429) for {model_label} ({active_model}): "
+                            "Free tier RPM limit reached. Please wait a moment or use a fallback key."
+                        )
                 elif "404" in raw_err or "not_found" in raw_lower:
-                    user_msg = "Model Not Found (404): The selected model is not available for this API key or region."
+                    model_label = get_gemini_model_label(active_model)
+                    user_msg = (
+                        f"Model Not Found (404): {model_label} ({active_model}) "
+                        "is not available for this API key or region."
+                    )
                 elif "timeout" in raw_lower or "connect" in raw_lower or "ssl" in raw_lower:
                     user_msg = "Connection Timeout: Unable to reach Google AI servers. Please check your network connection or proxy."
                 else:
@@ -101,6 +143,7 @@ class SystemRepository:
 
         return {
             "status": "valid" if all_valid else "invalid",
+            "model": active_model,
             "results": results,
         }
 
@@ -209,12 +252,14 @@ class SystemRepository:
         except ImportError:
             venv_ok = False
 
-        # 4. Check GEMINI_API_KEY
+        # 4. Check GEMINI_API_KEY and GEMINI_MODEL
         from core.genai_client import extract_valid_gemini_keys
+        from core.hook_discovery_engine import normalize_gemini_model
 
         gemini_key = self.config_store.get("GEMINI_API_KEY") or ""
         valid_keys = extract_valid_gemini_keys(gemini_key)
         has_key = len(valid_keys) > 0
+        gemini_model = normalize_gemini_model(self.config_store.get("GEMINI_MODEL", ""))
 
         # 5. Check cookies.txt
         cookies_configured = os.path.exists(self.cookies_path)
@@ -235,6 +280,7 @@ class SystemRepository:
             "gemini_api": {
                 "status": "Configured" if has_key else "Not Configured",
                 "has_key": has_key,
+                "model": gemini_model,
             },
             "cookies": {
                 "status": "Configured" if cookies_configured else "Not Configured",

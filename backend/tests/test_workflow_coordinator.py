@@ -1352,4 +1352,55 @@ def test_run_local_cut_calls_ensure_clip_defaults_once_when_transcription_empty(
     assert spy_ensure.call_count == 1
 
 
+def test_run_full_analysis_quota_error_propagates_actionable_message(mock_dependencies, tmp_path):
+    """Quota errors from HookDiscoveryEngine fail the job with the actionable model message."""
+    from core.hook_discovery_engine import HookDiscoveryQuotaError
+
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+    )
+
+    job_id = "job_quota_err"
+    coordinator.jobs[job_id] = {
+        "status": "queued",
+        "url": "https://youtube.com/watch?v=quota123",
+        "video_info": None,
+        "full_video_path": None,
+        "hooks": None,
+        "error": None,
+    }
+
+    mock_dependencies["youtube_client"].extract_video_id.return_value = "quota123"
+    mock_dependencies["youtube_client"].fetch_transcript.return_value = [
+        {"text": "Hello world", "start": 0.0, "duration": 2.0}
+    ]
+    video_file = tmp_path / "video.mp4"
+    video_file.write_text("dummy")
+    mock_dependencies["asset_repository"].get_cached_video.return_value = None
+    mock_dependencies["asset_repository"].get_or_create_source.return_value = {
+        "file_path": str(video_file),
+        "duration": 120.0,
+        "fps": 30.0,
+        "folder_name": "video_quota123",
+    }
+    mock_dependencies["config_store"].get.return_value = "fake-gemini-key"
+
+    err = HookDiscoveryQuotaError(model_name="gemini-3.8-flash", raw_error="429 RESOURCE_EXHAUSTED")
+    with patch.object(
+        coordinator.hook_discovery_engine,
+        "get_or_discover_hooks",
+        side_effect=err,
+    ):
+        coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=quota123", "id")
+
+    assert coordinator.jobs[job_id]["status"] == "error"
+    assert "Gemini 3.8 Flash" in coordinator.jobs[job_id]["error"]
+    assert "Gemini 3.5 Flash-Lite" in coordinator.jobs[job_id]["error"]
+
+
 

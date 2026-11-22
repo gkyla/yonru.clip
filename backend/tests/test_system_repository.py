@@ -39,6 +39,26 @@ def test_system_repository_settings(temp_workspace):
     assert updated["GEMINI_API_KEY"] == "updated_key"
     assert updated["FFMPEG_PATH"] == "/opt/ffmpeg"
     assert updated["NODE_PATH"] == "/usr/bin/node"
+    assert updated["GEMINI_MODEL"] == "gemini-3.5-flash-lite"
+
+    repo.update_settings(gemini_model="gemini-3.8-flash")
+    assert repo.get_settings()["GEMINI_MODEL"] == "gemini-3.8-flash"
+
+
+def test_system_repository_gemini_model_normalization_and_validation(temp_workspace):
+    _, cookies_file = temp_workspace
+    config_store = InMemoryConfigStore({"GEMINI_MODEL": "gemini-2.5-flash"})
+    repo = SystemRepository(config_store=config_store, cookies_path=cookies_file)
+
+    assert repo.get_settings()["GEMINI_MODEL"] == "gemini-3.5-flash-lite"
+    assert repo.check_system_health()["gemini_api"]["model"] == "gemini-3.5-flash-lite"
+
+    repo.update_settings(gemini_model="gemini-3.6-flash")
+    assert repo.get_settings()["GEMINI_MODEL"] == "gemini-3.6-flash"
+    assert repo.check_system_health()["gemini_api"]["model"] == "gemini-3.6-flash"
+
+    with pytest.raises(ValueError, match="Unsupported Hook Discovery Model"):
+        repo.update_settings(gemini_model="gemini-unknown-99")
 
 
 def test_system_repository_cookies_lifecycle(temp_workspace):
@@ -171,9 +191,39 @@ def test_system_repository_validate_gemini_keys_success(mock_genai_client, temp_
 
     res = repo.validate_gemini_keys("valid_key_123")
     assert res["status"] == "valid"
+    assert res["model"] == "gemini-3.5-flash-lite"
     assert len(res["results"]) == 1
     assert res["results"][0]["key"] == "valid_key_123"
     assert res["results"][0]["status"] == "valid"
+    mock_instance.models.generate_content.assert_called_once_with(
+        model="gemini-3.5-flash-lite",
+        contents="Say 'OK'",
+    )
+
+
+@patch("google.genai.Client")
+def test_system_repository_validate_gemini_keys_uses_configured_or_override_model(
+    mock_genai_client, temp_workspace
+):
+    _, cookies_file = temp_workspace
+    config_store = InMemoryConfigStore({"GEMINI_MODEL": "gemini-3.8-flash"})
+    repo = SystemRepository(config_store=config_store, cookies_path=cookies_file)
+
+    mock_instance = MagicMock()
+    mock_instance.models.generate_content.return_value = MagicMock(text="OK")
+    mock_genai_client.return_value = mock_instance
+
+    res_configured = repo.validate_gemini_keys("valid_key_123")
+    assert res_configured["status"] == "valid"
+    assert res_configured["model"] == "gemini-3.8-flash"
+    assert mock_instance.models.generate_content.call_args.kwargs["model"] == "gemini-3.8-flash"
+
+    res_override = repo.validate_gemini_keys("valid_key_123", model_name="gemini-3.6-flash")
+    assert res_override["model"] == "gemini-3.6-flash"
+    assert mock_instance.models.generate_content.call_args.kwargs["model"] == "gemini-3.6-flash"
+
+    with pytest.raises(ValueError, match="Unsupported Hook Discovery Model"):
+        repo.validate_gemini_keys("valid_key_123", model_name="gpt-4o")
 
 
 @patch("google.genai.Client")
@@ -497,6 +547,33 @@ def test_api_open_folder_endpoint(temp_workspace):
         data = res.json()
         assert data["status"] == "ok"
         mock_run.assert_called_once_with(["open", "-R", os.path.abspath(video_file)], check=True)
+
+
+def test_api_system_settings_and_validate_key_reject_invalid_model(temp_workspace):
+    """Verify PUT /api/system-settings and POST /api/validate-gemini-key return 400 on unknown GEMINI_MODEL."""
+    from fastapi.testclient import TestClient
+    import main
+
+    store = InMemoryConfigStore()
+    test_repo = SystemRepository(config_store=store, cookies_path=temp_workspace[1])
+
+    with patch.object(main, "system_repository", test_repo):
+        client = TestClient(main.app)
+
+        ok_res = client.put("/api/system-settings", json={"GEMINI_MODEL": "gemini-3.6-flash"})
+        assert ok_res.status_code == 200
+        assert client.get("/api/system-settings").json()["settings"]["GEMINI_MODEL"] == "gemini-3.6-flash"
+
+        bad_put = client.put("/api/system-settings", json={"GEMINI_MODEL": "invalid-model"})
+        assert bad_put.status_code == 400
+        assert "Unsupported Hook Discovery Model" in bad_put.json()["detail"]
+
+        bad_validate = client.post(
+            "/api/validate-gemini-key",
+            json={"api_key": "fake", "model_name": "invalid-model"},
+        )
+        assert bad_validate.status_code == 400
+        assert "Unsupported Hook Discovery Model" in bad_validate.json()["detail"]
 
 
 

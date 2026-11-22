@@ -97,7 +97,7 @@ The automated multi-stage workflow overlay tracking ingestion, transcription, AI
 _Avoid_: Loading spinner, progress modal, analysis bar
 
 **Pipeline Status Card**:
-The clean media preview card within the Pipeline Progress Stepper displaying the active source video thumbnail, title, channel, duration, and preset configuration.
+The clean media preview card within the Pipeline Progress Stepper displaying the active source video thumbnail, title, channel, duration, active **Hook Discovery Model**, Whisper model, and prompt preset configuration.
 _Avoid_: Tech card, details box, status panel, debugger console
 
 **Virality Rationale**:
@@ -265,6 +265,10 @@ _Avoid_: Video tool, ffmpeg wrapper, transcode script, media converter
 The unified backend module responsible for AI-assisted hook detection from speech transcripts, prompt orchestration (presets and custom archetypes), virality scoring, hook boundary and duration sanitization, thumbnail extraction coordination via MediaTranscoder, and hook cache lifecycle management.
 _Avoid_: Hook script, AI helper, hook fetcher, virality detector
 
+**Hook Discovery Model**:
+The curated GenAI model selected for AI-assisted transcript hook discovery and API key validation (defaulting to `gemini-3.5-flash-lite`, with optional `gemini-3.6-flash` and `gemini-3.8-flash` tiers), persisted locally in `.env` as `GEMINI_MODEL` and tagged with a provider identifier for future multi-provider expansion.
+_Avoid_: Hook analysis model, AI model, Gemini tier
+
 **Asset Repository**:
 The backend data access module strictly responsible for ingesting, caching, querying, and managing Source Videos and their raw metadata on disk. It does not perform clip cutting, clip manifest serialization, or clip audio extraction.
 _Avoid_: Clip repository, media manager, unified asset store
@@ -278,7 +282,7 @@ The backend aggregate store responsible for cutting Ready Clips from source vide
 _Avoid_: Asset repository, clip manager, clip file handler
 
 **Home Settings & Preference Panes**:
-The modular configuration workspace and dedicated preference pane components (`HealthDiagnosticsPane`, `GeminiKeysPane`, `TranscriptionEnginePane`, `YouTubeCookiesPane`, `EnvironmentPathsPane`) responsible for system diagnostics, API failover key pools, Whisper transcription models, YouTube authentication cookies, and binary execution paths.
+The modular configuration workspace and dedicated preference pane components (`HealthDiagnosticsPane`, `GeminiKeysPane`, `TranscriptionEnginePane`, `YouTubeCookiesPane`, `EnvironmentPathsPane`) responsible for system diagnostics, **Hook Discovery Model** selection and API failover key pools (in the AI Model tab), Whisper transcription models, YouTube authentication cookies, and binary execution paths.
 _Avoid_: Settings modal, monolith config, options tab
 
 **Unified Launcher**:

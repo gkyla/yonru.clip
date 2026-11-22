@@ -212,16 +212,29 @@
             </div>
           </div>
 
-          <!-- Right Column: Model Whisper & Prompt Template -->
+          <!-- Right Column: Hook Discovery Model, Whisper Model & Prompt Template -->
           <div
             class="flex-1 md:border-l border-surface-border/50 md:pl-6 flex flex-col justify-center gap-3 min-w-0"
           >
             <div
               class="flex items-center justify-between gap-2 border-b border-surface-border/40 pb-2.5"
             >
+              <span class="text-slate-400 font-medium"
+                >Hook Discovery Model</span
+              >
+              <span
+                class="font-mono text-slate-200 font-bold px-2 py-0.5 bg-surface-dark border border-surface-border/60 whitespace-nowrap"
+                :title="activeGeminiModelId"
+              >
+                {{ displayHookDiscoveryModel }}
+              </span>
+            </div>
+            <div
+              class="flex items-center justify-between gap-2 border-b border-surface-border/40 pb-2.5"
+            >
               <span class="text-slate-400 font-medium">Whisper Model</span>
               <span
-                class="font-mono text-slate-200 font-bold uppercase px-2 py-0.5 bg-surface-dark border border-surface-border/60"
+                class="font-mono text-slate-200 font-bold uppercase px-2 py-0.5 bg-surface-dark border border-surface-border/60 whitespace-nowrap"
               >
                 {{ (state.whisperModel?.value || 'base').toUpperCase() }}
               </span>
@@ -262,6 +275,7 @@
             class="flex-1 md:border-l border-surface-border/50 md:pl-6 flex flex-col justify-center gap-3"
           >
             <div class="h-4 bg-surface-border/20 rounded-none w-full"></div>
+            <div class="h-4 bg-surface-border/20 rounded-none w-full"></div>
             <div class="h-4 bg-surface-border/20 rounded-none w-3/4"></div>
           </div>
         </div>
@@ -281,6 +295,10 @@
 
 <script setup lang="ts">
 import type { CachedVideo } from '../../types/clipper';
+import {
+  getHookDiscoveryModelOption,
+  normalizeHookDiscoveryModel
+} from '../../utils/hookDiscoveryModels';
 
 interface StageItem {
   id: string;
@@ -304,6 +322,14 @@ defineEmits<{
 const state = useClipperState();
 const API_BASE = resolveApiBase();
 const thumbnailLoadError = ref(false);
+
+const activeGeminiModelId = computed(() =>
+  normalizeHookDiscoveryModel(state.geminiModel?.value)
+);
+
+const displayHookDiscoveryModel = computed(
+  () => getHookDiscoveryModelOption(activeGeminiModelId.value).name
+);
 
 function extractYoutubeId(url: string): string | null {
   if (!url) return null;

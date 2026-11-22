@@ -14,6 +14,7 @@ const mockYoutubeUrl = ref('');
 const mockVideoUrl = ref<string | null>(null);
 const mockHasHeatmap = ref(false);
 const mockWhisperModel = ref('base');
+const mockGeminiModel = ref('gemini-3.5-flash-lite');
 const mockSelectedPrompt = ref('prompt.json');
 const mockSelectedPresetId = ref('educational');
 const mockExtractionMode = ref('preset');
@@ -33,6 +34,7 @@ vi.mock('../../app/composables/useClipperState', () => ({
     videoUrl: mockVideoUrl,
     hasHeatmap: mockHasHeatmap,
     whisperModel: mockWhisperModel,
+    geminiModel: mockGeminiModel,
     selectedPrompt: mockSelectedPrompt,
     selectedPresetId: mockSelectedPresetId,
     extractionMode: mockExtractionMode,
@@ -80,6 +82,7 @@ describe('PipelineProgressStepper Component', () => {
     mockVideoUrl.value = null;
     mockHasHeatmap.value = false;
     mockWhisperModel.value = 'base';
+    mockGeminiModel.value = 'gemini-3.5-flash-lite';
     mockSelectedPrompt.value = 'prompt.json';
     mockSelectedPresetId.value = 'educational';
     mockExtractionMode.value = 'preset';
@@ -146,7 +149,9 @@ describe('PipelineProgressStepper Component', () => {
     expect(wrapper.text()).toContain('12:34');
     expect(wrapper.text()).toContain('Added:');
 
-    // Right Column: Whisper model and prompt template
+    // Right Column: Hook Discovery Model, Whisper model and prompt template
+    expect(wrapper.text()).toContain('Hook Discovery Model');
+    expect(wrapper.text()).toContain('Gemini 3.5 Flash-Lite');
     expect(wrapper.text()).toContain('Whisper Model');
     expect(wrapper.text()).toContain('BASE');
     expect(wrapper.text()).toContain('Prompt Template');
@@ -251,5 +256,25 @@ describe('PipelineProgressStepper Component', () => {
     const cancelBtn = wrapper.find('button');
     await cancelBtn.trigger('click');
     expect(wrapper.emitted('cancel')).toBeTruthy();
+  });
+
+  it('displays updated active Hook Discovery Model when non-default tier is selected', () => {
+    mockVideoTitle.value = 'Reasoning Showcase';
+    mockVideoDuration.value = 300;
+    mockGeminiModel.value = 'gemini-3.8-flash';
+
+    const wrapper = mount(PipelineProgressStepper, {
+      props: {
+        stages: defaultStages,
+        progressPercent: 50,
+        loadingLabel: 'ANALYZING...'
+      },
+      global: {
+        stubs: globalStubs
+      }
+    });
+
+    expect(wrapper.text()).toContain('Hook Discovery Model');
+    expect(wrapper.text()).toContain('Gemini 3.8 Flash');
   });
 });

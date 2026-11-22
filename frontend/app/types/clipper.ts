@@ -421,3 +421,20 @@ export interface AnchorRect {
   width: number;
   height: number;
 }
+
+export type HookDiscoveryProviderId = 'gemini';
+
+export type HookDiscoveryModelId =
+  'gemini-3.5-flash-lite' | 'gemini-3.6-flash' | 'gemini-3.8-flash';
+
+export interface HookDiscoveryModelOption {
+  id: HookDiscoveryModelId;
+  provider: HookDiscoveryProviderId;
+  providerLabel: string;
+  name: string;
+  shortLabel: string;
+  tier: string;
+  speedNote: string;
+  quotaNote: string;
+  desc: string;
+}

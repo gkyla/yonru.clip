@@ -65,7 +65,7 @@ describe('HealthDiagnosticsPane Component', () => {
 });
 
 describe('GeminiKeysPane Component', () => {
-  it('renders keys and emits action events', async () => {
+  it('renders Hook Discovery Model selector, Gemini API Keys, and emits selectModel & key events', async () => {
     const keysList = [
       {
         id: 'k1',
@@ -81,6 +81,9 @@ describe('GeminiKeysPane Component', () => {
     const wrapper = mount(GeminiKeysPane, {
       props: {
         keysList,
+        selectedModel: 'gemini-3.5-flash-lite' as const,
+        savingModel: false,
+        modelSaveError: '',
         hasUnsavedChanges: true,
         testingKey: false,
         testResult: { status: 'idle' as const, message: '' },
@@ -89,6 +92,25 @@ describe('GeminiKeysPane Component', () => {
       },
       global: globalMountOptions
     });
+
+    expect(wrapper.text()).toContain('AI Model');
+    expect(wrapper.text()).toContain('Hook Discovery Model');
+    expect(wrapper.text()).toContain('Provider:');
+    expect(wrapper.text()).toContain('Gemini');
+    expect(wrapper.text()).toContain(
+      'Fastest response with the highest free-tier daily allowance'
+    );
+    const rateLink = wrapper.find(
+      'a[href="https://aistudio.google.com/rate-limit"]'
+    );
+    expect(rateLink.exists()).toBe(true);
+
+    const modelSelect = wrapper.find('select#hook-discovery-model-select');
+    expect(modelSelect.exists()).toBe(true);
+    expect(modelSelect.findAll('option').length).toBe(3);
+
+    await modelSelect.setValue('gemini-3.6-flash');
+    expect(wrapper.emitted('selectModel')?.[0]).toEqual(['gemini-3.6-flash']);
 
     expect(wrapper.text()).toContain('Gemini API Keys');
     expect(wrapper.text()).toContain('#1 Primary');
@@ -120,6 +142,33 @@ describe('GeminiKeysPane Component', () => {
     expect(testBtn).toBeDefined();
     await testBtn!.trigger('click');
     expect(wrapper.emitted('testApiKeys')).toBeTruthy();
+  });
+
+  it('displays loading indicator and error alert for model updates', () => {
+    const wrapper = mount(GeminiKeysPane, {
+      props: {
+        keysList: [],
+        selectedModel: 'gemini-3.8-flash' as const,
+        savingModel: true,
+        modelSaveError: 'Backend unreachable',
+        hasUnsavedChanges: false,
+        testingKey: false,
+        testResult: { status: 'idle' as const, message: '' },
+        draggedIndex: null
+      },
+      global: globalMountOptions
+    });
+
+    expect(wrapper.find('[role="status"]').text()).toContain('Saving...');
+    expect(wrapper.find('[role="alert"]').text()).toContain(
+      'Backend unreachable'
+    );
+    expect(
+      (
+        wrapper.find('select#hook-discovery-model-select')
+          .element as HTMLSelectElement
+      ).disabled
+    ).toBe(true);
   });
 });
 

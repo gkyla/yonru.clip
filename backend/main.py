@@ -249,11 +249,13 @@ DefaultThumbnailStyleRequest = DefaultCoverStyleRequest
 
 class SystemSettingsRequest(BaseModel):
     GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: Optional[str] = None
     FFMPEG_PATH: Optional[str] = None
     NODE_PATH: Optional[str] = None
 
 class ValidateKeyRequest(BaseModel):
     api_key: str
+    model_name: Optional[str] = None
 
 class ValidateBinaryPathRequest(BaseModel):
     tool: str
@@ -776,10 +778,13 @@ def update_system_settings(req: SystemSettingsRequest):
     try:
         system_repository.update_settings(
             gemini_api_key=req.GEMINI_API_KEY,
+            gemini_model=req.GEMINI_MODEL,
             ffmpeg_path=req.FFMPEG_PATH,
             node_path=req.NODE_PATH,
         )
         return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {e}")
 
@@ -787,7 +792,10 @@ def update_system_settings(req: SystemSettingsRequest):
 @app.post("/api/validate-gemini-key")
 def validate_gemini_key(req: ValidateKeyRequest):
     """Validate if the given Gemini API keys are active and functional."""
-    return system_repository.validate_gemini_keys(req.api_key)
+    try:
+        return system_repository.validate_gemini_keys(req.api_key, model_name=req.model_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/validate-binary-path")

@@ -11,8 +11,8 @@
           <span>Settings</span>
         </h2>
         <p class="text-slate-400 text-sm">
-          Configure your API keys, local software tools, and transcription
-          engines.
+          Configure your AI models, API keys, local software tools, and
+          transcription engines.
         </p>
       </div>
 
@@ -143,7 +143,7 @@
               <!-- Warning Pill -->
               <span
                 v-if="section.badgeType === 'warning'"
-                class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 whitespace-nowrap"
               >
                 {{ section.badgeText }}
               </span>
@@ -151,7 +151,7 @@
               <!-- Neutral / Info Pill -->
               <span
                 v-else-if="section.badgeText"
-                class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium bg-black/40 border border-white/5 text-slate-400"
+                class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium bg-black/40 border border-white/5 text-slate-400 whitespace-nowrap"
               >
                 {{ section.badgeText }}
               </span>
@@ -186,14 +186,19 @@
             @switch-tab="switchTab"
           />
 
-          <!-- Gemini API Keys Configuration -->
+          <!-- AI Model & Gemini API Keys Configuration -->
           <GeminiKeysPane
             v-else-if="activeTab === 'api'"
             v-model:keys-list="keysList"
+            :selected-model="selectedGeminiModel"
+            :model-options="hookDiscoveryModels"
+            :saving-model="savingGeminiModel"
+            :model-save-error="modelSaveError"
             :has-unsaved-changes="hasUnsavedChanges"
             :testing-key="testingKey"
             :test-result="testResult"
             :dragged-index="draggedIndex"
+            @select-model="updateGeminiModel"
             @add-key="addKey"
             @remove-key="removeKey"
             @move-key="moveKey"
@@ -249,6 +254,12 @@ import GeminiKeysPane from './settings/GeminiKeysPane.vue';
 import TranscriptionEnginePane from './settings/TranscriptionEnginePane.vue';
 import YouTubeCookiesPane from './settings/YouTubeCookiesPane.vue';
 import EnvironmentPathsPane from './settings/EnvironmentPathsPane.vue';
+import {
+  HOOK_DISCOVERY_MODELS,
+  getHookDiscoveryModelOption,
+  normalizeHookDiscoveryModel
+} from '../utils/hookDiscoveryModels';
+import type { HookDiscoveryModelId } from '../types/clipper';
 
 const state = useClipperState();
 const route = useRoute();
@@ -378,6 +389,16 @@ const validKeysCount = computed(() => {
   ).length;
 });
 
+const selectedGeminiModel = ref<HookDiscoveryModelId>(
+  normalizeHookDiscoveryModel(state.geminiModel?.value)
+);
+const savingGeminiModel = ref(false);
+const modelSaveError = ref('');
+const hookDiscoveryModels = state.hookDiscoveryModels ?? HOOK_DISCOVERY_MODELS;
+const activeGeminiModelOption = computed(() =>
+  getHookDiscoveryModelOption(selectedGeminiModel.value)
+);
+
 // Sidebar Sections Definition
 const sections = computed(() => [
   {
@@ -390,14 +411,12 @@ const sections = computed(() => [
   },
   {
     id: 'api' as SettingsTab,
-    label: 'Gemini API Keys',
-    desc: 'Key pool & failover',
-    icon: 'ri:key-2-fill',
-    badgeType: hasValidApiKey.value ? 'ok' : 'warning',
+    label: 'AI Model',
+    desc: 'Hook discovery & API keys',
+    icon: 'ri:equalizer-line',
+    badgeType: hasValidApiKey.value ? 'neutral' : 'warning',
     badgeText: hasValidApiKey.value
-      ? validKeysCount.value > 0
-        ? `${validKeysCount.value} Valid`
-        : 'Configured'
+      ? activeGeminiModelOption.value.shortLabel
       : 'Required'
   },
   {
@@ -751,7 +770,8 @@ async function testApiKeys() {
     }>(`${API_BASE}/api/validate-gemini-key`, {
       method: 'POST',
       body: {
-        api_key: payload
+        api_key: payload,
+        model_name: selectedGeminiModel.value
       }
     });
 
@@ -838,6 +858,14 @@ async function fetchSettings() {
       ffmpegPath.value = res.settings.FFMPEG_PATH || '';
       nodePath.value = res.settings.NODE_PATH || '';
 
+      const normalizedModel = normalizeHookDiscoveryModel(
+        res.settings.GEMINI_MODEL
+      );
+      selectedGeminiModel.value = normalizedModel;
+      if (state.geminiModel) {
+        state.geminiModel.value = normalizedModel;
+      }
+
       const rawGemini = res.settings.GEMINI_API_KEY || '';
       let loadedKeys: KeyListItem[] = [];
 
@@ -890,6 +918,51 @@ async function fetchSettings() {
     }
   } catch (e) {
     console.error('Failed to fetch system settings', e);
+  }
+}
+
+async function updateGeminiModel(newModel: HookDiscoveryModelId) {
+  const normalizedTarget = normalizeHookDiscoveryModel(newModel);
+  if (
+    savingGeminiModel.value ||
+    normalizedTarget === selectedGeminiModel.value
+  ) {
+    return;
+  }
+
+  const previousModel = selectedGeminiModel.value;
+  selectedGeminiModel.value = normalizedTarget;
+  modelSaveError.value = '';
+  savingGeminiModel.value = true;
+
+  try {
+    await $fetch(`${API_BASE}/api/system-settings`, {
+      method: 'PUT',
+      body: {
+        GEMINI_MODEL: normalizedTarget
+      }
+    });
+
+    if (state.geminiModel) {
+      state.geminiModel.value = normalizedTarget;
+    }
+    const label = getHookDiscoveryModelOption(normalizedTarget).name;
+    state.showToast?.(`Hook Discovery Model switched to ${label}.`, 'success');
+    checkSystemHealth();
+  } catch (e: unknown) {
+    selectedGeminiModel.value = previousModel;
+    const errObj = e as { data?: { detail?: string }; message?: string };
+    const errMsg =
+      errObj?.data?.detail ||
+      errObj?.message ||
+      'Failed to save Hook Discovery Model.';
+    modelSaveError.value = errMsg;
+    state.showToast?.(
+      `Failed to switch Hook Discovery Model: ${errMsg}`,
+      'error'
+    );
+  } finally {
+    savingGeminiModel.value = false;
   }
 }
 

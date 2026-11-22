@@ -9,6 +9,100 @@ from core.modular_prompt_builder import ModularCompositePromptBuilder
 from core.media_transcoder import MediaTranscoder
 
 
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
+LEGACY_DEPRECATED_GEMINI_MODELS = frozenset({"gemini-2.5-flash"})
+
+HOOK_DISCOVERY_MODELS: List[Dict[str, str]] = [
+    {
+        "id": "gemini-3.5-flash-lite",
+        "provider": "gemini",
+        "label": "Gemini 3.5 Flash-Lite",
+        "short_label": "3.5 LITE",
+        "tier": "Default",
+        "description": "Fastest response with the highest free-tier daily allowance. Best default for everyday clipping.",
+    },
+    {
+        "id": "gemini-3.6-flash",
+        "provider": "gemini",
+        "label": "Gemini 3.6 Flash",
+        "short_label": "3.6 FLASH",
+        "tier": "Balanced",
+        "description": "Stronger narrative reasoning for nuanced dialogue, with a moderate free-tier daily allowance.",
+    },
+    {
+        "id": "gemini-3.8-flash",
+        "provider": "gemini",
+        "label": "Gemini 3.8 Flash",
+        "short_label": "3.8 FLASH",
+        "tier": "Highest Quality",
+        "description": "Deepest hook reasoning for complex long-form discussions, with the strictest free-tier daily cap.",
+    },
+]
+
+ALLOWED_GEMINI_MODELS = frozenset(m["id"] for m in HOOK_DISCOVERY_MODELS)
+_MODEL_LABELS_BY_ID = {m["id"]: m["label"] for m in HOOK_DISCOVERY_MODELS}
+
+
+def _clean_model_id(raw_model: str) -> str:
+    return raw_model.strip().strip("\"'")
+
+
+def get_gemini_model_label(model_id: str) -> str:
+    """Return the creator-facing label for a Hook Discovery Model ID."""
+    return _MODEL_LABELS_BY_ID.get(model_id, model_id)
+
+
+def normalize_gemini_model(raw_model: Optional[str]) -> str:
+    """Normalize unset, deprecated, or unrecognized model values safely to the default model."""
+    if not isinstance(raw_model, str):
+        return DEFAULT_GEMINI_MODEL
+    cleaned = _clean_model_id(raw_model)
+    if not cleaned or cleaned in LEGACY_DEPRECATED_GEMINI_MODELS:
+        return DEFAULT_GEMINI_MODEL
+    if cleaned not in ALLOWED_GEMINI_MODELS:
+        return DEFAULT_GEMINI_MODEL
+    return cleaned
+
+
+def validate_gemini_model(raw_model: Optional[str]) -> str:
+    """Validate an explicit Hook Discovery Model selection, raising ValueError for unknown IDs."""
+    if raw_model is None:
+        return DEFAULT_GEMINI_MODEL
+    if not isinstance(raw_model, str):
+        raise ValueError("Hook Discovery Model must be a string.")
+    cleaned = _clean_model_id(raw_model)
+    if not cleaned or cleaned in LEGACY_DEPRECATED_GEMINI_MODELS:
+        return DEFAULT_GEMINI_MODEL
+    if cleaned in ALLOWED_GEMINI_MODELS:
+        return cleaned
+    allowed_list = ", ".join(m["id"] for m in HOOK_DISCOVERY_MODELS)
+    raise ValueError(
+        f"Unsupported Hook Discovery Model '{raw_model}'. Allowed models: {allowed_list}."
+    )
+
+
+class HookDiscoveryQuotaError(RuntimeError):
+    """Raised when all configured API keys hit quota or rate limits (429) for the active model."""
+
+    def __init__(self, model_name: str, raw_error: str = ""):
+        self.model_name = model_name
+        self.raw_error = raw_error
+        label = get_gemini_model_label(model_name)
+        if model_name != DEFAULT_GEMINI_MODEL:
+            message = (
+                f"Quota or rate limit exceeded (429) for {label} ({model_name}) "
+                "across all configured Gemini API keys. Switch to Gemini 3.5 Flash-Lite "
+                "in Settings > AI Model for a higher free-tier allowance, or add a fallback API key."
+            )
+        else:
+            message = (
+                f"Quota or rate limit exceeded (429) for {label} ({model_name}) "
+                "across all configured Gemini API keys. Wait for quota reset, add a fallback API key "
+                "in Settings > AI Model, or check your Google AI Studio rate limits."
+            )
+        super().__init__(message)
+
+
 @dataclass
 class HookDiscoveryOptions:
     num_hooks: int = 10
@@ -35,11 +129,11 @@ class HookDiscoveryEngine:
         media_transcoder: Optional[MediaTranscoder] = None,
         prompt_repository: Optional[PromptRepository] = None,
         modular_builder: Optional[ModularCompositePromptBuilder] = None,
-        model_name: str = "gemini-2.5-flash",
+        model_name: str = DEFAULT_GEMINI_MODEL,
         hook_generator: Optional[Any] = None,
     ):
         self.config_store = config_store
-        self.model_name = model_name
+        self.model_name = normalize_gemini_model(model_name)
         self.modular_builder = modular_builder or ModularCompositePromptBuilder()
         self.transcoder = media_transcoder or MediaTranscoder(config_store=self.config_store)
 
@@ -93,6 +187,22 @@ class HookDiscoveryEngine:
     def hook_generator(self):
         """Backward-compatible self-reference for legacy consumers expecting hook_generator."""
         return self
+
+    def get_active_model_name(self) -> str:
+        """Resolve active Hook Discovery Model dynamically from config_store or constructor fallback."""
+        if self.config_store is not None:
+            configured = self.config_store.get("GEMINI_MODEL")
+            if isinstance(configured, str) and configured.strip():
+                return normalize_gemini_model(configured)
+        return normalize_gemini_model(self.model_name)
+
+    @staticmethod
+    def _is_quota_error(exc: Exception) -> bool:
+        code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+        if code == 429:
+            return True
+        lower = str(exc).lower()
+        return "429" in lower or "quota" in lower or "resource_exhausted" in lower
 
     def _group_words_into_sentences(self, segments: list, max_words: int = 15, max_silence: float = 1.5) -> list:
         grouped = []
@@ -221,11 +331,15 @@ class HookDiscoveryEngine:
             video_duration=video_duration,
         )
 
+        active_model = self.get_active_model_name()
         max_retries = 3
         for attempt in range(max_retries):
-            print(f"[hook-discovery-engine] Requesting text analysis (Attempt {attempt + 1}/{max_retries})...")
+            print(
+                f"[hook-discovery-engine] Requesting text analysis with model={active_model} "
+                f"(Attempt {attempt + 1}/{max_retries})..."
+            )
             try:
-                raw_json = client.generate_json(prompt, self.model_name)
+                raw_json = client.generate_json(prompt, active_model)
                 parsed = json.loads(raw_json)
                 if isinstance(parsed, list) and len(parsed) > 0:
                     for idx, hook in enumerate(parsed):
@@ -244,6 +358,12 @@ class HookDiscoveryEngine:
                     print(f"[hook-discovery-engine] Successfully discovered {len(parsed)} hooks from transcript.")
                     return parsed
             except Exception as e:
+                if self._is_quota_error(e):
+                    print(
+                        f"[hook-discovery-engine] Quota or rate limit exceeded for {active_model}. "
+                        "Failing fast without retry."
+                    )
+                    raise HookDiscoveryQuotaError(model_name=active_model, raw_error=str(e)) from e
                 print(f"[hook-discovery-engine] Error analyzing transcript (Retry {attempt+1}): {e}")
                 code = getattr(e, "code", None) or getattr(e, "status_code", None)
                 if code and code in [400, 401, 403, 404]:

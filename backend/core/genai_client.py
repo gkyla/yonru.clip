@@ -225,8 +225,10 @@ class GeminiGenAIClient(GenAIClient):
 class MockGenAIClient(GenAIClient):
     def __init__(self, mock_response: str = "[]"):
         self.mock_response = mock_response
-        self.last_prompt = None
+        self.last_prompt: Optional[str] = None
+        self.last_model_name: Optional[str] = None
 
     def generate_json(self, prompt: str, model_name: str) -> str:
         self.last_prompt = prompt
+        self.last_model_name = model_name
         return self.mock_response

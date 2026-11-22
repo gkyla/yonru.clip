@@ -15,6 +15,7 @@ class TestGenAIClient(unittest.TestCase):
         
         self.assertEqual(response, "mock-json-response")
         self.assertEqual(client.last_prompt, "Test Prompt")
+        self.assertEqual(client.last_model_name, "test-model")
 
     @patch('core.genai_client.genai.Client')
     def test_gemini_client_delegation(self, mock_sdk_client):

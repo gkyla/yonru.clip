@@ -304,21 +304,25 @@ function createCommandPaletteState() {
 
     items.push({
       id: 'setting-api',
-      title: 'Gemini API Keys',
-      subtitle: 'Key pool & failover management for AI transcript analysis',
+      title: 'AI Model',
+      subtitle: 'Hook discovery model selection & Gemini API failover keys',
       category: 'settings',
-      icon: 'lucide:key',
+      icon: 'lucide:sliders-horizontal',
       badge: 'Setting',
       actionLabel: 'Configure',
       keywords: [
+        'ai',
+        'model',
+        'hook discovery',
         'api',
         'keys',
         'gemini',
+        'flash',
         'google',
         'key pool',
         'failover',
         'token',
-        'ai'
+        'provider'
       ],
       handler: () => {
         close();
