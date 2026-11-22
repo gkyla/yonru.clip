@@ -77,6 +77,16 @@
         :is-processing="isProcessing"
         @analyze="handleAnalyzeClick"
       />
+
+      <!-- 1b. Pipeline Error Card (Origin-Attributed Failure Feedback) -->
+      <HomePipelineErrorCard
+        v-if="state.jobError?.value || state.jobErrorDetail?.value"
+        :error="state.jobError?.value"
+        :error-detail="state.jobErrorDetail?.value"
+        :can-retry="!isProcessing && Boolean(state.canRetryLastAnalysis?.value)"
+        @retry="handleRetryAnalysis"
+        @dismiss="dismissJobError"
+      />
     </div>
 
     <!-- Main Dynamic Content Sections -->
@@ -139,8 +149,10 @@
 
 <script setup lang="ts">
 import type {
+  CachedAnalysisOptions,
   CachedVideo,
   Hook,
+  HookIntentPreset,
   ReadyClip,
   PromptTemplate
 } from '../types/clipper';
@@ -490,9 +502,44 @@ function triggerReanalyze(videoId: string) {
   }
 }
 
-async function analyzeCached(videoId: string, force = false, options?: any) {
+const HOOK_INTENT_PRESET_MAP: Record<string, HookIntentPreset> = {
+  auto: 'auto',
+  humor: 'humor',
+  educational: 'educational',
+  storytelling: 'storytelling',
+  debate: 'debate'
+};
+
+type ReanalyzeModalOptions = Omit<CachedAnalysisOptions, 'presetId'> & {
+  presetId?: string;
+};
+
+async function analyzeCached(
+  videoId: string,
+  force = false,
+  options?: ReanalyzeModalOptions
+) {
   isReanalyzingCached.value = force;
-  await state.analyzeCached(videoId, force, options);
+  const normalizedOptions: CachedAnalysisOptions | undefined = options
+    ? {
+        ...options,
+        presetId: options.presetId
+          ? (HOOK_INTENT_PRESET_MAP[options.presetId] ?? 'auto')
+          : undefined
+      }
+    : undefined;
+  await state.analyzeCached(videoId, force, normalizedOptions);
+}
+
+function assignNonAnalysisError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (state.setJobError) {
+    state.setJobError(msg, null, { clearRetryTarget: true });
+  } else {
+    state.jobError.value = msg;
+    if (state.jobErrorDetail) state.jobErrorDetail.value = null;
+  }
+  return msg;
 }
 
 function confirmRedownload(vid: CachedVideo) {
@@ -512,7 +559,7 @@ async function deleteThenRedownload(folderName: string, videoId: string) {
     state.analyzeUrl();
     await state.fetchCached(true);
   } catch (e: unknown) {
-    state.jobError.value = e instanceof Error ? e.message : String(e);
+    assignNonAnalysisError(e);
   }
 }
 
@@ -538,8 +585,7 @@ async function deleteVideo(folderName: string) {
     await state.fetchCached(true);
     state.showToast('Video source successfully deleted.', 'success');
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    state.jobError.value = msg;
+    const msg = assignNonAnalysisError(e);
     state.showToast(msg, 'error');
   }
 }
@@ -550,6 +596,26 @@ async function resetToStart() {
   state.youtubeUrl.value = '';
   isReanalyzingCached.value = false;
   await Promise.allSettled([state.fetchCached(true), fetchReadyClips()]);
+}
+
+function dismissJobError() {
+  if (state.clearJobError) {
+    state.clearJobError();
+    return;
+  }
+  if (state.jobError) state.jobError.value = null;
+  if (state.jobErrorDetail) state.jobErrorDetail.value = null;
+  if (state.jobStatus.value === 'error') {
+    state.jobStatus.value = 'idle';
+  }
+}
+
+async function handleRetryAnalysis() {
+  const last = state.lastAnalysisRequest?.value;
+  isReanalyzingCached.value = last?.type === 'cached' && Boolean(last.force);
+  if (state.retryLastAnalysis) {
+    await state.retryLastAnalysis();
+  }
 }
 
 async function fetchReadyClips() {

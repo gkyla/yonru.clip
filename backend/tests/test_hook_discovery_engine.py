@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from core.hook_discovery_engine import (
     DEFAULT_GEMINI_MODEL,
     HookDiscoveryEngine,
+    HookDiscoveryError,
     HookDiscoveryOptions,
     HookDiscoveryQuotaError,
 )
@@ -257,15 +258,21 @@ def test_transient_error_retry(sample_transcript, sample_gemini_response, fake_t
         def generate_json(self, prompt, model_name):
             self.calls += 1
             if self.calls == 1:
-                raise MockAPIError("Service Unavailable", 503)
+                raise MockAPIError("503 UNAVAILABLE. This model is currently experiencing high demand.", 503)
             return sample_gemini_response
-            
+
+    sleep_calls = []
     client = TransientClient()
-    engine = HookDiscoveryEngine(genai_client=client, media_transcoder=fake_transcoder)
-    
+    engine = HookDiscoveryEngine(
+        genai_client=client,
+        media_transcoder=fake_transcoder,
+        sleep_fn=sleep_calls.append,
+    )
+
     hooks = engine.discover_from_transcript(sample_transcript)
     assert len(hooks) == 2
     assert client.calls == 2
+    assert sleep_calls == [2.0]
 
 def test_fatal_error_fails_immediately(sample_transcript, fake_transcoder):
     class FatalClient(GenAIClient):
@@ -273,32 +280,52 @@ def test_fatal_error_fails_immediately(sample_transcript, fake_transcoder):
             self.calls = 0
         def generate_json(self, prompt, model_name):
             self.calls += 1
-            raise MockAPIError("Auth Failed", 401)
-            
+            raise MockAPIError("Auth Failed API_KEY_INVALID AIzaSyTestSecretKey12345", 401)
+
     client = FatalClient()
-    engine = HookDiscoveryEngine(genai_client=client, media_transcoder=fake_transcoder)
-    
-    hooks = engine.discover_from_transcript(sample_transcript)
-    assert len(hooks) == 0
+    engine = HookDiscoveryEngine(
+        genai_client=client,
+        media_transcoder=fake_transcoder,
+        sleep_fn=lambda _: None,
+    )
+
+    with pytest.raises(HookDiscoveryError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
     assert client.calls == 1
+    assert exc_info.value.detail.origin == "config"
+    assert exc_info.value.detail.code == "auth_error"
+    assert exc_info.value.detail.retryable is False
+    assert "AIzaSyTestSecretKey12345" not in (exc_info.value.detail.raw_error or "")
+    assert "AIza***REDACTED***" in (exc_info.value.detail.raw_error or "")
 
 
 def test_retry_exhaustion_on_transient_rate_limit(sample_transcript, fake_transcoder):
-    """Verify that a persistent transient failure retries exactly 3 times and returns empty list."""
+    """Verify that persistent 503 high demand retries 3 times with 2s -> 4s backoff and raises provider error."""
     class PersistentFailureMockClient(GenAIClient):
         def __init__(self):
             self.call_count = 0
         def generate_json(self, prompt, model_name):
             self.call_count += 1
-            raise MockAPIError("Service Unavailable", 503)
+            raise MockAPIError("503 UNAVAILABLE. This model is currently experiencing high demand.", 503)
 
+    sleep_calls = []
     mock_client = PersistentFailureMockClient()
-    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
-    
-    result = engine.discover_from_transcript(sample_transcript)
-    
-    assert result == []
+    engine = HookDiscoveryEngine(
+        genai_client=mock_client,
+        media_transcoder=fake_transcoder,
+        sleep_fn=sleep_calls.append,
+    )
+
+    with pytest.raises(HookDiscoveryError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
     assert mock_client.call_count == 3
+    assert sleep_calls == [2.0, 4.0]
+    assert exc_info.value.detail.origin == "provider"
+    assert exc_info.value.detail.code == "high_demand"
+    assert exc_info.value.detail.retryable is True
+    assert "Gemini's side" in exc_info.value.detail.message
 
 
 def test_group_words_into_sentences(fake_transcoder):
@@ -462,4 +489,153 @@ def test_quota_exhaustion_on_default_model_names_active_model(sample_transcript,
     assert client.calls == 1
     assert "Gemini 3.5 Flash-Lite" in str(exc_info.value)
     assert "Switch to" not in str(exc_info.value)
+
+
+def test_missing_api_key_raises_config_error(sample_transcript, fake_transcoder, monkeypatch):
+    """Missing API key raises structured config/missing_api_key error instead of returning []."""
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    engine = HookDiscoveryEngine(
+        config_store=InMemoryConfigStore(),
+        genai_client=None,
+        media_transcoder=fake_transcoder,
+        sleep_fn=lambda _: None,
+    )
+    with pytest.raises(HookDiscoveryError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
+    assert exc_info.value.detail.origin == "config"
+    assert exc_info.value.detail.code == "missing_api_key"
+    assert exc_info.value.detail.retryable is False
+
+
+def test_model_unavailable_404_fails_fast(sample_transcript, fake_transcoder):
+    class MissingModelClient(GenAIClient):
+        def __init__(self):
+            self.calls = 0
+
+        def generate_json(self, prompt, model_name):
+            self.calls += 1
+            raise MockAPIError("404 NOT_FOUND model not found", 404)
+
+    client = MissingModelClient()
+    engine = HookDiscoveryEngine(
+        genai_client=client,
+        media_transcoder=fake_transcoder,
+        sleep_fn=lambda _: None,
+    )
+    with pytest.raises(HookDiscoveryError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
+    assert client.calls == 1
+    assert exc_info.value.detail.origin == "provider"
+    assert exc_info.value.detail.code == "model_unavailable"
+    assert exc_info.value.detail.retryable is False
+
+
+def test_network_timeout_retries_and_raises_network_error(sample_transcript, fake_transcoder):
+    class TimeoutClient(GenAIClient):
+        def __init__(self):
+            self.calls = 0
+
+        def generate_json(self, prompt, model_name):
+            self.calls += 1
+            raise ConnectionError("Connection timed out while contacting generativelanguage.googleapis.com")
+
+    sleep_calls = []
+    client = TimeoutClient()
+    engine = HookDiscoveryEngine(
+        genai_client=client,
+        media_transcoder=fake_transcoder,
+        sleep_fn=sleep_calls.append,
+    )
+    with pytest.raises(HookDiscoveryError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
+    assert client.calls == 3
+    assert sleep_calls == [2.0, 4.0]
+    assert exc_info.value.detail.origin == "network"
+    assert exc_info.value.detail.code == "network_error"
+    assert exc_info.value.detail.retryable is True
+
+
+def test_invalid_json_output_retries_and_raises_output_error(sample_transcript, fake_transcoder):
+    class BadJsonClient(GenAIClient):
+        def __init__(self):
+            self.calls = 0
+
+        def generate_json(self, prompt, model_name):
+            self.calls += 1
+            return "{not valid json"
+
+    client = BadJsonClient()
+    engine = HookDiscoveryEngine(
+        genai_client=client,
+        media_transcoder=fake_transcoder,
+        sleep_fn=lambda _: None,
+    )
+    with pytest.raises(HookDiscoveryError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
+    assert client.calls == 3
+    assert exc_info.value.detail.origin == "output"
+    assert exc_info.value.detail.code == "invalid_response"
+    assert exc_info.value.detail.retryable is True
+
+
+@pytest.mark.parametrize("raw_key", ["your_gemini_api_key_here", "[]"])
+def test_placeholder_or_empty_json_api_key_raises_missing_api_key(
+    sample_transcript, fake_transcoder, monkeypatch, raw_key
+):
+    """Placeholder or empty JSON-array API key configs classify as missing_api_key, not auth_error."""
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    engine = HookDiscoveryEngine(
+        config_store=InMemoryConfigStore({"GEMINI_API_KEY": raw_key}),
+        genai_client=None,
+        media_transcoder=fake_transcoder,
+        sleep_fn=lambda _: None,
+    )
+    with pytest.raises(HookDiscoveryError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
+    assert exc_info.value.detail.origin == "config"
+    assert exc_info.value.detail.code == "missing_api_key"
+    assert exc_info.value.detail.retryable is False
+
+
+def test_json_decode_error_with_http_like_numbers_classifies_as_invalid_response(
+    sample_transcript, fake_transcoder
+):
+    """Malformed JSON offsets like 'column 400 (char 500)' must classify as output/invalid_response."""
+    class JsonOffsetErrorClient(GenAIClient):
+        def generate_json(self, prompt, model_name):
+            raise json.JSONDecodeError("Expecting value", "{bad", 500)
+
+    engine = HookDiscoveryEngine(
+        genai_client=JsonOffsetErrorClient(),
+        media_transcoder=fake_transcoder,
+        sleep_fn=lambda _: None,
+    )
+    with pytest.raises(HookDiscoveryError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
+    assert exc_info.value.detail.origin == "output"
+    assert exc_info.value.detail.code == "invalid_response"
+
+
+def test_timeout_with_5000ms_classifies_as_network_error(sample_transcript, fake_transcoder):
+    """Timeout message containing '5000ms' must classify as network/network_error, not provider 500."""
+    class MillisecondTimeoutClient(GenAIClient):
+        def generate_json(self, prompt, model_name):
+            raise TimeoutError("Read timed out after 5000ms")
+
+    engine = HookDiscoveryEngine(
+        genai_client=MillisecondTimeoutClient(),
+        media_transcoder=fake_transcoder,
+        sleep_fn=lambda _: None,
+    )
+    with pytest.raises(HookDiscoveryError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
+    assert exc_info.value.detail.origin == "network"
+    assert exc_info.value.detail.code == "network_error"
 

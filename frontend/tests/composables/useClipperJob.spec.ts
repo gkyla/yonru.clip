@@ -2,7 +2,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useClipperJob } from '../../app/composables/useClipperJob';
 
-import type { ClipSessionData, CropMapPoint } from '../../app/types/clipper';
+import type {
+  ClipSessionData,
+  CropMapPoint,
+  LastAnalysisRequest,
+  PipelineErrorDetail
+} from '../../app/types/clipper';
 
 // Mock useTimelineState
 const mockTimelineTracks = {
@@ -408,5 +413,92 @@ describe('useClipperJob Sub-composable - Clip Session Hydration', () => {
     );
     expect(readyClipCall).toBeDefined();
     expect(readyClipCall[0]).toBe('http://localhost:8765/api/load-ready-clip');
+  });
+
+  it('captures exact URL in lastAnalysisRequest and retries that URL even if input changes', async () => {
+    const youtubeUrl = useState<string>('youtubeUrl', () => '');
+    const lastReq = useState<LastAnalysisRequest | null>(
+      'lastAnalysisRequest',
+      () => null
+    );
+    youtubeUrl.value = 'https://youtube.com/watch?v=first123456';
+    lastReq.value = null;
+
+    const analyzeCalls: Array<{ url: string; body: any }> = [];
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn().mockImplementation((url, options) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/api/analyze-url')) {
+          analyzeCalls.push({ url: urlStr, body: options?.body });
+          return Promise.resolve({ job_id: 'job-retry-url', status: 'queued' });
+        }
+        return Promise.resolve({});
+      })
+    );
+
+    const { analyzeUrl, retryLastAnalysis, canRetryLastAnalysis, stopPolling } =
+      useClipperJob();
+
+    await analyzeUrl(true);
+    expect(canRetryLastAnalysis.value).toBe(true);
+    expect(analyzeCalls).toHaveLength(1);
+    expect(analyzeCalls[0]?.body.url).toBe(
+      'https://youtube.com/watch?v=first123456'
+    );
+    expect(analyzeCalls[0]?.url).toContain('force=true');
+
+    // User clears or edits the URL bar after the error
+    youtubeUrl.value = '';
+    await retryLastAnalysis();
+
+    expect(analyzeCalls).toHaveLength(2);
+    expect(analyzeCalls[1]?.body.url).toBe(
+      'https://youtube.com/watch?v=first123456'
+    );
+    expect(analyzeCalls[1]?.url).toContain('force=true');
+    stopPolling();
+  });
+
+  it('setJobError and clearJobError prevent stale errorDetail and reset error status', () => {
+    const {
+      jobStatus,
+      jobError,
+      jobErrorDetail,
+      lastAnalysisRequest,
+      canRetryLastAnalysis,
+      setJobError,
+      clearJobError
+    } = useClipperJob();
+
+    const detail: PipelineErrorDetail = {
+      origin: 'provider',
+      code: 'high_demand',
+      title: 'Gemini is experiencing high demand',
+      message: 'Service busy',
+      hint: 'Retry',
+      retryable: true
+    };
+
+    lastAnalysisRequest.value = {
+      type: 'url',
+      url: 'https://youtube.com/watch?v=retry999999',
+      force: false
+    };
+    jobStatus.value = 'error';
+    setJobError('Service busy', detail);
+    expect(jobError.value).toBe('Service busy');
+    expect(jobErrorDetail.value).toEqual(detail);
+    expect(canRetryLastAnalysis.value).toBe(true);
+
+    setJobError('Delete failed', null, { clearRetryTarget: true });
+    expect(jobError.value).toBe('Delete failed');
+    expect(jobErrorDetail.value).toBeNull();
+    expect(canRetryLastAnalysis.value).toBe(false);
+
+    clearJobError();
+    expect(jobError.value).toBeNull();
+    expect(jobErrorDetail.value).toBeNull();
+    expect(jobStatus.value).toBe('idle');
   });
 });

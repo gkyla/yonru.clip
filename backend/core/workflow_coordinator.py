@@ -6,7 +6,8 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any, List
 from core.clip_session_store import ClipSessionStore, CANONICAL_DEFAULT_STYLE_SETTINGS, CANONICAL_DEFAULT_COVER_CONFIG
-from core.hook_discovery_engine import HookDiscoveryOptions, HookDiscoveryQuotaError
+from core.gemini_errors import HookDiscoveryError, no_hooks_found_error
+from core.hook_discovery_engine import HookDiscoveryOptions
 
 class ClipWorkflowCoordinator:
     def __init__(
@@ -104,6 +105,7 @@ class ClipWorkflowCoordinator:
             "job_id": job_id,
             "status": job.get("status", "unknown"),
             "error": job.get("error"),
+            "error_detail": job.get("error_detail"),
             "download_percent": job.get("download_percent", 0.0),
         }
 
@@ -652,7 +654,7 @@ class ClipWorkflowCoordinator:
                         return
 
             # Step 0: Check Transcript FIRST
-            self.jobs.update_job(job_id, status="checking_transcript")
+            self.jobs.update_job(job_id, status="checking_transcript", error=None, error_detail=None)
             video_id = self.youtube_client.extract_video_id(url)
             if not video_id:
                 info = self.youtube_client.get_video_info_fast(url)
@@ -733,14 +735,15 @@ class ClipWorkflowCoordinator:
             )
 
             if not filtered and transcript_segments and len(transcript_segments) > 0 and (force_reanalyze or not self.hook_discovery_engine.load_cached_hooks(video_info)):
-                api_key = self.config_store.get("GEMINI_API_KEY") if self.config_store else None
-                if api_key:
-                    self.jobs.update_job(
-                        job_id,
-                        status="error",
-                        error="Gemini failed to generate hooks from the transcript.",
-                    )
-                    return
+                active_model = self.hook_discovery_engine.get_active_model_name()
+                empty_err = no_hooks_found_error(active_model)
+                self.jobs.update_job(
+                    job_id,
+                    status="error",
+                    error=empty_err.detail.message,
+                    error_detail=empty_err.detail.to_dict(),
+                )
+                return
 
             self.jobs.update_job(
                 job_id,
@@ -755,11 +758,16 @@ class ClipWorkflowCoordinator:
             t.daemon = True
             t.start()
             
-        except HookDiscoveryQuotaError as e:
-            print(f"[workflow] Hook discovery quota exhausted for job {job_id}: {e}")
-            self.jobs.update_job(job_id, status="error", error=str(e))
+        except HookDiscoveryError as e:
+            print(f"[workflow] Hook discovery failed ({e.detail.origin}/{e.detail.code}) for job {job_id}: {e}")
+            self.jobs.update_job(
+                job_id,
+                status="error",
+                error=str(e),
+                error_detail=e.detail.to_dict(),
+            )
         except Exception as e:
-            self.jobs.update_job(job_id, status="error", error=str(e))
+            self.jobs.update_job(job_id, status="error", error=str(e), error_detail=None)
 
     def run_source_download(self, job_id: str, url: str):
         """Silently download 1080p source video in background with progress reporting"""

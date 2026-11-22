@@ -9,6 +9,8 @@ import { useState } from '#imports';
 import type {
   Hook,
   CachedVideo,
+  LastAnalysisRequest,
+  PipelineErrorDetail,
   PromptTemplate
 } from '../../app/types/clipper';
 
@@ -61,6 +63,28 @@ const mockState = {
     }
   ],
   jobError: ref<string | null>(null),
+  jobErrorDetail: ref<PipelineErrorDetail | null>(null),
+  lastAnalysisRequest: ref<LastAnalysisRequest | null>(null),
+  canRetryLastAnalysis: ref(false),
+  setJobError: (
+    message: string | null,
+    detail: PipelineErrorDetail | null = null,
+    options?: { clearRetryTarget?: boolean }
+  ) => {
+    mockState.jobError.value = message;
+    mockState.jobErrorDetail.value = detail;
+    if (options?.clearRetryTarget) {
+      mockState.lastAnalysisRequest.value = null;
+      mockState.canRetryLastAnalysis.value = false;
+    }
+  },
+  clearJobError: () => {
+    mockState.jobError.value = null;
+    mockState.jobErrorDetail.value = null;
+    if (mockState.jobStatus.value === 'error') {
+      mockState.jobStatus.value = 'idle';
+    }
+  },
   hooks: ref<Hook[]>([]),
   jobId: ref<string | null>('job-123'),
   jobStatus: ref('idle'),
@@ -116,6 +140,7 @@ const mockState = {
     mockState.savedHooks.value = [];
     mockState.folderName.value = null;
   }),
+  retryLastAnalysis: vi.fn().mockResolvedValue({}),
   extractClip: vi.fn().mockResolvedValue({}),
   loadReadyClipIntoEditor: vi.fn().mockResolvedValue({}),
   renderClip: vi.fn().mockResolvedValue({}),
@@ -131,12 +156,18 @@ vi.mock('../../app/composables/useClipperState', () => ({
 describe('Index Page & Sub-Modules', () => {
   beforeEach(() => {
     mockState.jobStatus.value = 'idle';
+    mockState.jobError.value = null;
+    mockState.jobErrorDetail.value = null;
+    mockState.lastAnalysisRequest.value = null;
+    mockState.canRetryLastAnalysis.value = false;
     mockState.hooks.value = [];
     mockState.savedHooks.value = [];
     mockState.isCachedAnalysis.value = false;
     mockState.cachedVideos.value = [];
     mockState.cachedVideosHasMore.value = false;
     mockState.fetchCached.mockClear();
+    mockState.analyzeCached.mockClear();
+    mockState.retryLastAnalysis.mockClear();
 
     vi.stubGlobal(
       '$fetch',
@@ -872,5 +903,165 @@ describe('Index Page & Sub-Modules', () => {
     expect(
       wrapper.find('[data-testid="ready-clips-empty-state"]').exists()
     ).toBe(true);
+  });
+
+  it('renders PipelineErrorCard on jobErrorDetail and wires Retry and Dismiss', async () => {
+    mockState.jobStatus.value = 'error';
+    mockState.canRetryLastAnalysis.value = true;
+    mockState.lastAnalysisRequest.value = {
+      type: 'url',
+      url: 'https://youtube.com/watch?v=abc12345678',
+      force: false
+    };
+    mockState.jobError.value =
+      "Google's Gemini service is temporarily overloaded for Gemini 3.5 Flash-Lite (gemini-3.5-flash-lite) (503).";
+    mockState.jobErrorDetail.value = {
+      origin: 'provider',
+      code: 'high_demand',
+      title: 'Gemini is experiencing high demand',
+      message: mockState.jobError.value,
+      hint: 'Wait a moment and retry.',
+      model: 'gemini-3.5-flash-lite',
+      raw_error: '503 UNAVAILABLE',
+      retryable: true
+    };
+
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('GEMINI SERVICE');
+    expect(wrapper.text()).toContain('Gemini is experiencing high demand');
+
+    const retryBtn = wrapper
+      .findAll('button')
+      .find(b => b.text().includes('Retry'));
+    expect(retryBtn).toBeDefined();
+    await retryBtn!.trigger('click');
+    expect(mockState.retryLastAnalysis).toHaveBeenCalledTimes(1);
+
+    await wrapper.find('button[aria-label="Dismiss error"]').trigger('click');
+    expect(mockState.jobError.value).toBeNull();
+    expect(mockState.jobErrorDetail.value).toBeNull();
+    expect(mockState.jobStatus.value).toBe('idle');
+  });
+
+  it('clears stale jobErrorDetail and hides Retry when deleteVideo fails after a prior analysis error', async () => {
+    mockState.jobStatus.value = 'error';
+    mockState.canRetryLastAnalysis.value = true;
+    mockState.lastAnalysisRequest.value = {
+      type: 'url',
+      url: 'https://youtube.com/watch?v=abc12345678',
+      force: false
+    };
+    mockState.jobError.value = 'Prior Gemini error';
+    mockState.jobErrorDetail.value = {
+      origin: 'provider',
+      code: 'high_demand',
+      title: 'Gemini is experiencing high demand',
+      message: 'Prior Gemini error',
+      hint: 'Wait a moment and retry.',
+      model: 'gemini-3.5-flash-lite',
+      raw_error: '503 UNAVAILABLE',
+      retryable: true
+    };
+
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn().mockImplementation(url => {
+        const urlStr = String(url);
+        if (urlStr.includes('/api/ready-clips')) {
+          return Promise.resolve({ clips: [] });
+        }
+        if (urlStr.includes('/api/cached/bad-folder')) {
+          return Promise.reject(new Error('Permission denied deleting folder'));
+        }
+        return Promise.resolve({});
+      })
+    );
+
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain('GEMINI SERVICE');
+
+    const library = wrapper.findComponent({ name: 'HomeCachedVideoLibrary' });
+    library.vm.$emit('delete-video', 'bad-folder');
+    await vi.waitFor(() => {
+      expect(wrapper.text()).toContain('Permission denied deleting folder');
+    });
+
+    expect(mockState.jobErrorDetail.value).toBeNull();
+    expect(mockState.canRetryLastAnalysis.value).toBe(false);
+    expect(wrapper.text()).not.toContain('GEMINI SERVICE');
+    expect(
+      wrapper.findAll('button').some(b => b.text().includes('Retry'))
+    ).toBe(false);
+  });
+
+  it('syncs isReanalyzingCached when retrying a forced cached analysis', async () => {
+    mockState.jobStatus.value = 'error';
+    mockState.isCachedAnalysis.value = true;
+    mockState.canRetryLastAnalysis.value = true;
+    mockState.lastAnalysisRequest.value = {
+      type: 'cached',
+      videoId: 'vid-123',
+      force: true
+    };
+    mockState.jobError.value = 'Busy';
+    mockState.jobErrorDetail.value = {
+      origin: 'provider',
+      code: 'high_demand',
+      title: 'Gemini is experiencing high demand',
+      message: 'Busy',
+      hint: 'Retry',
+      retryable: true
+    };
+
+    const wrapper = mount(index, {
+      global: {
+        stubs: {
+          NuxtLayout: { template: '<div><slot /></div>' },
+          NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const retryBtn = wrapper
+      .findAll('button')
+      .find(b => b.text().includes('Retry'));
+    expect(retryBtn).toBeDefined();
+    await retryBtn!.trigger('click');
+    expect(mockState.retryLastAnalysis).toHaveBeenCalledTimes(1);
+
+    mockState.jobStatus.value = 'generating_hooks';
+    await wrapper.vm.$nextTick();
+    const stepper = wrapper.findComponent({
+      name: 'HomePipelineProgressStepper'
+    });
+    expect(stepper.exists()).toBe(true);
+    expect(stepper.props('isReanalyzingCached')).toBe(true);
   });
 });

@@ -917,13 +917,6 @@
       </div>
     </div>
   </Transition>
-
-  <div
-    v-if="state.jobError.value"
-    class="text-red-400 text-sm mt-4 mono bg-red-500/10 inline-block px-3 py-1 rounded border border-red-500/20 shadow-lg"
-  >
-    {{ state.jobError.value }}
-  </div>
 </template>
 
 <script setup lang="ts">

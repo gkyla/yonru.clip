@@ -300,6 +300,8 @@
                   keyItem.status === 'valid',
                 'bg-red-500/10 border-red-500/20 text-red-400':
                   keyItem.status === 'invalid',
+                'bg-amber-500/10 border-amber-500/25 text-amber-300':
+                  keyItem.status === 'unavailable',
                 'bg-black/40 border-white/5 text-slate-500':
                   keyItem.status === 'idle',
                 'bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse':
@@ -311,6 +313,7 @@
                 :class="{
                   'bg-emerald-400': keyItem.status === 'valid',
                   'bg-red-400': keyItem.status === 'invalid',
+                  'bg-amber-300': keyItem.status === 'unavailable',
                   'bg-slate-500': keyItem.status === 'idle',
                   'bg-amber-400': keyItem.status === 'testing'
                 }"
@@ -320,9 +323,11 @@
                   ? 'Valid'
                   : keyItem.status === 'invalid'
                     ? 'Invalid'
-                    : keyItem.status === 'testing'
-                      ? 'Testing...'
-                      : 'Not Tested'
+                    : keyItem.status === 'unavailable'
+                      ? 'Service Busy'
+                      : keyItem.status === 'testing'
+                        ? 'Testing...'
+                        : 'Not Tested'
               }}
             </span>
 
@@ -343,10 +348,19 @@
           </div>
         </div>
 
-        <!-- Micro Error Drawer (Expanded only when status is invalid) -->
+        <!-- Micro Error Drawer (Expanded when status is invalid or unavailable) -->
         <div
-          v-if="keyItem.status === 'invalid' && keyItem.error"
-          class="pt-2 border-t border-red-500/20 flex flex-col gap-2 bg-red-500/5 -mx-3 -mb-3 p-3 rounded-b-xl"
+          v-if="
+            (keyItem.status === 'invalid' ||
+              keyItem.status === 'unavailable') &&
+            keyItem.error
+          "
+          class="pt-2 border-t flex flex-col gap-2 -mx-3 -mb-3 p-3 rounded-b-xl"
+          :class="
+            keyItem.status === 'unavailable'
+              ? 'border-amber-500/20 bg-amber-500/5'
+              : 'border-red-500/20 bg-red-500/5'
+          "
         >
           <div
             class="flex flex-col sm:flex-row sm:items-center justify-between gap-2"
@@ -354,10 +368,20 @@
             <div class="flex items-start gap-1.5 min-w-0">
               <Icon
                 name="ri:error-warning-line"
-                class="text-sm shrink-0 mt-0.5 text-red-400"
+                class="text-sm shrink-0 mt-0.5"
+                :class="
+                  keyItem.status === 'unavailable'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                "
               />
               <span
-                class="text-[11px] leading-relaxed text-red-300 font-medium"
+                class="text-[11px] leading-relaxed font-medium"
+                :class="
+                  keyItem.status === 'unavailable'
+                    ? 'text-amber-200'
+                    : 'text-red-300'
+                "
                 >{{ keyItem.error }}</span
               >
             </div>
@@ -370,7 +394,12 @@
                 href="https://aistudio.google.com/app/apikey"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-[10px] px-2 py-0.5 bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 rounded-md font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                class="text-[10px] px-2 py-0.5 rounded-md font-medium border transition-colors flex items-center gap-1 cursor-pointer"
+                :class="
+                  keyItem.status === 'unavailable'
+                    ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 border-amber-500/30'
+                    : 'bg-red-500/10 hover:bg-red-500/20 text-red-300 border-red-500/30'
+                "
                 title="Open Google AI Studio"
               >
                 AI Studio
@@ -404,7 +433,12 @@
           <!-- Expandable Raw Error Codeblock -->
           <div
             v-if="keyItem.showRawError && keyItem.raw_error"
-            class="mt-1 p-2 rounded-lg bg-[#08090d] border border-red-500/20 text-[10px] font-mono text-slate-400 overflow-x-auto select-all max-h-32 custom-scrollbar"
+            class="mt-1 p-2 rounded-lg bg-[#08090d] border text-[10px] font-mono text-slate-400 overflow-x-auto select-all max-h-32 custom-scrollbar"
+            :class="
+              keyItem.status === 'unavailable'
+                ? 'border-amber-500/25'
+                : 'border-red-500/20'
+            "
           >
             {{ keyItem.raw_error }}
           </div>
@@ -499,28 +533,17 @@
       leave-to-class="opacity-0 -translate-y-2"
     >
       <div
-        v-if="testResult.status !== 'idle'"
+        v-if="testBannerMeta"
         class="p-3 rounded-xl border text-xs leading-normal flex items-start gap-2.5"
-        :class="
-          testResult.status === 'valid'
-            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-            : 'bg-red-500/10 border-red-500/20 text-red-400'
-        "
+        :class="testBannerMeta.containerClass"
       >
         <Icon
-          :name="
-            testResult.status === 'valid'
-              ? 'ri:checkbox-circle-fill'
-              : 'ri:error-warning-fill'
-          "
+          :name="testBannerMeta.icon"
           class="text-base shrink-0 mt-0.5"
+          aria-hidden="true"
         />
         <div>
-          <span class="font-bold block mb-0.5">{{
-            testResult.status === 'valid'
-              ? 'Gemini API keys verified successfully'
-              : 'Connection check failed'
-          }}</span>
+          <span class="font-bold block mb-0.5">{{ testBannerMeta.title }}</span>
           <p class="text-slate-300 text-[11px]">
             {{ testResult.message }}
           </p>
@@ -534,6 +557,7 @@
 import { computed } from 'vue';
 import type { KeyListItem } from '../HomeSettings.vue';
 import type {
+  GeminiKeyTestResultStatus,
   HookDiscoveryModelId,
   HookDiscoveryModelOption
 } from '../../types/clipper';
@@ -555,7 +579,7 @@ const props = withDefaults(
     hasUnsavedChanges: boolean;
     testingKey: boolean;
     testResult: {
-      status: 'idle' | 'valid' | 'invalid';
+      status: GeminiKeyTestResultStatus;
       message: string;
     };
     draggedIndex: number | null;
@@ -593,6 +617,32 @@ const activeModelOption = computed(() => {
     m => m.id === activeModelId.value
   );
   return fromProp ?? getHookDiscoveryModelOption(activeModelId.value);
+});
+
+const TEST_BANNER_META: Record<
+  Exclude<GeminiKeyTestResultStatus, 'idle'>,
+  { containerClass: string; icon: string; title: string }
+> = {
+  valid: {
+    containerClass: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+    icon: 'ri:checkbox-circle-fill',
+    title: 'Gemini API keys verified successfully'
+  },
+  unavailable: {
+    containerClass: 'bg-amber-500/10 border-amber-500/25 text-amber-300',
+    icon: 'ri:cloud-off-line',
+    title: 'Gemini service temporarily unavailable'
+  },
+  invalid: {
+    containerClass: 'bg-red-500/10 border-red-500/20 text-red-400',
+    icon: 'ri:error-warning-fill',
+    title: 'Connection check failed'
+  }
+};
+
+const testBannerMeta = computed(() => {
+  if (props.testResult.status === 'idle') return null;
+  return TEST_BANNER_META[props.testResult.status];
 });
 
 function handleModelChange(event: Event) {

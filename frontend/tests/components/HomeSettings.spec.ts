@@ -490,6 +490,139 @@ describe('HomeSettings Component', () => {
     expect(vm.testResult.status).toBe('invalid');
   });
 
+  it('marks key status as unavailable (Service Busy) instead of invalid when Gemini returns 503', async () => {
+    mockEnvConfig = '[{"title":"Main","value":"AIzaSy_healthy_key"}]';
+
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn().mockImplementation(url => {
+        const urlStr = String(url);
+        if (urlStr.includes('/api/system-settings')) {
+          return Promise.resolve({
+            settings: {
+              GEMINI_API_KEY: mockEnvConfig,
+              FFMPEG_PATH: '',
+              NODE_PATH: ''
+            }
+          });
+        }
+        if (urlStr.includes('/api/cookies-status')) {
+          return Promise.resolve({
+            exists: false,
+            size_bytes: 0,
+            last_modified: null
+          });
+        }
+        if (urlStr.includes('/api/validate-gemini-key')) {
+          return Promise.resolve({
+            status: 'unavailable',
+            results: [
+              {
+                key: 'AIzaSy_healthy_key',
+                status: 'unavailable',
+                error:
+                  'Gemini is experiencing high demand (503) for Gemini 3.5 Flash-Lite.',
+                raw_error: '503 UNAVAILABLE'
+              }
+            ]
+          });
+        }
+        return Promise.resolve({});
+      })
+    );
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    });
+
+    await flushPromises();
+
+    const aiModelTabBtn = wrapper
+      .findAll('button')
+      .find(b => b.text().includes('AI Model'));
+    expect(aiModelTabBtn).toBeDefined();
+    await aiModelTabBtn!.trigger('click');
+    await flushPromises();
+
+    const testConnectionsBtn = wrapper
+      .findAll('button')
+      .find(b => b.text().includes('Test Connections'));
+    expect(testConnectionsBtn).toBeDefined();
+    await testConnectionsBtn!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Service Busy');
+    expect(wrapper.text()).toContain('Gemini service temporarily unavailable');
+    expect(wrapper.text()).not.toContain('Connection check failed');
+    expect(wrapper.html()).toContain('bg-amber-500/10');
+  });
+
+  it('marks key status as unavailable instead of invalid when validate-gemini-key fails with a network error', async () => {
+    mockEnvConfig = '[{"title":"Main","value":"AIzaSy_healthy_key"}]';
+
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn().mockImplementation(url => {
+        const urlStr = String(url);
+        if (urlStr.includes('/api/system-settings')) {
+          return Promise.resolve({
+            settings: {
+              GEMINI_API_KEY: mockEnvConfig,
+              FFMPEG_PATH: '',
+              NODE_PATH: ''
+            }
+          });
+        }
+        if (urlStr.includes('/api/cookies-status')) {
+          return Promise.resolve({
+            exists: false,
+            size_bytes: 0,
+            last_modified: null
+          });
+        }
+        if (urlStr.includes('/api/validate-gemini-key')) {
+          return Promise.reject(new Error('Network timeout'));
+        }
+        return Promise.resolve({});
+      })
+    );
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    });
+
+    await flushPromises();
+
+    const aiModelTabBtn = wrapper
+      .findAll('button')
+      .find(b => b.text().includes('AI Model'));
+    expect(aiModelTabBtn).toBeDefined();
+    await aiModelTabBtn!.trigger('click');
+    await flushPromises();
+
+    const testConnectionsBtn = wrapper
+      .findAll('button')
+      .find(b => b.text().includes('Test Connections'));
+    expect(testConnectionsBtn).toBeDefined();
+    await testConnectionsBtn!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Service Busy');
+    expect(wrapper.text()).toContain('Gemini service temporarily unavailable');
+    expect(wrapper.text()).not.toContain('Connection check failed');
+    expect(wrapper.text()).not.toContain('Invalid');
+  });
+
   it('renders YouTube Cookies active card, handles replace toggle and delete action', async () => {
     let deletedCalled = false;
     vi.stubGlobal(

@@ -67,8 +67,8 @@ class SystemRepository:
         """Validate if the given Gemini API keys are active and functional for the selected model."""
         from google import genai
         from core.genai_client import GeminiGenAIClient
+        from core.gemini_errors import classify_validation_exception, redact_api_keys
         from core.hook_discovery_engine import (
-            DEFAULT_GEMINI_MODEL,
             get_gemini_model_label,
             normalize_gemini_model,
             validate_gemini_model,
@@ -91,7 +91,8 @@ class SystemRepository:
             }
 
         results = []
-        all_valid = True
+        has_invalid = False
+        has_unavailable = False
 
         for key in keys:
             try:
@@ -104,45 +105,31 @@ class SystemRepository:
                     GeminiGenAIClient.clear_degradation(key)
                     results.append({"key": key, "status": "valid", "error": None, "raw_error": None})
                 else:
-                    all_valid = False
+                    has_invalid = True
                     results.append({"key": key, "status": "invalid", "error": "Empty response received from Gemini API.", "raw_error": "Response text is empty."})
             except Exception as e:
-                all_valid = False
-                raw_err = str(e)
-                raw_lower = raw_err.lower()
-                
-                if "403" in raw_err or "permission_denied" in raw_lower:
-                    user_msg = "Permission Denied (403): Project access is denied or Gemini API is not enabled on this Google Cloud / AI Studio account."
-                elif "api_key_invalid" in raw_lower or "400" in raw_err or "invalid_argument" in raw_lower:
-                    user_msg = "Invalid API Key (400): Key characters not recognized. Please copy the key from Google AI Studio."
-                elif "429" in raw_err or "quota" in raw_lower or "resource_exhausted" in raw_lower:
-                    model_label = get_gemini_model_label(active_model)
-                    if active_model != DEFAULT_GEMINI_MODEL:
-                        user_msg = (
-                            f"Rate Limit / Quota exceeded (429) for {model_label} ({active_model}): "
-                            "Free tier limit reached. Switch to Gemini 3.5 Flash-Lite or use a fallback key."
-                        )
-                    else:
-                        user_msg = (
-                            f"Rate Limit / Quota exceeded (429) for {model_label} ({active_model}): "
-                            "Free tier RPM limit reached. Please wait a moment or use a fallback key."
-                        )
-                elif "404" in raw_err or "not_found" in raw_lower:
-                    model_label = get_gemini_model_label(active_model)
-                    user_msg = (
-                        f"Model Not Found (404): {model_label} ({active_model}) "
-                        "is not available for this API key or region."
-                    )
-                elif "timeout" in raw_lower or "connect" in raw_lower or "ssl" in raw_lower:
-                    user_msg = "Connection Timeout: Unable to reach Google AI servers. Please check your network connection or proxy."
+                raw_err = redact_api_keys(str(e))
+                key_status, user_msg, detail = classify_validation_exception(
+                    e,
+                    model_name=active_model,
+                    model_label=get_gemini_model_label(active_model),
+                )
+                if key_status == "unavailable":
+                    has_unavailable = True
                 else:
-                    first_line = raw_err.strip().splitlines()[0] if raw_err else "Unknown API error"
-                    user_msg = f"API Error: {first_line[:120]}"
-                
-                results.append({"key": key, "status": "invalid", "error": user_msg, "raw_error": raw_err})
+                    has_invalid = True
 
+                results.append({
+                    "key": key,
+                    "status": key_status,
+                    "error": user_msg,
+                    "raw_error": raw_err,
+                    "error_detail": detail.to_dict(),
+                })
+
+        overall_status = "invalid" if has_invalid else ("unavailable" if has_unavailable else "valid")
         return {
-            "status": "valid" if all_valid else "invalid",
+            "status": overall_status,
             "model": active_model,
             "results": results,
         }

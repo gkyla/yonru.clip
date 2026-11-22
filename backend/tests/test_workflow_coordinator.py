@@ -1401,6 +1401,114 @@ def test_run_full_analysis_quota_error_propagates_actionable_message(mock_depend
     assert coordinator.jobs[job_id]["status"] == "error"
     assert "Gemini 3.8 Flash" in coordinator.jobs[job_id]["error"]
     assert "Gemini 3.5 Flash-Lite" in coordinator.jobs[job_id]["error"]
+    assert coordinator.jobs[job_id]["error_detail"]["origin"] == "provider"
+    assert coordinator.jobs[job_id]["error_detail"]["code"] == "quota_exceeded"
+
+
+def test_run_full_analysis_503_high_demand_sets_provider_error_detail(mock_dependencies, tmp_path):
+    """503 high demand errors set structured provider error_detail on the job and summary."""
+    from core.gemini_errors import classify_gemini_exception
+
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+    )
+
+    job_id = "job_503_err"
+    coordinator.jobs[job_id] = {
+        "status": "queued",
+        "url": "https://youtube.com/watch?v=busy123",
+        "video_info": None,
+        "full_video_path": None,
+        "hooks": None,
+        "error": None,
+    }
+
+    mock_dependencies["youtube_client"].extract_video_id.return_value = "busy123"
+    mock_dependencies["youtube_client"].fetch_transcript.return_value = [
+        {"text": "Hello world", "start": 0.0, "duration": 2.0}
+    ]
+    video_file = tmp_path / "video.mp4"
+    video_file.write_text("dummy")
+    mock_dependencies["asset_repository"].get_cached_video.return_value = None
+    mock_dependencies["asset_repository"].get_or_create_source.return_value = {
+        "file_path": str(video_file),
+        "duration": 120.0,
+        "fps": 30.0,
+        "folder_name": "video_busy123",
+    }
+    mock_dependencies["config_store"].get.return_value = "fake-gemini-key"
+
+    err = classify_gemini_exception(
+        RuntimeError("503 UNAVAILABLE. This model is currently experiencing high demand."),
+        model_name="gemini-3.5-flash-lite",
+    )
+    with patch.object(
+        coordinator.hook_discovery_engine,
+        "get_or_discover_hooks",
+        side_effect=err,
+    ):
+        coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=busy123", "id")
+
+    summary = coordinator.get_job_summary(job_id)
+    assert summary["status"] == "error"
+    assert summary["error_detail"]["origin"] == "provider"
+    assert summary["error_detail"]["code"] == "high_demand"
+    assert "Gemini's side" in summary["error"]
+
+
+def test_run_full_analysis_zero_usable_hooks_sets_output_error_detail(mock_dependencies, tmp_path):
+    """Empty sanitized hooks list sets output/no_hooks_found error_detail instead of generic Gemini message."""
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+    )
+
+    job_id = "job_empty_hooks"
+    coordinator.jobs[job_id] = {
+        "status": "queued",
+        "url": "https://youtube.com/watch?v=empty123",
+        "video_info": None,
+        "full_video_path": None,
+        "hooks": None,
+        "error": None,
+    }
+
+    mock_dependencies["youtube_client"].extract_video_id.return_value = "empty123"
+    mock_dependencies["youtube_client"].fetch_transcript.return_value = [
+        {"text": "Hello world", "start": 0.0, "duration": 2.0}
+    ]
+    video_file = tmp_path / "video.mp4"
+    video_file.write_text("dummy")
+    mock_dependencies["asset_repository"].get_cached_video.return_value = None
+    mock_dependencies["asset_repository"].get_or_create_source.return_value = {
+        "file_path": str(video_file),
+        "duration": 120.0,
+        "fps": 30.0,
+        "folder_name": "video_empty123",
+    }
+    mock_dependencies["config_store"].get.return_value = "fake-gemini-key"
+
+    with patch.object(
+        coordinator.hook_discovery_engine,
+        "get_or_discover_hooks",
+        return_value=[],
+    ):
+        coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=empty123", "id")
+
+    summary = coordinator.get_job_summary(job_id)
+    assert summary["status"] == "error"
+    assert summary["error_detail"]["origin"] == "output"
+    assert summary["error_detail"]["code"] == "no_hooks_found"
+    assert "Gemini failed to generate hooks from the transcript" not in summary["error"]
 
 
 

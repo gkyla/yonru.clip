@@ -118,5 +118,68 @@ class TestGenAIClient(unittest.TestCase):
         self.assertEqual(client.key_titles["key1"], "Key #1")
         self.assertEqual(client.key_titles["key2"], "Key #2")
 
+    @patch('core.genai_client.genai.Client')
+    def test_gemini_client_503_does_not_degrade_or_rotate_keys(self, mock_sdk_client):
+        GeminiGenAIClient._degradation_cache.clear()
+
+        mock_client_1 = MagicMock()
+        mock_client_1.models.generate_content.side_effect = Exception(
+            "503 UNAVAILABLE. This model is currently experiencing high demand."
+        )
+        mock_client_2 = MagicMock()
+
+        def client_side_effect(api_key=None):
+            return mock_client_1 if api_key == "key1" else mock_client_2
+
+        mock_sdk_client.side_effect = client_side_effect
+
+        client = GeminiGenAIClient(api_key="key1, key2")
+        with self.assertRaises(Exception):
+            client.generate_json("Prompt Content", "gemini-3.5-flash-lite")
+
+        mock_client_2.models.generate_content.assert_not_called()
+
+        # Verify key1 was NOT degraded by confirming the very next call still uses key1 and succeeds.
+        mock_response = MagicMock()
+        mock_response.text = '{"status": "recovered"}'
+        mock_client_1.models.generate_content.side_effect = None
+        mock_client_1.models.generate_content.return_value = mock_response
+
+        res = client.generate_json("Second Prompt", "gemini-3.5-flash-lite")
+        self.assertEqual(res, '{"status": "recovered"}')
+        self.assertEqual(mock_client_1.models.generate_content.call_count, 2)
+        mock_client_2.models.generate_content.assert_not_called()
+
+    @patch('core.genai_client.genai.Client')
+    def test_gemini_client_network_error_does_not_degrade_or_rotate_keys(self, mock_sdk_client):
+        GeminiGenAIClient._degradation_cache.clear()
+
+        mock_client_1 = MagicMock()
+        mock_client_1.models.generate_content.side_effect = ConnectionError(
+            "Connection timed out after 5000ms"
+        )
+        mock_client_2 = MagicMock()
+
+        def client_side_effect(api_key=None):
+            return mock_client_1 if api_key == "key1" else mock_client_2
+
+        mock_sdk_client.side_effect = client_side_effect
+
+        client = GeminiGenAIClient(api_key="key1, key2")
+        with self.assertRaises(ConnectionError):
+            client.generate_json("Prompt Content", "gemini-3.5-flash-lite")
+
+        mock_client_2.models.generate_content.assert_not_called()
+
+        mock_response = MagicMock()
+        mock_response.text = '{"status": "online"}'
+        mock_client_1.models.generate_content.side_effect = None
+        mock_client_1.models.generate_content.return_value = mock_response
+
+        res = client.generate_json("Second Prompt", "gemini-3.5-flash-lite")
+        self.assertEqual(res, '{"status": "online"}')
+        self.assertEqual(mock_client_1.models.generate_content.call_count, 2)
+        mock_client_2.models.generate_content.assert_not_called()
+
 if __name__ == '__main__':
     unittest.main()

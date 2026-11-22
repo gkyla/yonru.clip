@@ -259,7 +259,11 @@ import {
   getHookDiscoveryModelOption,
   normalizeHookDiscoveryModel
 } from '../utils/hookDiscoveryModels';
-import type { HookDiscoveryModelId } from '../types/clipper';
+import type {
+  GeminiKeyTestResultStatus,
+  GeminiKeyValidationStatus,
+  HookDiscoveryModelId
+} from '../types/clipper';
 
 const state = useClipperState();
 const route = useRoute();
@@ -379,7 +383,10 @@ const hasValidApiKey = computed(() => {
   if (health?.gemini_api?.has_key) return true;
   return keysList.value.some(
     k =>
-      k.value.trim().length > 0 && (k.status === 'valid' || k.status === 'idle')
+      k.value.trim().length > 0 &&
+      (k.status === 'valid' ||
+        k.status === 'idle' ||
+        k.status === 'unavailable')
   );
 });
 
@@ -451,7 +458,7 @@ export interface KeyListItem {
   title: string;
   value: string;
   show: boolean;
-  status: 'idle' | 'valid' | 'invalid' | 'testing';
+  status: GeminiKeyValidationStatus;
   error: string;
   raw_error?: string;
   showRawError?: boolean;
@@ -729,7 +736,7 @@ function applyRecommendedModel(modelId: any) {
 // API Key Validation state
 const testingKey = ref(false);
 const testResult = ref<{
-  status: 'idle' | 'valid' | 'invalid';
+  status: GeminiKeyTestResultStatus;
   message: string;
 }>({ status: 'idle', message: '' });
 
@@ -759,10 +766,10 @@ async function testApiKeys() {
     );
 
     const res = await $fetch<{
-      status: 'valid' | 'invalid';
+      status: Exclude<GeminiKeyTestResultStatus, 'idle'>;
       results: Array<{
         key: string;
-        status: 'valid' | 'invalid';
+        status: Exclude<GeminiKeyTestResultStatus, 'idle'>;
         error: string | null;
         raw_error?: string | null;
       }>;
@@ -794,6 +801,17 @@ async function testApiKeys() {
       };
       state.showToast('All API keys verified successfully!', 'success');
       checkSystemHealth();
+    } else if (res.status === 'unavailable') {
+      testResult.value = {
+        status: 'unavailable',
+        message:
+          res.error ||
+          'Gemini service is temporarily busy or unreachable. Your keys could not be verified right now.'
+      };
+      state.showToast(
+        'Gemini is temporarily unavailable. Keys were not marked invalid.',
+        'info'
+      );
     } else {
       testResult.value = {
         status: 'invalid',
@@ -803,23 +821,41 @@ async function testApiKeys() {
       };
       state.showToast('Validation failed for one or more keys.', 'error');
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const errObj = e as {
+      statusCode?: number;
+      status?: number;
+      data?: { detail?: string };
+      message?: string;
+    };
+    const httpStatus = errObj?.statusCode ?? errObj?.status;
+    const isClientError =
+      typeof httpStatus === 'number' && httpStatus >= 400 && httpStatus < 500;
+    const fallbackStatus: Exclude<GeminiKeyTestResultStatus, 'idle'> =
+      isClientError ? 'invalid' : 'unavailable';
     const errMsg =
-      e.data?.detail || e.message || 'Failed to connect to backend server';
+      errObj?.data?.detail ||
+      errObj?.message ||
+      'Unable to reach backend validation endpoint.';
     testResult.value = {
-      status: 'invalid',
+      status: fallbackStatus,
       message: errMsg
     };
     keysList.value.forEach(k => {
       if (k.value.trim()) {
-        k.status = 'invalid';
+        k.status = fallbackStatus;
         k.error = errMsg;
         k.raw_error =
           typeof e === 'object' ? JSON.stringify(e, null, 2) : String(e);
         k.showRawError = false;
       }
     });
-    state.showToast(`Error testing keys: ${errMsg}`, 'error');
+    state.showToast(
+      fallbackStatus === 'unavailable'
+        ? `Could not verify keys right now: ${errMsg}`
+        : `Error testing keys: ${errMsg}`,
+      fallbackStatus === 'unavailable' ? 'info' : 'error'
+    );
   } finally {
     testingKey.value = false;
   }
