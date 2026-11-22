@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 import hashlib
 import os
+import queue
+import signal
 import sys
 import subprocess
 import json
@@ -9,10 +12,644 @@ import re
 import threading
 import time
 import uuid
-from typing import Generator, Any, Optional, Dict, List, Tuple
+from typing import Any, Callable, Dict, Generator, List, Optional, Set, Tuple
+
+from core.hardware_profiler import (
+    CPUMetrics,
+    GPUMetrics,
+    HardwareProfiler,
+    HostHardwareMetrics,
+)
 
 
 _BUNDLE_LOCK = threading.Lock()
+VALID_HARDWARE_ACCELERATION_MODES = frozenset({"if-possible", "disable", "required"})
+_HW_ENCODER_ERROR_TOKENS = (
+    "videotoolbox",
+    "h264_videotoolbox",
+    "nvenc",
+    "h264_nvenc",
+    "hevc_nvenc",
+    "hardware acceleration",
+    "hardware encoder",
+    "gpu process",
+    "encoder initialization",
+    "cannot load libcuda",
+    "cuda_error",
+    "failed to initialize encoder",
+    "error initializing output stream",
+    "vtcompressionsession",
+)
+
+
+class RenderCancelledError(Exception):
+    """Raised when an active render or bundle step is cancelled by the client or shutdown."""
+
+
+@dataclass(frozen=True)
+class RemotionRunResult:
+    """Normalized outcome of executing a Remotion CLI invocation."""
+    returncode: int
+    stdout: str = ""
+    stderr: str = ""
+    cancelled: bool = False
+
+
+@dataclass(frozen=True)
+class RenderExecutionPolicy:
+    """Hardware-guided GPU acceleration and RAM-bounded concurrency policy for Remotion."""
+    hardware_acceleration: str
+    concurrency: int
+    hw_accel_explicit: bool = False
+
+
+def compute_ram_concurrency_cap(total_ram_gb: float) -> int:
+    """Map host physical RAM (GB) to a safe headless Chromium tab concurrency ceiling."""
+    if total_ram_gb < 8.0:
+        return 1
+    if total_ram_gb < 12.0:
+        return 2
+    if total_ram_gb < 16.0:
+        return 3
+    if total_ram_gb < 24.0:
+        return 4
+    if total_ram_gb < 32.0:
+        return 6
+    return 8
+
+
+def resolve_render_execution_policy(
+    metrics: HostHardwareMetrics,
+    *,
+    hardware_acceleration_override: Optional[str] = None,
+    concurrency_override: Optional[str] = None,
+) -> RenderExecutionPolicy:
+    """Compute `--hardware-acceleration` and `--concurrency` flags from Hardware Capability Profile."""
+    cpu_cores = max(1, int(metrics.cpu.cores or 1))
+    ram_cap = compute_ram_concurrency_cap(float(metrics.total_ram_gb or 0.0))
+    concurrency = max(1, min(cpu_cores, max(1, min(8, cpu_cores // 2)), ram_cap))
+
+    if concurrency_override is not None and concurrency_override.strip():
+        try:
+            parsed_concurrency = int(concurrency_override.strip())
+            concurrency = max(1, min(cpu_cores, parsed_concurrency))
+        except ValueError:
+            pass
+
+    raw_hw = (hardware_acceleration_override or "").strip().lower()
+    if raw_hw in VALID_HARDWARE_ACCELERATION_MODES:
+        hw_accel = raw_hw
+        hw_accel_explicit = True
+    else:
+        is_macos = (metrics.cpu.system_os or "").strip().lower() == "darwin"
+        has_cuda = (metrics.gpu.type or "").strip().lower() == "cuda"
+        hw_accel = "if-possible" if (is_macos or has_cuda) else "disable"
+        hw_accel_explicit = False
+
+    return RenderExecutionPolicy(
+        hardware_acceleration=hw_accel,
+        concurrency=concurrency,
+        hw_accel_explicit=hw_accel_explicit,
+    )
+
+
+def _has_hardware_encoder_error(output_tail: str) -> bool:
+    lowered = (output_tail or "").lower()
+    return any(token in lowered for token in _HW_ENCODER_ERROR_TOKENS)
+
+
+def _should_retry_with_software_encoding(
+    *,
+    hardware_acceleration: str,
+    returncode: int,
+    cancelled: bool,
+    completed_frames: bool,
+    output_tail: str,
+) -> bool:
+    if cancelled or returncode == 0 or hardware_acceleration != "if-possible":
+        return False
+    return (not completed_frames) or _has_hardware_encoder_error(output_tail)
+
+
+def _resolve_bin_dir(raw_path: str, tool_names: Tuple[str, ...]) -> str:
+    expanded = os.path.expanduser(raw_path.strip())
+    if os.path.isdir(expanded):
+        return expanded
+    if os.path.isfile(expanded) or os.path.basename(expanded).lower() in tool_names:
+        return os.path.dirname(expanded)
+    return expanded
+
+
+class RemotionProcessAdapter(ABC):
+    """Seam isolating Remotion CLI subprocess execution, process-group ownership, and cancellation."""
+
+    @abstractmethod
+    def run(
+        self,
+        cmd: List[str],
+        *,
+        cwd: str,
+        env: Dict[str, str],
+        cancel_event: Optional[threading.Event] = None,
+    ) -> RemotionRunResult:
+        """Execute a Remotion command to completion with cancellation support."""
+        pass
+
+    @abstractmethod
+    def stream(
+        self,
+        cmd: List[str],
+        *,
+        cwd: str,
+        env: Dict[str, str],
+        cancel_event: Optional[threading.Event] = None,
+    ) -> Generator[str, None, RemotionRunResult]:
+        """Execute a Remotion command, yielding stdout lines and returning RemotionRunResult."""
+        pass
+
+    def terminate_all(self) -> None:
+        """Terminate all active Remotion process trees tracked by this adapter."""
+        return None
+
+
+class SubprocessRemotionAdapter(RemotionProcessAdapter):
+    """Production adapter owning OS process groups, grace-window escalation, and shutdown cleanup."""
+
+    def __init__(self, terminate_grace_seconds: float = 2.0, poll_interval_seconds: float = 0.05) -> None:
+        self.terminate_grace_seconds = max(0.05, float(terminate_grace_seconds))
+        self.poll_interval_seconds = max(0.01, float(poll_interval_seconds))
+        self._lock = threading.Lock()
+        self._active_procs: Set[subprocess.Popen[str]] = set()
+
+    @staticmethod
+    def _spawn_kwargs(cmd: List[str]) -> Dict[str, Any]:
+        if sys.platform == "win32":
+            use_shell = bool(cmd) and cmd[0].lower().endswith((".cmd", ".bat"))
+            return {
+                "shell": use_shell,
+                "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+            }
+        return {"shell": False, "start_new_session": True}
+
+    @staticmethod
+    def _wait_for_pgid_exit(killpg_fn: Any, pgid: int, timeout: float) -> bool:
+        end = time.monotonic() + timeout
+        while True:
+            try:
+                killpg_fn(pgid, 0)
+            except ProcessLookupError:
+                return True
+            except PermissionError:
+                pass
+            except OSError:
+                return True
+            if time.monotonic() >= end:
+                return False
+            time.sleep(0.01)
+
+    def _terminate_process_tree(self, proc: subprocess.Popen[str]) -> None:
+        if sys.platform == "win32":
+            if proc.poll() is None:
+                try:
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=5.0,
+                        check=False,
+                    )
+                except Exception:
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+            if proc.poll() is None:
+                try:
+                    proc.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+                    try:
+                        proc.wait(timeout=2.0)
+                    except subprocess.TimeoutExpired:
+                        pass
+            return
+
+        killpg_fn = getattr(os, "killpg", None)
+        pgid = proc.pid
+        sigterm = signal.SIGTERM
+        sigkill = getattr(signal, "SIGKILL", signal.SIGTERM)
+
+        if killpg_fn is not None and pgid > 0:
+            try:
+                killpg_fn(pgid, sigterm)
+            except (ProcessLookupError, PermissionError, OSError):
+                if proc.poll() is None:
+                    try:
+                        proc.terminate()
+                    except OSError:
+                        pass
+        elif proc.poll() is None:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+
+        deadline = time.monotonic() + self.terminate_grace_seconds
+        group_alive = True
+        while True:
+            if proc.poll() is None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                try:
+                    proc.wait(timeout=min(0.05, remaining))
+                except subprocess.TimeoutExpired:
+                    pass
+
+            if killpg_fn is not None and pgid > 0:
+                try:
+                    killpg_fn(pgid, 0)
+                except ProcessLookupError:
+                    group_alive = False
+                    break
+                except PermissionError:
+                    pass
+                except OSError:
+                    group_alive = False
+                    break
+            else:
+                if proc.poll() is not None:
+                    group_alive = False
+                    break
+
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.02)
+
+        if proc.poll() is None or group_alive:
+            if killpg_fn is not None and pgid > 0:
+                try:
+                    killpg_fn(pgid, sigkill)
+                except (ProcessLookupError, PermissionError, OSError):
+                    if proc.poll() is None:
+                        try:
+                            proc.kill()
+                        except OSError:
+                            pass
+            elif proc.poll() is None:
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+
+        if proc.poll() is None:
+            try:
+                proc.wait(timeout=5.0)
+            except subprocess.TimeoutExpired:
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+                try:
+                    proc.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    pass
+
+        if killpg_fn is not None and pgid > 0:
+            self._wait_for_pgid_exit(killpg_fn, pgid, timeout=0.5)
+
+    def run(
+        self,
+        cmd: List[str],
+        *,
+        cwd: str,
+        env: Dict[str, str],
+        cancel_event: Optional[threading.Event] = None,
+    ) -> RemotionRunResult:
+        if cancel_event is not None and cancel_event.is_set():
+            return RemotionRunResult(returncode=-1, cancelled=True)
+
+        proc = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+            encoding="utf-8",
+            errors="replace",
+            **self._spawn_kwargs(cmd),
+        )
+        with self._lock:
+            self._active_procs.add(proc)
+
+        stdout_chunks: List[str] = []
+        stderr_chunks: List[str] = []
+
+        def _drain(pipe: Any, target: List[str]) -> None:
+            if pipe is None:
+                return
+            try:
+                for chunk in iter(lambda: pipe.read(4096), ""):
+                    target.append(chunk)
+            except Exception:
+                pass
+
+        t_out = threading.Thread(target=_drain, args=(proc.stdout, stdout_chunks), daemon=True)
+        t_err = threading.Thread(target=_drain, args=(proc.stderr, stderr_chunks), daemon=True)
+        t_out.start()
+        t_err.start()
+
+        cancelled = False
+        try:
+            while True:
+                if cancel_event is not None and cancel_event.is_set():
+                    cancelled = True
+                    break
+                try:
+                    proc.wait(timeout=self.poll_interval_seconds)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
+        finally:
+            if cancelled or proc.poll() is None:
+                self._terminate_process_tree(proc)
+            else:
+                proc.wait()
+            t_out.join(timeout=1.0)
+            t_err.join(timeout=1.0)
+            for pipe in (proc.stdout, proc.stderr):
+                if pipe is not None:
+                    try:
+                        pipe.close()
+                    except Exception:
+                        pass
+            with self._lock:
+                self._active_procs.discard(proc)
+
+        return RemotionRunResult(
+            returncode=proc.returncode if proc.returncode is not None else -1,
+            stdout="".join(stdout_chunks),
+            stderr="".join(stderr_chunks),
+            cancelled=cancelled,
+        )
+
+    def stream(
+        self,
+        cmd: List[str],
+        *,
+        cwd: str,
+        env: Dict[str, str],
+        cancel_event: Optional[threading.Event] = None,
+    ) -> Generator[str, None, RemotionRunResult]:
+        if cancel_event is not None and cancel_event.is_set():
+            return RemotionRunResult(returncode=-1, cancelled=True)
+
+        proc = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=env,
+            encoding="utf-8",
+            errors="replace",
+            **self._spawn_kwargs(cmd),
+        )
+        with self._lock:
+            self._active_procs.add(proc)
+
+        line_queue: queue.Queue[Tuple[str, Optional[str]]] = queue.Queue()
+
+        def _reader() -> None:
+            try:
+                if proc.stdout is not None:
+                    for line in iter(proc.stdout.readline, ""):
+                        line_queue.put(("line", line))
+            except Exception:
+                pass
+            finally:
+                line_queue.put(("eof", None))
+
+        reader = threading.Thread(target=_reader, daemon=True)
+        reader.start()
+
+        cancelled = False
+        completed_cleanly = False
+        try:
+            while True:
+                if cancel_event is not None and cancel_event.is_set():
+                    cancelled = True
+                    break
+                try:
+                    kind, line = line_queue.get(timeout=self.poll_interval_seconds)
+                except queue.Empty:
+                    if cancel_event is not None and cancel_event.is_set():
+                        cancelled = True
+                        break
+                    if proc.poll() is not None and not reader.is_alive() and line_queue.empty():
+                        break
+                    continue
+
+                if kind == "eof":
+                    break
+                if line is not None:
+                    if cancel_event is not None and cancel_event.is_set():
+                        cancelled = True
+                        break
+                    yield line
+
+            if not cancelled:
+                while True:
+                    if cancel_event is not None and cancel_event.is_set():
+                        cancelled = True
+                        break
+                    try:
+                        proc.wait(timeout=self.poll_interval_seconds)
+                        completed_cleanly = True
+                        break
+                    except subprocess.TimeoutExpired:
+                        continue
+        finally:
+            if not completed_cleanly or proc.poll() is None:
+                self._terminate_process_tree(proc)
+            else:
+                proc.wait()
+            reader.join(timeout=1.0)
+            if proc.stdout is not None:
+                try:
+                    proc.stdout.close()
+                except Exception:
+                    pass
+            with self._lock:
+                self._active_procs.discard(proc)
+
+        return RemotionRunResult(
+            returncode=proc.returncode if proc.returncode is not None else -1,
+            cancelled=cancelled,
+        )
+
+    def terminate_all(self) -> None:
+        with self._lock:
+            procs = list(self._active_procs)
+        for proc in procs:
+            try:
+                self._terminate_process_tree(proc)
+            finally:
+                with self._lock:
+                    self._active_procs.discard(proc)
+
+
+class FakeRemotionAdapter(RemotionProcessAdapter):
+    """In-memory deterministic Remotion adapter for unit and ASGI integration tests."""
+
+    def __init__(
+        self,
+        *,
+        run_results: Optional[List[RemotionRunResult]] = None,
+        stream_scripts: Optional[List[Dict[str, Any]]] = None,
+        run_handler: Optional[Callable[[List[str], str, Dict[str, str], Optional[threading.Event]], RemotionRunResult]] = None,
+        stream_handler: Optional[Callable[[List[str], str, Dict[str, str], Optional[threading.Event]], Generator[str, None, RemotionRunResult]]] = None,
+        auto_create_bundle: bool = True,
+        on_terminate: Optional[Callable[[], None]] = None,
+    ) -> None:
+        self.calls: List[Dict[str, Any]] = []
+        self.run_results: List[RemotionRunResult] = list(run_results or [])
+        self.stream_scripts: List[Dict[str, Any]] = list(stream_scripts or [])
+        self.run_handler = run_handler
+        self.stream_handler = stream_handler
+        self.auto_create_bundle = auto_create_bundle
+        self.on_terminate = on_terminate
+        self.terminated_count = 0
+        self.terminate_all_calls = 0
+
+    @staticmethod
+    def _extract_output_path(cmd: List[str]) -> Optional[str]:
+        if "--props" in cmd:
+            idx = cmd.index("--props")
+            if idx + 2 < len(cmd):
+                return cmd[idx + 2]
+        return None
+
+    def _maybe_create_bundle(self, cmd: List[str], cwd: str) -> None:
+        if not self.auto_create_bundle or "bundle" not in cmd:
+            return
+        out_dir = ".bundle"
+        if "--out-dir" in cmd:
+            out_idx = cmd.index("--out-dir")
+            if out_idx + 1 < len(cmd):
+                out_dir = cmd[out_idx + 1]
+        bundle_path = os.path.join(cwd, out_dir)
+        os.makedirs(bundle_path, exist_ok=True)
+        with open(os.path.join(bundle_path, "index.html"), "w", encoding="utf-8") as f:
+            f.write("<html><body>fake bundle</body></html>")
+
+    def run(
+        self,
+        cmd: List[str],
+        *,
+        cwd: str,
+        env: Dict[str, str],
+        cancel_event: Optional[threading.Event] = None,
+    ) -> RemotionRunResult:
+        self.calls.append({"method": "run", "cmd": list(cmd), "cwd": cwd, "env": dict(env)})
+        if cancel_event is not None and cancel_event.is_set():
+            self.terminated_count += 1
+            if self.on_terminate is not None:
+                self.on_terminate()
+            return RemotionRunResult(returncode=-1, cancelled=True)
+
+        if self.run_handler is not None:
+            result = self.run_handler(list(cmd), cwd, dict(env), cancel_event)
+            if result.cancelled or (cancel_event is not None and cancel_event.is_set()):
+                self.terminated_count += 1
+                if self.on_terminate is not None:
+                    self.on_terminate()
+            return result
+
+        if self.run_results:
+            result = self.run_results.pop(0)
+        else:
+            self._maybe_create_bundle(cmd, cwd)
+            result = RemotionRunResult(returncode=0)
+
+        if result.cancelled:
+            self.terminated_count += 1
+            if self.on_terminate is not None:
+                self.on_terminate()
+        return result
+
+    def stream(
+        self,
+        cmd: List[str],
+        *,
+        cwd: str,
+        env: Dict[str, str],
+        cancel_event: Optional[threading.Event] = None,
+    ) -> Generator[str, None, RemotionRunResult]:
+        self.calls.append({"method": "stream", "cmd": list(cmd), "cwd": cwd, "env": dict(env)})
+        if cancel_event is not None and cancel_event.is_set():
+            self.terminated_count += 1
+            if self.on_terminate is not None:
+                self.on_terminate()
+            return RemotionRunResult(returncode=-1, cancelled=True)
+
+        completed_cleanly = False
+        try:
+            if self.stream_handler is not None:
+                result = yield from self.stream_handler(list(cmd), cwd, dict(env), cancel_event)
+                if result is None:
+                    result = RemotionRunResult(
+                        returncode=0,
+                        cancelled=bool(cancel_event is not None and cancel_event.is_set()),
+                    )
+                if not result.cancelled and not (cancel_event is not None and cancel_event.is_set()):
+                    completed_cleanly = True
+                return result
+
+            script = dict(self.stream_scripts.pop(0)) if self.stream_scripts else {}
+            write_bytes = script.get("write_output_bytes")
+            if write_bytes is not None:
+                out_path = self._extract_output_path(cmd)
+                if out_path:
+                    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+                    with open(out_path, "wb") as f:
+                        f.write(write_bytes)
+
+            for line in script.get("lines", []):
+                if cancel_event is not None and cancel_event.is_set():
+                    return RemotionRunResult(returncode=-1, cancelled=True)
+                yield line
+
+            if script.get("wait_for_cancel_after_lines") and cancel_event is not None:
+                cancel_event.wait(timeout=float(script.get("cancel_wait_timeout", 5.0)))
+                if cancel_event.is_set():
+                    return RemotionRunResult(returncode=-1, cancelled=True)
+
+            if cancel_event is not None and cancel_event.is_set():
+                return RemotionRunResult(returncode=-1, cancelled=True)
+
+            is_cancelled = bool(script.get("cancelled", False))
+            if not is_cancelled:
+                completed_cleanly = True
+            return RemotionRunResult(
+                returncode=int(script.get("returncode", 0)),
+                cancelled=is_cancelled,
+            )
+        finally:
+            if not completed_cleanly:
+                self.terminated_count += 1
+                if self.on_terminate is not None:
+                    self.on_terminate()
+
+    def terminate_all(self) -> None:
+        self.terminate_all_calls += 1
+        if self.on_terminate is not None:
+            self.on_terminate()
 
 
 def _resolve_track_type(track: Any) -> str:
@@ -501,9 +1138,18 @@ class RenderEngine(ABC):
         pass
 
     @abstractmethod
-    def render_streaming(self, comp: RenderComposition, out_filename: str) -> Generator[dict, None, None]:
+    def render_streaming(
+        self,
+        comp: RenderComposition,
+        out_filename: str,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> Generator[dict, None, None]:
         """Asynchronously render and yield progress dictionaries."""
         pass
+
+    def terminate_all(self) -> None:
+        """Terminate any active render subprocesses owned by this engine."""
+        return None
 
     def render(
         self,
@@ -557,9 +1203,13 @@ class RenderEngine(ABC):
         req: Any,
         asset_repository: Any = None,
         output_name: Optional[str] = None,
-        media_transcoder: Optional[Any] = None
+        media_transcoder: Optional[Any] = None,
+        cancel_event: Optional[threading.Event] = None,
     ) -> Generator[dict, None, None]:
         """Unified SSE progress streaming entrypoint decoupled from asset_repository."""
+        if cancel_event is not None and cancel_event.is_set():
+            return
+
         if isinstance(asset_repository, str) and output_name is None:
             output_name = asset_repository
             asset_repository = None
@@ -575,7 +1225,10 @@ class RenderEngine(ABC):
             asset_repository=asset_repository,
             media_transcoder=media_transcoder
         )
-        yield from self.render_streaming(comp, out_filename)
+        if cancel_event is not None and cancel_event.is_set():
+            return
+
+        yield from self.render_streaming(comp, out_filename, cancel_event=cancel_event)
 
     def compile_composition(
         self,
@@ -843,7 +1496,7 @@ class RenderEngine(ABC):
 class RenderPipelineCoordinator(RenderEngine):
     """
     Deep coordinator managing composition compilation, asset staging,
-    Remotion subprocess lifecycle, and SSE progress streaming.
+    Remotion subprocess lifecycle, hardware-guided encoding, and SSE progress streaming.
     """
     def __init__(
         self,
@@ -855,6 +1508,8 @@ class RenderPipelineCoordinator(RenderEngine):
         clip_session_store: Optional[Any] = None,
         remotion_dir: Optional[str] = None,
         audio_library_dir: Optional[str] = None,
+        process_adapter: Optional[RemotionProcessAdapter] = None,
+        hardware_profiler: Optional[HardwareProfiler] = None,
     ):
         super().__init__(
             media_transcoder=media_transcoder,
@@ -878,6 +1533,10 @@ class RenderPipelineCoordinator(RenderEngine):
                 pass
 
         self.config_store = config_store
+        self.process_adapter: RemotionProcessAdapter = process_adapter or SubprocessRemotionAdapter()
+        self.hardware_profiler = hardware_profiler
+        self._cached_hardware_metrics: Optional[HostHardwareMetrics] = None
+        self._hardware_metrics_lock = threading.Lock()
 
         if self.media_transcoder is None:
             try:
@@ -896,34 +1555,113 @@ class RenderPipelineCoordinator(RenderEngine):
             except Exception:
                 self.clip_session_store = None
 
-        # Setup and verify FFmpeg binary path
-        env_path = os.environ.get("PATH", "")
-        extra_paths = []
+    def terminate_all(self) -> None:
+        self.process_adapter.terminate_all()
 
-        custom_ffmpeg = self.config_store.get("FFMPEG_PATH") if self.config_store else os.environ.get("FFMPEG_PATH")
-        if custom_ffmpeg:
-            if os.path.isdir(custom_ffmpeg):
-                extra_paths.append(custom_ffmpeg)
-            else:
-                extra_paths.append(os.path.dirname(custom_ffmpeg))
+    def _get_config_value(self, key: str) -> Optional[str]:
+        if self.config_store is not None:
+            return self.config_store.get(key)
+        return os.environ.get(key)
+
+    def _build_subprocess_env(self) -> Dict[str, str]:
+        env = os.environ.copy()
+        env["FORCE_COLOR"] = "0"
+        env["NO_COLOR"] = "1"
+
+        extra_paths: List[str] = []
+        ffmpeg_val = self._get_config_value("FFMPEG_PATH")
+        if ffmpeg_val is not None and ffmpeg_val.strip():
+            expanded_ffmpeg = os.path.expanduser(ffmpeg_val.strip())
+            env["FFMPEG_PATH"] = expanded_ffmpeg
+            bin_dir = _resolve_bin_dir(expanded_ffmpeg, ("ffmpeg", "ffmpeg.exe"))
+            if bin_dir:
+                extra_paths.append(bin_dir)
+        elif self.config_store is not None:
+            env.pop("FFMPEG_PATH", None)
+
+        node_val = self._get_config_value("NODE_PATH")
+        if node_val is not None and node_val.strip():
+            expanded_node = os.path.expanduser(node_val.strip())
+            env["NODE_PATH"] = expanded_node
+            bin_dir = _resolve_bin_dir(expanded_node, ("node", "node.exe"))
+            if bin_dir:
+                extra_paths.append(bin_dir)
+        elif self.config_store is not None:
+            env.pop("NODE_PATH", None)
 
         if sys.platform.startswith("win"):
-            extra_paths.extend(["C:\\Program Files\\ffmpeg\\bin", "C:\\ffmpeg\\bin", "C:\\Program Files\\nodejs"])
+            default_paths = [
+                "C:\\Program Files\\ffmpeg\\bin",
+                "C:\\ffmpeg\\bin",
+                "C:\\Program Files\\nodejs",
+            ]
         else:
-            extra_paths.extend(["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"])
+            default_paths = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
 
         sep = ";" if sys.platform.startswith("win") else ":"
+        existing_parts = [p for p in env.get("PATH", "").split(sep) if p]
+
+        prefix_parts: List[str] = []
         for p in extra_paths:
-            if os.path.exists(p) and p not in env_path.split(sep):
-                env_path = f"{p}{sep}{env_path}" if env_path else p
+            if p and p not in prefix_parts and p not in existing_parts:
+                prefix_parts.append(p)
 
-        os.environ["PATH"] = env_path
+        suffix_parts: List[str] = []
+        for p in default_paths:
+            if os.path.exists(p) and p not in prefix_parts and p not in existing_parts and p not in suffix_parts:
+                suffix_parts.append(p)
 
-        if not shutil.which("ffmpeg"):
-            raise RuntimeError("Friendly Alert: FFmpeg was not detected on this machine. Please download/install FFmpeg and map it to your execution variables.")
+        env["PATH"] = sep.join(prefix_parts + existing_parts + suffix_parts)
+        return env
+
+    def _ensure_ffmpeg_available(self) -> None:
+        transcoder = self.media_transcoder
+        if transcoder is not None and hasattr(transcoder, "is_ffmpeg_available"):
+            if transcoder.is_ffmpeg_available():
+                return
+        elif transcoder is not None and hasattr(transcoder, "resolve_ffmpeg_path"):
+            if transcoder.resolve_ffmpeg_path():
+                return
+        else:
+            scoped_path = self._build_subprocess_env().get("PATH", "")
+            if shutil.which("ffmpeg", path=scoped_path):
+                return
+
+        raise RuntimeError(
+            "Friendly Alert: FFmpeg was not detected on this machine. "
+            "Please download/install FFmpeg and configure FFMPEG_PATH in Settings."
+        )
+
+    def _get_hardware_metrics(self) -> HostHardwareMetrics:
+        with self._hardware_metrics_lock:
+            if self._cached_hardware_metrics is not None:
+                return self._cached_hardware_metrics
+            profiler = self.hardware_profiler or HardwareProfiler()
+            try:
+                metrics = profiler.metrics_source.probe_metrics()
+            except Exception:
+                metrics = HostHardwareMetrics(
+                    cpu=CPUMetrics(
+                        brand="unknown",
+                        arch="unknown",
+                        cores=os.cpu_count() or 4,
+                        system_os="Darwin" if sys.platform == "darwin" else ("Windows" if sys.platform == "win32" else "Linux"),
+                    ),
+                    total_ram_gb=8.0,
+                    gpu=GPUMetrics(type="cpu", name="Fallback CPU", vram_gb=None),
+                )
+            self._cached_hardware_metrics = metrics
+            return metrics
+
+    def _resolve_execution_policy(self) -> RenderExecutionPolicy:
+        return resolve_render_execution_policy(
+            self._get_hardware_metrics(),
+            hardware_acceleration_override=self._get_config_value("REMOTION_HARDWARE_ACCELERATION"),
+            concurrency_override=self._get_config_value("REMOTION_CONCURRENCY"),
+        )
 
     @staticmethod
-    def resolve_remotion_command(remotion_dir: str) -> List[str]:
+    def resolve_remotion_command(remotion_dir: str, env_path: Optional[str] = None) -> List[str]:
         """
         Resolve the Remotion CLI command.
         Prefers direct execution of local node_modules/.bin/remotion (.cmd on Windows)
@@ -935,7 +1673,17 @@ class RenderPipelineCoordinator(RenderEngine):
         if os.path.isfile(local_bin):
             return [local_bin]
 
-        npx_bin = shutil.which("npx.cmd") or shutil.which("npx") or "npx.cmd" if sys.platform == "win32" else (shutil.which("npx") or "npx")
+        if env_path is not None:
+            if sys.platform == "win32":
+                npx_bin = shutil.which("npx.cmd", path=env_path) or shutil.which("npx", path=env_path) or "npx.cmd"
+            else:
+                npx_bin = shutil.which("npx", path=env_path) or "npx"
+        else:
+            npx_bin = (
+                (shutil.which("npx.cmd") or shutil.which("npx") or "npx.cmd")
+                if sys.platform == "win32"
+                else (shutil.which("npx") or "npx")
+            )
         return [npx_bin, "--package=@remotion/cli", "remotion"]
 
     @staticmethod
@@ -998,14 +1746,51 @@ class RenderPipelineCoordinator(RenderEngine):
         is_fresh = os.path.isfile(index_html) and bool(current_hash) and stored_hash == current_hash
         return is_fresh, bundle_dir, current_hash
 
-    def _ensure_remotion_bundle(self, remotion_dir: str) -> str:
+    @staticmethod
+    def _cleanup_incomplete_bundle(remotion_dir: str, bundle_dir: str) -> None:
+        hash_file = os.path.join(bundle_dir, ".bundle.hash")
+        if os.path.isdir(bundle_dir) and not os.path.isfile(hash_file):
+            real_remotion = os.path.realpath(remotion_dir)
+            real_bundle = os.path.realpath(bundle_dir)
+            if os.path.commonpath([real_remotion, real_bundle]) == real_remotion and real_bundle != real_remotion:
+                shutil.rmtree(bundle_dir, ignore_errors=True)
+
+    @staticmethod
+    def _remove_partial_output(output_path: str) -> None:
+        if output_path and os.path.lexists(output_path):
+            try:
+                os.remove(output_path)
+            except OSError:
+                pass
+
+    def _ensure_remotion_bundle(
+        self,
+        remotion_dir: str,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> str:
         """Build or reuse a SHA-256 cached Remotion Webpack bundle inside .bundle/."""
-        with _BUNDLE_LOCK:
+        if cancel_event is not None and cancel_event.is_set():
+            raise RenderCancelledError("Remotion bundling cancelled")
+
+        acquired = False
+        while not acquired:
+            if cancel_event is not None and cancel_event.is_set():
+                raise RenderCancelledError("Remotion bundling cancelled")
+            acquired = _BUNDLE_LOCK.acquire(timeout=0.05)
+
+        try:
             is_fresh, bundle_dir, current_hash = self._inspect_bundle_state(remotion_dir)
             if is_fresh:
                 os.makedirs(os.path.join(bundle_dir, "public"), exist_ok=True)
                 print(f"[render-engine] Reusing cached Remotion bundle: {bundle_dir}", flush=True)
                 return bundle_dir
+
+            hash_file = os.path.join(bundle_dir, ".bundle.hash")
+            if os.path.isfile(hash_file):
+                try:
+                    os.remove(hash_file)
+                except OSError:
+                    pass
 
             if os.path.isdir(bundle_dir) and not os.path.isfile(os.path.join(bundle_dir, "index.html")):
                 real_remotion = os.path.realpath(remotion_dir)
@@ -1013,29 +1798,31 @@ class RenderPipelineCoordinator(RenderEngine):
                 if os.path.commonpath([real_remotion, real_bundle]) == real_remotion and real_bundle != real_remotion:
                     shutil.rmtree(bundle_dir, ignore_errors=True)
 
-            remotion_cmd = self.resolve_remotion_command(remotion_dir)
+            env = self._build_subprocess_env()
+            remotion_cmd = self.resolve_remotion_command(remotion_dir, env_path=env.get("PATH"))
             bundle_cmd = remotion_cmd + ["bundle", "src/index.ts", "--out-dir", ".bundle"]
             print(f"[render-engine] Building cached Remotion bundle: {' '.join(bundle_cmd)}", flush=True)
 
-            result = subprocess.run(
+            result = self.process_adapter.run(
                 bundle_cmd,
                 cwd=remotion_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                shell=(sys.platform == "win32"),
-                encoding="utf-8",
+                env=env,
+                cancel_event=cancel_event,
             )
+
+            if result.cancelled or (cancel_event is not None and cancel_event.is_set()):
+                self._cleanup_incomplete_bundle(remotion_dir, bundle_dir)
+                raise RenderCancelledError("Remotion bundling cancelled")
 
             index_html = os.path.join(bundle_dir, "index.html")
             if result.returncode != 0 or not os.path.isfile(index_html):
+                self._cleanup_incomplete_bundle(remotion_dir, bundle_dir)
                 stdout_tail = (result.stdout or "").strip()
                 stderr_tail = (result.stderr or "").strip()
                 detail = f"Stdout:\n{stdout_tail}\nStderr:\n{stderr_tail}" if stdout_tail else stderr_tail
                 raise RuntimeError(f"Remotion bundle failed with code {result.returncode}: {detail}".strip())
 
             os.makedirs(os.path.join(bundle_dir, "public"), exist_ok=True)
-            hash_file = os.path.join(bundle_dir, ".bundle.hash")
             tmp_hash = f"{hash_file}.tmp.{uuid.uuid4().hex}"
             try:
                 with open(tmp_hash, "w", encoding="utf-8") as f:
@@ -1049,6 +1836,8 @@ class RenderPipelineCoordinator(RenderEngine):
                         pass
 
             return bundle_dir
+        finally:
+            _BUNDLE_LOCK.release()
 
     def _stage_render_context(
         self,
@@ -1071,11 +1860,27 @@ class RenderPipelineCoordinator(RenderEngine):
         ctx: StagedRenderContext,
         comp: RenderComposition,
         output_path: str,
+        *,
+        hardware_acceleration: Optional[str] = None,
+        concurrency: Optional[int] = None,
+        env_path: Optional[str] = None,
     ) -> List[str]:
-        remotion_cmd = self.resolve_remotion_command(ctx.remotion_dir)
+        remotion_cmd = (
+            self.resolve_remotion_command(ctx.remotion_dir, env_path=env_path)
+            if env_path is not None
+            else self.resolve_remotion_command(ctx.remotion_dir)
+        )
         # Normalize paths with forward slashes to prevent backslash escape collisions on Windows
         props_path = (ctx.props_path or "").replace("\\", "/")
         norm_output_path = os.path.abspath(output_path).replace("\\", "/")
+
+        if hardware_acceleration is None or concurrency is None:
+            policy = self._resolve_execution_policy()
+            hw_accel = hardware_acceleration or policy.hardware_acceleration
+            resolved_concurrency = concurrency if concurrency is not None else policy.concurrency
+        else:
+            hw_accel = hardware_acceleration
+            resolved_concurrency = concurrency
 
         return remotion_cmd + [
             "render",
@@ -1086,114 +1891,237 @@ class RenderPipelineCoordinator(RenderEngine):
             f"--fps={comp.fps}",
             "--width=1080",
             "--height=1920",
-            "--frames", f"0-{ctx.frames-1}"
+            "--frames", f"0-{ctx.frames-1}",
+            f"--hardware-acceleration={hw_accel}",
+            f"--concurrency={resolved_concurrency}",
         ]
 
-    def _render_comp(self, comp: RenderComposition, out_filename: str) -> Optional[str]:
+    def _render_comp(
+        self,
+        comp: RenderComposition,
+        out_filename: str,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> Optional[str]:
         output_path = os.path.join(self.output_dir, out_filename)
         try:
-            bundle_dir = self._ensure_remotion_bundle(self.remotion_dir)
+            self._ensure_ffmpeg_available()
+            bundle_dir = self._ensure_remotion_bundle(self.remotion_dir, cancel_event=cancel_event)
+        except RenderCancelledError:
+            print("[render-engine] Render cancelled before execution", flush=True)
+            return None
         except Exception as e:
             print(f"[render-engine] {e}", flush=True)
             return None
 
+        output_existed_before = os.path.lexists(output_path)
+        render_succeeded = False
+        policy = self._resolve_execution_policy()
+
         with self._stage_render_context(comp, out_filename, bundle_dir) as ctx:
-            cmd = self._build_remotion_cmd(ctx, comp, output_path)
+            try:
+                hw_accel = policy.hardware_acceleration
+                for attempt in range(2):
+                    env = self._build_subprocess_env()
+                    cmd = self._build_remotion_cmd(
+                        ctx,
+                        comp,
+                        output_path,
+                        hardware_acceleration=hw_accel,
+                        concurrency=policy.concurrency,
+                        env_path=env.get("PATH"),
+                    )
+                    print(f"[render-engine] Executing Remotion: {' '.join(cmd)}", flush=True)
+                    result = self.process_adapter.run(
+                        cmd,
+                        cwd=ctx.remotion_dir,
+                        env=env,
+                        cancel_event=cancel_event,
+                    )
 
-            print(f"[render-engine] Executing Remotion: {' '.join(cmd)}", flush=True)
-            result = subprocess.run(
-                cmd,
-                cwd=ctx.remotion_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                shell=(sys.platform == "win32"),
-                encoding="utf-8"
-            )
+                    if result.cancelled or (cancel_event is not None and cancel_event.is_set()):
+                        return None
 
-            if result.returncode != 0:
-                stdout_tail = (result.stdout or "").strip()
-                stderr_tail = (result.stderr or "").strip()
-                err_detail = f"Stdout:\n{stdout_tail}\nStderr:\n{stderr_tail}" if stdout_tail else stderr_tail
-                print(f"[render-engine] Remotion failed with code {result.returncode}:\n{err_detail}", flush=True)
+                    if result.returncode == 0:
+                        render_succeeded = True
+                        return output_path
+
+                    stdout_tail = (result.stdout or "").strip()
+                    stderr_tail = (result.stderr or "").strip()
+                    err_detail = f"Stdout:\n{stdout_tail}\nStderr:\n{stderr_tail}" if stdout_tail else stderr_tail
+                    if attempt == 0 and _should_retry_with_software_encoding(
+                        hardware_acceleration=hw_accel,
+                        returncode=result.returncode,
+                        cancelled=False,
+                        completed_frames=False,
+                        output_tail=err_detail,
+                    ):
+                        if not output_existed_before:
+                            self._remove_partial_output(output_path)
+                        print(
+                            f"[render-engine] Hardware-accelerated render failed (code {result.returncode}); "
+                            "retrying once with software encoding (--hardware-acceleration=disable).",
+                            flush=True,
+                        )
+                        hw_accel = "disable"
+                        continue
+
+                    print(f"[render-engine] Remotion failed with code {result.returncode}:\n{err_detail}", flush=True)
+                    return None
                 return None
+            finally:
+                if not render_succeeded and not output_existed_before:
+                    self._remove_partial_output(output_path)
 
-            return output_path
-
-    def render_streaming(self, comp: RenderComposition, out_filename: str) -> Generator[dict, None, None]:
+    def render_streaming(
+        self,
+        comp: RenderComposition,
+        out_filename: str,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> Generator[dict, None, None]:
         output_path = os.path.join(self.output_dir, out_filename)
         total_frames, _ = comp.compute_total_frames()
         parser = RemotionProgressParser(total_frames)
-        yield parser.starting_event()
+        closing = False
+        try:
+            yield parser.starting_event()
+        except GeneratorExit:
+            closing = True
+            raise
 
         try:
-            if not self._inspect_bundle_state(self.remotion_dir)[0]:
-                yield parser.bundling_event(5)
+            if cancel_event is not None and cancel_event.is_set():
+                return
 
-            bundle_dir = self._ensure_remotion_bundle(self.remotion_dir)
+            self._ensure_ffmpeg_available()
+
+            if not self._inspect_bundle_state(self.remotion_dir)[0]:
+                try:
+                    yield parser.bundling_event(5)
+                except GeneratorExit:
+                    closing = True
+                    raise
+
+            bundle_dir = self._ensure_remotion_bundle(self.remotion_dir, cancel_event=cancel_event)
+
+            output_existed_before = os.path.lexists(output_path)
+            render_succeeded = False
+            error_message: Optional[str] = None
+            policy = self._resolve_execution_policy()
 
             with self._stage_render_context(comp, out_filename, bundle_dir) as ctx:
-                cmd = self._build_remotion_cmd(ctx, comp, output_path)
-                print(f"[render-engine-stream] Executing Remotion: {' '.join(cmd)}", flush=True)
+                try:
+                    hw_accel = policy.hardware_acceleration
+                    for attempt in range(2):
+                        env = self._build_subprocess_env()
+                        cmd = self._build_remotion_cmd(
+                            ctx,
+                            comp,
+                            output_path,
+                            hardware_acceleration=hw_accel,
+                            concurrency=policy.concurrency,
+                            env_path=env.get("PATH"),
+                        )
+                        print(f"[render-engine-stream] Executing Remotion: {' '.join(cmd)}", flush=True)
 
-                env = os.environ.copy()
-                env["FORCE_COLOR"] = "0"
-                env["NO_COLOR"] = "1"
+                        output_history: List[str] = []
+                        max_history = 50
+                        run_result = RemotionRunResult(returncode=-1)
 
-                process = subprocess.Popen(
-                    cmd,
-                    cwd=ctx.remotion_dir,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                    env=env,
-                    shell=(sys.platform == "win32"),
-                    encoding="utf-8"
-                )
+                        stream_iter = self.process_adapter.stream(
+                            cmd,
+                            cwd=ctx.remotion_dir,
+                            env=env,
+                            cancel_event=cancel_event,
+                        )
+                        try:
+                            while True:
+                                if cancel_event is not None and cancel_event.is_set():
+                                    break
+                                try:
+                                    line = next(stream_iter)
+                                except StopIteration as stop:
+                                    run_result = (
+                                        stop.value
+                                        if isinstance(stop.value, RemotionRunResult)
+                                        else RemotionRunResult(returncode=0)
+                                    )
+                                    break
 
-                if process.stdout is None:
-                    raise RuntimeError("Failed to capture stdout from subprocess")
+                                cleaned = line.strip()
+                                if cleaned:
+                                    output_history.append(cleaned)
+                                    if len(output_history) > max_history:
+                                        output_history.pop(0)
 
-                output_history: List[str] = []
-                max_history = 50
+                                event = parser.parse_line(line)
+                                if event:
+                                    try:
+                                        yield event
+                                    except GeneratorExit:
+                                        closing = True
+                                        raise
+                                elif cleaned:
+                                    if any(
+                                        token in cleaned.lower()
+                                        for token in ["error", "warn", "fail", "exit", "cannot", "unable", "fatal"]
+                                    ):
+                                        print(f"[render-engine-stream] Remotion output: {cleaned}", flush=True)
+                        finally:
+                            stream_iter.close()
 
-                while True:
-                    line = process.stdout.readline()
-                    if not line and process.poll() is not None:
+                        if run_result.cancelled or (cancel_event is not None and cancel_event.is_set()):
+                            return
+
+                        if run_result.returncode == 0:
+                            render_succeeded = True
+                            break
+
+                        tail_output = "\n".join(output_history[-20:])
+                        completed_frames = parser.last_frame >= parser.total_frames
+                        if attempt == 0 and _should_retry_with_software_encoding(
+                            hardware_acceleration=hw_accel,
+                            returncode=run_result.returncode,
+                            cancelled=False,
+                            completed_frames=completed_frames,
+                            output_tail=tail_output,
+                        ):
+                            if not output_existed_before:
+                                self._remove_partial_output(output_path)
+                            print(
+                                f"[render-engine-stream] Hardware-accelerated render failed (code {run_result.returncode}); "
+                                "retrying once with software encoding (--hardware-acceleration=disable).",
+                                flush=True,
+                            )
+                            parser = RemotionProgressParser(total_frames)
+                            hw_accel = "disable"
+                            continue
+
+                        print(
+                            f"[render-engine-stream] Remotion failed with code {run_result.returncode}:\n{tail_output}",
+                            flush=True,
+                        )
+                        error_msg = f"Remotion exited with code {run_result.returncode}"
+                        if tail_output:
+                            error_msg += f":\n{tail_output}"
+                        error_message = error_msg
                         break
-                    if not line:
-                        continue
+                finally:
+                    if not render_succeeded and not output_existed_before:
+                        self._remove_partial_output(output_path)
 
-                    cleaned = line.strip()
-                    if cleaned:
-                        output_history.append(cleaned)
-                        if len(output_history) > max_history:
-                            output_history.pop(0)
-
-                    event = parser.parse_line(line)
-                    if event:
-                        yield event
-                    elif cleaned:
-                        # Log unrecognized lines containing warnings or errors directly to backend console
-                        if any(token in cleaned.lower() for token in ["error", "warn", "fail", "exit", "cannot", "unable", "fatal"]):
-                            print(f"[render-engine-stream] Remotion output: {cleaned}", flush=True)
-
-                process.wait()
-
-                if process.returncode != 0:
-                    tail_output = "\n".join(output_history[-20:])
-                    print(f"[render-engine-stream] Remotion failed with code {process.returncode}:\n{tail_output}", flush=True)
-                    error_msg = f"Remotion exited with code {process.returncode}"
-                    if tail_output:
-                        error_msg += f":\n{tail_output}"
-                    yield parser.error_event(error_msg)
-                    return
-
+            if render_succeeded:
                 yield parser.complete_event(output_path, f"/static/output/{out_filename}")
+            elif error_message is not None:
+                yield parser.error_event(error_message)
 
+        except GeneratorExit:
+            raise
+        except RenderCancelledError:
+            return
         except Exception as e:
             print(f"[render-engine-stream] Error: {str(e)}", flush=True)
+            if closing:
+                raise
             yield parser.error_event(str(e))
 
 
@@ -1231,21 +2159,34 @@ class FakeRenderEngine(RenderEngine):
             return None
         return f"{self.output_dir}/{out_filename}"
 
-    def render_streaming(self, comp: RenderComposition, out_filename: str) -> Generator[dict, None, None]:
+    def render_streaming(
+        self,
+        comp: RenderComposition,
+        out_filename: str,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> Generator[dict, None, None]:
+        if cancel_event is not None and cancel_event.is_set():
+            return
         if self.should_fail:
             yield {"stage": "error", "message": "Simulated Render Failure"}
             return
 
         frames = max(1, int((comp.clip_duration or 10.0) * comp.fps))
-        yield {"stage": "starting", "percent": 0, "frame": 0, "totalFrames": frames}
-        yield {"stage": "bundling", "percent": 10, "frame": 0, "totalFrames": frames, "etaSeconds": 0}
-        yield {"stage": "rendering", "percent": 50, "frame": frames // 2, "totalFrames": frames, "etaSeconds": 0}
-        yield {"stage": "encoding", "percent": 96, "frame": frames, "totalFrames": frames, "etaSeconds": 0}
-        yield {
-            "stage": "done",
-            "percent": 100,
-            "frame": frames,
-            "totalFrames": frames,
-            "outputPath": f"{self.output_dir}/{out_filename}",
-            "outputUrl": f"/static/output/{out_filename}"
-        }
+        events = [
+            {"stage": "starting", "percent": 0, "frame": 0, "totalFrames": frames},
+            {"stage": "bundling", "percent": 10, "frame": 0, "totalFrames": frames, "etaSeconds": 0},
+            {"stage": "rendering", "percent": 50, "frame": frames // 2, "totalFrames": frames, "etaSeconds": 0},
+            {"stage": "encoding", "percent": 96, "frame": frames, "totalFrames": frames, "etaSeconds": 0},
+            {
+                "stage": "done",
+                "percent": 100,
+                "frame": frames,
+                "totalFrames": frames,
+                "outputPath": f"{self.output_dir}/{out_filename}",
+                "outputUrl": f"/static/output/{out_filename}",
+            },
+        ]
+        for event in events:
+            if cancel_event is not None and cancel_event.is_set():
+                return
+            yield event

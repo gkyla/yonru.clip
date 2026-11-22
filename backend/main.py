@@ -4,12 +4,16 @@ os.environ["OPENCV_VIDEOIO_PRIORITY_BACKEND"] = "FFMPEG"
 
 import json
 import asyncio
+from contextlib import asynccontextmanager
+import inspect
+import threading
+import anyio
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Optional
 
 from core.youtube_client import YouTubeClient
 from core.asset_repository import AssetRepository
@@ -17,7 +21,17 @@ from core.hook_discovery_engine import HookDiscoveryEngine
 from core.render_engine import RemotionRenderEngine
 from core.speech_transcriber import FasterWhisperSpeechTranscriber
 
-app = FastAPI(title="Yonru API", version="0.4.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        yield
+    finally:
+        if hasattr(render_engine, "terminate_all"):
+            render_engine.terminate_all()
+
+
+app = FastAPI(title="Yonru API", version="0.4.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -99,6 +113,7 @@ render_engine = RemotionRenderEngine(
     face_tracker=face_tracker,
     media_transcoder=media_transcoder,
     clip_session_store=clip_session_store,
+    hardware_profiler=system_repository.hardware_profiler,
 )
 
 speech_transcriber = FasterWhisperSpeechTranscriber(model_size="base")
@@ -469,23 +484,98 @@ def render_clip(req: RenderRequest):
     else:
         raise HTTPException(status_code=500, detail="Render failed")
 
+def _open_render_stream(job: dict, req: RenderRequest, cancel_event: threading.Event):
+    sig = inspect.signature(render_engine.render_stream)
+    kwargs: dict[str, Any] = {"output_name": req.output_name}
+    if "cancel_event" in sig.parameters or any(
+        p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+    ):
+        kwargs["cancel_event"] = cancel_event
+    return render_engine.render_stream(job, req, **kwargs)
+
+
 @app.post("/api/render-stream")
-def render_clip_stream(req: RenderRequest):
-    """Render clip with real-time progress streaming via SSE."""
-    job = jobs.get_job(req.job_id)
+async def render_clip_stream(req: RenderRequest, request: Request):
+    """Render clip with real-time progress streaming via disconnect-aware SSE."""
+    job = await asyncio.to_thread(jobs.get_job, req.job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    
-    def sse_generator():
-        with render_activity_tracker.track():
-            for progress in render_engine.render_stream(job, req, output_name=req.output_name):
-                yield f"data: {json.dumps(progress)}\n\n"
-    
-    return StreamingResponse(sse_generator(), media_type="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-        "X-Accel-Buffering": "no"
-    })
+
+    async def sse_generator():
+        cancel_event = threading.Event()
+        event_queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+        worker_started = False
+
+        def _render_worker() -> None:
+            gen = None
+            try:
+                gen = _open_render_stream(job, req, cancel_event)
+                for progress in gen:
+                    if cancel_event.is_set():
+                        break
+                    try:
+                        loop.call_soon_threadsafe(event_queue.put_nowait, ("event", progress))
+                    except RuntimeError:
+                        break
+            except BaseException as exc:
+                if not cancel_event.is_set() and isinstance(exc, Exception):
+                    try:
+                        loop.call_soon_threadsafe(
+                            event_queue.put_nowait,
+                            ("event", {"stage": "error", "message": str(exc)}),
+                        )
+                    except RuntimeError:
+                        pass
+            finally:
+                if gen is not None:
+                    try:
+                        gen.close()
+                    except Exception:
+                        pass
+                render_activity_tracker.decrement()
+                try:
+                    loop.call_soon_threadsafe(event_queue.put_nowait, ("done", None))
+                except RuntimeError:
+                    pass
+
+        render_activity_tracker.increment()
+        worker = threading.Thread(
+            target=_render_worker,
+            daemon=True,
+            name=f"render-stream-{req.job_id}",
+        )
+        try:
+            worker.start()
+            worker_started = True
+            while True:
+                if await request.is_disconnected():
+                    cancel_event.set()
+                    break
+                try:
+                    kind, payload = await asyncio.wait_for(event_queue.get(), timeout=0.05)
+                except asyncio.TimeoutError:
+                    continue
+                if kind == "done":
+                    break
+                yield f"data: {json.dumps(payload)}\n\n"
+        finally:
+            cancel_event.set()
+            if worker_started:
+                with anyio.CancelScope(shield=True):
+                    await asyncio.to_thread(worker.join)
+            else:
+                render_activity_tracker.decrement()
+
+    return StreamingResponse(
+        sse_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # --- Cache Management ---

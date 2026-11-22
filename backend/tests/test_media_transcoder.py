@@ -207,3 +207,31 @@ def test_probe_video_falls_back_to_avg_frame_rate_when_r_frame_rate_zero(tmp_pat
     assert specs.fps == 29.97
 
 
+def test_ffmpeg_availability_and_dynamic_config_store_resolution(tmp_path):
+    from core.config_store import InMemoryConfigStore
+
+    unavailable_adapter = FakeMediaAdapter(ffmpeg_available=False)
+    transcoder_missing = MediaTranscoder(adapter=unavailable_adapter)
+    assert transcoder_missing.resolve_ffmpeg_path() is None
+    assert transcoder_missing.is_ffmpeg_available() is False
+
+    available_adapter = FakeMediaAdapter(ffmpeg_available=True, ffmpeg_path="/mock/bin/ffmpeg")
+    transcoder_ok = MediaTranscoder(adapter=available_adapter)
+    assert transcoder_ok.resolve_ffmpeg_path() == "/mock/bin/ffmpeg"
+    assert transcoder_ok.is_ffmpeg_available() is True
+
+    custom_dir = tmp_path / "dynamic_ffmpeg"
+    custom_dir.mkdir()
+    fake_ffmpeg = custom_dir / "ffmpeg"
+    fake_ffmpeg.write_text("#!/bin/sh\n")
+
+    cfg = InMemoryConfigStore({"FFMPEG_PATH": ""})
+    sub_adapter = SubprocessMediaAdapter(config_store=cfg)
+    assert str(custom_dir) not in sub_adapter._build_env()["PATH"]
+
+    cfg.set("FFMPEG_PATH", str(fake_ffmpeg))
+    assert sub_adapter.resolve_ffmpeg_path() == str(fake_ffmpeg)
+    assert str(custom_dir) in sub_adapter._build_env()["PATH"]
+
+
+

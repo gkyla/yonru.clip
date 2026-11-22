@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 import os
+import shutil
 import sys
 import subprocess
 import threading
@@ -35,43 +36,72 @@ class MediaProcessAdapter(ABC):
         """Inspects media file via ffprobe and returns raw parsed dictionary."""
         pass
 
+    def resolve_ffmpeg_path(self) -> Optional[str]:
+        """Resolve an available ffmpeg executable path, or return None if unavailable."""
+        return None
+
 
 class SubprocessMediaAdapter(MediaProcessAdapter):
     """Production adapter executing ffmpeg and ffprobe via OS subprocess."""
 
     def __init__(self, config_store: Optional[Any] = None):
         self.config_store = config_store
-        self._env = os.environ.copy()
+        self._env = self._build_env()
 
-        extra_paths = []
+    def _build_env(self) -> Dict[str, str]:
+        env = os.environ.copy()
+        extra_paths: List[str] = []
         custom_ffmpeg = (
             self.config_store.get("FFMPEG_PATH")
-            if self.config_store
+            if self.config_store is not None
             else os.environ.get("FFMPEG_PATH")
         )
-        if custom_ffmpeg:
-            if os.path.isdir(custom_ffmpeg):
-                extra_paths.append(custom_ffmpeg)
+        if custom_ffmpeg and str(custom_ffmpeg).strip():
+            expanded = os.path.expanduser(str(custom_ffmpeg).strip())
+            if os.path.isdir(expanded):
+                extra_paths.append(expanded)
             else:
-                extra_paths.append(os.path.dirname(custom_ffmpeg))
+                parent = os.path.dirname(expanded)
+                if parent:
+                    extra_paths.append(parent)
 
         if sys.platform.startswith("win"):
             extra_paths.extend([
                 "C:\\Program Files\\ffmpeg\\bin",
                 "C:\\ffmpeg\\bin",
-                "C:\\Program Files\\nodejs"
+                "C:\\Program Files\\nodejs",
             ])
         else:
             extra_paths.extend(["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"])
 
-        current_path = self._env.get("PATH", "")
+        current_path = env.get("PATH", "")
         sep = ";" if sys.platform.startswith("win") else ":"
-
         for p in extra_paths:
-            if os.path.exists(p) and p not in current_path.split(sep):
+            if p and os.path.exists(p) and p not in current_path.split(sep):
                 current_path = f"{p}{sep}{current_path}" if current_path else p
 
-        self._env["PATH"] = current_path
+        env["PATH"] = current_path
+        return env
+
+    def resolve_ffmpeg_path(self) -> Optional[str]:
+        custom_ffmpeg = (
+            self.config_store.get("FFMPEG_PATH")
+            if self.config_store is not None
+            else os.environ.get("FFMPEG_PATH")
+        ) or ""
+        custom_ffmpeg = str(custom_ffmpeg).strip()
+        if custom_ffmpeg:
+            expanded = os.path.expanduser(custom_ffmpeg)
+            if os.path.isfile(expanded):
+                return expanded
+            if os.path.isdir(expanded):
+                for name in ("ffmpeg.exe", "ffmpeg"):
+                    candidate = os.path.join(expanded, name)
+                    if os.path.isfile(candidate):
+                        return candidate
+
+        env = self._build_env() if self.config_store is not None else self._env
+        return shutil.which("ffmpeg", path=env.get("PATH", ""))
 
     def run_ffmpeg(self, args: List[str]) -> bool:
         clean_args = list(args)
@@ -79,11 +109,12 @@ class SubprocessMediaAdapter(MediaProcessAdapter):
             clean_args = clean_args[1:]
         cmd = ["ffmpeg"] + clean_args
         print(f"[ffmpeg] Running: {' '.join(cmd)}")
+        env = self._build_env() if self.config_store is not None else self._env
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            env=self._env,
+            env=env,
             encoding="utf-8"
         )
         if result.returncode != 0:
@@ -97,11 +128,12 @@ class SubprocessMediaAdapter(MediaProcessAdapter):
             "ffprobe", "-v", "quiet", "-print_format", "json",
             "-show_format", "-show_streams", file_path
         ]
+        env = self._build_env() if self.config_store is not None else self._env
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            env=self._env,
+            env=env,
             encoding="utf-8"
         )
         if result.returncode != 0:
@@ -118,14 +150,27 @@ class FakeMediaAdapter(MediaProcessAdapter):
     Records executed calls and returns configured or synthetic metadata.
     """
 
-    def __init__(self, default_duration: float = 60.0, default_width: int = 1920, default_height: int = 1080, default_fps: float = 30.0):
+    def __init__(
+        self,
+        default_duration: float = 60.0,
+        default_width: int = 1920,
+        default_height: int = 1080,
+        default_fps: float = 30.0,
+        ffmpeg_available: bool = True,
+        ffmpeg_path: str = "/fake/bin/ffmpeg",
+    ):
         self.default_duration = default_duration
         self.default_width = default_width
         self.default_height = default_height
         self.default_fps = default_fps
+        self.ffmpeg_available = ffmpeg_available
+        self.ffmpeg_path = ffmpeg_path
         self.calls: List[Tuple[str, Any]] = []
         self.probe_overrides: Dict[str, Dict[str, Any]] = {}
         self.simulate_output_creation: bool = True
+
+    def resolve_ffmpeg_path(self) -> Optional[str]:
+        return self.ffmpeg_path if self.ffmpeg_available else None
 
     def run_ffmpeg(self, args: List[str]) -> bool:
         self.calls.append(("run_ffmpeg", list(args)))
@@ -226,6 +271,14 @@ class MediaTranscoder:
     def run_ffmpeg(self, args: List[str]) -> bool:
         """Executes raw FFmpeg argument list with unified error sanitization."""
         return self.adapter.run_ffmpeg(args)
+
+    def resolve_ffmpeg_path(self) -> Optional[str]:
+        """Resolve an available FFmpeg binary path via the configured process adapter."""
+        return self.adapter.resolve_ffmpeg_path()
+
+    def is_ffmpeg_available(self) -> bool:
+        """Return True if an FFmpeg binary can be resolved for rendering or transcoding."""
+        return bool(self.resolve_ffmpeg_path())
 
     def probe_video(self, file_path: str) -> MediaSpecs:
         """
