@@ -21,7 +21,7 @@ def test_sync_routes_are_not_coroutines_except_explicit_async_routes():
         for route in main.app.routes
         if isinstance(route, APIRoute) and inspect.iscoroutinefunction(route.endpoint)
     }
-    assert async_route_names == {"list_releases", "upload_audio_library_item"}
+    assert async_route_names == {"list_releases", "upload_audio_library_item", "render_clip_stream"}
 
 
 @pytest.mark.anyio
