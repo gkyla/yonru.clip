@@ -17,7 +17,10 @@ import type {
   SubtitleStyleSettings,
   HookExtractionMode,
   HookIntentPreset,
-  CachedVideo
+  CachedVideo,
+  CachedAnalysisOptions,
+  LastAnalysisRequest,
+  PipelineErrorDetail
 } from '../types/clipper';
 
 export interface ClipperJobDependencies {
@@ -34,6 +37,14 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
   const isMediaLoading = useState<boolean>('isMediaLoading', () => false);
   const jobStatus = useState<string>('jobStatus', () => 'idle');
   const jobError = useState<string | null>('jobError', () => null);
+  const jobErrorDetail = useState<PipelineErrorDetail | null>(
+    'jobErrorDetail',
+    () => null
+  );
+  const lastAnalysisRequest = useState<LastAnalysisRequest | null>(
+    'lastAnalysisRequest',
+    () => null
+  );
   const isNavigatingToEditor = useState<boolean>(
     'isNavigatingToEditor',
     () => false
@@ -393,20 +404,50 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
     onSelfHeal: async (selfHealFolder, selfHealClipId) => {
       await loadReadyClipIntoEditor(selfHealFolder, selfHealClipId);
     },
-    onError: err => {
-      jobError.value = err;
+    onError: (err, detail) => {
+      setJobError(err, detail ?? null);
       isMediaLoading.value = false;
     }
+  });
+
+  function setJobError(
+    message: string | null,
+    detail: PipelineErrorDetail | null = null,
+    options?: { clearRetryTarget?: boolean }
+  ) {
+    jobError.value = message;
+    jobErrorDetail.value = detail;
+    if (options?.clearRetryTarget) {
+      lastAnalysisRequest.value = null;
+    }
+  }
+
+  function clearJobError() {
+    jobError.value = null;
+    jobErrorDetail.value = null;
+    if (jobStatus.value === 'error') {
+      jobStatus.value = 'idle';
+    }
+  }
+
+  const canRetryLastAnalysis = computed(() => {
+    const last = lastAnalysisRequest.value;
+    if (!last) return false;
+    if (last.type === 'cached') {
+      return Boolean(last.videoId && last.videoId.trim().length > 0);
+    }
+    return Boolean(last.url && last.url.trim().length > 0);
   });
 
   async function analyzeUrl(force = false) {
     if (!youtubeUrl.value) return;
 
+    lastAnalysisRequest.value = { type: 'url', url: youtubeUrl.value, force };
     isCachedAnalysis.value = false;
     downloadPercent.value = 0;
     hdReady.value = false;
     jobStatus.value = 'queued';
-    jobError.value = null;
+    setJobError(null);
     hooks.value = [];
     savedHooks.value = [];
     folderName.value = null;
@@ -436,33 +477,25 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
         createJobCallbacks()
       );
       jobId.value = newJobId;
-    } catch (e: any) {
+    } catch (e: unknown) {
       jobStatus.value = 'error';
-      jobError.value =
-        e instanceof Error ? e.message : 'Failed to start analysis';
+      setJobError(e instanceof Error ? e.message : 'Failed to start analysis');
     }
   }
 
   async function analyzeCached(
     videoId: string,
     force = false,
-    options?: {
-      extractionMode?: HookExtractionMode;
-      presetId?: HookIntentPreset;
-      promptFile?: string;
-      focusTopic?: string;
-      minDuration?: number;
-      maxDuration?: number;
-      autoHooks?: boolean;
-    }
+    options?: CachedAnalysisOptions
   ) {
     if (!videoId) return;
 
+    lastAnalysisRequest.value = { type: 'cached', videoId, force, options };
     isCachedAnalysis.value = true;
     downloadPercent.value = 0;
     hdReady.value = false;
     jobStatus.value = 'queued';
-    jobError.value = null;
+    setJobError(null);
     hooks.value = [];
     savedHooks.value = [];
     folderName.value = null;
@@ -511,10 +544,11 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
         createJobCallbacks()
       );
       jobId.value = newJobId;
-    } catch (e: any) {
+    } catch (e: unknown) {
       jobStatus.value = 'error';
-      jobError.value =
-        e instanceof Error ? e.message : 'Failed to analyze cached video';
+      setJobError(
+        e instanceof Error ? e.message : 'Failed to analyze cached video'
+      );
     } finally {
       setTimeout(() => {
         timeline.isSavingLocked.value = false;
@@ -569,15 +603,18 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
         },
         createJobCallbacks()
       );
-    } catch (e: any) {
-      jobError.value =
-        e instanceof Error ? e.message : 'Failed to start extraction';
+    } catch (e: unknown) {
+      setJobError(
+        e instanceof Error ? e.message : 'Failed to start extraction',
+        null,
+        { clearRetryTarget: true }
+      );
     }
   }
 
   async function loadReadyClipIntoEditor(folder: string, id: string) {
     jobStatus.value = 'queued';
-    jobError.value = null;
+    setJobError(null);
     hdReady.value = true;
 
     let start_time = 0;
@@ -642,13 +679,30 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
       } else {
         isMediaLoading.value = false;
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       jobStatus.value = 'error';
-      jobError.value = e instanceof Error ? e.message : 'Failed to load clip';
+      setJobError(
+        e instanceof Error ? e.message : 'Failed to load clip',
+        null,
+        { clearRetryTarget: true }
+      );
     } finally {
       setTimeout(() => {
         timeline.isSavingLocked.value = false;
       }, 500);
+    }
+  }
+
+  async function retryLastAnalysis() {
+    const last = lastAnalysisRequest.value;
+    if (!last) return;
+    if (last.type === 'cached' && last.videoId) {
+      await analyzeCached(last.videoId, last.force, last.options);
+      return;
+    }
+    if (last.type === 'url' && last.url) {
+      youtubeUrl.value = last.url;
+      await analyzeUrl(last.force);
     }
   }
 
@@ -664,9 +718,15 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
     isMediaLoading,
     jobStatus,
     jobError,
+    jobErrorDetail,
+    lastAnalysisRequest,
+    canRetryLastAnalysis,
+    setJobError,
+    clearJobError,
     isNavigatingToEditor,
     analyzeUrl,
     analyzeCached,
+    retryLastAnalysis,
     startPolling,
     stopPolling,
     extractClip,

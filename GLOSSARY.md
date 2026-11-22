@@ -100,6 +100,10 @@ _Avoid_: Loading spinner, progress modal, analysis bar
 The clean media preview card within the Pipeline Progress Stepper displaying the active source video thumbnail, title, channel, duration, active **Hook Discovery Model**, Whisper model, and prompt preset configuration.
 _Avoid_: Tech card, details box, status panel, debugger console
 
+**Pipeline Error Card**:
+The structured failure callout displayed in the Home workspace when a pipeline stage stops, explicitly attributing the **Error Origin** (external AI provider, local configuration, network, AI output, or ingestion pipeline) alongside a plain-language explanation, recovery hint, contextual actions, and collapsible raw technical details.
+_Avoid_: Error pill, crash banner, raw exception dump
+
 **Virality Rationale**:
 The AI-generated contextual explanation justifying why a Hook has viral potential, highlighting narrative tension, emotional peaks, or audience hook moments.
 _Avoid_: Hook reasoning, virality explanation, description, AI comment

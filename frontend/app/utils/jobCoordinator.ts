@@ -18,6 +18,7 @@ import type {
   SubtitleStyleSettings,
   ThumbnailConfig,
   JobApiResponse,
+  PipelineErrorDetail,
   TimelineTrack,
   HistorySnapshot,
   HookExtractionMode,
@@ -98,7 +99,7 @@ export interface JobUpdateCallbacks {
   onSavedHooksDiscovered?: (savedHooks: Hook[]) => void;
   onClipReady?: (bundle: HydratedClipBundle) => void;
   onSelfHeal?: (folderName: string, clipId: string) => Promise<void> | void;
-  onError?: (error: string) => void;
+  onError?: (error: string, detail?: PipelineErrorDetail | null) => void;
 }
 
 export class IngestionJobCoordinator {
@@ -341,7 +342,12 @@ export class IngestionJobCoordinator {
         // Terminal status: error
         if (res.status === 'error') {
           this.stopPolling();
-          callbacks.onError?.(res.error || 'Job encountered an error');
+          const msg = res.error || 'Job encountered an error';
+          if (res.error_detail != null) {
+            callbacks.onError?.(msg, res.error_detail);
+          } else {
+            callbacks.onError?.(msg);
+          }
           return;
         }
 

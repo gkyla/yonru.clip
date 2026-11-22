@@ -163,6 +163,9 @@ function createClipperState() {
     isMediaLoading,
     jobStatus,
     jobError,
+    jobErrorDetail,
+    lastAnalysisRequest,
+    canRetryLastAnalysis,
     isNavigatingToEditor,
     startSafetyBuffer,
     isCachedAnalysis,
@@ -381,8 +384,16 @@ function createClipperState() {
   let isPersistenceInitialized = false;
 
   // --- Actions ---
-  const { analyzeUrl, analyzeCached, startPolling, stopPolling, extractClip } =
-    job;
+  const {
+    analyzeUrl,
+    analyzeCached,
+    retryLastAnalysis,
+    setJobError,
+    clearJobError,
+    startPolling,
+    stopPolling,
+    extractClip
+  } = job;
 
   function formatDuration(sec: number) {
     const m = Math.floor(sec / 60);
@@ -428,6 +439,8 @@ function createClipperState() {
     editorSession.resetSession();
     jobId.value = null;
     jobStatus.value = 'idle';
+    clearJobError();
+    lastAnalysisRequest.value = null;
     savedHooks.value = [];
     timeline.timelineTracks.value = createDefaultTimelineTracks();
     videoUrl.value = null;
@@ -488,6 +501,11 @@ function createClipperState() {
     isMediaLoading,
     jobStatus,
     jobError,
+    jobErrorDetail,
+    lastAnalysisRequest,
+    canRetryLastAnalysis,
+    setJobError,
+    clearJobError,
     isCachedAnalysis,
     isOverlayVisible,
     isNavigatingToEditor,
@@ -610,6 +628,7 @@ function createClipperState() {
     seekTo,
     analyzeUrl,
     analyzeCached,
+    retryLastAnalysis,
     extractClip,
     loadReadyClipIntoEditor,
     renderClip,

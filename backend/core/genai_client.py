@@ -5,6 +5,12 @@ from typing import Optional, List, Dict, Any
 from abc import ABC, abstractmethod
 from google import genai
 from google.genai import types
+from core.gemini_errors import (
+    is_5xx_or_overload_error,
+    is_auth_error,
+    is_network_error,
+    is_quota_error,
+)
 
 PLACEHOLDER_EXACT_MATCHES = {
     "your_gemini_api_key_here",
@@ -197,11 +203,17 @@ class GeminiGenAIClient(GenAIClient):
             except Exception as e:
                 last_exception = e
                 error_msg = str(e)
-                
+
+                # 503 / 5xx overloads and network/timeout errors are transient external failures,
+                # not key failures: never degrade or rotate keys.
+                if is_5xx_or_overload_error(e) or is_network_error(e):
+                    print(f"[gemini] Transient Gemini/network error (key not degraded): {error_msg}")
+                    raise
+
                 # Parse standard Gemini error types for degradation classification
-                is_quota = "quota" in error_msg.lower() or "429" in error_msg
-                is_auth = "API_KEY_INVALID" in error_msg or "400" in error_msg or "403" in error_msg
-                
+                is_quota = is_quota_error(e)
+                is_auth = is_auth_error(e)
+
                 key_title = self.key_titles.get(key, f"key {key[:6]}...")
                 if is_auth:
                     # Permanent failure
@@ -212,7 +224,7 @@ class GeminiGenAIClient(GenAIClient):
                     self._degradation_cache[key] = {"degraded_until": time.time() + 300, "permanent": False}
                     print(f"[gemini] Key '{key_title}' degraded for 5m (quota limits): {error_msg}")
                 else:
-                    # Connection or other internal errors, 1 minute cooldown
+                    # Other internal errors, 1 minute cooldown
                     self._degradation_cache[key] = {"degraded_until": time.time() + 60, "permanent": False}
                     print(f"[gemini] Key '{key_title}' degraded for 1m (unexpected error): {error_msg}")
                     

@@ -244,6 +244,27 @@ def test_system_repository_validate_gemini_keys_quota_error(mock_genai_client, t
     assert "429 RESOURCE_EXHAUSTED" in res["results"][0]["raw_error"]
 
 
+@patch("google.genai.Client")
+def test_system_repository_validate_gemini_keys_503_unavailable(mock_genai_client, temp_workspace):
+    _, cookies_file = temp_workspace
+    config_store = InMemoryConfigStore()
+    repo = SystemRepository(config_store=config_store, cookies_path=cookies_file)
+
+    mock_instance = MagicMock()
+    mock_instance.models.generate_content.side_effect = Exception(
+        "503 UNAVAILABLE. This model is currently experiencing high demand."
+    )
+    mock_genai_client.return_value = mock_instance
+
+    res = repo.validate_gemini_keys("healthy_key_123")
+    assert res["status"] == "unavailable"
+    assert len(res["results"]) == 1
+    assert res["results"][0]["status"] == "unavailable"
+    assert "high demand" in res["results"][0]["error"].lower()
+    assert res["results"][0]["error_detail"]["origin"] == "provider"
+    assert res["results"][0]["error_detail"]["code"] == "high_demand"
+
+
 def test_system_repository_validate_binary_path(temp_workspace):
     temp_dir, cookies_file = temp_workspace
     config_store = InMemoryConfigStore()

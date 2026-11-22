@@ -350,12 +350,66 @@ export interface ClipSessionAck {
   clip_id: string;
 }
 
+export type PipelineErrorOrigin =
+  'provider' | 'config' | 'network' | 'output' | 'pipeline';
+
+export type PipelineErrorCode =
+  | 'high_demand'
+  | 'quota_exceeded'
+  | 'provider_error'
+  | 'model_unavailable'
+  | 'missing_api_key'
+  | 'auth_error'
+  | 'network_error'
+  | 'invalid_response'
+  | 'no_hooks_found'
+  | 'no_transcript'
+  | 'pipeline_error';
+
+export interface PipelineErrorDetail {
+  origin: PipelineErrorOrigin;
+  code: PipelineErrorCode;
+  title: string;
+  message: string;
+  hint: string;
+  model?: string | null;
+  raw_error?: string | null;
+  retryable?: boolean;
+}
+
+export type GeminiKeyValidationStatus =
+  'idle' | 'valid' | 'invalid' | 'unavailable' | 'testing';
+
+export type GeminiKeyTestResultStatus = Exclude<
+  GeminiKeyValidationStatus,
+  'testing'
+>;
+
+export interface CachedAnalysisOptions {
+  extractionMode?: HookExtractionMode;
+  presetId?: HookIntentPreset;
+  promptFile?: string;
+  focusTopic?: string;
+  minDuration?: number;
+  maxDuration?: number;
+  autoHooks?: boolean;
+}
+
+export interface LastAnalysisRequest {
+  type: 'url' | 'cached';
+  force: boolean;
+  url?: string;
+  videoId?: string;
+  options?: CachedAnalysisOptions;
+}
+
 export interface JobApiResponse {
   job_id?: string;
   status: string;
   folder_name?: string;
   fps?: number;
   error?: string;
+  error_detail?: PipelineErrorDetail | null;
   download_percent?: number;
   video?: {
     title?: string;

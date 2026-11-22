@@ -118,6 +118,7 @@ class JobStore(ABC):
             "full_video_path": None,
             "hooks": [],
             "error": None,
+            "error_detail": None,
             "created_at": now,
             "updated_at": now,
         }
