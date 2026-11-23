@@ -123,7 +123,7 @@ class ClipSessionStore:
         self._index_lock = threading.RLock()
         self._cache_epoch: int = 0
         self._ready_clip_cache: Dict[Tuple[str, str], Tuple[Tuple[Any, ...], Dict[str, Any]]] = {}
-        self._parent_title_cache: Dict[str, Tuple[Optional[Tuple[int, int]], str]] = {}
+        self._parent_meta_cache: Dict[str, Tuple[Optional[Tuple[int, int]], Tuple[str, Optional[str]]]] = {}
 
     def resolve_clip_dir(self, folder_name: str, clip_id: str) -> str:
 
@@ -872,7 +872,7 @@ class ClipSessionStore:
             self._cache_epoch += 1
             if folder_name is None:
                 self._ready_clip_cache.clear()
-                self._parent_title_cache.clear()
+                self._parent_meta_cache.clear()
                 return
             if clip_id is not None:
                 self._ready_clip_cache.pop((folder_name, clip_id), None)
@@ -880,7 +880,7 @@ class ClipSessionStore:
             stale_keys = [k for k in self._ready_clip_cache if k[0] == folder_name]
             for key in stale_keys:
                 self._ready_clip_cache.pop(key, None)
-            self._parent_title_cache.pop(folder_name, None)
+            self._parent_meta_cache.pop(folder_name, None)
 
     @staticmethod
     def _parse_clip_id_metadata(clip_id: str) -> Tuple[float, float, str, bool]:
@@ -902,12 +902,14 @@ class ClipSessionStore:
                 pass
         return 0.0, 0.0, "", False
 
-    def _resolve_parent_title(
-        self, parent_name: str, title_cache: Optional[Dict[str, str]] = None
-    ) -> str:
-        """Read and cache parent video title from metadata.json with folder-name fallback."""
-        if title_cache is not None and parent_name in title_cache:
-            return title_cache[parent_name]
+    def _resolve_parent_metadata(
+        self,
+        parent_name: str,
+        meta_cache: Optional[Dict[str, Tuple[str, Optional[str]]]] = None,
+    ) -> Tuple[str, Optional[str]]:
+        """Read and cache parent video title and channel from metadata.json with folder-name fallback."""
+        if meta_cache is not None and parent_name in meta_cache:
+            return meta_cache[parent_name]
 
         meta_path = os.path.join(self.source_dir, parent_name, "metadata.json")
         meta_sig: Optional[Tuple[int, int]] = None
@@ -918,31 +920,46 @@ class ClipSessionStore:
             meta_sig = None
 
         with self._index_lock:
-            cached = self._parent_title_cache.get(parent_name)
+            cached = self._parent_meta_cache.get(parent_name)
             if cached is not None and cached[0] == meta_sig:
-                if title_cache is not None:
-                    title_cache[parent_name] = cached[1]
+                if meta_cache is not None:
+                    meta_cache[parent_name] = cached[1]
                 return cached[1]
 
         title = "Unknown Clip"
+        channel: Optional[str] = None
         if meta_sig is not None:
             try:
                 with open(meta_path, "r", encoding="utf-8") as mf:
                     meta = json.load(mf)
-                    title = meta.get("title") or meta.get("raw_title") or "Unknown Clip"
+                    if isinstance(meta, dict):
+                        raw_title = meta.get("title") or meta.get("raw_title")
+                        if isinstance(raw_title, str) and raw_title.strip():
+                            title = raw_title.strip()
+                        raw_channel = meta.get("channel") or meta.get("uploader")
+                        if isinstance(raw_channel, str) and raw_channel.strip():
+                            channel = raw_channel.strip()
             except Exception:
                 pass
+
+        if channel is None and parent_name.startswith("[") and "] " in parent_name:
+            parsed_channel = parent_name[1 : parent_name.index("] ")].strip()
+            if parsed_channel:
+                channel = parsed_channel
+
         if title == "Unknown Clip" and "_" in parent_name:
             raw_p = " ".join(parent_name.split("_")[:-1])
             if raw_p.startswith("[") and "] " in raw_p:
                 raw_p = raw_p.split("] ", 1)[1]
-            title = raw_p
+            if raw_p:
+                title = raw_p
 
+        result = (title, channel)
         with self._index_lock:
-            self._parent_title_cache[parent_name] = (meta_sig, title)
-        if title_cache is not None:
-            title_cache[parent_name] = title
-        return title
+            self._parent_meta_cache[parent_name] = (meta_sig, result)
+        if meta_cache is not None:
+            meta_cache[parent_name] = result
+        return result
 
     def list_all_clips(self) -> List[Dict[str, Any]]:
         """Scans the clips directory read-only and returns mtime-cached metadata for all ready clips."""
@@ -953,7 +970,7 @@ class ClipSessionStore:
             with self._index_lock:
                 if self._cache_epoch == start_epoch:
                     self._ready_clip_cache.clear()
-                    self._parent_title_cache.clear()
+                    self._parent_meta_cache.clear()
             return []
 
         try:
@@ -962,7 +979,7 @@ class ClipSessionStore:
             return []
 
         results: List[Dict[str, Any]] = []
-        call_title_cache: Dict[str, str] = {}
+        call_meta_cache: Dict[str, Tuple[str, Optional[str]]] = {}
         seen_keys: Set[Tuple[str, str]] = set()
         seen_parents: Set[str] = set()
         new_entries: Dict[Tuple[str, str], Tuple[Tuple[Any, ...], Dict[str, Any]]] = {}
@@ -977,7 +994,7 @@ class ClipSessionStore:
             except OSError:
                 continue
 
-            title = self._resolve_parent_title(parent_name, call_title_cache)
+            title, channel = self._resolve_parent_metadata(parent_name, call_meta_cache)
 
             for clip_entry in clip_entries:
                 if not clip_entry.is_dir():
@@ -1001,6 +1018,7 @@ class ClipSessionStore:
                     has_poster,
                     has_cover,
                     title,
+                    channel,
                 )
                 cache_key = (parent_name, clip_id)
                 seen_keys.add(cache_key)
@@ -1040,6 +1058,7 @@ class ClipSessionStore:
                     "clip_id": clip_id,
                     "folder_name": parent_name,
                     "title": title,
+                    "channel": channel,
                     "theme": theme,
                     "start_time": start_time,
                     "end_time": end_time,
@@ -1059,9 +1078,9 @@ class ClipSessionStore:
                 stale_clip_keys = [k for k in self._ready_clip_cache if k not in seen_keys]
                 for key in stale_clip_keys:
                     self._ready_clip_cache.pop(key, None)
-                stale_parent_keys = [p for p in self._parent_title_cache if p not in seen_parents]
+                stale_parent_keys = [p for p in self._parent_meta_cache if p not in seen_parents]
                 for parent in stale_parent_keys:
-                    self._parent_title_cache.pop(parent, None)
+                    self._parent_meta_cache.pop(parent, None)
 
         results.sort(key=lambda x: x["mtime"], reverse=True)
         return results

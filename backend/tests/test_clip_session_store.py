@@ -1170,6 +1170,70 @@ def test_list_all_clips_caches_probes_and_titles_and_invalidates_on_writes():
         assert store.list_all_clips() == []
 
 
+def test_list_all_clips_resolves_channel_from_metadata_and_folder_fallback():
+    """list_all_clips resolves source channel from metadata.json (channel/uploader), folder prefix, or None."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        sources_dir = os.path.join(temp_dir, "sources")
+
+        # Case A: metadata.json with explicit channel
+        f_channel = "folder_channel"
+        os.makedirs(os.path.join(sources_dir, f_channel), exist_ok=True)
+        os.makedirs(os.path.join(clips_dir, f_channel, "10_20_a"), exist_ok=True)
+        meta_channel_path = os.path.join(sources_dir, f_channel, "metadata.json")
+        with open(meta_channel_path, "w", encoding="utf-8") as f:
+            json.dump({"title": "Original Title", "channel": "Studio Channel"}, f)
+        with open(os.path.join(clips_dir, f_channel, "10_20_a", "video.mp4"), "wb") as f:
+            f.write(b"vid")
+
+        # Case B: metadata.json with uploader fallback
+        f_uploader = "folder_uploader"
+        os.makedirs(os.path.join(sources_dir, f_uploader), exist_ok=True)
+        os.makedirs(os.path.join(clips_dir, f_uploader, "10_25_b"), exist_ok=True)
+        with open(os.path.join(sources_dir, f_uploader, "metadata.json"), "w", encoding="utf-8") as f:
+            json.dump({"title": "Alt Video", "uploader": "Uploader Name"}, f)
+        with open(os.path.join(clips_dir, f_uploader, "10_25_b", "video.mp4"), "wb") as f:
+            f.write(b"vid")
+
+        # Case D: missing metadata.json with canonical folder name prefix
+        f_prefixed = "[Creator Lab] Deep_Dive_abc123"
+        os.makedirs(os.path.join(clips_dir, f_prefixed, "10_30_c"), exist_ok=True)
+        with open(os.path.join(clips_dir, f_prefixed, "10_30_c", "video.mp4"), "wb") as f:
+            f.write(b"vid")
+
+        # Case E: missing metadata.json with plain folder name
+        f_plain = "folder_a"
+        os.makedirs(os.path.join(clips_dir, f_plain, "10_35_d"), exist_ok=True)
+        with open(os.path.join(clips_dir, f_plain, "10_35_d", "video.mp4"), "wb") as f:
+            f.write(b"vid")
+
+        mock_transcoder = MagicMock()
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, media_transcoder=mock_transcoder)
+
+        clips = store.list_all_clips()
+        by_folder = {c["folder_name"]: c for c in clips}
+
+        assert by_folder[f_channel]["title"] == "Original Title"
+        assert by_folder[f_channel]["channel"] == "Studio Channel"
+        assert by_folder[f_uploader]["title"] == "Alt Video"
+        assert by_folder[f_uploader]["channel"] == "Uploader Name"
+        assert by_folder[f_prefixed]["title"] == "Deep Dive"
+        assert by_folder[f_prefixed]["channel"] == "Creator Lab"
+        assert by_folder[f_plain]["channel"] is None
+        assert not os.path.exists(os.path.join(sources_dir, f_prefixed, "metadata.json"))
+        assert not os.path.exists(os.path.join(sources_dir, f_plain, "metadata.json"))
+
+        # Case C: updating channel in metadata.json invalidates fingerprint cache cleanly
+        with open(meta_channel_path, "w", encoding="utf-8") as f:
+            json.dump({"title": "Original Title", "channel": "Updated Studio Channel Name"}, f)
+
+        refreshed = store.list_all_clips()
+        refreshed_by_folder = {c["folder_name"]: c for c in refreshed}
+        assert refreshed_by_folder[f_channel]["title"] == "Original Title"
+        assert refreshed_by_folder[f_channel]["channel"] == "Updated Studio Channel Name"
+
+
+
 
 
 

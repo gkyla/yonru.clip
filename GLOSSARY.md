@@ -16,6 +16,10 @@ _Avoid_: Hook item, clip button, sidebar card, list row
 A rendered or extracted standalone video clip derived from a Hook that is available in the library and ready for multi-track editing and subtitle customization.
 _Avoid_: Exported video, snippet, output file
 
+**Ready Clips Library**:
+The browsable library view of all available Ready Clips for searching, filtering, opening into the Studio Editor, and single or batch removal.
+_Avoid_: All Ready Clips modal, Ready to Edit modal, clip manager, clip drawer
+
 **Clip Thumbnail**:
 A clean, static video frame extracted from a Ready Clip representing the media asset in library grids, workspace cards, and navigation sidebars without editorial graphic overlays.
 _Avoid_: Cover slide, card image, editor thumbnail, preview picture
