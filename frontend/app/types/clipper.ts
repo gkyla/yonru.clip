@@ -293,7 +293,9 @@ export interface ReadyClip {
   folder_name: string;
   clip_id: string;
   title?: string;
+  channel?: string | null;
   duration?: number;
+  mtime?: number;
   created_at?: string;
   video_id?: string;
   theme?: string;

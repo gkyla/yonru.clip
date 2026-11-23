@@ -125,3 +125,74 @@ h6 {
 .page-leave-to {
   opacity: 0;
 }
+
+/* Native Top-Layer Modal Dialogs (Entry / Exit + Scroll Containment) */
+.yonru-modal-dialog {
+  opacity: 0;
+  transition-property: opacity, transform, display, overlay;
+  transition-duration: 150ms;
+  transition-timing-function: ease-in;
+  transition-behavior: allow-discrete;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .yonru-modal-dialog {
+    transform: scale(0.98) translateY(6px);
+  }
+}
+
+.yonru-modal-dialog[open] {
+  display: flex;
+}
+
+.yonru-modal-dialog[open]:where(:not([data-closing])) {
+  opacity: 1;
+  transition-duration: 200ms;
+  transition-timing-function: ease-out;
+
+  @starting-style {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    transform: scale(1) translateY(0);
+
+    @starting-style {
+      transform: scale(0.98) translateY(6px);
+    }
+  }
+}
+
+.yonru-modal-dialog:modal {
+  overscroll-behavior: contain;
+}
+
+.yonru-modal-dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background-color: rgba(0, 0, 0, 0);
+  backdrop-filter: blur(0px);
+  transition-property: background-color, backdrop-filter, display, overlay;
+  transition-duration: 150ms;
+  transition-timing-function: ease-in;
+  transition-behavior: allow-discrete;
+}
+
+.yonru-modal-dialog[open]:where(:not([data-closing]))::backdrop {
+  background-color: rgba(6, 6, 8, 0.84);
+  backdrop-filter: blur(8px);
+  transition-duration: 200ms;
+  transition-timing-function: ease-out;
+
+  @starting-style {
+    background-color: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yonru-modal-dialog,
+  .yonru-modal-dialog::backdrop {
+    transition-duration: 80ms;
+  }
+}
