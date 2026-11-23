@@ -639,3 +639,135 @@ def test_timeout_with_5000ms_classifies_as_network_error(sample_transcript, fake
     assert exc_info.value.detail.origin == "network"
     assert exc_info.value.detail.code == "network_error"
 
+
+def test_discover_slices_verbatim_transcript_quote_when_llm_omits_it(fake_transcoder):
+    """When LLM omits transcript_quote, engine deterministically slices verbatim text from [start, end]."""
+    transcript = [
+        {"start": 0.0, "duration": 5.0, "text": "Preceding intro banter."},
+        {"start": 10.0, "duration": 15.0, "text": "First real hook opening sentence."},
+        {"start": 25.0, "duration": 15.0, "text": "Payoff punchline lands here."},
+        {"start": 40.0, "duration": 10.0, "text": "Following unrelated topic."},
+    ]
+    llm_response = json.dumps([
+        {
+            "start": 10.0,
+            "end": 40.0,
+            "theme": "Real Hook",
+            "virality_score": 88,
+            "virality_reason": "Sharp insight with clear payoff.",
+        }
+    ])
+    mock_client = MockGenAIClient(llm_response)
+    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+
+    hooks = engine.discover_from_transcript(transcript, video_info={"duration": 60.0})
+    assert len(hooks) == 1
+    assert hooks[0]["transcript_quote"] == "First real hook opening sentence. Payoff punchline lands here."
+    assert "Preceding intro banter" not in hooks[0]["transcript_quote"]
+    assert "Following unrelated topic" not in hooks[0]["transcript_quote"]
+    assert hooks[0]["duration_seconds"] == 30.0
+
+
+def test_discover_preserves_existing_quote_when_transcript_range_empty(fake_transcoder):
+    """Fallback preserves pre-existing quote (or sets empty string) if sliced range has no words."""
+    transcript = [
+        {"start": 0.0, "duration": 5.0, "text": "Only early audio."},
+    ]
+    llm_response = json.dumps([
+        {
+            "start": 30.0,
+            "end": 60.0,
+            "transcript_quote": "Legacy quote preserved.",
+            "theme": "Out Of Range With Legacy Quote",
+            "virality_score": 82,
+            "virality_reason": "Fallback check.",
+        },
+        {
+            "start": 70.0,
+            "end": 100.0,
+            "theme": "Out Of Range Without Quote",
+            "virality_score": 76,
+            "virality_reason": "Empty quote check.",
+        },
+    ])
+    mock_client = MockGenAIClient(llm_response)
+    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+
+    hooks = engine.discover_from_transcript(transcript, video_info={"duration": 120.0})
+    assert len(hooks) == 2
+    assert hooks[0]["transcript_quote"] == "Legacy quote preserved."
+    assert hooks[1]["transcript_quote"] == ""
+
+
+def test_discover_deduplicates_heavy_overlaps_and_keeps_back_to_back_hooks(fake_transcoder):
+    """Deduplicates >20% overlap keeping highest virality_score, while touching/slight overlaps survive."""
+    transcript = [
+        {"start": 0.0, "duration": 200.0, "text": "Continuous multi-topic podcast conversation."},
+    ]
+    # 1. Back-to-back pair: [0, 50] (score 91) and [50, 100] (score 84) -> both survive (0% overlap)
+    # 2. Heavy overlap pair A (longer higher): [200, 280] (80s, score 95) vs [220, 260] (40s, score 89) -> 40/40 = 100% > 20% -> [200, 280] wins
+    # 3. Heavy overlap pair B (shorter higher): [300, 380] (80s, score 78) vs [310, 350] (40s, score 93) -> 40/40 = 100% > 20% -> [310, 350] wins
+    # 4. Slight overlap <= 20%: [400, 460] (60s, score 86) vs [450, 510] (60s, score 80) -> 10/60 = 16.7% <= 20% -> both survive
+    llm_response = json.dumps([
+        {"start": 0.0, "end": 50.0, "theme": "Back To Back 1", "virality_score": 91},
+        {"start": 50.0, "end": 100.0, "theme": "Back To Back 2", "virality_score": 84},
+        {"start": 220.0, "end": 260.0, "theme": "Weaker Shorter Overlap", "virality_score": 89},
+        {"start": 200.0, "end": 280.0, "theme": "Stronger Longer Overlap", "virality_score": 95},
+        {"start": 300.0, "end": 380.0, "theme": "Weaker Longer Overlap", "virality_score": 78},
+        {"start": 310.0, "end": 350.0, "theme": "Stronger Shorter Overlap", "virality_score": 93},
+        {"start": 400.0, "end": 460.0, "theme": "Slight Overlap 1", "virality_score": 86},
+        {"start": 450.0, "end": 510.0, "theme": "Slight Overlap 2", "virality_score": 80},
+    ])
+    mock_client = MockGenAIClient(llm_response)
+    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+
+    hooks = engine.discover_from_transcript(transcript, video_info={"duration": 600.0})
+    themes = [h["theme"] for h in hooks]
+    assert "Stronger Longer Overlap" in themes
+    assert "Weaker Shorter Overlap" not in themes
+    assert "Stronger Shorter Overlap" in themes
+    assert "Weaker Longer Overlap" not in themes
+    assert "Back To Back 1" in themes
+    assert "Back To Back 2" in themes
+    assert "Slight Overlap 1" in themes
+    assert "Slight Overlap 2" in themes
+    assert len(hooks) == 6
+
+
+def test_discover_preserves_tier3_hooks_sorted_descending(fake_transcoder):
+    """Borderline Tier 3 hooks (<75) are preserved alongside higher tiers, sorted descending."""
+    transcript = [{"start": 0.0, "duration": 300.0, "text": "Full timeline discussion."}]
+    llm_response = json.dumps([
+        {"start": 0.0, "end": 40.0, "theme": "Low", "virality_score": 68},
+        {"start": 50.0, "end": 90.0, "theme": "Top", "virality_score": 94},
+        {"start": 100.0, "end": 140.0, "theme": "Borderline", "virality_score": 72},
+        {"start": 150.0, "end": 190.0, "theme": "Strong", "virality_score": 83},
+    ])
+    engine = HookDiscoveryEngine(genai_client=MockGenAIClient(llm_response), media_transcoder=fake_transcoder)
+
+    hooks = engine.discover_from_transcript(transcript, video_info={"duration": 300.0})
+    assert [h["virality_score"] for h in hooks] == [94, 83, 72, 68]
+
+
+def test_discover_derives_video_duration_from_transcript_when_metadata_missing(fake_transcoder):
+    """Falls back to transcript span when video_info is absent or lacks positive duration."""
+    transcript = [
+        {"start": 0.0, "duration": 450.0, "text": "First half of the podcast."},
+        {"start": 450.0, "duration": 450.0, "text": "Second half up to fifteen minutes."},
+    ]
+    llm_response = json.dumps([
+        {"start": 10.0, "end": 50.0, "theme": "Early Clip", "virality_score": 88}
+    ])
+
+    for info in (None, {"duration": None}, {"duration": 0}):
+        mock_client = MockGenAIClient(llm_response)
+        engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+        engine.discover_from_transcript(transcript, video_info=info)
+
+        assert mock_client.last_prompt is not None
+        assert "VIDEO DURATION: The total length is 900.0 seconds" in mock_client.last_prompt
+        assert "COVERAGE SANITY CHECK" in mock_client.last_prompt
+
+
+
+

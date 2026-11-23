@@ -1,5 +1,6 @@
 import os
 import json
+import math
 import time
 from typing import Optional, List, Dict, Any, Callable
 from dataclasses import dataclass
@@ -175,6 +176,86 @@ class HookDiscoveryEngine:
 
         return grouped
 
+    @staticmethod
+    def _safe_float(value: Any) -> Optional[float]:
+        """Convert numeric value safely to a finite float, returning None otherwise."""
+        if isinstance(value, bool) or value is None:
+            return None
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if math.isfinite(parsed) else None
+
+    @classmethod
+    def _extract_transcript_quote(
+        cls, grouped_segments: list, start: Any, end: Any
+    ) -> str:
+        """Deterministically reconstruct verbatim spoken text from grouped segments in [start, end]."""
+        hook_start = cls._safe_float(start)
+        hook_end = cls._safe_float(end)
+        if hook_start is None or hook_end is None or hook_end <= hook_start:
+            return ""
+
+        parts: List[str] = []
+        tolerance = 0.15
+        for seg in grouped_segments:
+            seg_start = cls._safe_float(seg.get("start"))
+            seg_dur = cls._safe_float(seg.get("duration"))
+            if seg_start is None:
+                continue
+            seg_dur = max(0.0, seg_dur if seg_dur is not None else 0.0)
+            seg_end = seg_start + seg_dur
+            text = str(seg.get("text", "")).strip()
+            if not text:
+                continue
+
+            if seg_dur == 0.0:
+                if (hook_start - tolerance) <= seg_start <= (hook_end + tolerance):
+                    parts.append(text)
+            else:
+                overlap = min(seg_end, hook_end) - max(seg_start, hook_start)
+                if overlap > 0.0 and (
+                    overlap >= (0.5 * seg_dur)
+                    or (seg_start >= (hook_start - tolerance) and seg_end <= (hook_end + tolerance))
+                ):
+                    parts.append(text)
+
+        return " ".join(" ".join(parts).split())
+
+    @classmethod
+    def _deduplicate_overlapping_hooks(
+        cls, hooks: List[Dict[str, Any]], max_overlap_ratio: float = 0.20
+    ) -> List[Dict[str, Any]]:
+        """Drop lower-ranked duplicates overlapping an already-kept hook by >20% of the shorter clip."""
+        kept: List[Dict[str, Any]] = []
+        for candidate in hooks:
+            cand_start = cls._safe_float(candidate.get("start"))
+            cand_end = cls._safe_float(candidate.get("end"))
+            if cand_start is None or cand_end is None or cand_end <= cand_start:
+                kept.append(candidate)
+                continue
+
+            is_duplicate = False
+            for existing in kept:
+                ex_start = cls._safe_float(existing.get("start"))
+                ex_end = cls._safe_float(existing.get("end"))
+                if ex_start is None or ex_end is None or ex_end <= ex_start:
+                    continue
+
+                overlap = min(cand_end, ex_end) - max(cand_start, ex_start)
+                if overlap <= 0.0:
+                    continue
+
+                shorter_dur = min(cand_end - cand_start, ex_end - ex_start)
+                if shorter_dur > 0.0 and (overlap / shorter_dur) > max_overlap_ratio:
+                    is_duplicate = True
+                    break
+
+            if not is_duplicate:
+                kept.append(candidate)
+        return kept
+
     def _get_cache_path(self, video_info: dict) -> Optional[str]:
         file_path = video_info.get("file_path")
         if not file_path:
@@ -205,7 +286,7 @@ class HookDiscoveryEngine:
     ) -> List[Dict[str, Any]]:
         """Direct AI transcript hook discovery with sentence grouping, retries, and scoring."""
         opts = options or HookDiscoveryOptions()
-        video_duration = video_info.get("duration") if video_info else None
+        meta_duration = self._safe_float(video_info.get("duration")) if video_info else None
 
         active_model = self.get_active_model_name()
         client = self.client
@@ -214,6 +295,15 @@ class HookDiscoveryEngine:
             raise missing_api_key_error(active_model)
 
         grouped_segments = self._group_words_into_sentences(transcript_segments)
+        effective_video_duration = meta_duration if (meta_duration is not None and meta_duration > 0.0) else None
+        if effective_video_duration is None and grouped_segments:
+            span_end = max(
+                (self._safe_float(s.get("start")) or 0.0)
+                + max(0.0, self._safe_float(s.get("duration")) or 0.0)
+                for s in grouped_segments
+            )
+            if span_end > 0.0:
+                effective_video_duration = span_end
         print(
             f"[hook-discovery-engine] Requesting transcript-based analysis for {len(transcript_segments)} "
             f"segments grouped into {len(grouped_segments)} sentences "
@@ -241,7 +331,7 @@ class HookDiscoveryEngine:
             max_duration=opts.max_duration,
             num_hooks=opts.num_hooks,
             auto_hooks=True,
-            video_duration=video_duration,
+            video_duration=effective_video_duration,
         )
 
         max_retries = 3
@@ -258,9 +348,8 @@ class HookDiscoveryEngine:
                     raise invalid_response_error(active_model, raw_json)
                 if len(parsed) == 0:
                     return []
-                for idx, hook in enumerate(parsed):
-                    if not isinstance(hook, dict):
-                        continue
+                valid_hooks = [h for h in parsed if isinstance(h, dict)]
+                for idx, hook in enumerate(valid_hooks):
                     v_score = hook.get("virality_score")
                     if not isinstance(v_score, (int, float)) or v_score < 0 or v_score > 100:
                         hook["virality_score"] = 85 - (idx * 2)
@@ -270,9 +359,36 @@ class HookDiscoveryEngine:
                     if not hook.get("virality_reason"):
                         hook["virality_reason"] = "Compelling opening hook with natural narrative pacing."
 
-                parsed.sort(key=lambda h: h.get("virality_score", 0), reverse=True)
-                print(f"[hook-discovery-engine] Successfully discovered {len(parsed)} hooks from transcript.")
-                return parsed
+                    h_start = self._safe_float(hook.get("start"))
+                    h_end = self._safe_float(hook.get("end"))
+                    cur_dur = self._safe_float(hook.get("duration_seconds"))
+                    if (cur_dur is None or cur_dur <= 0) and h_start is not None and h_end is not None and h_end > h_start:
+                        hook["duration_seconds"] = round(h_end - h_start, 2)
+
+                    sliced_quote = self._extract_transcript_quote(
+                        grouped_segments, hook.get("start"), hook.get("end")
+                    )
+                    if sliced_quote:
+                        hook["transcript_quote"] = sliced_quote
+                    elif "transcript_quote" not in hook or hook["transcript_quote"] is None:
+                        hook["transcript_quote"] = ""
+
+                valid_hooks.sort(
+                    key=lambda h: (
+                        -int(h.get("virality_score", 0)),
+                        self._safe_float(h.get("start")) or 0.0,
+                    )
+                )
+                deduped_hooks = self._deduplicate_overlapping_hooks(valid_hooks, max_overlap_ratio=0.20)
+                dropped = len(valid_hooks) - len(deduped_hooks)
+                if dropped:
+                    print(
+                        f"[hook-discovery-engine] Discovered {len(deduped_hooks)} hooks from transcript "
+                        f"({dropped} overlapping duplicate(s) removed)."
+                    )
+                else:
+                    print(f"[hook-discovery-engine] Successfully discovered {len(deduped_hooks)} hooks from transcript.")
+                return deduped_hooks
             except Exception as e:
                 classified = classify_gemini_exception(
                     e,
