@@ -2,7 +2,7 @@
   <div class="w-full max-w-5xl z-10 flex flex-col mt-6 mb-16 gap-5">
     <!-- Header Section -->
     <header
-      class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-surface-border/50 pb-5"
+      class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 min-w-0 mb-3"
     >
       <div>
         <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 mb-1.5">

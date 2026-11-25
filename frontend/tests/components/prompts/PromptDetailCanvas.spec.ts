@@ -75,7 +75,7 @@ describe('PromptDetailCanvas Component', () => {
     });
 
     expect(wrapper.text()).toContain('Modify Prompt Template');
-    expect(wrapper.text()).toContain('unsaved');
+    expect(wrapper.text()).toContain('Unsaved');
 
     const nameInput = wrapper.find(
       'input[placeholder*="Comedy Podcast Hooks"]'
@@ -127,7 +127,7 @@ describe('PromptDetailCanvas Component', () => {
     });
 
     // Find remove button for first tag
-    const tagCloseBtn = wrapper.find('button.text-slate-500');
+    const tagCloseBtn = wrapper.find('button[aria-label="Remove tag comedy"]');
     expect(tagCloseBtn.exists()).toBe(true);
 
     await tagCloseBtn.trigger('click');

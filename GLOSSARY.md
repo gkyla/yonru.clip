@@ -237,8 +237,8 @@ _Avoid_: Blacklist popup, censor dialog, safety modal monolith
 
 
 
-**Prompt Editor**:
-The dedicated template workspace in Yonru Clip for composing, testing, and managing modular natural language AI hook detection prompts and extraction directives.
+**Prompt Templates**:
+The dedicated template workspace in Yonru Clip (`/prompts`) for creating, organizing, and editing AI hook detection prompts and extraction instructions.
 _Avoid_: Prompt settings, AI config, template screen
 
 **Hook Results Gallery**:

@@ -291,13 +291,14 @@ describe('HomePrompts Component', () => {
     // Root container must have max-w-5xl
     expect(wrapper.find('.max-w-5xl').exists()).toBe(true);
 
-    // Info banner should contain clear non-technical guidance
-    expect(wrapper.text()).toContain('Kustomisasi Gaya Prompt');
+    // Callout banner should be removed
+    expect(wrapper.text()).toContain('Prompt Templates');
+    expect(wrapper.text()).not.toContain('Kustomisasi Gaya Prompt');
     expect(wrapper.text()).not.toContain('Scoped Archetype Directives');
     expect(wrapper.text()).not.toContain('100% Natural AI Detection');
   });
 
-  it('limits visible tags to max 2 in list cards, displays +N badge, and provides custom tooltips', async () => {
+  it('limits visible tags to max 2 in list cards and provides native title for overflow tags', async () => {
     mockPromptsList.value = [
       {
         id: 'prompt.json::multi',
@@ -320,15 +321,12 @@ describe('HomePrompts Component', () => {
 
     await wrapper.vm.$nextTick();
 
-    // Card should render first 2 tags and +2 count
+    // Card should render first 2 flat chips and +2 overflow count
     expect(wrapper.text()).toContain('podcast');
     expect(wrapper.text()).toContain('comedy');
     expect(wrapper.text()).toContain('+2');
-
-    // Custom tooltips with hashtag prefixes should be present in the DOM
-    expect(wrapper.text()).toContain('#podcast');
-    expect(wrapper.text()).toContain('#comedy');
-    expect(wrapper.text()).toContain('#humor, #talkshow');
+    const overflow = wrapper.find('[title="humor, talkshow"]');
+    expect(overflow.exists()).toBe(true);
   });
 
   it('triggers Unsaved Changes modal when switching templates with unsaved modifications', async () => {

@@ -1,50 +1,31 @@
 <template>
-  <div class="w-full max-w-5xl z-10 flex flex-col mt-6 mb-10 gap-5">
+  <div class="w-full min-w-0 max-w-5xl z-10 flex flex-col mt-6 mb-10 gap-5">
     <!-- Header Section -->
     <div
-      class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-surface-border/50 pb-5"
+      class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 min-w-0 mb-3"
     >
       <div>
-        <h2 class="text-3xl font-bold tracking-tight text-white mb-1">
+        <h1 class="text-2xl font-bold tracking-tight text-white mb-0.5">
           Prompt Templates
-        </h2>
-        <p class="text-slate-400 text-sm">
-          Design and fine-tune your AI analysis configurations.
+        </h1>
+        <p class="text-slate-400 text-xs leading-relaxed">
+          Create and manage prompts for finding video hooks.
         </p>
       </div>
       <!-- Quick "+ Create New" button -->
       <button
-        class="px-4 py-2.5 bg-accent-500 hover:bg-accent-400 text-black font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-[0_0_15px_rgba(255,215,0,0.15)] active:scale-95 flex items-center gap-2 self-start sm:self-auto cursor-pointer"
+        type="button"
+        class="px-3.5 py-2 [@media(pointer:coarse)]:min-h-[44px] bg-accent-500 hover:bg-accent-400 text-black font-bold text-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-500 focus-visible:outline-offset-2"
         :class="{ 'ring-2 ring-accent-500/50': isCreatingNew && !editingId }"
         @click="startNewPrompt"
       >
-        <Icon name="ri:add-line" class="text-sm font-bold" />
-        Create New
+        <Icon name="ri:add-line" class="text-sm" aria-hidden="true" />
+        <span>Create New</span>
       </button>
     </div>
 
-    <!-- Clean, Non-Technical Info Callout -->
-    <div
-      class="bg-surface-panel border border-surface-border rounded-2xl p-4 flex items-start gap-3.5 text-xs shadow-sm"
-    >
-      <div
-        class="p-2 rounded-xl bg-accent-500/10 border border-accent-500/20 text-accent-500 shrink-0 mt-0.5"
-      >
-        <Icon name="ri:lightbulb-line" class="text-base" />
-      </div>
-      <div class="flex-1 min-w-0">
-        <span class="font-bold text-white text-xs block mb-0.5"
-          >Kustomisasi Gaya Prompt</span
-        >
-        <p class="text-slate-400 text-xs leading-relaxed">
-          Tentukan gaya bahasa, kepribadian, atau sudut pandang hook yang Anda
-          targetkan (misal: format debat, studi kasus, atau punchline lucu).
-        </p>
-      </div>
-    </div>
-
     <!-- Main Workspace: Split Pane -->
-    <div class="flex flex-col lg:flex-row gap-5 items-start w-full">
+    <div class="flex flex-col lg:flex-row gap-5 items-start w-full min-w-0">
       <!-- Left Column: Search & Templates List -->
       <PromptTemplateList
         :prompts="state.promptsList.value"

@@ -1,7 +1,7 @@
 <template>
   <div class="w-full min-w-0 max-w-5xl z-10 flex flex-col mt-6 mb-10 gap-5">
     <!-- Header -->
-    <div class="border-b border-surface-border/50 pb-5 min-w-0">
+    <div class="min-w-0 mb-3">
       <h1 class="text-2xl font-bold tracking-tight text-white mb-0.5">
         Settings
       </h1>

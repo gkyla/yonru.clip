@@ -93,7 +93,7 @@ describe('PromptTemplateList Component', () => {
       }
     });
 
-    expect(wrapper.text()).toContain('No templates match the criteria.');
+    expect(wrapper.text()).toContain('No templates match your search.');
   });
 
   it('emits select event when a prompt card is clicked', async () => {
@@ -137,7 +137,6 @@ describe('PromptTemplateList Component', () => {
     expect(wrapper.text()).toContain('podcast');
     expect(wrapper.text()).toContain('comedy');
     expect(wrapper.text()).toContain('+2');
-    expect(wrapper.text()).toContain('#podcast');
-    expect(wrapper.text()).toContain('#humor, #talkshow');
+    expect(wrapper.find('[title="humor, talkshow"]').exists()).toBe(true);
   });
 });

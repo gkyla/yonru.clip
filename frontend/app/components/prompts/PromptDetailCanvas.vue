@@ -1,6 +1,6 @@
 <template>
   <main
-    class="flex-1 min-w-0 w-full bg-surface-panel border border-surface-border rounded-2xl p-6 sm:p-8 shadow-xl min-h-[560px] flex flex-col self-start relative"
+    class="flex-1 min-w-0 w-full bg-surface-panel border border-surface-border p-6 sm:p-8 min-h-[560px] flex flex-col self-start relative"
   >
     <!-- Empty Selection State -->
     <div
@@ -8,19 +8,17 @@
       class="flex-1 w-full h-full flex flex-col items-center justify-center text-center p-8"
     >
       <div
-        class="w-14 h-14 bg-surface-dark rounded-full border border-surface-border flex items-center justify-center mb-3 text-slate-500 shadow-inner"
+        class="w-12 h-12 bg-surface-dark border border-surface-border flex items-center justify-center mb-3 text-slate-400"
       >
-        <Icon name="ri:chat-quote-line" class="text-2xl" />
+        <Icon name="ri:chat-quote-line" class="text-xl" aria-hidden="true" />
       </div>
-      <h4 class="text-white font-bold text-xs uppercase tracking-wider mb-1">
-        No Template Selected
-      </h4>
-      <p class="text-slate-500 text-xs max-w-sm leading-relaxed mb-5">
-        Select an existing template from the sidebar list to edit, or initialize
-        a new prompt template configuration.
+      <h2 class="text-white font-bold text-sm mb-1">No Template Selected</h2>
+      <p class="text-slate-400 text-xs max-w-sm leading-relaxed mb-5">
+        Choose a prompt from the left list to edit, or create a new one.
       </p>
       <button
-        class="px-4 py-2 bg-surface-dark hover:bg-surface-panel border border-surface-border text-slate-300 font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all cursor-pointer hover:border-slate-600"
+        type="button"
+        class="px-3.5 py-2 [@media(pointer:coarse)]:min-h-[44px] bg-surface-dark hover:bg-surface-card border border-surface-border hover:border-slate-500 text-slate-200 hover:text-white font-semibold text-xs transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-500 focus-visible:outline-offset-2"
         @click="$emit('start-new')"
       >
         + Create New Template
@@ -35,36 +33,32 @@
     >
       <!-- Editor Title & Action Bar -->
       <div
-        class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-border/50 pb-3.5"
+        class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-border/60 pb-3.5"
       >
-        <div class="flex items-center gap-2">
-          <div
-            class="w-2 h-2 rounded-full transition-colors"
-            :class="
-              isDirty
-                ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24] animate-pulse'
-                : 'bg-accent-500 shadow-[0_0_8px_#ffd700]'
-            "
-          ></div>
-          <h3
-            class="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2"
-          >
-            <span>{{
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <h2 class="text-sm font-bold text-white">
+            {{
               editingId ? 'Modify Prompt Template' : 'New Prompt Configuration'
-            }}</span>
+            }}
+          </h2>
+          <span
+            v-if="isDirty"
+            data-testid="prompt-unsaved-status"
+            class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-300"
+          >
             <span
-              v-if="isDirty"
-              class="text-[9px] bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono font-bold px-1.5 py-0.5 rounded uppercase tracking-wider"
-            >
-              unsaved
-            </span>
-          </h3>
+              class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"
+              aria-hidden="true"
+            ></span>
+            <span>Unsaved</span>
+          </span>
         </div>
         <div class="flex items-center gap-2 self-end sm:self-auto">
           <!-- When editing existing template: Delete Button -->
           <button
             v-if="editingId"
-            class="px-3 py-1.5 bg-[#ff4a4a]/10 border border-[#ff4a4a]/30 hover:border-[#ff4a4a] text-[#ff4a4a] hover:bg-[#ff4a4a]/20 font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all cursor-pointer"
+            type="button"
+            class="px-3 py-1.5 [@media(pointer:coarse)]:min-h-[44px] bg-surface-dark border border-surface-border text-slate-300 hover:text-red-300 hover:border-red-500/40 hover:bg-red-500/10 text-xs font-medium transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-500 focus-visible:outline-offset-2"
             @click="$emit('delete')"
           >
             Delete
@@ -73,27 +67,30 @@
           <!-- When editing existing template: Revert Button -->
           <button
             v-if="editingId"
+            type="button"
             :disabled="!isDirty"
-            class="px-3 py-1.5 bg-surface-dark border border-surface-border text-slate-400 hover:text-white font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all cursor-pointer hover:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-slate-400 disabled:hover:border-surface-border flex items-center gap-1"
+            class="px-3 py-1.5 [@media(pointer:coarse)]:min-h-[44px] bg-surface-dark hover:bg-surface-card border border-surface-border hover:border-slate-500 text-slate-300 hover:text-white text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-slate-300 disabled:hover:border-surface-border flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-500 focus-visible:outline-offset-2"
             title="Revert modifications to saved version"
             @click="$emit('revert')"
           >
-            <Icon name="ri:restart-line" class="text-xs" />
+            <Icon name="ri:restart-line" class="text-xs" aria-hidden="true" />
             <span>Revert</span>
           </button>
 
           <!-- When creating new template: Cancel Button -->
           <button
             v-else
-            class="px-3 py-1.5 bg-surface-dark border border-surface-border text-slate-400 hover:text-white font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all cursor-pointer hover:border-slate-600"
+            type="button"
+            class="px-3 py-1.5 [@media(pointer:coarse)]:min-h-[44px] bg-surface-dark hover:bg-surface-card border border-surface-border hover:border-slate-500 text-slate-300 hover:text-white text-xs font-medium transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-500 focus-visible:outline-offset-2"
             @click="$emit('cancel')"
           >
             Cancel
           </button>
 
           <button
+            type="button"
             :disabled="!promptName || !promptText"
-            class="px-4 py-1.5 bg-accent-500 text-black font-black uppercase tracking-wider text-[10px] rounded-lg hover:bg-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_15px_rgba(255,215,0,0.15)] active:scale-95 cursor-pointer"
+            class="px-3.5 py-1.5 [@media(pointer:coarse)]:min-h-[44px] bg-accent-500 hover:bg-accent-400 text-black font-bold text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-500 focus-visible:outline-offset-2"
             @click="$emit('save')"
           >
             {{ editingId ? 'Update Prompt' : 'Save Prompt' }}
@@ -102,57 +99,41 @@
       </div>
 
       <!-- Row 1: Prompt Name -->
-      <div class="flex flex-col gap-1">
-        <label
-          class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5"
-          >Prompt Name</label
-        >
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-semibold text-slate-300">
+          Prompt Name
+        </label>
         <input
           :value="promptName"
           type="text"
           placeholder="e.g. Comedy Podcast Hooks"
-          class="w-full bg-surface-dark border border-surface-border text-white px-3.5 py-2 rounded-xl focus:outline-none focus:border-accent-500/50 transition-all text-xs font-semibold placeholder-slate-600"
+          class="w-full bg-surface-dark border border-surface-border hover:border-slate-600 text-white px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-500 focus-visible:outline-offset-2 transition-colors text-xs font-medium placeholder-slate-500"
           @input="onNameInput"
         />
       </div>
 
       <!-- Row 2: Suitable For Tags -->
       <div class="flex flex-col gap-1.5 relative">
-        <label
-          class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5"
-          >Suitable For (Tags)</label
-        >
+        <label class="text-xs font-semibold text-slate-300">
+          Suitable For
+        </label>
         <div class="flex items-center gap-1.5 flex-wrap min-h-[34px]">
-          <!-- Active Tag Badges with Custom Tooltip -->
-          <div
+          <span
             v-for="(tag, index) in suitableFor"
             :key="index"
-            class="group/pill relative inline-flex items-center"
+            class="bg-surface-dark border border-surface-border text-slate-200 text-xs font-medium px-2.5 py-1 flex items-center gap-1.5 select-none"
           >
-            <span
-              class="bg-surface-dark border border-surface-border text-slate-200 text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1.5 group-hover/pill:border-slate-600 transition-colors select-none"
+            <span class="text-accent-500 font-semibold">#</span>
+            <span class="max-w-[160px] truncate">{{ tag }}</span>
+            <button
+              type="button"
+              :aria-label="`Remove tag ${tag}`"
+              class="text-slate-400 hover:text-red-300 transition-colors p-0.5 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-500"
+              @click="$emit('remove-tag', index)"
             >
-              <span class="text-accent-500 font-bold text-[11px]">#</span>
-              <span class="max-w-[160px] truncate">{{ tag }}</span>
-              <button
-                class="text-slate-500 hover:text-red-400 transition-colors p-0.5 rounded focus:outline-none cursor-pointer"
-                @click="$emit('remove-tag', index)"
-              >
-                <Icon name="ri:close-line" class="text-xs" />
-              </button>
-            </span>
-
-            <!-- Custom Hover Tooltip -->
-            <div
-              class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-[#0a0c12] border border-slate-700/80 text-white text-xs font-mono font-bold rounded-lg shadow-[0_10px_25px_-3px_rgba(0,0,0,0.9),0_0_15px_rgba(255,215,0,0.12)] opacity-0 group-hover/pill:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50 transform translate-y-1 group-hover/pill:translate-y-0 flex items-center gap-1"
-            >
-              <span class="text-accent-500 font-black">#</span>
-              <span>{{ tag }}</span>
-              <div
-                class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0a0c12] border-b border-r border-slate-700/80 transform rotate-45"
-              ></div>
-            </div>
-          </div>
+              <Icon name="ri:close-line" class="text-xs" aria-hidden="true" />
+            </button>
+          </span>
 
           <!-- + Add Tag Trigger Button & Popover -->
           <PromptTagPopover
@@ -163,11 +144,10 @@
       </div>
 
       <!-- Row 3: Content Style Editor Canvas -->
-      <div class="flex flex-col gap-1 flex-1 min-h-[420px]">
-        <label
-          class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5"
-          >Content Style & Extraction Criteria</label
-        >
+      <div class="flex flex-col gap-1.5 flex-1 min-h-[420px]">
+        <label class="text-xs font-semibold text-slate-300">
+          Prompt Instructions
+        </label>
         <PromptEditor
           ref="promptEditorRef"
           :model-value="promptText"
