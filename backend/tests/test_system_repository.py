@@ -39,7 +39,7 @@ def test_system_repository_settings(temp_workspace):
     assert updated["GEMINI_API_KEY"] == "updated_key"
     assert updated["FFMPEG_PATH"] == "/opt/ffmpeg"
     assert updated["NODE_PATH"] == "/usr/bin/node"
-    assert updated["GEMINI_MODEL"] == "gemini-3.5-flash-lite"
+    assert updated["GEMINI_MODEL"] == "gemini-4-hydrogen"
 
     repo.update_settings(gemini_model="gemini-3.8-flash")
     assert repo.get_settings()["GEMINI_MODEL"] == "gemini-3.8-flash"
@@ -50,12 +50,20 @@ def test_system_repository_gemini_model_normalization_and_validation(temp_worksp
     config_store = InMemoryConfigStore({"GEMINI_MODEL": "gemini-2.5-flash"})
     repo = SystemRepository(config_store=config_store, cookies_path=cookies_file)
 
+    assert repo.get_settings()["GEMINI_MODEL"] == "gemini-4-hydrogen"
+    assert repo.check_system_health()["gemini_api"]["model"] == "gemini-4-hydrogen"
+
+    repo.update_settings(gemini_model="gemini-3.5-flash-lite")
     assert repo.get_settings()["GEMINI_MODEL"] == "gemini-3.5-flash-lite"
     assert repo.check_system_health()["gemini_api"]["model"] == "gemini-3.5-flash-lite"
 
     repo.update_settings(gemini_model="gemini-3.6-flash")
     assert repo.get_settings()["GEMINI_MODEL"] == "gemini-3.6-flash"
     assert repo.check_system_health()["gemini_api"]["model"] == "gemini-3.6-flash"
+
+    repo.update_settings(gemini_model="gemini-4-hydrogen")
+    assert repo.get_settings()["GEMINI_MODEL"] == "gemini-4-hydrogen"
+    assert repo.check_system_health()["gemini_api"]["model"] == "gemini-4-hydrogen"
 
     with pytest.raises(ValueError, match="Unsupported Hook Discovery Model"):
         repo.update_settings(gemini_model="gemini-unknown-99")
@@ -191,12 +199,12 @@ def test_system_repository_validate_gemini_keys_success(mock_genai_client, temp_
 
     res = repo.validate_gemini_keys("valid_key_123")
     assert res["status"] == "valid"
-    assert res["model"] == "gemini-3.5-flash-lite"
+    assert res["model"] == "gemini-4-hydrogen"
     assert len(res["results"]) == 1
     assert res["results"][0]["key"] == "valid_key_123"
     assert res["results"][0]["status"] == "valid"
     mock_instance.models.generate_content.assert_called_once_with(
-        model="gemini-3.5-flash-lite",
+        model="gemini-4-hydrogen",
         contents="Say 'OK'",
     )
 
@@ -221,6 +229,10 @@ def test_system_repository_validate_gemini_keys_uses_configured_or_override_mode
     res_override = repo.validate_gemini_keys("valid_key_123", model_name="gemini-3.6-flash")
     assert res_override["model"] == "gemini-3.6-flash"
     assert mock_instance.models.generate_content.call_args.kwargs["model"] == "gemini-3.6-flash"
+
+    res_hydrogen = repo.validate_gemini_keys("valid_key_123", model_name="gemini-4-hydrogen")
+    assert res_hydrogen["model"] == "gemini-4-hydrogen"
+    assert mock_instance.models.generate_content.call_args.kwargs["model"] == "gemini-4-hydrogen"
 
     with pytest.raises(ValueError, match="Unsupported Hook Discovery Model"):
         repo.validate_gemini_keys("valid_key_123", model_name="gpt-4o")

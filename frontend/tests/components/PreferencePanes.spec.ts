@@ -107,10 +107,29 @@ describe('GeminiKeysPane Component', () => {
 
     const modelSelect = wrapper.find('select#hook-discovery-model-select');
     expect(modelSelect.exists()).toBe(true);
-    expect(modelSelect.findAll('option').length).toBe(3);
+    expect(modelSelect.findAll('option').length).toBe(4);
+    expect(
+      modelSelect
+        .findAll('option')
+        .map(o => (o.element as HTMLOptionElement).value)
+    ).toEqual([
+      'gemini-4-hydrogen',
+      'gemini-3.8-flash',
+      'gemini-3.6-flash',
+      'gemini-3.5-flash-lite'
+    ]);
+    expect(modelSelect.findAll('option').map(o => o.text().trim())).toEqual([
+      'Gemini 4 Hydrogen',
+      'Gemini 3.8 Flash',
+      'Gemini 3.6 Flash',
+      'Gemini 3.5 Flash-Lite'
+    ]);
 
     await modelSelect.setValue('gemini-3.6-flash');
     expect(wrapper.emitted('selectModel')?.[0]).toEqual(['gemini-3.6-flash']);
+
+    await modelSelect.setValue('gemini-4-hydrogen');
+    expect(wrapper.emitted('selectModel')?.[1]).toEqual(['gemini-4-hydrogen']);
 
     expect(wrapper.text()).toContain('Gemini API Keys');
     expect(wrapper.text()).toContain('#1 Primary');

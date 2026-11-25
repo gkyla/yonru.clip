@@ -4,19 +4,30 @@ import type {
 } from '../types/clipper';
 
 export const DEFAULT_HOOK_DISCOVERY_MODEL: HookDiscoveryModelId =
-  'gemini-3.5-flash-lite';
+  'gemini-4-hydrogen';
 
 export const HOOK_DISCOVERY_MODELS: readonly HookDiscoveryModelOption[] = [
   {
-    id: 'gemini-3.5-flash-lite',
+    id: 'gemini-4-hydrogen',
     provider: 'gemini',
     providerLabel: 'Gemini',
-    name: 'Gemini 3.5 Flash-Lite',
-    shortLabel: '3.5 LITE',
+    name: 'Gemini 4 Hydrogen',
+    shortLabel: '4 HYDROGEN',
     tier: 'Default',
-    speedNote: 'Fastest',
-    quotaNote: 'Highest free-tier allowance',
-    desc: 'Fastest response with the highest free-tier daily allowance. Best default for everyday clipping.'
+    speedNote: 'Deliberate',
+    quotaNote: 'Strictest free-tier cap',
+    desc: 'Gemini 4 reasoning model available on the free tier for maximum hook nuance and boundary precision, with the strictest free-tier cap.'
+  },
+  {
+    id: 'gemini-3.8-flash',
+    provider: 'gemini',
+    providerLabel: 'Gemini',
+    name: 'Gemini 3.8 Flash',
+    shortLabel: '3.8 FLASH',
+    tier: 'High Quality',
+    speedNote: 'Deliberate',
+    quotaNote: 'Stricter free-tier cap',
+    desc: 'Deep hook reasoning for complex long-form discussions, with a stricter free-tier daily cap.'
   },
   {
     id: 'gemini-3.6-flash',
@@ -27,31 +38,31 @@ export const HOOK_DISCOVERY_MODELS: readonly HookDiscoveryModelOption[] = [
     tier: 'Balanced',
     speedNote: 'Fast',
     quotaNote: 'Moderate free-tier allowance',
-    desc: 'Stronger narrative reasoning for nuanced dialogue, with a moderate free-tier daily allowance.'
+    desc: 'Strong narrative reasoning and high hook recall for long-form podcasts, with a moderate free-tier daily allowance.'
   },
   {
-    id: 'gemini-3.8-flash',
+    id: 'gemini-3.5-flash-lite',
     provider: 'gemini',
     providerLabel: 'Gemini',
-    name: 'Gemini 3.8 Flash',
-    shortLabel: '3.8 FLASH',
-    tier: 'Highest Quality',
-    speedNote: 'Deliberate',
-    quotaNote: 'Strictest free-tier daily cap',
-    desc: 'Deepest hook reasoning for complex long-form discussions, with the strictest free-tier daily cap.'
+    name: 'Gemini 3.5 Flash-Lite',
+    shortLabel: '3.5 LITE',
+    tier: 'High-Quota Fallback',
+    speedNote: 'Fastest',
+    quotaNote: 'Highest free-tier allowance',
+    desc: 'Fastest response with the highest free-tier daily allowance. Best fallback if higher-tier models hit daily rate limits.'
   }
 ];
 
 const DEFAULT_MODEL_OPTION: HookDiscoveryModelOption = {
-  id: 'gemini-3.5-flash-lite',
+  id: 'gemini-4-hydrogen',
   provider: 'gemini',
   providerLabel: 'Gemini',
-  name: 'Gemini 3.5 Flash-Lite',
-  shortLabel: '3.5 LITE',
+  name: 'Gemini 4 Hydrogen',
+  shortLabel: '4 HYDROGEN',
   tier: 'Default',
-  speedNote: 'Fastest',
-  quotaNote: 'Highest free-tier allowance',
-  desc: 'Fastest response with the highest free-tier daily allowance. Best default for everyday clipping.'
+  speedNote: 'Deliberate',
+  quotaNote: 'Strictest free-tier cap',
+  desc: 'Gemini 4 reasoning model available on the free tier for maximum hook nuance and boundary precision, with the strictest free-tier cap.'
 };
 
 export function isHookDiscoveryModelId(

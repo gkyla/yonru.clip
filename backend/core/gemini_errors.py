@@ -3,7 +3,11 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional, Tuple
 
-from core.gemini_models import DEFAULT_GEMINI_MODEL, get_gemini_model_label
+from core.gemini_models import (
+    DEFAULT_GEMINI_MODEL,
+    HIGH_QUOTA_FALLBACK_GEMINI_MODEL,
+    get_gemini_model_label,
+)
 
 ErrorOrigin = Literal["provider", "config", "network", "output", "pipeline"]
 ErrorCode = Literal[
@@ -98,7 +102,7 @@ class HookDiscoveryQuotaError(HookDiscoveryError):
     ):
         label = model_label or get_gemini_model_label(model_name)
         redacted_raw = redact_api_keys(raw_error)
-        if model_name != DEFAULT_GEMINI_MODEL:
+        if model_name != HIGH_QUOTA_FALLBACK_GEMINI_MODEL:
             message = (
                 f"Quota or rate limit exceeded (429) for {label} ({model_name}) "
                 "across all configured Gemini API keys. Switch to Gemini 3.5 Flash-Lite "
@@ -486,7 +490,7 @@ def classify_validation_exception(
 
     if detail.code == "quota_exceeded":
         label = model_label or get_gemini_model_label(model_name)
-        if model_name != DEFAULT_GEMINI_MODEL:
+        if model_name != HIGH_QUOTA_FALLBACK_GEMINI_MODEL:
             user_msg = (
                 f"Rate Limit / Quota exceeded (429) for {label} ({model_name}): "
                 "Free tier limit reached. Switch to Gemini 3.5 Flash-Lite or use a fallback key."
