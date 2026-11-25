@@ -481,7 +481,10 @@ export interface AnchorRect {
 export type HookDiscoveryProviderId = 'gemini';
 
 export type HookDiscoveryModelId =
-  'gemini-3.5-flash-lite' | 'gemini-3.6-flash' | 'gemini-3.8-flash';
+  | 'gemini-3.5-flash-lite'
+  | 'gemini-3.6-flash'
+  | 'gemini-3.8-flash'
+  | 'gemini-4-hydrogen';
 
 export interface HookDiscoveryModelOption {
   id: HookDiscoveryModelId;

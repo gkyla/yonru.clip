@@ -25,9 +25,13 @@ def test_default_auto_preset_generation():
     
     # 2. Duration & Constraints
     assert "30 AND 180 SECONDS" in prompt
-    assert "sweet spot of 30-90 seconds" in prompt
-    
-    # 3. Output Schema with Virality Score & Explanation
+    assert "Aim for 30-90 seconds" in prompt
+    assert "35-90" not in prompt
+
+    # 3. Output Schema with Theme First + Segment IDs + Virality
+    assert '"theme" (string)' in prompt
+    assert '"start_id" (integer)' in prompt
+    assert '"end_id" (integer)' in prompt
     assert '"virality_score" (integer 0-100)' in prompt
     assert '"virality_reason" (string' in prompt
     assert "OUTPUT FORMAT (JSON Array):" in prompt
@@ -110,11 +114,130 @@ def test_custom_archetype_injection():
     # Custom archetype is injected
     assert custom_content in prompt
     
-    # Core guardrails and duration constraints are preserved
+    # Core guardrails and duration constraints are preserved dynamically without hardcoded 30-90 / 35-90
     assert "TOPIC FOCUS DIRECTIVE" in prompt
     assert "database crash" in prompt
     assert "45 AND 120 SECONDS" in prompt
+    assert "Aim for 45-90 seconds" in prompt
+    assert "30-90" not in prompt
+    assert "35-90" not in prompt
     assert "NO OVERLAP RULE (CRITICAL)" in prompt
     assert "THOUGHT COMPLETION RULE (CRITICAL" in prompt
     assert "OUTPUT FORMAT (JSON Array):" in prompt
+
+
+def test_custom_archetype_html_sanitization():
+    builder = ModularCompositePromptBuilder()
+    raw_html_archetype = (
+        "<p><strong>Focus:</strong> Highlight contrarian takes &amp; sharp moments.</p>"
+        "<ul><li>Include clips with virality_score &lt; 75 if concise</li>"
+        "<li>Allow scores <75 when funny</li>"
+        "<li>Use line<br/>breaks cleanly&nbsp;here</li></ul>"
+    )
+    prompt = builder.build_prompt(
+        transcript_text="sample text",
+        preset_id="humor",
+        custom_archetype=raw_html_archetype,
+    )
+
+    assert "<p>" not in prompt
+    assert "<strong>" not in prompt
+    assert "<ul>" not in prompt
+    assert "<br/>" not in prompt
+    assert "&amp;" not in prompt
+    assert "&nbsp;" not in prompt
+    assert "Focus: Highlight contrarian takes & sharp moments." in prompt
+    assert "- Include clips with virality_score < 75 if concise" in prompt
+    assert "- Allow scores <75 when funny" in prompt
+    assert "- Use line\nbreaks cleanly here" in prompt
+
+    # Empty HTML-only custom archetype falls back cleanly to built-in preset
+    fallback_prompt = builder.build_prompt(
+        transcript_text="sample text",
+        preset_id="humor",
+        custom_archetype="<p><br>&nbsp;</p>",
+    )
+    assert "punchline" in fallback_prompt.lower()
+
+
+def test_soft_duration_scaled_coverage_floor():
+    builder = ModularCompositePromptBuilder()
+
+    # ~25.6 minute video -> soft floor 7+, no upper cap, skip-if-weak escape hatch
+    long_prompt = builder.build_prompt(
+        transcript_text="sample text",
+        preset_id="auto",
+        auto_hooks=True,
+        video_duration=1536.0,
+    )
+    assert "COVERAGE SANITY CHECK" in long_prompt
+    assert "7+" in long_prompt
+    assert "NO upper cap" in long_prompt
+    assert "chronologically" in long_prompt.lower()
+    assert "inventing weak filler" in long_prompt.lower()
+    assert "Quality over quantity" not in long_prompt
+
+    # Short video (< 3 min) -> no numeric floor, still scans full timeline without stopping early
+    short_prompt = builder.build_prompt(
+        transcript_text="sample text",
+        preset_id="auto",
+        auto_hooks=True,
+        video_duration=120.0,
+    )
+    assert "COVERAGE SANITY CHECK" not in short_prompt
+    assert "NO upper cap" in short_prompt
+    assert "do not stop early" in short_prompt.lower()
+
+
+def test_output_schema_uses_theme_first_segment_ids_without_quotes():
+    builder = ModularCompositePromptBuilder()
+    prompt = builder.build_prompt(
+        transcript_text="[#0 | 0.00s-10.00s] Sample content",
+        preset_id="auto",
+    )
+
+    assert '"transcript_quote"' not in prompt
+    assert '"start"' not in prompt
+    assert '"end"' not in prompt
+    assert '"duration_seconds"' not in prompt
+    assert '"theme" (string)' in prompt
+    assert '"start_id" (integer)' in prompt
+    assert '"end_id" (integer)' in prompt
+    assert '"virality_score" (integer 0-100)' in prompt
+    assert '"virality_reason" (string)' in prompt or '"virality_reason" (string' in prompt
+    output_section = prompt.split("OUTPUT FORMAT (JSON Array):")[1]
+    assert (
+        output_section.index('"theme"')
+        < output_section.index('"start_id"')
+        < output_section.index('"end_id"')
+        < output_section.index('"virality_score"')
+        < output_section.index('"virality_reason"')
+    )
+    assert "do NOT copy or repeat spoken transcript text" in prompt
+
+
+def test_back_to_back_hooks_allowed_and_universal_guardrails():
+    builder = ModularCompositePromptBuilder()
+    prompt = builder.build_prompt(
+        transcript_text="[#0 | 0.00s-10.00s] Sample content",
+        preset_id="auto",
+    )
+
+    # Back-to-back adjacent hooks allowed; restrictive gap/winner-takes-all rules removed
+    assert "clear gap" not in prompt.lower()
+    assert "select only the single strongest" not in prompt.lower()
+    assert "back-to-back" in prompt.lower()
+
+    # Language-agnostic and genre-neutral guardrails (payoff completion + boundary filler trim)
+    assert "MEDICAL & LOGICAL COMPLETENESS" not in prompt
+    assert "medical caveats" not in prompt.lower()
+    assert "Scan at least 60 seconds" not in prompt
+    assert "any spoken language" in prompt.lower()
+    assert "first clean conclusion" not in prompt.lower()
+    assert "complete the full payoff" in prompt.lower()
+    assert "never begin `start_id` on host transition cues" in prompt.lower()
+
+
+
+
 

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import PipelineProgressStepper from '../../app/components/home/PipelineProgressStepper.vue';
+import type { LastAnalysisRequest } from '../../app/types/clipper';
 
 const mockJobStatus = ref('transcribing');
 const mockJobId = ref('job-xyz-123');
@@ -21,6 +22,7 @@ const mockExtractionMode = ref('preset');
 const mockPromptsList = ref<any[]>([]);
 const mockCachedVideos = ref<any[]>([]);
 const mockIsCachedAnalysis = ref(false);
+const mockLastAnalysisRequest = ref<LastAnalysisRequest | null>(null);
 
 vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => ({
@@ -40,7 +42,8 @@ vi.mock('../../app/composables/useClipperState', () => ({
     extractionMode: mockExtractionMode,
     promptsList: mockPromptsList,
     cachedVideos: mockCachedVideos,
-    isCachedAnalysis: mockIsCachedAnalysis
+    isCachedAnalysis: mockIsCachedAnalysis,
+    lastAnalysisRequest: mockLastAnalysisRequest
   })
 }));
 
@@ -89,6 +92,7 @@ describe('PipelineProgressStepper Component', () => {
     mockPromptsList.value = [];
     mockCachedVideos.value = [];
     mockIsCachedAnalysis.value = false;
+    mockLastAnalysisRequest.value = null;
   });
 
   it('renders clean shimmer skeleton when video metadata is not yet resolved', () => {
@@ -276,5 +280,131 @@ describe('PipelineProgressStepper Component', () => {
 
     expect(wrapper.text()).toContain('Hook Discovery Model');
     expect(wrapper.text()).toContain('Gemini 3.8 Flash');
+  });
+
+  it('displays Smart Preset name when preset mode is active even if selectedPrompt holds a UUID', () => {
+    mockVideoTitle.value = 'Long Podcast';
+    mockVideoDuration.value = 1800;
+    mockExtractionMode.value = 'preset';
+    mockSelectedPresetId.value = 'auto';
+    mockSelectedPrompt.value = '78204419-c347-4df2-8a72-bb6cdf2ef134';
+    mockPromptsList.value = [
+      {
+        id: '78204419-c347-4df2-8a72-bb6cdf2ef134',
+        name: 'Podcast Blak-Blakan V2 (Deep & Raw)'
+      }
+    ];
+
+    const wrapper = mount(PipelineProgressStepper, {
+      props: {
+        stages: defaultStages,
+        progressPercent: 50,
+        loadingLabel: 'ANALYZING...'
+      },
+      global: {
+        stubs: globalStubs
+      }
+    });
+
+    expect(wrapper.text()).toContain('Auto Virality');
+    expect(wrapper.text()).not.toContain('Podcast Blak-Blakan V2 (Deep & Raw)');
+  });
+
+  it('displays the custom template selected in ReanalyzeModal during cached reanalysis', () => {
+    mockVideoTitle.value = 'Cached Episode';
+    mockVideoDuration.value = 1200;
+    mockIsCachedAnalysis.value = true;
+    mockExtractionMode.value = 'preset';
+    mockSelectedPresetId.value = 'auto';
+    mockSelectedPrompt.value = 'uuid-1';
+    mockPromptsList.value = [
+      { id: 'uuid-1', name: 'Template One' },
+      { id: 'uuid-2', name: 'Template Two' }
+    ];
+    mockLastAnalysisRequest.value = {
+      type: 'cached',
+      videoId: 'vid-1',
+      force: true,
+      options: {
+        extractionMode: 'custom',
+        promptFile: 'uuid-2',
+        presetId: 'auto'
+      }
+    };
+
+    const wrapper = mount(PipelineProgressStepper, {
+      props: {
+        stages: defaultStages,
+        progressPercent: 50,
+        loadingLabel: 'ANALYZING...',
+        isReanalyzingCached: true
+      },
+      global: {
+        stubs: globalStubs
+      }
+    });
+
+    expect(wrapper.text()).toContain('Template Two');
+    expect(wrapper.text()).not.toContain('Template One');
+    expect(wrapper.text()).not.toContain('Auto Virality');
+  });
+
+  it('displays the Smart Preset selected in ReanalyzeModal during cached reanalysis even when promptFile is present', () => {
+    mockVideoTitle.value = 'Cached Episode';
+    mockVideoDuration.value = 1200;
+    mockIsCachedAnalysis.value = true;
+    mockExtractionMode.value = 'custom';
+    mockSelectedPrompt.value = 'uuid-1';
+    mockPromptsList.value = [{ id: 'uuid-1', name: 'Template One' }];
+    mockLastAnalysisRequest.value = {
+      type: 'cached',
+      videoId: 'vid-1',
+      force: true,
+      options: {
+        extractionMode: 'preset',
+        presetId: 'humor',
+        promptFile: 'uuid-1'
+      }
+    };
+
+    const wrapper = mount(PipelineProgressStepper, {
+      props: {
+        stages: defaultStages,
+        progressPercent: 50,
+        loadingLabel: 'ANALYZING...',
+        isReanalyzingCached: true
+      },
+      global: {
+        stubs: globalStubs
+      }
+    });
+
+    expect(wrapper.text()).toContain('Funny & Relatable');
+    expect(wrapper.text()).not.toContain('Template One');
+  });
+
+  it('displays Cached Hooks instead of a stale template name during plain cache lookup', () => {
+    mockVideoTitle.value = 'Cached Episode';
+    mockVideoDuration.value = 1200;
+    mockIsCachedAnalysis.value = true;
+    mockExtractionMode.value = 'custom';
+    mockSelectedPrompt.value = 'uuid-1';
+    mockPromptsList.value = [
+      { id: 'uuid-1', name: 'Podcast Blak-Blakan V2 (Deep & Raw)' }
+    ];
+
+    const wrapper = mount(PipelineProgressStepper, {
+      props: {
+        stages: defaultStages,
+        progressPercent: 50,
+        loadingLabel: 'LOADING FROM CACHE...'
+      },
+      global: {
+        stubs: globalStubs
+      }
+    });
+
+    expect(wrapper.text()).toContain('Cached Hooks');
+    expect(wrapper.text()).not.toContain('Podcast Blak-Blakan V2 (Deep & Raw)');
   });
 });

@@ -723,7 +723,7 @@ class ClipWorkflowCoordinator:
                 extraction_mode=extraction_mode,
                 prompt_file=prompt_file,
                 focus_topic=focus_topic,
-                min_duration=min_duration or 15,
+                min_duration=min_duration or 30,
                 max_duration=max_duration or 180,
             )
 

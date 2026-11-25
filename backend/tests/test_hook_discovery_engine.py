@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from core.hook_discovery_engine import (
     DEFAULT_GEMINI_MODEL,
+    HOOK_DISCOVERY_MODELS,
     HookDiscoveryEngine,
     HookDiscoveryError,
     HookDiscoveryOptions,
@@ -16,7 +17,11 @@ from core.hook_discovery_engine import (
 )
 from core.config_store import InMemoryConfigStore
 from core.media_transcoder import MediaTranscoder, FakeMediaAdapter
-from core.genai_client import MockGenAIClient, GenAIClient
+from core.genai_client import (
+    HOOK_DISCOVERY_RESPONSE_SCHEMA,
+    GenAIClient,
+    MockGenAIClient,
+)
 
 class MockAPIError(Exception):
     def __init__(self, message, code):
@@ -40,17 +45,17 @@ def sample_gemini_response():
     return json.dumps([
         {
             "start": 0.0,
-            "end": 20.0,
-            "duration_seconds": 20.0,
+            "end": 35.0,
+            "duration_seconds": 35.0,
             "transcript_quote": "This is a compelling clip hook sentence.",
             "theme": "Top Viral Intro",
             "virality_score": 92,
             "virality_reason": "Punchy hook"
         },
         {
-            "start": 25.0,
-            "end": 45.0,
-            "duration_seconds": 20.0,
+            "start": 40.0,
+            "end": 75.0,
+            "duration_seconds": 35.0,
             "transcript_quote": "Everyone should watch this video.",
             "theme": "Secondary Point",
             "virality_score": 75,
@@ -157,7 +162,7 @@ def test_get_or_discover_hooks_cache_miss_generates_and_persists(
     assert result[1]["virality_score"] == 75
     # Verify thumbnails extracted
     assert result[0]["thumbnail_url"] == "/assets/sources/video_source_4/thumb_0.jpg"
-    assert result[1]["thumbnail_url"] == "/assets/sources/video_source_4/thumb_25.jpg"
+    assert result[1]["thumbnail_url"] == "/assets/sources/video_source_4/thumb_40.jpg"
     
     # Verify written to disk cache
     hooks_file = video_dir / "hooks.json"
@@ -409,7 +414,13 @@ def test_find_hooks_from_transcript_backward_compat(sample_transcript, sample_ge
 def test_discover_from_transcript_uses_default_and_dynamic_config_models(
     sample_transcript, sample_gemini_response, fake_transcoder
 ):
-    """Default model is gemini-3.5-flash-lite, legacy 2.5 normalizes, and config updates take effect dynamically."""
+    """Models are ordered smartest-to-lightest with gemini-4-hydrogen as default and dynamic config updates."""
+    assert [m["id"] for m in HOOK_DISCOVERY_MODELS] == [
+        "gemini-4-hydrogen",
+        "gemini-3.8-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash-lite",
+    ]
     config_store = InMemoryConfigStore()
     mock_client = MockGenAIClient(sample_gemini_response)
     engine = HookDiscoveryEngine(
@@ -419,19 +430,23 @@ def test_discover_from_transcript_uses_default_and_dynamic_config_models(
     )
 
     engine.discover_from_transcript(sample_transcript)
-    assert mock_client.last_model_name == DEFAULT_GEMINI_MODEL == "gemini-3.5-flash-lite"
+    assert mock_client.last_model_name == DEFAULT_GEMINI_MODEL == "gemini-4-hydrogen"
 
     config_store.set("GEMINI_MODEL", "gemini-2.5-flash")
     engine.discover_from_transcript(sample_transcript)
-    assert mock_client.last_model_name == "gemini-3.5-flash-lite"
+    assert mock_client.last_model_name == "gemini-4-hydrogen"
+
+    config_store.set("GEMINI_MODEL", "gemini-3.8-flash")
+    engine.discover_from_transcript(sample_transcript)
+    assert mock_client.last_model_name == "gemini-3.8-flash"
 
     config_store.set("GEMINI_MODEL", "gemini-3.6-flash")
     engine.discover_from_transcript(sample_transcript)
     assert mock_client.last_model_name == "gemini-3.6-flash"
 
-    config_store.set("GEMINI_MODEL", "gemini-3.8-flash")
+    config_store.set("GEMINI_MODEL", "gemini-3.5-flash-lite")
     engine.discover_from_transcript(sample_transcript)
-    assert mock_client.last_model_name == "gemini-3.8-flash"
+    assert mock_client.last_model_name == "gemini-3.5-flash-lite"
 
 
 def test_quota_exhaustion_fails_fast_without_retries_or_downgrade(sample_transcript, fake_transcoder):
@@ -464,7 +479,7 @@ def test_quota_exhaustion_fails_fast_without_retries_or_downgrade(sample_transcr
     assert "Gemini 3.5 Flash-Lite" in str(exc_info.value)
 
 
-def test_quota_exhaustion_on_default_model_names_active_model(sample_transcript, fake_transcoder):
+def test_quota_exhaustion_on_fallback_model_names_active_model(sample_transcript, fake_transcoder):
     """When already on gemini-3.5-flash-lite, 429 error avoids suggesting switching to itself."""
     config_store = InMemoryConfigStore({"GEMINI_MODEL": "gemini-3.5-flash-lite"})
 
@@ -489,6 +504,62 @@ def test_quota_exhaustion_on_default_model_names_active_model(sample_transcript,
     assert client.calls == 1
     assert "Gemini 3.5 Flash-Lite" in str(exc_info.value)
     assert "Switch to" not in str(exc_info.value)
+
+
+def test_quota_exhaustion_on_default_model_recommends_flash_lite_fallback(sample_transcript, fake_transcoder):
+    """429 quota error on gemini-3.6-flash advises switching to Gemini 3.5 Flash-Lite."""
+    config_store = InMemoryConfigStore({"GEMINI_MODEL": "gemini-3.6-flash"})
+
+    class QuotaClient(GenAIClient):
+        def __init__(self):
+            self.calls = 0
+
+        def generate_json(self, prompt, model_name):
+            self.calls += 1
+            raise MockAPIError("Quota exceeded for free tier", 429)
+
+    client = QuotaClient()
+    engine = HookDiscoveryEngine(
+        config_store=config_store,
+        genai_client=client,
+        media_transcoder=fake_transcoder,
+    )
+
+    with pytest.raises(HookDiscoveryQuotaError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
+    assert client.calls == 1
+    assert "Gemini 3.6 Flash" in str(exc_info.value)
+    assert "Gemini 3.5 Flash-Lite" in str(exc_info.value)
+
+
+def test_quota_exhaustion_on_gemini_4_hydrogen_recommends_flash_lite_fallback(
+    sample_transcript, fake_transcoder
+):
+    """429 quota error on gemini-4-hydrogen names Gemini 4 Hydrogen and recommends Gemini 3.5 Flash-Lite."""
+    config_store = InMemoryConfigStore({"GEMINI_MODEL": "gemini-4-hydrogen"})
+
+    class QuotaClient(GenAIClient):
+        def __init__(self):
+            self.calls = 0
+
+        def generate_json(self, prompt, model_name):
+            self.calls += 1
+            raise MockAPIError("Quota exceeded for free tier", 429)
+
+    client = QuotaClient()
+    engine = HookDiscoveryEngine(
+        config_store=config_store,
+        genai_client=client,
+        media_transcoder=fake_transcoder,
+    )
+
+    with pytest.raises(HookDiscoveryQuotaError) as exc_info:
+        engine.discover_from_transcript(sample_transcript)
+
+    assert client.calls == 1
+    assert "Gemini 4 Hydrogen" in str(exc_info.value)
+    assert "Gemini 3.5 Flash-Lite" in str(exc_info.value)
 
 
 def test_missing_api_key_raises_config_error(sample_transcript, fake_transcoder, monkeypatch):
@@ -638,4 +709,374 @@ def test_timeout_with_5000ms_classifies_as_network_error(sample_transcript, fake
 
     assert exc_info.value.detail.origin == "network"
     assert exc_info.value.detail.code == "network_error"
+
+
+def test_discover_slices_verbatim_transcript_quote_when_llm_omits_it(fake_transcoder):
+    """When LLM omits transcript_quote, engine deterministically slices verbatim text from [start, end]."""
+    transcript = [
+        {"start": 0.0, "duration": 5.0, "text": "Preceding intro banter."},
+        {"start": 10.0, "duration": 15.0, "text": "First real hook opening sentence."},
+        {"start": 25.0, "duration": 15.0, "text": "Payoff punchline lands here."},
+        {"start": 40.0, "duration": 10.0, "text": "Following unrelated topic."},
+    ]
+    llm_response = json.dumps([
+        {
+            "start": 10.0,
+            "end": 40.0,
+            "theme": "Real Hook",
+            "virality_score": 88,
+            "virality_reason": "Sharp insight with clear payoff.",
+        }
+    ])
+    mock_client = MockGenAIClient(llm_response)
+    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+
+    hooks = engine.discover_from_transcript(transcript, video_info={"duration": 60.0})
+    assert len(hooks) == 1
+    assert hooks[0]["transcript_quote"] == "First real hook opening sentence. Payoff punchline lands here."
+    assert "Preceding intro banter" not in hooks[0]["transcript_quote"]
+    assert "Following unrelated topic" not in hooks[0]["transcript_quote"]
+    assert hooks[0]["duration_seconds"] == 30.0
+
+
+def test_discover_preserves_existing_quote_when_transcript_range_empty(fake_transcoder):
+    """Fallback preserves pre-existing quote (or sets empty string) if sliced range has no words."""
+    transcript = [
+        {"start": 0.0, "duration": 5.0, "text": "Only early audio."},
+    ]
+    llm_response = json.dumps([
+        {
+            "start": 30.0,
+            "end": 60.0,
+            "transcript_quote": "Legacy quote preserved.",
+            "theme": "Out Of Range With Legacy Quote",
+            "virality_score": 82,
+            "virality_reason": "Fallback check.",
+        },
+        {
+            "start": 70.0,
+            "end": 100.0,
+            "theme": "Out Of Range Without Quote",
+            "virality_score": 76,
+            "virality_reason": "Empty quote check.",
+        },
+    ])
+    mock_client = MockGenAIClient(llm_response)
+    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+
+    hooks = engine.discover_from_transcript(transcript, video_info={"duration": 120.0})
+    assert len(hooks) == 2
+    assert hooks[0]["transcript_quote"] == "Legacy quote preserved."
+    assert hooks[1]["transcript_quote"] == ""
+
+
+def test_discover_deduplicates_heavy_overlaps_and_keeps_back_to_back_hooks(fake_transcoder):
+    """Deduplicates >20% overlap keeping highest virality_score, while touching/slight overlaps survive."""
+    transcript = [
+        {"start": 0.0, "duration": 200.0, "text": "Continuous multi-topic podcast conversation."},
+    ]
+    # 1. Back-to-back pair: [0, 50] (score 91) and [50, 100] (score 84) -> both survive (0% overlap)
+    # 2. Heavy overlap pair A (longer higher): [200, 280] (80s, score 95) vs [220, 260] (40s, score 89) -> 40/40 = 100% > 20% -> [200, 280] wins
+    # 3. Heavy overlap pair B (shorter higher): [300, 380] (80s, score 78) vs [310, 350] (40s, score 93) -> 40/40 = 100% > 20% -> [310, 350] wins
+    # 4. Slight overlap <= 20%: [400, 460] (60s, score 86) vs [450, 510] (60s, score 80) -> 10/60 = 16.7% <= 20% -> both survive
+    llm_response = json.dumps([
+        {"start": 0.0, "end": 50.0, "theme": "Back To Back 1", "virality_score": 91},
+        {"start": 50.0, "end": 100.0, "theme": "Back To Back 2", "virality_score": 84},
+        {"start": 220.0, "end": 260.0, "theme": "Weaker Shorter Overlap", "virality_score": 89},
+        {"start": 200.0, "end": 280.0, "theme": "Stronger Longer Overlap", "virality_score": 95},
+        {"start": 300.0, "end": 380.0, "theme": "Weaker Longer Overlap", "virality_score": 78},
+        {"start": 310.0, "end": 350.0, "theme": "Stronger Shorter Overlap", "virality_score": 93},
+        {"start": 400.0, "end": 460.0, "theme": "Slight Overlap 1", "virality_score": 86},
+        {"start": 450.0, "end": 510.0, "theme": "Slight Overlap 2", "virality_score": 80},
+    ])
+    mock_client = MockGenAIClient(llm_response)
+    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+
+    hooks = engine.discover_from_transcript(transcript, video_info={"duration": 600.0})
+    themes = [h["theme"] for h in hooks]
+    assert "Stronger Longer Overlap" in themes
+    assert "Weaker Shorter Overlap" not in themes
+    assert "Stronger Shorter Overlap" in themes
+    assert "Weaker Longer Overlap" not in themes
+    assert "Back To Back 1" in themes
+    assert "Back To Back 2" in themes
+    assert "Slight Overlap 1" in themes
+    assert "Slight Overlap 2" in themes
+    assert len(hooks) == 6
+
+
+def test_discover_preserves_tier3_hooks_sorted_descending(fake_transcoder):
+    """Borderline Tier 3 hooks (<75) are preserved alongside higher tiers, sorted descending."""
+    transcript = [{"start": 0.0, "duration": 300.0, "text": "Full timeline discussion."}]
+    llm_response = json.dumps([
+        {"start": 0.0, "end": 40.0, "theme": "Low", "virality_score": 68},
+        {"start": 50.0, "end": 90.0, "theme": "Top", "virality_score": 94},
+        {"start": 100.0, "end": 140.0, "theme": "Borderline", "virality_score": 72},
+        {"start": 150.0, "end": 190.0, "theme": "Strong", "virality_score": 83},
+    ])
+    engine = HookDiscoveryEngine(genai_client=MockGenAIClient(llm_response), media_transcoder=fake_transcoder)
+
+    hooks = engine.discover_from_transcript(transcript, video_info={"duration": 300.0})
+    assert [h["virality_score"] for h in hooks] == [94, 83, 72, 68]
+
+
+def test_discover_derives_video_duration_from_transcript_when_metadata_missing(fake_transcoder):
+    """Falls back to transcript span when video_info is absent or lacks positive duration."""
+    transcript = [
+        {"start": 0.0, "duration": 450.0, "text": "First half of the podcast."},
+        {"start": 450.0, "duration": 450.0, "text": "Second half up to fifteen minutes."},
+    ]
+    llm_response = json.dumps([
+        {"start": 10.0, "end": 50.0, "theme": "Early Clip", "virality_score": 88}
+    ])
+
+    for info in (None, {"duration": None}, {"duration": 0}):
+        mock_client = MockGenAIClient(llm_response)
+        engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+        engine.discover_from_transcript(transcript, video_info=info)
+
+        assert mock_client.last_prompt is not None
+        assert "VIDEO DURATION: The total length is 900.0 seconds" in mock_client.last_prompt
+        assert "COVERAGE SANITY CHECK" in mock_client.last_prompt
+
+
+def test_group_words_into_sentences_normalizes_overlapping_captions(fake_transcoder):
+    """Overlapping/backwards-jumping YouTube caption runs become strictly monotonic in spoken order."""
+    overlapping_words = [
+        {"start": 0.12, "duration": 0.613, "text": "Yuk,"},
+        {"start": 0.733, "duration": 0.613, "text": "sekarang"},
+        {"start": 1.346, "duration": 0.614, "text": "kita"},
+        {"start": 1.96, "duration": 1.84, "text": "jendela."},
+        # Next caption starts earlier than previous caption's stretched display end
+        {"start": 1.80, "duration": 0.567, "text": "Makannya"},
+        {"start": 2.367, "duration": 0.567, "text": "kita"},
+        {"start": 2.934, "duration": 2.266, "text": "atur."},
+        # Third caption overlaps the second
+        {"start": 3.80, "duration": 1.16, "text": "Kalimat"},
+        {"start": 4.96, "duration": 1.16, "text": "terakhir."},
+    ]
+    engine = HookDiscoveryEngine(genai_client=MockGenAIClient(), media_transcoder=fake_transcoder)
+    grouped = engine._group_words_into_sentences(overlapping_words)
+
+    assert [g["text"] for g in grouped] == [
+        "Yuk, sekarang kita jendela.",
+        "Makannya kita atur.",
+        "Kalimat terakhir.",
+    ]
+    for i, seg in enumerate(grouped):
+        assert seg["duration"] >= 0.0
+        if i > 0:
+            prev_end = grouped[i - 1]["start"] + grouped[i - 1]["duration"]
+            assert seg["start"] >= grouped[i - 1]["start"]
+            assert seg["start"] >= prev_end - 1e-6
+
+
+def test_discover_resolves_segment_ids_and_passes_structured_config(fake_transcoder):
+    """Segment IDs resolve exact timestamps/quotes, strip IDs, skip invalid IDs, and pass temp=0.2 + schema."""
+    transcript = [
+        {"start": 0.0, "duration": 4.0, "text": "Intro chatter ignored."},
+        {"start": 4.0, "duration": 18.0, "text": "Kenapa diet sering gagal padahal sudah olahraga?"},
+        {"start": 22.0, "duration": 20.0, "text": "Karena jendela makan dan hormon insulin belum diatur."},
+        {"start": 42.0, "duration": 5.0, "text": "Closing remark."},
+    ]
+    llm_response = json.dumps([
+        {
+            "theme": "Kenapa diet sering gagal",
+            "start_id": 1,
+            "end_id": 2,
+            "virality_score": 91,
+            "virality_reason": "Clear question and complete hormonal payoff.",
+        },
+        {
+            "theme": "Out of bounds id",
+            "start_id": 99,
+            "end_id": 102,
+            "virality_score": 80,
+            "virality_reason": "Invalid segment id should be skipped.",
+        },
+    ])
+    mock_client = MockGenAIClient(llm_response)
+    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
+
+    hooks = engine.discover_from_transcript(
+        transcript,
+        video_info={"duration": 120.0},
+        options=HookDiscoveryOptions(min_duration=30, max_duration=180),
+    )
+
+    assert mock_client.last_temperature == 0.2
+    assert mock_client.last_response_schema is HOOK_DISCOVERY_RESPONSE_SCHEMA
+    assert mock_client.last_prompt is not None
+    assert "[#0 | 0.00s-4.00s] Intro chatter ignored." in mock_client.last_prompt
+    assert "[#1 | 4.00s-22.00s] Kenapa diet sering gagal" in mock_client.last_prompt
+
+    assert len(hooks) == 1
+    assert hooks[0]["start"] == 4.0
+    assert hooks[0]["end"] == 42.0
+    assert hooks[0]["duration_seconds"] == 38.0
+    assert hooks[0]["transcript_quote"] == (
+        "Kenapa diet sering gagal padahal sudah olahraga? "
+        "Karena jendela makan dan hormon insulin belum diatur."
+    )
+    assert "start_id" not in hooks[0]
+    assert "end_id" not in hooks[0]
+
+
+def test_discover_trims_leading_and_trailing_boundary_fillers_preserving_content(fake_transcoder):
+    """Standalone transition/backchannel lines are trimmed from boundaries without dropping real content."""
+    transcript = [
+        {"start": 0.0, "duration": 1.5, "text": "Next."},
+        {"start": 1.5, "duration": 1.5, "text": "Oke, next."},
+        {"start": 3.0, "duration": 18.0, "text": "Apakah penderita aritmia boleh lari jarak jauh?"},
+        {"start": 21.0, "duration": 18.0, "text": "Ini penting: cek dokter dulu karena risikonya 30%."},
+        {"start": 39.0, "duration": 2.0, "text": "Oh, gitu ya."},
+        {"start": 41.0, "duration": 1.5, "text": "Gitu."},
+        {"start": 42.5, "duration": 15.0, "text": "Sebanyak 30%."},
+        {"start": 57.5, "duration": 16.0, "text": "Ini penting."},
+        {"start": 73.5, "duration": 1.5, "text": "Yeah."},
+        {"start": 75.0, "duration": 1.5, "text": "Right."},
+        {"start": 76.5, "duration": 1.5, "text": "Oke."},
+    ]
+    llm_response = json.dumps([
+        {
+            "theme": "Bolehkah penderita aritmia lari",
+            "start_id": 0,
+            "end_id": 5,
+            "virality_score": 89,
+            "virality_reason": "Practical medical guidance.",
+        },
+        {
+            "theme": "Persentase penting tetap utuh",
+            "start_id": 6,
+            "end_id": 10,
+            "virality_score": 82,
+            "virality_reason": "Preserves factual number and emphasis.",
+        },
+    ])
+    engine = HookDiscoveryEngine(genai_client=MockGenAIClient(llm_response), media_transcoder=fake_transcoder)
+
+    hooks = engine.discover_from_transcript(
+        transcript,
+        video_info={"duration": 120.0},
+        options=HookDiscoveryOptions(min_duration=30, max_duration=180),
+    )
+
+    assert len(hooks) == 2
+    assert hooks[0]["start"] == 3.0
+    assert hooks[0]["end"] == 39.0
+    assert hooks[0]["transcript_quote"] == (
+        "Apakah penderita aritmia boleh lari jarak jauh? "
+        "Ini penting: cek dokter dulu karena risikonya 30%."
+    )
+    assert hooks[1]["start"] == 42.5
+    assert hooks[1]["end"] == 73.5
+    assert hooks[1]["transcript_quote"] == "Sebanyak 30%. Ini penting."
+
+
+def test_discover_enforces_real_min_duration_with_short_video_exemption(fake_transcoder):
+    """Hooks shorter than opts.min_duration are dropped on normal videos, allowed when configurable or short video."""
+    transcript = [
+        {"start": 0.0, "duration": 17.0, "text": "Short seventeen second segment."},
+        {"start": 20.0, "duration": 24.0, "text": "Twenty four second segment."},
+        {"start": 50.0, "duration": 36.0, "text": "Complete thirty six second insight with full resolution."},
+    ]
+    llm_response = json.dumps([
+        {"theme": "Hook 17s", "start_id": 0, "end_id": 0, "virality_score": 95},
+        {"theme": "Hook 24s", "start_id": 1, "end_id": 1, "virality_score": 90},
+        {"theme": "Hook 36s", "start_id": 2, "end_id": 2, "virality_score": 84},
+    ])
+    engine = HookDiscoveryEngine(genai_client=MockGenAIClient(llm_response), media_transcoder=fake_transcoder)
+
+    hooks_min_30 = engine.discover_from_transcript(
+        transcript,
+        video_info={"duration": 120.0},
+        options=HookDiscoveryOptions(min_duration=30, max_duration=180),
+    )
+    assert [h["theme"] for h in hooks_min_30] == ["Hook 36s"]
+
+    hooks_min_15 = engine.discover_from_transcript(
+        transcript,
+        video_info={"duration": 120.0},
+        options=HookDiscoveryOptions(min_duration=15, max_duration=180),
+    )
+    assert [h["theme"] for h in hooks_min_15] == ["Hook 17s", "Hook 24s", "Hook 36s"]
+
+    short_video_hooks = engine.discover_from_transcript(
+        [{"start": 0.0, "duration": 17.0, "text": "Compact teaser clip."}],
+        video_info={"duration": 18.0},
+        options=HookDiscoveryOptions(min_duration=30, max_duration=180),
+    )
+    assert [h["theme"] for h in short_video_hooks] == ["Hook 17s"]
+
+
+def test_discover_snaps_overlong_segment_id_span_and_retrims_filler(fake_transcoder):
+    """Spans exceeding max_duration snap back to last fitting sentence and re-trim newly exposed trailing filler."""
+    transcript = [
+        {"start": 0.0, "duration": 20.0, "text": "First complete setup sentence."},
+        {"start": 20.0, "duration": 20.0, "text": "Core payoff lands cleanly here."},
+        {"start": 40.0, "duration": 5.0, "text": "Oh, gitu ya."},
+        {"start": 45.0, "duration": 30.0, "text": "Extra continuation that pushes duration past max limit."},
+    ]
+    llm_response = json.dumps([
+        {
+            "theme": "Overlong span snaps cleanly",
+            "start_id": 0,
+            "end_id": 3,
+            "virality_score": 88,
+            "virality_reason": "Strong opening payoff.",
+        }
+    ])
+    engine = HookDiscoveryEngine(genai_client=MockGenAIClient(llm_response), media_transcoder=fake_transcoder)
+
+    hooks = engine.discover_from_transcript(
+        transcript,
+        video_info={"duration": 120.0},
+        options=HookDiscoveryOptions(min_duration=30, max_duration=50),
+    )
+
+    assert len(hooks) == 1
+    assert hooks[0]["start"] == 0.0
+    assert hooks[0]["end"] == 40.0
+    assert hooks[0]["duration_seconds"] == 40.0
+    assert hooks[0]["transcript_quote"] == "First complete setup sentence. Core payoff lands cleanly here."
+
+
+def test_sanitize_and_prepare_hooks_updates_duration_seconds_and_reslices_on_clamp(tmp_path, fake_transcoder):
+    """Clamping an overlong hook in sanitize_and_prepare_hooks snaps to segment boundary and updates quote/duration."""
+    video_dir = tmp_path / "video_source_clamp"
+    video_dir.mkdir()
+    video_file = video_dir / "video.mp4"
+    video_file.touch()
+
+    grouped = [
+        {"start": 0.0, "duration": 20.0, "text": "Opening premise sentence."},
+        {"start": 20.0, "duration": 25.0, "text": "Second payoff sentence."},
+        {"start": 45.0, "duration": 35.0, "text": "Trailing long section beyond limit."},
+    ]
+    raw_hooks = [
+        {
+            "start": 0.0,
+            "end": 80.0,
+            "duration_seconds": 80.0,
+            "transcript_quote": "Opening premise sentence. Second payoff sentence. Trailing long section beyond limit.",
+            "theme": "Overlong Hook",
+        }
+    ]
+    engine = HookDiscoveryEngine(media_transcoder=fake_transcoder)
+    cleaned = engine.sanitize_and_prepare_hooks(
+        raw_hooks,
+        {"file_path": str(video_file), "duration": 120.0, "folder_name": "video_source_clamp"},
+        min_duration=30,
+        max_duration=50,
+        grouped_segments=grouped,
+    )
+
+    assert len(cleaned) == 1
+    assert cleaned[0]["end"] == 45.0
+    assert cleaned[0]["duration"] == 45.0
+    assert cleaned[0]["duration_seconds"] == 45.0
+    assert cleaned[0]["transcript_quote"] == "Opening premise sentence. Second payoff sentence."
+
+
+
 

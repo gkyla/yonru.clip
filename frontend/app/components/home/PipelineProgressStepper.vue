@@ -118,15 +118,11 @@
         <div
           class="h-full bg-gradient-to-r from-accent-500 to-violet-500 relative shadow-[0_0_12px_rgba(255,215,0,0.5)]"
           :class="
-            state.isCachedAnalysis?.value && !isReanalyzingCached
+            isPlainCacheLookup
               ? 'animate-progress-sweep'
               : 'transition-all duration-700 ease-out'
           "
-          :style="
-            state.isCachedAnalysis?.value && !isReanalyzingCached
-              ? {}
-              : { width: `${progressPercent}%` }
-          "
+          :style="isPlainCacheLookup ? {} : { width: `${progressPercent}%` }"
         >
           <div
             class="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.3)_50%,transparent_100%)] animate-shimmer-fast bg-[length:200%_100%]"
@@ -294,7 +290,7 @@
 </template>
 
 <script setup lang="ts">
-import type { CachedVideo } from '../../types/clipper';
+import type { CachedVideo, PromptTemplate } from '../../types/clipper';
 import {
   getHookDiscoveryModelOption,
   normalizeHookDiscoveryModel
@@ -308,7 +304,7 @@ interface StageItem {
   state: string;
 }
 
-defineProps<{
+const props = defineProps<{
   stages: StageItem[];
   progressPercent: number;
   loadingLabel: string;
@@ -322,6 +318,10 @@ defineEmits<{
 const state = useClipperState();
 const API_BASE = resolveApiBase();
 const thumbnailLoadError = ref(false);
+
+const isPlainCacheLookup = computed(() =>
+  Boolean(state.isCachedAnalysis?.value && !props.isReanalyzingCached)
+);
 
 const activeGeminiModelId = computed(() =>
   normalizeHookDiscoveryModel(state.geminiModel?.value)
@@ -363,21 +363,36 @@ function formatIntentPreset(preset?: string): string {
 }
 
 const displayPromptTemplate = computed(() => {
-  if (
-    state.extractionMode?.value === 'custom' ||
-    (state.selectedPrompt?.value &&
-      state.selectedPrompt.value !== 'prompt.json')
-  ) {
+  if (isPlainCacheLookup.value) {
+    return 'Cached Hooks';
+  }
+
+  const activeCachedOptions =
+    state.isCachedAnalysis?.value &&
+    state.lastAnalysisRequest?.value?.type === 'cached'
+      ? state.lastAnalysisRequest.value.options
+      : undefined;
+
+  const activeExtractionMode =
+    activeCachedOptions?.extractionMode ??
+    state.extractionMode?.value ??
+    'preset';
+
+  if (activeExtractionMode === 'custom') {
+    const activePromptId =
+      activeCachedOptions?.promptFile ?? state.selectedPrompt?.value;
     const found = state.promptsList?.value?.find(
-      (p: any) => p.id === state.selectedPrompt?.value
+      (p: PromptTemplate) => p.id === activePromptId
     );
     if (found?.name) return found.name;
-    if (state.selectedPrompt?.value) {
-      return state.selectedPrompt.value.replace(/\.json$/i, '');
+    if (activePromptId) {
+      return activePromptId.replace(/\.json$/i, '');
     }
   }
 
-  return formatIntentPreset(state.selectedPresetId?.value);
+  const activePresetId =
+    activeCachedOptions?.presetId ?? state.selectedPresetId?.value;
+  return formatIntentPreset(activePresetId);
 });
 
 const activeCachedVideo = computed<CachedVideo | null>(() => {

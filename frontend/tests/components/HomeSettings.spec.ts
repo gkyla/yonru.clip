@@ -1117,7 +1117,7 @@ describe('HomeSettings Component', () => {
 
     apiSection = vm.sections.find((s: any) => s.id === 'api');
     expect(apiSection.badgeType).toBe('neutral');
-    expect(apiSection.badgeText).toBe('3.5 LITE');
+    expect(apiSection.badgeText).toBe('4 HYDROGEN');
   });
 
   it('hydrates GEMINI_MODEL (normalizing legacy 2.5), auto-saves selection changes, and sends model_name on key validation', async () => {
@@ -1174,13 +1174,16 @@ describe('HomeSettings Component', () => {
 
     await flushPromises();
     const vm = wrapper.vm as any;
-    expect(vm.selectedGeminiModel).toBe('gemini-3.5-flash-lite');
+    expect(vm.selectedGeminiModel).toBe('gemini-4-hydrogen');
 
     vm.switchTab('api');
     await wrapper.vm.$nextTick();
 
     const select = wrapper.find('#hook-discovery-model-select');
     expect(select.exists()).toBe(true);
+    expect(select.find('option[value="gemini-4-hydrogen"]').exists()).toBe(
+      true
+    );
     await select.setValue('gemini-3.8-flash');
     await flushPromises();
 

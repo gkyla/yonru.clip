@@ -68,7 +68,7 @@
             :value="option.id"
             class="bg-[#0c0e14] text-slate-100"
           >
-            {{ option.name }} ({{ option.tier }})
+            {{ option.name }}
           </option>
         </select>
         <Icon

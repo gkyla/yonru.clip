@@ -1,16 +1,25 @@
 from typing import Dict, List, Optional
 
-DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_GEMINI_MODEL = "gemini-4-hydrogen"
+HIGH_QUOTA_FALLBACK_GEMINI_MODEL = "gemini-3.5-flash-lite"
 LEGACY_DEPRECATED_GEMINI_MODELS = frozenset({"gemini-2.5-flash"})
 
 HOOK_DISCOVERY_MODELS: List[Dict[str, str]] = [
     {
-        "id": "gemini-3.5-flash-lite",
+        "id": "gemini-4-hydrogen",
         "provider": "gemini",
-        "label": "Gemini 3.5 Flash-Lite",
-        "short_label": "3.5 LITE",
+        "label": "Gemini 4 Hydrogen",
+        "short_label": "4 HYDROGEN",
         "tier": "Default",
-        "description": "Fastest response with the highest free-tier daily allowance. Best default for everyday clipping.",
+        "description": "Gemini 4 reasoning model available on the free tier for maximum hook nuance and boundary precision, with the strictest free-tier cap.",
+    },
+    {
+        "id": "gemini-3.8-flash",
+        "provider": "gemini",
+        "label": "Gemini 3.8 Flash",
+        "short_label": "3.8 FLASH",
+        "tier": "High Quality",
+        "description": "Deep hook reasoning for complex long-form discussions, with a stricter free-tier daily cap.",
     },
     {
         "id": "gemini-3.6-flash",
@@ -18,15 +27,15 @@ HOOK_DISCOVERY_MODELS: List[Dict[str, str]] = [
         "label": "Gemini 3.6 Flash",
         "short_label": "3.6 FLASH",
         "tier": "Balanced",
-        "description": "Stronger narrative reasoning for nuanced dialogue, with a moderate free-tier daily allowance.",
+        "description": "Strong narrative reasoning and high hook recall for long-form podcasts, with a moderate free-tier daily allowance.",
     },
     {
-        "id": "gemini-3.8-flash",
+        "id": "gemini-3.5-flash-lite",
         "provider": "gemini",
-        "label": "Gemini 3.8 Flash",
-        "short_label": "3.8 FLASH",
-        "tier": "Highest Quality",
-        "description": "Deepest hook reasoning for complex long-form discussions, with the strictest free-tier daily cap.",
+        "label": "Gemini 3.5 Flash-Lite",
+        "short_label": "3.5 LITE",
+        "tier": "High-Quota Fallback",
+        "description": "Fastest response with the highest free-tier daily allowance. Best fallback if higher-tier models hit daily rate limits.",
     },
 ]
 

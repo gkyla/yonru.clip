@@ -1,4 +1,14 @@
+import html
+import re
 from typing import Optional, Dict
+
+_RE_BR_TAG = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_RE_LIST_OPEN_TAG = re.compile(r"</?(?:ul|ol)(?:\s[^>]*)?>", re.IGNORECASE)
+_RE_LI_OPEN_TAG = re.compile(r"<li(?:\s[^>]*)?>", re.IGNORECASE)
+_RE_BLOCK_CLOSE_TAG = re.compile(r"</(?:p|div|li|h[1-6]|blockquote|tr)>", re.IGNORECASE)
+_RE_HTML_TAG = re.compile(r"</?[a-zA-Z][^>]*>")
+_RE_EXCESS_NEWLINES = re.compile(r"\n{3,}")
+
 
 class ModularCompositePromptBuilder:
     """
@@ -8,12 +18,12 @@ class ModularCompositePromptBuilder:
     """
     
     ARCHETYPES: Dict[str, str] = {
-        "auto": """Identify the absolute most captivating, high-retention podcast moments across all styles:
+        "auto": """Identify compelling, high-retention podcast moments across all styles:
 - Unusually honest, bold, or unfiltered statements
 - Unexpectedly funny, witty, or relatable punchlines
-- Surprising revelations, debunked misconceptions, or mind-blowing facts
+- Surprising revelations, debunked misconceptions, or eye-opening facts
 - Engaging storytelling with strong emotional peaks or plot twists
-- Relatable thoughts that make viewers think: "Ini jujur banget" or "Relate parah".""",
+- Relatable thoughts that make viewers think "that is so honest" or "so relatable".""",
 
         "humor": """Prioritize funny, entertaining, and relatable moments:
 - Spontaneous laughter, sharp comedic timing, and witty comebacks
@@ -47,6 +57,34 @@ class ModularCompositePromptBuilder:
     def __init__(self):
         pass
 
+    @staticmethod
+    def _sanitize_archetype_text(text: str) -> str:
+        """Strip rich-text HTML markup while keeping readable structure and entities intact."""
+        normalized = _RE_BR_TAG.sub("\n", text)
+        normalized = _RE_LIST_OPEN_TAG.sub("\n", normalized)
+        normalized = _RE_LI_OPEN_TAG.sub("- ", normalized)
+        normalized = _RE_BLOCK_CLOSE_TAG.sub("\n", normalized)
+        normalized = _RE_HTML_TAG.sub("", normalized)
+        normalized = html.unescape(normalized).replace("\u00a0", " ")
+        lines = [line.strip() for line in normalized.splitlines()]
+        collapsed = _RE_EXCESS_NEWLINES.sub("\n\n", "\n".join(lines))
+        return collapsed.strip()
+
+    @staticmethod
+    def _compute_soft_hook_floor(video_duration: Optional[float]) -> Optional[int]:
+        """Compute a soft duration-scaled coverage sanity floor (~1 hook per 3.5 minutes)."""
+        if video_duration is None or video_duration < 180.0:
+            return None
+        return max(2, int(round(video_duration / 210.0)))
+
+    @staticmethod
+    def _format_sweet_spot(min_duration: int, max_duration: int) -> str:
+        """Format target clip sweet spot dynamically from configured bounds."""
+        if min_duration >= max_duration:
+            return f"around {min_duration} seconds"
+        sweet_max = min(max_duration, max(min_duration + 30, 90))
+        return f"{min_duration}-{sweet_max} seconds"
+
     def build_prompt(
         self,
         transcript_text: str,
@@ -63,17 +101,38 @@ class ModularCompositePromptBuilder:
         Build the complete composite prompt.
         Supports both built-in Smart Presets and Scoped Custom Archetype Templates.
         """
-        if custom_archetype and custom_archetype.strip():
-            archetype_directive = custom_archetype.strip()
+        sanitized_custom = (
+            self._sanitize_archetype_text(custom_archetype)
+            if custom_archetype and custom_archetype.strip()
+            else ""
+        )
+        if sanitized_custom:
+            archetype_directive = sanitized_custom
         else:
             archetype_key = preset_id.lower() if preset_id else "auto"
             archetype_directive = self.ARCHETYPES.get(archetype_key, self.ARCHETYPES["auto"])
 
-        # 1. Quantity instruction
+        # 1. Quantity & Chronological Coverage instruction
+        soft_floor = self._compute_soft_hook_floor(video_duration)
         if auto_hooks:
-            hook_count_instruction = "Find ALL naturally compelling hooks in the transcript. Do not force a specific number — return as many or as few as genuinely qualify. Quality over quantity."
+            coverage_lines = [
+                "Scan the ENTIRE transcript chronologically and extract EVERY standalone hook worth clipping (virality_score >= 70): standout peaks (90-100) AND strong secondary moments (70-89). Scan beginning, middle, and end evenly — do not stop early.",
+            ]
+            if soft_floor is not None and video_duration is not None:
+                duration_mins = video_duration / 60.0
+                coverage_lines.append(
+                    f"COVERAGE SANITY CHECK: For a ~{duration_mins:.1f}-minute video, a thorough chronological scan typically uncovers at least {soft_floor}+ hooks — with NO upper cap. If more strong moments exist, return ALL of them; skip slow or repetitive parts rather than inventing weak filler."
+                )
+            else:
+                coverage_lines.append(
+                    "Return EVERY genuinely strong standalone hook across the timeline with NO upper cap — do not stop early, and skip weak filler."
+                )
+            hook_count_instruction = "\n".join(coverage_lines)
         else:
-            hook_count_instruction = f"Find exactly {num_hooks} hooks."
+            hook_count_instruction = (
+                f"Scan the ENTIRE transcript chronologically from start to finish and find {num_hooks} "
+                "distinct standalone hooks distributed across the timeline."
+            )
 
         # 2. Topic Focus Directive
         topic_directive = ""
@@ -81,18 +140,19 @@ class ModularCompositePromptBuilder:
             topic_directive = f"""
 TOPIC FOCUS DIRECTIVE (HIGH PRIORITY):
 The creator specifically requested hooks focusing on: "{focus_topic.strip()}".
-Prioritize transcript segments discussing this topic or directly related themes while maintaining strict hook virality standards.
+Prioritize transcript segments discussing this topic or directly related themes while maintaining strong hook standards.
 """
 
-        # 3. Video Duration Constraint
+        # 3. Video Duration & Dynamic Sweet Spot
+        sweet_spot = self._format_sweet_spot(min_duration, max_duration)
         video_duration_clause = ""
         if video_duration:
-            video_duration_clause = f"\nVIDEO DURATION: The total length is {video_duration:.1f} seconds. ALL timestamps MUST be within 0 and {video_duration:.1f}."
+            video_duration_clause = f"\nVIDEO DURATION: The total length is {video_duration:.1f} seconds. ALL selected segments MUST fall between 0 and {video_duration:.1f}."
 
         # 4. Assemble Composite Prompt
         prompt = f"""You are an expert editor for viral podcast shorts (YouTube Shorts / Reels / TikTok).
 
-Your job is to read the transcript and identify the MOST VIRAL podcast moments ("hooks").
+Read the transcript chronologically and select compelling, high-retention standalone moments ("hooks").
 {hook_count_instruction}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -100,65 +160,42 @@ Your job is to read the transcript and identify the MOST VIRAL podcast moments (
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {topic_directive}
 HOOK SELECTION & FIRST 3 SECONDS TEST:
-1. CONTEXT INDEPENDENCE RULE: The segment must be completely understandable without earlier context from the video.
-2. HOOK START RULE: The first sentence MUST already feel like an immediate hook when watched alone.
-3. FIRST 3 SECONDS TEST: If the first 3 seconds do not create curiosity, emotion, surprise, or an engaging scene, skip it.
-4. NEVER start a hook from greetings, host introduction, or generic filler talk.
+1. CONTEXT INDEPENDENCE: Viewers must understand the clip without watching earlier parts of the video.
+2. FIRST 3 SECONDS TEST: The opening line MUST immediately create curiosity, emotion, or surprise. Never open with greetings, intro chatter, or warm-up banter.
 
 NO OVERLAP RULE (CRITICAL):
-1. Hooks MUST NOT overlap in time. If you identify a hook from 02:10 to 03:20, you CANNOT create another hook that starts or ends within that same timeframe.
-2. If two candidate hooks overlap or are close together:
-   - If they are part of the same continuous thought/story, combine them into ONE single hook (staying under the {max_duration}s limit).
-   - If they are separate thoughts, select ONLY the single strongest, most viral one.
-3. Ensure there is a clear gap between the end timestamp of one hook and the start timestamp of the next.
+1. Hooks MUST NOT overlap (`next.start_id <= prev.end_id` on the same spoken span is forbidden).
+2. Back-to-back adjacent hooks ARE allowed: when one standalone topic or Q&A ends and a new one starts right away, extract BOTH with no forced cooldown gap. Merge adjacent lines only when they belong to the same continuous point (within {max_duration}s).
 
-SEGMENT BOUNDARY TRAP & ACKNOWLEDGMENT FILLER TRAP:
-YouTube transcript segments do NOT always align with complete thoughts. Treat each segment end as a CANDIDATE only.
-The following acknowledgment words, when appearing as the LAST text of a segment, are NEVER valid endpoints:
-"Iya sih", "Iya", "Oke", "Oh", "Hmm", "Gitu", "Nah", "Wah", "Oh gitu", "Oh oke", "I see", "Berarti", "Bener", "Bener sih", "Emang", "Emang sih", "Hm", "He", "Ya", "Iya dong", "Iya kan", "Betul", "Betul sih", "Yep", "Yap".
-When the chosen segment ends with any of the above, read the next 2-3 segments and ALWAYS extend if the speaker continues.
+BOUNDARY CLEANUP & ACKNOWLEDGMENT FILLER TRAP:
+Transcript `#ID` boundaries do NOT always match complete thoughts across any spoken language:
+1. NEVER begin `start_id` on host transition cues or filler words ("Next", "Oke, next", "Moving on", "Pertanyaan berikutnya", "Okay", "Yeah", "Iya", "Oke", or equivalents in any spoken language). Begin on the first real hook or question line.
+2. Trailing listener backchannels, hesitations, or transitions in ANY spoken language ("yeah", "uh-huh", "right", "okay", "I see", "true", "hmm" / "iya", "iya sih", "oke", "oh gitu", "gitu", "betul", "nah", "next", "oke next" / equivalents in any spoken language) are NEVER valid endpoints. Look 2-3 segments ahead: extend past them if the speaker continues the same thought; otherwise stop on the previous substantive segment so trailing filler is excluded.
 
-THOUGHT COMPLETION RULE (CRITICAL — 4-STEP VERIFICATION):
-Before finalizing any "end" timestamp, perform this 4-step verification:
-STEP 1 — READ AHEAD AGGRESSIVELY: Scan at least 60 seconds beyond your initially chosen end timestamp.
-STEP 2 — CHECK FOR INCOMPLETE THOUGHT SIGNALS:
-The current end is NOT acceptable if:
-- Sentence ends mid-clause with no conclusive phrasing.
-- Speaker uses continuation words ("jadi...", "nah...", "kemudian...", "terus...", "makanya...", "karena itu...", "intinya...", "poinnya...") and the following sentence continues the topic.
-- Speaker is still listing items ("pertama...", "kedua...") and the list is not complete.
-- A term, analogy, or concept was introduced but not fully explained.
-- Segment ends on a colloquial filler ("gitu", "kan", "nah", "nih", "tuh", "lho", "dong", "deh", "sih", "aja") AND the very next segment begins with a contrast/continuation word ("tapi", "kalau", "cuma", "padahal", "sebenarnya", "yang perlu diingat", "yang bahaya", "yang penting"). ALWAYS extend.
-STEP 2.5 — CONTRAST & CAVEAT CHECK:
-If the next 1-3 segments introduce a caveat, warning, or exception ("tapi yang perlu diingat...", "kecuali kalau...", "beda cerita kalau...", "yang bahaya itu..."), you MUST extend to include them. Logical and medical caveats are never optional.
-STEP 3 — EXTEND UNTIL A HARD STOP SIGNAL:
-Keep extending until:
-- A complete, conclusive sentence that sounds genuinely final (e.g., "Jadi itulah pentingnya...", "Semoga bermanfaat.")
-- The interviewer asks a completely new, unrelated question
-- The speaker shifts to a completely new topic
-- The {max_duration}-second hard limit is reached (find the nearest complete sentence before the limit).
-STEP 4 — MEDICAL & LOGICAL COMPLETENESS:
-Ensure the conclusion is fully delivered. If a complete explanation requires slightly more time, prioritize completeness over artificial brevity.
+THOUGHT COMPLETION RULE (CRITICAL — PAYOFF VERIFICATION):
+Before finalizing `end_id`, check 15-30 seconds ahead (and further if the same story/explanation is still unfolding):
+1. INCOMPLETE THOUGHT SIGNALS (ANY LANGUAGE): Do NOT stop mid-clause, mid-list ("first..." / "pertama..."), or on a bridge phrase ("so...", "jadi...", "makanya...", "intinya...") when the next lines deliver the conclusion or a contrast/qualifier ("but...", "however...", "tapi...", "padahal...", "cuma...").
+2. COMPLETE THE FULL PAYOFF (DO NOT CUT EARLY): Never stop on a teaser or cliffhanger ("the story doesn't end there...", "itu cerita belum selesai..."), bare numbers before the takeaway, or right before a "but / however / tapi / cuma" twist. End only after the speaker lands the full takeaway or resolution, when a new question/topic starts, or before exceeding {max_duration} seconds.
 
-STRICT TIMESTAMP & DURATION RULES:
-1. "start" and "end" MUST be exact timestamps taken DIRECTLY from the transcript segments provided. Do NOT invent timestamps.
-2. DURATION RANGE: The duration of EACH hook (end - start) MUST BE BETWEEN {min_duration} AND {max_duration} SECONDS.
-3. SWEET SPOT: Total duration should aim for the sweet spot of 30-90 seconds for maximum viewer retention, UNLESS the story or explanation is so engaging that it requires up to {max_duration} seconds.{video_duration_clause}
+SEGMENT ID & DURATION RULES:
+Transcript lines follow `[#ID | start-end] text`.
+1. `start_id` and `end_id` MUST be exact integer `#ID` values taken directly from those lines (`0 <= start_id <= end_id`). Never invent IDs or output raw timestamps.
+2. DURATION RANGE: The span of EACH hook (from segment `start_id` to segment `end_id`) MUST BE BETWEEN {min_duration} AND {max_duration} SECONDS. Clips under {min_duration}s are invalid — extend to complete the point or skip.
+3. SWEET SPOT: Aim for {sweet_spot} when a point lands cleanly, allowing up to {max_duration} seconds when a continuous narrative genuinely needs it.{video_duration_clause}
 
 LANGUAGE & BILINGUAL RULES:
-1. Output "transcript_quote" and "theme" in the EXACT ORIGINAL LANGUAGE spoken. ABSOLUTELY NO ENGLISH TRANSLATION of non-English sentences.
-2. CODE-SWITCHING / MIXED LANGUAGE: If the speaker mixes Indonesian and English words (e.g. "Jujur gue ngerasa insecure banget..."), KEEP the English words exactly as they are.
-3. Keep native slang, vocabulary, and grammar completely intact.
-4. The "theme" (title) must be in the same language and conversational style as the transcript.
+1. Write `"theme"` in the EXACT ORIGINAL LANGUAGE spoken. Never translate non-English topics into English.
+2. CODE-SWITCHING: Keep mixed languages and native slang (e.g., Indonesian + English) natural in `"theme"`.
+3. Keep `"virality_reason"` concise in clear English.
 
 OUTPUT FORMAT (JSON Array):
-Output a valid JSON array of objects. Each object must contain:
-- "start" (number): start timestamp in seconds taken directly from transcript metadata.
-- "end" (number): end timestamp in seconds taken directly from transcript metadata.
-- "duration_seconds" (number): duration (end - start).
-- "transcript_quote" (string): exact spoken words in original language.
-- "theme" (string): short punchy title in original language.
-- "virality_score" (integer 0-100): holistic virality potential rating evaluating hook curiosity, emotional delivery, and retention strength.
-- "virality_reason" (string): a concise 1-2 sentence explanation in English describing why this specific hook is compelling and its viral mechanics.
+Keep each JSON object compact: do NOT copy or repeat spoken transcript text — the backend computes exact timestamps and slices the verbatim quote from your segment IDs.
+Output a valid JSON array of objects using this exact key order:
+- "theme" (string): short punchy title in the original language spoken.
+- "start_id" (integer): exact integer `#ID` where the hook begins.
+- "end_id" (integer): exact integer `#ID` where the complete payoff finishes.
+- "virality_score" (integer 0-100): calibrated rating (90-100 = standout peak, 75-89 = strong engaging clip, 70-74 = solid secondary moment).
+- "virality_reason" (string): concise 1-2 sentence explanation in English describing why this clip hooks viewers.
 
 TRANSCRIPT DATA:
 {transcript_text}"""
