@@ -295,13 +295,6 @@ class SystemRepository:
                     "is_system_default": True,
                     "message": f"Auto-detected system default at {system_bin}."
                 }
-            if normalized_tool == "node":
-                return {
-                    "valid": True,
-                    "detected_path": "",
-                    "is_system_default": True,
-                    "message": "Node.js is optional and currently not detected in system PATH."
-                }
             return {
                 "valid": False,
                 "detected_path": "",

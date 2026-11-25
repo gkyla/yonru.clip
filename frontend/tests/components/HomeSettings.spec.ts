@@ -1,16 +1,19 @@
 // @vitest-environment nuxt
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import HomeSettings from '../../app/components/HomeSettings.vue';
 import { HOOK_DISCOVERY_MODELS } from '../../app/utils/hookDiscoveryModels';
+import { isPrerequisiteMissing } from '../../app/utils/systemDiagnostics';
 import { useRouter, useRoute } from '#imports';
 
 // Mock useClipperState
 const mockSettingsScrollTarget = ref<string | null>(null);
 const mockSystemHealth = ref<any>({});
+const mockHealthError = ref<string | null>(null);
 const mockHardwareProfile = ref<any>(null);
 const mockDetectingHardware = ref(false);
+const mockHardwareError = ref<string | null>(null);
 const mockDetectHardwareProfile = vi.fn();
 const mockWhisperModel = ref('base');
 const mockGeminiModel = ref('gemini-3.5-flash-lite');
@@ -21,10 +24,14 @@ vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => ({
     systemHealth: mockSystemHealth,
     checkingHealth: ref(false),
-    isAnyPrerequisiteMissing: ref(false),
+    healthError: mockHealthError,
+    isAnyPrerequisiteMissing: computed(() =>
+      isPrerequisiteMissing(mockSystemHealth.value)
+    ),
     settingsScrollTarget: mockSettingsScrollTarget,
     hardwareProfile: mockHardwareProfile,
     detectingHardware: mockDetectingHardware,
+    hardwareError: mockHardwareError,
     detectHardwareProfile: mockDetectHardwareProfile,
     whisperModel: mockWhisperModel,
     geminiModel: mockGeminiModel,
@@ -79,6 +86,9 @@ describe('HomeSettings Component', () => {
     mockEnvConfig = 'key_1, key_2';
     mockSettingsScrollTarget.value = null;
     mockSystemHealth.value = {};
+    mockHealthError.value = null;
+    mockHardwareError.value = null;
+    mockWhisperModel.value = 'base';
     mockGeminiModel.value = 'gemini-3.5-flash-lite';
     mockShowToast.mockClear();
     mockCheckSystemHealth.mockClear();
@@ -358,7 +368,7 @@ describe('HomeSettings Component', () => {
     vi.useRealTimers();
   });
 
-  it('initializes default active tab to health and handles switchTab properly', async () => {
+  it('initializes default active tab to api, handles switchTab, and normalizes legacy tabs to system', async () => {
     const wrapper = mount(HomeSettings, {
       global: {
         stubs: {
@@ -369,27 +379,31 @@ describe('HomeSettings Component', () => {
     });
 
     const vm = wrapper.vm as any;
-    expect(vm.activeTab).toBe('health');
-    expect(vm.sections.length).toBe(5);
-
-    // Switch to API tab
-    vm.switchTab('api');
     expect(vm.activeTab).toBe('api');
+    expect(vm.sections.map((s: any) => s.id)).toEqual([
+      'api',
+      'whisper',
+      'cookies',
+      'system'
+    ]);
 
-    // Switch to Whisper tab
+    expect(vm.normalizeTab('health')).toBe('system');
+    expect(vm.normalizeTab('env')).toBe('system');
+    expect(vm.normalizeTab('settings-health')).toBe('system');
+    expect(vm.normalizeTab('settings-env')).toBe('system');
+    expect(vm.normalizeTab('transcription')).toBe('whisper');
+
     vm.switchTab('whisper');
     expect(vm.activeTab).toBe('whisper');
 
-    // Switch to Cookies tab
     vm.switchTab('cookies');
     expect(vm.activeTab).toBe('cookies');
 
-    // Switch to Env tab
-    vm.switchTab('env');
-    expect(vm.activeTab).toBe('env');
+    vm.switchTab('system');
+    expect(vm.activeTab).toBe('system');
   });
 
-  it('syncs active tab when settingsScrollTarget changes', async () => {
+  it('syncs active tab when settingsScrollTarget changes including legacy health/env targets', async () => {
     const wrapper = mount(HomeSettings, {
       global: {
         stubs: {
@@ -400,15 +414,72 @@ describe('HomeSettings Component', () => {
     });
 
     const vm = wrapper.vm as any;
-    expect(vm.activeTab).toBe('health');
+    expect(vm.activeTab).toBe('api');
 
-    // Trigger settingsScrollTarget update (e.g. from alert banner)
-    mockSettingsScrollTarget.value = 'settings-api';
+    mockSettingsScrollTarget.value = 'settings-health';
     await wrapper.vm.$nextTick();
     await flushPromises();
-
-    expect(vm.activeTab).toBe('api');
+    expect(vm.activeTab).toBe('system');
     expect(mockSettingsScrollTarget.value).toBeNull();
+
+    mockSettingsScrollTarget.value = 'settings-env';
+    await wrapper.vm.$nextTick();
+    await flushPromises();
+    expect(vm.activeTab).toBe('system');
+
+    mockSettingsScrollTarget.value = 'settings-whisper';
+    await wrapper.vm.$nextTick();
+    await flushPromises();
+    expect(vm.activeTab).toBe('whisper');
+  });
+
+  it('routes missing prerequisite alert banner to system or api and ignores missing cookies', async () => {
+    mockSystemHealth.value = {
+      ffmpeg: { status: 'OK', path: '/usr/bin/ffmpeg' },
+      node: { status: 'OK', path: '/usr/bin/node' },
+      python_env: { status: 'OK', active: true },
+      gemini_api: { status: 'Configured', has_key: true },
+      cookies: { status: 'Not Configured', exists: false }
+    };
+
+    const wrapper = mount(HomeSettings, {
+      global: {
+        stubs: {
+          Icon: true,
+          NuxtIcon: true
+        }
+      }
+    });
+    await flushPromises();
+
+    // Optional cookies never trigger alert banner
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+
+    // Missing Gemini API Key routes to AI Model tab
+    mockSystemHealth.value = {
+      ...mockSystemHealth.value,
+      gemini_api: { status: 'Missing', has_key: false }
+    };
+    await wrapper.vm.$nextTick();
+    const apiBtn = wrapper
+      .findAll('button')
+      .find(b => b.text().includes('Configure API Key'));
+    expect(apiBtn).toBeDefined();
+    await apiBtn!.trigger('click');
+    expect((wrapper.vm as any).activeTab).toBe('api');
+
+    // Missing local tool routes to System tab
+    mockSystemHealth.value = {
+      ...mockSystemHealth.value,
+      ffmpeg: { status: 'Missing', path: '' }
+    };
+    await wrapper.vm.$nextTick();
+    const sysBtn = wrapper
+      .findAll('button')
+      .find(b => b.text().includes('Review System Tools'));
+    expect(sysBtn).toBeDefined();
+    await sysBtn!.trigger('click');
+    expect((wrapper.vm as any).activeTab).toBe('system');
   });
 
   it('tests API keys against /api/validate-gemini-key and updates status correctly', async () => {
@@ -663,14 +734,15 @@ describe('HomeSettings Component', () => {
     expect(wrapper.text()).toContain('cookies.txt');
     expect(wrapper.text()).toContain('Active');
     expect(wrapper.text()).toContain('Delete');
-    expect(wrapper.text()).toContain('Drop new');
+    expect(wrapper.text()).toContain('Replace');
+    expect(wrapper.text()).toContain('Saved in the app');
 
     // Test delete cookies
     await vm.deleteCookies();
     expect(deletedCalled).toBe(true);
   });
 
-  it('renders YouTube Cookies unconfigured notice and 3-Step Flow Guide with direct links', async () => {
+  it('renders YouTube Cookies dropzone with expanded collapsible export guide when unconfigured', async () => {
     mockSystemHealth.value = {
       ffmpeg: { status: 'OK', path: '/opt/homebrew/bin/ffmpeg' },
       node: { status: 'OK', path: '/opt/homebrew/bin/node' },
@@ -704,24 +776,24 @@ describe('HomeSettings Component', () => {
     await wrapper.vm.$nextTick();
 
     expect(vm.cookiesStatus.exists).toBe(false);
-    expect(wrapper.text()).toContain('No cookies configured');
-    expect(wrapper.text()).toContain('How to obtain cookies?');
+    expect(wrapper.text()).not.toContain('No cookies configured');
+    expect(wrapper.text()).toContain('How to export cookies.txt');
+    const guide = wrapper.find('details.cookies-guide');
+    expect(guide.exists()).toBe(true);
+    expect((guide.element as HTMLDetailsElement).open).toBe(true);
     expect(wrapper.text()).toContain('Official yt-dlp Cookies Wiki');
-    expect(wrapper.text()).toContain('Install Extension');
-    expect(wrapper.text()).toContain('Sign In to YouTube');
-    expect(wrapper.text()).toContain('Export Cookies');
     expect(wrapper.text()).toContain('Chrome / Edge / Brave');
     expect(wrapper.text()).toContain('Firefox');
-    expect(wrapper.text()).toContain('Open youtube.com');
+    expect(wrapper.text()).toContain('youtube.com');
   });
 
-  it('renders Environment Paths tab with auto-detected badges and active paths', async () => {
+  it('renders merged System tab with local tools, detected paths, and re-check action', async () => {
     mockSystemHealth.value = {
       ffmpeg: { status: 'OK', path: '/opt/homebrew/bin/ffmpeg' },
       node: { status: 'OK', path: '/opt/homebrew/bin/node' },
       python_env: { status: 'OK', active: true },
       gemini_api: { status: 'Configured', has_key: true },
-      cookies: { status: 'Configured', exists: true }
+      cookies: { status: 'Not Configured', exists: false }
     };
 
     vi.stubGlobal(
@@ -757,24 +829,34 @@ describe('HomeSettings Component', () => {
     await flushPromises();
     const vm = wrapper.vm as any;
 
-    vm.switchTab('env');
+    vm.switchTab('system');
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.text()).toContain('Environment Paths');
-    expect(wrapper.text()).toContain(
-      'If your prerequisite tools are installed in custom locations'
-    );
-    expect(wrapper.text()).toContain('FFmpeg Binary');
-    expect(wrapper.text()).toContain('Node.js Runtime');
-    expect(wrapper.text()).toContain('Auto-Detected (System PATH)');
-    expect(wrapper.text()).toContain('/opt/homebrew/bin/ffmpeg');
-    expect(wrapper.text()).toContain('/opt/homebrew/bin/node');
-    expect(wrapper.find('[data-testid="ffmpeg-env-card"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="node-env-card"]').exists()).toBe(true);
+    const systemPanel = wrapper.find('#settings-system');
+    expect(systemPanel.exists()).toBe(true);
+    expect(systemPanel.text()).toContain('System');
+    expect(systemPanel.text()).toContain('FFmpeg');
+    expect(systemPanel.text()).toContain('Node.js');
+    expect(systemPanel.text()).toContain('Python Environment');
+    expect(systemPanel.text()).toContain('/opt/homebrew/bin/ffmpeg');
+    expect(systemPanel.text()).toContain('/opt/homebrew/bin/node');
+    expect(systemPanel.text()).toContain('Ready');
+    expect(systemPanel.text()).not.toContain('Gemini');
+    expect(systemPanel.text()).not.toContain('Cookies');
+    expect(wrapper.text()).not.toContain('.env');
+    expect(systemPanel.text()).not.toContain('FastAPI');
+    expect(systemPanel.text()).not.toContain('Backend');
+
+    const recheckBtn = systemPanel
+      .findAll('button')
+      .find(b => b.text().includes('Re-check'));
+    expect(recheckBtn).toBeDefined();
+    await recheckBtn!.trigger('click');
+    expect(mockCheckSystemHealth).toHaveBeenCalled();
   });
 
-  it('validates custom binary paths inline and handles clear override and save', async () => {
-    let savedPayload: any = null;
+  it('validates and saves FFmpeg and Node.js paths independently and handles reset to default', async () => {
+    const savedPayloads: any[] = [];
     vi.stubGlobal(
       '$fetch',
       vi.fn().mockImplementation((url, options) => {
@@ -783,7 +865,7 @@ describe('HomeSettings Component', () => {
           urlStr.includes('/api/system-settings') &&
           options?.method === 'PUT'
         ) {
-          savedPayload = options.body;
+          savedPayloads.push(options.body);
           return Promise.resolve({ status: 'ok' });
         }
         if (urlStr.includes('/api/system-settings')) {
@@ -791,7 +873,7 @@ describe('HomeSettings Component', () => {
             settings: {
               GEMINI_API_KEY: '[]',
               FFMPEG_PATH: '',
-              NODE_PATH: ''
+              NODE_PATH: '/saved/bin/node'
             }
           });
         }
@@ -833,38 +915,32 @@ describe('HomeSettings Component', () => {
     await flushPromises();
     const vm = wrapper.vm as any;
 
-    vm.switchTab('env');
+    vm.switchTab('system');
     await wrapper.vm.$nextTick();
 
-    // 1. Enter valid custom path for FFmpeg and test
+    // 1. Enter valid custom path for FFmpeg and an invalid path for Node.js
     vm.ffmpegPath = '/custom/bin/ffmpeg';
-    await vm.testBinaryPath('ffmpeg');
-
-    expect(vm.ffmpegValidation.tested).toBe(true);
-    expect(vm.ffmpegValidation.valid).toBe(true);
-    expect(vm.ffmpegValidation.detectedPath).toBe('/custom/bin/ffmpeg');
-    expect(vm.ffmpegStatusBadge.label).toBe('Custom Override');
-
-    // 2. Enter invalid custom path for Node.js
     vm.nodePath = '/invalid/nonexistent/dir';
 
-    // Attempt save while nodePath is invalid - should validate first and block save
-    await vm.saveEnvPaths();
-    expect(savedPayload).toBeNull(); // save was blocked
+    // Saving FFmpeg succeeds independently without being blocked by Node.js
+    await vm.saveBinaryPath('ffmpeg');
+    expect(vm.ffmpegValidation.tested).toBe(true);
+    expect(vm.ffmpegValidation.valid).toBe(true);
+    expect(vm.savedFfmpegPath).toBe('/custom/bin/ffmpeg');
+    expect(savedPayloads).toEqual([{ FFMPEG_PATH: '/custom/bin/ffmpeg' }]);
+
+    // 2. Saving invalid Node.js path is blocked
+    await vm.saveBinaryPath('node');
     expect(vm.nodeValidation.tested).toBe(true);
     expect(vm.nodeValidation.valid).toBe(false);
+    expect(savedPayloads.length).toBe(1);
 
-    // 3. Clear override for nodePath
-    vm.resetEnvPath('node');
+    // 3. Reset Node.js override clears input and persists empty NODE_PATH
+    await vm.resetBinaryPath('node');
     expect(vm.nodePath).toBe('');
+    expect(vm.savedNodePath).toBe('');
     expect(vm.nodeValidation.tested).toBe(false);
-
-    // 4. Save environment paths now with valid FFmpeg and empty default Node
-    await vm.saveEnvPaths();
-    expect(savedPayload).toEqual({
-      FFMPEG_PATH: '/custom/bin/ffmpeg',
-      NODE_PATH: ''
-    });
+    expect(savedPayloads[1]).toEqual({ NODE_PATH: '' });
   });
 
   it('filters out default template placeholder your_gemini_api_key_here and shows empty state', async () => {
@@ -926,7 +1002,7 @@ describe('HomeSettings Component', () => {
     vm.switchTab('whisper');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Transcription Engine (Whisper)');
+    expect(wrapper.text()).toContain('Transcription');
     expect(wrapper.text()).toContain('Calculate estimated transcription speed');
     expect(wrapper.text()).toContain('Calculate Speed');
   });
@@ -1112,12 +1188,32 @@ describe('HomeSettings Component', () => {
     expect(apiSection.badgeType).toBe('warning');
     expect(apiSection.badgeText).toBe('Required');
 
+    // Warning status renders dot without bordered box; neutral values render plain text without dot or border
+    let statusIndicators = wrapper.findAll('[data-testid="section-status"]');
+    expect(statusIndicators.length).toBe(4);
+    expect(statusIndicators[0]?.text()).toBe('Required');
+    expect(statusIndicators[0]?.classes()).not.toContain('border');
+    expect(statusIndicators[0]?.find('span.rounded-full').exists()).toBe(true);
+    expect(statusIndicators[1]?.text()).toBe('Base');
+    expect(statusIndicators[1]?.classes()).not.toContain('border');
+    expect(statusIndicators[1]?.find('span.rounded-full').exists()).toBe(false);
+    expect(statusIndicators[2]?.text()).toBe('Optional');
+    expect(statusIndicators[2]?.find('span.rounded-full').exists()).toBe(false);
+    expect(statusIndicators[3]?.text()).toBe('OK');
+    expect(statusIndicators[3]?.classes()).not.toContain('border');
+    expect(statusIndicators[3]?.find('span.rounded-full').exists()).toBe(true);
+
     mockSystemHealth.value = { gemini_api: { has_key: true } };
     await wrapper.vm.$nextTick();
 
     apiSection = vm.sections.find((s: any) => s.id === 'api');
     expect(apiSection.badgeType).toBe('neutral');
-    expect(apiSection.badgeText).toBe('4 HYDROGEN');
+    expect(apiSection.badgeText).toBe('4 Hydrogen');
+
+    statusIndicators = wrapper.findAll('[data-testid="section-status"]');
+    expect(statusIndicators[0]?.text()).toBe('4 Hydrogen');
+    expect(statusIndicators[0]?.classes()).not.toContain('border');
+    expect(statusIndicators[0]?.find('span.rounded-full').exists()).toBe(false);
   });
 
   it('hydrates GEMINI_MODEL (normalizing legacy 2.5), auto-saves selection changes, and sends model_name on key validation', async () => {

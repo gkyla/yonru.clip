@@ -278,31 +278,6 @@ function createCommandPaletteState() {
 
     // 3. SETTINGS PREFERENCES SECTIONS (1:1 with /settings tabs)
     items.push({
-      id: 'setting-health',
-      title: 'System Health & Diagnostics',
-      subtitle: 'Verify FFmpeg, Node.js, Python, and Gemini API prerequisites',
-      category: 'settings',
-      icon: 'lucide:activity',
-      badge: 'Setting',
-      actionLabel: 'Inspect',
-      keywords: [
-        'health',
-        'diagnostics',
-        'system',
-        'ffmpeg',
-        'node',
-        'python',
-        'prerequisites',
-        'status',
-        'hardware'
-      ],
-      handler: () => {
-        close();
-        router.push({ path: '/settings', query: { tab: 'health' } });
-      }
-    });
-
-    items.push({
       id: 'setting-api',
       title: 'AI Model',
       subtitle: 'Hook discovery model selection & Gemini API failover keys',
@@ -332,11 +307,11 @@ function createCommandPaletteState() {
 
     items.push({
       id: 'setting-whisper',
-      title: 'Whisper Engine',
+      title: 'Transcription',
       subtitle:
         'Configure local speech-to-text model tier (tiny, base, small, medium, large-v3)',
       category: 'settings',
-      icon: 'lucide:cpu',
+      icon: 'codicon:voice-mode',
       badge: 'Setting',
       actionLabel: 'Configure',
       keywords: [
@@ -381,26 +356,34 @@ function createCommandPaletteState() {
     });
 
     items.push({
-      id: 'setting-env',
-      title: 'Environment Paths',
+      id: 'setting-system',
+      title: 'System & Binary Paths',
       subtitle:
-        'Custom binary and executable directory paths stored locally in .env',
+        'Check FFmpeg, Node.js, and Python prerequisites or set custom binary paths',
       category: 'settings',
       icon: 'lucide:terminal',
       badge: 'Setting',
-      actionLabel: 'Configure',
+      actionLabel: 'Inspect',
       keywords: [
+        'system',
+        'health',
+        'diagnostics',
         'env',
         'paths',
         'binaries',
         'environment',
+        'ffmpeg',
         'ffmpeg path',
+        'node',
         'node path',
-        'configuration'
+        'python',
+        'prerequisites',
+        'status',
+        'settings'
       ],
       handler: () => {
         close();
-        router.push({ path: '/settings', query: { tab: 'env' } });
+        router.push({ path: '/settings', query: { tab: 'system' } });
       }
     });
 

@@ -620,10 +620,12 @@ function createClipperState() {
     bleepMode: auditor.bleepMode,
     systemHealth: diagnostics.systemHealth,
     checkingHealth: diagnostics.checkingHealth,
+    healthError: diagnostics.healthError,
     isAnyPrerequisiteMissing: diagnostics.isAnyPrerequisiteMissing,
     settingsScrollTarget: diagnostics.settingsScrollTarget,
     hardwareProfile: diagnostics.hardwareProfile,
     detectingHardware: diagnostics.detectingHardware,
+    hardwareError: diagnostics.hardwareError,
     // Actions
     seekTo,
     analyzeUrl,

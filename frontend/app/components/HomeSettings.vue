@@ -1,65 +1,53 @@
 <template>
-  <div class="w-full max-w-5xl z-10 flex flex-col mt-6 mb-10 gap-5">
+  <div class="w-full min-w-0 max-w-5xl z-10 flex flex-col mt-6 mb-10 gap-5">
     <!-- Header -->
-    <div
-      class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-surface-border/50 pb-5"
-    >
-      <div>
-        <h2
-          class="text-3xl font-bold tracking-tight text-white mb-1 flex items-center gap-2.5"
-        >
-          <span>Settings</span>
-        </h2>
-        <p class="text-slate-400 text-sm">
-          Configure your AI models, API keys, local software tools, and
-          transcription engines.
-        </p>
-      </div>
-
-      <!-- Quick Health Refresh Action -->
-      <button
-        :disabled="checkingHealth"
-        class="flex items-center gap-1.5 px-3.5 py-2 bg-surface-dark/80 hover:bg-surface-dark border border-surface-border hover:border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-medium transition-all disabled:opacity-50 self-start sm:self-auto cursor-pointer shadow-sm"
-        @click="checkSystemHealth"
-      >
-        <Icon
-          name="ri:refresh-line"
-          :class="{ 'animate-spin': checkingHealth }"
-          class="text-accent-500 text-sm"
-        />
-        {{ checkingHealth ? 'Checking Health...' : 'Refresh Health' }}
-      </button>
+    <div class="border-b border-surface-border/50 pb-5 min-w-0">
+      <h1 class="text-2xl font-bold tracking-tight text-white mb-0.5">
+        Settings
+      </h1>
+      <p class="text-slate-400 text-xs leading-relaxed">
+        Configure your AI models, API keys, local tools, and transcription
+        engines.
+      </p>
     </div>
 
     <!-- Global Prerequisite Alert Banner -->
     <Transition
-      enter-active-class="transition duration-300 ease-out"
-      enter-from-class="opacity-0 -translate-y-4"
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0 -translate-y-2"
       enter-to-class="opacity-100 translate-y-0"
-      leave-active-class="transition duration-200 ease-in"
+      leave-active-class="transition duration-150 ease-in"
       leave-from-class="opacity-100 translate-y-0"
-      leave-to-class="opacity-0 -translate-y-4"
+      leave-to-class="opacity-0 -translate-y-2"
     >
       <div
         v-if="state.isAnyPrerequisiteMissing.value"
-        class="p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        role="alert"
+        class="p-3 border border-amber-500/40 bg-amber-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
       >
-        <div class="flex items-start sm:items-center gap-3">
-          <div class="p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
-            <Icon :name="warningDetails.icon" class="text-lg" />
+        <div class="flex items-start sm:items-center gap-2.5">
+          <div
+            class="p-1.5 border border-amber-500/30 bg-amber-500/15 text-amber-300 shrink-0"
+          >
+            <Icon
+              :name="warningDetails.icon"
+              class="text-base"
+              aria-hidden="true"
+            />
           </div>
           <div>
-            <h4 class="text-sm font-bold text-white leading-snug">
+            <h2 class="text-xs font-bold text-white leading-snug">
               {{ warningDetails.title }}
-            </h4>
-            <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
+            </h2>
+            <p class="text-xs text-slate-300 mt-0.5 leading-relaxed">
               {{ warningDetails.description }}
             </p>
           </div>
         </div>
 
         <button
-          class="px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-bold text-xs rounded-lg transition-all shrink-0 self-start sm:self-center cursor-pointer"
+          type="button"
+          class="px-3 py-1.5 [@media(pointer:coarse)]:min-h-[44px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-semibold text-xs transition-colors shrink-0 self-start sm:self-center cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-500 focus-visible:outline-offset-2"
           @click="switchTab(normalizeTab(firstMissingPrerequisiteSection))"
         >
           {{ warningDetails.buttonText }}
@@ -68,127 +56,101 @@
     </Transition>
 
     <!-- Two-Column Settings Layout -->
-    <div class="flex flex-col md:flex-row gap-6 items-start w-full">
+    <div class="flex flex-col lg:flex-row gap-5 items-start w-full min-w-0">
       <!-- Left Column / Navigation Sidebar -->
       <aside
-        class="w-full md:w-60 lg:w-64 shrink-0 flex flex-col gap-3 md:sticky md:top-2 self-start"
+        class="w-full min-w-0 lg:w-[290px] lg:sticky lg:top-2 flex flex-col gap-3 shrink-0 self-start"
       >
-        <!-- Navigation Panel -->
         <div
-          ref="navContainerRef"
-          class="bg-surface-panel border border-surface-border rounded-2xl p-2 flex flex-row md:flex-col gap-1 shadow-xl overflow-x-auto md:overflow-visible custom-scrollbar relative"
+          class="bg-surface-panel border border-surface-border p-3 sm:p-3.5 flex flex-col gap-3"
         >
-          <!-- Animated Sliding Indicator Line (Desktop) -->
           <div
-            class="hidden md:block absolute left-0 w-[2.5px] bg-accent-500 rounded-r-full pointer-events-none transition-all duration-300 ease-out shadow-[0_0_8px_rgba(255,215,0,0.4)]"
-            :style="{
-              top: `${indicatorTop}px`,
-              height: `${indicatorHeight}px`,
-              opacity: indicatorOpacity
-            }"
-          ></div>
-
-          <div
-            class="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden md:block"
+            class="px-1 text-[11px] font-semibold text-slate-400 hidden lg:block"
           >
             Preferences
           </div>
 
-          <button
-            v-for="section in sections"
-            :key="section.id"
-            :ref="el => setButtonRef(section.id, el)"
-            class="flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all duration-150 group relative shrink-0 cursor-pointer outline-none select-none min-h-[42px] md:min-h-0"
-            :class="
-              activeTab === section.id
-                ? 'text-white font-medium bg-surface-dark/40'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-surface-dark/30'
-            "
-            @click="switchTab(section.id)"
+          <nav
+            aria-label="Settings sections"
+            class="flex flex-col sm:grid sm:grid-cols-2 lg:flex lg:flex-col gap-1.5"
           >
-            <div class="flex items-center gap-2.5 min-w-0">
-              <Icon
-                :name="section.icon"
-                class="text-base shrink-0 transition-colors"
-                :class="
-                  activeTab === section.id
-                    ? 'text-accent-500'
-                    : 'text-slate-500 group-hover:text-slate-300'
-                "
-              />
-              <div class="flex flex-col min-w-0">
-                <span
-                  class="text-xs truncate font-medium leading-tight"
+            <button
+              v-for="section in sections"
+              :key="section.id"
+              type="button"
+              :aria-current="activeTab === section.id ? 'page' : undefined"
+              class="flex items-center justify-between gap-2 px-2.5 py-2 [@media(pointer:coarse)]:min-h-[44px] w-full text-left transition-colors group cursor-pointer select-none border-l-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-500 focus-visible:outline-offset-[-2px]"
+              :class="
+                activeTab === section.id
+                  ? 'border-accent-500 bg-surface-dark/70 text-white font-medium'
+                  : 'border-transparent text-slate-300 hover:text-white hover:bg-surface-dark/40'
+              "
+              @click="switchTab(section.id)"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <Icon
+                  :name="section.icon"
+                  class="text-base shrink-0 transition-colors"
                   :class="
                     activeTab === section.id
-                      ? 'text-white'
-                      : 'text-slate-300 group-hover:text-white'
+                      ? 'text-accent-500'
+                      : 'text-slate-400 group-hover:text-slate-200'
                   "
-                >
-                  {{ section.label }}
-                </span>
-                <span
-                  class="text-[10px] text-slate-500 hidden md:block truncate mt-1 leading-none"
-                >
-                  {{ section.desc }}
-                </span>
+                  aria-hidden="true"
+                />
+                <div class="flex flex-col min-w-0">
+                  <span class="text-xs font-semibold truncate leading-tight">
+                    {{ section.label }}
+                  </span>
+                  <span
+                    class="text-[11px] text-slate-400 hidden lg:block truncate mt-0.5 leading-snug"
+                  >
+                    {{ section.desc }}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <!-- Status Badges (Subtle / Monochromatic) -->
-            <div
-              v-if="section.badgeType !== 'none'"
-              class="ml-2 shrink-0 flex items-center"
-            >
-              <!-- Warning Pill -->
               <span
-                v-if="section.badgeType === 'warning'"
-                class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 whitespace-nowrap"
+                v-if="section.badgeType !== 'none' && section.badgeText"
+                data-testid="section-status"
+                class="ml-1.5 shrink-0 inline-flex items-center gap-1.5 text-[11px] font-medium whitespace-nowrap transition-colors"
+                :class="{
+                  'text-amber-300': section.badgeType === 'warning',
+                  'text-emerald-300': section.badgeType === 'ok',
+                  'text-slate-300':
+                    section.badgeType === 'neutral' && activeTab === section.id,
+                  'text-slate-400 group-hover:text-slate-200':
+                    section.badgeType === 'neutral' && activeTab !== section.id
+                }"
               >
-                {{ section.badgeText }}
+                <span
+                  v-if="
+                    section.badgeType === 'ok' ||
+                    section.badgeType === 'warning'
+                  "
+                  aria-hidden="true"
+                  class="w-1.5 h-1.5 rounded-full shrink-0"
+                  :class="
+                    section.badgeType === 'warning'
+                      ? 'bg-amber-400'
+                      : 'bg-emerald-400'
+                  "
+                ></span>
+                <span>{{ section.badgeText }}</span>
               </span>
-
-              <!-- Neutral / Info Pill -->
-              <span
-                v-else-if="section.badgeText"
-                class="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium bg-black/40 border border-white/5 text-slate-400 whitespace-nowrap"
-              >
-                {{ section.badgeText }}
-              </span>
-            </div>
-          </button>
-
-          <!-- Discreet Footer Notice -->
-          <div
-            class="hidden md:flex items-center gap-1.5 px-3 pt-3 pb-1 mt-1 border-t border-surface-border/40 text-[11px] text-slate-500"
-          >
-            <Icon name="ri:lock-line" class="text-slate-400 shrink-0 text-xs" />
-            <span class="truncate"
-              >Stored locally in
-              <code class="font-mono text-slate-400 text-[10px]"
-                >.env</code
-              ></span
-            >
-          </div>
+            </button>
+          </nav>
         </div>
       </aside>
 
       <!-- Right Column / Active Section Panel -->
       <main
-        class="flex-1 min-w-0 w-full bg-surface-panel border border-surface-border rounded-2xl p-6 sm:p-8 shadow-xl relative min-h-[560px] self-start"
+        class="flex-1 min-w-0 w-full bg-surface-panel border border-surface-border p-6 sm:p-8 min-h-[560px] flex flex-col self-start relative"
       >
         <Transition name="section-fade" mode="out-in">
-          <!-- System Health Diagnostics Dashboard -->
-          <HealthDiagnosticsPane
-            v-if="activeTab === 'health'"
-            :health-data="healthData"
-            :is-health-ok="isHealthOk"
-            @switch-tab="switchTab"
-          />
-
           <!-- AI Model & Gemini API Keys Configuration -->
           <GeminiKeysPane
-            v-else-if="activeTab === 'api'"
+            v-if="activeTab === 'api'"
             v-model:keys-list="keysList"
             :selected-model="selectedGeminiModel"
             :model-options="hookDiscoveryModels"
@@ -214,6 +176,7 @@
             v-else-if="activeTab === 'whisper'"
             :hardware-profile="hardwareProfile"
             :detecting-hardware="detectingHardware"
+            :hardware-error="hardwareError"
             @detect-hardware="handleDetectHardware"
           />
 
@@ -226,20 +189,23 @@
             @delete-cookies="deleteCookies"
           />
 
-          <!-- Environment Setup -->
-          <EnvironmentPathsPane
-            v-else-if="activeTab === 'env'"
+          <!-- Local System Tools & Binary Paths -->
+          <SystemEnvironmentPane
+            v-else-if="activeTab === 'system'"
             v-model:ffmpeg-path="ffmpegPath"
             v-model:node-path="nodePath"
+            :health-data="healthData"
+            :checking-health="checkingHealth"
+            :health-error="healthError"
+            :saved-ffmpeg-path="savedFfmpegPath"
+            :saved-node-path="savedNodePath"
             :ffmpeg-validation="ffmpegValidation"
             :node-validation="nodeValidation"
-            :ffmpeg-status-badge="ffmpegStatusBadge"
-            :node-status-badge="nodeStatusBadge"
-            :saving-env-paths="savingEnvPaths"
-            :health-data="healthData"
+            :saving-tool="savingTool"
+            @recheck="checkSystemHealth"
             @test-binary-path="testBinaryPath"
-            @reset-env-path="resetEnvPath"
-            @save-env-paths="saveEnvPaths"
+            @save-binary-path="saveBinaryPath"
+            @reset-binary-path="resetBinaryPath"
           />
         </Transition>
       </main>
@@ -248,12 +214,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
-import HealthDiagnosticsPane from './settings/HealthDiagnosticsPane.vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import GeminiKeysPane from './settings/GeminiKeysPane.vue';
 import TranscriptionEnginePane from './settings/TranscriptionEnginePane.vue';
 import YouTubeCookiesPane from './settings/YouTubeCookiesPane.vue';
-import EnvironmentPathsPane from './settings/EnvironmentPathsPane.vue';
+import SystemEnvironmentPane from './settings/SystemEnvironmentPane.vue';
 import {
   HOOK_DISCOVERY_MODELS,
   getHookDiscoveryModelOption,
@@ -270,56 +235,28 @@ const route = useRoute();
 const router = useRouter();
 const API_BASE = resolveApiBase();
 
-const navContainerRef = ref<HTMLElement | null>(null);
-const navButtonRefs = ref<Record<string, HTMLElement>>({});
-const indicatorTop = ref(0);
-const indicatorHeight = ref(18);
-const indicatorOpacity = ref(0);
-
-function setButtonRef(id: string, el: any) {
-  if (el) {
-    navButtonRefs.value[id] = (el.$el || el) as HTMLElement;
-  }
-}
-
-const updateIndicator = () => {
-  nextTick(() => {
-    const el = navButtonRefs.value[activeTab.value];
-    const container = navContainerRef.value;
-    if (el && container) {
-      const containerRect = container.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      const barHeight = 18;
-      indicatorTop.value =
-        elRect.top - containerRect.top + (elRect.height - barHeight) / 2;
-      indicatorHeight.value = barHeight;
-      indicatorOpacity.value = 1;
-    }
-  });
-};
-
-export type SettingsTab = 'health' | 'api' | 'whisper' | 'cookies' | 'env';
-const validTabs: SettingsTab[] = ['health', 'api', 'whisper', 'cookies', 'env'];
+export type SettingsTab = 'api' | 'whisper' | 'cookies' | 'system';
+const validTabs: SettingsTab[] = ['api', 'whisper', 'cookies', 'system'];
 
 const normalizeTab = (val: string | null | undefined): SettingsTab => {
-  if (!val) return 'health';
+  if (!val) return 'api';
   const clean = val.replace(/^settings-/, '');
+  if (clean === 'health' || clean === 'env' || clean === 'system') {
+    return 'system';
+  }
+  if (clean === 'transcription' || clean === 'whisper') {
+    return 'whisper';
+  }
   if (validTabs.includes(clean as SettingsTab)) {
     return clean as SettingsTab;
   }
-  return 'health';
+  return 'api';
 };
 
 // Active Tab state with URL query synchronization
 const initialTab =
-  typeof route.query.tab === 'string'
-    ? normalizeTab(route.query.tab)
-    : 'health';
+  typeof route.query.tab === 'string' ? normalizeTab(route.query.tab) : 'api';
 const activeTab = ref<SettingsTab>(initialTab);
-
-watch(activeTab, () => {
-  updateIndicator();
-});
 
 function switchTab(tab: SettingsTab) {
   activeTab.value = tab;
@@ -356,30 +293,22 @@ watch(
 );
 
 // Section Status Computations
+const healthData = computed(() => state.systemHealth.value);
+const checkingHealth = computed(() => state.checkingHealth.value);
+const healthError = computed(() => state.healthError?.value || null);
+
 const isHealthOk = computed(() => {
-  const health = state.systemHealth.value;
-  if (!health) return true;
-  const systemKeys = ['ffmpeg', 'node', 'python_env'];
+  const health = healthData.value;
+  if (!health || typeof health !== 'object') return true;
+  const systemKeys = ['ffmpeg', 'node', 'python_env'] as const;
   return !systemKeys.some(key => {
-    const item = (health as any)[key];
-    return !item || item.status !== 'OK';
+    const item = health[key];
+    return item ? item.status !== 'OK' : false;
   });
 });
 
-const isEnvOk = computed(() => {
-  const health = state.systemHealth.value;
-  if (!health) return true;
-  const ffmpegReady = Boolean(
-    ffmpegPath.value.trim() || health.ffmpeg?.status === 'OK'
-  );
-  const nodeReady = Boolean(
-    nodePath.value.trim() || health.node?.status === 'OK'
-  );
-  return ffmpegReady && nodeReady;
-});
-
 const hasValidApiKey = computed(() => {
-  const health = state.systemHealth.value;
+  const health = healthData.value;
   if (health?.gemini_api?.has_key) return true;
   return keysList.value.some(
     k =>
@@ -388,12 +317,6 @@ const hasValidApiKey = computed(() => {
         k.status === 'idle' ||
         k.status === 'unavailable')
   );
-});
-
-const validKeysCount = computed(() => {
-  return keysList.value.filter(
-    k => k.value.trim().length > 0 && k.status === 'valid'
-  ).length;
 });
 
 const selectedGeminiModel = ref<HookDiscoveryModelId>(
@@ -406,20 +329,20 @@ const activeGeminiModelOption = computed(() =>
   getHookDiscoveryModelOption(selectedGeminiModel.value)
 );
 
-// Sidebar Sections Definition
+const activeWhisperModelLabel = computed(() => {
+  const currentId = state.whisperModel?.value || 'base';
+  const match = state.whisperModels?.find(
+    (m: { id: string; name: string }) => m.id === currentId
+  );
+  return match?.name || currentId;
+});
+
+// Sidebar Sections Definition (AI Model -> Transcription -> YouTube Cookies -> System)
 const sections = computed(() => [
-  {
-    id: 'health' as SettingsTab,
-    label: 'System Health',
-    desc: 'Prerequisites & diagnostics',
-    icon: 'ri:shield-cross-line',
-    badgeType: isHealthOk.value ? 'ok' : 'warning',
-    badgeText: isHealthOk.value ? 'OK' : 'Missing'
-  },
   {
     id: 'api' as SettingsTab,
     label: 'AI Model',
-    desc: 'Hook discovery & API keys',
+    desc: 'Model & API keys',
     icon: 'ri:equalizer-line',
     badgeType: hasValidApiKey.value ? 'neutral' : 'warning',
     badgeText: hasValidApiKey.value
@@ -428,31 +351,34 @@ const sections = computed(() => [
   },
   {
     id: 'whisper' as SettingsTab,
-    label: 'Whisper Engine',
-    desc: 'Local speech-to-text',
-    icon: 'ri:cpu-fill',
+    label: 'Transcription',
+    desc: 'Speech-to-text',
+    icon: 'codicon:voice-mode',
     badgeType: 'neutral',
-    badgeText: state.whisperModel.value.toUpperCase()
+    badgeText: activeWhisperModelLabel.value
   },
   {
     id: 'cookies' as SettingsTab,
     label: 'YouTube Cookies',
-    desc: 'yt-dlp authorization',
+    desc: 'Optional download auth',
     icon: 'ri:shield-keyhole-fill',
     badgeType: cookiesStatus.value.exists ? 'ok' : 'neutral',
     badgeText: cookiesStatus.value.exists ? 'Active' : 'Optional'
   },
   {
-    id: 'env' as SettingsTab,
-    label: 'Environment Paths',
-    desc: 'Custom binary locations',
-    icon: 'ri:terminal-window-fill',
-    badgeType: 'none',
-    badgeText: ''
+    id: 'system' as SettingsTab,
+    label: 'System',
+    desc: 'Local tools & paths',
+    icon: 'ri:terminal-window-line',
+    badgeType: healthError.value || !isHealthOk.value ? 'warning' : 'ok',
+    badgeText: healthError.value
+      ? 'Error'
+      : isHealthOk.value
+        ? 'OK'
+        : 'Needs fix'
   }
 ]);
 
-const apiKey = ref('');
 export interface KeyListItem {
   id: string;
   title: string;
@@ -496,14 +422,12 @@ function moveKey(index: number, direction: number) {
   const newIndex = index + direction;
   if (newIndex < 0 || newIndex >= keysList.value.length) return;
 
-  // Swap
   const itemCurrent = keysList.value[index];
   const itemNew = keysList.value[newIndex];
   if (itemCurrent && itemNew) {
     keysList.value[index] = itemNew;
     keysList.value[newIndex] = itemCurrent;
 
-    // Flash
     itemCurrent.activeFlash = true;
     itemNew.activeFlash = true;
   }
@@ -514,14 +438,6 @@ function moveKey(index: number, direction: number) {
     if (iCurrent) iCurrent.activeFlash = false;
     if (iNew) iNew.activeFlash = false;
   }, 600);
-}
-
-function getKeyPreview(value: string) {
-  const val = value.trim();
-  if (val.length > 10) {
-    return val.substring(0, 6) + '...' + val.slice(-4);
-  }
-  return '';
 }
 
 const draggedIndex = ref<number | null>(null);
@@ -544,7 +460,6 @@ function dragEnter(index: number) {
   const newItem = keysList.value[index];
   if (!oldItem || !newItem) return;
 
-  // Prevent infinite rapid swap back-and-forth glitch loops
   const now = Date.now();
   if (
     lastSwappedIds.value &&
@@ -558,14 +473,12 @@ function dragEnter(index: number) {
     }
   }
 
-  // Swap
   const itemOld = keysList.value[oldIndex];
   const itemIndex = keysList.value[index];
   if (itemOld && itemIndex) {
     keysList.value[oldIndex] = itemIndex;
     keysList.value[index] = itemOld;
 
-    // Flash highlight on both swapped items
     itemOld.activeFlash = true;
     itemIndex.activeFlash = true;
   }
@@ -590,9 +503,12 @@ function dragEnd() {
   lastSwappedIds.value = null;
   lastSwapTime.value = 0;
 }
+
 const ffmpegPath = ref('');
 const nodePath = ref('');
-const savingEnvPaths = ref(false);
+const savedFfmpegPath = ref('');
+const savedNodePath = ref('');
+const savingTool = ref<'ffmpeg' | 'node' | null>(null);
 
 export interface PathValidationState {
   testing: boolean;
@@ -603,67 +519,38 @@ export interface PathValidationState {
   isSystemDefault?: boolean;
 }
 
-const ffmpegValidation = ref<PathValidationState>({
-  testing: false,
-  tested: false,
-  valid: false,
-  message: '',
-  detectedPath: ''
-});
-
-const nodeValidation = ref<PathValidationState>({
-  testing: false,
-  tested: false,
-  valid: false,
-  message: '',
-  detectedPath: ''
-});
-
-const fileInput = ref<HTMLInputElement | null>(null);
-
-// Health & Diagnostics state
-interface HealthItem {
-  status: string;
-  path?: string;
-  has_key?: boolean;
-  active?: boolean;
-  exists?: boolean;
+function createEmptyValidationState(): PathValidationState {
+  return {
+    testing: false,
+    tested: false,
+    valid: false,
+    message: '',
+    detectedPath: ''
+  };
 }
-interface HealthResponse {
-  ffmpeg: HealthItem;
-  node: HealthItem;
-  python_env: HealthItem;
-  gemini_api: HealthItem;
-  cookies: HealthItem;
-}
-const healthData = computed(() => state.systemHealth.value);
-const checkingHealth = computed(() => state.checkingHealth.value);
 
+const ffmpegValidation = ref<PathValidationState>(createEmptyValidationState());
+const nodeValidation = ref<PathValidationState>(createEmptyValidationState());
+
+// Global Prerequisite Warning Routing (System tools and Gemini API key only; Cookies are optional)
 const firstMissingPrerequisiteSection = computed(() => {
-  const health = state.systemHealth.value;
-  if (!health) return 'settings-health';
+  const health = healthData.value;
+  if (!health) return 'settings-system';
 
-  // 1. Core system prerequisites (FFmpeg, Node, Python)
-  const systemKeys = ['ffmpeg', 'node', 'python_env'];
+  const systemKeys = ['ffmpeg', 'node', 'python_env'] as const;
   const isSystemMissing = systemKeys.some(key => {
     const item = health[key];
     return !item || item.status !== 'OK';
   });
   if (isSystemMissing) {
-    return 'settings-health';
+    return 'settings-system';
   }
 
-  // 2. Gemini API key
   if (!health.gemini_api?.has_key) {
     return 'settings-api';
   }
 
-  // 3. YouTube Cookies
-  if (health.cookies?.status !== 'Configured') {
-    return 'settings-cookies';
-  }
-
-  return 'settings-health';
+  return 'settings-system';
 });
 
 const warningDetails = computed(() => {
@@ -672,30 +559,20 @@ const warningDetails = computed(() => {
     return {
       title: 'Gemini API Key Required',
       description:
-        'The Gemini API Key is missing or invalid. Please configure it to enable transcription analysis and AI clipping features.',
+        'A Gemini API key is missing or invalid. Add a key to enable transcript analysis and AI hook discovery.',
       icon: 'ri:key-2-fill',
       buttonText: 'Configure API Key'
     };
-  } else if (section === 'settings-cookies') {
-    return {
-      title: 'YouTube Cookies Missing',
-      description:
-        'A cookies.txt file has not been provided. Restricted or age-gated YouTube videos may fail to download without valid cookies.',
-      icon: 'ri:shield-keyhole-fill',
-      buttonText: 'Upload Cookies'
-    };
-  } else {
-    return {
-      title: 'System Prerequisites Missing',
-      description:
-        "Essential system tools (FFmpeg, Node.js, or Python environment) are not fully configured. Let's fix them to enable all features.",
-      icon: 'ri:alert-fill',
-      buttonText: 'Resolve Prerequisites'
-    };
   }
+  return {
+    title: 'System Prerequisites Missing',
+    description:
+      'Required local tools (FFmpeg, Node.js, or Python environment) need attention before processing videos.',
+    icon: 'ri:alert-fill',
+    buttonText: 'Review System Tools'
+  };
 });
 
-const dragOver = ref(false);
 const deletingCookies = ref(false);
 const cookiesStatus = ref<{
   exists: boolean;
@@ -710,6 +587,7 @@ const hardwareProfile = computed(() => state.hardwareProfile?.value || null);
 const detectingHardware = computed(
   () => state.detectingHardware?.value || false
 );
+const hardwareError = computed(() => state.hardwareError?.value || null);
 
 async function handleDetectHardware() {
   const profile = await state.detectHardwareProfile?.();
@@ -720,16 +598,6 @@ async function handleDetectHardware() {
     );
   } else {
     state.showToast?.('Failed to detect hardware profile.', 'error');
-  }
-}
-
-function applyRecommendedModel(modelId: any) {
-  if (modelId && state.whisperModel) {
-    state.whisperModel.value = modelId;
-    state.showToast?.(
-      `Whisper ${String(modelId).toUpperCase()} applied as active transcription model.`,
-      'success'
-    );
   }
 }
 
@@ -750,7 +618,6 @@ async function testApiKeys() {
   testingKey.value = true;
   testResult.value = { status: 'idle', message: '' };
 
-  // Mark all filled keys as testing
   keysList.value.forEach(k => {
     if (k.value.trim()) {
       k.status = 'testing';
@@ -797,7 +664,7 @@ async function testApiKeys() {
     if (res.status === 'valid') {
       testResult.value = {
         status: 'valid',
-        message: 'All tested Gemini API keys are verified and functional!'
+        message: 'All tested Gemini API keys are verified and working.'
       };
       state.showToast('All API keys verified successfully!', 'success');
       checkSystemHealth();
@@ -836,7 +703,7 @@ async function testApiKeys() {
     const errMsg =
       errObj?.data?.detail ||
       errObj?.message ||
-      'Unable to reach backend validation endpoint.';
+      'Unable to verify API keys right now. Make sure the local app service is running and try again.';
     testResult.value = {
       status: fallbackStatus,
       message: errMsg
@@ -892,7 +759,9 @@ async function fetchSettings() {
     );
     if (res.settings) {
       ffmpegPath.value = res.settings.FFMPEG_PATH || '';
+      savedFfmpegPath.value = res.settings.FFMPEG_PATH || '';
       nodePath.value = res.settings.NODE_PATH || '';
+      savedNodePath.value = res.settings.NODE_PATH || '';
 
       const normalizedModel = normalizeHookDiscoveryModel(
         res.settings.GEMINI_MODEL
@@ -907,12 +776,17 @@ async function fetchSettings() {
 
       if (rawGemini.trim().startsWith('[')) {
         try {
-          const parsed = JSON.parse(rawGemini);
+          const parsed: unknown = JSON.parse(rawGemini);
           if (Array.isArray(parsed) && parsed.length > 0) {
             const validItems = parsed.filter(
-              (item: any) => item && item.value && !isPlaceholderKey(item.value)
+              (item): item is { title?: string; value: string } =>
+                typeof item === 'object' &&
+                item !== null &&
+                'value' in item &&
+                typeof item.value === 'string' &&
+                !isPlaceholderKey(item.value)
             );
-            loadedKeys = validItems.map((item: any) => ({
+            loadedKeys = validItems.map(item => ({
               id: Math.random().toString(36).substring(2, 9),
               title: item.title || '',
               value: item.value || '',
@@ -1023,55 +897,13 @@ async function saveApiKeys() {
     );
     state.showToast('API Keys saved successfully!', 'success');
     checkSystemHealth();
-  } catch (e: any) {
-    const errMsg = e.data?.detail || e.message || 'Failed to save API keys';
+  } catch (e: unknown) {
+    const errObj = e as { data?: { detail?: string }; message?: string };
+    const errMsg =
+      errObj?.data?.detail || errObj?.message || 'Failed to save API keys';
     state.showToast(`Failed to save API keys: ${errMsg}`, 'error');
   }
 }
-
-const ffmpegStatusBadge = computed(() => {
-  if (ffmpegPath.value.trim()) {
-    return {
-      label: 'Custom Override',
-      class: 'bg-black/40 border border-accent-500/30 text-accent-400',
-      dotClass: 'bg-accent-400'
-    };
-  }
-  if (healthData.value?.ffmpeg?.status === 'OK') {
-    return {
-      label: 'Auto-Detected (System PATH)',
-      class: 'bg-black/40 border border-white/5 text-emerald-400',
-      dotClass: 'bg-emerald-400'
-    };
-  }
-  return {
-    label: 'Missing from PATH',
-    class: 'bg-amber-500/10 border border-amber-500/20 text-amber-400',
-    dotClass: 'bg-amber-400'
-  };
-});
-
-const nodeStatusBadge = computed(() => {
-  if (nodePath.value.trim()) {
-    return {
-      label: 'Custom Override',
-      class: 'bg-black/40 border border-accent-500/30 text-accent-400',
-      dotClass: 'bg-accent-400'
-    };
-  }
-  if (healthData.value?.node?.status === 'OK') {
-    return {
-      label: 'Auto-Detected (System PATH)',
-      class: 'bg-black/40 border border-white/5 text-emerald-400',
-      dotClass: 'bg-emerald-400'
-    };
-  }
-  return {
-    label: 'Optional (Not in PATH)',
-    class: 'bg-black/40 border border-white/5 text-slate-400',
-    dotClass: 'bg-slate-500'
-  };
-});
 
 async function testBinaryPath(tool: 'ffmpeg' | 'node'): Promise<boolean> {
   const targetValidation =
@@ -1103,9 +935,12 @@ async function testBinaryPath(tool: 'ffmpeg' | 'node'): Promise<boolean> {
       isSystemDefault: res.is_system_default
     };
     return res.valid;
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const errObj = e as { data?: { detail?: string }; message?: string };
     const errMsg =
-      e.data?.detail || e.message || `Failed to validate ${tool} path`;
+      errObj?.data?.detail ||
+      errObj?.message ||
+      `Failed to validate ${tool} path`;
     targetValidation.value = {
       testing: false,
       tested: true,
@@ -1117,67 +952,101 @@ async function testBinaryPath(tool: 'ffmpeg' | 'node'): Promise<boolean> {
   }
 }
 
-function resetEnvPath(tool: 'ffmpeg' | 'node') {
+async function saveBinaryPath(tool: 'ffmpeg' | 'node') {
+  const toolLabel = tool === 'ffmpeg' ? 'FFmpeg' : 'Node.js';
+  const trimmedPath =
+    tool === 'ffmpeg' ? ffmpegPath.value.trim() : nodePath.value.trim();
+
   if (tool === 'ffmpeg') {
-    ffmpegPath.value = '';
-    ffmpegValidation.value = {
-      testing: false,
-      tested: false,
-      valid: false,
-      message: '',
-      detectedPath: ''
-    };
+    ffmpegPath.value = trimmedPath;
   } else {
-    nodePath.value = '';
-    nodeValidation.value = {
-      testing: false,
-      tested: false,
-      valid: false,
-      message: '',
-      detectedPath: ''
-    };
+    nodePath.value = trimmedPath;
   }
-}
 
-async function saveEnvPaths() {
-  savingEnvPaths.value = true;
+  savingTool.value = tool;
   try {
-    // 1. Always validate both tools first before persisting
-    const [ffmpegOk, nodeOk] = await Promise.all([
-      testBinaryPath('ffmpeg'),
-      testBinaryPath('node')
-    ]);
-
-    if (!ffmpegOk || !nodeOk) {
-      const failedTools: string[] = [];
-      if (!ffmpegOk) failedTools.push('FFmpeg');
-      if (!nodeOk) failedTools.push('Node.js');
+    const isValid = await testBinaryPath(tool);
+    if (!isValid) {
       state.showToast(
-        `Validation failed for ${failedTools.join(' and ')}. Please provide valid executable locations before saving.`,
+        `${toolLabel} path validation failed. Fix the path before saving.`,
         'error'
       );
       return;
     }
 
-    // 2. Only save if validation succeeded
     await $fetch(`${API_BASE}/api/system-settings`, {
       method: 'PUT',
-      body: {
-        FFMPEG_PATH: ffmpegPath.value,
-        NODE_PATH: nodePath.value
-      }
+      body:
+        tool === 'ffmpeg'
+          ? { FFMPEG_PATH: trimmedPath }
+          : { NODE_PATH: trimmedPath }
     });
+
+    if (tool === 'ffmpeg') {
+      savedFfmpegPath.value = trimmedPath;
+    } else {
+      savedNodePath.value = trimmedPath;
+    }
+
     state.showToast(
-      'Environment paths validated and saved successfully!',
+      trimmedPath
+        ? `${toolLabel} custom path saved.`
+        : `${toolLabel} reset to system default.`,
       'success'
     );
     checkSystemHealth();
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const errObj = e as { data?: { detail?: string }; message?: string };
     const errMsg =
-      e.data?.detail || e.message || 'Failed to save environment paths';
-    state.showToast(`Failed to save environment paths: ${errMsg}`, 'error');
+      errObj?.data?.detail ||
+      errObj?.message ||
+      `Failed to save ${toolLabel} path`;
+    state.showToast(`Failed to save ${toolLabel} path: ${errMsg}`, 'error');
   } finally {
-    savingEnvPaths.value = false;
+    savingTool.value = null;
+  }
+}
+
+async function resetBinaryPath(tool: 'ffmpeg' | 'node') {
+  const toolLabel = tool === 'ffmpeg' ? 'FFmpeg' : 'Node.js';
+  const hadSavedOverride = Boolean(
+    tool === 'ffmpeg'
+      ? savedFfmpegPath.value.trim()
+      : savedNodePath.value.trim()
+  );
+
+  if (tool === 'ffmpeg') {
+    ffmpegPath.value = '';
+    ffmpegValidation.value = createEmptyValidationState();
+  } else {
+    nodePath.value = '';
+    nodeValidation.value = createEmptyValidationState();
+  }
+
+  if (!hadSavedOverride) return;
+
+  savingTool.value = tool;
+  try {
+    await $fetch(`${API_BASE}/api/system-settings`, {
+      method: 'PUT',
+      body: tool === 'ffmpeg' ? { FFMPEG_PATH: '' } : { NODE_PATH: '' }
+    });
+    if (tool === 'ffmpeg') {
+      savedFfmpegPath.value = '';
+    } else {
+      savedNodePath.value = '';
+    }
+    state.showToast(`${toolLabel} reset to system default.`, 'success');
+    checkSystemHealth();
+  } catch (e: unknown) {
+    const errObj = e as { data?: { detail?: string }; message?: string };
+    const errMsg =
+      errObj?.data?.detail ||
+      errObj?.message ||
+      `Failed to reset ${toolLabel} path`;
+    state.showToast(`Failed to reset ${toolLabel} path: ${errMsg}`, 'error');
+  } finally {
+    savingTool.value = null;
   }
 }
 
@@ -1210,41 +1079,13 @@ async function uploadCookiesText(text: string) {
     } else {
       state.showToast('Failed to upload cookies', 'error');
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const errObj = e as { data?: { detail?: string } };
     const errDetail =
-      e.data?.detail || 'Invalid cookies format. Ensure it is Netscape format.';
+      errObj?.data?.detail ||
+      'Invalid cookies file. Please export a valid cookies.txt file from your browser.';
     state.showToast(errDetail, 'error');
   }
-}
-
-function handleFileSelect(event: any) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    const text = e.target?.result as string;
-    uploadCookiesText(text);
-  };
-  reader.readAsText(file);
-}
-
-function handleFileDrop(event: any) {
-  dragOver.value = false;
-  const file = event.dataTransfer?.files[0];
-  if (!file) return;
-
-  if (!file.name.endsWith('.txt')) {
-    state.showToast('Please upload a valid .txt cookie file', 'error');
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    const text = e.target?.result as string;
-    uploadCookiesText(text);
-  };
-  reader.readAsText(file);
 }
 
 async function deleteCookies() {
@@ -1256,32 +1097,10 @@ async function deleteCookies() {
     state.showToast('cookies.txt deleted successfully', 'success');
     fetchCookiesStatus();
     checkSystemHealth();
-  } catch (e) {
+  } catch {
     state.showToast('Failed to delete cookies', 'error');
   } finally {
     deletingCookies.value = false;
-  }
-}
-
-// Helpers
-function formatBytes(bytes: number) {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-function formatDate(isoString: string | null) {
-  if (!isoString) return 'Never';
-  const date = new Date(isoString);
-  return date.toLocaleString();
-}
-
-function copyToClipboard(text: string, label: string = 'Command') {
-  if (typeof navigator !== 'undefined' && navigator.clipboard) {
-    navigator.clipboard.writeText(text);
-    state.showToast(`${label} copied to clipboard!`, 'success');
   }
 }
 
@@ -1289,48 +1108,27 @@ onMounted(() => {
   fetchSettings();
   checkSystemHealth();
   fetchCookiesStatus();
-  updateIndicator();
-  if (typeof window !== 'undefined') {
-    window.addEventListener('resize', updateIndicator);
-  }
-});
-
-onUnmounted(() => {
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('resize', updateIndicator);
-  }
 });
 </script>
 
 <style scoped>
-@keyframes pulse-subtle {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.9;
-  }
-}
-.animate-pulse-subtle {
-  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
 /* Cross-fade transition for switching settings sections */
-.section-fade-enter-active,
-.section-fade-leave-active {
-  transition:
-    opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
+@media (prefers-reduced-motion: no-preference) {
+  .section-fade-enter-active,
+  .section-fade-leave-active {
+    transition:
+      opacity 0.16s ease,
+      transform 0.16s ease;
+  }
 
-.section-fade-enter-from {
-  opacity: 0;
-  transform: translateY(4px);
-}
+  .section-fade-enter-from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 
-.section-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
+  .section-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
 }
 </style>
