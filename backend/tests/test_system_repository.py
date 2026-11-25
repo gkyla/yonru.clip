@@ -300,9 +300,9 @@ def test_system_repository_validate_binary_path(temp_workspace):
         assert empty_none["is_system_default"] is True
 
         empty_node_none = repo.validate_binary_path("node", "")
-        assert empty_node_none["valid"] is True
+        assert empty_node_none["valid"] is False
         assert empty_node_none["is_system_default"] is True
-        assert "optional" in empty_node_none["message"]
+        assert "no node executable found" in empty_node_none["message"].lower()
 
     # 3. Valid directory containing binary
     fake_bin_dir = os.path.join(temp_dir, "bin")

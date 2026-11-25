@@ -290,7 +290,7 @@ The backend aggregate store responsible for cutting Ready Clips from source vide
 _Avoid_: Asset repository, clip manager, clip file handler
 
 **Home Settings & Preference Panes**:
-The modular configuration workspace and dedicated preference pane components (`HealthDiagnosticsPane`, `GeminiKeysPane`, `TranscriptionEnginePane`, `YouTubeCookiesPane`, `EnvironmentPathsPane`) responsible for system diagnostics, **Hook Discovery Model** selection and API failover key pools (in the AI Model tab), Whisper transcription models, YouTube authentication cookies, and binary execution paths.
+The modular configuration workspace (`HomeSettings`) and dedicated preference pane components (`GeminiKeysPane`, `TranscriptionEnginePane`, `YouTubeCookiesPane`, `SystemEnvironmentPane`) responsible for **Hook Discovery Model** selection and API failover key pools, Whisper transcription models, optional YouTube authentication cookies, and required local system tools and binary paths (FFmpeg, Node.js, and the Python environment).
 _Avoid_: Settings modal, monolith config, options tab
 
 **Unified Launcher**:

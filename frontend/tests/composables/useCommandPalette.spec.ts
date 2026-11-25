@@ -66,7 +66,7 @@ describe('useCommandPalette Composable', () => {
     expect(palette.isOpen.value).toBe(true);
   });
 
-  it('aggregates navigation, settings (5 preferences tabs), and prompt presets', () => {
+  it('aggregates navigation, settings (4 preferences tabs), and prompt presets', () => {
     const palette = useCommandPalette();
     const items = palette.allItems.value;
 
@@ -75,15 +75,24 @@ describe('useCommandPalette Composable', () => {
     expect(items.some(i => i.id === 'nav-docs')).toBe(true);
     expect(items.some(i => i.id === 'nav-changelog')).toBe(true);
     expect(items.some(i => i.id === 'nav-settings')).toBe(true);
-    expect(items.some(i => i.id === 'setting-health')).toBe(true);
     expect(items.some(i => i.id === 'setting-api')).toBe(true);
     expect(items.some(i => i.id === 'setting-whisper')).toBe(true);
     expect(items.some(i => i.id === 'setting-cookies')).toBe(true);
-    expect(items.some(i => i.id === 'setting-env')).toBe(true);
+    expect(items.some(i => i.id === 'setting-system')).toBe(true);
+    expect(items.some(i => i.id === 'setting-health')).toBe(false);
+    expect(items.some(i => i.id === 'setting-env')).toBe(false);
     expect(items.some(i => i.id === 'prompt-preset-auto')).toBe(true);
 
     const apiSetting = items.find(i => i.id === 'setting-api');
     expect(apiSetting?.title).toBe('AI Model');
+
+    const systemSetting = items.find(i => i.id === 'setting-system');
+    expect(systemSetting?.title).toBe('System & Binary Paths');
+    palette.executeItem(systemSetting!);
+    expect(pushSpy).toHaveBeenCalledWith({
+      path: '/settings',
+      query: { tab: 'system' }
+    });
   });
 
   it('groups prompts under Prompt Template parent category with Preset Prompt and Custom Prompt subgroups in groupedItems', () => {
@@ -151,7 +160,7 @@ describe('useCommandPalette Composable', () => {
     palette.searchQuery.value = 'settings';
     expect(
       palette.filteredItems.value.some(
-        i => i.id === 'nav-settings' || i.id === 'setting-health'
+        i => i.id === 'nav-settings' || i.id === 'setting-system'
       )
     ).toBe(true);
 

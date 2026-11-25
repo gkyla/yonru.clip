@@ -7,13 +7,13 @@ describe('System Diagnostics TDD', () => {
     expect(isPrerequisiteMissing(undefined)).toBe(false);
   });
 
-  it('returns false when all prerequisites are OK or Configured', () => {
+  it('returns false when all required prerequisites are OK or Configured even if cookies are missing', () => {
     const health = {
       ffmpeg: { status: 'OK' },
       node: { status: 'OK' },
       python_env: { status: 'OK' },
       gemini_api: { status: 'Configured' },
-      cookies: { status: 'Configured' }
+      cookies: { status: 'Not Configured' }
     };
     expect(isPrerequisiteMissing(health)).toBe(false);
   });
@@ -28,6 +28,15 @@ describe('System Diagnostics TDD', () => {
     };
     expect(isPrerequisiteMissing(healthWithBadFFmpeg)).toBe(true);
 
+    const healthWithBadNode = {
+      ffmpeg: { status: 'OK' },
+      node: { status: 'Missing' },
+      python_env: { status: 'OK' },
+      gemini_api: { status: 'Configured' },
+      cookies: { status: 'Configured' }
+    };
+    expect(isPrerequisiteMissing(healthWithBadNode)).toBe(true);
+
     const healthWithBadPython = {
       ffmpeg: { status: 'OK' },
       node: { status: 'OK' },
@@ -38,7 +47,7 @@ describe('System Diagnostics TDD', () => {
     expect(isPrerequisiteMissing(healthWithBadPython)).toBe(true);
   });
 
-  it('returns true when any config dependency (gemini_api, cookies) status is not Configured', () => {
+  it('returns true when gemini_api status is not Configured and ignores missing cookies', () => {
     const healthWithBadGemini = {
       ffmpeg: { status: 'OK' },
       node: { status: 'OK' },
@@ -48,13 +57,13 @@ describe('System Diagnostics TDD', () => {
     };
     expect(isPrerequisiteMissing(healthWithBadGemini)).toBe(true);
 
-    const healthWithBadCookies = {
+    const healthWithMissingCookiesOnly = {
       ffmpeg: { status: 'OK' },
       node: { status: 'OK' },
       python_env: { status: 'OK' },
       gemini_api: { status: 'Configured' },
-      cookies: { status: 'Not Configured' }
+      cookies: { status: 'Missing' }
     };
-    expect(isPrerequisiteMissing(healthWithBadCookies)).toBe(true);
+    expect(isPrerequisiteMissing(healthWithMissingCookiesOnly)).toBe(false);
   });
 });

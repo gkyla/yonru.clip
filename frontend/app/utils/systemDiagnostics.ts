@@ -1,5 +1,5 @@
 /**
- * System Diagnostics — pure-function extraction from useSystemDiagnostics composable.
+ * System Diagnostics: pure-function extraction from useSystemDiagnostics composable.
  */
 
 export interface DependencyStatus {
@@ -14,14 +14,14 @@ export interface SystemHealth {
   python_env?: DependencyStatus;
   gemini_api?: DependencyStatus;
   cookies?: DependencyStatus;
-  [key: string]: any;
+  [key: string]: DependencyStatus | undefined;
 }
 
 export function isPrerequisiteMissing(
   health: SystemHealth | null | undefined
 ): boolean {
   if (!health) return false;
-  const keys = ['ffmpeg', 'node', 'python_env', 'gemini_api', 'cookies'];
+  const keys = ['ffmpeg', 'node', 'python_env', 'gemini_api'];
   return keys.some(key => {
     const item = health[key];
     if (!item) return false;

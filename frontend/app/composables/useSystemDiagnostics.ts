@@ -14,6 +14,7 @@ export const useSystemDiagnostics = () => {
     () => null
   );
   const checkingHealth = useState<boolean>('checkingHealth', () => false);
+  const healthError = useState<string | null>('healthError', () => null);
   const settingsScrollTarget = useState<string | null>(
     'settingsScrollTarget',
     () => null
@@ -28,6 +29,7 @@ export const useSystemDiagnostics = () => {
     () => null
   );
   const detectingHardware = useState<boolean>('detectingHardware', () => false);
+  const hardwareError = useState<string | null>('hardwareError', () => null);
 
   const isAnyPrerequisiteMissing = computed(() => {
     return isPrerequisiteMissing(systemHealth.value);
@@ -47,14 +49,27 @@ export const useSystemDiagnostics = () => {
 
   async function checkSystemHealth() {
     checkingHealth.value = true;
+    healthError.value = null;
     try {
       const res = await $fetch<SystemHealth>(`${API_BASE}/api/system-health`);
+      if (
+        !res ||
+        typeof res !== 'object' ||
+        !('ffmpeg' in res) ||
+        !('python_env' in res)
+      ) {
+        healthError.value =
+          'Could not check system tools right now. Make sure the local app service is running and try again.';
+        return;
+      }
       systemHealth.value = res;
       if (res?.gemini_api?.model) {
         geminiModel.value = normalizeHookDiscoveryModel(res.gemini_api.model);
       }
     } catch (e) {
       console.error('Failed to fetch system health', e);
+      healthError.value =
+        'Could not check system tools right now. Make sure the local app service is running and try again.';
     } finally {
       checkingHealth.value = false;
     }
@@ -62,6 +77,7 @@ export const useSystemDiagnostics = () => {
 
   async function detectHardwareProfile(): Promise<HardwareProfile | null> {
     detectingHardware.value = true;
+    hardwareError.value = null;
     try {
       const res = await $fetch<HardwareProfile>(
         `${API_BASE}/api/system/hardware-profile`
@@ -73,6 +89,8 @@ export const useSystemDiagnostics = () => {
       return res;
     } catch (e) {
       console.error('Failed to detect hardware profile', e);
+      hardwareError.value =
+        'Could not detect hardware capabilities right now. Make sure the local app service is running and try again.';
       return null;
     } finally {
       detectingHardware.value = false;
@@ -82,12 +100,14 @@ export const useSystemDiagnostics = () => {
   return {
     systemHealth,
     checkingHealth,
+    healthError,
     settingsScrollTarget,
     geminiModel,
     isAnyPrerequisiteMissing,
     checkSystemHealth,
     hardwareProfile,
     detectingHardware,
+    hardwareError,
     detectHardwareProfile
   };
 };
