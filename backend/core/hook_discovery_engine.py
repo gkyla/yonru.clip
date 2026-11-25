@@ -1,11 +1,18 @@
 import os
+import re
 import json
 import math
 import time
-from typing import Optional, List, Dict, Any, Callable
+import inspect
+from typing import Optional, List, Dict, Any, Callable, Tuple
 from dataclasses import dataclass
 
-from core.genai_client import GenAIClient, GeminiGenAIClient, extract_valid_gemini_keys
+from core.genai_client import (
+    GenAIClient,
+    GeminiGenAIClient,
+    HOOK_DISCOVERY_RESPONSE_SCHEMA,
+    extract_valid_gemini_keys,
+)
 from core.gemini_errors import (
     HookDiscoveryError,
     HookDiscoveryQuotaError,
@@ -35,7 +42,7 @@ class HookDiscoveryOptions:
     extraction_mode: str = "preset"
     prompt_file: Optional[str] = None
     focus_topic: Optional[str] = None
-    min_duration: int = 15
+    min_duration: int = 30
     max_duration: int = 180
 
 
@@ -117,64 +124,218 @@ class HookDiscoveryEngine:
                 return normalize_gemini_model(configured)
         return normalize_gemini_model(self.model_name)
 
-    def _group_words_into_sentences(self, segments: list, max_words: int = 15, max_silence: float = 1.5) -> list:
-        grouped = []
-        current_words = []
-        current_start = None
-        current_end = None
+    _RE_BOUNDARY_PUNCT = re.compile(r"[^\w\s]+", re.UNICODE)
+    _BOUNDARY_FILLER_PHRASES = frozenset({
+        # Universal hesitations / backchannels
+        "hm", "hmm", "hmmm", "mm", "mmm", "mm hmm", "mhm", "uh", "um", "uh huh",
+        "ah", "eh", "oh", "ee", "eee",
+        # English & Indonesian host transition cues
+        "next", "next question", "next one", "moving on", "okay next", "ok next",
+        "alright next", "all right next", "oke next", "lanjut", "lanjut ya",
+        "oke lanjut", "kita lanjut", "pertanyaan berikutnya", "pertanyaan selanjutnya",
+        "pertanyaan terakhir", "soal berikutnya",
+        # English backchannels
+        "ok", "okay", "alright", "all right", "yeah", "yes", "yep", "yup",
+        "right", "true", "sure", "i see", "oh i see", "got it", "gotcha",
+        "makes sense", "fair enough", "good point",
+        # Indonesian backchannels
+        "oke", "okeh", "okey", "ya", "iya", "iya ya", "iya sih", "iya kan",
+        "ya kan", "yaudah", "ya sudah", "gitu", "gitu ya", "gitu sih", "oh gitu",
+        "oh gitu ya", "begitu", "begitu ya", "oh begitu", "nah", "nah gitu",
+        "betul", "betul ya", "bener", "bener banget", "benar", "siap", "sip", "baik",
+    })
+    _SINGLE_FILLER_TOKENS = frozenset({
+        "next", "oke", "ok", "okay", "ya", "iya", "gitu", "oh", "nah",
+        "betul", "bener", "benar", "yeah", "yes", "right", "hm", "hmm",
+        "uh", "um", "eh", "ee", "lanjut",
+    })
 
-        for s in segments:
-            start = float(s.get("start", 0.0))
-            dur = float(s.get("duration", 0.0))
-            end = start + dur
-            text = s.get("text", "").strip()
+    @classmethod
+    def _normalize_monotonic_words(cls, segments: list) -> List[Dict[str, Any]]:
+        """De-overlap caption runs monotonically while preserving exact word order."""
+        raw_words: List[Tuple[float, float, str, int, bool]] = []
+        for seg_idx, s in enumerate(segments):
+            if not isinstance(s, dict):
+                continue
+            start = float(s.get("start") or 0.0)
+            dur = max(0.0, float(s.get("duration") or 0.0))
+            text = str(s.get("text", "")).strip()
             if not text:
                 continue
-
             words = text.split()
-            word_dur = dur / len(words) if len(words) > 0 else 0.0
-
+            word_dur = dur / len(words)
+            is_single = len(words) == 1
             for i, w in enumerate(words):
-                w_start = start + (i * word_dur)
-                w_end = w_start + word_dur
+                raw_words.append((start + (i * word_dur), word_dur, w, seg_idx, is_single))
 
-                if not current_words:
-                    current_start = w_start
-                    current_end = w_end
-                    current_words.append(w)
-                else:
-                    silence = w_start - current_end if current_end is not None else 0.0
-                    if silence > max_silence or len(current_words) >= max_words:
-                        grouped.append({
-                            "start": current_start,
-                            "duration": float(current_end) - float(current_start) if current_end is not None and current_start is not None else 0.0,
-                            "text": " ".join(current_words),
-                        })
-                        current_start = w_start
-                        current_end = w_end
-                        current_words = [w]
-                    else:
-                        current_words.append(w)
-                        current_end = w_end
+        if not raw_words:
+            return []
 
-                if w.endswith((".", "?", "!", "\"", "”", ":", ";")):
+        runs: List[List[Tuple[float, float, str, int, bool]]] = [[raw_words[0]]]
+        for item in raw_words[1:]:
+            prev = runs[-1][-1]
+            same_segment = item[3] == prev[3]
+            contiguous_caption_word = (
+                prev[4]
+                and item[4]
+                and abs(item[0] - (prev[0] + prev[1])) < 1e-3
+                and abs(item[1] - prev[1]) < 1e-3
+            )
+            if same_segment or contiguous_caption_word:
+                runs[-1].append(item)
+            else:
+                runs.append([item])
+
+        normalized: List[Dict[str, Any]] = []
+        cursor = 0.0
+        for run_idx, run in enumerate(runs):
+            run_start = max(cursor, run[0][0])
+            run_raw_end = max(run_start, run[-1][0] + run[-1][1])
+            if run_idx + 1 < len(runs):
+                next_start = runs[run_idx + 1][0][0]
+                run_end = min(run_raw_end, next_start) if next_start >= run_start else run_start
+            else:
+                run_end = run_raw_end
+
+            word_dur = (run_end - run_start) / len(run)
+            for word_idx, (_, _, word_text, _, _) in enumerate(run):
+                normalized.append({
+                    "start": run_start + (word_idx * word_dur),
+                    "duration": word_dur,
+                    "text": word_text,
+                })
+            cursor = run_end
+
+        return normalized
+
+    def _group_words_into_sentences(self, segments: list, max_words: int = 15, max_silence: float = 1.5) -> list:
+        normalized_words = self._normalize_monotonic_words(segments)
+        grouped = []
+        current_words = []
+        current_start: Optional[float] = None
+        current_end: Optional[float] = None
+
+        for w_item in normalized_words:
+            w_start = float(w_item["start"])
+            w_end = w_start + float(w_item["duration"])
+            w = str(w_item["text"])
+
+            if not current_words:
+                current_start = w_start
+                current_end = w_end
+                current_words.append(w)
+            else:
+                silence = w_start - current_end if current_end is not None else 0.0
+                if silence > max_silence or len(current_words) >= max_words:
                     grouped.append({
                         "start": current_start,
-                        "duration": float(current_end) - float(current_start) if current_end is not None and current_start is not None else 0.0,
+                        "duration": max(0.0, float(current_end) - float(current_start)) if current_end is not None and current_start is not None else 0.0,
                         "text": " ".join(current_words),
                     })
-                    current_words = []
-                    current_start = None
-                    current_end = None
+                    current_start = w_start
+                    current_end = w_end
+                    current_words = [w]
+                else:
+                    current_words.append(w)
+                    current_end = w_end
+
+            if w.endswith((".", "?", "!", "\"", "”", ":", ";")):
+                grouped.append({
+                    "start": current_start,
+                    "duration": max(0.0, float(current_end) - float(current_start)) if current_end is not None and current_start is not None else 0.0,
+                    "text": " ".join(current_words),
+                })
+                current_words = []
+                current_start = None
+                current_end = None
 
         if current_words:
             grouped.append({
                 "start": current_start,
-                "duration": float(current_end) - float(current_start) if current_end is not None and current_start is not None else 0.0,
+                "duration": max(0.0, float(current_end) - float(current_start)) if current_end is not None and current_start is not None else 0.0,
                 "text": " ".join(current_words),
             })
 
         return grouped
+
+    @staticmethod
+    def _safe_int(value: Any) -> Optional[int]:
+        """Parse an integer or `#ID`-prefixed string safely, rejecting booleans and floats with fractions."""
+        if isinstance(value, bool) or value is None:
+            return None
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value) if math.isfinite(value) and value.is_integer() else None
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned.startswith("#"):
+                cleaned = cleaned[1:].strip()
+            if not cleaned:
+                return None
+            try:
+                return int(cleaned)
+            except ValueError:
+                return None
+        return None
+
+    @classmethod
+    def _is_boundary_filler_segment(cls, text: str) -> bool:
+        """Return True if text is solely a short transition cue or listener backchannel."""
+        cleaned = cls._RE_BOUNDARY_PUNCT.sub(" ", text).lower()
+        tokens = cleaned.split()
+        if not tokens or len(tokens) > 5:
+            return False
+        if " ".join(tokens) in cls._BOUNDARY_FILLER_PHRASES:
+            return True
+        return len(tokens) <= 3 and all(tok in cls._SINGLE_FILLER_TOKENS for tok in tokens)
+
+    @classmethod
+    def _trim_boundary_fillers(
+        cls, grouped_segments: list, start_id: int, end_id: int
+    ) -> Tuple[int, int]:
+        """Trim standalone transition/backchannel filler segments from both hook ends."""
+        while start_id < end_id and cls._is_boundary_filler_segment(
+            str(grouped_segments[start_id].get("text", ""))
+        ):
+            start_id += 1
+        while end_id > start_id and cls._is_boundary_filler_segment(
+            str(grouped_segments[end_id].get("text", ""))
+        ):
+            end_id -= 1
+        return start_id, end_id
+
+    @staticmethod
+    def _slice_segments_quote(grouped_segments: list, start_id: int, end_id: int) -> str:
+        """Join trimmed verbatim segment text across [start_id, end_id] inclusive."""
+        parts = [
+            str(seg.get("text", "")).strip()
+            for seg in grouped_segments[start_id : end_id + 1]
+            if str(seg.get("text", "")).strip()
+        ]
+        return " ".join(" ".join(parts).split())
+
+    @staticmethod
+    def _call_generate_json(
+        client: GenAIClient,
+        prompt: str,
+        model_name: str,
+        response_schema: Any,
+        temperature: float,
+    ) -> str:
+        """Call client.generate_json while staying compatible with 2-arg client doubles."""
+        kwargs: Dict[str, Any] = {}
+        try:
+            params = inspect.signature(client.generate_json).parameters
+        except (TypeError, ValueError):
+            params = {}
+        accepts_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+        if accepts_kwargs or "response_schema" in params:
+            kwargs["response_schema"] = response_schema
+        if accepts_kwargs or "temperature" in params:
+            kwargs["temperature"] = temperature
+        generate_fn: Any = client.generate_json
+        return generate_fn(prompt, model_name, **kwargs)
 
     @staticmethod
     def _safe_float(value: Any) -> Optional[float]:
@@ -278,6 +439,92 @@ class HookDiscoveryEngine:
             print(f"[hook-discovery-engine] Failed to load cached hooks from {cache_path}: {e}")
             return None
 
+    def _resolve_hook_from_segment_ids(
+        self,
+        hook: Dict[str, Any],
+        grouped_segments: list,
+        effective_min_dur: float,
+        effective_max_dur: float,
+    ) -> Optional[Dict[str, Any]]:
+        """Resolve integer segment IDs into trimmed boundaries, exact timestamps, and quote text."""
+        start_id = self._safe_int(hook.get("start_id"))
+        end_id = self._safe_int(hook.get("end_id"))
+        if (
+            not grouped_segments
+            or start_id is None
+            or end_id is None
+            or start_id < 0
+            or start_id >= len(grouped_segments)
+            or end_id < start_id
+        ):
+            return None
+
+        end_id = min(end_id, len(grouped_segments) - 1)
+        start_id, end_id = self._trim_boundary_fillers(grouped_segments, start_id, end_id)
+
+        def _seg_start(idx: int) -> float:
+            return self._safe_float(grouped_segments[idx].get("start")) or 0.0
+
+        def _seg_end(idx: int) -> float:
+            return _seg_start(idx) + max(0.0, self._safe_float(grouped_segments[idx].get("duration")) or 0.0)
+
+        span_start = _seg_start(start_id)
+        while end_id > start_id and (_seg_end(end_id) - span_start) > effective_max_dur:
+            end_id -= 1
+        start_id, end_id = self._trim_boundary_fillers(grouped_segments, start_id, end_id)
+
+        h_start = round(_seg_start(start_id), 2)
+        h_end = round(_seg_end(end_id), 2)
+        if (h_end - h_start) > effective_max_dur:
+            h_end = round(h_start + effective_max_dur, 2)
+        h_dur = round(h_end - h_start, 2)
+        if h_dur <= 0.0 or h_dur < effective_min_dur:
+            return None
+
+        resolved = dict(hook)
+        resolved["start"] = h_start
+        resolved["end"] = h_end
+        resolved["duration_seconds"] = h_dur
+        sliced_quote = self._slice_segments_quote(grouped_segments, start_id, end_id)
+        if sliced_quote:
+            resolved["transcript_quote"] = sliced_quote
+        elif "transcript_quote" not in resolved or resolved["transcript_quote"] is None:
+            resolved["transcript_quote"] = ""
+        resolved.pop("start_id", None)
+        resolved.pop("end_id", None)
+        return resolved
+
+    def _resolve_hook_from_timestamps(
+        self,
+        hook: Dict[str, Any],
+        grouped_segments: list,
+        effective_min_dur: float,
+        effective_max_dur: float,
+    ) -> Optional[Dict[str, Any]]:
+        """Legacy float timestamp fallback preserving min/max enforcement and quote slicing."""
+        h_start = self._safe_float(hook.get("start"))
+        h_end = self._safe_float(hook.get("end"))
+        if h_start is None or h_end is None or h_end <= h_start:
+            return None
+
+        if (h_end - h_start) > effective_max_dur:
+            h_end = round(h_start + effective_max_dur, 2)
+
+        h_dur = round(h_end - h_start, 2)
+        if h_dur <= 0.0 or h_dur < effective_min_dur:
+            return None
+
+        resolved = dict(hook)
+        resolved["start"] = round(h_start, 2)
+        resolved["end"] = round(h_end, 2)
+        resolved["duration_seconds"] = h_dur
+        sliced_quote = self._extract_transcript_quote(grouped_segments, resolved["start"], resolved["end"])
+        if sliced_quote:
+            resolved["transcript_quote"] = sliced_quote
+        elif "transcript_quote" not in resolved or resolved["transcript_quote"] is None:
+            resolved["transcript_quote"] = ""
+        return resolved
+
     def discover_from_transcript(
         self,
         transcript_segments: list,
@@ -310,11 +557,12 @@ class HookDiscoveryEngine:
             f"(mode={opts.extraction_mode}, preset={opts.preset_id}, auto={opts.auto_hooks}, num={opts.num_hooks})..."
         )
 
-        transcript_text = ""
-        for s in grouped_segments:
+        transcript_lines = []
+        for idx, s in enumerate(grouped_segments):
             start = float(s["start"])
             dur = float(s["duration"])
-            transcript_text += f"[{start:.2f}s - {start+dur:.2f}s] {s['text']}\n"
+            transcript_lines.append(f"[#{idx} | {start:.2f}s-{start + dur:.2f}s] {s['text']}")
+        transcript_text = ("\n".join(transcript_lines) + "\n") if transcript_lines else ""
 
         custom_archetype = None
         if opts.extraction_mode == "custom" and opts.prompt_file:
@@ -334,6 +582,13 @@ class HookDiscoveryEngine:
             video_duration=effective_video_duration,
         )
 
+        effective_min_dur = (
+            0.0
+            if (effective_video_duration is not None and effective_video_duration < float(opts.min_duration))
+            else float(opts.min_duration)
+        )
+        effective_max_dur = max(float(opts.max_duration), effective_min_dur)
+
         max_retries = 3
         last_error: Optional[HookDiscoveryError] = None
         for attempt in range(max_retries):
@@ -342,14 +597,34 @@ class HookDiscoveryEngine:
                 f"(Attempt {attempt + 1}/{max_retries})..."
             )
             try:
-                raw_json = client.generate_json(prompt, active_model)
+                raw_json = self._call_generate_json(
+                    client,
+                    prompt,
+                    active_model,
+                    response_schema=HOOK_DISCOVERY_RESPONSE_SCHEMA,
+                    temperature=0.2,
+                )
                 parsed = json.loads(raw_json)
                 if not isinstance(parsed, list):
                     raise invalid_response_error(active_model, raw_json)
                 if len(parsed) == 0:
                     return []
-                valid_hooks = [h for h in parsed if isinstance(h, dict)]
-                for idx, hook in enumerate(valid_hooks):
+                resolved_hooks: List[Dict[str, Any]] = []
+                for idx, raw_hook in enumerate(parsed):
+                    if not isinstance(raw_hook, dict):
+                        continue
+                    uses_segment_ids = "start_id" in raw_hook or "end_id" in raw_hook
+                    if uses_segment_ids:
+                        hook = self._resolve_hook_from_segment_ids(
+                            raw_hook, grouped_segments, effective_min_dur, effective_max_dur
+                        )
+                    else:
+                        hook = self._resolve_hook_from_timestamps(
+                            raw_hook, grouped_segments, effective_min_dur, effective_max_dur
+                        )
+                    if hook is None:
+                        continue
+
                     v_score = hook.get("virality_score")
                     if not isinstance(v_score, (int, float)) or v_score < 0 or v_score > 100:
                         hook["virality_score"] = 85 - (idx * 2)
@@ -358,29 +633,16 @@ class HookDiscoveryEngine:
 
                     if not hook.get("virality_reason"):
                         hook["virality_reason"] = "Compelling opening hook with natural narrative pacing."
+                    resolved_hooks.append(hook)
 
-                    h_start = self._safe_float(hook.get("start"))
-                    h_end = self._safe_float(hook.get("end"))
-                    cur_dur = self._safe_float(hook.get("duration_seconds"))
-                    if (cur_dur is None or cur_dur <= 0) and h_start is not None and h_end is not None and h_end > h_start:
-                        hook["duration_seconds"] = round(h_end - h_start, 2)
-
-                    sliced_quote = self._extract_transcript_quote(
-                        grouped_segments, hook.get("start"), hook.get("end")
-                    )
-                    if sliced_quote:
-                        hook["transcript_quote"] = sliced_quote
-                    elif "transcript_quote" not in hook or hook["transcript_quote"] is None:
-                        hook["transcript_quote"] = ""
-
-                valid_hooks.sort(
+                resolved_hooks.sort(
                     key=lambda h: (
                         -int(h.get("virality_score", 0)),
                         self._safe_float(h.get("start")) or 0.0,
                     )
                 )
-                deduped_hooks = self._deduplicate_overlapping_hooks(valid_hooks, max_overlap_ratio=0.20)
-                dropped = len(valid_hooks) - len(deduped_hooks)
+                deduped_hooks = self._deduplicate_overlapping_hooks(resolved_hooks, max_overlap_ratio=0.20)
+                dropped = len(resolved_hooks) - len(deduped_hooks)
                 if dropped:
                     print(
                         f"[hook-discovery-engine] Discovered {len(deduped_hooks)} hooks from transcript "
@@ -471,11 +733,18 @@ class HookDiscoveryEngine:
             print("[hook-discovery-engine] No transcript segments provided for generation.")
             return []
 
-        raw_hooks = self.discover_from_transcript(transcript_segments, video_info=video_info, options=options)
+        opts = options or HookDiscoveryOptions()
+        raw_hooks = self.discover_from_transcript(transcript_segments, video_info=video_info, options=opts)
         if not raw_hooks:
             return []
 
-        sanitized = self.sanitize_and_prepare_hooks(raw_hooks, video_info)
+        grouped_segments = self._group_words_into_sentences(transcript_segments)
+        sanitized = self.sanitize_and_prepare_hooks(
+            raw_hooks,
+            video_info,
+            max_duration=opts.max_duration,
+            grouped_segments=grouped_segments,
+        )
 
         if cache_path:
             try:
@@ -490,8 +759,15 @@ class HookDiscoveryEngine:
 
         return sanitized
 
-    def sanitize_and_prepare_hooks(self, raw_hooks: list, video_info: dict) -> List[Dict[str, Any]]:
-        """Filter, clamp boundaries, and generate static sharp thumbnails via MediaTranscoder."""
+    def sanitize_and_prepare_hooks(
+        self,
+        raw_hooks: list,
+        video_info: dict,
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        grouped_segments: Optional[list] = None,
+    ) -> List[Dict[str, Any]]:
+        """Filter, clamp boundaries, re-slice modified quotes, and generate sharp thumbnails."""
         video_duration = video_info.get("duration", float("inf"))
         file_path = video_info.get("file_path")
         if not file_path:
@@ -500,25 +776,54 @@ class HookDiscoveryEngine:
         folder_name = video_info.get("folder_name") or os.path.basename(os.path.dirname(file_path))
         target_dir = os.path.dirname(file_path)
 
-        MIN_DUR, MAX_DUR = 15, 180
+        min_dur = 15.0 if min_duration is None else float(min_duration)
+        max_dur = 180.0 if max_duration is None else float(max_duration)
         filtered = []
         for h in raw_hooks:
             try:
                 h_start = float(h.get("start", 0))
                 h_end = float(h.get("end", 0))
-                h_dur = h_end - h_start
 
                 if h_start < 0 or h_start >= video_duration or h_end > (video_duration + 5):
                     continue
 
-                if h_dur < MIN_DUR:
-                    h_end = h_start + MIN_DUR
-                if (h_end - h_start) > MAX_DUR:
-                    h_end = h_start + MAX_DUR
+                boundaries_changed = False
+                if math.isfinite(video_duration) and h_end > video_duration:
+                    h_end = video_duration
+                    boundaries_changed = True
+
+                if (h_end - h_start) < min_dur:
+                    h_end = min(h_start + min_dur, video_duration) if math.isfinite(video_duration) else (h_start + min_dur)
+                    boundaries_changed = True
+
+                if (h_end - h_start) > max_dur:
+                    snapped_end = None
+                    if grouped_segments:
+                        limit_end = h_start + max_dur
+                        for seg in grouped_segments:
+                            seg_s = self._safe_float(seg.get("start"))
+                            seg_d = self._safe_float(seg.get("duration"))
+                            if seg_s is None:
+                                continue
+                            seg_e = seg_s + max(0.0, seg_d if seg_d is not None else 0.0)
+                            if h_start < seg_e <= limit_end and (snapped_end is None or seg_e > snapped_end):
+                                snapped_end = seg_e
+                    if snapped_end is not None and (snapped_end - h_start) >= min_dur:
+                        h_end = snapped_end
+                    else:
+                        h_end = h_start + max_dur
+                    boundaries_changed = True
 
                 h["start"] = round(h_start, 2)
                 h["end"] = round(h_end, 2)
-                h["duration"] = round(h_end - h_start, 2)
+                dur = round(h_end - h_start, 2)
+                h["duration"] = dur
+                h["duration_seconds"] = dur
+
+                if boundaries_changed and grouped_segments:
+                    sliced = self._extract_transcript_quote(grouped_segments, h["start"], h["end"])
+                    if sliced:
+                        h["transcript_quote"] = sliced
 
                 thumb_name = f"thumb_{int(h_start)}.jpg"
                 thumb_local_path = os.path.join(target_dir, thumb_name)

@@ -6,7 +6,12 @@ import sys
 # Path resolution
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from core.genai_client import MockGenAIClient, GeminiGenAIClient
+from core.genai_client import (
+    HOOK_DISCOVERY_RESPONSE_SCHEMA,
+    GeminiGenAIClient,
+    MockGenAIClient,
+    build_hook_discovery_response_schema,
+)
 
 class TestGenAIClient(unittest.TestCase):
     def test_mock_genai_client_response(self):
@@ -180,6 +185,57 @@ class TestGenAIClient(unittest.TestCase):
         self.assertEqual(res, '{"status": "online"}')
         self.assertEqual(mock_client_1.models.generate_content.call_count, 2)
         mock_client_2.models.generate_content.assert_not_called()
+
+    @patch('core.genai_client.genai.Client')
+    def test_gemini_client_forwards_optional_temperature_and_response_schema(self, mock_sdk_client):
+        mock_instance = MagicMock()
+        mock_sdk_client.return_value = mock_instance
+        mock_response = MagicMock()
+        mock_response.text = "[]"
+        mock_instance.models.generate_content.return_value = mock_response
+
+        client = GeminiGenAIClient(api_key="fake-key")
+
+        # 1. Default call leaves temperature and response_schema unset
+        client.generate_json("Default Prompt", "gemini-3.5-flash-lite")
+        default_cfg = mock_instance.models.generate_content.call_args.kwargs["config"]
+        self.assertEqual(default_cfg.response_mime_type, "application/json")
+        self.assertIsNone(default_cfg.temperature)
+        self.assertIsNone(default_cfg.response_schema)
+
+        # 2. Explicit structured call forwards temperature=0.2 and HOOK_DISCOVERY_RESPONSE_SCHEMA
+        client.generate_json(
+            "Structured Prompt",
+            "gemini-3.5-flash-lite",
+            response_schema=HOOK_DISCOVERY_RESPONSE_SCHEMA,
+            temperature=0.2,
+        )
+        structured_cfg = mock_instance.models.generate_content.call_args.kwargs["config"]
+        self.assertAlmostEqual(structured_cfg.temperature, 0.2)
+        self.assertEqual(structured_cfg.response_schema, HOOK_DISCOVERY_RESPONSE_SCHEMA)
+
+        # 3. Gemini 4 models omit legacy temperature while keeping response_schema
+        client.generate_json(
+            "Hydrogen Prompt",
+            "gemini-4-hydrogen",
+            response_schema=HOOK_DISCOVERY_RESPONSE_SCHEMA,
+            temperature=0.2,
+        )
+        hydrogen_cfg = mock_instance.models.generate_content.call_args.kwargs["config"]
+        self.assertIsNone(hydrogen_cfg.temperature)
+        self.assertEqual(hydrogen_cfg.response_schema, HOOK_DISCOVERY_RESPONSE_SCHEMA)
+
+    def test_hook_discovery_response_schema_property_ordering(self):
+        schema = build_hook_discovery_response_schema()
+        assert schema.items is not None
+        self.assertEqual(
+            schema.items.property_ordering,
+            ["theme", "start_id", "end_id", "virality_score", "virality_reason"],
+        )
+        self.assertEqual(
+            schema.items.required,
+            ["theme", "start_id", "end_id", "virality_score", "virality_reason"],
+        )
 
 if __name__ == '__main__':
     unittest.main()

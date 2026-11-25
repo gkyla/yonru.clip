@@ -110,6 +110,28 @@ class GenAIClient(ABC):
         pass
 
 
+def build_hook_discovery_response_schema() -> types.Schema:
+    """Return the structured JSON array schema used for hook discovery outputs."""
+    return types.Schema(
+        type=types.Type.ARRAY,
+        items=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "theme": types.Schema(type=types.Type.STRING),
+                "start_id": types.Schema(type=types.Type.INTEGER),
+                "end_id": types.Schema(type=types.Type.INTEGER),
+                "virality_score": types.Schema(type=types.Type.INTEGER),
+                "virality_reason": types.Schema(type=types.Type.STRING),
+            },
+            required=["theme", "start_id", "end_id", "virality_score", "virality_reason"],
+            property_ordering=["theme", "start_id", "end_id", "virality_score", "virality_reason"],
+        ),
+    )
+
+
+HOOK_DISCOVERY_RESPONSE_SCHEMA = build_hook_discovery_response_schema()
+
+
 class GeminiGenAIClient(GenAIClient):
     # Class-level state to track key degradation: key_string -> { "degraded_until": float, "permanent": bool }
     _degradation_cache = {}
@@ -175,11 +197,23 @@ class GeminiGenAIClient(GenAIClient):
             return self.api_keys
         return active
 
-    def generate_json(self, prompt: str, model_name: str) -> str:
+    def generate_json(
+        self,
+        prompt: str,
+        model_name: str,
+        response_schema: Optional[Any] = None,
+        temperature: Optional[float] = None,
+    ) -> str:
         active_keys = self._get_active_keys()
         if not active_keys:
             raise ValueError("No Gemini API keys provided.")
-            
+
+        config_kwargs: Dict[str, Any] = {"response_mime_type": "application/json"}
+        if temperature is not None and not model_name.startswith("gemini-4-"):
+            config_kwargs["temperature"] = temperature
+        if response_schema is not None:
+            config_kwargs["response_schema"] = response_schema
+
         last_exception = None
         for key in active_keys:
             try:
@@ -187,9 +221,7 @@ class GeminiGenAIClient(GenAIClient):
                 response = client.models.generate_content(
                     model=model_name,
                     contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                    ),
+                    config=types.GenerateContentConfig(**config_kwargs),
                 )
                 
                 # Success! Clear degradation if it was marked
@@ -239,8 +271,18 @@ class MockGenAIClient(GenAIClient):
         self.mock_response = mock_response
         self.last_prompt: Optional[str] = None
         self.last_model_name: Optional[str] = None
+        self.last_response_schema: Optional[Any] = None
+        self.last_temperature: Optional[float] = None
 
-    def generate_json(self, prompt: str, model_name: str) -> str:
+    def generate_json(
+        self,
+        prompt: str,
+        model_name: str,
+        response_schema: Optional[Any] = None,
+        temperature: Optional[float] = None,
+    ) -> str:
         self.last_prompt = prompt
         self.last_model_name = model_name
+        self.last_response_schema = response_schema
+        self.last_temperature = temperature
         return self.mock_response

@@ -83,28 +83,42 @@ class YouTubeClient(AbstractYouTubeClient):
                     transcript = next(iter(transcript_list))
             
             segments = transcript.fetch()
-            
-            word_level = []
+
+            raw_captions = []
             for s in segments:
                 if isinstance(s, dict):
                     text = s.get("text", "").replace("\n", " ").strip()
-                    start = s.get("start", 0)
-                    duration = s.get("duration", 0)
+                    start = float(s.get("start", 0.0) or 0.0)
+                    duration = max(0.0, float(s.get("duration", 0.0) or 0.0))
                 else:
-                    text = getattr(s, 'text', "").replace("\n", " ").strip()
-                    start = getattr(s, 'start', 0)
-                    duration = getattr(s, 'duration', 0)
+                    text = getattr(s, "text", "").replace("\n", " ").strip()
+                    start = float(getattr(s, "start", 0.0) or 0.0)
+                    duration = max(0.0, float(getattr(s, "duration", 0.0) or 0.0))
 
                 words = text.split()
-                if not words: continue
-                
-                word_dur = duration / len(words)
+                if not words:
+                    continue
+                raw_captions.append((start, duration, words))
+
+            word_level = []
+            cursor = 0.0
+            for idx, (raw_start, raw_dur, words) in enumerate(raw_captions):
+                eff_start = max(cursor, raw_start)
+                raw_end = max(eff_start, raw_start + raw_dur)
+                if idx + 1 < len(raw_captions):
+                    next_start = raw_captions[idx + 1][0]
+                    eff_end = min(raw_end, next_start) if next_start >= eff_start else eff_start
+                else:
+                    eff_end = raw_end
+
+                word_dur = (eff_end - eff_start) / len(words)
                 for i, w in enumerate(words):
                     word_level.append({
-                        "start": start + (i * word_dur),
+                        "start": eff_start + (i * word_dur),
                         "duration": word_dur,
-                        "text": w
+                        "text": w,
                     })
+                cursor = eff_end
 
             print(f"[youtube-client] Successfully word-split '{transcript.language}' transcript ({len(word_level)} words)")
             return word_level
