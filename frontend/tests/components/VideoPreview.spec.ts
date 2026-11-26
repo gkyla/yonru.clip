@@ -769,4 +769,218 @@ describe('VideoPreview Component', () => {
     expect(wrapper.find('[data-testid="konva-stage"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="konva-label"]').exists()).toBe(true);
   });
+
+  it('gates Konva text strokeEnabled and strokeWidth on outline state', () => {
+    const state = useClipperState();
+    state.videoUrl.value = 'http://localhost:8000/sample.mp4';
+    state.currentTime.value = 1;
+
+    const textTrack = state.timelineTracks.value.find(
+      (t: { id: string }) => t.id === 'text'
+    );
+    expect(textTrack).toBeDefined();
+    textTrack!.items = [
+      {
+        id: 't-off',
+        start: 0,
+        duration: 5,
+        content: 'OUTLINE OFF',
+        x: 100,
+        y: 100,
+        showStroke: false,
+        strokeWidth: 5,
+        strokeColor: '#000000'
+      },
+      {
+        id: 't-undef',
+        start: 0,
+        duration: 5,
+        content: 'OUTLINE UNDEFINED',
+        x: 100,
+        y: 250,
+        showStroke: undefined,
+        strokeWidth: 5,
+        strokeColor: '#000000'
+      },
+      {
+        id: 't-default-width',
+        start: 0,
+        duration: 5,
+        content: 'OUTLINE DEFAULT WIDTH',
+        x: 100,
+        y: 400,
+        showStroke: true,
+        strokeWidth: undefined,
+        strokeColor: '#FF0000'
+      },
+      {
+        id: 't-zero-width',
+        start: 0,
+        duration: 5,
+        content: 'OUTLINE ZERO WIDTH',
+        x: 100,
+        y: 550,
+        showStroke: true,
+        strokeWidth: 0,
+        strokeColor: '#000000'
+      }
+    ];
+
+    const capturedConfigs: Array<Record<string, unknown>> = [];
+    mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': { template: '<div><slot /></div>' },
+          'v-layer': { template: '<div><slot /></div>' },
+          'v-label': { template: '<div><slot /></div>' },
+          'v-tag': true,
+          'v-text': {
+            props: ['config'],
+            setup(props: Record<string, unknown>) {
+              capturedConfigs.push(props.config as Record<string, unknown>);
+              return {};
+            },
+            template: '<div data-testid="konva-text-stub" />'
+          },
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    const configByText = (label: string) =>
+      capturedConfigs.find(cfg => cfg.text === label);
+
+    expect(configByText('OUTLINE OFF')).toEqual(
+      expect.objectContaining({ strokeEnabled: false, strokeWidth: 0 })
+    );
+    expect(configByText('OUTLINE UNDEFINED')).toEqual(
+      expect.objectContaining({ strokeEnabled: false, strokeWidth: 0 })
+    );
+    expect(configByText('OUTLINE DEFAULT WIDTH')).toEqual(
+      expect.objectContaining({
+        strokeEnabled: true,
+        strokeWidth: 10,
+        fillAfterStrokeEnabled: true
+      })
+    );
+    expect(configByText('OUTLINE ZERO WIDTH')).toEqual(
+      expect.objectContaining({ strokeEnabled: false, strokeWidth: 0 })
+    );
+  });
+
+  it('gates Konva text shadowEnabled and shadowBlur on shadow state', () => {
+    const state = useClipperState();
+    state.videoUrl.value = 'http://localhost:8000/sample.mp4';
+    state.currentTime.value = 1;
+
+    const textTrack = state.timelineTracks.value.find(
+      (t: { id: string }) => t.id === 'text'
+    );
+    expect(textTrack).toBeDefined();
+    textTrack!.items = [
+      {
+        id: 's-off',
+        start: 0,
+        duration: 5,
+        content: 'SHADOW OFF',
+        x: 100,
+        y: 100,
+        shadowBlur: 0,
+        shadowColor: '#000000',
+        shadowOpacity: 0.5,
+        shadowOffsetX: 5,
+        shadowOffsetY: 5
+      },
+      {
+        id: 's-undef',
+        start: 0,
+        duration: 5,
+        content: 'SHADOW UNDEFINED',
+        x: 100,
+        y: 250,
+        shadowBlur: undefined,
+        shadowColor: '#000000',
+        shadowOpacity: 0.5,
+        shadowOffsetX: 5,
+        shadowOffsetY: 5
+      },
+      {
+        id: 's-on',
+        start: 0,
+        duration: 5,
+        content: 'SHADOW ON',
+        x: 100,
+        y: 400,
+        shadowBlur: 10,
+        shadowColor: '#112233',
+        shadowOpacity: 0.5,
+        shadowOffsetX: 5,
+        shadowOffsetY: 5
+      },
+      {
+        id: 's-zero-opacity',
+        start: 0,
+        duration: 5,
+        content: 'SHADOW ZERO OPACITY',
+        x: 100,
+        y: 550,
+        shadowBlur: 10,
+        shadowColor: '#000000',
+        shadowOpacity: 0,
+        shadowOffsetX: 5,
+        shadowOffsetY: 5
+      }
+    ];
+
+    const capturedConfigs: Array<Record<string, unknown>> = [];
+    mount(VideoPreview, {
+      global: {
+        stubs: {
+          Icon: true,
+          ClientOnly: { template: '<div><slot /></div>' },
+          RemotionPlayer: true,
+          'v-stage': { template: '<div><slot /></div>' },
+          'v-layer': { template: '<div><slot /></div>' },
+          'v-label': { template: '<div><slot /></div>' },
+          'v-tag': true,
+          'v-text': {
+            props: ['config'],
+            setup(props: Record<string, unknown>) {
+              capturedConfigs.push(props.config as Record<string, unknown>);
+              return {};
+            },
+            template: '<div data-testid="konva-text-stub" />'
+          },
+          'v-rect': true,
+          'v-transformer': true
+        }
+      }
+    });
+
+    const configByText = (label: string) =>
+      capturedConfigs.find(cfg => cfg.text === label);
+
+    expect(configByText('SHADOW OFF')).toEqual(
+      expect.objectContaining({ shadowEnabled: false, shadowBlur: 0 })
+    );
+    expect(configByText('SHADOW UNDEFINED')).toEqual(
+      expect.objectContaining({ shadowEnabled: false, shadowBlur: 0 })
+    );
+    expect(configByText('SHADOW ON')).toEqual(
+      expect.objectContaining({
+        shadowEnabled: true,
+        shadowBlur: 10,
+        shadowColor: '#112233',
+        shadowOpacity: 0.5,
+        shadowOffset: { x: 5, y: 5 }
+      })
+    );
+    expect(configByText('SHADOW ZERO OPACITY')).toEqual(
+      expect.objectContaining({ shadowEnabled: false })
+    );
+  });
 });

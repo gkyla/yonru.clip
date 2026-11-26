@@ -65,6 +65,38 @@ describe('Style Helpers TDD', () => {
     expect(styles.textShadow).toBe('4px 4px 8px rgba(17, 17, 17, 0.6)');
   });
 
+  it('omits textShadow in getEditingStyle when shadowBlur is 0, undefined, or opacity is 0', () => {
+    expect(
+      getEditingStyle({
+        shadowBlur: 0,
+        shadowColor: '#000000',
+        shadowOpacity: 0.5,
+        shadowOffsetX: 5,
+        shadowOffsetY: 5
+      }).textShadow
+    ).toBe('none');
+
+    expect(
+      getEditingStyle({
+        shadowBlur: undefined,
+        shadowColor: '#000000',
+        shadowOpacity: 0.5,
+        shadowOffsetX: 5,
+        shadowOffsetY: 5
+      }).textShadow
+    ).toBe('none');
+
+    expect(
+      getEditingStyle({
+        shadowBlur: 10,
+        shadowColor: '#000000',
+        shadowOpacity: 0,
+        shadowOffsetX: 5,
+        shadowOffsetY: 5
+      }).textShadow
+    ).toBe('none');
+  });
+
   describe('transformText', () => {
     it('transforms text to uppercase correctly', () => {
       expect(transformText('hello world', 'uppercase')).toBe('HELLO WORLD');
