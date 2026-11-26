@@ -444,16 +444,20 @@
                     strokeWidth: item.showStroke
                       ? (item.strokeWidth ?? 5) * 2
                       : 0,
-                    strokeEnabled: item.showStroke,
+                    strokeEnabled:
+                      Boolean(item.showStroke) && (item.strokeWidth ?? 5) > 0,
                     fillAfterStrokeEnabled: true,
                     shadowColor: item.shadowColor || '#000000',
-                    shadowBlur: item.shadowBlur ?? 10,
+                    shadowBlur:
+                      (item.shadowBlur ?? 0) > 0 ? item.shadowBlur : 0,
                     shadowOffset: {
                       x: item.shadowOffsetX ?? 5,
                       y: item.shadowOffsetY ?? 5
                     },
                     shadowOpacity: item.shadowOpacity ?? 0.5,
-                    shadowEnabled: true,
+                    shadowEnabled:
+                      (item.shadowBlur ?? 0) > 0 &&
+                      (item.shadowOpacity ?? 0.5) > 0,
                     letterSpacing: item.letterSpacing ?? 0,
                     opacity: item.opacity ?? 1,
                     padding: 15,

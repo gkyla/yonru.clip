@@ -445,10 +445,10 @@ const ActiveTextOverlays: React.FC<ActiveTextOverlaysProps> = ({
   return (
     <>
       {activeTextItems.map((item, idx) => {
-        const textStroke =
-          item.strokeWidth && item.strokeWidth > 0
-            ? `${item.strokeWidth}px ${item.strokeColor || '#000000'}`
-            : undefined;
+        const effectiveStrokeWidth = item.showStroke
+          ? (item.strokeWidth ?? 5)
+          : 0;
+        const hasOutline = Boolean(item.showStroke) && effectiveStrokeWidth > 0;
 
         return (
           <AbsoluteFill
@@ -491,12 +491,11 @@ const ActiveTextOverlays: React.FC<ActiveTextOverlaysProps> = ({
                   : 0,
                 display: 'inline-block',
                 width: 'fit-content',
-                // Text Stroke
-                paintOrder: item.showStroke ? 'stroke fill' : undefined,
-                WebkitTextStroke:
-                  item.showStroke && item.strokeWidth
-                    ? `${item.strokeWidth * 2}px ${item.strokeColor || '#000000'}`
-                    : textStroke,
+                // Text Outline
+                paintOrder: hasOutline ? 'stroke fill' : undefined,
+                WebkitTextStroke: hasOutline
+                  ? `${effectiveStrokeWidth * 2}px ${item.strokeColor || '#000000'}`
+                  : undefined,
                 // Text Shadow / Glow
                 textShadow: getTextOverlayShadow(item)
               }}

@@ -41,10 +41,11 @@ export function getEditingStyle(item: Partial<TimelineTrackItem>) {
   const strokeColor = item.strokeColor || '#000000';
 
   const shadowColor = item.shadowColor || '#000000';
-  const shadowBlur = item.shadowBlur ?? 10;
+  const shadowBlur = item.shadowBlur ?? 0;
   const shadowOffsetX = item.shadowOffsetX ?? 5;
   const shadowOffsetY = item.shadowOffsetY ?? 5;
   const shadowOpacity = item.shadowOpacity ?? 0.5;
+  const hasShadow = shadowBlur > 0 && shadowOpacity > 0;
 
   const rgbaBg = showBackground ? hexToRgba(bgColor, bgOpacity) : 'transparent';
   const rgbaShadow = hexToRgba(shadowColor, shadowOpacity);
@@ -72,7 +73,9 @@ export function getEditingStyle(item: Partial<TimelineTrackItem>) {
     '-webkit-text-stroke': showStroke
       ? `${strokeWidth}px ${strokeColor}`
       : 'none',
-    textShadow: `${shadowOffsetX}px ${shadowOffsetY}px ${shadowBlur}px ${rgbaShadow}`,
+    textShadow: hasShadow
+      ? `${shadowOffsetX}px ${shadowOffsetY}px ${shadowBlur}px ${rgbaShadow}`
+      : 'none',
 
     caretColor: color,
     minWidth: '100px',
