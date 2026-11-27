@@ -14,9 +14,7 @@ from core.job_store import InMemoryJobStore
 
 @pytest.fixture
 def mock_dependencies():
-    from core.asset_repository import AssetStore
     asset_repo = MagicMock()
-    asset_repo.sanitize_and_prepare_hooks = lambda raw_hooks, video_info: AssetStore.sanitize_and_prepare_hooks(asset_repo, raw_hooks, video_info)
     return {
         "job_store": InMemoryJobStore(),
         "asset_repository": asset_repo,
@@ -780,6 +778,133 @@ def test_replay_cached_analysis_prefetch_hd(mock_dependencies, tmp_path):
     assert coordinator.jobs[res["job_id"]]["status"] == "hooks_ready"
 
 
+def test_replay_cached_analysis_returns_readonly_and_backfills_thumbnails_in_background(mock_dependencies, tmp_path):
+    from core.hook_discovery_engine import HookDiscoveryEngine
+    from core.media_transcoder import FakeMediaAdapter, MediaTranscoder
+
+    adapter = FakeMediaAdapter(default_duration=60.0)
+    transcoder = MediaTranscoder(adapter=adapter)
+    engine = HookDiscoveryEngine(media_transcoder=transcoder)
+    mock_dependencies["asset_repository"].transcoder = transcoder
+
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+        hook_discovery_engine=engine,
+    )
+
+    source_dir = tmp_path / "sources" / "vid_backfill"
+    source_dir.mkdir(parents=True)
+    video_path = source_dir / "full.mp4"
+    video_path.write_text("dummy full")
+    hooks_path = source_dir / "hooks.json"
+    hooks_path.write_text(json.dumps([{"start": 12.0, "end": 30.0, "theme": "Late Hook"}]))
+
+    mock_dependencies["asset_repository"].get_cached_video.return_value = {
+        "video_id": "vid_backfill",
+        "title": "Backfill Video",
+        "duration": 60.0,
+        "file_path": str(video_path),
+        "folder_name": "vid_backfill",
+        "hd_ready": True,
+        "fps": 30.0,
+        "asset_url": "/assets/sources/vid_backfill/full.mp4",
+    }
+
+    scheduled = []
+
+    class RecordingBackgroundTasks:
+        def add_task(self, fn, *args, **kwargs):
+            scheduled.append((fn, args, kwargs))
+
+    res = coordinator.replay_cached_analysis(
+        video_id="vid_backfill",
+        background_tasks=RecordingBackgroundTasks(),
+        force=False,
+    )
+    assert res["status"] == "ready"
+    assert res["hooks"][0]["thumbnail_url"] is None
+    assert adapter.calls == []
+    assert len(scheduled) == 1
+
+    fn, args, kwargs = scheduled[0]
+    fn(*args, **kwargs)
+
+    expected_url = "/assets/sources/vid_backfill/thumb_12.jpg"
+    assert (source_dir / "thumb_12.jpg").exists()
+    assert coordinator.jobs[res["job_id"]]["hooks"][0]["thumbnail_url"] == expected_url
+    persisted = json.loads(hooks_path.read_text())
+    assert persisted[0]["thumbnail_url"] == expected_url
+
+
+def test_run_full_analysis_cache_hit_backfills_thumbnails_in_background(mock_dependencies, tmp_path):
+    import time as time_mod
+    from core.hook_discovery_engine import HookDiscoveryEngine
+    from core.media_transcoder import FakeMediaAdapter, MediaTranscoder
+
+    adapter = FakeMediaAdapter(default_duration=60.0)
+    transcoder = MediaTranscoder(adapter=adapter)
+    engine = HookDiscoveryEngine(media_transcoder=transcoder)
+    mock_dependencies["asset_repository"].transcoder = transcoder
+
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+        hook_discovery_engine=engine,
+    )
+
+    source_dir = tmp_path / "sources" / "vid_full_cache"
+    source_dir.mkdir(parents=True)
+    video_path = source_dir / "full.mp4"
+    video_path.write_text("dummy full")
+    hooks_path = source_dir / "hooks.json"
+    hooks_path.write_text(json.dumps([{"start": 15.0, "end": 40.0, "theme": "Cached Hook"}]))
+
+    mock_dependencies["asset_repository"].get_cached_video.return_value = {
+        "video_id": "vid_full_cache",
+        "title": "Cached Title",
+        "duration": 60.0,
+        "file_path": str(video_path),
+        "folder_name": "vid_full_cache",
+        "hd_ready": True,
+        "fps": 30.0,
+        "asset_url": "/assets/sources/vid_full_cache/full.mp4",
+    }
+
+    job_id = "job_cache_backfill"
+    coordinator.jobs[job_id] = {
+        "status": "queued",
+        "url": "https://youtube.com/watch?v=vid_full_cache",
+        "video_info": None,
+        "full_video_path": None,
+        "hooks": None,
+        "error": None,
+    }
+    coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=vid_full_cache", "id", force_reanalyze=False)
+    assert coordinator.jobs[job_id]["status"] == "ready"
+
+    expected_url = "/assets/sources/vid_full_cache/thumb_15.jpg"
+    deadline = time_mod.monotonic() + 2.0
+    while time_mod.monotonic() < deadline:
+        hooks = coordinator.jobs[job_id].get("hooks") or []
+        if hooks and hooks[0].get("thumbnail_url") == expected_url:
+            break
+        time_mod.sleep(0.01)
+
+    assert coordinator.jobs[job_id]["hooks"][0]["thumbnail_url"] == expected_url
+    assert (source_dir / "thumb_15.jpg").exists()
+    persisted = json.loads(hooks_path.read_text())
+    assert persisted[0]["thumbnail_url"] == expected_url
+
+
 def test_replay_cached_analysis_not_found_raises(mock_dependencies):
     coordinator = ClipWorkflowCoordinator(
         job_store=mock_dependencies["job_store"],
@@ -1320,7 +1445,7 @@ def test_load_ready_clip_reads_transcript_once_via_session_store(mock_dependenci
 
 
 def test_load_ready_clip_passes_real_source_video_info_to_load_cached_hooks(mock_dependencies, tmp_path):
-    """load_ready_clip passes real source video_info and duration so late hooks are preserved and screenshotted from source."""
+    """load_ready_clip passes real source video_info so late hooks stay valid with 0 source FFmpeg seeks."""
     from core.hook_discovery_engine import HookDiscoveryEngine
 
     clips_dir = tmp_path / "clips"
@@ -1378,14 +1503,14 @@ def test_load_ready_clip_passes_real_source_video_info_to_load_cached_hooks(mock
 
     assert len(res["job"]["hooks"]) == 2
     assert [h["start"] for h in res["job"]["hooks"]] == [120.0, 450.0]
+    assert all(h["thumbnail_url"] is None for h in res["job"]["hooks"])
     hook_calls = [
         call
         for call in mock_transcoder.capture_screenshot.call_args_list
-        if "thumb_" in str(call.kwargs.get("output_path", ""))
+        if "thumb_" in str(call) or str(source_video_path) in str(call)
     ]
-    assert len(hook_calls) == 2
-    for call in hook_calls:
-        assert call.kwargs.get("video_path") == str(source_video_path)
+    assert hook_calls == []
+    mock_transcoder.extract_frames.assert_not_called()
     assert res["job"]["clip"]["start"] == 120.0
     assert res["job"]["clip"]["end"] == 165.0
 

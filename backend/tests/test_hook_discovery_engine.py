@@ -63,32 +63,39 @@ def sample_gemini_response():
         }
     ])
 
-def test_load_cached_hooks_when_file_exists(tmp_path, fake_transcoder):
+def test_load_cached_hooks_when_file_exists_is_strictly_readonly(tmp_path):
+    adapter = FakeMediaAdapter()
+    transcoder = MediaTranscoder(adapter=adapter)
     video_dir = tmp_path / "video_source_1"
     video_dir.mkdir()
     video_file = video_dir / "video.mp4"
     video_file.touch()
-    
+
     cached_hooks = [
-        {"start": 10.0, "end": 30.0, "duration": 20.0, "theme": "Existing Cached Hook"}
+        {"start": 10.0, "end": 30.0, "duration": 20.0, "theme": "Existing Cached Hook"},
+        {"start": 40.0, "end": 65.0, "duration": 25.0, "theme": "Thumb Present Hook"},
     ]
     hooks_file = video_dir / "hooks.json"
     hooks_file.write_text(json.dumps(cached_hooks))
-    
-    engine = HookDiscoveryEngine(media_transcoder=fake_transcoder)
+    (video_dir / "thumb_40.jpg").write_bytes(b"\xff\xd8\xff")
+
+    engine = HookDiscoveryEngine(media_transcoder=transcoder)
     video_info = {
         "file_path": str(video_file),
         "duration": 100.0,
         "folder_name": "video_source_1"
     }
-    
+
     result = engine.load_cached_hooks(video_info)
     assert result is not None
-    assert len(result) == 1
+    assert len(result) == 2
     assert result[0]["theme"] == "Existing Cached Hook"
     assert result[0]["start"] == 10.0
     assert result[0]["duration"] == 20.0
-    assert "thumbnail_url" in result[0]
+    assert result[0]["thumbnail_url"] is None
+    assert not (video_dir / "thumb_10.jpg").exists()
+    assert result[1]["thumbnail_url"] == "/assets/sources/video_source_1/thumb_40.jpg"
+    assert adapter.calls == []
 
 def test_load_cached_hooks_returns_none_when_no_cache(tmp_path, fake_transcoder):
     video_dir = tmp_path / "video_source_2"
@@ -106,64 +113,121 @@ def test_load_cached_hooks_returns_none_when_no_cache(tmp_path, fake_transcoder)
     result = engine.load_cached_hooks(video_info)
     assert result is None
 
-def test_get_or_discover_hooks_cache_hit_skips_gemini(tmp_path, fake_transcoder):
+def test_get_or_discover_hooks_cache_hit_backfills_missing_thumbs_and_preserves_edits(tmp_path):
+    adapter = FakeMediaAdapter()
+    transcoder = MediaTranscoder(adapter=adapter)
     video_dir = tmp_path / "video_source_3"
     video_dir.mkdir()
     video_file = video_dir / "video.mp4"
     video_file.touch()
-    
+
+    hooks_file = video_dir / "hooks.json"
     cached_hooks = [
-        {"start": 5.0, "end": 25.0, "duration": 20.0, "theme": "Cache Hit"}
+        {"start": 5.0, "end": 25.0, "duration": 20.0, "theme": "Cache Hit"},
+        {"start": 30.0, "end": 55.0, "duration": 25.0, "theme": "Already Ready"},
     ]
-    (video_dir / "hooks.json").write_text(json.dumps(cached_hooks))
-    
+    hooks_file.write_text(json.dumps(cached_hooks))
+    (video_dir / "thumb_30.jpg").write_bytes(b"\xff\xd8\xff")
+
     class ExplodingClient(GenAIClient):
         def generate_json(self, prompt, model_name):
             raise AssertionError("Gemini should not be called when cached hooks exist!")
-            
-    engine = HookDiscoveryEngine(genai_client=ExplodingClient(), media_transcoder=fake_transcoder)
+
+    engine = HookDiscoveryEngine(genai_client=ExplodingClient(), media_transcoder=transcoder)
     video_info = {
         "file_path": str(video_file),
         "duration": 100.0,
         "folder_name": "video_source_3"
     }
-    
+
     result = engine.get_or_discover_hooks(video_info, transcript_segments=[])
-    assert len(result) == 1
+    assert len(result) == 2
     assert result[0]["theme"] == "Cache Hit"
+    assert result[0]["thumbnail_url"] == "/assets/sources/video_source_3/thumb_5.jpg"
+    assert (video_dir / "thumb_5.jpg").exists()
+    # Only the missing thumbnail triggered FFmpeg; duration came from video_info -> 0 ffprobe calls
+    assert len([c for c in adapter.calls if c[0] == "ffprobe_info"]) == 0
+    assert len([c for c in adapter.calls if c[0] == "run_ffmpeg"]) == 1
+
+
+def test_ensure_hook_thumbnails_persist_merges_without_clobbering_concurrent_edits(tmp_path):
+    video_dir = tmp_path / "video_merge"
+    video_dir.mkdir()
+    video_file = video_dir / "video.mp4"
+    video_file.touch()
+    hooks_file = video_dir / "hooks.json"
+    hooks_file.write_text(json.dumps([
+        {"start": 10.0, "end": 30.0, "duration": 20.0, "theme": "Original Theme"}
+    ]))
+
+    def simulate_concurrent_edit(_args):
+        hooks_file.write_text(json.dumps([
+            {"start": 10.0, "end": 30.0, "duration": 20.0, "theme": "Creator Edited Theme"}
+        ]))
+
+    adapter = FakeMediaAdapter(ffmpeg_side_effect=simulate_concurrent_edit)
+    engine = HookDiscoveryEngine(media_transcoder=MediaTranscoder(adapter=adapter))
+    video_info = {"file_path": str(video_file), "duration": 100.0, "folder_name": "video_merge"}
+
+    stale_snapshot = engine.load_cached_hooks(video_info)
+    assert stale_snapshot is not None
+    assert stale_snapshot[0]["thumbnail_url"] is None
+
+    backfilled = engine.ensure_hook_thumbnails(stale_snapshot, video_info, persist=True)
+    assert backfilled[0]["thumbnail_url"] == "/assets/sources/video_merge/thumb_10.jpg"
+
+    persisted = json.loads(hooks_file.read_text())
+    assert persisted[0]["theme"] == "Creator Edited Theme"
+    assert persisted[0]["thumbnail_url"] == "/assets/sources/video_merge/thumb_10.jpg"
+
 
 def test_get_or_discover_hooks_cache_miss_generates_and_persists(
-    tmp_path, fake_transcoder, sample_transcript, sample_gemini_response
+    tmp_path, sample_transcript, sample_gemini_response
 ):
+    adapter = FakeMediaAdapter()
+    transcoder = MediaTranscoder(adapter=adapter)
     video_dir = tmp_path / "video_source_4"
     video_dir.mkdir()
     video_file = video_dir / "video.mp4"
     video_file.touch()
-    
+
     mock_client = MockGenAIClient(sample_gemini_response)
-    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
-    
+    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=transcoder)
+
+    group_calls = 0
+    orig_group = engine._group_words_into_sentences
+
+    def spy_group(*args, **kwargs):
+        nonlocal group_calls
+        group_calls += 1
+        return orig_group(*args, **kwargs)
+
+    engine._group_words_into_sentences = spy_group
+
     video_info = {
         "file_path": str(video_file),
         "duration": 120.0,
         "folder_name": "video_source_4"
     }
-    
+
     options = HookDiscoveryOptions(preset_id="educational", num_hooks=5)
     result = engine.get_or_discover_hooks(
         video_info=video_info,
         transcript_segments=sample_transcript,
         options=options
     )
-    
+
+    assert group_calls == 1
     assert len(result) == 2
     # Verify descending sort by virality score
     assert result[0]["virality_score"] == 92
     assert result[1]["virality_score"] == 75
-    # Verify thumbnails extracted
+    # Verify thumbnails extracted via batch with 0 ffprobes
     assert result[0]["thumbnail_url"] == "/assets/sources/video_source_4/thumb_0.jpg"
     assert result[1]["thumbnail_url"] == "/assets/sources/video_source_4/thumb_40.jpg"
-    
+    assert len([c for c in adapter.calls if c[0] == "ffprobe_info"]) == 0
+    assert len([c for c in adapter.calls if c[0] == "run_ffmpeg"]) == 2
+
     # Verify written to disk cache
     hooks_file = video_dir / "hooks.json"
     assert hooks_file.exists()
@@ -397,18 +461,11 @@ def test_hook_discovery_virality_score_fallback(sample_transcript, fake_transcod
     assert "virality_reason" in result[0]
 
 
-def test_find_hooks_from_transcript_backward_compat(sample_transcript, sample_gemini_response, fake_transcoder):
-    """Verify backward-compatible find_hooks_from_transcript string JSON output and hook_generator property."""
-    mock_client = MockGenAIClient(sample_gemini_response)
-    engine = HookDiscoveryEngine(genai_client=mock_client, media_transcoder=fake_transcoder)
-    
-    assert engine.hook_generator is engine
-    
-    raw_json = engine.find_hooks_from_transcript(sample_transcript)
-    assert raw_json is not None
-    parsed = json.loads(raw_json)
-    assert len(parsed) == 2
-    assert parsed[0]["theme"] == "Top Viral Intro"
+def test_deprecated_hook_generator_compat_shims_removed(fake_transcoder):
+    """Deprecated find_hooks_from_transcript and hook_generator shims have been removed."""
+    engine = HookDiscoveryEngine(genai_client=MockGenAIClient(), media_transcoder=fake_transcoder)
+    assert not hasattr(engine, "find_hooks_from_transcript")
+    assert not hasattr(engine, "hook_generator")
 
 
 def test_discover_from_transcript_uses_default_and_dynamic_config_models(

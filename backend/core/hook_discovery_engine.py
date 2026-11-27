@@ -4,6 +4,8 @@ import json
 import math
 import time
 import inspect
+import threading
+import uuid
 from typing import Optional, List, Dict, Any, Callable, Tuple
 from dataclasses import dataclass
 
@@ -31,7 +33,7 @@ from core.gemini_models import (
 )
 from core.prompt_repository import FilePromptRepository, PromptRepository
 from core.modular_prompt_builder import ModularCompositePromptBuilder
-from core.media_transcoder import MediaTranscoder
+from core.media_transcoder import FrameExtractionRequest, MediaTranscoder
 
 
 @dataclass
@@ -50,7 +52,7 @@ class HookDiscoveryEngine:
     """
     Unified backend module responsible for AI-assisted hook detection from speech transcripts,
     prompt orchestration, virality scoring, hook boundary and duration sanitization,
-    thumbnail extraction via MediaTranscoder, and disk cache lifecycle management.
+    batched thumbnail extraction via MediaTranscoder, and disk cache lifecycle management.
     """
 
     def __init__(
@@ -61,7 +63,6 @@ class HookDiscoveryEngine:
         prompt_repository: Optional[PromptRepository] = None,
         modular_builder: Optional[ModularCompositePromptBuilder] = None,
         model_name: str = DEFAULT_GEMINI_MODEL,
-        hook_generator: Optional[Any] = None,
         sleep_fn: Callable[[float], None] = time.sleep,
     ):
         self.config_store = config_store
@@ -69,8 +70,7 @@ class HookDiscoveryEngine:
         self.modular_builder = modular_builder or ModularCompositePromptBuilder()
         self.transcoder = media_transcoder or MediaTranscoder(config_store=self.config_store)
         self._sleep = sleep_fn
-
-        self._hook_generator = hook_generator
+        self._cache_lock = threading.Lock()
 
         if prompt_repository is not None:
             self.repository = prompt_repository
@@ -110,11 +110,6 @@ class HookDiscoveryEngine:
     @client.setter
     def client(self, value: Optional[GenAIClient]) -> None:
         self._client = value
-
-    @property
-    def hook_generator(self):
-        """Backward-compatible self-reference for legacy consumers expecting hook_generator."""
-        return self
 
     def get_active_model_name(self) -> str:
         """Resolve active Hook Discovery Model dynamically from config_store or constructor fallback."""
@@ -424,7 +419,7 @@ class HookDiscoveryEngine:
         return os.path.join(os.path.dirname(file_path), "hooks.json")
 
     def load_cached_hooks(self, video_info: dict) -> Optional[List[Dict[str, Any]]]:
-        """Load and sanitize cached hooks from hooks.json if it exists."""
+        """Load and sanitize cached hooks from hooks.json without mutating disk or spawning FFmpeg."""
         cache_path = self._get_cache_path(video_info)
         if not cache_path or not os.path.exists(cache_path):
             return None
@@ -433,8 +428,7 @@ class HookDiscoveryEngine:
                 raw_hooks = json.load(f)
             if not isinstance(raw_hooks, list):
                 return None
-            sanitized = self.sanitize_and_prepare_hooks(raw_hooks, video_info)
-            return sanitized
+            return self.sanitize_hooks(raw_hooks, video_info)
         except Exception as e:
             print(f"[hook-discovery-engine] Failed to load cached hooks from {cache_path}: {e}")
             return None
@@ -530,6 +524,7 @@ class HookDiscoveryEngine:
         transcript_segments: list,
         video_info: Optional[dict] = None,
         options: Optional[HookDiscoveryOptions] = None,
+        grouped_segments: Optional[list] = None,
     ) -> List[Dict[str, Any]]:
         """Direct AI transcript hook discovery with sentence grouping, retries, and scoring."""
         opts = options or HookDiscoveryOptions()
@@ -541,7 +536,11 @@ class HookDiscoveryEngine:
             print("[hook-discovery-engine] No GenAI client or GEMINI_API_KEY available.")
             raise missing_api_key_error(active_model)
 
-        grouped_segments = self._group_words_into_sentences(transcript_segments)
+        grouped_segments = (
+            grouped_segments
+            if grouped_segments is not None
+            else self._group_words_into_sentences(transcript_segments)
+        )
         effective_video_duration = meta_duration if (meta_duration is not None and meta_duration > 0.0) else None
         if effective_video_duration is None and grouped_segments:
             span_end = max(
@@ -682,37 +681,6 @@ class HookDiscoveryEngine:
             raise last_error
         raise invalid_response_error(active_model)
 
-    def find_hooks_from_transcript(
-        self,
-        transcript_segments: list,
-        num_hooks: int = 10,
-        auto_hooks: bool = False,
-        video_duration: Optional[float] = None,
-        prompt_file: Optional[str] = None,
-        extraction_mode: str = "preset",
-        preset_id: str = "auto",
-        focus_topic: Optional[str] = None,
-        min_duration: int = 30,
-        max_duration: int = 180,
-    ) -> Optional[str]:
-        """Backward-compatible string JSON entry point for callers expecting HookGenerator.find_hooks_from_transcript."""
-        opts = HookDiscoveryOptions(
-            num_hooks=num_hooks,
-            auto_hooks=auto_hooks,
-            prompt_file=prompt_file,
-            extraction_mode=extraction_mode,
-            preset_id=preset_id,
-            focus_topic=focus_topic,
-            min_duration=min_duration,
-            max_duration=max_duration,
-        )
-        hooks = self.discover_from_transcript(
-            transcript_segments=transcript_segments,
-            video_info={"duration": video_duration} if video_duration else None,
-            options=opts,
-        )
-        return json.dumps(hooks) if hooks else None
-
     def get_or_discover_hooks(
         self,
         video_info: dict,
@@ -726,6 +694,8 @@ class HookDiscoveryEngine:
         if not force_reanalyze:
             cached = self.load_cached_hooks(video_info)
             if cached is not None and len(cached) > 0:
+                if any(not h.get("thumbnail_url") for h in cached):
+                    cached = self.ensure_hook_thumbnails(cached, video_info, persist=True)
                 print(f"[hook-discovery-engine] Hooks loaded from cache: {cache_path}")
                 return cached
 
@@ -734,11 +704,16 @@ class HookDiscoveryEngine:
             return []
 
         opts = options or HookDiscoveryOptions()
-        raw_hooks = self.discover_from_transcript(transcript_segments, video_info=video_info, options=opts)
+        grouped_segments = self._group_words_into_sentences(transcript_segments)
+        raw_hooks = self.discover_from_transcript(
+            transcript_segments,
+            video_info=video_info,
+            options=opts,
+            grouped_segments=grouped_segments,
+        )
         if not raw_hooks:
             return []
 
-        grouped_segments = self._group_words_into_sentences(transcript_segments)
         sanitized = self.sanitize_and_prepare_hooks(
             raw_hooks,
             video_info,
@@ -749,7 +724,7 @@ class HookDiscoveryEngine:
         if cache_path:
             try:
                 os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-                tmp_cache = cache_path + ".tmp"
+                tmp_cache = f"{cache_path}.{uuid.uuid4().hex}.tmp"
                 with open(tmp_cache, "w", encoding="utf-8") as f:
                     json.dump(sanitized, f, ensure_ascii=False, indent=2)
                 os.replace(tmp_cache, cache_path)
@@ -759,7 +734,7 @@ class HookDiscoveryEngine:
 
         return sanitized
 
-    def sanitize_and_prepare_hooks(
+    def sanitize_hooks(
         self,
         raw_hooks: list,
         video_info: dict,
@@ -767,7 +742,7 @@ class HookDiscoveryEngine:
         max_duration: Optional[float] = None,
         grouped_segments: Optional[list] = None,
     ) -> List[Dict[str, Any]]:
-        """Filter, clamp boundaries, re-slice modified quotes, and generate sharp thumbnails."""
+        """Pure in-memory boundary clamping, quote re-slicing, and disk thumbnail lookup."""
         video_duration = video_info.get("duration", float("inf"))
         file_path = video_info.get("file_path")
         if not file_path:
@@ -778,9 +753,10 @@ class HookDiscoveryEngine:
 
         min_dur = 15.0 if min_duration is None else float(min_duration)
         max_dur = 180.0 if max_duration is None else float(max_duration)
-        filtered = []
-        for h in raw_hooks:
+        filtered: List[Dict[str, Any]] = []
+        for raw_h in raw_hooks:
             try:
+                h = dict(raw_h)
                 h_start = float(h.get("start", 0))
                 h_end = float(h.get("end", 0))
 
@@ -825,19 +801,137 @@ class HookDiscoveryEngine:
                     if sliced:
                         h["transcript_quote"] = sliced
 
-                thumb_name = f"thumb_{int(h_start)}.jpg"
+                thumb_name = f"thumb_{int(h['start'])}.jpg"
                 thumb_local_path = os.path.join(target_dir, thumb_name)
-
-                # Delegate screenshot extraction cleanly to MediaTranscoder
-                if not os.path.exists(thumb_local_path):
-                    self.transcoder.capture_screenshot(
-                        video_path=file_path,
-                        timestamp=h_start,
-                        output_path=thumb_local_path
-                    )
-                h["thumbnail_url"] = f"/assets/sources/{folder_name}/{thumb_name}"
+                h["thumbnail_url"] = (
+                    f"/assets/sources/{folder_name}/{thumb_name}"
+                    if os.path.exists(thumb_local_path)
+                    else None
+                )
                 filtered.append(h)
             except Exception as e:
                 print(f"[hook-discovery-engine] Failed to sanitize hook: {e}")
 
         return filtered
+
+    def _merge_persisted_hook_thumbnails(
+        self,
+        video_info: dict,
+        thumb_by_span: Dict[Tuple[float, float], str],
+    ) -> None:
+        """Atomically merge newly generated thumbnail_url values into hooks.json without clobbering edits."""
+        cache_path = self._get_cache_path(video_info)
+        if not cache_path or not os.path.exists(cache_path):
+            return
+
+        with self._cache_lock:
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    disk_hooks = json.load(f)
+                if not isinstance(disk_hooks, list):
+                    return
+
+                changed = False
+                for item in disk_hooks:
+                    if not isinstance(item, dict):
+                        continue
+                    s_val = self._safe_float(item.get("start"))
+                    e_val = self._safe_float(item.get("end"))
+                    if s_val is None or e_val is None:
+                        continue
+                    new_url = thumb_by_span.get((round(s_val, 2), round(e_val, 2)))
+                    if new_url and item.get("thumbnail_url") != new_url:
+                        item["thumbnail_url"] = new_url
+                        changed = True
+
+                if changed:
+                    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+                    tmp_cache = f"{cache_path}.{uuid.uuid4().hex}.tmp"
+                    with open(tmp_cache, "w", encoding="utf-8") as f:
+                        json.dump(disk_hooks, f, ensure_ascii=False, indent=2)
+                    os.replace(tmp_cache, cache_path)
+            except Exception as e:
+                print(f"[hook-discovery-engine] Failed to merge hook thumbnails into {cache_path}: {e}")
+
+    def ensure_hook_thumbnails(
+        self,
+        hooks: list,
+        video_info: dict,
+        *,
+        persist: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Batch-extract any missing hook thumbnails via MediaTranscoder and optionally persist to hooks.json."""
+        if not hooks:
+            return []
+
+        prepared = [dict(h) for h in hooks]
+        file_path = video_info.get("file_path")
+        if not file_path:
+            return prepared
+
+        folder_name = video_info.get("folder_name") or os.path.basename(os.path.dirname(file_path))
+        target_dir = os.path.dirname(file_path)
+
+        requests: List[FrameExtractionRequest] = []
+        hook_thumbs: List[Tuple[Dict[str, Any], str, str]] = []
+        for h in prepared:
+            start_val = self._safe_float(h.get("start"))
+            if start_val is None:
+                continue
+            thumb_name = f"thumb_{int(start_val)}.jpg"
+            thumb_local_path = os.path.join(target_dir, thumb_name)
+            thumb_url = f"/assets/sources/{folder_name}/{thumb_name}"
+            hook_thumbs.append((h, thumb_local_path, thumb_url))
+            if not os.path.exists(thumb_local_path):
+                requests.append(
+                    FrameExtractionRequest(
+                        timestamp=start_val,
+                        output_path=thumb_local_path,
+                    )
+                )
+
+        extract_results: Dict[str, bool] = {}
+        if requests:
+            raw_dur = self._safe_float(video_info.get("duration"))
+            finite_duration = raw_dur if (raw_dur is not None and raw_dur > 0.0) else None
+            res = self.transcoder.extract_frames(
+                file_path,
+                requests,
+                video_duration=finite_duration,
+            )
+            if isinstance(res, dict):
+                extract_results = res
+
+        newly_populated: Dict[Tuple[float, float], str] = {}
+        for h, thumb_local_path, thumb_url in hook_thumbs:
+            exists = os.path.exists(thumb_local_path) or bool(extract_results.get(thumb_local_path))
+            prev_url = h.get("thumbnail_url")
+            h["thumbnail_url"] = thumb_url if exists else None
+            if exists and not prev_url:
+                s_val = self._safe_float(h.get("start"))
+                e_val = self._safe_float(h.get("end"))
+                if s_val is not None and e_val is not None:
+                    newly_populated[(round(s_val, 2), round(e_val, 2))] = thumb_url
+
+        if persist and newly_populated:
+            self._merge_persisted_hook_thumbnails(video_info, newly_populated)
+
+        return prepared
+
+    def sanitize_and_prepare_hooks(
+        self,
+        raw_hooks: list,
+        video_info: dict,
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        grouped_segments: Optional[list] = None,
+    ) -> List[Dict[str, Any]]:
+        """Filter, clamp boundaries, re-slice modified quotes, and batch-extract hook thumbnails."""
+        sanitized = self.sanitize_hooks(
+            raw_hooks,
+            video_info,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            grouped_segments=grouped_segments,
+        )
+        return self.ensure_hook_thumbnails(sanitized, video_info, persist=False)

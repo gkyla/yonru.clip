@@ -2,6 +2,7 @@ import os
 import json
 import shutil
 import re
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any, List
@@ -190,6 +191,100 @@ class ClipWorkflowCoordinator:
 
         return {"deleted": total_deleted, "folder": folder_name}
 
+    def _backfill_cached_hook_thumbnails(
+        self,
+        job_id: str,
+        video_info: Dict[str, Any],
+        hooks: List[Dict[str, Any]],
+    ) -> None:
+        """Extract missing hook thumbnails in a background batch and update JobStore if active."""
+        try:
+            job = self.jobs.get_job(job_id)
+            if not job or job.get("status") in ("error", "cancelled"):
+                return
+
+            backfilled = self.hook_discovery_engine.ensure_hook_thumbnails(
+                hooks, video_info, persist=True
+            )
+            thumb_by_span: Dict[tuple, str] = {}
+            for item in backfilled:
+                url = item.get("thumbnail_url")
+                if url:
+                    try:
+                        key = (
+                            round(float(item.get("start", 0.0)), 2),
+                            round(float(item.get("end", 0.0)), 2),
+                        )
+                        thumb_by_span[key] = url
+                    except (TypeError, ValueError):
+                        pass
+
+            if not thumb_by_span:
+                return
+
+            job = self.jobs.get_job(job_id)
+            if not job or job.get("status") in ("error", "cancelled"):
+                return
+
+            existing_hooks = job.get("hooks")
+            source_hooks = (
+                existing_hooks
+                if isinstance(existing_hooks, list) and existing_hooks
+                else backfilled
+            )
+            updated_hooks: List[Dict[str, Any]] = []
+            changed = False
+            for item in source_hooks:
+                copied = dict(item)
+                try:
+                    key = (
+                        round(float(copied.get("start", 0.0)), 2),
+                        round(float(copied.get("end", 0.0)), 2),
+                    )
+                except (TypeError, ValueError):
+                    key = None
+                new_url = thumb_by_span.get(key) if key is not None else None
+                if new_url and not copied.get("thumbnail_url"):
+                    copied["thumbnail_url"] = new_url
+                    changed = True
+                updated_hooks.append(copied)
+
+            if changed:
+                self.jobs.update_job(job_id, hooks=updated_hooks)
+        except Exception as e:
+            print(f"[cache] Background hook thumbnail backfill failed for job {job_id}: {e}")
+
+    def _schedule_hook_thumbnail_backfill(
+        self,
+        job_id: str,
+        video_info: Dict[str, Any],
+        hooks: List[Dict[str, Any]],
+        background_tasks: Any = None,
+    ) -> None:
+        """Schedule non-blocking batch extraction when cached hooks lack thumbnails on disk."""
+        if not hooks or all(h.get("thumbnail_url") for h in hooks):
+            return
+        file_path = video_info.get("file_path")
+        if not file_path or not os.path.exists(str(file_path)):
+            return
+
+        video_snapshot = dict(video_info)
+        hooks_snapshot = [dict(h) for h in hooks]
+        if background_tasks is not None:
+            background_tasks.add_task(
+                self._backfill_cached_hook_thumbnails,
+                job_id,
+                video_snapshot,
+                hooks_snapshot,
+            )
+        else:
+            t = threading.Thread(
+                target=self._backfill_cached_hook_thumbnails,
+                args=(job_id, video_snapshot, hooks_snapshot),
+            )
+            t.daemon = True
+            t.start()
+
     def replay_cached_analysis(
         self,
         video_id: str,
@@ -256,6 +351,13 @@ class ClipWorkflowCoordinator:
                         print(f"[cache] Triggered background prefetch of HD source for {video_id}")
                     else:
                         print(f"[cache] Video and hooks loaded instantly from cache for {video_id}")
+
+                    self._schedule_hook_thumbnail_backfill(
+                        job_id,
+                        cached,
+                        filtered,
+                        background_tasks=background_tasks,
+                    )
 
                     _heatmap = cached.get("heatmap") or []
                     video_dict = {
@@ -649,7 +751,8 @@ class ClipWorkflowCoordinator:
                             t = threading.Thread(target=self.run_source_download, args=(job_id, url))
                             t.daemon = True
                             t.start()
-                            
+
+                        self._schedule_hook_thumbnail_backfill(job_id, cached_video, filtered)
                         print(f"[cache] successfully load from cache")
                         return
 
