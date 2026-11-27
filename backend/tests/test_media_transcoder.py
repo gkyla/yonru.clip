@@ -234,4 +234,199 @@ def test_ffmpeg_availability_and_dynamic_config_store_resolution(tmp_path):
     assert str(custom_dir) in sub_adapter._build_env()["PATH"]
 
 
+def test_extract_clip_bundle_single_pass_produces_video_thumb_and_audio(tmp_path):
+    adapter = FakeMediaAdapter()
+    transcoder = MediaTranscoder(adapter=adapter)
+
+    source_video = tmp_path / "source.mp4"
+    source_video.write_text("source video bytes")
+    out_video = tmp_path / "clip" / "video.mp4"
+    out_thumb = tmp_path / "clip" / "thumbnail.jpg"
+    out_audio = tmp_path / "ephemeral_audio.wav"
+
+    result = transcoder.extract_clip_bundle(
+        str(source_video),
+        start_time=10.0,
+        end_time=25.0,
+        output_video_path=str(out_video),
+        output_thumbnail_path=str(out_thumb),
+        output_audio_path=str(out_audio),
+    )
+
+    assert result.video_path == str(out_video)
+    assert result.thumbnail_path == str(out_thumb)
+    assert result.audio_path == str(out_audio)
+    assert result.encoder == "libx264"
+    assert out_video.exists()
+    assert out_thumb.exists()
+    assert out_audio.exists()
+
+    ffmpeg_calls = [args for name, args in adapter.calls if name == "run_ffmpeg"]
+    ffprobe_calls = [arg for name, arg in adapter.calls if name == "ffprobe_info"]
+    assert len(ffmpeg_calls) == 1
+    assert len(ffprobe_calls) == 0
+
+    args = ffmpeg_calls[0]
+    assert "-accurate_seek" in args
+    assert args[args.index("-bf") + 1] == "0"
+    assert args[args.index("-avoid_negative_ts") + 1] == "auto"
+    assert args[args.index("-movflags") + 1] == "+faststart"
+    assert args[args.index("-frames:v") + 1] == "1"
+    assert args[args.index("-update") + 1] == "1"
+    assert args[args.index("-ar") + 1] == "16000"
+    t_indices = [idx for idx, token in enumerate(args) if token == "-t"]
+    assert len(t_indices) == 2
+    assert all(args[idx + 1] == "15.0" for idx in t_indices)
+
+
+def test_extract_clip_bundle_hardware_encoder_selection_and_override(tmp_path):
+    from core.config_store import InMemoryConfigStore
+    from core.hardware_profiler import FakeHardwareMetricsSource, HardwareProfiler
+
+    source_video = tmp_path / "source.mp4"
+    source_video.write_text("source")
+
+    cases = [
+        ("Darwin", "arm64", "apple_silicon", None, "libx264", ("-preset", "superfast", "-crf", "23", "-bf", "0")),
+        ("Darwin", "arm64", "apple_silicon", "videotoolbox", "h264_videotoolbox", ("-q:v", "65", "-bf", "0")),
+        ("Darwin", "arm64", "apple_silicon", "force", "h264_videotoolbox", ("-q:v", "65", "-bf", "0")),
+        ("Darwin", "x86_64", "cpu", None, "h264_videotoolbox", ("-q:v", "65", "-bf", "0")),
+        ("Darwin", "x86_64", "cpu", "disable", "libx264", ("-preset", "superfast", "-crf", "23", "-bf", "0")),
+        ("Linux", "x86_64", "cuda", None, "h264_nvenc", ("-preset", "p4", "-cq", "23")),
+        ("Linux", "x86_64", "cuda", "disable", "libx264", ("-preset", "superfast", "-crf", "23", "-bf", "0")),
+        ("Linux", "x86_64", "cpu", None, "libx264", ("-preset", "superfast", "-crf", "23", "-bf", "0")),
+    ]
+
+    for idx, (system_os, cpu_arch, gpu_type, override, expected_codec, expected_tokens) in enumerate(cases):
+        adapter = FakeMediaAdapter()
+        profiler = HardwareProfiler(
+            metrics_source=FakeHardwareMetricsSource(
+                system_os=system_os,
+                cpu_arch=cpu_arch,
+                gpu_type=gpu_type,
+            )
+        )
+        cfg = (
+            InMemoryConfigStore({"FFMPEG_HARDWARE_ACCELERATION": override})
+            if override is not None
+            else None
+        )
+        transcoder = MediaTranscoder(adapter=adapter, config_store=cfg, hardware_profiler=profiler)
+        out_video = tmp_path / f"clip_{idx}.mp4"
+
+        result = transcoder.extract_clip_bundle(str(source_video), 1.0, 5.0, str(out_video))
+        assert result.encoder == expected_codec
+        call_args = [args for name, args in adapter.calls if name == "run_ffmpeg"][-1]
+        assert call_args[call_args.index("-c:v") + 1] == expected_codec
+        assert call_args[call_args.index("-pix_fmt") + 1] == "yuv420p"
+        for i in range(0, len(expected_tokens), 2):
+            flag, val = expected_tokens[i], expected_tokens[i + 1]
+            assert call_args[call_args.index(flag) + 1] == val
+
+
+def test_extract_clip_bundle_retries_once_with_software_on_hardware_failure(tmp_path):
+    from core.config_store import InMemoryConfigStore
+    from core.hardware_profiler import FakeHardwareMetricsSource, HardwareProfiler
+
+    source_video = tmp_path / "source.mp4"
+    source_video.write_text("source")
+
+    scenarios = [
+        ("Darwin", "x86_64", "cpu", None),
+        ("Darwin", "arm64", "apple_silicon", "videotoolbox"),
+    ]
+
+    for idx, (system_os, cpu_arch, gpu_type, override) in enumerate(scenarios):
+        out_video = tmp_path / f"out_{idx}.mp4"
+        out_thumb = tmp_path / f"thumb_{idx}.jpg"
+        out_audio = tmp_path / f"audio_{idx}.wav"
+
+        adapter = FakeMediaAdapter(fail_codecs={"h264_videotoolbox"})
+        profiler = HardwareProfiler(
+            metrics_source=FakeHardwareMetricsSource(
+                system_os=system_os,
+                cpu_arch=cpu_arch,
+                gpu_type=gpu_type,
+            )
+        )
+        cfg = (
+            InMemoryConfigStore({"FFMPEG_HARDWARE_ACCELERATION": override})
+            if override is not None
+            else None
+        )
+        transcoder = MediaTranscoder(adapter=adapter, config_store=cfg, hardware_profiler=profiler)
+
+        result = transcoder.extract_clip_bundle(
+            str(source_video),
+            start_time=0.0,
+            end_time=8.0,
+            output_video_path=str(out_video),
+            output_thumbnail_path=str(out_thumb),
+            output_audio_path=str(out_audio),
+        )
+
+        ffmpeg_calls = [args for name, args in adapter.calls if name == "run_ffmpeg"]
+        assert len(ffmpeg_calls) == 2
+        assert ffmpeg_calls[0][ffmpeg_calls[0].index("-c:v") + 1] == "h264_videotoolbox"
+        assert ffmpeg_calls[1][ffmpeg_calls[1].index("-c:v") + 1] == "libx264"
+        assert result.encoder == "libx264"
+        assert out_video.exists()
+        assert out_thumb.exists()
+        assert out_audio.exists()
+
+
+def test_extract_clip_bundle_falls_back_without_audio_on_silent_video(tmp_path):
+    source_video = tmp_path / "silent.mp4"
+    source_video.write_text("silent video")
+    out_video = tmp_path / "out.mp4"
+    out_thumb = tmp_path / "thumb.jpg"
+    out_audio = tmp_path / "audio.wav"
+
+    def fail_on_audio_map(args):
+        if "0:a:0" in args:
+            raise RuntimeError("Stream map '0:a:0' matches no streams")
+
+    adapter = FakeMediaAdapter(ffmpeg_side_effect=fail_on_audio_map)
+    transcoder = MediaTranscoder(adapter=adapter)
+
+    result = transcoder.extract_clip_bundle(
+        str(source_video),
+        start_time=2.0,
+        end_time=6.0,
+        output_video_path=str(out_video),
+        output_thumbnail_path=str(out_thumb),
+        output_audio_path=str(out_audio),
+    )
+
+    ffmpeg_calls = [args for name, args in adapter.calls if name == "run_ffmpeg"]
+    assert len(ffmpeg_calls) == 2
+    assert "0:a:0" in ffmpeg_calls[0]
+    assert "0:a:0" not in ffmpeg_calls[1]
+    assert result.video_path == str(out_video)
+    assert result.thumbnail_path == str(out_thumb)
+    assert result.audio_path is None
+    assert out_video.exists()
+    assert out_thumb.exists()
+    assert not out_audio.exists()
+
+
+def test_extract_frame_skips_ffprobe_at_timestamp_zero(tmp_path):
+    adapter = FakeMediaAdapter()
+    transcoder = MediaTranscoder(adapter=adapter)
+
+    dummy_video = tmp_path / "clip.mp4"
+    dummy_video.write_text("video")
+    out_thumb = tmp_path / "thumb.jpg"
+
+    success = transcoder.extract_frame(str(dummy_video), timestamp=0.0, output_path=str(out_thumb))
+    assert success is True
+    assert out_thumb.exists()
+
+    ffmpeg_calls = [args for name, args in adapter.calls if name == "run_ffmpeg"]
+    ffprobe_calls = [arg for name, arg in adapter.calls if name == "ffprobe_info"]
+    assert len(ffmpeg_calls) == 1
+    assert len(ffprobe_calls) == 0
+    assert float(ffmpeg_calls[0][ffmpeg_calls[0].index("-ss") + 1]) == 0.0
+
+
 
