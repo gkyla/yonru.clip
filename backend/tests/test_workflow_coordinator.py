@@ -1104,8 +1104,101 @@ def test_run_local_cut_uses_injected_clip_session_store(mock_dependencies, tmp_p
     
     assert coordinator.jobs[job_id]["status"] == "ready"
     assert coordinator.jobs[job_id]["clip_duration"] == 15.0
-    mock_clip_store.create_clip.assert_called_once_with(str(video_file), 5.0, 20.0, theme=None)
+    mock_clip_store.create_clip.assert_called_once_with(
+        str(video_file), 5.0, 20.0, theme=None, extract_audio=True
+    )
     mock_clip_store.extract_clip_audio.assert_called_once_with(str(clip_file))
+
+
+def test_run_local_cut_single_pass_ephemeral_audio_cleaned_up_on_success_and_failure(mock_dependencies, tmp_path):
+    """run_local_cut extracts video+thumb+ephemeral WAV in one pass and cleans up the WAV on both success and failure."""
+    from core.media_transcoder import FakeMediaAdapter, MediaTranscoder
+
+    clips_dir = tmp_path / "clips"
+    sources_dir = tmp_path / "sources" / "src_folder"
+    clips_dir.mkdir(parents=True)
+    sources_dir.mkdir(parents=True)
+    source_video = sources_dir / "full.mp4"
+    source_video.write_text("dummy full video")
+
+    mock_dependencies["asset_repository"].clips_dir = str(clips_dir)
+    mock_dependencies["asset_repository"].output_dir = str(tmp_path)
+
+    adapter = FakeMediaAdapter()
+    transcoder = MediaTranscoder(adapter=adapter)
+    mock_tracker = MagicMock()
+    mock_tracker.analyze_video.return_value = [{"time": 0.0, "x": 960}]
+    clip_store = ClipSessionStore(
+        clips_dir=str(clips_dir),
+        output_dir=str(tmp_path),
+        media_transcoder=transcoder,
+        face_tracker=mock_tracker,
+    )
+
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+        clip_session_store=clip_store,
+        face_tracker=mock_tracker,
+    )
+
+    seen_wav_paths = []
+
+    def transcribe_success(wav_path, model_size="base"):
+        assert os.path.exists(wav_path)
+        seen_wav_paths.append(wav_path)
+        return [{"start": 0.0, "duration": 1.0, "text": "Single pass"}]
+
+    mock_dependencies["speech_transcriber"].transcribe.side_effect = transcribe_success
+    coordinator.jobs["job_ok"] = {
+        "status": "queued",
+        "full_video_path": str(source_video),
+        "video_info": {"fps": 30.0},
+        "clip": None,
+    }
+    coordinator.run_local_cut("job_ok", 5.0, 20.0, theme="One Pass")
+
+    assert coordinator.jobs["job_ok"]["status"] == "ready"
+    ffmpeg_calls_1 = [args for name, args in adapter.calls if name == "run_ffmpeg"]
+    assert len(ffmpeg_calls_1) == 1
+    assert len(seen_wav_paths) == 1
+    assert not os.path.exists(seen_wav_paths[0])
+    clip_dir_1 = os.path.dirname(coordinator.jobs["job_ok"]["clip_path"])
+    assert not os.path.exists(os.path.join(clip_dir_1, "audio_v2.wav"))
+    assert "audio_path" not in coordinator.jobs["job_ok"]["clip"]
+    assert "audio_missing" not in coordinator.jobs["job_ok"]["clip"]
+
+    # Verify cleanup even when Whisper raises an error
+    adapter.calls.clear()
+    failed_wav_paths = []
+
+    def transcribe_failure(wav_path, model_size="base"):
+        assert os.path.exists(wav_path)
+        failed_wav_paths.append(wav_path)
+        raise RuntimeError("Whisper failure")
+
+    mock_dependencies["speech_transcriber"].transcribe.side_effect = transcribe_failure
+    coordinator.jobs["job_fail"] = {
+        "status": "queued",
+        "full_video_path": str(source_video),
+        "video_info": {"fps": 30.0},
+        "clip": None,
+    }
+    coordinator.run_local_cut("job_fail", 25.0, 40.0, theme="Fail Safe")
+
+    assert coordinator.jobs["job_fail"]["status"] == "ready"
+    ffmpeg_calls_2 = [args for name, args in adapter.calls if name == "run_ffmpeg"]
+    assert len(ffmpeg_calls_2) == 1
+    assert len(failed_wav_paths) == 1
+    assert not os.path.exists(failed_wav_paths[0])
+    clip_dir_2 = os.path.dirname(coordinator.jobs["job_fail"]["clip_path"])
+    assert not os.path.exists(os.path.join(clip_dir_2, "audio_v2.wav"))
+    assert "audio_path" not in coordinator.jobs["job_fail"]["clip"]
+    assert "audio_missing" not in coordinator.jobs["job_fail"]["clip"]
 
 
 def test_run_source_download_streams_progress_in_memory_and_preserves_terminal_or_cut_status(mock_dependencies, tmp_path):

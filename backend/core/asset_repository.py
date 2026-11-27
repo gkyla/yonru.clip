@@ -458,11 +458,8 @@ class AssetRepository(AssetStore):
         return True
 
     def extract_clip_screenshot(self, clip_path: str, timestamp: float, output_path: str) -> bool:
-        """Backward-compatible delegate: routes to deepened ClipSessionStore."""
-        from core.clip_session_store import ClipSessionStore
-        store = ClipSessionStore(clips_dir=self.clips_dir, output_dir=self.output_dir, config_store=self.config_store, media_transcoder=self.transcoder)
-        store._run_ffmpeg = self._run_ffmpeg
-        return store.extract_clip_screenshot(clip_path, timestamp, output_path)
+        """Backward-compatible delegate: routes directly to MediaTranscoder."""
+        return self.transcoder.extract_frame(clip_path, timestamp, output_path)
 
 
 

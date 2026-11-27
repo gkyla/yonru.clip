@@ -1,13 +1,12 @@
 import os
 import re
-import sys
 import math
 import json
 import uuid
 import base64
 import shutil
 import hashlib
-import subprocess
+import tempfile
 import threading
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, List, Set, Tuple, Literal, Protocol, runtime_checkable
@@ -36,6 +35,13 @@ _CANONICAL_MANIFEST_FILES = {
     "cover_config": "cover_config.json",
     "crop_map": "crop_map.json",
 }
+
+_COMPACT_MANIFEST_FILES = frozenset({
+    "history.json",
+    "transcript.json",
+    "crop_map.json",
+    "timeline.json",
+})
 
 
 @runtime_checkable
@@ -116,9 +122,10 @@ class ClipSessionStore:
         self.source_dir = os.path.join(self.output_dir, "sources")
         self.config_store = config_store
         self.transcoder = media_transcoder or MediaTranscoder(config_store=self.config_store)
-        self._env = getattr(self.transcoder.adapter, "_env", os.environ.copy())
         self.face_tracker = face_tracker
         self._face_tracker_lock = threading.Lock()
+        self._crop_map_locks_guard = threading.Lock()
+        self._crop_map_locks: Dict[Tuple[str, str], threading.Lock] = {}
         self.audio_library_store = audio_library_store
         self._index_lock = threading.RLock()
         self._cache_epoch: int = 0
@@ -238,6 +245,14 @@ class ClipSessionStore:
             if key not in ("cropMap", "crop_map")
         }
 
+    @staticmethod
+    def _dump_json_to_stream(file_obj: Any, target_path: str, data: Any) -> None:
+        """Write compact JSON for large machine manifests and pretty JSON for small config files."""
+        if os.path.basename(target_path) in _COMPACT_MANIFEST_FILES:
+            json.dump(data, file_obj, ensure_ascii=False, separators=(",", ":"))
+        else:
+            json.dump(data, file_obj, ensure_ascii=False, indent=2)
+
     def _atomic_write_json(self, target_path: str, data: Any) -> None:
         """
         Atomically writes json data to target_path using a temporary staging file
@@ -248,7 +263,7 @@ class ClipSessionStore:
         tmp_path = f"{target_path}.tmp.{uuid.uuid4().hex}"
         try:
             with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+                self._dump_json_to_stream(f, target_path, data)
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(tmp_path, target_path)
@@ -259,13 +274,19 @@ class ClipSessionStore:
                 except OSError:
                     pass
 
-    def ensure_clip_defaults(self, folder_name: str, clip_id: str) -> None:
+    def ensure_clip_defaults(self, folder_name: str, clip_id: str) -> bool:
         """
         Auto-heals missing manifests (style_settings, cover_config, transcript,
-        timeline, history, thumbnail) in the clip directory using canonical defaults.
+        thumbnail) in the clip directory using canonical defaults.
+        Returns True if any disk state was written, invalidating the ready-clip
+        listing cache only when thumbnail assets changed.
         """
         clip_dir = self.resolve_clip_dir(folder_name, clip_id)
-        os.makedirs(clip_dir, exist_ok=True)
+        if not os.path.exists(clip_dir):
+            os.makedirs(clip_dir, exist_ok=True)
+
+        mutated = False
+        thumb_mutated = False
 
         # 1. Style settings
         clip_style_path = os.path.join(clip_dir, "style_settings.json")
@@ -273,6 +294,7 @@ class ClipSessionStore:
         if not os.path.exists(default_style_path):
             try:
                 self._atomic_write_json(default_style_path, CANONICAL_DEFAULT_STYLE_SETTINGS)
+                mutated = True
             except Exception:
                 pass
 
@@ -287,6 +309,7 @@ class ClipSessionStore:
                 except Exception:
                     style_data = CANONICAL_DEFAULT_STYLE_SETTINGS
             self._atomic_write_json(clip_style_path, style_data)
+            mutated = True
 
         # 2. Cover / thumbnail config
         clip_cover_path = os.path.join(clip_dir, "cover_config.json")
@@ -305,10 +328,12 @@ class ClipSessionStore:
                 except Exception:
                     pass
             self._atomic_write_json(clip_cover_path, cover_data)
+            mutated = True
         elif not os.path.exists(clip_cover_path) and os.path.exists(clip_thumb_path):
             # Sync cover from legacy thumbnail config
             try:
                 shutil.copy2(clip_thumb_path, clip_cover_path)
+                mutated = True
             except Exception:
                 pass
 
@@ -316,6 +341,7 @@ class ClipSessionStore:
         clip_transcript_path = os.path.join(clip_dir, "transcript.json")
         if not os.path.exists(clip_transcript_path):
             self._atomic_write_json(clip_transcript_path, [])
+            mutated = True
 
         # 4. Thumbnail image from poster or video frame
         thumb_img_path = os.path.join(clip_dir, "thumbnail.jpg")
@@ -323,17 +349,24 @@ class ClipSessionStore:
         if not os.path.exists(thumb_img_path) and os.path.exists(poster_img_path):
             try:
                 shutil.copy2(poster_img_path, thumb_img_path)
+                if os.path.exists(thumb_img_path):
+                    mutated = True
+                    thumb_mutated = True
             except Exception:
                 pass
         elif not os.path.exists(thumb_img_path):
             video_path = os.path.join(clip_dir, "video.mp4")
             if os.path.exists(video_path):
                 try:
-                    self.extract_clip_screenshot(video_path, 0.0, thumb_img_path)
+                    if self.extract_clip_screenshot(video_path, 0.0, thumb_img_path):
+                        mutated = True
+                        thumb_mutated = True
                 except Exception:
                     pass
 
-        self.invalidate_ready_clips_cache(folder_name, clip_id)
+        if thumb_mutated:
+            self.invalidate_ready_clips_cache(folder_name, clip_id)
+        return mutated
 
     def _read_json(self, path: str, expected_type: type, default: Any) -> Any:
         if not os.path.exists(path):
@@ -501,6 +534,7 @@ class ClipSessionStore:
         ):
             try:
                 shutil.copy2(thumb_img_path, cover_img_path)
+                self.invalidate_ready_clips_cache(folder_name, clip_id)
             except Exception:
                 pass
 
@@ -556,7 +590,7 @@ class ClipSessionStore:
                 tmp_path = f"{target_path}.tmp.{uuid.uuid4().hex}"
                 staged_files.append((tmp_path, target_path))
                 with open(tmp_path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
+                    self._dump_json_to_stream(f, target_path, data)
                     f.flush()
                     os.fsync(f.fileno())
 
@@ -589,6 +623,23 @@ class ClipSessionStore:
                 pass
         return None
 
+    def _get_crop_map_lock(self, folder_name: str, clip_id: str) -> threading.Lock:
+        key = (folder_name, clip_id)
+        with self._crop_map_locks_guard:
+            lock = self._crop_map_locks.get(key)
+            if lock is None:
+                lock = threading.Lock()
+                self._crop_map_locks[key] = lock
+            return lock
+
+    @staticmethod
+    def _normalize_cached_crop_map(existing: Any) -> Optional[List[Dict[str, Any]]]:
+        if isinstance(existing, list) and len(existing) > 0:
+            return existing
+        if isinstance(existing, (int, float)) and not isinstance(existing, bool):
+            return [{"time": 0.0, "x": int(existing)}]
+        return None
+
     def ensure_crop_map(
         self,
         folder_name: str,
@@ -599,60 +650,66 @@ class ClipSessionStore:
     ) -> List[Dict[str, Any]]:
         """
         Retrieves cached Auto-Reframe crop map if present, or executes face tracking
-        to compute, normalize, and atomically persist crop_map.json.
+        under a per-clip single-flight lock to compute, normalize, and atomically persist crop_map.json.
         Falls back to centered framing ([{"time": 0.0, "x": 960}]) on empty results
         or tracker exceptions.
         """
-        existing: Any = self.get_crop_map(folder_name, clip_id)
-        if isinstance(existing, list) and len(existing) > 0:
-            return existing
-        if isinstance(existing, (int, float)) and not isinstance(existing, bool):
-            return [{"time": 0.0, "x": int(existing)}]
+        cached = self._normalize_cached_crop_map(self.get_crop_map(folder_name, clip_id))
+        if cached is not None:
+            return cached
 
-        active_tracker = tracker or self.face_tracker
-        if not active_tracker:
-            with self._face_tracker_lock:
-                if not self.face_tracker:
-                    from core.face_tracker import FaceTracker
-                    self.face_tracker = FaceTracker()
-                active_tracker = self.face_tracker
+        with self._get_crop_map_lock(folder_name, clip_id):
+            cached = self._normalize_cached_crop_map(self.get_crop_map(folder_name, clip_id))
+            if cached is not None:
+                return cached
 
-        resolved_video_path = video_path or self._resolve_clip_path(folder_name, clip_id, "video.mp4")
-        if not os.path.exists(resolved_video_path):
-            raise FileNotFoundError(f"Clip video not found at: {resolved_video_path}")
+            active_tracker = tracker or self.face_tracker
+            if not active_tracker:
+                with self._face_tracker_lock:
+                    if not self.face_tracker:
+                        from core.face_tracker import FaceTracker
+                        self.face_tracker = FaceTracker()
+                    active_tracker = self.face_tracker
 
-        crop_map_points: List[Dict[str, Any]]
-        try:
-            if words_data is not None:
-                crop_data = active_tracker.analyze_video(resolved_video_path, words_data=words_data)
-            else:
-                crop_data = active_tracker.analyze_video(resolved_video_path)
-            if isinstance(crop_data, (int, float)):
-                crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
-            elif isinstance(crop_data, list) and len(crop_data) > 0:
-                crop_map_points = crop_data
-            else:
+            resolved_video_path = video_path or self._resolve_clip_path(folder_name, clip_id, "video.mp4")
+            if not os.path.exists(resolved_video_path):
+                raise FileNotFoundError(f"Clip video not found at: {resolved_video_path}")
+
+            crop_map_points: List[Dict[str, Any]]
+            try:
+                if words_data is not None:
+                    crop_data = active_tracker.analyze_video(resolved_video_path, words_data=words_data)
+                else:
+                    crop_data = active_tracker.analyze_video(resolved_video_path)
+                if isinstance(crop_data, (int, float)):
+                    crop_map_points = [{"time": 0.0, "x": int(crop_data)}]
+                elif isinstance(crop_data, list) and len(crop_data) > 0:
+                    crop_map_points = crop_data
+                else:
+                    crop_map_points = [{"time": 0.0, "x": 960}]
+            except Exception as e:
+                print(f"[session] Face tracking failed for {resolved_video_path}, falling back to center: {e}")
                 crop_map_points = [{"time": 0.0, "x": 960}]
-        except Exception as e:
-            print(f"[session] Face tracking failed for {resolved_video_path}, falling back to center: {e}")
-            crop_map_points = [{"time": 0.0, "x": 960}]
 
-        try:
-            self.save_crop_map(folder_name, clip_id, crop_map_points)
-        except Exception as e:
-            print(f"[session] Failed to write crop_map.json: {e}")
+            try:
+                self.save_crop_map(folder_name, clip_id, crop_map_points)
+            except Exception as e:
+                print(f"[session] Failed to write crop_map.json: {e}")
 
-        return crop_map_points
+            return crop_map_points
 
     def delete_cover(self, folder_name: str, clip_id: str) -> bool:
         """Safely removes custom cover image (cover.jpg) while strictly preserving thumbnail.jpg."""
         cover_path = self._resolve_clip_path(folder_name, clip_id, "cover.jpg")
+        removed = False
         if os.path.exists(cover_path):
             try:
                 os.remove(cover_path)
+                removed = True
             except Exception:
                 pass
-        self.invalidate_ready_clips_cache(folder_name, clip_id)
+        if removed:
+            self.invalidate_ready_clips_cache(folder_name, clip_id)
         return True
 
     # ── Media Operations & Video Information ─────────────────────────
@@ -671,11 +728,14 @@ class ClipSessionStore:
         video_path: str,
         start_time: float,
         end_time: float,
-        theme: Optional[str] = None
+        theme: Optional[str] = None,
+        *,
+        extract_audio: bool = False,
     ) -> Dict[str, Any]:
         """
-        Cuts a Ready Clip (video.mp4) from a Source Video interval, auto-generates the static
-        Clip Thumbnail (thumbnail.jpg), and seeds default manifests (style, cover, timeline, history).
+        Cuts a Ready Clip (video.mp4) and frame-0 Clip Thumbnail (thumbnail.jpg) in one
+        FFmpeg pass (optionally producing an ephemeral WAV for transcription), and seeds
+        default manifests (style, cover, transcript).
         """
         if not video_path or not os.path.exists(video_path):
             raise FileNotFoundError(f"Source video not found: {video_path}")
@@ -696,58 +756,7 @@ class ClipSessionStore:
         cover_path = os.path.join(target_dir, "cover.jpg")
         cover_url = f"/assets/clips/{folder_name}/{clip_id}/cover.jpg" if os.path.exists(cover_path) else None
 
-        if os.path.exists(out_path):
-            if not os.path.exists(thumb_path):
-                poster_path = os.path.join(target_dir, "poster.jpg")
-                if os.path.exists(poster_path):
-                    try:
-                        shutil.copy2(poster_path, thumb_path)
-                    except Exception:
-                        pass
-                else:
-                    try:
-                        self.extract_clip_screenshot(out_path, 0.0, thumb_path)
-                    except Exception as e:
-                        print(f"[clip_session_store] Failed to extract thumbnail for existing clip: {e}")
-            self.ensure_clip_defaults(folder_name, clip_id)
-            self.invalidate_ready_clips_cache(folder_name, clip_id)
-            return {
-                "file_path": out_path,
-                "asset_url": f"/assets/clips/{folder_name}/{clip_id}/{out_name}",
-                "thumbnail_url": thumbnail_url,
-                "poster_url": thumbnail_url,
-                "cover_url": cover_url,
-                "duration": duration,
-                "clip_id": clip_id,
-                "folder_name": folder_name,
-                "start": start_time,
-                "end": end_time,
-                "theme": theme
-            }
-
-        cmd = [
-            "-accurate_seek",
-            "-ss", str(start_time),
-            "-i", video_path,
-            "-t", str(duration),
-            "-c:v", "libx264",
-            "-preset", "superfast",
-            "-crf", "23",
-            "-c:a", "aac",
-            "-avoid_negative_ts", "auto",
-            "-y", out_path
-        ]
-        self._run_ffmpeg(cmd)
-
-        try:
-            self.extract_clip_screenshot(out_path, 0.0, thumb_path)
-        except Exception as e:
-            print(f"[clip_session_store] Failed to extract thumbnail for new clip: {e}")
-
-        self.ensure_clip_defaults(folder_name, clip_id)
-        self.invalidate_ready_clips_cache(folder_name, clip_id)
-
-        return {
+        result: Dict[str, Any] = {
             "file_path": out_path,
             "asset_url": f"/assets/clips/{folder_name}/{clip_id}/{out_name}",
             "thumbnail_url": thumbnail_url,
@@ -758,37 +767,62 @@ class ClipSessionStore:
             "folder_name": folder_name,
             "start": start_time,
             "end": end_time,
-            "theme": theme
+            "theme": theme,
         }
 
-    def extract_clip_audio(self, clip_path_or_folder: str, clip_id: Optional[str] = None) -> str:
+        if os.path.exists(out_path):
+            self.ensure_clip_defaults(folder_name, clip_id)
+            return result
+
+        requested_audio_path = (
+            os.path.join(tempfile.gettempdir(), f"yonru_clip_audio_{uuid.uuid4().hex}.wav")
+            if extract_audio
+            else None
+        )
+        extraction = self.transcoder.extract_clip_bundle(
+            video_path,
+            start_time,
+            end_time,
+            out_path,
+            output_thumbnail_path=thumb_path,
+            output_audio_path=requested_audio_path,
+        )
+
+        self.ensure_clip_defaults(folder_name, clip_id)
+        self.invalidate_ready_clips_cache(folder_name, clip_id)
+
+        if extract_audio:
+            if extraction.audio_path:
+                result["audio_path"] = extraction.audio_path
+            else:
+                result["audio_missing"] = True
+
+        return result
+
+    def extract_clip_audio(
+        self,
+        clip_path_or_folder: str,
+        clip_id: Optional[str] = None,
+        *,
+        output_path: Optional[str] = None,
+    ) -> str:
         """
-        Extracts high-stability 16kHz mono WAV audio (audio_v2.wav) from the Ready Clip
-        for speech transcription. Accepts either absolute clip_path or (folder_name, clip_id).
+        Extracts 16kHz mono WAV audio from the Ready Clip into an ephemeral temp file
+        (or explicit output_path) for speech transcription.
         """
         if clip_id is not None:
             clip_dir = self.resolve_clip_dir(clip_path_or_folder, clip_id)
             clip_path = os.path.join(clip_dir, "video.mp4")
         else:
             clip_path = clip_path_or_folder
-            clip_dir = os.path.dirname(clip_path)
 
         if not os.path.exists(clip_path):
             raise FileNotFoundError(f"Clip video not found at: {clip_path}")
 
-        audio_path = os.path.join(clip_dir, "audio_v2.wav")
-        if os.path.exists(audio_path):
-            return audio_path
-
-        self._run_ffmpeg([
-            "-i", clip_path,
-            "-vn",
-            "-acodec", "pcm_s16le",
-            "-ar", "16000",
-            "-ac", "1",
-            "-y", audio_path
-        ])
-        return audio_path
+        target_wav_path = output_path or os.path.join(
+            tempfile.gettempdir(), f"yonru_clip_audio_{uuid.uuid4().hex}.wav"
+        )
+        return self.transcoder.extract_audio(clip_path, target_wav_path, sample_rate=16000)
 
     def extract_cover_frame(
         self,
@@ -825,40 +859,11 @@ class ClipSessionStore:
         print(f"[cover] Captured frame at {ts:.3f}s -> {cover_path}")
         return {"status": "ok", "timestamp": round(ts, 3), "cover_url": asset_url, "thumbnail_url": asset_url}
 
-    @property
-    def _run_ffmpeg(self):
-        return self.transcoder.run_ffmpeg
-
-    @_run_ffmpeg.setter
-    def _run_ffmpeg(self, fn):
-        self.transcoder.run_ffmpeg = fn
-
     def extract_clip_screenshot(self, clip_path: str, timestamp: float, output_path: str) -> bool:
         """Extract a single frame screenshot from video at timestamp."""
-        if not os.path.exists(clip_path):
+        if not clip_path or not os.path.exists(clip_path):
             return False
-        if self.transcoder and hasattr(self.transcoder, "capture_screenshot"):
-            return self.transcoder.capture_screenshot(clip_path, timestamp, output_path)
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        dur = self.transcoder.probe_video(clip_path).duration if self.transcoder else 0.0
-        if dur > 0:
-            ts = max(0.0, min(float(timestamp), max(0.0, dur - 0.1)))
-        else:
-            ts = max(0.0, float(timestamp))
-        cmd = [
-            "-y",
-            "-ss", str(round(ts, 3)),
-            "-i", clip_path,
-            "-vframes", "1",
-            "-q:v", "2",
-            output_path
-        ]
-        try:
-            res = self._run_ffmpeg(cmd)
-            return res and os.path.exists(output_path)
-        except Exception as e:
-            print(f"[clip_session_store] Failed to extract screenshot: {e}")
-            return False
+        return self.transcoder.capture_screenshot(clip_path, timestamp, output_path)
 
     # ── Ready Clips Discovery & Lifecycle ────────────────────────────
 
@@ -1224,12 +1229,6 @@ class ClipSessionStore:
             return True
         except Exception:
             return False
-
-    def get_default_thumbnail_style(self) -> Dict[str, Any]:
-        return self.get_default_cover_style()
-
-    def save_default_thumbnail_style(self, style: Dict[str, Any]) -> bool:
-        return self.save_default_cover_style(style)
 
     def is_audio_asset_referenced(self, filename: str, url: str) -> bool:
         """Checks whether any saved clip session manifest references the given audio asset."""

@@ -201,28 +201,22 @@ class TestAssetRepository(unittest.TestCase):
         with open(clip_path, "w") as f:
             f.write("video data")
 
-        with patch.object(self.repo, '_run_ffmpeg') as mock_run_ffmpeg:
-            def side_effect(args):
-                with open(output_path, "w") as f:
-                    f.write("thumb data")
-                return True
-            mock_run_ffmpeg.side_effect = side_effect
+        success = self.repo.extract_clip_screenshot(clip_path, 3.5, output_path)
+        self.assertTrue(success)
+        self.assertTrue(os.path.exists(output_path))
 
-            success = self.repo.extract_clip_screenshot(clip_path, 3.5, output_path)
-            self.assertTrue(success)
-            self.assertTrue(os.path.exists(output_path))
-            
-            mock_run_ffmpeg.assert_called_once()
-            called_args = mock_run_ffmpeg.call_args[0][0]
-            self.assertNotEqual(called_args[0], "ffmpeg")
-            self.assertEqual(called_args, [
-                "-y",
-                "-ss", "3.5",
-                "-i", clip_path,
-                "-vframes", "1",
-                "-q:v", "2",
-                output_path
-            ])
+        ffmpeg_calls = [args for name, args in self.media_adapter.calls if name == "run_ffmpeg"]
+        self.assertEqual(len(ffmpeg_calls), 1)
+        called_args = ffmpeg_calls[0]
+        self.assertNotEqual(called_args[0], "ffmpeg")
+        self.assertEqual(called_args, [
+            "-y",
+            "-ss", "3.5",
+            "-i", clip_path,
+            "-vframes", "1",
+            "-q:v", "2",
+            output_path
+        ])
 
     @patch('subprocess.run')
     def test_run_ffmpeg_strips_leading_ffmpeg_token(self, mock_subprocess):

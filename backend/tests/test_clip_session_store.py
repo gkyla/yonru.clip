@@ -1,6 +1,7 @@
 import os
 import json
 import tempfile
+import threading
 from unittest.mock import MagicMock
 import pytest
 from core.clip_session_store import ClipSessionStore
@@ -356,8 +357,8 @@ def test_global_default_style_settings_and_cover_style():
         custom_cover_style = {"thumbnailDuration": 2.5, "fontSize": 64}
         assert store.save_default_cover_style(custom_cover_style)
         assert store.get_default_cover_style() == custom_cover_style
-        # Backward compatibility alias
-        assert store.get_default_thumbnail_style() == custom_cover_style
+        assert not hasattr(store, "get_default_thumbnail_style")
+        assert not hasattr(store, "save_default_thumbnail_style")
 
 
 def test_list_all_and_ready_clips():
@@ -527,10 +528,13 @@ def test_derive_clip_id():
 
 
 def test_create_clip_executes_ffmpeg_and_seeds_defaults():
-    """Verify create_clip cuts Ready Clip via FFmpeg, extracts thumbnail, and seeds all default manifests."""
+    """Verify create_clip cuts Ready Clip and frame-0 thumbnail in one FFmpeg pass and seeds all defaults."""
     with tempfile.TemporaryDirectory() as temp_dir:
         clips_dir = os.path.join(temp_dir, "clips")
-        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+        adapter = FakeMediaAdapter()
+        transcoder = MediaTranscoder(adapter=adapter)
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, media_transcoder=transcoder)
+        assert not hasattr(store, "_run_ffmpeg")
 
         # Create dummy source video
         source_dir = os.path.join(temp_dir, "sources", "my_video_123")
@@ -538,18 +542,6 @@ def test_create_clip_executes_ffmpeg_and_seeds_defaults():
         video_path = os.path.join(source_dir, "full.mp4")
         with open(video_path, "w") as f:
             f.write("dummy source video content")
-
-        ffmpeg_calls = []
-        def mock_run_ffmpeg(args):
-            ffmpeg_calls.append(list(args))
-            # If target out file is in args, create dummy output file
-            out_file = args[-1]
-            os.makedirs(os.path.dirname(out_file), exist_ok=True)
-            with open(out_file, "w") as f:
-                f.write("generated file")
-            return True
-
-        store._run_ffmpeg = mock_run_ffmpeg
 
         res = store.create_clip(video_path, start_time=10.0, end_time=25.0, theme="Best Part")
 
@@ -570,18 +562,24 @@ def test_create_clip_executes_ffmpeg_and_seeds_defaults():
         assert not os.path.exists(os.path.join(clip_dir, "thumbnail_config.json"))
         assert os.path.exists(os.path.join(clip_dir, "transcript.json"))
 
-        # Verify ffmpeg arguments used -avoid_negative_ts auto and -accurate_seek
-        cut_call = next(c for c in ffmpeg_calls if "-avoid_negative_ts" in c)
+        # Single-pass extraction: 1 ffmpeg call, 0 ffprobe calls
+        ffmpeg_calls = [args for name, args in adapter.calls if name == "run_ffmpeg"]
+        ffprobe_calls = [arg for name, arg in adapter.calls if name == "ffprobe_info"]
+        assert len(ffmpeg_calls) == 1
+        assert len(ffprobe_calls) == 0
+        cut_call = ffmpeg_calls[0]
         assert "-accurate_seek" in cut_call
         idx = cut_call.index("-avoid_negative_ts")
         assert cut_call[idx + 1] == "auto"
 
 
 def test_extract_clip_audio():
-    """Verify extract_clip_audio extracts 16kHz mono WAV audio and caches result."""
+    """Verify extract_clip_audio extracts 16kHz mono WAV audio into an ephemeral temp path."""
     with tempfile.TemporaryDirectory() as temp_dir:
         clips_dir = os.path.join(temp_dir, "clips")
-        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+        adapter = FakeMediaAdapter()
+        transcoder = MediaTranscoder(adapter=adapter)
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, media_transcoder=transcoder)
 
         clip_dir = os.path.join(clips_dir, "folder_1", "clip_1")
         os.makedirs(clip_dir, exist_ok=True)
@@ -589,27 +587,35 @@ def test_extract_clip_audio():
         with open(clip_path, "w") as f:
             f.write("dummy clip video")
 
-        ffmpeg_calls = []
-        def mock_run_ffmpeg(args):
-            ffmpeg_calls.append(list(args))
-            out_file = args[-1]
-            with open(out_file, "w") as f:
-                f.write("dummy wav audio")
-            return True
+        created_paths = []
+        try:
+            audio_path = store.extract_clip_audio(clip_path)
+            created_paths.append(audio_path)
+            assert os.path.exists(audio_path)
+            assert os.path.dirname(audio_path) != clip_dir
+            assert os.path.basename(audio_path).endswith(".wav")
+            assert not os.path.exists(os.path.join(clip_dir, "audio_v2.wav"))
 
-        store._run_ffmpeg = mock_run_ffmpeg
+            ffmpeg_calls = [args for name, args in adapter.calls if name == "run_ffmpeg"]
+            assert len(ffmpeg_calls) == 1
+            assert "-ar" in ffmpeg_calls[0]
+            assert "16000" in ffmpeg_calls[0]
 
-        audio_path = store.extract_clip_audio(clip_path)
-        assert audio_path == os.path.join(clip_dir, "audio_v2.wav")
-        assert os.path.exists(audio_path)
-        assert len(ffmpeg_calls) == 1
-        assert "-ar" in ffmpeg_calls[0]
-        assert "16000" in ffmpeg_calls[0]
+            audio_path_2 = store.extract_clip_audio("folder_1", "clip_1")
+            created_paths.append(audio_path_2)
+            assert os.path.exists(audio_path_2)
+            assert audio_path_2 != audio_path
+            assert not os.path.exists(os.path.join(clip_dir, "audio_v2.wav"))
 
-        # Calling again should reuse cached wav without calling ffmpeg
-        cached_audio = store.extract_clip_audio("folder_1", "clip_1")
-        assert cached_audio == audio_path
-        assert len(ffmpeg_calls) == 1
+            explicit_out = os.path.join(temp_dir, "explicit_temp.wav")
+            res_explicit = store.extract_clip_audio("folder_1", "clip_1", output_path=explicit_out)
+            created_paths.append(res_explicit)
+            assert res_explicit == explicit_out
+            assert os.path.exists(explicit_out)
+        finally:
+            for p in created_paths:
+                if p and os.path.exists(p):
+                    os.remove(p)
 
 
 def test_extract_cover_frame():
@@ -629,16 +635,6 @@ def test_extract_cover_frame():
         thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
         with open(thumb_path, "w") as f:
             f.write("initial thumbnail")
-
-        ffmpeg_calls = []
-        def mock_run_ffmpeg(args):
-            ffmpeg_calls.append(list(args))
-            out_file = args[-1]
-            with open(out_file, "w") as f:
-                f.write("dummy cover image")
-            return True
-
-        store._run_ffmpeg = mock_run_ffmpeg
 
         res = store.extract_cover_frame("folder_2", "clip_2", timestamp=14.5)
         assert res["status"] == "ok"
@@ -1231,6 +1227,156 @@ def test_list_all_clips_resolves_channel_from_metadata_and_folder_fallback():
         refreshed_by_folder = {c["folder_name"]: c for c in refreshed}
         assert refreshed_by_folder[f_channel]["title"] == "Original Title"
         assert refreshed_by_folder[f_channel]["channel"] == "Updated Studio Channel Name"
+
+
+def test_ensure_crop_map_single_flight_deduplicates_concurrent_same_clip_and_allows_different_clips():
+    """Concurrent ensure_crop_map calls on one clip track once, while different clips run in parallel."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+
+        for cid in ("clip_a", "clip_b", "clip_c"):
+            clip_dir = os.path.join(clips_dir, "vid", cid)
+            os.makedirs(clip_dir, exist_ok=True)
+            with open(os.path.join(clip_dir, "video.mp4"), "wb") as f:
+                f.write(b"video")
+
+        entered = threading.Event()
+        release = threading.Event()
+        same_clip_calls = 0
+        calls_lock = threading.Lock()
+
+        class SameClipTracker:
+            def analyze_video(self, _video_path):
+                nonlocal same_clip_calls
+                with calls_lock:
+                    same_clip_calls += 1
+                entered.set()
+                release.wait(timeout=3.0)
+                return [{"time": 0.0, "x": 777}]
+
+        tracker_same = SameClipTracker()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f1 = pool.submit(store.ensure_crop_map, "vid", "clip_a", tracker=tracker_same)
+            assert entered.wait(timeout=2.0)
+            f2 = pool.submit(store.ensure_crop_map, "vid", "clip_a", tracker=tracker_same)
+            release.set()
+            r1 = f1.result(timeout=3.0)
+            r2 = f2.result(timeout=3.0)
+
+        assert same_clip_calls == 1
+        assert r1 == [{"time": 0.0, "x": 777}]
+        assert r2 == [{"time": 0.0, "x": 777}]
+
+        parallel_barrier = threading.Barrier(2, timeout=3.0)
+
+        class ParallelTracker:
+            def analyze_video(self, video_path):
+                parallel_barrier.wait()
+                x_val = 400 if "clip_b" in video_path else 800
+                return [{"time": 0.0, "x": x_val}]
+
+        tracker_parallel = ParallelTracker()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fb = pool.submit(store.ensure_crop_map, "vid", "clip_b", tracker=tracker_parallel)
+            fc = pool.submit(store.ensure_crop_map, "vid", "clip_c", tracker=tracker_parallel)
+            assert fb.result(timeout=3.0) == [{"time": 0.0, "x": 400}]
+            assert fc.result(timeout=3.0) == [{"time": 0.0, "x": 800}]
+
+
+def test_read_session_and_noop_defaults_do_not_invalidate_ready_clip_cache():
+    """Reading an already-healed clip session or deleting an absent cover must not bust ready-clip cache."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        adapter = FakeMediaAdapter(default_duration=19.0)
+        transcoder = MediaTranscoder(adapter=adapter)
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir, media_transcoder=transcoder)
+
+        folder = "folder_ro"
+        clip_id = "custom_non_numeric"
+        clip_dir = os.path.join(clips_dir, folder, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+        with open(os.path.join(clip_dir, "video.mp4"), "wb") as f:
+            f.write(b"video-bytes")
+        with open(os.path.join(clip_dir, "thumbnail.jpg"), "wb") as f:
+            f.write(b"thumb")
+        store.ensure_clip_defaults(folder, clip_id)
+        store.save_crop_map(folder, clip_id, [{"time": 0.0, "x": 960}])
+
+        initial = store.list_all_clips()
+        assert len(initial) == 1
+        assert initial[0]["duration"] == 19.0
+        probe_count_before = len([c for c in adapter.calls if c[0] == "ffprobe_info"])
+        epoch_before = store._cache_epoch
+        assert (folder, clip_id) in store._ready_clip_cache
+
+        session = store.get_clip_session(folder, clip_id, ensure_crop_map=True)
+        assert session["crop_map"] == [{"time": 0.0, "x": 960}]
+        assert store.ensure_clip_defaults(folder, clip_id) is False
+        assert store.delete_cover(folder, clip_id) is True
+
+        assert store._cache_epoch == epoch_before
+        assert (folder, clip_id) in store._ready_clip_cache
+
+        refreshed = store.list_all_clips()
+        assert len(refreshed) == 1
+        probe_count_after = len([c for c in adapter.calls if c[0] == "ffprobe_info"])
+        assert probe_count_after == probe_count_before
+
+        # Deleting an actual cover.jpg DOES invalidate the cache epoch
+        with open(os.path.join(clip_dir, "cover.jpg"), "wb") as f:
+            f.write(b"cover")
+        assert store.delete_cover(folder, clip_id) is True
+        assert store._cache_epoch == epoch_before + 1
+
+
+def test_manifest_json_serialization_compact_vs_pretty():
+    """Machine manifests serialize compactly while small config files remain indented."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clips_dir = os.path.join(temp_dir, "clips")
+        store = ClipSessionStore(clips_dir=clips_dir, output_dir=temp_dir)
+        folder = "vid"
+        clip_id = "0_15_hook"
+        clip_dir = store.resolve_clip_dir(folder, clip_id)
+        os.makedirs(clip_dir, exist_ok=True)
+
+        payload = {
+            "history": {"undo_stack": [{"tracks": []}], "redo_stack": []},
+            "transcript": [{"start": 0.0, "duration": 1.2, "text": "Hello"}],
+            "crop_map": [{"time": 0.0, "x": 960}, {"time": 1.0, "x": 980}],
+            "timeline": [{"id": "t1", "type": "text", "items": [{"text": "Hi"}]}],
+            "style_settings": {"font": "Montserrat", "fontSize": 52},
+            "cover_config": {"enabled": True, "duration": 1.5},
+        }
+        store.save_clip_session(folder, clip_id, payload)
+        assert store.save_default_style_settings({"font": "Inter"})
+        assert store.save_default_cover_style({"enabled": False, "duration": 1.0})
+
+        compact_map = {
+            "history.json": payload["history"],
+            "transcript.json": payload["transcript"],
+            "crop_map.json": payload["crop_map"],
+            "timeline.json": payload["timeline"],
+        }
+        for filename, expected in compact_map.items():
+            with open(os.path.join(clip_dir, filename), "r", encoding="utf-8") as f:
+                raw = f.read()
+            assert "\n" not in raw
+            assert json.loads(raw) == expected
+
+        pretty_paths = {
+            os.path.join(clip_dir, "style_settings.json"): payload["style_settings"],
+            os.path.join(clip_dir, "cover_config.json"): payload["cover_config"],
+            os.path.join(temp_dir, "default_style_settings.json"): {"font": "Inter"},
+            os.path.join(temp_dir, "default_cover_style.json"): {"enabled": False, "duration": 1.0},
+        }
+        for path, expected in pretty_paths.items():
+            with open(path, "r", encoding="utf-8") as f:
+                raw = f.read()
+            assert "\n" in raw
+            assert json.loads(raw) == expected
 
 
 

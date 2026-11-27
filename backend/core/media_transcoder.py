@@ -1,14 +1,21 @@
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 import os
+import platform
 import shutil
 import sys
 import subprocess
 import threading
 import json
-import re
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List, Tuple, Callable, Set
 from dataclasses import dataclass
+
+from core.hardware_profiler import (
+    CPUMetrics,
+    GPUMetrics,
+    HardwareProfiler,
+    HostHardwareMetrics,
+)
 
 
 @dataclass(frozen=True)
@@ -18,6 +25,97 @@ class MediaSpecs:
     width: int = 0
     height: int = 0
     fps: float = 30.0
+
+
+@dataclass(frozen=True)
+class VideoEncoderSpec:
+    """Immutable specification describing an H.264 encoder and its FFmpeg flags."""
+    codec: str
+    args: Tuple[str, ...]
+    is_hardware: bool = False
+
+
+@dataclass(frozen=True)
+class ClipExtractionResult:
+    """Result DTO returned by single-pass clip media extraction."""
+    video_path: str
+    thumbnail_path: Optional[str] = None
+    audio_path: Optional[str] = None
+    encoder: str = "libx264"
+
+
+SOFTWARE_H264_ENCODER = VideoEncoderSpec(
+    codec="libx264",
+    args=("-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-bf", "0", "-pix_fmt", "yuv420p"),
+    is_hardware=False,
+)
+
+VIDEOTOOLBOX_H264_ENCODER = VideoEncoderSpec(
+    codec="h264_videotoolbox",
+    args=("-c:v", "h264_videotoolbox", "-q:v", "65", "-bf", "0", "-pix_fmt", "yuv420p"),
+    is_hardware=True,
+)
+
+NVENC_H264_ENCODER = VideoEncoderSpec(
+    codec="h264_nvenc",
+    args=("-c:v", "h264_nvenc", "-preset", "p4", "-cq", "23", "-pix_fmt", "yuv420p"),
+    is_hardware=True,
+)
+
+_HARDWARE_DISABLE_TOKENS = frozenset({"disable", "false", "0", "off", "software", "libx264"})
+_VIDEOTOOLBOX_OVERRIDE_TOKENS = frozenset({"videotoolbox", "h264_videotoolbox"})
+_NVENC_OVERRIDE_TOKENS = frozenset({"nvenc", "h264_nvenc"})
+_HARDWARE_FORCE_TOKENS = frozenset({"force", "hardware", "require", "required"})
+_MISSING_AUDIO_STREAM_ERROR_TOKENS = (
+    "matches no streams",
+    "does not contain any stream",
+)
+
+
+def _is_missing_audio_stream_error(message: str) -> bool:
+    lowered = (message or "").lower()
+    return any(token in lowered for token in _MISSING_AUDIO_STREAM_ERROR_TOKENS)
+
+
+def resolve_video_encoder(
+    metrics: HostHardwareMetrics,
+    *,
+    hardware_acceleration_override: Optional[str] = None,
+) -> VideoEncoderSpec:
+    """
+    Pick the fastest reliable H.264 encoder for standalone clip cutting.
+
+    On Apple Silicon Macs, multicore NEON libx264 with B-frames disabled (-bf 0)
+    is faster than Apple's single Media Engine h264_videotoolbox, so it is used by
+    default unless the user opts in via FFMPEG_HARDWARE_ACCELERATION=videotoolbox.
+    """
+    raw_override = (hardware_acceleration_override or "").strip().lower()
+    system_os = (metrics.cpu.system_os or "").strip().lower()
+    cpu_arch = (metrics.cpu.arch or "").strip().lower()
+    gpu_type = (metrics.gpu.type or "").strip().lower()
+    is_apple_silicon = gpu_type == "apple_silicon" or (
+        system_os == "darwin" and cpu_arch in {"arm64", "aarch64"}
+    )
+
+    if raw_override in _HARDWARE_DISABLE_TOKENS:
+        return SOFTWARE_H264_ENCODER
+    if raw_override in _VIDEOTOOLBOX_OVERRIDE_TOKENS:
+        return VIDEOTOOLBOX_H264_ENCODER
+    if raw_override in _NVENC_OVERRIDE_TOKENS:
+        return NVENC_H264_ENCODER
+    if raw_override in _HARDWARE_FORCE_TOKENS:
+        if system_os == "darwin":
+            return VIDEOTOOLBOX_H264_ENCODER
+        if gpu_type == "cuda":
+            return NVENC_H264_ENCODER
+        return SOFTWARE_H264_ENCODER
+
+    if gpu_type == "cuda":
+        return NVENC_H264_ENCODER
+    if system_os == "darwin" and not is_apple_silicon:
+        return VIDEOTOOLBOX_H264_ENCODER
+
+    return SOFTWARE_H264_ENCODER
 
 
 class MediaProcessAdapter(ABC):
@@ -158,6 +256,8 @@ class FakeMediaAdapter(MediaProcessAdapter):
         default_fps: float = 30.0,
         ffmpeg_available: bool = True,
         ffmpeg_path: str = "/fake/bin/ffmpeg",
+        fail_codecs: Optional[Set[str]] = None,
+        ffmpeg_side_effect: Optional[Callable[[List[str]], None]] = None,
     ):
         self.default_duration = default_duration
         self.default_width = default_width
@@ -168,21 +268,59 @@ class FakeMediaAdapter(MediaProcessAdapter):
         self.calls: List[Tuple[str, Any]] = []
         self.probe_overrides: Dict[str, Dict[str, Any]] = {}
         self.simulate_output_creation: bool = True
+        self.fail_codecs: Set[str] = set(fail_codecs or ())
+        self.ffmpeg_side_effect = ffmpeg_side_effect
+
+    _FFMPEG_BOOL_FLAGS = frozenset({
+        "-y", "-n", "-vn", "-an", "-sn", "-dn", "-accurate_seek", "-nostdin", "-stats",
+    })
+
+    @classmethod
+    def _extract_output_paths(cls, args: List[str]) -> List[str]:
+        """Collect all output file paths from single- or multi-output FFmpeg arguments."""
+        outputs: List[str] = []
+        idx = 1 if (args and args[0] == "ffmpeg") else 0
+        while idx < len(args):
+            token = args[idx]
+            if token in cls._FFMPEG_BOOL_FLAGS:
+                idx += 1
+            elif token.startswith("-"):
+                idx += 2
+            else:
+                if token and "." in os.path.basename(token):
+                    outputs.append(token)
+                idx += 1
+        return outputs
 
     def resolve_ffmpeg_path(self) -> Optional[str]:
         return self.ffmpeg_path if self.ffmpeg_available else None
 
     def run_ffmpeg(self, args: List[str]) -> bool:
         self.calls.append(("run_ffmpeg", list(args)))
-        # If output path is specified at the end of args, create dummy output file for os.path.exists checks
+        if self.ffmpeg_side_effect is not None:
+            self.ffmpeg_side_effect(list(args))
+
+        if self.fail_codecs:
+            for idx, token in enumerate(args):
+                if token in {"-c:v", "-vcodec"} and idx + 1 < len(args):
+                    codec = args[idx + 1]
+                    if codec in self.fail_codecs:
+                        raise RuntimeError(f"FFmpeg Error: simulated hardware encoder failure for {codec}")
+
+        # Create dummy files for every output path in single- or multi-output invocations
         if self.simulate_output_creation and args:
-            last_arg = args[-1]
-            if last_arg and not last_arg.startswith("-") and ("." in os.path.basename(last_arg)):
+            for out_path in self._extract_output_paths(args):
                 try:
-                    os.makedirs(os.path.dirname(os.path.abspath(last_arg)), exist_ok=True)
-                    if not os.path.exists(last_arg):
-                        with open(last_arg, "wb") as f:
-                            f.write(b"\xff\xd8\xff\xe0\x00\x10JFIF")  # Minimal JPEG header
+                    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+                    if not os.path.exists(out_path):
+                        ext = os.path.splitext(out_path)[1].lower()
+                        payload = (
+                            b"\xff\xd8\xff\xe0\x00\x10JFIF"
+                            if ext in {".jpg", ".jpeg"}
+                            else b"mock-media-output"
+                        )
+                        with open(out_path, "wb") as f:
+                            f.write(payload)
                 except Exception:
                     pass
         return True
@@ -225,15 +363,74 @@ class MediaTranscoder:
     def __init__(
         self,
         adapter: Optional[MediaProcessAdapter] = None,
-        config_store: Optional[Any] = None
+        config_store: Optional[Any] = None,
+        hardware_profiler: Optional[HardwareProfiler] = None,
     ):
         if adapter is not None:
             self.adapter = adapter
         else:
             self.adapter = SubprocessMediaAdapter(config_store=config_store)
         self.config_store = config_store
+        self.hardware_profiler = hardware_profiler
+        self._hardware_metrics_lock = threading.Lock()
+        self._cached_hardware_metrics: Optional[HostHardwareMetrics] = None
         self._probe_lock = threading.RLock()
         self._probe_cache: OrderedDict[Tuple[str, int, int], MediaSpecs] = OrderedDict()
+
+    def _get_config_value(self, key: str) -> Optional[str]:
+        raw = self.config_store.get(key) if self.config_store is not None else os.environ.get(key)
+        if raw is None:
+            return None
+        val = str(raw).strip()
+        return val or None
+
+    def _get_hardware_metrics(self) -> HostHardwareMetrics:
+        with self._hardware_metrics_lock:
+            if self._cached_hardware_metrics is not None:
+                return self._cached_hardware_metrics
+
+            if self.hardware_profiler is not None:
+                profiler: Optional[HardwareProfiler] = self.hardware_profiler
+            elif isinstance(self.adapter, SubprocessMediaAdapter):
+                profiler = HardwareProfiler()
+            else:
+                # Non-subprocess test adapters default to CPU unless a profiler is injected.
+                profiler = None
+
+            if profiler is not None:
+                try:
+                    metrics = profiler.metrics_source.probe_metrics()
+                except Exception:
+                    metrics = HostHardwareMetrics(
+                        cpu=CPUMetrics(
+                            brand="unknown",
+                            arch=platform.machine().lower() or "unknown",
+                            cores=os.cpu_count() or 4,
+                            system_os="Darwin" if sys.platform == "darwin" else ("Windows" if sys.platform == "win32" else "Linux"),
+                        ),
+                        total_ram_gb=8.0,
+                        gpu=GPUMetrics(type="cpu", name="Fallback CPU", vram_gb=None),
+                    )
+            else:
+                metrics = HostHardwareMetrics(
+                    cpu=CPUMetrics(
+                        brand="cpu",
+                        arch="generic",
+                        cores=os.cpu_count() or 4,
+                        system_os="Linux",
+                    ),
+                    total_ram_gb=8.0,
+                    gpu=GPUMetrics(type="cpu", name="Software CPU", vram_gb=None),
+                )
+
+            self._cached_hardware_metrics = metrics
+            return metrics
+
+    def _resolve_video_encoder(self) -> VideoEncoderSpec:
+        return resolve_video_encoder(
+            self._get_hardware_metrics(),
+            hardware_acceleration_override=self._get_config_value("FFMPEG_HARDWARE_ACCELERATION"),
+        )
 
     def invalidate_probe_cache(self, file_path: Optional[str] = None) -> None:
         """Invalidate cached probe results for one path or clear the entire cache."""
@@ -375,11 +572,16 @@ class MediaTranscoder:
         if not video_path or not os.path.exists(video_path):
             return False
 
-        dur = self.get_video_duration(video_path)
-        if dur > 0:
-            ts = max(0.0, min(float(timestamp), max(0.0, dur - 0.1)))
+        requested_ts = float(timestamp)
+        if requested_ts <= 0.0:
+            # Frame 0 never needs an ffprobe duration lookup.
+            ts = 0.0
         else:
-            ts = max(0.0, float(timestamp))
+            dur = self.get_video_duration(video_path)
+            if dur > 0:
+                ts = max(0.0, min(requested_ts, max(0.0, dur - 0.1)))
+            else:
+                ts = max(0.0, requested_ts)
 
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         cmd = [
@@ -407,6 +609,138 @@ class MediaTranscoder:
         """Convenience alias for extract_frame."""
         return self.extract_frame(video_path, timestamp, output_path, quality)
 
+    @staticmethod
+    def _build_clip_bundle_cmd(
+        video_path: str,
+        start_time: float,
+        duration: float,
+        output_video_path: str,
+        encoder: VideoEncoderSpec,
+        *,
+        output_thumbnail_path: Optional[str] = None,
+        output_audio_path: Optional[str] = None,
+        thumbnail_quality: int = 2,
+        audio_sample_rate: int = 16000,
+    ) -> List[str]:
+        cmd = [
+            "-y",
+            "-accurate_seek",
+            "-ss", str(start_time),
+            "-i", video_path,
+            "-map", "0:v:0",
+            "-map", "0:a?",
+            "-t", str(duration),
+            *encoder.args,
+            "-c:a", "aac",
+            "-avoid_negative_ts", "auto",
+            "-movflags", "+faststart",
+            output_video_path,
+        ]
+        if output_thumbnail_path:
+            cmd.extend([
+                "-map", "0:v:0",
+                "-frames:v", "1",
+                "-q:v", str(thumbnail_quality),
+                "-update", "1",
+                output_thumbnail_path,
+            ])
+        if output_audio_path:
+            cmd.extend([
+                "-map", "0:a:0",
+                "-t", str(duration),
+                "-vn",
+                "-acodec", "pcm_s16le",
+                "-ar", str(audio_sample_rate),
+                "-ac", "1",
+                output_audio_path,
+            ])
+        return cmd
+
+    @staticmethod
+    def _cleanup_partial_outputs(paths: List[Optional[str]]) -> None:
+        for path in paths:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+
+    def extract_clip_bundle(
+        self,
+        video_path: str,
+        start_time: float,
+        end_time: float,
+        output_video_path: str,
+        *,
+        output_thumbnail_path: Optional[str] = None,
+        output_audio_path: Optional[str] = None,
+        thumbnail_quality: int = 2,
+        audio_sample_rate: int = 16000,
+    ) -> ClipExtractionResult:
+        """
+        Extracts a clip video plus optional frame-0 thumbnail and transcription WAV
+        in a single FFmpeg pass, with one-shot hardware-to-software and silent-video fallbacks.
+        """
+        if not video_path or not os.path.exists(video_path):
+            raise FileNotFoundError(f"Source video not found: {video_path}")
+        if start_time < 0 or end_time <= start_time:
+            raise ValueError(f"Invalid clip boundaries: start={start_time}, end={end_time}")
+
+        duration = round(end_time - start_time, 2)
+        for target in (output_video_path, output_thumbnail_path, output_audio_path):
+            if target:
+                os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
+
+        active_encoder = self._resolve_video_encoder()
+        active_audio_path = output_audio_path
+
+        for _ in range(3):
+            cmd = self._build_clip_bundle_cmd(
+                video_path,
+                start_time,
+                duration,
+                output_video_path,
+                active_encoder,
+                output_thumbnail_path=output_thumbnail_path,
+                output_audio_path=active_audio_path,
+                thumbnail_quality=thumbnail_quality,
+                audio_sample_rate=audio_sample_rate,
+            )
+            try:
+                self.run_ffmpeg(cmd)
+                break
+            except RuntimeError as err:
+                self._cleanup_partial_outputs([
+                    output_video_path,
+                    output_thumbnail_path,
+                    active_audio_path,
+                ])
+                if active_audio_path is not None and _is_missing_audio_stream_error(str(err)):
+                    print(f"[media_transcoder] Source has no audio stream; retrying clip extraction without WAV: {err}")
+                    active_audio_path = None
+                    continue
+                if active_encoder.is_hardware:
+                    print(f"[media_transcoder] Hardware encoder '{active_encoder.codec}' failed; falling back to libx264: {err}")
+                    active_encoder = SOFTWARE_H264_ENCODER
+                    continue
+                raise
+
+        self.invalidate_probe_cache(output_video_path)
+        return ClipExtractionResult(
+            video_path=output_video_path,
+            thumbnail_path=(
+                output_thumbnail_path
+                if (output_thumbnail_path and os.path.exists(output_thumbnail_path))
+                else None
+            ),
+            audio_path=(
+                active_audio_path
+                if (active_audio_path and os.path.exists(active_audio_path))
+                else None
+            ),
+            encoder=active_encoder.codec,
+        )
+
     def slice_video(
         self,
         video_path: str,
@@ -416,36 +750,18 @@ class MediaTranscoder:
     ) -> bool:
         """
         Accurately cuts video interval [start_time, end_time] using two-pass seek
-        and H.264 re-encoding.
+        and hardware-guided H.264 re-encoding with software fallback.
         """
-        if not video_path or not os.path.exists(video_path):
-            raise FileNotFoundError(f"Source video not found: {video_path}")
-        if start_time < 0 or end_time <= start_time:
-            raise ValueError(f"Invalid clip boundaries: start={start_time}, end={end_time}")
-
-        duration = round(end_time - start_time, 2)
-        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-
-        cmd = [
-            "-accurate_seek",
-            "-ss", str(start_time),
-            "-i", video_path,
-            "-t", str(duration),
-            "-c:v", "libx264",
-            "-preset", "superfast",
-            "-crf", "23",
-            "-c:a", "aac",
-            "-avoid_negative_ts", "auto",
-            "-y", output_path
-        ]
-        self.run_ffmpeg(cmd)
-        return os.path.exists(output_path)
+        result = self.extract_clip_bundle(video_path, start_time, end_time, output_path)
+        return os.path.exists(result.video_path)
 
     def extract_audio(
         self,
         video_path: str,
         output_wav_path: str,
-        sample_rate: int = 16000
+        sample_rate: int = 16000,
+        *,
+        overwrite: bool = False,
     ) -> str:
         """
         Extracts high-stability mono PCM WAV audio from video required for speech transcription.
@@ -453,7 +769,7 @@ class MediaTranscoder:
         if not video_path or not os.path.exists(video_path):
             raise FileNotFoundError(f"Video file not found at: {video_path}")
 
-        if os.path.exists(output_wav_path):
+        if not overwrite and os.path.exists(output_wav_path):
             return output_wav_path
 
         os.makedirs(os.path.dirname(os.path.abspath(output_wav_path)), exist_ok=True)

@@ -93,7 +93,10 @@ self_update_service = SelfUpdateService(
 )
 
 from core.media_transcoder import MediaTranscoder
-media_transcoder = MediaTranscoder(config_store=config_store)
+media_transcoder = MediaTranscoder(
+    config_store=config_store,
+    hardware_profiler=system_repository.hardware_profiler,
+)
 
 from core.face_tracker import FaceTracker
 face_tracker = FaceTracker()
