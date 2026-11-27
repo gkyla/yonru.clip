@@ -1,8 +1,10 @@
 // @vitest-environment nuxt
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import HooksListPanel from '../../app/components/editor/HooksListPanel.vue';
 import { ref } from 'vue';
+
+enableAutoUnmount(afterEach);
 
 const mockHooks = [
   {
@@ -196,5 +198,51 @@ describe('HooksListPanel Component', () => {
     const header = wrapper.find('[data-testid="hooks-panel-header"]');
     expect(header.classes()).toContain('opacity-40');
     expect(header.classes()).toContain('pointer-events-none');
+  });
+
+  it('does not re-trigger scrollIntoView when hooks array reference changes without active identity change', async () => {
+    vi.useFakeTimers();
+    const scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+
+    const wrapper = mount(HooksListPanel, {
+      props: {
+        panelTab: 'generated',
+        isCurrentHookSaved: false,
+        isOverlayVisible: false,
+        isHookRendered: () => false,
+        isActiveHook: h => h.start === mockState.activeHook.value?.start
+      },
+      global: {
+        stubs: { Icon: true, NuxtIcon: true, ContentAuditPanel: true }
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await vi.advanceTimersByTimeAsync(120);
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+
+    scrollSpy.mockClear();
+    // Simulate poll tick emitting a new array with identical hook data
+    mockState.hooks.value = mockHooks.map(h => ({ ...h }));
+    await wrapper.vm.$nextTick();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(scrollSpy).not.toHaveBeenCalled();
+
+    // Switching activeHook triggers scrollIntoView once
+    mockState.activeHook.value = mockHooks[1]!;
+    await wrapper.vm.$nextTick();
+    await vi.advanceTimersByTimeAsync(120);
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+
+    // Unmounting clears pending scroll timer
+    scrollSpy.mockClear();
+    mockState.activeHook.value = mockHooks[0]!;
+    await wrapper.vm.$nextTick();
+    wrapper.unmount();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(scrollSpy).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
   });
 });

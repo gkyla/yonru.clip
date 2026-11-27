@@ -135,6 +135,7 @@ const mockState = {
   updateHooks: vi.fn().mockResolvedValue({}),
   initPersistence: vi.fn(),
   resetWorkspace: vi.fn(),
+  clearHydratedSession: vi.fn(),
   analyzeUrl: vi.fn().mockResolvedValue({}),
   analyzeCached: vi.fn().mockImplementation(async () => {
     mockState.savedHooks.value = [];
@@ -145,7 +146,8 @@ const mockState = {
   loadReadyClipIntoEditor: vi.fn().mockResolvedValue({}),
   renderClip: vi.fn().mockResolvedValue({}),
   startPolling: vi.fn(),
-  stopPolling: vi.fn()
+  stopPolling: vi.fn(),
+  isPolling: vi.fn().mockReturnValue(false)
 };
 
 // Mock useClipperState

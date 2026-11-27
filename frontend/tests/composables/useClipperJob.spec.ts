@@ -284,7 +284,7 @@ describe('useClipperJob Sub-composable - Clip Session Hydration', () => {
 
   it('transitions jobStatus to error and stops polling if an unexpected exception occurs during polling tick', async () => {
     vi.useFakeTimers();
-    const { startPolling, stopPolling, jobId, jobStatus, jobError } =
+    const { startPolling, stopPolling, isPolling, jobId, jobStatus, jobError } =
       useClipperJob();
 
     jobId.value = 'job-123';
@@ -298,12 +298,55 @@ describe('useClipperJob Sub-composable - Clip Session Hydration', () => {
       })
     );
 
-    startPolling();
+    startPolling('extracting_clip');
 
-    await vi.advanceTimersByTimeAsync(2000);
+    // Default maxConsecutiveErrors is 3 (t=0, t=2000ms, t=4000ms)
+    await vi.advanceTimersByTimeAsync(4000);
+
+    expect(jobStatus.value).toBe('error');
+    expect(jobError.value).toBe('Network failure or JSON parse error');
+    expect(isPolling()).toBe(false);
 
     stopPolling();
     vi.useRealTimers();
+  });
+
+  it('tracks hydratedSession on ready load and clears it on queued or new analysis', async () => {
+    const {
+      loadReadyClipIntoEditor,
+      applyHydratedClipBundle,
+      clearHydratedSession,
+      hydratedSession,
+      jobId,
+      jobStatus,
+      stopPolling
+    } = useClipperJob();
+
+    await loadReadyClipIntoEditor('folder', '10_20_clip');
+    expect(hydratedSession.value).toEqual({
+      folderName: 'folder',
+      clipId: '10_20_clip',
+      jobId: 'job-123'
+    });
+
+    clearHydratedSession();
+    expect(hydratedSession.value).toBeNull();
+
+    jobId.value = 'job-queued';
+    jobStatus.value = 'queued';
+    applyHydratedClipBundle({
+      folderName: 'folder-q',
+      clipId: '30_40_clip',
+      status: 'queued',
+      transcript: [],
+      styleSettings: {},
+      cropMap: [],
+      timelineTracks: [],
+      thumbnailConfig: null,
+      assetUrl: '/assets/clips/folder-q/30_40_clip/video.mp4'
+    });
+    expect(hydratedSession.value).toBeNull();
+    stopPolling();
   });
 
   it('loads crop_map from session into cropMap state when available on clip load', async () => {

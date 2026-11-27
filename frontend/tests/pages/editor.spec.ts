@@ -27,6 +27,15 @@ const mockFolderName = ref('test_folder');
 const mockClipId = ref('');
 const mockSavedHooks = ref<any[]>([]);
 const mockHooks = ref<any[]>([]);
+const mockCachedVideos = ref<any[]>([]);
+const mockFetchCached = vi.fn().mockResolvedValue(undefined);
+const mockFetchSavedHooks = vi.fn().mockResolvedValue(undefined);
+const mockFetchReadyClips = vi.fn().mockResolvedValue([]);
+const mockStartPolling = vi.fn();
+const mockStopPolling = vi.fn();
+const mockActivateClipSession = vi
+  .fn()
+  .mockResolvedValue({ action: 'started_polling' });
 
 // Mock useRoute from #imports but preserve other auto-imports (like useRouter)
 vi.mock('#imports', async importOriginal => {
@@ -46,7 +55,7 @@ vi.mock('#imports', async importOriginal => {
 // Mock useClipperState using relative path
 vi.mock('../../app/composables/useClipperState', () => ({
   useClipperState: () => ({
-    cachedVideos: { value: [] },
+    cachedVideos: mockCachedVideos,
     lastAccessedVideo: { value: null },
     lastAccessedClip: { value: null },
     videoTitle: { value: '' },
@@ -55,11 +64,13 @@ vi.mock('../../app/composables/useClipperState', () => ({
     whisperModel: { value: 'base' },
     isNavigatingToEditor: { value: false },
     isMediaLoading: mockIsMediaLoading,
-    fetchCached: vi.fn(),
-    fetchSavedHooks: vi.fn(),
+    fetchCached: mockFetchCached,
+    fetchSavedHooks: mockFetchSavedHooks,
+    fetchReadyClips: mockFetchReadyClips,
+    activateClipSession: mockActivateClipSession,
     initPersistence: vi.fn(),
-    stopPolling: vi.fn(),
-    startPolling: vi.fn(),
+    stopPolling: mockStopPolling,
+    startPolling: mockStartPolling,
     isPlaying: mockIsPlaying,
     flushSessionSaves: mockFlushSessionSaves,
     renderStatus: { value: 'idle' },
@@ -96,6 +107,14 @@ describe('Editor Page', () => {
     mockClipId.value = '';
     mockSavedHooks.value = [];
     mockHooks.value = [];
+    mockCachedVideos.value = [];
+    mockFetchCached.mockClear();
+    mockFetchSavedHooks.mockClear();
+    mockFetchReadyClips.mockClear();
+    mockStartPolling.mockClear();
+    mockStopPolling.mockClear();
+    mockActivateClipSession.mockClear();
+    mockActivateClipSession.mockResolvedValue({ action: 'started_polling' });
   });
 
   it('renders successfully', () => {
@@ -562,5 +581,74 @@ describe('Editor Page', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await wrapper.vm.$nextTick();
     expect(wrapper.find('.w-\\[500px\\]').exists()).toBe(false);
+  });
+
+  it('skips redundant polling, ready-clips double fetch, savedHooks, and cached fetch when already hydrated', async () => {
+    const router = useRouter();
+    await router.replace({
+      query: {
+        job_id: 'job-123',
+        folder: 'test_folder',
+        clip_id: '10_20_test'
+      }
+    });
+
+    mockJobStatus.value = 'ready';
+    mockActivateClipSession.mockResolvedValueOnce({
+      action: 'already_hydrated'
+    });
+    mockCachedVideos.value = [
+      {
+        video_id: 'v1',
+        title: 'Existing',
+        duration: 60,
+        folder_name: 'test_folder'
+      }
+    ];
+    mockSavedHooks.value = [{ start: 10, end: 20, theme: 'Saved Hook' }];
+
+    const wrapper = mount(editor, {
+      global: {
+        stubs: {
+          HomeSidebar: true,
+          SidebarSettings: true,
+          VideoPreview: true,
+          TimelinePanel: true,
+          TimelineEditor: true,
+          BlacklistSettings: true,
+          TranscriptEditor: true,
+          AuditLogsPanel: true,
+          RenderingOverlay: true,
+          Icon: true
+        }
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await Promise.resolve();
+
+    expect(mockActivateClipSession).toHaveBeenCalledWith({
+      jobId: 'job-123',
+      folderName: 'test_folder',
+      clipId: '10_20_test'
+    });
+    expect(mockStartPolling).not.toHaveBeenCalled();
+    expect(mockFetchReadyClips).toHaveBeenCalledTimes(1);
+    expect(mockFetchCached).not.toHaveBeenCalled();
+    expect(mockFetchSavedHooks).not.toHaveBeenCalled();
+
+    // Transitioning to ready later forces a refresh once
+    mockFetchReadyClips.mockClear();
+    mockJobStatus.value = 'cutting';
+    await wrapper.vm.$nextTick();
+    mockJobStatus.value = 'ready';
+    await wrapper.vm.$nextTick();
+    expect(mockFetchReadyClips).toHaveBeenCalledTimes(1);
+    expect(mockFetchReadyClips).toHaveBeenCalledWith({
+      force: true,
+      silent: true
+    });
+
+    await router.replace({ query: {} });
   });
 });

@@ -460,4 +460,344 @@ describe('IngestionJobCoordinator Unit Tests', () => {
       expect(coordinator.getActiveJobId()).toBe('load-job-1');
     });
   });
+
+  describe('Bounded Polling Phases, Single-Flight & Diffed Emissions', () => {
+    it('does not start polling when analyzeCached returns ready with hd_ready and hook thumbnails, and fetches saved_hooks once', async () => {
+      const requestedUrls: string[] = [];
+      mockFetcher.mockImplementation((url: string) => {
+        requestedUrls.push(url);
+        if (url.includes('/api/analyze-cached/cached-full')) {
+          return Promise.resolve({
+            job_id: 'job-cached-full',
+            status: 'ready',
+            video: {
+              title: 'Full Ready Video',
+              duration: 120,
+              fps: 30,
+              has_heatmap: false,
+              asset_url: '/assets/sources/full_folder/full.mp4',
+              folder_name: 'full_folder',
+              hd_ready: true,
+              has_preview: true
+            },
+            hooks: [
+              {
+                theme: 'Hook 1',
+                start: 10,
+                end: 40,
+                thumbnail_url: '/assets/sources/full_folder/hook_0.jpg'
+              }
+            ]
+          });
+        }
+        if (url.includes('/api/cached/full_folder/saved_hooks')) {
+          return Promise.resolve({
+            saved_hooks: [{ id: 's1', start: 5, end: 25, theme: 'Saved Hook' }]
+          });
+        }
+        return Promise.resolve({});
+      });
+
+      const savedHooksSpy = vi.fn();
+      const jobId = await coordinator.analyzeCached(
+        { videoId: 'cached-full' },
+        { onSavedHooksDiscovered: savedHooksSpy }
+      );
+
+      expect(jobId).toBe('job-cached-full');
+      expect(coordinator.isPolling()).toBe(false);
+      expect(coordinator.getPollingPhase()).toBe('idle');
+      expect(savedHooksSpy).toHaveBeenCalledTimes(1);
+      expect(savedHooksSpy).toHaveBeenCalledWith([
+        { id: 's1', start: 5, end: 25, theme: 'Saved Hook' }
+      ]);
+
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(requestedUrls.some(u => u.includes('/api/job/'))).toBe(false);
+    });
+
+    it('runs bounded thumbnail_backfill polling for #362 missing thumbnails and halts once thumbnails arrive', async () => {
+      let pollCount = 0;
+      mockFetcher.mockImplementation((url: string) => {
+        if (url.includes('/api/analyze-cached/cached-backfill')) {
+          return Promise.resolve({
+            job_id: 'job-backfill',
+            status: 'ready',
+            video: {
+              title: 'Backfill Video',
+              duration: 120,
+              folder_name: 'bf_folder',
+              hd_ready: true
+            },
+            hooks: [{ theme: 'Hook Missing Thumb', start: 10, end: 40 }]
+          });
+        }
+        if (url.includes('/api/cached/bf_folder/saved_hooks')) {
+          return Promise.resolve({ saved_hooks: [] });
+        }
+        if (url.includes('/api/job/job-backfill')) {
+          pollCount += 1;
+          if (pollCount === 1) {
+            return Promise.resolve({
+              status: 'ready',
+              folder_name: 'bf_folder',
+              video: { hd_ready: true, folder_name: 'bf_folder' },
+              hooks: [{ theme: 'Hook Missing Thumb', start: 10, end: 40 }]
+            });
+          }
+          return Promise.resolve({
+            status: 'ready',
+            folder_name: 'bf_folder',
+            video: { hd_ready: true, folder_name: 'bf_folder' },
+            hooks: [
+              {
+                theme: 'Hook Missing Thumb',
+                start: 10,
+                end: 40,
+                thumbnail_url: '/assets/sources/bf_folder/hook_0.jpg'
+              }
+            ]
+          });
+        }
+        return Promise.resolve({});
+      });
+
+      const hooksSpy = vi.fn();
+      await coordinator.analyzeCached(
+        { videoId: 'cached-backfill' },
+        { onHooksDiscovered: hooksSpy }
+      );
+
+      expect(coordinator.isPolling()).toBe(true);
+      expect(coordinator.getPollingPhase()).toBe('thumbnail_backfill');
+      expect(hooksSpy).toHaveBeenCalledTimes(1);
+
+      // Tick 1: thumbnails still missing -> does NOT re-emit identical hooks
+      await vi.advanceTimersByTimeAsync(100);
+      expect(pollCount).toBe(1);
+      expect(coordinator.isPolling()).toBe(true);
+      expect(hooksSpy).toHaveBeenCalledTimes(1);
+
+      // Tick 2: thumbnails backfilled -> emits updated hooks and halts immediately
+      await vi.advanceTimersByTimeAsync(100);
+      expect(pollCount).toBe(2);
+      expect(hooksSpy).toHaveBeenCalledTimes(2);
+      expect(coordinator.isPolling()).toBe(false);
+      expect(coordinator.getPollingPhase()).toBe('idle');
+
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(pollCount).toBe(2);
+    });
+
+    it('halts thumbnail_backfill after maxThumbnailBackfillPolls if thumbnails never populate', async () => {
+      const boundedCoordinator = new IngestionJobCoordinator(
+        'http://localhost:8000',
+        mockFetcher,
+        { pollIntervalMs: 50, maxThumbnailBackfillPolls: 3 }
+      );
+
+      let pollCount = 0;
+      mockFetcher.mockImplementation((url: string) => {
+        if (url.includes('/api/analyze-cached/cached-never')) {
+          return Promise.resolve({
+            job_id: 'job-bf-cap',
+            status: 'ready',
+            video: { hd_ready: true, folder_name: 'cap_folder' },
+            hooks: [{ theme: 'No Thumb Hook', start: 5, end: 25 }]
+          });
+        }
+        if (url.includes('/saved_hooks')) {
+          return Promise.resolve({ saved_hooks: [] });
+        }
+        if (url.includes('/api/job/job-bf-cap')) {
+          pollCount += 1;
+          return Promise.resolve({
+            status: 'ready',
+            video: { hd_ready: true, folder_name: 'cap_folder' },
+            hooks: [{ theme: 'No Thumb Hook', start: 5, end: 25 }]
+          });
+        }
+        return Promise.resolve({});
+      });
+
+      await boundedCoordinator.analyzeCached({ videoId: 'cached-never' });
+      expect(boundedCoordinator.isPolling()).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(500);
+      expect(pollCount).toBe(3);
+      expect(boundedCoordinator.isPolling()).toBe(false);
+      boundedCoordinator.stopPolling();
+    });
+
+    it('transitions analyzing -> hd_prefetch -> halts cleanly when ready + hd_ready without clip', async () => {
+      let pollCount = 0;
+      mockFetcher.mockImplementation((url: string) => {
+        if (url.includes('/api/analyze-url')) {
+          return Promise.resolve({ job_id: 'job-url-1', status: 'queued' });
+        }
+        if (url.includes('/saved_hooks')) {
+          return Promise.resolve({
+            saved_hooks: [{ id: 'sh-1', start: 1, end: 15, theme: 'Saved' }]
+          });
+        }
+        if (url.includes('/api/job/job-url-1')) {
+          pollCount += 1;
+          if (pollCount === 1) {
+            return Promise.resolve({
+              status: 'hooks_ready',
+              download_percent: 35,
+              folder_name: 'url_folder',
+              video: { hd_ready: false, folder_name: 'url_folder' },
+              hooks: [
+                {
+                  start: 10,
+                  end: 30,
+                  theme: 'Viral Hook',
+                  thumbnail_url: '/thumb.jpg'
+                }
+              ]
+            });
+          }
+          return Promise.resolve({
+            status: 'ready',
+            download_percent: 100,
+            folder_name: 'url_folder',
+            video: { hd_ready: true, folder_name: 'url_folder' },
+            hooks: [
+              {
+                start: 10,
+                end: 30,
+                theme: 'Viral Hook',
+                thumbnail_url: '/thumb.jpg'
+              }
+            ]
+          });
+        }
+        return Promise.resolve({});
+      });
+
+      const savedHooksSpy = vi.fn();
+      const hooksSpy = vi.fn();
+      await coordinator.analyzeUrl(
+        { url: 'https://youtube.com/watch?v=abc' },
+        { onSavedHooksDiscovered: savedHooksSpy, onHooksDiscovered: hooksSpy }
+      );
+
+      // Tick 1 ran immediately on startPolling -> hooks_ready -> hd_prefetch
+      await vi.advanceTimersByTimeAsync(10);
+      expect(pollCount).toBe(1);
+      expect(coordinator.getPollingPhase()).toBe('hd_prefetch');
+      expect(coordinator.isPolling()).toBe(true);
+
+      // Tick 2 -> ready + hd_ready -> halts immediately
+      await vi.advanceTimersByTimeAsync(100);
+      expect(pollCount).toBe(2);
+      expect(coordinator.isPolling()).toBe(false);
+      expect(coordinator.getPollingPhase()).toBe('idle');
+      expect(savedHooksSpy).toHaveBeenCalledTimes(1);
+      expect(hooksSpy).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(pollCount).toBe(2);
+    });
+
+    it('halts stagnant hd_prefetch polling after maxStagnantHdPrefetchPolls without emitting error', async () => {
+      const boundedCoordinator = new IngestionJobCoordinator(
+        'http://localhost:8000',
+        mockFetcher,
+        { pollIntervalMs: 50, maxStagnantHdPrefetchPolls: 3 }
+      );
+
+      let pollCount = 0;
+      mockFetcher.mockImplementation((url: string) => {
+        if (url.includes('/api/job/job-stalled')) {
+          pollCount += 1;
+          return Promise.resolve({
+            status: 'hooks_ready',
+            download_percent: 20,
+            folder_name: 'stall_folder',
+            video: { hd_ready: false, folder_name: 'stall_folder' },
+            hooks: [
+              { start: 0, end: 20, theme: 'Hook', thumbnail_url: '/t.jpg' }
+            ]
+          });
+        }
+        return Promise.resolve({ saved_hooks: [] });
+      });
+
+      const errorSpy = vi.fn();
+      boundedCoordinator.startPolling(
+        'job-stalled',
+        { phase: 'hd_prefetch' },
+        { onError: errorSpy }
+      );
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(pollCount).toBe(4);
+      expect(boundedCoordinator.isPolling()).toBe(false);
+      expect(errorSpy).not.toHaveBeenCalled();
+      boundedCoordinator.stopPolling();
+    });
+
+    it('guarantees single-flight polling and drops stale in-flight results after stopPolling()', async () => {
+      const pendingResolvers: Array<(val: unknown) => void> = [];
+      let jobFetchCalls = 0;
+      mockFetcher.mockImplementation((url: string) => {
+        if (url.includes('/api/job/job-slow')) {
+          jobFetchCalls += 1;
+          return new Promise(resolve => {
+            pendingResolvers.push(resolve);
+          });
+        }
+        return Promise.resolve({});
+      });
+
+      const statusSpy = vi.fn();
+      coordinator.startPolling('job-slow', {}, { onStatusChange: statusSpy });
+
+      expect(jobFetchCalls).toBe(1);
+
+      // Advance well past pollIntervalMs while first fetch is still pending -> must NOT overlap
+      await vi.advanceTimersByTimeAsync(500);
+      expect(jobFetchCalls).toBe(1);
+
+      // Cancel polling before slow response arrives
+      coordinator.stopPolling();
+      expect(coordinator.isPolling()).toBe(false);
+
+      pendingResolvers[0]?.({ status: 'downloading', download_percent: 50 });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(statusSpy).not.toHaveBeenCalled();
+    });
+
+    it('fetches saved_hooks at most once per folder across multiple ticks', async () => {
+      let savedHooksFetchCount = 0;
+      let tick = 0;
+      mockFetcher.mockImplementation((url: string) => {
+        if (url.includes('/saved_hooks')) {
+          savedHooksFetchCount += 1;
+          return Promise.resolve({
+            saved_hooks: [{ id: 's1', start: 0, end: 10, theme: 'Saved' }]
+          });
+        }
+        if (url.includes('/api/job/job-saved-once')) {
+          tick += 1;
+          return Promise.resolve({
+            status: 'downloading_video',
+            download_percent: tick * 10,
+            folder_name: 'same_folder'
+          });
+        }
+        return Promise.resolve({});
+      });
+
+      coordinator.startPolling('job-saved-once');
+      await vi.advanceTimersByTimeAsync(350);
+
+      expect(tick).toBeGreaterThanOrEqual(3);
+      expect(savedHooksFetchCount).toBe(1);
+    });
+  });
 });

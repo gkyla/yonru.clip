@@ -124,7 +124,7 @@
           :ready-clips="readyClips"
           :is-ready-clips-loading="isReadyClipsLoading"
           @load-clip="loadReadyClip"
-          @refresh-clips="fetchReadyClips"
+          @refresh-clips="fetchReadyClips({ force: true })"
         />
 
         <!-- Cached Video Library Sub-Module -->
@@ -148,6 +148,7 @@
 </template>
 
 <script setup lang="ts">
+import { resolveClipHookLocation } from '../utils/hookClipMatcher';
 import type {
   CachedAnalysisOptions,
   CachedVideo,
@@ -215,8 +216,18 @@ function updateTypewriter() {
 
 const { cachedVideos, isCachedLoading, isNavigatingToEditor } = state;
 
-const readyClips = useState<ReadyClip[]>('readyClips', () => []);
-const isReadyClipsLoading = ref(readyClips.value.length === 0);
+const readyClips =
+  state.readyClips ?? useState<ReadyClip[]>('readyClips', () => []);
+const fallbackIsReadyClipsLoading = ref(readyClips.value.length === 0);
+const isReadyClipsLoading = computed(() => {
+  if (state.isReadyClipsLoading) {
+    return (
+      state.isReadyClipsLoading.value ||
+      (!state.hasReadyClipsLoaded?.value && readyClips.value.length === 0)
+    );
+  }
+  return fallbackIsReadyClipsLoading.value;
+});
 const showProcessingOverlay = ref(false);
 const isReanalyzingCached = ref(false);
 let processingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -595,7 +606,10 @@ async function resetToStart() {
   state.resetWorkspace();
   state.youtubeUrl.value = '';
   isReanalyzingCached.value = false;
-  await Promise.allSettled([state.fetchCached(true), fetchReadyClips()]);
+  await Promise.allSettled([
+    state.fetchCached(true),
+    fetchReadyClips({ force: true })
+  ]);
 }
 
 function dismissJobError() {
@@ -618,24 +632,37 @@ async function handleRetryAnalysis() {
   }
 }
 
-async function fetchReadyClips() {
+async function fetchReadyClips(options?: {
+  force?: boolean;
+  silent?: boolean;
+}) {
+  if (state.fetchReadyClips) {
+    return state.fetchReadyClips(options);
+  }
   if (readyClips.value.length === 0) {
-    isReadyClipsLoading.value = true;
+    fallbackIsReadyClipsLoading.value = true;
   }
   try {
     const res = await $fetch<{ clips: ReadyClip[] }>(
       `${API_BASE}/api/ready-clips`
     );
     readyClips.value = res.clips || [];
+    return readyClips.value;
   } catch {
     if (readyClips.value.length === 0) readyClips.value = [];
+    return readyClips.value;
   } finally {
-    isReadyClipsLoading.value = false;
+    fallbackIsReadyClipsLoading.value = false;
   }
 }
 
 async function loadReadyClip(clip: ReadyClip) {
   const router = useRouter();
+  if (state.openReadyClipInEditor) {
+    await state.openReadyClipInEditor(clip, router);
+    return;
+  }
+
   console.log(
     '[yonru] Loading ready clip:',
     clip.clip_id,
@@ -657,59 +684,11 @@ async function loadReadyClip(clip: ReadyClip) {
       clip.title
     );
 
-    let hookIndex = 0;
-    let tab = 'generated';
-
-    const parts = clip.clip_id.split('_');
-    const part0 = parts[0];
-    const part1 = parts[1];
-    if (part0 !== undefined && part1 !== undefined) {
-      const clipStart = parseFloat(part0) || 0;
-      const clipEnd = parseFloat(part1) || 0;
-
-      function findBestMatchingHookIndex(
-        list: Hook[],
-        targetStart: number,
-        targetEnd: number
-      ) {
-        let bestIndex = -1;
-        let minDiff = 5.0;
-        list.forEach((h, idx) => {
-          const hStart =
-            typeof h.start === 'string' ? parseFloat(h.start) : h.start;
-          const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end;
-          const diff =
-            Math.abs(hStart - targetStart) + Math.abs(hEnd - targetEnd);
-          if (diff < minDiff) {
-            minDiff = diff;
-            bestIndex = idx;
-          }
-        });
-        return { index: bestIndex, diff: minDiff };
-      }
-
-      const savedMatch = findBestMatchingHookIndex(
-        state.savedHooks.value,
-        clipStart,
-        clipEnd
-      );
-      const genMatch = findBestMatchingHookIndex(
-        state.hooks.value,
-        clipStart,
-        clipEnd
-      );
-
-      if (
-        savedMatch.index >= 0 &&
-        (genMatch.index < 0 || savedMatch.diff <= genMatch.diff)
-      ) {
-        hookIndex = savedMatch.index;
-        tab = 'saved';
-      } else if (genMatch.index >= 0) {
-        hookIndex = genMatch.index;
-        tab = 'generated';
-      }
-    }
+    const { hookIndex, tab } = resolveClipHookLocation(
+      clip.clip_id,
+      state.hooks.value,
+      state.savedHooks.value
+    );
 
     await minWait;
     await router.push({
@@ -719,11 +698,12 @@ async function loadReadyClip(clip: ReadyClip) {
         folder: clip.folder_name,
         clip_id: clip.clip_id,
         hook_index: hookIndex,
-        tab: tab
+        tab
       }
     });
   } catch (e) {
     console.error('[yonru] Failed to load ready clip:', e);
+    isNavigatingToEditor.value = false;
     state.showToast('Failed to load clip data', 'error');
   }
 }
@@ -760,7 +740,7 @@ async function selectHook(hook: Hook) {
     }
   }
 
-  state.extractClip(hook);
+  await state.extractClip(hook);
 
   const hooksList = state.hooks.value;
   const hookIndex = hooksList.indexOf(hook);
@@ -794,7 +774,8 @@ async function initDashboard() {
     state.hooks.value = [];
     state.jobStatus.value = 'idle';
     state.jobId.value = null;
-  } else {
+    state.clearHydratedSession?.();
+  } else if (!state.isPolling?.()) {
     state.startPolling();
   }
 
@@ -804,7 +785,7 @@ async function initDashboard() {
     state.fetchPrompts(),
     state.fetchSavedHooks(),
     state.fetchCached(true),
-    fetchReadyClips()
+    fetchReadyClips({ force: true })
   ]);
   state.initPersistence();
   state.checkSystemHealth();

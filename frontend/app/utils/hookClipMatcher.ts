@@ -9,6 +9,79 @@ export interface HookClipMatcherOptions {
   clipId?: string | null;
 }
 
+export interface ClipHookLocation {
+  hookIndex: number;
+  tab: 'generated' | 'saved';
+}
+
+function findBestMatchingHookIndex(
+  list: Hook[] | null | undefined,
+  targetStart: number,
+  targetEnd: number
+): { index: number; diff: number } {
+  if (!Array.isArray(list) || list.length === 0) {
+    return { index: -1, diff: 5.0 };
+  }
+
+  let bestIndex = -1;
+  let minDiff = 5.0;
+  list.forEach((hook, idx) => {
+    const hStart =
+      typeof hook.start === 'string' ? parseFloat(hook.start) : hook.start;
+    const hEnd = typeof hook.end === 'string' ? parseFloat(hook.end) : hook.end;
+    if (!Number.isFinite(hStart) || !Number.isFinite(hEnd)) return;
+    const diff = Math.abs(hStart - targetStart) + Math.abs(hEnd - targetEnd);
+    if (diff < minDiff) {
+      minDiff = diff;
+      bestIndex = idx;
+    }
+  });
+  return { index: bestIndex, diff: minDiff };
+}
+
+/**
+ * Resolves the matching hook index and sidebar tab ('generated' or 'saved')
+ * for a given clip_id based on timestamp proximity.
+ */
+export function resolveClipHookLocation(
+  clipId: string | null | undefined,
+  hooks: Hook[] | null | undefined,
+  savedHooks: Hook[] | null | undefined
+): ClipHookLocation {
+  if (!clipId) {
+    return { hookIndex: 0, tab: 'generated' };
+  }
+
+  const parts = clipId.split('_');
+  const part0 = parts[0];
+  const part1 = parts[1];
+  if (part0 === undefined || part1 === undefined) {
+    return { hookIndex: 0, tab: 'generated' };
+  }
+
+  const clipStart = parseFloat(part0);
+  const clipEnd = parseFloat(part1);
+  if (Number.isNaN(clipStart) || Number.isNaN(clipEnd)) {
+    return { hookIndex: 0, tab: 'generated' };
+  }
+
+  const savedMatch = findBestMatchingHookIndex(savedHooks, clipStart, clipEnd);
+  const genMatch = findBestMatchingHookIndex(hooks, clipStart, clipEnd);
+
+  if (
+    savedMatch.index >= 0 &&
+    (genMatch.index < 0 || savedMatch.diff <= genMatch.diff)
+  ) {
+    return { hookIndex: savedMatch.index, tab: 'saved' };
+  }
+
+  if (genMatch.index >= 0) {
+    return { hookIndex: genMatch.index, tab: 'generated' };
+  }
+
+  return { hookIndex: 0, tab: 'generated' };
+}
+
 /**
  * Finds the matching ReadyClip for a given Hook based on:
  * 1. Timestamp boundaries matching custom safetyBuffer (tolerance < 1.5s)
@@ -205,4 +278,5 @@ export class HookClipMatcher {
 
   public static findMatchingClip = findMatchingClip;
   public static isHookRendered = isHookRendered;
+  public static resolveClipHookLocation = resolveClipHookLocation;
 }

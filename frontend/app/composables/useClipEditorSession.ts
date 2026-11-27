@@ -18,6 +18,7 @@ import {
   type ClipSessionSaveDomain,
   type ClipSessionTarget
 } from '../utils/clipSessionSaveScheduler';
+import { resolveClipHookLocation } from '../utils/hookClipMatcher';
 import { useAppNotifier } from './useAppNotifier';
 import { useCachedLibrary } from './useCachedLibrary';
 import { useTimelineState } from './useTimelineState';
@@ -92,6 +93,50 @@ export function sanitizeTranscript(
   });
 }
 
+export interface LoadReadyClipMeta {
+  title?: string;
+  theme?: string;
+  thumbnailUrl?: string;
+  videoTitle?: string;
+}
+
+export interface ClipSessionActivationTarget {
+  jobId?: string | null;
+  folderName?: string | null;
+  clipId?: string | null;
+}
+
+export interface ClipSessionActivationResult {
+  action:
+    | 'already_hydrated'
+    | 'already_polling'
+    | 'started_polling'
+    | 'loaded_ready_clip'
+    | 'noop';
+}
+
+export interface OpenReadyClipInput {
+  folder_name?: string;
+  folder?: string;
+  clip_id: string;
+  theme?: string;
+  title?: string;
+  video_title?: string;
+  thumbnail_url?: string;
+}
+
+export interface OpenReadyClipOptions {
+  minDelayMs?: number;
+  onBeforeNavigate?: () => void;
+}
+
+export interface EditorRouterLike {
+  push: (location: {
+    path: string;
+    query: Record<string, string | number>;
+  }) => Promise<unknown> | unknown;
+}
+
 export interface ClipEditorSessionDependencies {
   notifier?: ReturnType<typeof useAppNotifier>;
   library?: ReturnType<typeof useCachedLibrary>;
@@ -129,6 +174,7 @@ export const useClipEditorSession = (
     'fullTranscript',
     () => []
   );
+  const videoUrl = useState<string | null>('videoUrl', () => null);
   const hooks = useState<Hook[]>('hooks', () => []);
   const activeHook = useState<Hook | null>('activeHook', () => null);
   const videoFps = useState<number>('videoFps', () => 30);
@@ -158,6 +204,11 @@ export const useClipEditorSession = (
     redoRef: HistorySnapshot[];
     redoLen: number;
     redoTop: HistorySnapshot | undefined;
+  } | null = null;
+
+  let inFlightClipLoad: {
+    key: string;
+    promise: Promise<void>;
   } | null = null;
 
   function buildCoverConfigPayload() {
@@ -249,22 +300,182 @@ export const useClipEditorSession = (
     }
   });
 
-  async function loadReadyClipIntoEditor(folder: string, id: string) {
-    await job.loadReadyClipIntoEditor(folder, id);
-    const parentVideo = library.cachedVideos.value.find(
-      v => v.folder_name === folder || v.video_id === folder
+  async function loadReadyClipIntoEditor(
+    folder: string,
+    id: string,
+    meta?: LoadReadyClipMeta
+  ) {
+    const key = `${folder}::${id}`;
+    if (inFlightClipLoad?.key === key) {
+      return inFlightClipLoad.promise;
+    }
+
+    const loadPromise = (async () => {
+      await job.loadReadyClipIntoEditor(folder, id);
+      const parentVideo = library.cachedVideos.value.find(
+        v => v.folder_name === folder || v.video_id === folder
+      );
+      const resolvedTheme =
+        meta?.theme ||
+        activeHook.value?.theme ||
+        activeHook.value?.title ||
+        meta?.title ||
+        'Current Clip';
+      const resolvedTitle = meta?.title || resolvedTheme;
+      const resolvedThumbnail =
+        meta?.thumbnailUrl || activeHook.value?.thumbnail_url;
+      const resolvedVideoTitle = meta?.videoTitle || parentVideo?.title;
+
+      library.setLastClip(
+        folder,
+        id,
+        resolvedTitle,
+        resolvedThumbnail,
+        resolvedTheme,
+        resolvedVideoTitle
+      );
+    })();
+
+    inFlightClipLoad = { key, promise: loadPromise };
+    try {
+      await loadPromise;
+    } finally {
+      if (
+        inFlightClipLoad?.key === key &&
+        inFlightClipLoad.promise === loadPromise
+      ) {
+        inFlightClipLoad = null;
+      }
+    }
+  }
+
+  function isClipSessionHydrated(target: ClipSessionActivationTarget): boolean {
+    const hydrated = job.hydratedSession?.value;
+    if (!hydrated) return false;
+    if (job.jobStatus?.value !== 'ready') return false;
+    if (job.isMediaLoading?.value) return false;
+    if (!job.jobId?.value) return false;
+    if (!videoUrl.value) return false;
+
+    if (target.folderName && hydrated.folderName !== target.folderName) {
+      return false;
+    }
+    if (target.clipId && hydrated.clipId !== target.clipId) {
+      return false;
+    }
+    if (target.jobId && job.jobId.value !== target.jobId) {
+      return false;
+    }
+
+    return Boolean(target.clipId || target.jobId);
+  }
+
+  async function activateClipSession(
+    target: ClipSessionActivationTarget
+  ): Promise<ClipSessionActivationResult> {
+    if (isClipSessionHydrated(target)) {
+      return { action: 'already_hydrated' };
+    }
+
+    if (target.jobId) {
+      if (job.isPollingJob?.(target.jobId, 'extracting_clip')) {
+        return { action: 'already_polling' };
+      }
+
+      job.jobId.value = target.jobId;
+      if (target.folderName) {
+        folderName.value = target.folderName;
+      }
+      if (target.clipId) {
+        clipId.value = target.clipId;
+      }
+      job.startPolling?.('extracting_clip');
+      return { action: 'started_polling' };
+    }
+
+    if (target.folderName && target.clipId) {
+      await loadReadyClipIntoEditor(target.folderName, target.clipId);
+      return { action: 'loaded_ready_clip' };
+    }
+
+    return { action: 'noop' };
+  }
+
+  async function openReadyClipInEditor(
+    clip: OpenReadyClipInput,
+    router: EditorRouterLike,
+    options: OpenReadyClipOptions = {}
+  ): Promise<boolean> {
+    const folder = clip.folder_name || clip.folder || '';
+    if (!folder || !clip.clip_id) return false;
+
+    const minDelayMs = options.minDelayMs ?? 600;
+    const minWait = new Promise<void>(resolve =>
+      setTimeout(resolve, minDelayMs)
     );
-    const videoTitle = parentVideo?.title;
-    const theme =
-      activeHook.value?.theme || activeHook.value?.title || 'Current Clip';
-    library.setLastClip(
-      folder,
-      id,
-      theme,
-      activeHook.value?.thumbnail_url,
-      theme,
-      videoTitle
-    );
+
+    try {
+      if (job.isNavigatingToEditor) {
+        job.isNavigatingToEditor.value = true;
+      }
+
+      const loadMeta: LoadReadyClipMeta = {
+        theme: clip.theme,
+        title: clip.theme || clip.title,
+        thumbnailUrl: clip.thumbnail_url,
+        videoTitle: clip.video_title || clip.title
+      };
+
+      if (
+        !isClipSessionHydrated({ folderName: folder, clipId: clip.clip_id })
+      ) {
+        await loadReadyClipIntoEditor(folder, clip.clip_id, loadMeta);
+      } else {
+        const parentVideo = library.cachedVideos.value.find(
+          v => v.folder_name === folder || v.video_id === folder
+        );
+        const resolvedTheme =
+          loadMeta.theme ||
+          activeHook.value?.theme ||
+          activeHook.value?.title ||
+          'Current Clip';
+        library.setLastClip(
+          folder,
+          clip.clip_id,
+          loadMeta.title || resolvedTheme,
+          loadMeta.thumbnailUrl || activeHook.value?.thumbnail_url,
+          resolvedTheme,
+          loadMeta.videoTitle || parentVideo?.title
+        );
+      }
+
+      const { hookIndex, tab } = resolveClipHookLocation(
+        clip.clip_id,
+        hooks.value,
+        library.savedHooks?.value
+      );
+
+      await minWait;
+      options.onBeforeNavigate?.();
+      await router.push({
+        path: '/editor',
+        query: {
+          job_id: job.jobId?.value || '',
+          folder,
+          clip_id: clip.clip_id,
+          hook_index: hookIndex,
+          tab
+        }
+      });
+      return true;
+    } catch (e) {
+      console.error('[yonru] Failed to load ready clip:', e);
+      if (job.isNavigatingToEditor) {
+        job.isNavigatingToEditor.value = false;
+      }
+      notifier.showToast('Failed to load clip data', 'error');
+      return false;
+    }
   }
 
   // Flush pending dirty domains & undo/redo history once per clip switch before stacks clear
@@ -563,6 +774,8 @@ export const useClipEditorSession = (
   function resetSession() {
     saveScheduler.cancelPending();
     lastFlushedHistoryMeta = null;
+    inFlightClipLoad = null;
+    job.clearHydratedSession?.();
     folderName.value = null;
     clipId.value = null;
     hooks.value = [];
@@ -589,6 +802,9 @@ export const useClipEditorSession = (
     flushSessionSaves,
     hasPendingSessionSaves,
     loadReadyClipIntoEditor,
+    isClipSessionHydrated,
+    activateClipSession,
+    openReadyClipInEditor,
     saveTranscript,
     saveClipSession,
     updateHooks,

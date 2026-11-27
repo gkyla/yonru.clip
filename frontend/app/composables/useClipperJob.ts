@@ -8,7 +8,8 @@ import {
 import {
   IngestionJobCoordinator,
   type HydratedClipBundle,
-  type JobUpdateCallbacks
+  type JobUpdateCallbacks,
+  type PollingPhase
 } from '../utils/jobCoordinator';
 import type {
   Hook,
@@ -22,6 +23,12 @@ import type {
   LastAnalysisRequest,
   PipelineErrorDetail
 } from '../types/clipper';
+
+export interface HydratedClipSessionRef {
+  folderName: string;
+  clipId: string;
+  jobId: string | null;
+}
 
 export interface ClipperJobDependencies {
   timeline?: ReturnType<typeof useTimelineState>;
@@ -52,6 +59,10 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
   const isCachedAnalysis = useState<boolean>('isCachedAnalysis', () => false);
   const downloadPercent = useState<number>('downloadPercent', () => 0);
   const hdReady = useState<boolean>('hdReady', () => false);
+  const hydratedSession = useState<HydratedClipSessionRef | null>(
+    'hydratedSession',
+    () => null
+  );
 
   // Shared state references needed by polling and actions
   const videoTitle = useState<string>('videoTitle', () => '');
@@ -351,6 +362,24 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
     if (bundle.history) {
       timeline.loadHistoryFromResponse(bundle.history);
     }
+
+    const resolvedStatus = bundle.status ?? jobStatus.value;
+    if (
+      bundle.folderName &&
+      bundle.clipId &&
+      resolvedStatus === 'ready' &&
+      Boolean(bundle.assetUrl || videoUrl.value)
+    ) {
+      hydratedSession.value = {
+        folderName: bundle.folderName,
+        clipId: bundle.clipId,
+        jobId: jobId.value
+      };
+    }
+  }
+
+  function clearHydratedSession() {
+    hydratedSession.value = null;
   }
 
   const createJobCallbacks = (): JobUpdateCallbacks => ({
@@ -405,6 +434,7 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
       await loadReadyClipIntoEditor(selfHealFolder, selfHealClipId);
     },
     onError: (err, detail) => {
+      clearHydratedSession();
       setJobError(err, detail ?? null);
       isMediaLoading.value = false;
     }
@@ -442,6 +472,7 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
   async function analyzeUrl(force = false) {
     if (!youtubeUrl.value) return;
 
+    clearHydratedSession();
     lastAnalysisRequest.value = { type: 'url', url: youtubeUrl.value, force };
     isCachedAnalysis.value = false;
     downloadPercent.value = 0;
@@ -490,6 +521,7 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
   ) {
     if (!videoId) return;
 
+    clearHydratedSession();
     lastAnalysisRequest.value = { type: 'cached', videoId, force, options };
     isCachedAnalysis.value = true;
     downloadPercent.value = 0;
@@ -556,11 +588,11 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
     }
   }
 
-  function startPolling() {
+  function startPolling(phase?: PollingPhase) {
     if (!jobId.value) return;
     coordinator.startPolling(
       jobId.value,
-      { folderName: folderName.value, clipId: clipId.value },
+      { folderName: folderName.value, clipId: clipId.value, phase },
       createJobCallbacks()
     );
   }
@@ -569,9 +601,22 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
     coordinator.stopPolling();
   }
 
+  function isPolling() {
+    return coordinator.isPolling();
+  }
+
+  function isPollingJob(targetJobId: string, phase?: PollingPhase) {
+    return coordinator.isPollingJob(targetJobId, phase);
+  }
+
+  function getPollingPhase() {
+    return coordinator.getPollingPhase();
+  }
+
   async function extractClip(hook: Hook) {
     if (!jobId.value) return;
 
+    clearHydratedSession();
     isPlaying.value = false;
     currentTime.value = 0;
     activeHook.value = hook;
@@ -613,6 +658,7 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
   }
 
   async function loadReadyClipIntoEditor(folder: string, id: string) {
+    clearHydratedSession();
     jobStatus.value = 'queued';
     setJobError(null);
     hdReady.value = true;
@@ -675,7 +721,7 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
 
       applyHydratedClipBundle(bundle);
       if (jobStatus.value !== 'ready') {
-        startPolling();
+        startPolling('extracting_clip');
       } else {
         isMediaLoading.value = false;
       }
@@ -732,6 +778,11 @@ export const useClipperJob = (deps: ClipperJobDependencies = {}) => {
     extractClip,
     loadReadyClipIntoEditor,
     applyHydratedClipBundle,
+    hydratedSession,
+    clearHydratedSession,
+    isPolling,
+    isPollingJob,
+    getPollingPhase,
     startSafetyBuffer,
     isCachedAnalysis,
     downloadPercent,

@@ -1,5 +1,17 @@
-import type { CachedVideo, LastAccessedClip, Hook } from '../types/clipper';
+import type {
+  CachedVideo,
+  LastAccessedClip,
+  Hook,
+  ReadyClip
+} from '../types/clipper';
 import { resolveApiBase } from '../utils/apiBase';
+
+export interface FetchReadyClipsOptions {
+  force?: boolean;
+  silent?: boolean;
+}
+
+const READY_CLIPS_FRESH_MS = 5000;
 
 export const useCachedLibrary = () => {
   const API_BASE = resolveApiBase();
@@ -53,6 +65,20 @@ export const useCachedLibrary = () => {
 
   // Saved Hooks State
   const savedHooks = useState<Hook[]>('savedHooks', () => []);
+
+  // Ready Clips State & Single-Flight Cache
+  const readyClips = useState<ReadyClip[]>('readyClips', () => []);
+  const isReadyClipsLoading = useState<boolean>(
+    'isReadyClipsLoading',
+    () => false
+  );
+  const hasReadyClipsLoaded = useState<boolean>(
+    'hasReadyClipsLoaded',
+    () => false
+  );
+  let readyClipsInFlight: Promise<ReadyClip[]> | null = null;
+  let readyClipsLastFetchedAt = 0;
+  let readyClipsRequestId = 0;
 
   function updateStoredVideo(vid: CachedVideo) {
     lastAccessedVideoStored.value = vid;
@@ -269,6 +295,65 @@ export const useCachedLibrary = () => {
     } catch {}
   }
 
+  function invalidateReadyClipsCache() {
+    readyClipsLastFetchedAt = 0;
+  }
+
+  async function fetchReadyClips(
+    options: FetchReadyClipsOptions = {}
+  ): Promise<ReadyClip[]> {
+    const force = options.force === true;
+    if (!force && readyClipsInFlight) {
+      return readyClipsInFlight;
+    }
+    if (
+      !force &&
+      readyClipsLastFetchedAt > 0 &&
+      Date.now() - readyClipsLastFetchedAt < READY_CLIPS_FRESH_MS
+    ) {
+      return readyClips.value;
+    }
+
+    if (!options.silent && readyClips.value.length === 0) {
+      isReadyClipsLoading.value = true;
+    }
+
+    readyClipsRequestId += 1;
+    const reqId = readyClipsRequestId;
+    let requestPromise: Promise<ReadyClip[]> | null = null;
+
+    requestPromise = (async (): Promise<ReadyClip[]> => {
+      try {
+        const res = await $fetch<{ clips?: ReadyClip[] }>(
+          `${API_BASE}/api/ready-clips`
+        );
+        if (reqId === readyClipsRequestId) {
+          readyClips.value = res.clips || [];
+          readyClipsLastFetchedAt = Date.now();
+          hasReadyClipsLoaded.value = true;
+        }
+        return readyClips.value;
+      } catch (e) {
+        if (reqId === readyClipsRequestId && readyClips.value.length === 0) {
+          readyClips.value = [];
+        }
+        console.error('[yonru] Failed to fetch ready clips:', e);
+        return readyClips.value;
+      } finally {
+        if (readyClipsInFlight === requestPromise) {
+          readyClipsInFlight = null;
+        }
+        if (reqId === readyClipsRequestId) {
+          isReadyClipsLoading.value = false;
+          hasReadyClipsLoaded.value = true;
+        }
+      }
+    })();
+
+    readyClipsInFlight = requestPromise;
+    return requestPromise;
+  }
+
   return {
     cachedVideos,
     isCachedLoading,
@@ -287,12 +372,17 @@ export const useCachedLibrary = () => {
     lastAccessedVideoStored,
     lastAccessedVideo,
     savedHooks,
+    readyClips,
+    isReadyClipsLoading,
+    hasReadyClipsLoaded,
     updateStoredVideo,
     fetchCached,
     setLastAccessed,
     setLastClip,
     fetchSavedHooks,
     saveHook,
-    deleteSavedHook
+    deleteSavedHook,
+    fetchReadyClips,
+    invalidateReadyClipsCache
   };
 };
