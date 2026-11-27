@@ -266,11 +266,11 @@ The global transient notification banner anchored at the bottom-center viewport 
 _Avoid_: Alert popup, notification snackbar, floating banner, center toast
 
 **Media Transcoder Engine**:
-The unified backend media processing module responsible for isolated subprocess execution of FFmpeg and ffprobe, media duration and dimension probing, millisecond-clamped frame extraction for Clip Thumbnails and Cover Slides, audio track extraction, and video segment slicing.
+The unified backend media processing module responsible for isolated subprocess execution of FFmpeg and ffprobe, media duration and dimension probing, single-frame and batched parallel millisecond-clamped frame extraction for Clip Thumbnails, Hook thumbnails, and Cover Slides, audio track extraction, and video segment slicing.
 _Avoid_: Video tool, ffmpeg wrapper, transcode script, media converter
 
 **Hook Discovery Engine**:
-The unified backend module responsible for AI-assisted hook detection from speech transcripts, prompt orchestration (presets and custom archetypes), virality scoring, hook boundary and duration sanitization, thumbnail extraction coordination via MediaTranscoder, and hook cache lifecycle management.
+The unified backend module responsible for AI-assisted hook detection from speech transcripts, prompt orchestration (presets and custom archetypes), virality scoring, hook boundary and duration sanitization, read-only cached hook loading, batched hook thumbnail preparation via MediaTranscoder, and hook cache lifecycle management.
 _Avoid_: Hook script, AI helper, hook fetcher, virality detector
 
 **Hook Discovery Model**:
@@ -278,7 +278,7 @@ The curated GenAI model selected for AI-assisted transcript hook discovery and A
 _Avoid_: Hook analysis model, AI model, Gemini tier
 
 **Asset Repository**:
-The backend data access module strictly responsible for ingesting, caching, querying, and managing Source Videos and their raw metadata on disk. It does not perform clip cutting, clip manifest serialization, or clip audio extraction.
+The backend data access module strictly responsible for ingesting, persisting source media specifications alongside source metadata, preparing source thumbnails during ingestion, and serving cached Source Video queries from disk without mutating or transcoding media on read paths. It does not perform clip cutting, clip manifest serialization, or clip audio extraction.
 _Avoid_: Clip repository, media manager, unified asset store
 
 **Clip Session**:

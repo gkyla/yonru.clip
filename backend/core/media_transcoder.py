@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
+import math
 import os
 import platform
 import shutil
@@ -7,7 +9,7 @@ import sys
 import subprocess
 import threading
 import json
-from typing import Optional, Dict, Any, List, Tuple, Callable, Set
+from typing import Optional, Dict, Any, List, Tuple, Callable, Set, Sequence, Union
 from dataclasses import dataclass
 
 from core.hardware_profiler import (
@@ -25,6 +27,13 @@ class MediaSpecs:
     width: int = 0
     height: int = 0
     fps: float = 30.0
+
+
+@dataclass(frozen=True)
+class FrameExtractionRequest:
+    """Immutable specification for extracting a single video frame to disk."""
+    timestamp: float
+    output_path: str
 
 
 @dataclass(frozen=True)
@@ -265,6 +274,7 @@ class FakeMediaAdapter(MediaProcessAdapter):
         self.default_fps = default_fps
         self.ffmpeg_available = ffmpeg_available
         self.ffmpeg_path = ffmpeg_path
+        self._lock = threading.Lock()
         self.calls: List[Tuple[str, Any]] = []
         self.probe_overrides: Dict[str, Dict[str, Any]] = {}
         self.simulate_output_creation: bool = True
@@ -296,7 +306,8 @@ class FakeMediaAdapter(MediaProcessAdapter):
         return self.ffmpeg_path if self.ffmpeg_available else None
 
     def run_ffmpeg(self, args: List[str]) -> bool:
-        self.calls.append(("run_ffmpeg", list(args)))
+        with self._lock:
+            self.calls.append(("run_ffmpeg", list(args)))
         if self.ffmpeg_side_effect is not None:
             self.ffmpeg_side_effect(list(args))
 
@@ -309,24 +320,26 @@ class FakeMediaAdapter(MediaProcessAdapter):
 
         # Create dummy files for every output path in single- or multi-output invocations
         if self.simulate_output_creation and args:
-            for out_path in self._extract_output_paths(args):
-                try:
-                    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-                    if not os.path.exists(out_path):
-                        ext = os.path.splitext(out_path)[1].lower()
-                        payload = (
-                            b"\xff\xd8\xff\xe0\x00\x10JFIF"
-                            if ext in {".jpg", ".jpeg"}
-                            else b"mock-media-output"
-                        )
-                        with open(out_path, "wb") as f:
-                            f.write(payload)
-                except Exception:
-                    pass
+            with self._lock:
+                for out_path in self._extract_output_paths(args):
+                    try:
+                        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+                        if not os.path.exists(out_path):
+                            ext = os.path.splitext(out_path)[1].lower()
+                            payload = (
+                                b"\xff\xd8\xff\xe0\x00\x10JFIF"
+                                if ext in {".jpg", ".jpeg"}
+                                else b"mock-media-output"
+                            )
+                            with open(out_path, "wb") as f:
+                                f.write(payload)
+                    except Exception:
+                        pass
         return True
 
     def ffprobe_info(self, file_path: str) -> Dict[str, Any]:
-        self.calls.append(("ffprobe_info", file_path))
+        with self._lock:
+            self.calls.append(("ffprobe_info", file_path))
         if file_path in self.probe_overrides:
             return self.probe_overrides[file_path]
 
@@ -443,6 +456,32 @@ class MediaTranscoder:
             for k in stale_keys:
                 del self._probe_cache[k]
 
+    def seed_probe_cache(
+        self,
+        file_path: str,
+        specs: MediaSpecs,
+        *,
+        mtime_ns: Optional[int] = None,
+        size: Optional[int] = None,
+    ) -> None:
+        """Seed the in-memory probe cache from persisted fingerprinted MediaSpecs."""
+        if not file_path:
+            return
+        if mtime_ns is None or size is None:
+            try:
+                st = os.stat(file_path)
+                mtime_ns = st.st_mtime_ns
+                size = st.st_size
+            except OSError:
+                return
+
+        cache_key = (os.path.abspath(file_path), int(mtime_ns), int(size))
+        with self._probe_lock:
+            self._probe_cache[cache_key] = specs
+            self._probe_cache.move_to_end(cache_key)
+            while len(self._probe_cache) > self._PROBE_CACHE_MAX_SIZE:
+                self._probe_cache.popitem(last=False)
+
     @staticmethod
     def _parse_fps(raw_fps: Any) -> Optional[float]:
         """Parse an ffprobe rational or numeric frame-rate value."""
@@ -558,6 +597,32 @@ class MediaTranscoder:
         specs = self.probe_video(file_path)
         return (specs.width, specs.height)
 
+    @staticmethod
+    def _clamp_frame_timestamp(requested_ts: float, duration: float) -> float:
+        """Clamp requested frame timestamp inside valid video duration bounds."""
+        if requested_ts <= 0.0:
+            return 0.0
+        if duration > 0.0:
+            return max(0.0, min(requested_ts, max(0.0, duration - 0.1)))
+        return max(0.0, requested_ts)
+
+    @staticmethod
+    def _build_extract_frame_cmd(
+        video_path: str,
+        clamped_ts: float,
+        output_path: str,
+        quality: int,
+    ) -> List[str]:
+        """Build fast input-seek FFmpeg arguments for single-frame JPEG extraction."""
+        return [
+            "-y",
+            "-ss", str(round(clamped_ts, 3)),
+            "-i", video_path,
+            "-vframes", "1",
+            "-q:v", str(quality),
+            output_path,
+        ]
+
     def extract_frame(
         self,
         video_path: str,
@@ -573,31 +638,117 @@ class MediaTranscoder:
             return False
 
         requested_ts = float(timestamp)
-        if requested_ts <= 0.0:
-            # Frame 0 never needs an ffprobe duration lookup.
-            ts = 0.0
-        else:
-            dur = self.get_video_duration(video_path)
-            if dur > 0:
-                ts = max(0.0, min(requested_ts, max(0.0, dur - 0.1)))
-            else:
-                ts = max(0.0, requested_ts)
+        # Frame 0 never needs an ffprobe duration lookup.
+        dur = 0.0 if requested_ts <= 0.0 else self.get_video_duration(video_path)
+        ts = self._clamp_frame_timestamp(requested_ts, dur)
 
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        cmd = [
-            "-y",
-            "-ss", str(round(ts, 3)),
-            "-i", video_path,
-            "-vframes", "1",
-            "-q:v", str(quality),
-            output_path
-        ]
+        cmd = self._build_extract_frame_cmd(video_path, ts, output_path, quality)
         try:
             self.run_ffmpeg(cmd)
             return os.path.exists(output_path)
         except Exception as e:
             print(f"[media_transcoder] Failed to extract frame at {ts}s: {e}")
             return False
+
+    def extract_frames(
+        self,
+        video_path: str,
+        requests: Sequence[Union[FrameExtractionRequest, Tuple[float, str]]],
+        *,
+        quality: int = 2,
+        video_duration: Optional[float] = None,
+        overwrite: bool = False,
+        max_workers: Optional[int] = None,
+    ) -> Dict[str, bool]:
+        """
+        Batch-extract multiple frames with single duration clamping, target deduplication,
+        skip-if-exists optimization, and bounded parallel FFmpeg execution.
+        """
+        normalized: List[Tuple[float, str]] = []
+        for req in requests:
+            if isinstance(req, FrameExtractionRequest):
+                normalized.append((float(req.timestamp), str(req.output_path)))
+            else:
+                normalized.append((float(req[0]), str(req[1])))
+
+        if not normalized:
+            return {}
+
+        if not video_path or not os.path.exists(video_path):
+            return {out_path: False for _, out_path in normalized}
+
+        abs_to_caller_keys: Dict[str, List[str]] = {}
+        seen_abs: Set[str] = set()
+        abs_results: Dict[str, bool] = {}
+        pending: List[Tuple[float, str, str]] = []
+
+        for req_ts, out_path in normalized:
+            abs_out = os.path.abspath(out_path)
+            abs_to_caller_keys.setdefault(abs_out, []).append(out_path)
+            if abs_out in seen_abs:
+                continue
+            seen_abs.add(abs_out)
+            if not overwrite and os.path.exists(abs_out):
+                abs_results[abs_out] = True
+            else:
+                pending.append((req_ts, abs_out, out_path))
+
+        if pending:
+            dur = 0.0
+            if video_duration is not None:
+                try:
+                    parsed_dur = float(video_duration)
+                    if math.isfinite(parsed_dur) and parsed_dur > 0.0:
+                        dur = parsed_dur
+                except (TypeError, ValueError):
+                    dur = 0.0
+            if dur <= 0.0 and any(ts > 0.0 for ts, _, _ in pending):
+                dur = self.get_video_duration(video_path)
+
+            tasks: List[Tuple[float, str, str]] = []
+            parent_dirs: Set[str] = set()
+            for req_ts, abs_out, target_path in pending:
+                clamped_ts = self._clamp_frame_timestamp(req_ts, dur)
+                parent_dirs.add(os.path.dirname(abs_out))
+                tasks.append((clamped_ts, abs_out, target_path))
+
+            for parent_dir in parent_dirs:
+                if parent_dir:
+                    os.makedirs(parent_dir, exist_ok=True)
+
+            def _extract_one(task: Tuple[float, str, str]) -> Tuple[str, bool]:
+                clamped_ts, abs_out_path, target_path = task
+                cmd = self._build_extract_frame_cmd(video_path, clamped_ts, target_path, quality)
+                try:
+                    self.run_ffmpeg(cmd)
+                    return abs_out_path, os.path.exists(abs_out_path)
+                except Exception as e:
+                    print(f"[media_transcoder] Failed to extract frame at {clamped_ts}s: {e}")
+                    return abs_out_path, False
+
+            default_workers = min(4, os.cpu_count() or 1)
+            requested_workers = (
+                int(max_workers)
+                if (max_workers is not None and max_workers > 0)
+                else default_workers
+            )
+            workers = max(1, min(len(tasks), requested_workers))
+
+            if workers == 1 or len(tasks) == 1:
+                for task in tasks:
+                    abs_out_path, ok = _extract_one(task)
+                    abs_results[abs_out_path] = ok
+            else:
+                with ThreadPoolExecutor(max_workers=workers) as executor:
+                    for abs_out_path, ok in executor.map(_extract_one, tasks):
+                        abs_results[abs_out_path] = ok
+
+        return {
+            caller_key: abs_results.get(abs_out, False)
+            for abs_out, keys in abs_to_caller_keys.items()
+            for caller_key in keys
+        }
 
     def capture_screenshot(
         self,

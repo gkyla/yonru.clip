@@ -1,6 +1,8 @@
 import os
+from unittest.mock import MagicMock, patch
 import pytest
 from core.media_transcoder import (
+    FrameExtractionRequest,
     MediaTranscoder,
     MediaSpecs,
     FakeMediaAdapter,
@@ -427,6 +429,131 @@ def test_extract_frame_skips_ffprobe_at_timestamp_zero(tmp_path):
     assert len(ffmpeg_calls) == 1
     assert len(ffprobe_calls) == 0
     assert float(ffmpeg_calls[0][ffmpeg_calls[0].index("-ss") + 1]) == 0.0
+
+
+def test_extract_frames_batches_clamps_skips_existing_and_isolates_failures(tmp_path):
+    video = tmp_path / "source.mp4"
+    video.write_text("video")
+
+    existing_out = tmp_path / "thumbs" / "thumb_5.jpg"
+    existing_out.parent.mkdir(parents=True)
+    existing_out.write_bytes(b"existing-jpg")
+
+    fail_out = tmp_path / "thumbs" / "thumb_12.jpg"
+    clamped_out = tmp_path / "thumbs" / "thumb_25.jpg"
+    zero_out = tmp_path / "thumbs" / "thumb_0.jpg"
+    dup_out = tmp_path / "thumbs" / "thumb_8.jpg"
+
+    def fail_on_12s(args):
+        if str(fail_out) in args:
+            raise RuntimeError("simulated frame seek failure")
+
+    # 1. With video_duration provided: 0 ffprobe calls; existing skipped; failure isolated
+    adapter = FakeMediaAdapter(ffmpeg_side_effect=fail_on_12s)
+    transcoder = MediaTranscoder(adapter=adapter)
+    requests = [
+        FrameExtractionRequest(timestamp=5.0, output_path=str(existing_out)),
+        FrameExtractionRequest(timestamp=-3.0, output_path=str(zero_out)),
+        FrameExtractionRequest(timestamp=12.0, output_path=str(fail_out)),
+        FrameExtractionRequest(timestamp=25.0, output_path=str(clamped_out)),
+        FrameExtractionRequest(timestamp=8.0, output_path=str(dup_out)),
+        FrameExtractionRequest(timestamp=9.0, output_path=str(dup_out)),
+    ]
+    results = transcoder.extract_frames(
+        str(video), requests, video_duration=20.0, max_workers=4
+    )
+
+    assert results[str(existing_out)] is True
+    assert results[str(zero_out)] is True
+    assert results[str(fail_out)] is False
+    assert results[str(clamped_out)] is True
+    assert results[str(dup_out)] is True
+    assert zero_out.exists()
+    assert not fail_out.exists()
+    assert clamped_out.exists()
+    assert dup_out.exists()
+
+    ffprobe_calls = [c for c in adapter.calls if c[0] == "ffprobe_info"]
+    ffmpeg_calls = [args for name, args in adapter.calls if name == "run_ffmpeg"]
+    assert len(ffprobe_calls) == 0
+    # 5 unique paths minus 1 existing = 4 ffmpeg invocations
+    assert len(ffmpeg_calls) == 4
+
+    zero_args = next(a for a in ffmpeg_calls if str(zero_out) in a)
+    assert float(zero_args[zero_args.index("-ss") + 1]) == 0.0
+    clamped_args = next(a for a in ffmpeg_calls if str(clamped_out) in a)
+    assert float(clamped_args[clamped_args.index("-ss") + 1]) == 19.9
+    dup_args = next(a for a in ffmpeg_calls if str(dup_out) in a)
+    assert float(dup_args[dup_args.index("-ss") + 1]) == 8.0
+
+    # 2. Second pass with missing files gone now skips ALL 4 present files -> 0 ffprobe, 0 ffmpeg
+    adapter.calls.clear()
+    all_present = transcoder.extract_frames(
+        str(video),
+        [
+            (5.0, str(existing_out)),
+            (0.0, str(zero_out)),
+            (25.0, str(clamped_out)),
+            (8.0, str(dup_out)),
+        ],
+    )
+    assert all(all_present.values())
+    assert adapter.calls == []
+
+    # 3. overwrite=True forces re-extraction and probes only ONCE without video_duration
+    fresh_adapter = FakeMediaAdapter(default_duration=30.0)
+    fresh_transcoder = MediaTranscoder(adapter=fresh_adapter)
+    overwrite_res = fresh_transcoder.extract_frames(
+        str(video),
+        [(1.0 + i, str(tmp_path / f"batch_{i}.jpg")) for i in range(6)],
+        overwrite=True,
+        max_workers=4,
+    )
+    assert len(overwrite_res) == 6
+    assert all(overwrite_res.values())
+    assert len([c for c in fresh_adapter.calls if c[0] == "ffprobe_info"]) == 1
+    assert len([c for c in fresh_adapter.calls if c[0] == "run_ffmpeg"]) == 6
+
+    # 4. Empty requests and missing video edge cases
+    assert fresh_transcoder.extract_frames(str(video), []) == {}
+    missing_res = fresh_transcoder.extract_frames(
+        str(tmp_path / "missing.mp4"), [(1.0, str(zero_out))]
+    )
+    assert missing_res == {str(zero_out): False}
+
+
+def test_seed_probe_cache_skips_ffprobe_and_invalidates_on_change(tmp_path):
+    adapter = FakeMediaAdapter(default_duration=99.0)
+    transcoder = MediaTranscoder(adapter=adapter)
+    video = tmp_path / "persisted.mp4"
+    video.write_bytes(b"original video bytes")
+
+    transcoder.seed_probe_cache(
+        str(video),
+        MediaSpecs(duration=123.4, width=1920, height=1080, fps=29.97),
+    )
+    specs = transcoder.probe_video(str(video))
+    assert specs == MediaSpecs(duration=123.4, width=1920, height=1080, fps=29.97)
+    assert adapter.calls == []
+
+    video.write_bytes(b"updated video bytes with new size")
+    reprobed = transcoder.probe_video(str(video))
+    assert reprobed.duration == 99.0
+    assert len([c for c in adapter.calls if c[0] == "ffprobe_info"]) == 1
+
+
+@patch("subprocess.run")
+def test_subprocess_adapter_run_ffmpeg_strips_leading_ffmpeg_token(mock_subprocess):
+    mock_res = MagicMock()
+    mock_res.returncode = 0
+    mock_subprocess.return_value = mock_res
+
+    adapter = SubprocessMediaAdapter()
+    adapter.run_ffmpeg(["ffmpeg", "-y", "-version"])
+    assert mock_subprocess.call_args[0][0] == ["ffmpeg", "-y", "-version"]
+
+    adapter.run_ffmpeg(["-y", "-version"])
+    assert mock_subprocess.call_args[0][0] == ["ffmpeg", "-y", "-version"]
 
 
 
