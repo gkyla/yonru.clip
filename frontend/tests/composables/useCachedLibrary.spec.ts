@@ -30,6 +30,9 @@ describe('useCachedLibrary Composable', () => {
     library.lastAccessedClip.value = null;
     library.lastAccessedVideoStored.value = null;
     library.savedHooks.value = [];
+    library.readyClips.value = [];
+    library.isReadyClipsLoading.value = false;
+    library.invalidateReadyClipsCache();
     const folderState = useState<string | null>('folderName', () => null);
     folderState.value = null;
   });
@@ -580,6 +583,47 @@ describe('useCachedLibrary Composable', () => {
         `${API_BASE}/api/cached/target_folder/saved_hooks/hook_to_delete`,
         { method: 'DELETE' }
       );
+    });
+  });
+
+  describe('ready clips single-flight cache', () => {
+    it('deduplicates concurrent fetchReadyClips calls and reuses fresh results until forced', async () => {
+      const library = useCachedLibrary();
+      let resolveFetch!: (value: unknown) => void;
+      const pendingPromise = new Promise(resolve => {
+        resolveFetch = resolve;
+      });
+      const mockFetch = vi.fn().mockReturnValue(pendingPromise);
+      vi.stubGlobal('$fetch', mockFetch);
+
+      const p1 = library.fetchReadyClips();
+      const p2 = library.fetchReadyClips();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(library.isReadyClipsLoading.value).toBe(true);
+
+      resolveFetch({
+        clips: [{ folder_name: 'f1', clip_id: '10_20_clip', theme: 'Clip 1' }]
+      });
+      const [r1, r2] = await Promise.all([p1, p2]);
+      expect(r1).toHaveLength(1);
+      expect(r2).toHaveLength(1);
+      expect(library.isReadyClipsLoading.value).toBe(false);
+
+      // Fresh call within 5s window reuses cache without hitting network
+      const r3 = await library.fetchReadyClips();
+      expect(r3).toHaveLength(1);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Forced call bypasses freshness window
+      mockFetch.mockResolvedValueOnce({
+        clips: [
+          { folder_name: 'f1', clip_id: '10_20_clip', theme: 'Clip 1' },
+          { folder_name: 'f1', clip_id: '30_45_clip', theme: 'Clip 2' }
+        ]
+      });
+      const r4 = await library.fetchReadyClips({ force: true });
+      expect(r4).toHaveLength(2);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
   });
 });

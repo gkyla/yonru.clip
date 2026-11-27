@@ -149,7 +149,12 @@ function createClipperState() {
     lastAccessedVideoStored,
     lastAccessedVideo,
     savedHooks,
+    readyClips,
+    isReadyClipsLoading,
+    hasReadyClipsLoaded,
     fetchCached,
+    fetchReadyClips,
+    invalidateReadyClipsCache,
     setLastAccessed,
     setLastClip,
     fetchSavedHooks,
@@ -167,6 +172,7 @@ function createClipperState() {
     lastAnalysisRequest,
     canRetryLastAnalysis,
     isNavigatingToEditor,
+    hydratedSession,
     startSafetyBuffer,
     isCachedAnalysis,
     downloadPercent,
@@ -264,6 +270,9 @@ function createClipperState() {
     scheduleSessionSave,
     flushSessionSaves,
     loadReadyClipIntoEditor,
+    isClipSessionHydrated,
+    activateClipSession,
+    openReadyClipInEditor,
     saveTranscript,
     saveClipSession,
     updateHooks,
@@ -392,6 +401,10 @@ function createClipperState() {
     clearJobError,
     startPolling,
     stopPolling,
+    isPolling,
+    isPollingJob,
+    getPollingPhase,
+    clearHydratedSession,
     extractClip
   } = job;
 
@@ -436,6 +449,7 @@ function createClipperState() {
 
   function resetWorkspace() {
     stopPolling();
+    clearHydratedSession();
     editorSession.resetSession();
     jobId.value = null;
     jobStatus.value = 'idle';
@@ -595,6 +609,10 @@ function createClipperState() {
     renderFrame,
     renderTotalFrames,
     renderStartTime,
+    readyClips,
+    isReadyClipsLoading,
+    hasReadyClipsLoaded,
+    hydratedSession,
     cachedVideos,
     isCachedLoading,
     isCachedMoreLoading,
@@ -633,12 +651,19 @@ function createClipperState() {
     retryLastAnalysis,
     extractClip,
     loadReadyClipIntoEditor,
+    isClipSessionHydrated,
+    activateClipSession,
+    openReadyClipInEditor,
     renderClip,
     buildRenderSpec,
     exportClip,
     cancelRender,
     startPolling,
     stopPolling,
+    isPolling,
+    isPollingJob,
+    getPollingPhase,
+    clearHydratedSession,
     checkSystemHealth: diagnostics.checkSystemHealth,
     detectHardwareProfile: diagnostics.detectHardwareProfile,
     formatDuration,
@@ -669,6 +694,8 @@ function createClipperState() {
     ignoreSafetyWarnings: auditor.ignoreSafetyWarnings,
     restoreSafetyWarnings: auditor.restoreSafetyWarnings,
     fetchCached,
+    fetchReadyClips,
+    invalidateReadyClipsCache,
     setLastAccessed,
     setLastClip,
     saveTimelineTracks,

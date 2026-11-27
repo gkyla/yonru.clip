@@ -269,6 +269,7 @@ describe('HomeSidebar Component', () => {
       query: {
         job_id: '',
         folder: 'test_folder',
+        clip_id: '0_30',
         hook_index: 0,
         tab: 'generated'
       }

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   findMatchingClip,
   isHookRendered,
+  resolveClipHookLocation,
   HookClipMatcher
 } from '../../app/utils/hookClipMatcher';
 import type { Hook, ReadyClip } from '../../app/types/clipper';
@@ -352,6 +353,47 @@ describe('HookClipMatcher Domain Engine (TDD)', () => {
       const emptyMatcher = new HookClipMatcher();
       expect(emptyMatcher.findMatchingClip(baseHook)).toBeUndefined();
       expect(emptyMatcher.isHookRendered(baseHook)).toBe(false);
+    });
+  });
+
+  describe('resolveClipHookLocation', () => {
+    it('matches generated hooks by start and end proximity', () => {
+      const hooks: Hook[] = [
+        { start: 5, end: 20, theme: 'First' },
+        { start: 42, end: 70, theme: 'Second' }
+      ];
+      expect(resolveClipHookLocation('40_70_second', hooks, [])).toEqual({
+        hookIndex: 1,
+        tab: 'generated'
+      });
+    });
+
+    it('matches saved hooks and prefers saved tab on tie', () => {
+      const hooks: Hook[] = [{ start: 10, end: 25, theme: 'Generated' }];
+      const savedHooks: Hook[] = [
+        { _id: 's1', start: 10, end: 25, theme: 'Saved Same' }
+      ];
+      expect(
+        resolveClipHookLocation('8_25_same_clip', hooks, savedHooks)
+      ).toEqual({
+        hookIndex: 0,
+        tab: 'saved'
+      });
+    });
+
+    it('returns default generated index 0 for malformed clip_id or empty lists', () => {
+      expect(resolveClipHookLocation(null, [], [])).toEqual({
+        hookIndex: 0,
+        tab: 'generated'
+      });
+      expect(resolveClipHookLocation('invalid', [baseHook], [])).toEqual({
+        hookIndex: 0,
+        tab: 'generated'
+      });
+      expect(resolveClipHookLocation('200_250_far', [baseHook], [])).toEqual({
+        hookIndex: 0,
+        tab: 'generated'
+      });
     });
   });
 });

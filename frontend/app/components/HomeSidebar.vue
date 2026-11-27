@@ -348,6 +348,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useCommandPalette } from '~/composables/useCommandPalette';
 import { useReleaseUpdates } from '~/composables/useReleaseUpdates';
 import { normalizeVersion } from '~/utils/changelogMarkdown';
+import { resolveClipHookLocation } from '~/utils/hookClipMatcher';
 import SidebarNavList from './sidebar/SidebarNavList.vue';
 import SidebarWorkspaceCard from './sidebar/SidebarWorkspaceCard.vue';
 import SidebarUtilityFooter from './sidebar/SidebarUtilityFooter.vue';
@@ -604,6 +605,15 @@ async function handleContinueEditingClick() {
   const clip = lastClip.value;
   if (!clip) return;
 
+  if (state?.openReadyClipInEditor) {
+    await state.openReadyClipInEditor(clip, router, {
+      onBeforeNavigate: () => {
+        emit('update:activeView', 'editor');
+      }
+    });
+    return;
+  }
+
   try {
     if (state?.isNavigatingToEditor) {
       state.isNavigatingToEditor.value = true;
@@ -613,58 +623,11 @@ async function handleContinueEditingClick() {
     const folder = clip.folder || clip.folder_name;
     await state.loadReadyClipIntoEditor(folder, clip.clip_id);
 
-    let hookIndex = 0;
-    let tab = 'generated';
-
-    const clipId = clip.clip_id || '';
-    const parts = clipId.split('_');
-    if (parts.length >= 2) {
-      const clipStart = parseFloat(parts[0]) || 0;
-      const clipEnd = parseFloat(parts[1]) || 0;
-
-      function findBestMatchingHookIndex(
-        list: any[],
-        targetStart: number,
-        targetEnd: number
-      ) {
-        let bestIndex = -1;
-        let minDiff = 5.0;
-        list.forEach((h, idx) => {
-          const hStart =
-            typeof h.start === 'string' ? parseFloat(h.start) : h.start;
-          const hEnd = typeof h.end === 'string' ? parseFloat(h.end) : h.end;
-          const diff =
-            Math.abs(hStart - targetStart) + Math.abs(hEnd - targetEnd);
-          if (diff < minDiff) {
-            minDiff = diff;
-            bestIndex = idx;
-          }
-        });
-        return { index: bestIndex, diff: minDiff };
-      }
-
-      const savedMatch = findBestMatchingHookIndex(
-        state.savedHooks.value,
-        clipStart,
-        clipEnd
-      );
-      const genMatch = findBestMatchingHookIndex(
-        state.hooks.value,
-        clipStart,
-        clipEnd
-      );
-
-      if (
-        savedMatch.index >= 0 &&
-        (genMatch.index < 0 || savedMatch.diff <= genMatch.diff)
-      ) {
-        hookIndex = savedMatch.index;
-        tab = 'saved';
-      } else if (genMatch.index >= 0) {
-        hookIndex = genMatch.index;
-        tab = 'generated';
-      }
-    }
+    const { hookIndex, tab } = resolveClipHookLocation(
+      clip.clip_id,
+      state.hooks?.value,
+      state.savedHooks?.value
+    );
 
     await minWait;
     emit('update:activeView', 'editor');
@@ -673,8 +636,9 @@ async function handleContinueEditingClick() {
       query: {
         job_id: state.jobId.value || '',
         folder: folder,
+        clip_id: clip.clip_id,
         hook_index: hookIndex,
-        tab: tab
+        tab
       }
     });
   } catch (e) {

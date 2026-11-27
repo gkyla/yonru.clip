@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="panelRoot"
     class="w-80 border-l border-surface-border bg-surface-panel/50 flex flex-col overflow-hidden text-white relative"
   >
     <!-- Content Safety Audit Panel -->
@@ -402,7 +403,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import type { Hook } from '../../types/clipper';
 
 const props = defineProps<{
@@ -416,14 +417,19 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:panelTab', tab: 'generated' | 'saved'): void;
   (e: 'select-hook', hook: Hook): void;
-  (e: 'save-current-hook'): void;
-  (e: 'remove-current-saved-hook'): void;
-  (e: 'open-blacklist-settings'): void;
+  (
+    e:
+      | 'save-current-hook'
+      | 'remove-current-saved-hook'
+      | 'open-blacklist-settings'
+  ): void;
 }>();
 
 const state = useClipperState();
 const isAuditExpanded = ref(false);
+const panelRoot = ref<HTMLElement | null>(null);
 const hooksContainer = ref<HTMLElement | null>(null);
+let scrollTimer: ReturnType<typeof setTimeout> | null = null;
 
 function formatTotalDuration(hook: { start: number; end: number }): string {
   const diff = Math.max(0, Math.floor(hook.end - hook.start));
@@ -432,28 +438,50 @@ function formatTotalDuration(hook: { start: number; end: number }): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
+function clearPendingScrollTimer() {
+  if (scrollTimer !== null) {
+    clearTimeout(scrollTimer);
+    scrollTimer = null;
+  }
+}
+
+const activeScrollKey = computed(() => {
+  const active = state.activeHook.value;
+  if (!active) return null;
+  const activeList =
+    props.panelTab === 'saved' ? state.savedHooks.value : state.hooks.value;
+  if (activeList.length === 0) return null;
+  return `${props.panelTab}:${active.start}:${active.end}:${active.theme ?? ''}`;
+});
+
 watch(
-  [
-    () => state.activeHook.value,
-    () => state.hooks.value,
-    () => state.savedHooks.value,
-    () => props.panelTab
-  ],
-  async () => {
-    if (!state.activeHook.value) return;
+  activeScrollKey,
+  async nextKey => {
+    clearPendingScrollTimer();
+    if (!nextKey) return;
 
     await nextTick();
-    setTimeout(() => {
-      if (typeof document !== 'undefined') {
-        const activeEl = document.querySelector('.hook-item-active');
-        if (activeEl) {
-          activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+    if (activeScrollKey.value !== nextKey) return;
+
+    scrollTimer = setTimeout(() => {
+      scrollTimer = null;
+      const rootEl = panelRoot.value;
+      const activeEl = rootEl
+        ? rootEl.querySelector('.hook-item-active')
+        : typeof document !== 'undefined'
+          ? document.querySelector('.hook-item-active')
+          : null;
+      if (activeEl && typeof activeEl.scrollIntoView === 'function') {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }, 100);
   },
-  { immediate: true, deep: true }
+  { immediate: true }
 );
+
+onUnmounted(() => {
+  clearPendingScrollTimer();
+});
 </script>
 
 <style scoped>

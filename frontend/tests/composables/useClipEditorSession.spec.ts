@@ -823,4 +823,187 @@ describe('useClipEditorSession Composable', () => {
       expect(session.cropMap.value).toEqual([]);
     });
   });
+
+  describe('idempotent session activation & openReadyClipInEditor', () => {
+    it('detects hydrated session accurately and rejects partial Home dashboard resets', () => {
+      const hydratedSession = ref({
+        folderName: 'f1',
+        clipId: '10_20_clip',
+        jobId: 'job-1'
+      });
+      const jobId = ref<string | null>('job-1');
+      const jobStatus = ref('ready');
+      const isMediaLoading = ref(false);
+      const videoUrl = useState<string | null>('videoUrl', () => null);
+      videoUrl.value =
+        'http://localhost:8000/assets/clips/f1/10_20_clip/video.mp4';
+
+      const session = useClipEditorSession({
+        job: {
+          hydratedSession,
+          jobId,
+          jobStatus,
+          isMediaLoading,
+          jobError: ref(null)
+        } as any
+      });
+
+      expect(
+        session.isClipSessionHydrated({
+          jobId: 'job-1',
+          folderName: 'f1',
+          clipId: '10_20_clip'
+        })
+      ).toBe(true);
+
+      // Mismatch clipId -> false
+      expect(
+        session.isClipSessionHydrated({
+          jobId: 'job-1',
+          folderName: 'f1',
+          clipId: 'other_clip'
+        })
+      ).toBe(false);
+
+      // Simulate Home initDashboard() partial reset (wipes jobStatus & jobId, keeps folderName/clipId)
+      jobStatus.value = 'idle';
+      jobId.value = null;
+      session.folderName.value = 'f1';
+      session.clipId.value = '10_20_clip';
+
+      expect(
+        session.isClipSessionHydrated({
+          folderName: 'f1',
+          clipId: '10_20_clip'
+        })
+      ).toBe(false);
+    });
+
+    it('coalesces concurrent loadReadyClipIntoEditor calls for the same clip and skips re-polling in activateClipSession', async () => {
+      let resolveLoad!: () => void;
+      const loadPromise = new Promise<void>(resolve => {
+        resolveLoad = resolve;
+      });
+      const jobId = ref<string | null>('job-1');
+      const jobStatus = ref('idle');
+      const isMediaLoading = ref(false);
+      const hydratedSession = ref<any>(null);
+      const startPolling = vi.fn();
+      const isPollingJob = vi.fn().mockReturnValue(false);
+      const loadReadySpy = vi.fn().mockImplementation(async () => {
+        await loadPromise;
+        jobStatus.value = 'ready';
+        hydratedSession.value = {
+          folderName: 'f1',
+          clipId: '10_20_clip',
+          jobId: 'job-1'
+        };
+      });
+      const videoUrl = useState<string | null>('videoUrl', () => null);
+      videoUrl.value =
+        'http://localhost:8000/assets/clips/f1/10_20_clip/video.mp4';
+
+      const mockLibrary = {
+        cachedVideos: ref([]),
+        savedHooks: ref([]),
+        setLastClip: vi.fn()
+      };
+
+      const session = useClipEditorSession({
+        job: {
+          jobId,
+          jobStatus,
+          isMediaLoading,
+          hydratedSession,
+          startPolling,
+          isPollingJob,
+          loadReadyClipIntoEditor: loadReadySpy,
+          jobError: ref(null)
+        } as any,
+        library: mockLibrary as any
+      });
+
+      const p1 = session.loadReadyClipIntoEditor('f1', '10_20_clip');
+      const p2 = session.loadReadyClipIntoEditor('f1', '10_20_clip');
+      expect(loadReadySpy).toHaveBeenCalledTimes(1);
+
+      resolveLoad();
+      await Promise.all([p1, p2]);
+      expect(mockLibrary.setLastClip).toHaveBeenCalledTimes(1);
+
+      // Already hydrated -> activateClipSession returns without polling
+      const resHydrated = await session.activateClipSession({
+        jobId: 'job-1',
+        folderName: 'f1',
+        clipId: '10_20_clip'
+      });
+      expect(resHydrated.action).toBe('already_hydrated');
+      expect(startPolling).not.toHaveBeenCalled();
+
+      // Active extraction poller -> activateClipSession reuses poller without restarting
+      hydratedSession.value = null;
+      isPollingJob.mockReturnValue(true);
+      const resPolling = await session.activateClipSession({
+        jobId: 'job-2',
+        folderName: 'f1'
+      });
+      expect(resPolling.action).toBe('already_polling');
+      expect(startPolling).not.toHaveBeenCalled();
+    });
+
+    it('openReadyClipInEditor loads once, sets lastClip once, and pushes standardized query with clip_id', async () => {
+      const jobId = ref<string | null>('job-open-1');
+      const jobStatus = ref('idle');
+      const isMediaLoading = ref(false);
+      const isNavigatingToEditor = ref(false);
+      const hydratedSession = ref<any>(null);
+      const loadReadySpy = vi.fn().mockResolvedValue(undefined);
+      const setLastClipSpy = vi.fn();
+      const pushSpy = vi.fn().mockResolvedValue(undefined);
+
+      const session = useClipEditorSession({
+        job: {
+          jobId,
+          jobStatus,
+          isMediaLoading,
+          isNavigatingToEditor,
+          hydratedSession,
+          loadReadyClipIntoEditor: loadReadySpy,
+          jobError: ref(null)
+        } as any,
+        library: {
+          cachedVideos: ref([]),
+          savedHooks: ref([{ start: 10, end: 25, theme: 'Saved Hook' }]),
+          setLastClip: setLastClipSpy
+        } as any
+      });
+
+      const ok = await session.openReadyClipInEditor(
+        {
+          folder_name: 'f1',
+          clip_id: '8_25_clip',
+          theme: 'Clip Theme',
+          title: 'Source Title',
+          thumbnail_url: '/thumb.jpg'
+        },
+        { push: pushSpy },
+        { minDelayMs: 0 }
+      );
+
+      expect(ok).toBe(true);
+      expect(isNavigatingToEditor.value).toBe(true);
+      expect(loadReadySpy).toHaveBeenCalledTimes(1);
+      expect(setLastClipSpy).toHaveBeenCalledTimes(1);
+      expect(pushSpy).toHaveBeenCalledWith({
+        path: '/editor',
+        query: {
+          job_id: 'job-open-1',
+          folder: 'f1',
+          clip_id: '8_25_clip',
+          hook_index: 0,
+          tab: 'saved'
+        }
+      });
+    });
+  });
 });

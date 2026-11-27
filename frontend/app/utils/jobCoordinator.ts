@@ -25,6 +25,30 @@ import type {
   HookIntentPreset
 } from '../types/clipper';
 
+export type PollingPhase =
+  | 'idle'
+  | 'analyzing'
+  | 'hd_prefetch'
+  | 'thumbnail_backfill'
+  | 'extracting_clip';
+
+export interface IngestionJobCoordinatorOptions {
+  pollIntervalMs?: number;
+  maxThumbnailBackfillPolls?: number;
+  maxStagnantHdPrefetchPolls?: number;
+  maxConsecutiveErrors?: number;
+}
+
+export interface PollingContext {
+  folderName?: string | null;
+  clipId?: string | null;
+  phase?: PollingPhase;
+  skipInitialSavedHooks?: boolean;
+  delayFirstPoll?: boolean;
+  initialStatus?: string | null;
+  initialHooks?: Hook[] | null;
+}
+
 export interface AnalysisSpec {
   url: string;
   language?: string;
@@ -82,19 +106,21 @@ export interface HydratedClipBundle {
   savedHooks?: Hook[];
 }
 
+export interface VideoMetadataUpdate {
+  title?: string;
+  duration?: number;
+  fps?: number;
+  hasHeatmap?: boolean;
+  hasPreview?: boolean;
+  hdReady?: boolean;
+  videoUrl?: string | null;
+  folderName?: string | null;
+}
+
 export interface JobUpdateCallbacks {
   onStatusChange?: (status: string) => void;
   onDownloadProgress?: (percent: number) => void;
-  onVideoMetadata?: (metadata: {
-    title?: string;
-    duration?: number;
-    fps?: number;
-    hasHeatmap?: boolean;
-    hasPreview?: boolean;
-    hdReady?: boolean;
-    videoUrl?: string | null;
-    folderName?: string | null;
-  }) => void;
+  onVideoMetadata?: (metadata: VideoMetadataUpdate) => void;
   onHooksDiscovered?: (hooks: Hook[], activeHook?: Hook | null) => void;
   onSavedHooksDiscovered?: (savedHooks: Hook[]) => void;
   onClipReady?: (bundle: HydratedClipBundle) => void;
@@ -102,23 +128,88 @@ export interface JobUpdateCallbacks {
   onError?: (error: string, detail?: PipelineErrorDetail | null) => void;
 }
 
+interface AnalyzeUrlResponse {
+  job_id: string;
+  status: string;
+}
+
+interface CachedVideoPayload {
+  title?: string;
+  duration?: number;
+  fps?: number;
+  heatmap?: number[];
+  has_heatmap?: boolean;
+  has_preview?: boolean;
+  hd_ready?: boolean;
+  asset_url?: string;
+  folder_name?: string;
+}
+
+interface CachedAnalyzeResponse {
+  job_id: string;
+  status: string;
+  fps?: number;
+  folder_name?: string;
+  video?: CachedVideoPayload;
+  video_info?: CachedVideoPayload;
+  hooks?: Hook[];
+  saved_hooks?: Hook[];
+}
+
+interface ExtractClipResponse {
+  status?: string;
+  job_id?: string;
+}
+
+interface HttpErrorLike {
+  status?: number;
+  message?: string;
+}
+
+const DEFAULT_MAX_THUMBNAIL_BACKFILL_POLLS = 8;
+const DEFAULT_MAX_STAGNANT_HD_PREFETCH_POLLS = 45;
+const DEFAULT_MAX_CONSECUTIVE_ERRORS = 3;
+
 export class IngestionJobCoordinator {
   private apiBase: string;
   private fetcher?: HttpFetcher;
   private sessionClient: ClipSessionClient;
-  private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private isPollLoopActive = false;
+  private pollToken = 0;
+  private jobSessionToken = 0;
+  private pollingPhase: PollingPhase = 'idle';
   private activeJobId: string | null = null;
   private pollIntervalMs: number;
+  private maxThumbnailBackfillPolls: number;
+  private maxStagnantHdPrefetchPolls: number;
+  private maxConsecutiveErrors: number;
 
   constructor(
     apiBase: string = resolveApiBase(),
     fetcher?: HttpFetcher,
-    pollIntervalMs: number = 1000
+    pollIntervalMsOrOptions: number | IngestionJobCoordinatorOptions = 1000
   ) {
     this.apiBase = apiBase;
     this.fetcher = fetcher;
     this.sessionClient = new ClipSessionClient(this.apiBase, this.fetcher);
-    this.pollIntervalMs = pollIntervalMs;
+    if (typeof pollIntervalMsOrOptions === 'number') {
+      this.pollIntervalMs = pollIntervalMsOrOptions;
+      this.maxThumbnailBackfillPolls = DEFAULT_MAX_THUMBNAIL_BACKFILL_POLLS;
+      this.maxStagnantHdPrefetchPolls = DEFAULT_MAX_STAGNANT_HD_PREFETCH_POLLS;
+      this.maxConsecutiveErrors = DEFAULT_MAX_CONSECUTIVE_ERRORS;
+    } else {
+      this.pollIntervalMs = pollIntervalMsOrOptions.pollIntervalMs ?? 1000;
+      this.maxThumbnailBackfillPolls =
+        pollIntervalMsOrOptions.maxThumbnailBackfillPolls ??
+        DEFAULT_MAX_THUMBNAIL_BACKFILL_POLLS;
+      this.maxStagnantHdPrefetchPolls =
+        pollIntervalMsOrOptions.maxStagnantHdPrefetchPolls ??
+        DEFAULT_MAX_STAGNANT_HD_PREFETCH_POLLS;
+      this.maxConsecutiveErrors =
+        pollIntervalMsOrOptions.maxConsecutiveErrors ??
+        DEFAULT_MAX_CONSECUTIVE_ERRORS;
+    }
   }
 
   public getApiBase(): string {
@@ -133,18 +224,75 @@ export class IngestionJobCoordinator {
   }
 
   public isPolling(): boolean {
-    return this.pollInterval !== null;
+    return this.isPollLoopActive;
+  }
+
+  public getPollingPhase(): PollingPhase {
+    return this.pollingPhase;
+  }
+
+  public isPollingJob(jobId: string, phase?: PollingPhase): boolean {
+    if (!this.isPollLoopActive || this.activeJobId !== jobId) {
+      return false;
+    }
+    return phase ? this.pollingPhase === phase : true;
   }
 
   public getActiveJobId(): string | null {
     return this.activeJobId;
   }
 
-  public stopPolling(): void {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-      this.pollInterval = null;
+  /**
+   * Stops the active poll timer and phase without cancelling in-flight
+   * one-shot requests belonging to the completed job session.
+   */
+  private haltPollTimer(): void {
+    if (this.pollTimer !== null) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
     }
+    this.isPollLoopActive = false;
+    this.pollingPhase = 'idle';
+  }
+
+  public stopPolling(): void {
+    this.haltPollTimer();
+    this.pollToken += 1;
+    this.jobSessionToken += 1;
+  }
+
+  private hooksNeedThumbnailBackfill(hooks?: Hook[] | null): boolean {
+    return (
+      Array.isArray(hooks) &&
+      hooks.length > 0 &&
+      hooks.some(h => !h.thumbnail_url)
+    );
+  }
+
+  private buildHooksSignature(hooks: Hook[]): string {
+    return JSON.stringify(
+      hooks.map(h => [
+        h.id ?? h._id ?? '',
+        h.start,
+        h.end,
+        h.theme,
+        h.thumbnail_url ?? '',
+        h.virality_score ?? null
+      ])
+    );
+  }
+
+  private buildVideoMetaSignature(meta: VideoMetadataUpdate): string {
+    return JSON.stringify([
+      meta.title ?? '',
+      meta.duration ?? 0,
+      meta.fps ?? 0,
+      meta.hasHeatmap ?? false,
+      meta.hasPreview ?? false,
+      meta.hdReady ?? false,
+      meta.videoUrl ?? '',
+      meta.folderName ?? ''
+    ]);
   }
 
   public async analyzeUrl(
@@ -152,12 +300,13 @@ export class IngestionJobCoordinator {
     callbacks: JobUpdateCallbacks = {}
   ): Promise<string> {
     this.stopPolling();
+    const sessionToken = ++this.jobSessionToken;
     callbacks.onStatusChange?.('queued');
     callbacks.onDownloadProgress?.(0);
 
     try {
       const forceQuery = spec.force ? '?force=true' : '';
-      const res = await this.executeFetch<{ job_id: string; status: string }>(
+      const res = await this.executeFetch<AnalyzeUrlResponse>(
         `${this.apiBase}/api/analyze-url${forceQuery}`,
         {
           method: 'POST',
@@ -176,11 +325,19 @@ export class IngestionJobCoordinator {
         }
       );
 
+      if (sessionToken !== this.jobSessionToken) {
+        return res.job_id;
+      }
+
       this.activeJobId = res.job_id;
       callbacks.onStatusChange?.(res.status);
-      this.startPolling(res.job_id, {}, callbacks);
+      this.startPolling(
+        res.job_id,
+        { phase: 'analyzing', initialStatus: res.status },
+        callbacks
+      );
       return res.job_id;
-    } catch (e: any) {
+    } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to start analysis';
       callbacks.onStatusChange?.('error');
       callbacks.onError?.(msg);
@@ -193,11 +350,12 @@ export class IngestionJobCoordinator {
     callbacks: JobUpdateCallbacks = {}
   ): Promise<string> {
     this.stopPolling();
+    const sessionToken = ++this.jobSessionToken;
     callbacks.onStatusChange?.('queued');
 
     try {
       const forceQuery = spec.force ? '?force=true' : '';
-      const res = await this.executeFetch<any>(
+      const res = await this.executeFetch<CachedAnalyzeResponse>(
         `${this.apiBase}/api/analyze-cached/${spec.videoId}${forceQuery}`,
         {
           method: 'POST',
@@ -214,11 +372,21 @@ export class IngestionJobCoordinator {
         }
       );
 
+      if (sessionToken !== this.jobSessionToken) {
+        return res.job_id;
+      }
+
       this.activeJobId = res.job_id;
       callbacks.onStatusChange?.(res.status);
 
       if (res.status === 'ready' || res.status === 'hooks_ready') {
         const videoData = res.video || res.video_info;
+        const respFolder = videoData?.folder_name || res.folder_name || null;
+        const isHdReady =
+          videoData?.hd_ready !== undefined
+            ? Boolean(videoData.hd_ready)
+            : res.status === 'ready';
+
         if (videoData) {
           callbacks.onVideoMetadata?.({
             title: videoData.title,
@@ -228,21 +396,77 @@ export class IngestionJobCoordinator {
               ? videoData.heatmap.length > 0
               : Boolean(videoData.has_heatmap),
             hasPreview: videoData.has_preview ?? false,
-            hdReady: videoData.hd_ready ?? false,
+            hdReady: isHdReady,
             videoUrl: videoData.asset_url
               ? `${this.apiBase}${videoData.asset_url}`
               : null,
-            folderName: videoData.folder_name || res.folder_name
+            folderName: respFolder
           });
         }
-        if (res.hooks && Array.isArray(res.hooks)) {
-          callbacks.onHooksDiscovered?.(res.hooks, res.hooks[0] || null);
+
+        const discoveredHooks = Array.isArray(res.hooks) ? res.hooks : null;
+        if (discoveredHooks) {
+          callbacks.onHooksDiscovered?.(
+            discoveredHooks,
+            discoveredHooks[0] ?? null
+          );
         }
+
+        if (Array.isArray(res.saved_hooks) && res.saved_hooks.length > 0) {
+          callbacks.onSavedHooksDiscovered?.(res.saved_hooks);
+        } else if (respFolder) {
+          const saved = await this.fetchSavedHooks(respFolder);
+          if (sessionToken !== this.jobSessionToken) {
+            return res.job_id;
+          }
+          if (saved.length > 0) {
+            callbacks.onSavedHooksDiscovered?.(saved);
+          }
+        }
+
+        const shouldBackfillThumbnails =
+          this.hooksNeedThumbnailBackfill(discoveredHooks);
+
+        if (res.status === 'ready' && isHdReady) {
+          if (shouldBackfillThumbnails) {
+            this.startPolling(
+              res.job_id,
+              {
+                folderName: respFolder,
+                phase: 'thumbnail_backfill',
+                skipInitialSavedHooks: Boolean(respFolder),
+                delayFirstPoll: true,
+                initialStatus: res.status,
+                initialHooks: discoveredHooks
+              },
+              callbacks
+            );
+          }
+          return res.job_id;
+        }
+
+        this.startPolling(
+          res.job_id,
+          {
+            folderName: respFolder,
+            phase: 'hd_prefetch',
+            skipInitialSavedHooks: Boolean(respFolder),
+            delayFirstPoll: true,
+            initialStatus: res.status,
+            initialHooks: discoveredHooks
+          },
+          callbacks
+        );
+        return res.job_id;
       }
 
-      this.startPolling(res.job_id, {}, callbacks);
+      this.startPolling(
+        res.job_id,
+        { phase: 'analyzing', initialStatus: res.status },
+        callbacks
+      );
       return res.job_id;
-    } catch (e: any) {
+    } catch (e: unknown) {
       const msg =
         e instanceof Error ? e.message : 'Failed to analyze cached video';
       callbacks.onStatusChange?.('error');
@@ -254,12 +478,13 @@ export class IngestionJobCoordinator {
   public async extractClip(
     spec: ClipExtractSpec,
     callbacks: JobUpdateCallbacks = {}
-  ): Promise<any> {
+  ): Promise<ExtractClipResponse> {
     this.stopPolling();
+    const sessionToken = ++this.jobSessionToken;
     callbacks.onStatusChange?.('cutting');
 
     try {
-      const res = await this.executeFetch<any>(
+      const res = await this.executeFetch<ExtractClipResponse>(
         `${this.apiBase}/api/extract-clip`,
         {
           method: 'POST',
@@ -273,10 +498,14 @@ export class IngestionJobCoordinator {
         }
       );
 
+      if (sessionToken !== this.jobSessionToken) {
+        return res;
+      }
+
       this.activeJobId = spec.jobId;
-      this.startPolling(spec.jobId, {}, callbacks);
+      this.startPolling(spec.jobId, { phase: 'extracting_clip' }, callbacks);
       return res;
-    } catch (e: any) {
+    } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to extract clip';
       callbacks.onStatusChange?.('error');
       callbacks.onError?.(msg);
@@ -286,24 +515,100 @@ export class IngestionJobCoordinator {
 
   public startPolling(
     jobId: string,
-    context: { folderName?: string | null; clipId?: string | null } = {},
+    context: PollingContext = {},
     callbacks: JobUpdateCallbacks = {}
   ): void {
     this.stopPolling();
     this.activeJobId = jobId;
+    this.isPollLoopActive = true;
+    const token = ++this.pollToken;
+    const sessionToken = ++this.jobSessionToken;
+
+    this.pollingPhase =
+      context.phase && context.phase !== 'idle'
+        ? context.phase
+        : context.clipId
+          ? 'extracting_clip'
+          : 'analyzing';
+
+    let lastStatus: string | null = context.initialStatus ?? null;
+    let lastDownloadPercent: number | null = null;
+    let lastVideoMetaSig: string | null = null;
+    let lastHooksSig: string | null = Array.isArray(context.initialHooks)
+      ? this.buildHooksSignature(context.initialHooks)
+      : null;
+    let lastSavedHooksSig: string | null = null;
+    let savedHooksFetchedFolder: string | null =
+      context.skipInitialSavedHooks && context.folderName
+        ? context.folderName
+        : null;
+    let thumbnailBackfillTicks = 0;
+    let stagnantHdTicks = 0;
+    let hasHdProgressSample = false;
+    let lastHdProgressSample: number | null = null;
+    let stagnantExtractReadyTicks = 0;
+    let consecutiveErrors = 0;
+
+    const scheduleNextTick = () => {
+      if (
+        token !== this.pollToken ||
+        !this.isPollLoopActive ||
+        this.activeJobId !== jobId
+      ) {
+        return;
+      }
+      this.pollTimer = setTimeout(() => {
+        this.pollTimer = null;
+        void poll();
+      }, this.pollIntervalMs);
+    };
 
     const poll = async () => {
-      if (!this.activeJobId || this.activeJobId !== jobId) return;
+      if (
+        token !== this.pollToken ||
+        !this.isPollLoopActive ||
+        this.activeJobId !== jobId
+      ) {
+        return;
+      }
 
       try {
         const res = await this.executeFetch<JobApiResponse>(
           `${this.apiBase}/api/job/${jobId}`
         );
-        if (!res) return;
 
-        callbacks.onStatusChange?.(res.status);
+        if (
+          token !== this.pollToken ||
+          !this.isPollLoopActive ||
+          this.activeJobId !== jobId
+        ) {
+          return;
+        }
 
-        if (res.download_percent !== undefined) {
+        if (!res) {
+          if (this.pollingPhase === 'thumbnail_backfill') {
+            thumbnailBackfillTicks += 1;
+            if (thumbnailBackfillTicks >= this.maxThumbnailBackfillPolls) {
+              this.haltPollTimer();
+              return;
+            }
+          }
+          scheduleNextTick();
+          return;
+        }
+
+        consecutiveErrors = 0;
+
+        if (res.status !== lastStatus) {
+          lastStatus = res.status;
+          callbacks.onStatusChange?.(res.status);
+        }
+
+        if (
+          res.download_percent !== undefined &&
+          res.download_percent !== lastDownloadPercent
+        ) {
+          lastDownloadPercent = res.download_percent;
           callbacks.onDownloadProgress?.(res.download_percent);
         }
 
@@ -311,7 +616,7 @@ export class IngestionJobCoordinator {
           res.folder_name || (res.video ? res.video.folder_name : null);
 
         if (res.video) {
-          callbacks.onVideoMetadata?.({
+          const metaPayload: VideoMetadataUpdate = {
             title: res.video.title,
             duration: res.video.duration,
             fps: res.video.fps,
@@ -322,48 +627,76 @@ export class IngestionJobCoordinator {
               ? `${this.apiBase}${res.video.asset_url}`
               : null,
             folderName: respFolder
-          });
+          };
+          const metaSig = this.buildVideoMetaSignature(metaPayload);
+          if (metaSig !== lastVideoMetaSig) {
+            lastVideoMetaSig = metaSig;
+            callbacks.onVideoMetadata?.(metaPayload);
+          }
         }
 
         if (res.hooks && Array.isArray(res.hooks)) {
-          callbacks.onHooksDiscovered?.(res.hooks);
+          const hooksSig = this.buildHooksSignature(res.hooks);
+          if (hooksSig !== lastHooksSig) {
+            lastHooksSig = hooksSig;
+            callbacks.onHooksDiscovered?.(res.hooks, res.hooks[0] ?? null);
+          }
         }
 
-        if (respFolder) {
-          this.fetchSavedHooks(respFolder)
+        if (respFolder && respFolder !== savedHooksFetchedFolder) {
+          savedHooksFetchedFolder = respFolder;
+          void this.fetchSavedHooks(respFolder)
             .then(saved => {
+              if (sessionToken !== this.jobSessionToken) {
+                return;
+              }
               if (saved.length > 0) {
-                callbacks.onSavedHooksDiscovered?.(saved);
+                const savedSig = this.buildHooksSignature(saved);
+                if (savedSig !== lastSavedHooksSig) {
+                  lastSavedHooksSig = savedSig;
+                  callbacks.onSavedHooksDiscovered?.(saved);
+                }
               }
             })
             .catch(() => {});
         }
 
-        // Terminal status: error
-        if (res.status === 'error') {
-          this.stopPolling();
-          const msg = res.error || 'Job encountered an error';
-          if (res.error_detail != null) {
-            callbacks.onError?.(msg, res.error_detail);
-          } else {
-            callbacks.onError?.(msg);
+        // Terminal status: error or cancelled
+        if (res.status === 'error' || res.status === 'cancelled') {
+          this.haltPollTimer();
+          if (res.status === 'error') {
+            const msg = res.error || 'Job encountered an error';
+            if (res.error_detail != null) {
+              callbacks.onError?.(msg, res.error_detail);
+            } else {
+              callbacks.onError?.(msg);
+            }
           }
           return;
         }
 
-        // Clip is ready
+        // Clip extraction is ready
         if (res.status === 'ready' && res.clip && res.clip.asset_url) {
           const parts = res.clip.asset_url.split('/');
-          const clipId = parts.length >= 5 ? parts[4] : null;
+          const clipId = parts.length >= 5 ? (parts[4] ?? null) : null;
           const folder =
             respFolder ||
             context.folderName ||
-            (parts.length >= 5 && parts[2] === 'clips' ? parts[3] : '');
+            (parts.length >= 5 && parts[2] === 'clips' ? (parts[3] ?? '') : '');
 
           if (folder && clipId) {
             const session = await this.sessionClient
               .loadSession(folder, clipId)
               .catch(() => null);
+
+            if (
+              token !== this.pollToken ||
+              !this.isPollLoopActive ||
+              this.activeJobId !== jobId
+            ) {
+              return;
+            }
+
             const bundle = this.hydrateBundleFromSession(
               folder,
               clipId,
@@ -377,13 +710,88 @@ export class IngestionJobCoordinator {
                 clip: res.clip
               }
             );
+            this.haltPollTimer();
             callbacks.onClipReady?.(bundle);
+            return;
           }
 
-          this.stopPolling();
+          this.haltPollTimer();
+          return;
         }
-      } catch (err: any) {
-        if (err?.status === 404) {
+
+        if (this.pollingPhase !== 'extracting_clip') {
+          const isHdReady =
+            res.video?.hd_ready !== undefined
+              ? Boolean(res.video.hd_ready)
+              : res.download_percent !== undefined
+                ? res.download_percent >= 100
+                : res.status === 'ready';
+
+          if (
+            res.status === 'hooks_ready' &&
+            this.pollingPhase === 'analyzing'
+          ) {
+            this.pollingPhase = 'hd_prefetch';
+            stagnantHdTicks = 0;
+            hasHdProgressSample = true;
+            lastHdProgressSample = res.download_percent ?? null;
+          } else if (
+            this.pollingPhase === 'hd_prefetch' &&
+            !(res.status === 'ready' && isHdReady)
+          ) {
+            const progressSample = res.download_percent ?? null;
+            if (!hasHdProgressSample) {
+              hasHdProgressSample = true;
+              lastHdProgressSample = progressSample;
+            } else if (progressSample === lastHdProgressSample) {
+              stagnantHdTicks += 1;
+            } else {
+              lastHdProgressSample = progressSample;
+              stagnantHdTicks = 0;
+            }
+
+            if (stagnantHdTicks >= this.maxStagnantHdPrefetchPolls) {
+              this.haltPollTimer();
+              return;
+            }
+          }
+
+          if (res.status === 'ready' && isHdReady) {
+            if (!this.hooksNeedThumbnailBackfill(res.hooks)) {
+              this.haltPollTimer();
+              return;
+            }
+
+            if (this.pollingPhase !== 'thumbnail_backfill') {
+              this.pollingPhase = 'thumbnail_backfill';
+              thumbnailBackfillTicks = 0;
+            } else {
+              thumbnailBackfillTicks += 1;
+              if (thumbnailBackfillTicks >= this.maxThumbnailBackfillPolls) {
+                this.haltPollTimer();
+                return;
+              }
+            }
+          }
+        } else if (res.status === 'ready') {
+          // Guard against extracting_clip settling on ready without clip metadata
+          stagnantExtractReadyTicks += 1;
+          if (stagnantExtractReadyTicks >= 3) {
+            this.haltPollTimer();
+            return;
+          }
+        }
+      } catch (err: unknown) {
+        if (
+          token !== this.pollToken ||
+          !this.isPollLoopActive ||
+          this.activeJobId !== jobId
+        ) {
+          return;
+        }
+
+        const httpErr = err as HttpErrorLike | null | undefined;
+        if (httpErr?.status === 404) {
           // Self-heal check
           if (context.folderName && context.clipId) {
             console.log(
@@ -391,7 +799,7 @@ export class IngestionJobCoordinator {
               context.folderName,
               context.clipId
             );
-            this.stopPolling();
+            this.haltPollTimer();
             if (callbacks.onSelfHeal) {
               await callbacks.onSelfHeal(context.folderName, context.clipId);
             } else {
@@ -399,22 +807,42 @@ export class IngestionJobCoordinator {
                 context.folderName,
                 context.clipId
               );
+              if (token !== this.pollToken) {
+                return;
+              }
               callbacks.onClipReady?.(bundle);
             }
             return;
           }
-          this.stopPolling();
+          this.haltPollTimer();
           callbacks.onStatusChange?.('error');
           callbacks.onError?.(
             'Job session expired. Please re-analyze the video.'
           );
+          return;
+        }
+
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= this.maxConsecutiveErrors) {
+          const msg =
+            err instanceof Error
+              ? err.message
+              : 'Polling failed due to network error';
+          this.haltPollTimer();
+          callbacks.onStatusChange?.('error');
+          callbacks.onError?.(msg);
+          return;
         }
       }
+
+      scheduleNextTick();
     };
 
-    // Trigger immediate first run, then start periodic interval
-    poll();
-    this.pollInterval = setInterval(poll, this.pollIntervalMs);
+    if (context.delayFirstPoll) {
+      scheduleNextTick();
+    } else {
+      void poll();
+    }
   }
 
   public async fetchSavedHooks(folderName: string): Promise<Hook[]> {
@@ -510,6 +938,7 @@ export class IngestionJobCoordinator {
     clipId: string,
     whisperModel: string = 'base'
   ): Promise<HydratedClipBundle> {
+    this.stopPolling();
     const res = await this.executeFetch<{
       job_id?: string;
       status?: string;

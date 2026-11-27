@@ -290,7 +290,8 @@ watch(
   }
 );
 
-const readyClips = useState<ReadyClip[]>('readyClips', () => []);
+const readyClips =
+  state.readyClips ?? useState<ReadyClip[]>('readyClips', () => []);
 const API_BASE = resolveApiBase();
 
 const isCurrentHookSaved = computed(() => {
@@ -339,14 +340,24 @@ async function removeCurrentSavedHook() {
   }
 }
 
-async function fetchReadyClips() {
+async function fetchReadyClips(
+  options: { force?: boolean; silent?: boolean } = { silent: true }
+) {
+  if (state.fetchReadyClips) {
+    return state.fetchReadyClips({
+      force: options.force,
+      silent: options.silent ?? true
+    });
+  }
   try {
     const res = await $fetch<{ clips: ReadyClip[] }>(
       `${API_BASE}/api/ready-clips`
     );
     readyClips.value = res.clips || [];
+    return readyClips.value;
   } catch (e) {
     console.error('[yonru] Failed to fetch ready clips in background:', e);
+    return readyClips.value;
   }
 }
 
@@ -487,7 +498,14 @@ async function selectSidebarHook(hook: Hook) {
 
 let restoreQueryWatcher: (() => void) | null = null;
 
-function restoreStateFromQuery() {
+type SessionActivationAction =
+  | 'already_hydrated'
+  | 'already_polling'
+  | 'started_polling'
+  | 'loaded_ready_clip'
+  | 'noop';
+
+async function restoreStateFromQuery(): Promise<SessionActivationAction> {
   if (restoreQueryWatcher) {
     restoreQueryWatcher();
     restoreQueryWatcher = null;
@@ -497,28 +515,46 @@ function restoreStateFromQuery() {
   const folder = route.query.folder as string;
   const clipId = route.query.clip_id as string;
   const hookIndex = parseInt(route.query.hook_index as string);
-  const tab = (route.query.tab as string) || 'generated';
+  const tab: 'generated' | 'saved' =
+    (route.query.tab as string) === 'saved' ? 'saved' : 'generated';
+  panelTab.value = tab;
 
-  if (jobId) {
-    console.log(
-      '[editor] Restoring state from query. JobID:',
-      jobId,
-      'Folder:',
-      folder,
-      'ClipID:',
-      clipId,
-      'HookIndex:',
-      hookIndex,
-      'Tab:',
-      tab
-    );
-    state.jobId.value = jobId;
-    state.folderName.value = folder;
-    if (clipId) {
-      state.clipId.value = clipId;
+  if (!jobId && !(folder && clipId)) {
+    return 'noop';
+  }
+
+  const targetIndex = Number.isNaN(hookIndex) ? 0 : hookIndex;
+
+  let action: SessionActivationAction = 'noop';
+  if (state.activateClipSession) {
+    const result = await state.activateClipSession({
+      jobId: jobId || null,
+      folderName: folder || null,
+      clipId: clipId || null
+    });
+    action = result.action;
+  } else if (jobId) {
+    if (state.jobId) state.jobId.value = jobId;
+    if (state.folderName && folder) state.folderName.value = folder;
+    if (state.clipId && clipId) state.clipId.value = clipId;
+    state?.startPolling?.('extracting_clip');
+    action = 'started_polling';
+  } else if (folder && clipId) {
+    await state.loadReadyClipIntoEditor(folder, clipId);
+    action = 'loaded_ready_clip';
+  }
+
+  if (action === 'already_hydrated') {
+    const hooksList =
+      tab === 'saved' ? state?.savedHooks?.value : state?.hooks?.value;
+    const matchedHook = hooksList?.[targetIndex];
+    if (matchedHook && state?.activeHook && !state.activeHook.value) {
+      state.activeHook.value = matchedHook;
     }
-    panelTab.value = tab as any;
+    return action;
+  }
 
+  if ((action === 'started_polling' || action === 'already_polling') && jobId) {
     restoreQueryWatcher = watch(
       [
         () => state?.jobStatus?.value,
@@ -537,17 +573,17 @@ function restoreStateFromQuery() {
         ) {
           const hooksList =
             tab === 'saved' ? state?.savedHooks?.value : state?.hooks?.value;
-          const targetIndex = isNaN(hookIndex) ? 0 : hookIndex;
-          if (hooksList && hooksList[targetIndex]) {
+          const targetHook = hooksList?.[targetIndex];
+          if (targetHook) {
             console.log('[editor] Restoring hook from index:', targetIndex);
             if (
               state?.activeHook &&
               (!state.activeHook.value || status !== 'ready')
             ) {
-              state.activeHook.value = hooksList[targetIndex];
+              state.activeHook.value = targetHook;
             }
             if (status !== 'ready') {
-              state?.extractClip?.(hooksList[targetIndex]);
+              state?.extractClip?.(targetHook);
             }
           }
           nextTick(() => {
@@ -560,18 +596,9 @@ function restoreStateFromQuery() {
       },
       { immediate: true }
     );
-
-    state?.startPolling?.();
-  } else if (folder && clipId) {
-    console.log(
-      '[editor] Restoring ready clip from query without jobId. Folder:',
-      folder,
-      'ClipID:',
-      clipId
-    );
-    panelTab.value = tab as any;
-    state.loadReadyClipIntoEditor(folder, clipId);
   }
+
+  return action;
 }
 
 // Pipeline loading overlay calculations
@@ -632,19 +659,18 @@ watch(
   () => state.renderStatus.value,
   newStatus => {
     if (newStatus === 'done') {
-      fetchReadyClips();
+      void fetchReadyClips({ force: true, silent: true });
     }
   }
 );
 
 watch(
   () => state.jobStatus.value,
-  newStatus => {
-    if (newStatus === 'ready') {
-      fetchReadyClips();
+  (newStatus, oldStatus) => {
+    if (newStatus === 'ready' && oldStatus !== 'ready') {
+      void fetchReadyClips({ force: true, silent: true });
     }
-  },
-  { immediate: true }
+  }
 );
 
 watch(
@@ -657,12 +683,26 @@ watch(
   }
 );
 
-onMounted(async () => {
+async function syncEditorEntryData() {
+  const action = await restoreStateFromQuery();
+  void fetchReadyClips({ silent: true });
+  if (state.cachedVideos.value.length === 0) {
+    void state.fetchCached();
+  }
+  if (
+    action !== 'already_hydrated' &&
+    action !== 'already_polling' &&
+    action !== 'started_polling' &&
+    state.folderName.value &&
+    state.savedHooks.value.length === 0
+  ) {
+    void state.fetchSavedHooks();
+  }
+}
+
+onMounted(() => {
   console.log('[yonru] Editor mounted (first time)');
   state.isNavigatingToEditor.value = false;
-  fetchReadyClips();
-  state.fetchCached();
-  state.fetchSavedHooks();
 
   if (import.meta.client) {
     const saved = localStorage.getItem('yonru_last_video');
@@ -681,7 +721,7 @@ onMounted(async () => {
       // Ignore storage errors
     }
   }
-  restoreStateFromQuery();
+  void syncEditorEntryData();
   state.initPersistence();
   attachGlobalKeydown();
   nextTick(() => {
@@ -695,10 +735,7 @@ onActivated(() => {
     console.log('[yonru] Editor activated (returned from cache)');
     sidebarView.value = 'editor';
     state.isNavigatingToEditor.value = false;
-    fetchReadyClips();
-    state.fetchCached();
-    state.fetchSavedHooks();
-    restoreStateFromQuery();
+    void syncEditorEntryData();
   }
 });
 
