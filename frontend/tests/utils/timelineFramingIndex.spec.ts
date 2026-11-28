@@ -27,12 +27,16 @@ import {
   CropMapIndex,
   TimelineFramingIndex,
   SubtitleChunkIndex,
+  CensoredAudioIndex,
   createTimelineSegmentIndex,
   getOrCreateTimelineSegmentIndex,
   createCropMapIndex,
   getOrCreateCropMapIndex,
   createTimelineFramingIndex,
   createSubtitleChunkIndex,
+  createCensoredAudioIndex,
+  mergeCensoredSegments,
+  indexTimelineTextLayers,
   computeViewportFraming
 } from '@yonru/remotion/TimelineFramingIndex';
 
@@ -241,6 +245,169 @@ describe('TimelineFramingIndex module', () => {
       expect(staticIndex.computeFraming(12.3)).toBe(
         staticIndex.computeFraming(0)
       );
+    });
+
+    it('short-circuits landscape clips with non-empty split cropMaps to the cached static single result', () => {
+      const landscapeParams = {
+        cropMap: [
+          {
+            time: 0,
+            x: 500,
+            mode: 'split' as const,
+            top_x: 300,
+            bottom_x: 1500
+          },
+          {
+            time: 2,
+            x: 1400,
+            mode: 'split' as const,
+            top_x: 400,
+            bottom_x: 1600
+          }
+        ],
+        cropX: 960,
+        rawSourceW: 1920,
+        isLandscape: true,
+        videoDisplayW: 1080,
+        videoDisplayH: 607.5,
+        CONTAINER_W: 1080,
+        CONTAINER_H: 1920,
+        PANEL_H: 960
+      };
+
+      const index = createTimelineFramingIndex(landscapeParams);
+      const t0 = index.computeFraming(0);
+      const t2 = index.computeFraming(2.5);
+
+      expect(t0).toEqual(computeViewportFraming(0, landscapeParams));
+      expect(t2).toEqual(computeViewportFraming(2.5, landscapeParams));
+      expect(t0.isSplitActive).toBe(false);
+      expect(t0.curTranslateX).toBe(0);
+      expect(index.isSplitAt(2.5)).toBe(false);
+      expect(t2).toBe(t0);
+    });
+  });
+
+  describe('CensoredAudioIndex and mergeCensoredSegments', () => {
+    it('normalizes, clamps, merges within 5ms tolerance, and leaves caller arrays untouched', () => {
+      const raw = [
+        { start: 5.0, duration: 0.4 },
+        { start: -0.25, duration: 0.75 },
+        { start: 0.5041, duration: 0.3 },
+        { start: 1.5, duration: 0 },
+        { start: Number.NaN, duration: 1.0 },
+        { start: -2.0, duration: 1.0 }
+      ];
+      const snapshot = raw.map(item => ({ ...item }));
+
+      const merged = mergeCensoredSegments(raw);
+
+      expect(raw).toEqual(snapshot);
+      expect(merged).toEqual([
+        { start: 0, duration: 0.804 },
+        { start: 5, duration: 0.4 }
+      ]);
+    });
+
+    it('builds MainVideo-relative bleepWindows and resolves volume envelopes across sequential/random lookups and short segments', () => {
+      const emptyIndex = createCensoredAudioIndex([], 30);
+      expect(emptyIndex.isEmpty).toBe(true);
+      expect(emptyIndex.bleepWindows).toEqual([]);
+      expect(emptyIndex.createSegmentVolume(0.75, 150)).toBe(0.75);
+
+      const index = createCensoredAudioIndex(
+        [
+          { start: 1.0, duration: 0.5 },
+          { start: 2.0, duration: 0.02 },
+          { start: 7.0, duration: 0.5 }
+        ],
+        30
+      );
+      expect(index).toBeInstanceOf(CensoredAudioIndex);
+      expect(index.isEmpty).toBe(false);
+      expect(index.bleepWindows).toEqual([
+        {
+          start: 1.0,
+          duration: 0.5,
+          end: 1.5,
+          startFrame: 30,
+          durationFrames: 15
+        },
+        {
+          start: 2.0,
+          duration: 0.02,
+          end: 2.02,
+          startFrame: 60,
+          durationFrames: 1
+        },
+        {
+          start: 7.0,
+          duration: 0.5,
+          end: 7.5,
+          startFrame: 210,
+          durationFrames: 15
+        }
+      ]);
+
+      // Entry/exit 15ms micro-envelope + center hold on standard segment
+      expect(index.resolveVolumeAtTime(0.5, 0.8)).toBe(0.8);
+      expect(index.resolveVolumeAtTime(1.0, 0.8)).toBeCloseTo(0.8, 6);
+      expect(index.resolveVolumeAtTime(1.0075, 0.8)).toBeCloseTo(0.4, 6);
+      expect(index.resolveVolumeAtTime(1.25, 0.8)).toBe(0);
+      expect(index.resolveVolumeAtTime(1.4925, 0.8)).toBeCloseTo(0.4, 6);
+      expect(index.resolveVolumeAtTime(1.5, 0.8)).toBeCloseTo(0.8, 6);
+
+      // Clamped micro-envelope on <30ms segment (20ms -> 10ms fade each side)
+      expect(index.resolveVolumeAtTime(2.005, 1.0)).toBeCloseTo(0.5, 6);
+      expect(index.resolveVolumeAtTime(2.01, 1.0)).toBe(0);
+      expect(index.resolveVolumeAtTime(2.015, 1.0)).toBeCloseTo(0.5, 6);
+
+      // Backward seek & gap checks
+      expect(index.resolveVolumeAtTime(1.8, 0.8)).toBe(0.8);
+      expect(index.resolveVolumeAtTime(1.2, 0.8)).toBe(0);
+
+      // Segment-local volume closures map (segmentStartFrame + localFrame) / fps
+      const seg0Vol = index.createSegmentVolume(0.8, 0);
+      const seg2Vol = index.createSegmentVolume(0.8, 150);
+      expect(typeof seg0Vol).toBe('function');
+      expect(typeof seg2Vol).toBe('function');
+      if (typeof seg0Vol === 'function' && typeof seg2Vol === 'function') {
+        expect(seg0Vol(37)).toBe(0); // frame 37 = 1.233s
+        expect(seg0Vol(67)).toBe(0.8); // frame 67 = 2.233s
+        expect(seg2Vol(67)).toBe(0); // 150 + 67 = 217 = 7.233s
+      }
+    });
+  });
+
+  describe('indexTimelineTextLayers', () => {
+    it('computes Sequence frame bounds, clamps negative starts, skips non-positive frames, and preserves z-order', () => {
+      const layers = indexTimelineTextLayers(
+        [
+          { id: 't-neg', start: -0.5, duration: 2 },
+          { id: 't-skip-expired', start: -2, duration: 1 },
+          { id: 't-skip-zero', start: 1, duration: 0 },
+          { id: 't-skip-tiny', start: 1, duration: 0.001 },
+          { id: 't-skip-nan', start: Number.NaN, duration: 1 },
+          { id: '', start: 1, duration: 2 }
+        ],
+        30
+      );
+
+      expect(layers).toHaveLength(2);
+      expect(layers[0]).toEqual({
+        key: 't-neg',
+        item: { id: 't-neg', start: -0.5, duration: 2 },
+        startFrame: 0,
+        durationFrames: 45,
+        zIndex: 21
+      });
+      expect(layers[1]).toEqual({
+        key: 'text-5',
+        item: { id: '', start: 1, duration: 2 },
+        startFrame: 30,
+        durationFrames: 60,
+        zIndex: 26
+      });
     });
   });
 

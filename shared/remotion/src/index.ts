@@ -11,12 +11,18 @@ export { RemotionRoot } from './Root';
 export { YonruClip } from './Composition';
 export {
   CanvasVideoCompositor,
-  computeViewportFraming
+  computeViewportFraming,
+  computeLandscapeBlurSpec,
+  drawLandscapeBlurFrame
 } from './CanvasVideoCompositor';
 export type {
   CanvasVideoCompositorProps,
   ViewportFramingParams,
-  ViewportFramingResult
+  ViewportFramingResult,
+  LandscapeBlurSpec,
+  LandscapeBlurSpecParams,
+  DrawLandscapeBlurFrameParams,
+  DrawLandscapeBlurFrameResult
 } from './CanvasVideoCompositor';
 export {
   TimelineFrameRetention,
@@ -42,17 +48,25 @@ export {
   CropMapIndex,
   TimelineSegmentIndex,
   SubtitleChunkIndex,
+  CensoredAudioIndex,
   createTimelineFramingIndex,
   createCropMapIndex,
   getOrCreateCropMapIndex,
   createTimelineSegmentIndex,
   getOrCreateTimelineSegmentIndex,
-  createSubtitleChunkIndex
+  createSubtitleChunkIndex,
+  createCensoredAudioIndex,
+  mergeCensoredSegments,
+  indexTimelineTextLayers
 } from './TimelineFramingIndex';
 export type {
   IndexedVideoSegment,
   IndexedSubtitleChunk,
-  CropSplitWindow
+  CropSplitWindow,
+  CensoredAudioSegment,
+  CensoredBleepWindow,
+  TimelineTextLayerBounds,
+  IndexedTimelineTextLayer
 } from './TimelineFramingIndex';
 export {
   PreviewMediaContext,

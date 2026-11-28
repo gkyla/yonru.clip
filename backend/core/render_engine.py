@@ -687,6 +687,18 @@ def _compute_timeline_duration(tracks: Optional[List[Dict[str, Any]]]) -> float:
     return max_timeline_end
 
 
+def _resolve_default_static_audio_dir() -> str:
+    """Resolve the frontend static audio directory (dev public/ with Nuxt .output fallback)."""
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    primary = os.path.join(repo_root, "frontend", "public", "audio")
+    if os.path.isdir(primary):
+        return primary
+    built_fallback = os.path.join(repo_root, "frontend", ".output", "public", "audio")
+    if os.path.isdir(built_fallback):
+        return built_fallback
+    return primary
+
+
 def _stage_file(src: str, dst: str) -> None:
     """Stage a media file via zero-copy hardlink, falling back to copy across filesystems."""
     real_src = os.path.realpath(src)
@@ -944,6 +956,7 @@ class StagedRenderContext:
         remotion_dir: Optional[str] = None,
         public_dir: Optional[str] = None,
         audio_library_dir: Optional[str] = None,
+        static_audio_dir: Optional[str] = None,
     ):
         self.comp = comp
         self.out_filename = out_filename
@@ -953,11 +966,92 @@ class StagedRenderContext:
         )
         self.public_dir = os.path.abspath(public_dir or os.path.join(self.remotion_dir, "public"))
         self.audio_library_dir = os.path.abspath(audio_library_dir or "temp_assets/audio_library")
+        self.static_audio_dir = (
+            os.path.abspath(static_audio_dir)
+            if static_audio_dir
+            else _resolve_default_static_audio_dir()
+        )
         self.public_video_path: Optional[str] = None
         self.thumbnail_image_path: Optional[str] = None
         self.staged_audio_paths: List[str] = []
         self.props_path: Optional[str] = None
         self.frames: int = 0
+
+    def _stage_bleep_audio(
+        self,
+        raw_src: Optional[str],
+        safe_out_filename: str,
+        base_public_dir: str,
+    ) -> Optional[str]:
+        """Stage bleep audio into .bundle/public/ for headless Remotion or fall back to mute-only (None)."""
+        if not raw_src:
+            return None
+        src = str(raw_src).strip()
+        if not src:
+            return None
+
+        if src.startswith(("data:", "http://", "https://", "blob:")):
+            return src
+
+        for prefix, source_root in (
+            ("/audio/", self.static_audio_dir),
+            ("/assets/audio_library/", self.audio_library_dir),
+        ):
+            if not src.startswith(prefix):
+                continue
+
+            rel_part = src[len(prefix):].split("?", 1)[0].split("#", 1)[0]
+            bleep_filename = os.path.basename(rel_part)
+            if (
+                not rel_part
+                or bleep_filename != rel_part
+                or bleep_filename in {".", ".."}
+            ):
+                print(
+                    f"[render-engine] Warning: Invalid bleep audio path '{src}'; falling back to mute-only censorship.",
+                    flush=True,
+                )
+                return None
+
+            base_src_dir = os.path.abspath(source_root)
+            local_path = os.path.abspath(os.path.join(base_src_dir, bleep_filename))
+            if (
+                os.path.commonpath([base_src_dir, local_path]) != base_src_dir
+                or not os.path.isfile(local_path)
+            ):
+                print(
+                    f"[render-engine] Warning: Bleep audio asset missing at '{local_path}'; falling back to mute-only censorship.",
+                    flush=True,
+                )
+                return None
+
+            real_src_dir = os.path.realpath(base_src_dir)
+            real_local_path = os.path.realpath(local_path)
+            if os.path.commonpath([real_src_dir, real_local_path]) != real_src_dir:
+                print(
+                    f"[render-engine] Warning: Bleep audio symlink escapes root '{src}'; falling back to mute-only censorship.",
+                    flush=True,
+                )
+                return None
+
+            staged_name = f"bleep_{safe_out_filename}_{bleep_filename}"
+            staged_dest = os.path.abspath(os.path.join(base_public_dir, staged_name))
+            if os.path.commonpath([base_public_dir, staged_dest]) != base_public_dir:
+                print(
+                    f"[render-engine] Warning: Unsafe staged bleep destination '{staged_dest}'; falling back to mute-only censorship.",
+                    flush=True,
+                )
+                return None
+
+            _stage_file(local_path, staged_dest)
+            self.staged_audio_paths.append(staged_dest)
+            return staged_name
+
+        print(
+            f"[render-engine] Warning: Unsupported bleep audio source '{src}'; falling back to mute-only censorship.",
+            flush=True,
+        )
+        return None
 
     def __enter__(self):
         self.staged_audio_paths = []
@@ -1024,6 +1118,12 @@ class StagedRenderContext:
                             item_copy["src"] = staged_audio_name
                 staged_audio_items.append(item_copy)
 
+            staged_bleep_src = self._stage_bleep_audio(
+                self.comp.bleep_audio_src,
+                safe_out_filename,
+                base_public_dir,
+            )
+
             props = {
                 "videoPath": temp_public_video_name,
                 "words": self.comp.words_data or [],
@@ -1043,7 +1143,7 @@ class StagedRenderContext:
                 "timelineAudioItems": staged_audio_items,
                 "timelineVideoItems": timeline_video_items,
                 "censoredSegments": self.comp.censored_segments or [],
-                "bleepAudioSrc": self.comp.bleep_audio_src,
+                "bleepAudioSrc": staged_bleep_src,
                 "volume": self.comp.volume,
                 "fps": self.comp.fps,
                 "coverEnabled": cover_image_name is not None,
@@ -1508,6 +1608,7 @@ class RenderPipelineCoordinator(RenderEngine):
         clip_session_store: Optional[Any] = None,
         remotion_dir: Optional[str] = None,
         audio_library_dir: Optional[str] = None,
+        static_audio_dir: Optional[str] = None,
         process_adapter: Optional[RemotionProcessAdapter] = None,
         hardware_profiler: Optional[HardwareProfiler] = None,
     ):
@@ -1522,6 +1623,7 @@ class RenderPipelineCoordinator(RenderEngine):
             remotion_dir or os.path.join(os.path.dirname(__file__), "../../shared/remotion")
         )
         self.audio_library_dir = os.path.abspath(audio_library_dir) if audio_library_dir else None
+        self.static_audio_dir = os.path.abspath(static_audio_dir) if static_audio_dir else None
         os.makedirs(output_dir, exist_ok=True)
 
         if config_store is None:
@@ -1703,7 +1805,7 @@ class RenderPipelineCoordinator(RenderEngine):
             except OSError:
                 pass
 
-        transient_prefixes = ("source_", "cover_", "audio_", "props_")
+        transient_prefixes = ("source_", "cover_", "audio_", "bleep_", "props_")
         for subdir in ("src", "public"):
             dir_path = os.path.join(remotion_dir, subdir)
             if not os.path.isdir(dir_path):
@@ -1853,6 +1955,7 @@ class RenderPipelineCoordinator(RenderEngine):
             remotion_dir=self.remotion_dir,
             public_dir=os.path.join(bundle_dir, "public"),
             audio_library_dir=self.audio_library_dir,
+            static_audio_dir=self.static_audio_dir,
         )
 
     def _build_remotion_cmd(
