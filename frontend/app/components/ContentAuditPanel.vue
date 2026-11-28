@@ -670,7 +670,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 
 const state = useClipperState();
 const showIgnoreModal = ref(false);
@@ -682,15 +682,7 @@ const confirmIgnoreWarnings = () => {
   showIgnoreModal.value = false;
 };
 
-const audit = computed(() => {
-  const res = state?.contentAudit?.value;
-  console.log('[Audit] New data:', res);
-  return res;
-});
-
-onMounted(() => {
-  console.log('[Audit] Component Mounted. State:', !!state);
-});
+const audit = computed(() => state?.contentAudit?.value);
 
 const scoreLabel = computed(() => {
   if (!audit.value) return 'ANALYZING...';
@@ -706,15 +698,6 @@ const scoreLabel = computed(() => {
   if (score >= 70) return 'GOOD - MINOR RISKS';
   if (score >= 40) return 'CAUTION - RESTRICTED';
   return 'HIGH RISK OF SHADOWBAN';
-});
-
-const scoreColorClass = computed(() => {
-  if (!audit.value) return 'bg-slate-500';
-  const score = audit.value.score;
-  if (score >= 90) return 'text-emerald-500';
-  if (score >= 70) return 'text-accent-500';
-  if (score >= 40) return 'text-amber-500';
-  return 'text-rose-500';
 });
 
 const scoreTextClass = computed(() => {

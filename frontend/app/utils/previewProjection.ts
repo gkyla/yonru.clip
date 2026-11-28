@@ -74,9 +74,10 @@ export type PreviewSessionSource = Pick<
   | 'audioBleepEnabled'
   | 'audioBleepSource'
   | 'customBleepFile'
-  | 'contentAudit'
 > &
-  Partial<Pick<ClipperState, 'videoDuration'>>;
+  Partial<
+    Pick<ClipperState, 'videoDuration' | 'flaggedSegments' | 'contentAudit'>
+  >;
 
 export interface PreviewProjectionOptions {
   scheduleFrame?: (cb: () => void) => number;
@@ -431,8 +432,12 @@ export function createPreviewProjection(
     }
   };
 
+  const readFlaggedSegments = () =>
+    session.flaggedSegments
+      ? (session.flaggedSegments.value ?? [])
+      : (session.contentAudit?.value?.flaggedSegments ?? []);
   const readFlaggedSignature = () =>
-    (session.contentAudit.value?.flaggedSegments ?? [])
+    readFlaggedSegments()
       .map(s => `${s.start}:${s.duration}`)
       .join('|');
   const censorship: Slice = {
@@ -445,7 +450,7 @@ export function createPreviewProjection(
     invalidation: 'none',
     build() {
       const enabled = session.audioBleepEnabled.value;
-      const segments = toRaw(session.contentAudit.value?.flaggedSegments) ?? [];
+      const segments = toRaw(readFlaggedSegments());
       return {
         // Composition.tsx ducks and bleeps these frame-locked (ADR-0018).
         censoredSegments: enabled ? mergeCensoredSegments(segments) : [],

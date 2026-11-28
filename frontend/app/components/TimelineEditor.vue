@@ -418,13 +418,9 @@
             </div>
 
             <!-- Flagged markers layer (rendered over Main Video track) -->
-            <template
-              v-if="
-                isVideoTrack(track) && state.contentAudit.value?.flaggedSegments
-              "
-            >
+            <template v-if="isVideoTrack(track) && flaggedSegments.length > 0">
               <div
-                v-for="(v, i) in state.contentAudit.value.flaggedSegments"
+                v-for="(v, i) in flaggedSegments"
                 :key="'v-' + i"
                 class="absolute top-[4px] rounded-[3px] bg-rose-500/25 border-x border-rose-500/50 pointer-events-none z-20"
                 :style="{
@@ -527,6 +523,12 @@ import TimelineRuler, {
 
 const state = useClipperState();
 const isOverlayVisible = useState<boolean>('isOverlayVisible', () => false);
+const flaggedSegments = computed(
+  () =>
+    state.flaggedSegments?.value ??
+    state.contentAudit?.value?.flaggedSegments ??
+    []
+);
 
 const pxPerSec = ref(100);
 const scrollEl = ref<HTMLElement | null>(null);

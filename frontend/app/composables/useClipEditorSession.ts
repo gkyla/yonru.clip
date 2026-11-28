@@ -720,7 +720,10 @@ export const useClipEditorSession = (
         audioBleepEnabled: auditor.audioBleepEnabled.value,
         audioBleepSource: auditor.audioBleepSource.value,
         customBleepFile: auditor.customBleepFile.value,
-        censoredSegments: auditor.contentAudit.value?.flaggedSegments || [],
+        censoredSegments:
+          auditor.flaggedSegments?.value ??
+          auditor.contentAudit.value?.flaggedSegments ??
+          [],
         bleepPaddingOffset: auditor.bleepPaddingOffset.value,
         bleepMode: auditor.bleepMode.value,
         safetySensitivity: auditor.safetySensitivity.value,

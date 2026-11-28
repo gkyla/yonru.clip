@@ -1,19 +1,29 @@
 // useSafetyAuditor.ts — Reactive Composable Bridge over Deep ContentSafetyAuditor Engine
 import {
-  ContentSafetyAuditor,
+  areAuditResultsEqual,
+  areCompiledPatternsEqual,
+  areContentAuditsEqual,
+  areFlaggedSegmentsEqual,
+  areLayoutAuditsEqual,
+  areLexicalMatchesEqual,
+  areReadabilityAuditsEqual,
   createContentSafetyAuditor,
   DEFAULT_CATEGORIZED_BLACKLIST,
-  CATEGORIZED_BLACKLIST,
-  DEFAULT_BLACKLIST,
-  SEVERE_WORDS,
   BUILTIN_BLEEP_PRESETS,
   DEFAULT_BLEEP_PRESET,
+  type AuditResult,
   type BleepAudioItem,
-  type SafetyCategory,
-  type SafetySensitivity,
-  type MaskingStyle,
   type BleepMode,
-  type PlatformSafeZone
+  type CompiledPattern,
+  type ContentAuditSnapshot,
+  type FlaggedSegment,
+  type LayoutAuditResult,
+  type LexicalMatch,
+  type MaskingStyle,
+  type PlatformSafeZone,
+  type ReadabilityAuditResult,
+  type SafetyCategory,
+  type SafetySensitivity
 } from '../utils/safetyEngine';
 import type {
   Hook,
@@ -89,7 +99,6 @@ export const useSafetyAuditor = () => {
   );
 
   // Subtitle style / mode dependencies
-  const subtitleMode = useState<string>('subtitleMode');
   const fullTranscript = useState<TranscriptSegment[]>('fullTranscript');
   const activeHook = useState<Hook | null>('activeHook');
   const language = useState<string>('language');
@@ -100,9 +109,11 @@ export const useSafetyAuditor = () => {
   const subtitleStrokeWidth = useState<number>('subtitleStrokeWidth');
   const subtitleStrokeColor = useState<string>('subtitleStrokeColor');
 
-  // Create encapsulated auditor configured from current reactive state
-  const auditor = computed(() => {
-    return createContentSafetyAuditor({
+  // Persistent engine instance preserves compiled _patternCache across config/slider changes
+  const engine = createContentSafetyAuditor();
+
+  const syncEngineConfig = () => {
+    engine.hydrate({
       customBlacklist: customBlacklist.value,
       customWhitelist: customWhitelist.value,
       categorizedBlacklist: categorizedBlacklist.value,
@@ -112,20 +123,25 @@ export const useSafetyAuditor = () => {
       audioBleepSource: audioBleepSource.value,
       bleepLibrary: bleepLibrary.value,
       selectedBleepAudioId: selectedBleepAudioId.value,
-      customBleepFile: customBleepFile.value,
       bleepPaddingOffset: bleepPaddingOffset.value,
       bleepMode: bleepMode.value,
       isWarningIgnored: isWarningIgnored.value,
       activeCategories: activeCategories.value,
       activePlatformFilters: activePlatformFilters.value
     });
-  });
+  };
 
-  // Synchronize bleep audio selection
+  // Synchronize bleep audio selection without redundant object allocations
   const syncCustomBleepFile = () => {
     const activeItem =
       bleepLibrary.value.find(item => item.id === selectedBleepAudioId.value) ||
       DEFAULT_BLEEP_PRESET;
+    if (
+      customBleepFile.value?.name === activeItem.name &&
+      customBleepFile.value?.data === activeItem.data
+    ) {
+      return;
+    }
     customBleepFile.value = { name: activeItem.name, data: activeItem.data };
   };
 
@@ -146,7 +162,7 @@ export const useSafetyAuditor = () => {
   };
 
   const addCustomBleepFile = (file: { name: string; data: string }) => {
-    const engine = auditor.value;
+    syncEngineConfig();
     const newItem = engine.addCustomBleepFile(file);
     bleepLibrary.value = [...engine.bleepLibrary];
     selectedBleepAudioId.value = engine.selectedBleepAudioId;
@@ -156,7 +172,7 @@ export const useSafetyAuditor = () => {
   };
 
   const removeCustomBleepFile = (id: string) => {
-    const engine = auditor.value;
+    syncEngineConfig();
     const removed = engine.removeCustomBleepFile(id);
     if (removed) {
       bleepLibrary.value = [...engine.bleepLibrary];
@@ -168,15 +184,16 @@ export const useSafetyAuditor = () => {
 
   const saveBlacklistToStorage = () => {
     if (import.meta.client) {
-      auditor.value.serializeToStorage(localStorage);
+      syncEngineConfig();
+      engine.serializeToStorage(localStorage);
     }
   };
 
   const loadBlacklistFromStorage = () => {
     if (import.meta.client) {
-      const engine = createContentSafetyAuditor();
-      engine.hydrateFromStorage(localStorage);
-      const exported = engine.exportState();
+      const storageEngine = createContentSafetyAuditor();
+      storageEngine.hydrateFromStorage(localStorage);
+      const exported = storageEngine.exportState();
 
       customBlacklist.value = exported.customBlacklist;
       customWhitelist.value = exported.customWhitelist;
@@ -197,41 +214,57 @@ export const useSafetyAuditor = () => {
     }
   });
 
-  // 3-Pillar Safety Audits
-  const contentAudit = computed(() => {
-    const report = auditor.value.audit({
-      transcript: fullTranscript.value || [],
-      activeSafeZone: activeSafeZone.value || 'none',
-      subtitlePosition: subtitlePosition.value || 'center',
-      subtitleOffset: subtitleOffset.value || 0,
-      subtitleBackground: subtitleBackground.value || 'none',
-      subtitleStrokeWidth: subtitleStrokeWidth.value || 0,
-      subtitleStrokeColor: subtitleStrokeColor.value || '#000000',
-      isWarningIgnored: isWarningIgnored.value,
-      audioBleepEnabled: audioBleepEnabled.value
+  // Decoupled Safety Filter Scope -> Pattern Compilation -> Lexical Scan -> FlaggedSegments -> O(1) Composition
+  const compiledPatterns = computed<CompiledPattern[]>(prev => {
+    const blacklist = engine.resolveEffectiveBlacklist({
+      safetySensitivity: safetySensitivity.value,
+      activeCategories: activeCategories.value,
+      categorizedBlacklist: categorizedBlacklist.value,
+      customBlacklist: customBlacklist.value,
+      customWhitelist: customWhitelist.value
     });
-
-    return {
-      ...report.rawAudit,
-      score: report.score,
-      remediatedWords: report.remediatedWords || [],
-      remediatedSegments: report.remediatedSegments || [],
-      isRemediated: report.isRemediated
-    };
+    const next = engine.compileBlacklist(blacklist);
+    return prev && areCompiledPatternsEqual(prev, next) ? prev : next;
   });
 
-  const layoutAudit = computed(() => {
-    return auditor.value.auditLayoutCollision(
+  const lexicalMatches = computed<LexicalMatch[]>(prev => {
+    const next = engine.scanTranscriptMatches(
+      fullTranscript.value || [],
+      compiledPatterns.value
+    );
+    return prev && areLexicalMatchesEqual(prev, next) ? prev : next;
+  });
+
+  const flaggedSegments = computed<FlaggedSegment[]>(prev => {
+    const next = engine.buildFlaggedSegments(
+      lexicalMatches.value,
+      bleepPaddingOffset.value
+    );
+    return prev && areFlaggedSegmentsEqual(prev, next) ? prev : next;
+  });
+
+  const lexicalAudit = computed<AuditResult>(prev => {
+    const next = engine.evaluateLexicalMatches(
+      lexicalMatches.value,
+      flaggedSegments.value,
+      audioBleepEnabled.value
+    );
+    return prev && areAuditResultsEqual(prev, next) ? prev : next;
+  });
+
+  const layoutAudit = computed<LayoutAuditResult>(prev => {
+    const next = engine.auditLayoutCollision(
       activeSafeZone.value || 'none',
       subtitlePosition.value || 'center',
       subtitleOffset.value || 0,
       activePlatformFilters.value,
       isWarningIgnored.value
     );
+    return prev && areLayoutAuditsEqual(prev, next) ? prev : next;
   });
 
   const fitSubtitlesToSafeZone = () => {
-    const safeOffset = auditor.value.calculateSafeOffset(
+    const safeOffset = engine.calculateSafeOffset(
       activeSafeZone.value || 'none',
       subtitlePosition.value || 'center'
     );
@@ -240,13 +273,33 @@ export const useSafetyAuditor = () => {
     }
   };
 
-  const readabilityAudit = computed(() => {
-    return auditor.value.auditReadability(
+  const readabilityAudit = computed<ReadabilityAuditResult>(prev => {
+    const next = engine.auditReadability(
       subtitleBackground.value || 'none',
       subtitleStrokeWidth.value || 0,
       subtitleStrokeColor.value || '#000000',
       isWarningIgnored.value
     );
+    return prev && areReadabilityAuditsEqual(prev, next) ? prev : next;
+  });
+
+  // 3-Pillar Safety Audit Composition in O(1)
+  const contentAudit = computed<ContentAuditSnapshot>(prev => {
+    const report = engine.composeSafetyReport(
+      lexicalAudit.value,
+      layoutAudit.value,
+      readabilityAudit.value,
+      isWarningIgnored.value
+    );
+
+    const next: ContentAuditSnapshot = {
+      ...report.rawAudit,
+      score: report.score,
+      remediatedWords: report.remediatedWords || [],
+      remediatedSegments: report.remediatedSegments || [],
+      isRemediated: report.isRemediated
+    };
+    return prev && areContentAuditsEqual(prev, next) ? prev : next;
   });
 
   const fitSubtitlesToReadability = () => {
@@ -300,12 +353,16 @@ export const useSafetyAuditor = () => {
 
   const maskFlaggedWords = () => {
     const transcript = fullTranscript.value || [];
-    fullTranscript.value = auditor.value.maskTranscript(transcript);
+    fullTranscript.value = engine.maskTranscriptWithPatterns(
+      transcript,
+      compiledPatterns.value,
+      maskingStyle.value
+    );
   };
 
   const revertMaskedWords = () => {
     const transcript = fullTranscript.value || [];
-    fullTranscript.value = auditor.value.unmaskTranscript(transcript);
+    fullTranscript.value = engine.unmaskTranscript(transcript);
   };
 
   return {
@@ -332,6 +389,7 @@ export const useSafetyAuditor = () => {
     safeZoneVisible,
     saveBlacklistToStorage,
     loadBlacklistFromStorage,
+    flaggedSegments,
     contentAudit,
     runDeepAudit,
     maskFlaggedWords,

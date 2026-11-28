@@ -476,6 +476,7 @@ function createClipperState() {
   }
 
   return {
+    flaggedSegments: auditor.flaggedSegments,
     contentAudit: auditor.contentAudit,
     customBlacklist: auditor.customBlacklist,
     customWhitelist: auditor.customWhitelist,

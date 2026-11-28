@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { nextTick, ref } from 'vue';
+import { nextTick, ref, type Ref } from 'vue';
 import {
   createPreviewProjection,
   type PreviewProjection,
   type PreviewSessionSource
 } from '../../app/utils/previewProjection';
 import { MockPlayerBridge } from '../../app/utils/playerBridge';
+import type { FlaggedSegment } from '../../app/utils/safetyEngine';
 
 function makeSession() {
   return {
@@ -90,7 +91,9 @@ function makeSession() {
   };
 }
 
-type FakeSession = ReturnType<typeof makeSession>;
+type FakeSession = ReturnType<typeof makeSession> & {
+  flaggedSegments?: Ref<FlaggedSegment[]>;
+};
 
 describe('Preview Projection', () => {
   let session: FakeSession;
@@ -421,6 +424,82 @@ describe('Preview Projection', () => {
             { start: 5, duration: 1 }
           ],
           bleepAudioSrc: 'data:audio/x'
+        })
+      );
+    });
+
+    it('ignores unrelated contentAudit changes when session.flaggedSegments is provided', async () => {
+      const flaggedSegments = ref<FlaggedSegment[]>([
+        { start: 1, duration: 0.5, word: 'kill', text: 'kill' }
+      ]);
+      session.flaggedSegments = flaggedSegments;
+
+      create();
+      expect(lastPayload().censoredSegments).toEqual([]);
+      bridge.calls = [];
+
+      // Unrelated contentAudit object churn (e.g. layout score slider change) must not dirty censorship slice
+      session.contentAudit.value = {
+        score: 85,
+        flaggedSegments: flaggedSegments.value
+      };
+      await settle();
+      expect(updates()).toHaveLength(0);
+
+      // Updating flaggedSegments with bleeping enabled DOES project merged segments
+      session.audioBleepEnabled.value = true;
+      flaggedSegments.value = [
+        { start: 1, duration: 0.5, word: 'kill', text: 'kill' },
+        { start: 4, duration: 0.4, word: 'bad', text: 'bad' }
+      ];
+      await settle();
+      expect(lastPayload()).toEqual(
+        expect.objectContaining({
+          censoredSegments: [
+            { start: 1, duration: 0.5 },
+            { start: 4, duration: 0.4 }
+          ]
+        })
+      );
+    });
+
+    it('projects flaggedSegments when contentAudit is omitted from the session', async () => {
+      const asSource = (
+        s: Omit<PreviewSessionSource, 'contentAudit'>
+      ): PreviewSessionSource => s;
+      const flaggedSegments = ref<FlaggedSegment[]>([
+        { start: 2, duration: 0.75, word: 'kill', text: 'kill' }
+      ]);
+      const sessionWithoutAudit: Omit<FakeSession, 'contentAudit'> &
+        Partial<Pick<FakeSession, 'contentAudit'>> = {
+        ...session,
+        flaggedSegments
+      };
+      delete sessionWithoutAudit.contentAudit;
+
+      projection = createPreviewProjection(
+        asSource(
+          sessionWithoutAudit as unknown as Omit<
+            PreviewSessionSource,
+            'contentAudit'
+          >
+        ),
+        bridge,
+        {
+          scheduleFrame: cb => frames.push(cb),
+          cancelFrame: () => {
+            frames = [];
+          },
+          now: () => 1234
+        }
+      );
+
+      sessionWithoutAudit.audioBleepEnabled.value = true;
+      await settle();
+
+      expect(lastPayload()).toEqual(
+        expect.objectContaining({
+          censoredSegments: [{ start: 2, duration: 0.75 }]
         })
       );
     });

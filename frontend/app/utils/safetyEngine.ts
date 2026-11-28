@@ -70,6 +70,28 @@ export interface ComprehensiveSafetyReport {
   isIgnored: boolean;
 }
 
+export interface SafetyFilterScope {
+  safetySensitivity: SafetySensitivity;
+  activeCategories: ActiveCategories;
+  categorizedBlacklist: Record<SafetyCategory, string[]>;
+  customBlacklist: string[];
+  customWhitelist: string[];
+}
+
+export interface LexicalMatch {
+  start: number;
+  duration: number;
+  word: string;
+  text: string;
+  isVisualMasked: boolean;
+}
+
+export interface ContentAuditSnapshot extends AuditResult {
+  remediatedWords: string[];
+  remediatedSegments: FlaggedSegment[];
+  isRemediated: boolean;
+}
+
 export interface SafetyAuditConfig {
   customBlacklist: string[];
   customWhitelist: string[];
@@ -155,6 +177,15 @@ export const DEFAULT_CATEGORIZED_BLACKLIST: Record<SafetyCategory, string[]> = {
     '/jancuk/',
     '/tai/'
   ]
+};
+
+const DEFAULT_CATEGORIZED_BLACKLIST_SETS: Record<
+  SafetyCategory,
+  Set<string>
+> = {
+  violence: new Set(DEFAULT_CATEGORIZED_BLACKLIST.violence),
+  sexual: new Set(DEFAULT_CATEGORIZED_BLACKLIST.sexual),
+  profanity: new Set(DEFAULT_CATEGORIZED_BLACKLIST.profanity)
 };
 
 export const CATEGORIZED_BLACKLIST = DEFAULT_CATEGORIZED_BLACKLIST;
@@ -403,20 +434,33 @@ export class ContentSafetyAuditor {
   }
 
   /**
-   * Compiles the effective active blacklist based on sensitivity,
-   * active categories, custom blacklist entries, and whitelist exceptions.
+   * Resolves the effective active blacklist for a given filter scope
+   * (or this engine's own config) without allocating category default sets per call.
    */
-  public getEffectiveBlacklist(): string[] {
+  public resolveEffectiveBlacklist(
+    scope?: Partial<SafetyFilterScope>
+  ): string[] {
+    const safetySensitivity =
+      scope?.safetySensitivity ?? this._config.safetySensitivity;
+    const activeCategories =
+      scope?.activeCategories ?? this._config.activeCategories;
+    const categorizedBlacklist =
+      scope?.categorizedBlacklist ?? this._config.categorizedBlacklist;
+    const customBlacklist =
+      scope?.customBlacklist ?? this._config.customBlacklist;
+    const customWhitelist =
+      scope?.customWhitelist ?? this._config.customWhitelist;
+
     const list: string[] = [];
 
-    if (this._config.safetySensitivity !== 'manual') {
+    if (safetySensitivity !== 'manual') {
       const categories: SafetyCategory[] = ['violence', 'sexual', 'profanity'];
       for (const cat of categories) {
-        if (this._config.activeCategories[cat]) {
-          const words = this._config.categorizedBlacklist[cat] || [];
-          if (this._config.safetySensitivity === 'standard') {
+        if (activeCategories[cat]) {
+          const words = categorizedBlacklist[cat] || [];
+          if (safetySensitivity === 'standard') {
             // Only severe words OR user-added words (not in default list)
-            const defaultSet = new Set(DEFAULT_CATEGORIZED_BLACKLIST[cat]);
+            const defaultSet = DEFAULT_CATEGORIZED_BLACKLIST_SETS[cat];
             list.push(
               ...words.filter(word => {
                 const clean =
@@ -437,11 +481,11 @@ export class ContentSafetyAuditor {
     }
 
     // Append custom blacklist
-    list.push(...this._config.customBlacklist);
+    list.push(...customBlacklist);
 
     // Filter out case-insensitive whitelisted words
     const whitelistSet = new Set(
-      this._config.customWhitelist.map(w => w.toLowerCase().trim())
+      customWhitelist.map(w => w.toLowerCase().trim())
     );
     return [...new Set(list)].filter(word => {
       const cleanWord =
@@ -453,7 +497,211 @@ export class ContentSafetyAuditor {
     });
   }
 
+  /**
+   * Compiles the effective active blacklist based on sensitivity,
+   * active categories, custom blacklist entries, and whitelist exceptions.
+   */
+  public getEffectiveBlacklist(): string[] {
+    return this.resolveEffectiveBlacklist();
+  }
+
   // --- Core Safety Auditing & Inspection ---
+
+  /**
+   * Scans the transcript once against pre-compiled patterns and returns
+   * raw acoustic/visual word matches independent of bleep padding or enabled toggles.
+   */
+  public scanTranscriptMatches(
+    transcript: TranscriptSegment[],
+    compiledPatterns: CompiledPattern[]
+  ): LexicalMatch[] {
+    if (
+      compiledPatterns.length === 0 ||
+      !transcript ||
+      transcript.length === 0
+    ) {
+      return [];
+    }
+
+    const flatWords: {
+      text: string;
+      rawText: string;
+      isMasked: boolean;
+      parentSegLowerText: string;
+      start: number;
+      duration: number;
+    }[] = [];
+
+    for (const seg of transcript) {
+      const segText = (seg.text || '').trim();
+      const segRawText = (seg.rawText || segText).trim();
+      if (!segText && !segRawText) continue;
+      const parentSegLowerText = segText.toLowerCase();
+
+      if (seg.words && Array.isArray(seg.words) && seg.words.length > 0) {
+        for (const w of seg.words) {
+          const wText = (w.text || '').trim();
+          const wRawText = (w.rawText || wText).trim();
+          if (!wText && !wRawText) continue;
+          const wStart = Number(w.start) || 0;
+          const wDuration = Number(w.duration) || 0;
+          const isWordMasked = Boolean(
+            w.isMasked || (wText !== wRawText && wText.includes('*'))
+          );
+          flatWords.push({
+            text: wText || wRawText,
+            rawText: wRawText || wText,
+            isMasked: isWordMasked,
+            parentSegLowerText,
+            start: wStart,
+            duration: wDuration
+          });
+        }
+      } else {
+        const words = segText.split(/\s+/);
+        const rawWords = segRawText.split(/\s+/);
+        const isSegMasked = Boolean(seg.rawText && seg.rawText !== seg.text);
+        if (words.length === 1) {
+          flatWords.push({
+            text: words[0] || '',
+            rawText: rawWords[0] || words[0] || '',
+            isMasked: isSegMasked,
+            parentSegLowerText,
+            start: seg.start,
+            duration: seg.duration
+          });
+        } else {
+          const wordDur = seg.duration / words.length;
+          words.forEach((w: string, idx: number) => {
+            flatWords.push({
+              text: w,
+              rawText: rawWords[idx] || w,
+              isMasked: isSegMasked,
+              parentSegLowerText,
+              start: seg.start + idx * wordDur,
+              duration: wordDur
+            });
+          });
+        }
+      }
+    }
+
+    const matches: LexicalMatch[] = [];
+    for (const w of flatWords) {
+      const lowerRaw = w.rawText.toLowerCase();
+      const sameExactText = w.text === w.rawText;
+      const lowerVisual = sameExactText ? lowerRaw : w.text.toLowerCase();
+      const sameLowerText = sameExactText || lowerVisual === lowerRaw;
+
+      for (const pattern of compiledPatterns) {
+        const matchesRaw = pattern.regex.test(lowerRaw);
+        const matchesVisual = sameLowerText
+          ? matchesRaw
+          : pattern.regex.test(lowerVisual);
+
+        if (matchesRaw || matchesVisual) {
+          const isVisualMasked = Boolean(
+            w.isMasked ||
+            !matchesVisual ||
+            w.text.includes('*') ||
+            w.text.includes('[BLEEP]') ||
+            !pattern.regex.test(w.parentSegLowerText)
+          );
+
+          matches.push({
+            start: w.start,
+            duration: w.duration,
+            word: pattern.source,
+            text: w.rawText || w.text,
+            isVisualMasked
+          });
+        }
+      }
+    }
+
+    return matches;
+  }
+
+  /**
+   * Projects lexical matches onto timeline bleep ranges with the configured padding offset.
+   */
+  public buildFlaggedSegments(
+    matches: LexicalMatch[],
+    bleepPaddingOffsetMs?: number
+  ): FlaggedSegment[] {
+    if (!matches || matches.length === 0) return [];
+    const padding =
+      bleepPaddingOffsetMs ?? this._config.bleepPaddingOffset ?? 0;
+    const paddingSec = padding / 1000;
+    return matches.map(m => ({
+      start: Math.max(0, m.start - paddingSec),
+      duration: m.duration + 2 * paddingSec,
+      word: m.word,
+      text: m.text
+    }));
+  }
+
+  /**
+   * Scores and partitions pre-matched lexical hits in O(M) without running regexes.
+   */
+  public evaluateLexicalMatches(
+    matches: LexicalMatch[],
+    flaggedSegments: FlaggedSegment[],
+    audioBleepEnabledOverride?: boolean
+  ): AuditResult {
+    if (!matches || matches.length === 0 || flaggedSegments.length === 0) {
+      return {
+        score: 100,
+        flaggedWords: [],
+        flaggedSegments,
+        uniqueFlagsCount: 0
+      };
+    }
+
+    const audioBleepEnabled =
+      audioBleepEnabledOverride ?? this._config.audioBleepEnabled;
+    const flaggedWords: string[] = [];
+    const remediatedWords: string[] = [];
+    const remediatedSegments: FlaggedSegment[] = [];
+    const activeSegments: FlaggedSegment[] = [];
+    const count = Math.min(matches.length, flaggedSegments.length);
+
+    for (let i = 0; i < count; i++) {
+      const match = matches[i]!;
+      const segItem = flaggedSegments[i]!;
+
+      // Remediated Violation: Visually masked AND Audio Bleep enabled
+      if (match.isVisualMasked && audioBleepEnabled) {
+        remediatedSegments.push(segItem);
+        if (!remediatedWords.includes(match.word)) {
+          remediatedWords.push(match.word);
+        }
+      } else {
+        activeSegments.push(segItem);
+        if (!flaggedWords.includes(match.word)) {
+          flaggedWords.push(match.word);
+        }
+      }
+    }
+
+    let score = 100;
+    // Only active (unremediated) flags penalize the safety score!
+    const uniqueTimeFlags = new Set(activeSegments.map(f => f.start.toFixed(2)))
+      .size;
+    score -= uniqueTimeFlags * 12;
+
+    const result: AuditResult = {
+      score: Math.max(0, score),
+      flaggedWords,
+      flaggedSegments,
+      uniqueFlagsCount: flaggedSegments.length
+    };
+    if (remediatedWords.length > 0) {
+      result.remediatedWords = remediatedWords;
+      result.remediatedSegments = remediatedSegments;
+    }
+    return result;
+  }
 
   /**
    * Evaluates sensitive vocabulary, bleep offsets, and timestamps against the transcript.
@@ -486,142 +734,13 @@ export class ContentSafetyAuditor {
       };
     }
 
-    const flaggedWords: string[] = [];
-    const remediatedWords: string[] = [];
-    const flaggedSegments: FlaggedSegment[] = [];
-    const remediatedSegments: FlaggedSegment[] = [];
-    const activeSegments: FlaggedSegment[] = [];
-
-    const flatWords: {
-      text: string;
-      rawText: string;
-      isMasked: boolean;
-      parentSegText: string;
-      start: number;
-      duration: number;
-      end: number;
-    }[] = [];
-
-    for (const seg of transcript) {
-      const segText = (seg.text || '').trim();
-      const segRawText = (seg.rawText || segText).trim();
-      if (!segText && !segRawText) continue;
-
-      if (seg.words && Array.isArray(seg.words) && seg.words.length > 0) {
-        for (const w of seg.words) {
-          const wText = (w.text || '').trim();
-          const wRawText = (w.rawText || wText).trim();
-          if (!wText && !wRawText) continue;
-          const wStart = Number(w.start) || 0;
-          const wDuration = Number(w.duration) || 0;
-          const isWordMasked = Boolean(
-            w.isMasked || (wText !== wRawText && wText.includes('*'))
-          );
-          flatWords.push({
-            text: wText || wRawText,
-            rawText: wRawText || wText,
-            isMasked: isWordMasked,
-            parentSegText: segText,
-            start: wStart,
-            duration: wDuration,
-            end: w.end !== undefined ? Number(w.end) : wStart + wDuration
-          });
-        }
-      } else {
-        const words = segText.split(/\s+/);
-        const rawWords = segRawText.split(/\s+/);
-        if (words.length === 1) {
-          flatWords.push({
-            text: words[0] || '',
-            rawText: rawWords[0] || words[0] || '',
-            isMasked: Boolean(seg.rawText && seg.rawText !== seg.text),
-            parentSegText: segText,
-            start: seg.start,
-            duration: seg.duration,
-            end: seg.start + seg.duration
-          });
-        } else {
-          const wordDur = seg.duration / words.length;
-          words.forEach((w: string, idx: number) => {
-            flatWords.push({
-              text: w,
-              rawText: rawWords[idx] || w,
-              isMasked: Boolean(seg.rawText && seg.rawText !== seg.text),
-              parentSegText: segText,
-              start: seg.start + idx * wordDur,
-              duration: wordDur,
-              end: seg.start + (idx + 1) * wordDur
-            });
-          });
-        }
-      }
-    }
-
-    const paddingSec = (padding || 0) / 1000;
-
-    for (const w of flatWords) {
-      const lowerRaw = w.rawText.toLowerCase();
-      const lowerVisual = w.text.toLowerCase();
-
-      for (const pattern of compiledPatterns) {
-        const matchesRaw = pattern.regex.test(lowerRaw);
-        const matchesVisual = pattern.regex.test(lowerVisual);
-
-        if (matchesRaw || matchesVisual) {
-          const segStart = Math.max(0, w.start - paddingSec);
-          const segDuration = w.duration + 2 * paddingSec;
-
-          const segItem: FlaggedSegment = {
-            start: segStart,
-            duration: segDuration,
-            word: pattern.source,
-            text: w.rawText || w.text
-          };
-
-          flaggedSegments.push(segItem);
-
-          // Determine if visually masked in subtitle text or word text
-          const isVisualMasked = Boolean(
-            w.isMasked ||
-            !pattern.regex.test(lowerVisual) ||
-            !pattern.regex.test(w.parentSegText.toLowerCase()) ||
-            w.text.includes('*') ||
-            w.text.includes('[BLEEP]')
-          );
-
-          // Remediated Violation: Visually masked AND Audio Bleep enabled
-          if (isVisualMasked && audioBleepEnabled) {
-            remediatedSegments.push(segItem);
-            if (!remediatedWords.includes(pattern.source)) {
-              remediatedWords.push(pattern.source);
-            }
-          } else {
-            activeSegments.push(segItem);
-            if (!flaggedWords.includes(pattern.source)) {
-              flaggedWords.push(pattern.source);
-            }
-          }
-        }
-      }
-    }
-
-    let score = 100;
-    // Only active (unremediated) flags penalize the safety score!
-    const uniqueTimeFlags = new Set(activeSegments.map(f => f.start.toFixed(2)))
-      .size;
-    score -= uniqueTimeFlags * 12;
-
-    const result: AuditResult = {
-      score: Math.max(0, score),
-      flaggedWords,
+    const matches = this.scanTranscriptMatches(transcript, compiledPatterns);
+    const flaggedSegments = this.buildFlaggedSegments(matches, padding);
+    return this.evaluateLexicalMatches(
+      matches,
       flaggedSegments,
-      uniqueFlagsCount: flaggedSegments.length
-    };
-    if (remediatedWords.length > 0) {
-      result.remediatedWords = remediatedWords;
-      result.remediatedSegments = remediatedSegments;
-    }
-    return result;
+      audioBleepEnabled
+    );
   }
 
   /**
@@ -755,47 +874,16 @@ export class ContentSafetyAuditor {
   }
 
   /**
-   * Comprehensive 3-Pillar Audit Evaluation entrypoint.
+   * Combines pre-computed lexical, layout, and readability pillar results
+   * into a ComprehensiveSafetyReport in O(1) without re-scanning transcripts.
    */
-  public audit(context: {
-    transcript: TranscriptSegment[];
-    activeSafeZone?: PlatformSafeZone | string;
-    subtitlePosition?: string;
-    subtitleOffset?: number;
-    subtitleBackground?: string;
-    subtitleStrokeWidth?: number;
-    subtitleStrokeColor?: string;
-    isWarningIgnored?: boolean;
-    blacklistOverride?: string[];
-    audioBleepEnabled?: boolean;
-  }): ComprehensiveSafetyReport {
-    const ignored = context.isWarningIgnored ?? this._config.isWarningIgnored;
-    const bleepEnabled =
-      context.audioBleepEnabled ?? this._config.audioBleepEnabled;
-    const rawAudit = this.auditTranscript(
-      context.transcript,
-      context.blacklistOverride,
-      'word',
-      this._config.bleepPaddingOffset,
-      this._config.bleepMode,
-      bleepEnabled
-    );
-
-    const layout = this.auditLayoutCollision(
-      context.activeSafeZone || 'none',
-      context.subtitlePosition || 'center',
-      context.subtitleOffset || 0,
-      this._config.activePlatformFilters,
-      ignored
-    );
-
-    const readability = this.auditReadability(
-      context.subtitleBackground || 'none',
-      context.subtitleStrokeWidth || 0,
-      context.subtitleStrokeColor || '#000000',
-      ignored
-    );
-
+  public composeSafetyReport(
+    rawAudit: AuditResult,
+    layout: LayoutAuditResult,
+    readability: ReadabilityAuditResult,
+    isWarningIgnored?: boolean
+  ): ComprehensiveSafetyReport {
+    const ignored = isWarningIgnored ?? this._config.isWarningIgnored;
     const adjustedScore = this.calculateAdjustedScore(
       rawAudit.score,
       layout.isSafe,
@@ -844,20 +932,60 @@ export class ContentSafetyAuditor {
     };
   }
 
+  /**
+   * Comprehensive 3-Pillar Audit Evaluation entrypoint.
+   */
+  public audit(context: {
+    transcript: TranscriptSegment[];
+    activeSafeZone?: PlatformSafeZone | string;
+    subtitlePosition?: string;
+    subtitleOffset?: number;
+    subtitleBackground?: string;
+    subtitleStrokeWidth?: number;
+    subtitleStrokeColor?: string;
+    isWarningIgnored?: boolean;
+    blacklistOverride?: string[];
+    audioBleepEnabled?: boolean;
+  }): ComprehensiveSafetyReport {
+    const ignored = context.isWarningIgnored ?? this._config.isWarningIgnored;
+    const bleepEnabled =
+      context.audioBleepEnabled ?? this._config.audioBleepEnabled;
+    const rawAudit = this.auditTranscript(
+      context.transcript,
+      context.blacklistOverride,
+      'word',
+      this._config.bleepPaddingOffset,
+      this._config.bleepMode,
+      bleepEnabled
+    );
+
+    const layout = this.auditLayoutCollision(
+      context.activeSafeZone || 'none',
+      context.subtitlePosition || 'center',
+      context.subtitleOffset || 0,
+      this._config.activePlatformFilters,
+      ignored
+    );
+
+    const readability = this.auditReadability(
+      context.subtitleBackground || 'none',
+      context.subtitleStrokeWidth || 0,
+      context.subtitleStrokeColor || '#000000',
+      ignored
+    );
+
+    return this.composeSafetyReport(rawAudit, layout, readability, ignored);
+  }
+
   // --- Text & Transcript Masking ---
 
-  public maskText(
+  private _maskTextWithPatterns(
     text: string,
-    blacklistOverride?: string[],
-    styleOverride?: MaskingStyle
+    compiledPatterns: CompiledPattern[],
+    style: MaskingStyle
   ): string {
     let masked = text || '';
-    const blacklist = blacklistOverride ?? this.getEffectiveBlacklist();
-    const style = styleOverride ?? this._config.maskingStyle;
-
-    if (!masked || !blacklist || blacklist.length === 0) return masked;
-
-    const compiledPatterns = this.compileBlacklist(blacklist);
+    if (!masked || compiledPatterns.length === 0) return masked;
 
     for (const pattern of compiledPatterns) {
       masked = masked.replace(pattern.globalRegex, (match: string) => {
@@ -875,26 +1003,42 @@ export class ContentSafetyAuditor {
     return masked;
   }
 
-  public maskTranscript(
-    transcript: TranscriptSegment[],
+  public maskText(
+    text: string,
     blacklistOverride?: string[],
+    styleOverride?: MaskingStyle
+  ): string {
+    const masked = text || '';
+    if (!masked) return masked;
+    const blacklist = blacklistOverride ?? this.getEffectiveBlacklist();
+    if (!blacklist || blacklist.length === 0) return masked;
+    const style = styleOverride ?? this._config.maskingStyle;
+    const compiledPatterns = this.compileBlacklist(blacklist);
+    return this._maskTextWithPatterns(masked, compiledPatterns, style);
+  }
+
+  public maskTranscriptWithPatterns(
+    transcript: TranscriptSegment[],
+    compiledPatterns: CompiledPattern[],
     styleOverride?: MaskingStyle
   ): TranscriptSegment[] {
     if (!transcript) return [];
+    const style = styleOverride ?? this._config.maskingStyle;
+
     return transcript.map(seg => {
       const origSegText = seg.rawText || seg.text || '';
-      const maskedSegText = this.maskText(
+      const maskedSegText = this._maskTextWithPatterns(
         origSegText,
-        blacklistOverride,
-        styleOverride
+        compiledPatterns,
+        style
       );
 
       const maskedWords = seg.words?.map(w => {
-        const origWordText = (w as any).rawText || w.text || '';
-        const maskedWordText = this.maskText(
+        const origWordText = w.rawText || w.text || '';
+        const maskedWordText = this._maskTextWithPatterns(
           origWordText,
-          blacklistOverride,
-          styleOverride
+          compiledPatterns,
+          style
         );
         const isWordMasked = maskedWordText !== origWordText;
         return {
@@ -914,6 +1058,22 @@ export class ContentSafetyAuditor {
     });
   }
 
+  public maskTranscript(
+    transcript: TranscriptSegment[],
+    blacklistOverride?: string[],
+    styleOverride?: MaskingStyle
+  ): TranscriptSegment[] {
+    if (!transcript) return [];
+    const blacklist = blacklistOverride ?? this.getEffectiveBlacklist();
+    const compiledPatterns =
+      blacklist && blacklist.length > 0 ? this.compileBlacklist(blacklist) : [];
+    return this.maskTranscriptWithPatterns(
+      transcript,
+      compiledPatterns,
+      styleOverride
+    );
+  }
+
   public unmaskTranscript(
     transcript: TranscriptSegment[]
   ): TranscriptSegment[] {
@@ -922,7 +1082,7 @@ export class ContentSafetyAuditor {
       const restoredText = seg.rawText || seg.text || '';
       const restoredWords = seg.words?.map(w => ({
         ...w,
-        text: (w as any).rawText || w.text,
+        text: w.rawText || w.text,
         isMasked: false
       }));
       return {
@@ -1197,6 +1357,132 @@ export class ContentSafetyAuditor {
 
     this._syncCustomBleepFile();
   }
+}
+
+// --- Reference-Stability Equality Helpers ---
+
+function areStringArraysEqual(
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function areOptionalFlaggedSegmentsEqual(
+  a: readonly FlaggedSegment[] | undefined,
+  b: readonly FlaggedSegment[] | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return areFlaggedSegmentsEqual(a, b);
+}
+
+export function areCompiledPatternsEqual(
+  a: readonly CompiledPattern[],
+  b: readonly CompiledPattern[]
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+export function areLexicalMatchesEqual(
+  a: readonly LexicalMatch[],
+  b: readonly LexicalMatch[]
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i]!;
+    const right = b[i]!;
+    if (
+      left.start !== right.start ||
+      left.duration !== right.duration ||
+      left.word !== right.word ||
+      left.text !== right.text ||
+      left.isVisualMasked !== right.isVisualMasked
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function areFlaggedSegmentsEqual(
+  a: readonly FlaggedSegment[],
+  b: readonly FlaggedSegment[]
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i]!;
+    const right = b[i]!;
+    if (
+      left.start !== right.start ||
+      left.duration !== right.duration ||
+      left.word !== right.word ||
+      left.text !== right.text
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function areAuditResultsEqual(a: AuditResult, b: AuditResult): boolean {
+  if (a === b) return true;
+  return (
+    a.score === b.score &&
+    a.uniqueFlagsCount === b.uniqueFlagsCount &&
+    areStringArraysEqual(a.flaggedWords, b.flaggedWords) &&
+    areFlaggedSegmentsEqual(a.flaggedSegments, b.flaggedSegments) &&
+    areStringArraysEqual(a.remediatedWords, b.remediatedWords) &&
+    areOptionalFlaggedSegmentsEqual(a.remediatedSegments, b.remediatedSegments)
+  );
+}
+
+export function areLayoutAuditsEqual(
+  a: LayoutAuditResult,
+  b: LayoutAuditResult
+): boolean {
+  if (a === b) return true;
+  return (
+    a.isSafe === b.isSafe &&
+    a.reason === b.reason &&
+    a.collisionCount === b.collisionCount
+  );
+}
+
+export function areReadabilityAuditsEqual(
+  a: ReadabilityAuditResult,
+  b: ReadabilityAuditResult
+): boolean {
+  if (a === b) return true;
+  return a.isSafe === b.isSafe && a.reason === b.reason;
+}
+
+export function areContentAuditsEqual(
+  a: ContentAuditSnapshot,
+  b: ContentAuditSnapshot
+): boolean {
+  if (a === b) return true;
+  return (
+    a.score === b.score &&
+    a.isRemediated === b.isRemediated &&
+    a.uniqueFlagsCount === b.uniqueFlagsCount &&
+    areStringArraysEqual(a.flaggedWords, b.flaggedWords) &&
+    areFlaggedSegmentsEqual(a.flaggedSegments, b.flaggedSegments) &&
+    areStringArraysEqual(a.remediatedWords, b.remediatedWords) &&
+    areFlaggedSegmentsEqual(a.remediatedSegments, b.remediatedSegments)
+  );
 }
 
 // Global default singleton instance
