@@ -12,14 +12,22 @@ from core.youtube_client import YouTubeClient
 
 class DummyYouTubeClient(YouTubeClient):
     """A test double for YouTubeClient that avoids hitting the network."""
+    def __init__(self):
+        super().__init__()
+        self.info_calls = 0
+        self.title = "Test Video Title"
+        self.channel = "Test Channel"
+
     def extract_video_id(self, url: str) -> str:
         return "abc12345678"
 
     def get_video_info_fast(self, url: str) -> dict:
+        self.info_calls += 1
         return {
-            "title": "Test Video Title",
+            "title": self.title,
             "id": "abc12345678",
-            "channel": "Test Channel"
+            "channel": self.channel,
+            "duration": None,
         }
 
     def fetch_transcript(self, video_id: str) -> list:
@@ -109,6 +117,59 @@ class TestAssetRepository(unittest.TestCase):
             meta = json.load(f)
         self.assertEqual(meta["added_at"], original_added_at)
         self.assertEqual(meta["media_specs"]["filename"], "full.mp4")
+
+    def test_get_or_create_source_upgrade_reuses_cached_folder_without_extra_info_fetch(self):
+        url = "https://youtube.com/watch?v=abc12345678"
+        preview = self.repo.get_or_create_source(url, quality="360p")
+        original_added_at = preview["added_at"]
+        original_folder = preview["folder_name"]
+        source_dir = os.path.dirname(preview["file_path"])
+
+        # Simulate sidecar hooks cached in the 360p folder and upstream title/channel rename before 1080p upgrade
+        hooks_path = os.path.join(source_dir, "hooks.json")
+        with open(hooks_path, "w", encoding="utf-8") as f:
+            json.dump([{"start": 1.0, "end": 16.0, "theme": "Saved Hook"}], f)
+
+        self.assertEqual(self.mock_client.info_calls, 1)
+        self.mock_client.title = "Updated Upstream Title?!"
+        self.mock_client.channel = "Renamed Channel"
+
+        # Background prefetch path uses force_download=True, quality="1080p"
+        upgraded = self.repo.get_or_create_source(url, force_download=True, quality="1080p")
+
+        self.assertEqual(self.mock_client.info_calls, 1)
+        self.assertEqual(upgraded["folder_name"], original_folder)
+        self.assertEqual(os.path.dirname(upgraded["file_path"]), source_dir)
+        self.assertTrue(upgraded["hd_ready"])
+        self.assertTrue(os.path.exists(os.path.join(source_dir, "preview.mp4")))
+        self.assertTrue(os.path.exists(hooks_path))
+        self.assertEqual(upgraded["title"], "Test Video Title")
+        self.assertEqual(upgraded["channel"], "Test Channel")
+        self.assertEqual(upgraded["added_at"], original_added_at)
+
+        with open(os.path.join(source_dir, "metadata.json"), "r", encoding="utf-8") as f:
+            meta = json.load(f)
+        self.assertEqual(meta["title"], "Test Video Title")
+        self.assertEqual(meta["raw_title"], "Test Video Title")
+        self.assertEqual(meta["channel"], "Test Channel")
+        self.assertEqual(meta["added_at"], original_added_at)
+        self.assertEqual(meta["media_specs"]["filename"], "full.mp4")
+
+        # Subsequent non-forced 1080p call hits already-upgraded cache with 0 info calls
+        cached_hd = self.repo.get_or_create_source(url, force_download=False, quality="1080p")
+        self.assertEqual(self.mock_client.info_calls, 1)
+        self.assertEqual(cached_hd["folder_name"], original_folder)
+
+    def test_get_or_create_source_non_forced_upgrade_also_reuses_cached_folder(self):
+        url = "https://youtube.com/watch?v=abc12345678"
+        preview = self.repo.get_or_create_source(url, quality="360p")
+        original_folder = preview["folder_name"]
+        self.mock_client.title = "Completely Different Title"
+
+        upgraded = self.repo.get_or_create_source(url, force_download=False, quality="1080p")
+        self.assertEqual(self.mock_client.info_calls, 1)
+        self.assertEqual(upgraded["folder_name"], original_folder)
+        self.assertTrue(upgraded["hd_ready"])
 
     def test_invalid_path_traversal_throws_error(self):
         with self.assertRaises(ValueError):

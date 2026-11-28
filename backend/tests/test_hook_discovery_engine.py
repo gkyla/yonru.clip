@@ -269,6 +269,85 @@ def test_get_or_discover_hooks_force_reanalyze(
     saved = json.loads((video_dir / "hooks.json").read_text())
     assert saved[0]["theme"] == "Top Viral Intro"
 
+
+def test_finalize_discovered_hooks_clamps_extracts_thumbs_and_persists_atomically(tmp_path):
+    """Post-download finalization clamps hooks to probed duration, re-slices quotes, extracts thumbs, and writes hooks.json."""
+    adapter = FakeMediaAdapter()
+    transcoder = MediaTranscoder(adapter=adapter)
+    video_dir = tmp_path / "video_finalize"
+    video_dir.mkdir()
+    video_file = video_dir / "preview.mp4"
+    video_file.touch()
+
+    engine = HookDiscoveryEngine(media_transcoder=transcoder)
+    grouped_segments = engine.group_transcript_segments([
+        {"start": 0.0, "duration": 20.0, "text": "Opening hook statement."},
+        {"start": 20.0, "duration": 20.0, "text": "Second sentence inside limit."},
+        {"start": 40.0, "duration": 25.0, "text": "Tail sentence beyond limit."},
+    ])
+    raw_hooks = [
+        {"start": 0.0, "end": 52.0, "duration_seconds": 52.0, "transcript_quote": "stale quote", "theme": "Clamped Hook", "virality_score": 90},
+        {"start": 100.0, "end": 120.0, "duration_seconds": 20.0, "transcript_quote": "past end", "theme": "Out of Bounds", "virality_score": 80},
+    ]
+    video_info = {
+        "file_path": str(video_file),
+        "duration": 50.0,
+        "folder_name": "video_finalize",
+    }
+    options = HookDiscoveryOptions(min_duration=15, max_duration=45)
+
+    finalized = engine.finalize_discovered_hooks(
+        raw_hooks,
+        video_info,
+        options=options,
+        grouped_segments=grouped_segments,
+    )
+
+    assert len(finalized) == 1
+    assert finalized[0]["theme"] == "Clamped Hook"
+    assert finalized[0]["start"] == 0.0
+    assert finalized[0]["end"] == 40.0
+    assert finalized[0]["duration"] == 40.0
+    assert finalized[0]["transcript_quote"] == "Opening hook statement. Second sentence inside limit."
+    assert finalized[0]["thumbnail_url"] == "/assets/sources/video_finalize/thumb_0.jpg"
+    assert (video_dir / "thumb_0.jpg").exists()
+    assert len([c for c in adapter.calls if c[0] == "ffprobe_info"]) == 0
+    assert len([c for c in adapter.calls if c[0] == "run_ffmpeg"]) == 1
+
+    persisted = json.loads((video_dir / "hooks.json").read_text())
+    assert len(persisted) == 1
+    assert persisted[0]["end"] == 40.0
+
+
+def test_finalize_discovered_hooks_empty_returns_empty_and_preserves_existing_cache(tmp_path, fake_transcoder):
+    """Empty raw or fully-filtered hooks return [] without writing or overwriting hooks.json."""
+    video_dir = tmp_path / "video_empty_finalize"
+    video_dir.mkdir()
+    video_file = video_dir / "preview.mp4"
+    video_file.touch()
+    hooks_file = video_dir / "hooks.json"
+    existing = [{"start": 5.0, "end": 25.0, "theme": "Existing Hook"}]
+    hooks_file.write_text(json.dumps(existing))
+
+    engine = HookDiscoveryEngine(media_transcoder=fake_transcoder)
+    video_info = {"file_path": str(video_file), "duration": 90.0, "folder_name": "video_empty_finalize"}
+
+    assert engine.finalize_discovered_hooks([], video_info) == []
+    assert json.loads(hooks_file.read_text()) == existing
+
+    out_of_bounds_hooks = [{"start": 200.0, "end": 220.0, "theme": "Dropped During Sanitize"}]
+    assert engine.finalize_discovered_hooks(out_of_bounds_hooks, video_info) == []
+    assert json.loads(hooks_file.read_text()) == existing
+
+    no_cache_dir = tmp_path / "video_no_cache"
+    no_cache_dir.mkdir()
+    no_cache_file = no_cache_dir / "preview.mp4"
+    no_cache_file.touch()
+    no_cache_info = {"file_path": str(no_cache_file), "duration": 90.0, "folder_name": "video_no_cache"}
+    assert engine.finalize_discovered_hooks([], no_cache_info) == []
+    assert engine.finalize_discovered_hooks(out_of_bounds_hooks, no_cache_info) == []
+    assert not (no_cache_dir / "hooks.json").exists()
+
 def test_sanitize_and_prepare_hooks_clamping_and_bounds(tmp_path, fake_transcoder):
     video_dir = tmp_path / "video_source_6"
     video_dir.mkdir()

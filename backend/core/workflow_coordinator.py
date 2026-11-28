@@ -708,6 +708,24 @@ class ClipWorkflowCoordinator:
 
 
 
+    @staticmethod
+    def _cache_youtube_transcript(video_file_path: str, transcript_segments: list) -> None:
+        """Persist youtube-transcript.json alongside the downloaded source video if missing."""
+        if not video_file_path or not transcript_segments:
+            return
+        video_folder = os.path.dirname(video_file_path)
+        transcript_cache_path = os.path.join(video_folder, "youtube-transcript.json")
+        if os.path.exists(transcript_cache_path):
+            return
+        try:
+            if video_folder:
+                os.makedirs(video_folder, exist_ok=True)
+            with open(transcript_cache_path, "w", encoding="utf-8") as f:
+                json.dump(transcript_segments, f, ensure_ascii=False, indent=2)
+            print(f"[cache] Saved YouTube transcript to {transcript_cache_path}")
+        except Exception as e:
+            print(f"[cache] Failed to cache YouTube transcript: {e}")
+
     def run_full_analysis(
         self,
         job_id: str,
@@ -723,11 +741,15 @@ class ClipWorkflowCoordinator:
         min_duration: int = 30,
         max_duration: int = 180
     ):
-        """Background: check transcript → download full 1080p → Gemini hooks"""
+        """Background: check transcript → overlap 360p preview download & Gemini hook discovery → prefetch 1080p."""
         try:
+            cached_video: Optional[Dict[str, Any]] = None
+            cached_video_checked = False
+
             # Step -1: Check for cached video and hooks FIRST to avoid YouTube network calls
             if not force_reanalyze:
                 cached_video = self.asset_repository.get_cached_video(url)
+                cached_video_checked = True
                 if cached_video and cached_video.get("file_path"):
                     filtered = self.hook_discovery_engine.load_cached_hooks(cached_video)
                     if filtered is not None:
@@ -747,7 +769,6 @@ class ClipWorkflowCoordinator:
                             updates["download_percent"] = 0.0
                             self.jobs.update_job(job_id, **updates)
                             # Trigger background HD prefetch
-                            import threading
                             t = threading.Thread(target=self.run_source_download, args=(job_id, url))
                             t.daemon = True
                             t.start()
@@ -762,14 +783,15 @@ class ClipWorkflowCoordinator:
             if not video_id:
                 info = self.youtube_client.get_video_info_fast(url)
                 video_id = info.get("id")
-                
+
             if not video_id:
                 self.jobs.update_job(job_id, status="error", error="Could not extract video ID from URL.")
                 return
-                
-            # Try to load cached YouTube transcript first
+
+            # Try to load cached YouTube transcript first (reusing Step -1 cache lookup when already checked)
             transcript_segments = None
-            cached_video = self.asset_repository.get_cached_video(url)
+            if not cached_video_checked:
+                cached_video = self.asset_repository.get_cached_video(url)
             if cached_video and cached_video.get("file_path"):
                 folder_path = os.path.dirname(cached_video["file_path"])
                 transcript_cache_path = os.path.join(folder_path, "youtube-transcript.json")
@@ -784,7 +806,7 @@ class ClipWorkflowCoordinator:
 
             if not transcript_segments:
                 transcript_segments = self.youtube_client.fetch_transcript(video_id)
-                
+
             if not transcript_segments or len(transcript_segments) == 0:
                 self.jobs.update_job(
                     job_id,
@@ -792,32 +814,6 @@ class ClipWorkflowCoordinator:
                     error="No transcript found. Yonru requires videos with available closed-captions to guarantee accurate frame synchronization.",
                 )
                 return
-
-            # Step 1: Download fast 360p video for analysis and previews
-            self.jobs.update_job(job_id, status="downloading_video")
-            video_info = self.asset_repository.get_or_create_source(url, quality="360p")
-            
-            if not video_info:
-                self.jobs.update_job(job_id, status="error", error="Failed to download preview video")
-                return
-
-            # Save transcript to cache if it doesn't already exist on disk
-            video_folder = os.path.dirname(video_info["file_path"])
-            transcript_cache_path = os.path.join(video_folder, "youtube-transcript.json")
-            if not os.path.exists(transcript_cache_path) and transcript_segments:
-                try:
-                    with open(transcript_cache_path, "w", encoding="utf-8") as f:
-                        json.dump(transcript_segments, f, ensure_ascii=False, indent=2)
-                    print(f"[cache] Saved YouTube transcript to {transcript_cache_path}")
-                except Exception as e:
-                    print(f"[cache] Failed to cache YouTube transcript: {e}")
-            
-            self.jobs.update_job(
-                job_id,
-                video_info=video_info,
-                full_video_path=video_info["file_path"],
-                status="generating_hooks",
-            )
 
             options = HookDiscoveryOptions(
                 num_hooks=num_hooks or 10,
@@ -829,12 +825,69 @@ class ClipWorkflowCoordinator:
                 min_duration=min_duration or 30,
                 max_duration=max_duration or 180,
             )
+            grouped_segments = self.hook_discovery_engine.group_transcript_segments(transcript_segments)
 
-            filtered = self.hook_discovery_engine.get_or_discover_hooks(
-                video_info=video_info,
-                transcript_segments=transcript_segments,
+            discovery_video_info: Optional[Dict[str, Any]] = None
+            if cached_video:
+                raw_dur = cached_video.get("duration")
+                if isinstance(raw_dur, (int, float)) and not isinstance(raw_dur, bool) and raw_dur > 0:
+                    discovery_video_info = {"duration": float(raw_dur)}
+
+            initial_status = (
+                "generating_hooks"
+                if (cached_video and cached_video.get("file_path"))
+                else "downloading_video"
+            )
+            self.jobs.update_job(job_id, status=initial_status)
+
+            # Overlap fast 360p download with caption-only Gemini hook discovery
+            video_info: Optional[Dict[str, Any]] = None
+            raw_hooks: List[Dict[str, Any]] = []
+            download_error: Optional[Exception] = None
+            discover_error: Optional[Exception] = None
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                download_future = executor.submit(self.asset_repository.get_or_create_source, url, quality="360p")
+                discover_future = executor.submit(
+                    self.hook_discovery_engine.discover_from_transcript,
+                    transcript_segments,
+                    video_info=discovery_video_info,
+                    options=options,
+                    grouped_segments=grouped_segments,
+                )
+
+                try:
+                    video_info = download_future.result()
+                except Exception as exc:
+                    download_error = exc
+
+                if video_info and video_info.get("file_path"):
+                    self._cache_youtube_transcript(video_info["file_path"], transcript_segments)
+                    self.jobs.update_job(
+                        job_id,
+                        video_info=video_info,
+                        full_video_path=video_info["file_path"],
+                        status="generating_hooks",
+                    )
+
+                try:
+                    raw_hooks = discover_future.result()
+                except Exception as exc:
+                    discover_error = exc
+
+            if download_error is not None:
+                raise download_error
+            if not video_info:
+                self.jobs.update_job(job_id, status="error", error="Failed to download preview video")
+                return
+            if discover_error is not None:
+                raise discover_error
+
+            filtered = self.hook_discovery_engine.finalize_discovered_hooks(
+                raw_hooks,
+                video_info,
                 options=options,
-                force_reanalyze=force_reanalyze,
+                grouped_segments=grouped_segments,
             )
 
             if not filtered and transcript_segments and len(transcript_segments) > 0 and (force_reanalyze or not self.hook_discovery_engine.load_cached_hooks(video_info)):
@@ -854,13 +907,12 @@ class ClipWorkflowCoordinator:
                 status="hooks_ready",
                 download_percent=0.0,
             )
-            
+
             # Start background prefetch of the high-res 1080p source video
-            import threading
             t = threading.Thread(target=self.run_source_download, args=(job_id, url))
             t.daemon = True
             t.start()
-            
+
         except HookDiscoveryError as e:
             print(f"[workflow] Hook discovery failed ({e.detail.origin}/{e.detail.code}) for job {job_id}: {e}")
             self.jobs.update_job(

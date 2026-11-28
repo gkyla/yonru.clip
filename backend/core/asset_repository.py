@@ -179,6 +179,19 @@ class AssetRepository(AssetStore):
             "added_at": added_at,
         }
 
+    @staticmethod
+    def _read_source_metadata(folder_path: str) -> Optional[Dict[str, Any]]:
+        """Read metadata.json if present and valid, returning None otherwise."""
+        meta_path = os.path.join(folder_path, "metadata.json")
+        if not os.path.exists(meta_path):
+            return None
+        try:
+            with open(meta_path, "r", encoding="utf-8") as mf:
+                parsed = json.load(mf)
+            return parsed if isinstance(parsed, dict) else None
+        except Exception:
+            return None
+
     @classmethod
     def _write_source_metadata(cls, folder_path: str, payload: Dict[str, Any]) -> Optional[Tuple[int, int]]:
         """Atomically write source metadata.json and return its updated (mtime_ns, size) signature."""
@@ -308,13 +321,7 @@ class AssetRepository(AssetStore):
 
         raw_meta: Optional[Dict[str, Any]] = None
         if meta_sig is not None:
-            try:
-                with open(meta_path, "r", encoding="utf-8") as mf:
-                    parsed = json.load(mf)
-                if isinstance(parsed, dict):
-                    raw_meta = parsed
-            except Exception:
-                raw_meta = None
+            raw_meta = self._read_source_metadata(folder_path)
 
         mtime = float(media_mtime_ns) / 1_000_000_000.0
         resolved_video_id = (
@@ -486,48 +493,49 @@ class AssetRepository(AssetStore):
             download_lock = self._download_locks[lock_key]
             
         with download_lock:
-            if not force_download:
-                cached = self.get_cached_video(url)
-                if cached:
-                    if quality == "1080p" and not cached.get("hd_ready"):
-                        pass
-                    else:
-                        return self._ensure_source_thumbnail(cached)
-            else:
-                # Even if force is True, if we are fetching 1080p and the file now exists on disk,
-                # we don't need to force download it again.
-                cached = self.get_cached_video(url)
-                if cached and cached.get("hd_ready") and quality == "1080p":
-                    return self._ensure_source_thumbnail(cached)
-                if cached and quality == "360p":
+            cached = self.get_cached_video(url)
+            if cached:
+                needs_hd_upgrade = quality == "1080p" and not cached.get("hd_ready")
+                needs_forced_custom = force_download and quality not in ("360p", "1080p")
+                if not needs_hd_upgrade and not needs_forced_custom:
                     return self._ensure_source_thumbnail(cached)
 
-            # Otherwise, retrieve metadata and download
-            info = self.client.get_video_info_fast(url)
-            video_id = info["id"]
-            channel = info.get("channel") or info.get("uploader") or "Unknown Channel"
-            safe_channel = self._sanitize_channel_name(channel)
-            safe_title = self._sanitize_filename(info["title"])
-            folder_name = f"[{safe_channel}] {safe_title}_{video_id}"
-            
+            if cached is not None:
+                # Reuse existing folder identity and metadata across 360p -> 1080p upgrades
+                folder_name = cached["folder_name"]
+                video_id = cached.get("video_id") or video_id
+                fallback_title = cached.get("title") or "Unknown"
+                fallback_channel = cached.get("channel") or "Unknown Channel"
+            else:
+                info = self.client.get_video_info_fast(url)
+                video_id = info["id"]
+                fallback_title = str(info["title"])
+                fallback_channel = str(info.get("channel") or info.get("uploader") or "Unknown Channel")
+                safe_channel = self._sanitize_channel_name(fallback_channel)
+                safe_title = self._sanitize_filename(fallback_title)
+                folder_name = f"[{safe_channel}] {safe_title}_{video_id}"
+
             target_dir = os.path.join(self.source_dir, folder_name)
             os.makedirs(target_dir, exist_ok=True)
-
-            existing_meta: Dict[str, Any] = {}
-            meta_path = os.path.join(target_dir, "metadata.json")
-            if os.path.exists(meta_path):
-                try:
-                    with open(meta_path, "r", encoding="utf-8") as mf:
-                        parsed_existing = json.load(mf)
-                    if isinstance(parsed_existing, dict):
-                        existing_meta = parsed_existing
-                except Exception:
-                    existing_meta = {}
+            existing_meta = self._read_source_metadata(target_dir) or {}
+            if cached is not None:
+                title = str(existing_meta.get("title") or fallback_title)
+                raw_title = str(existing_meta.get("raw_title") or title)
+                channel = str(existing_meta.get("channel") or fallback_channel)
+            else:
+                title = fallback_title
+                raw_title = fallback_title
+                channel = fallback_channel
 
             added_at = time.time()
-            if existing_meta.get("added_at") is not None:
+            raw_added_at = (
+                existing_meta.get("added_at")
+                if existing_meta.get("added_at") is not None
+                else (cached.get("added_at") if cached is not None else None)
+            )
+            if raw_added_at is not None and not isinstance(raw_added_at, bool):
                 try:
-                    added_at = float(existing_meta["added_at"])
+                    added_at = float(raw_added_at)
                 except (TypeError, ValueError):
                     pass
 
@@ -543,8 +551,8 @@ class AssetRepository(AssetStore):
             updated_meta: Dict[str, Any] = {
                 **existing_meta,
                 "video_id": video_id,
-                "title": info["title"],
-                "raw_title": info["title"],
+                "title": title,
+                "raw_title": raw_title,
                 "channel": channel,
                 "added_at": added_at,
             }
@@ -562,7 +570,7 @@ class AssetRepository(AssetStore):
 
             return {
                 "video_id": video_id,
-                "title": info["title"],
+                "title": title,
                 "channel": channel,
                 "added_at": added_at,
                 "duration": specs.duration,
