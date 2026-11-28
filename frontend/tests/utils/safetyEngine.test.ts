@@ -1,5 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
+  areAuditResultsEqual,
+  areCompiledPatternsEqual,
+  areContentAuditsEqual,
+  areFlaggedSegmentsEqual,
+  areLayoutAuditsEqual,
+  areLexicalMatchesEqual,
+  areReadabilityAuditsEqual,
   ContentSafetyAuditor,
   createContentSafetyAuditor,
   getCompiledPattern,
@@ -402,6 +409,292 @@ describe('SafetyEngine Unit Tests', () => {
       reloadedAuditor.hydrateFromStorage(mockStorage);
 
       expect(reloadedAuditor.customBlacklist).toContain('persisted_bad_word');
+    });
+  });
+
+  describe('Modular Lexical Stages & Scan Optimization', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('runs RegExp.prototype.test once per pattern on unmasked words where text matches rawText', () => {
+      const auditor = createContentSafetyAuditor();
+      const patterns = auditor.compileBlacklist(['kill', 'murder', 'bomb']);
+      const transcript = [
+        {
+          text: 'hello clean transcript world',
+          start: 0,
+          duration: 2,
+          words: [
+            { text: 'hello', start: 0, duration: 0.4 },
+            { text: 'clean', start: 0.4, duration: 0.4 },
+            { text: 'transcript', start: 0.8, duration: 0.6 },
+            { text: 'world', start: 1.4, duration: 0.6 }
+          ]
+        }
+      ];
+
+      const testSpy = vi.spyOn(RegExp.prototype, 'test');
+      const matches = auditor.scanTranscriptMatches(transcript, patterns);
+
+      expect(matches).toEqual([]);
+      // 4 words x 3 patterns = 12 checks (previously 24 due to redundant lowerVisual test)
+      expect(testSpy).toHaveBeenCalledTimes(12);
+    });
+
+    it('detects masked words via rawText even when visual text is masked', () => {
+      const auditor = createContentSafetyAuditor();
+      const patterns = auditor.compileBlacklist(['kill']);
+      const transcript = [
+        {
+          text: 'do not k*ll',
+          rawText: 'do not kill',
+          start: 0,
+          duration: 1.5,
+          words: [
+            { text: 'do', start: 0, duration: 0.3 },
+            { text: 'not', start: 0.3, duration: 0.3 },
+            {
+              text: 'k*ll',
+              rawText: 'kill',
+              isMasked: true,
+              start: 0.6,
+              duration: 0.9
+            }
+          ]
+        }
+      ];
+
+      const matches = auditor.scanTranscriptMatches(transcript, patterns);
+      expect(matches).toEqual([
+        {
+          start: 0.6,
+          duration: 0.9,
+          word: 'kill',
+          text: 'kill',
+          isVisualMasked: true
+        }
+      ]);
+    });
+
+    it('compiles blacklist patterns only once across multi-segment transcripts in maskTranscript()', () => {
+      const auditor = createContentSafetyAuditor({
+        customBlacklist: ['danger', 'risk']
+      });
+      const compileSpy = vi.spyOn(auditor, 'compileBlacklist');
+
+      const transcript = [
+        {
+          text: 'high danger here',
+          start: 0,
+          duration: 2,
+          words: [
+            { text: 'high', start: 0, duration: 0.5 },
+            { text: 'danger', start: 0.5, duration: 0.8 },
+            { text: 'here', start: 1.3, duration: 0.7 }
+          ]
+        },
+        {
+          text: 'big risk there',
+          start: 2,
+          duration: 2,
+          words: [
+            { text: 'big', start: 2, duration: 0.5 },
+            { text: 'risk', start: 2.5, duration: 0.8 },
+            { text: 'there', start: 3.3, duration: 0.7 }
+          ]
+        }
+      ];
+
+      const masked = auditor.maskTranscript(transcript);
+      expect(compileSpy).toHaveBeenCalledTimes(1);
+      expect(masked[0]?.text).toBe('high d*nger here');
+      expect(masked[0]?.words?.[1]?.text).toBe('d*nger');
+      expect(masked[1]?.text).toBe('big r*sk there');
+    });
+
+    it('preserves flaggedSegments reference across evaluateLexicalMatches() and matches composeSafetyReport() with audit()', () => {
+      const auditor = createContentSafetyAuditor({
+        customBlacklist: ['brengsek'],
+        bleepPaddingOffset: 50
+      });
+      const transcript = [
+        {
+          text: 'kamu b*engsek',
+          rawText: 'kamu brengsek',
+          start: 1,
+          duration: 2,
+          words: [
+            { text: 'kamu', start: 1, duration: 0.5 },
+            {
+              text: 'b*engsek',
+              rawText: 'brengsek',
+              isMasked: true,
+              start: 1.5,
+              duration: 1
+            }
+          ]
+        }
+      ];
+
+      const patterns = auditor.compileBlacklist(
+        auditor.getEffectiveBlacklist()
+      );
+      const matches = auditor.scanTranscriptMatches(transcript, patterns);
+      const segments = auditor.buildFlaggedSegments(matches, 50);
+
+      const enabledEval = auditor.evaluateLexicalMatches(
+        matches,
+        segments,
+        true
+      );
+      const disabledEval = auditor.evaluateLexicalMatches(
+        matches,
+        segments,
+        false
+      );
+
+      expect(enabledEval.flaggedSegments).toBe(segments);
+      expect(disabledEval.flaggedSegments).toBe(segments);
+      expect(enabledEval.score).toBe(100);
+      expect(enabledEval.remediatedWords).toContain('brengsek');
+      expect(disabledEval.score).toBeLessThan(100);
+      expect(disabledEval.flaggedWords).toContain('brengsek');
+
+      const layout = auditor.auditLayoutCollision('tiktok', 'bottom', 100);
+      const readability = auditor.auditReadability('none', 0, '#000000');
+      const composed = auditor.composeSafetyReport(
+        disabledEval,
+        layout,
+        readability,
+        false
+      );
+      const direct = auditor.audit({
+        transcript,
+        activeSafeZone: 'tiktok',
+        subtitlePosition: 'bottom',
+        subtitleOffset: 100,
+        subtitleBackground: 'none',
+        subtitleStrokeWidth: 0,
+        subtitleStrokeColor: '#000000',
+        isWarningIgnored: false,
+        audioBleepEnabled: false
+      });
+
+      expect(composed.score).toBe(direct.score);
+      expect(composed.flaggedWords).toEqual(direct.flaggedWords);
+      expect(composed.flaggedSegments).toEqual(direct.flaggedSegments);
+
+      const ignoredComposed = auditor.composeSafetyReport(
+        disabledEval,
+        layout,
+        readability,
+        true
+      );
+      expect(ignoredComposed.score).toBe(100);
+      expect(ignoredComposed.flaggedSegments).toBe(segments);
+    });
+  });
+
+  describe('Reference-Stability Equality Helpers', () => {
+    it('compares CompiledPattern, LexicalMatch, and FlaggedSegment slices accurately', () => {
+      const p1 = getCompiledPattern('kill')!;
+      const p2 = getCompiledPattern('murder')!;
+      expect(areCompiledPatternsEqual([p1, p2], [p1, p2])).toBe(true);
+      expect(areCompiledPatternsEqual([p1], [p2])).toBe(false);
+      expect(areCompiledPatternsEqual([p1], [p1, p2])).toBe(false);
+
+      const m1 = {
+        start: 1,
+        duration: 0.5,
+        word: 'kill',
+        text: 'kill',
+        isVisualMasked: false
+      };
+      expect(areLexicalMatchesEqual([m1], [{ ...m1 }])).toBe(true);
+      expect(
+        areLexicalMatchesEqual([m1], [{ ...m1, isVisualMasked: true }])
+      ).toBe(false);
+      expect(areLexicalMatchesEqual([m1], [{ ...m1, text: 'k*ll' }])).toBe(
+        false
+      );
+
+      const s1 = { start: 1, duration: 0.5, word: 'kill', text: 'kill' };
+      expect(areFlaggedSegmentsEqual([s1], [{ ...s1 }])).toBe(true);
+      expect(areFlaggedSegmentsEqual([s1], [{ ...s1, duration: 0.7 }])).toBe(
+        false
+      );
+    });
+
+    it('compares AuditResult, LayoutAuditResult, ReadabilityAuditResult, and ContentAuditSnapshot values', () => {
+      const seg = { start: 1, duration: 0.5, word: 'kill', text: 'kill' };
+      const auditA = {
+        score: 100,
+        flaggedWords: [],
+        flaggedSegments: [seg],
+        uniqueFlagsCount: 1,
+        remediatedWords: ['kill'],
+        remediatedSegments: [{ ...seg }]
+      };
+      const auditB = {
+        score: 100,
+        flaggedWords: [],
+        flaggedSegments: [{ ...seg }],
+        uniqueFlagsCount: 1,
+        remediatedWords: ['kill'],
+        remediatedSegments: [{ ...seg }]
+      };
+
+      expect(areAuditResultsEqual(auditA, auditB)).toBe(true);
+      expect(areAuditResultsEqual(auditA, { ...auditB, score: 88 })).toBe(
+        false
+      );
+      expect(
+        areAuditResultsEqual(auditA, {
+          ...auditB,
+          remediatedWords: ['murder']
+        })
+      ).toBe(false);
+      expect(
+        areAuditResultsEqual(auditA, {
+          ...auditB,
+          remediatedSegments: undefined
+        })
+      ).toBe(false);
+
+      const layout = { isSafe: true, reason: 'ok', collisionCount: 0 };
+      expect(areLayoutAuditsEqual(layout, { ...layout })).toBe(true);
+      expect(
+        areLayoutAuditsEqual(layout, { ...layout, collisionCount: 1 })
+      ).toBe(false);
+
+      const readability = { isSafe: false, reason: 'low contrast' };
+      expect(areReadabilityAuditsEqual(readability, { ...readability })).toBe(
+        true
+      );
+      expect(
+        areReadabilityAuditsEqual(readability, { ...readability, isSafe: true })
+      ).toBe(false);
+
+      const snapA = {
+        score: 100,
+        flaggedWords: [],
+        flaggedSegments: [seg],
+        uniqueFlagsCount: 1,
+        remediatedWords: ['kill'],
+        remediatedSegments: [{ ...seg }],
+        isRemediated: true
+      };
+      expect(areContentAuditsEqual(snapA, { ...snapA })).toBe(true);
+      expect(
+        areContentAuditsEqual(snapA, { ...snapA, isRemediated: false })
+      ).toBe(false);
+      expect(
+        areContentAuditsEqual(snapA, {
+          ...snapA,
+          remediatedWords: ['other']
+        })
+      ).toBe(false);
     });
   });
 });
