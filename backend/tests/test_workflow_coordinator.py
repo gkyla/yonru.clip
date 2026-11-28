@@ -1,7 +1,8 @@
 import pytest
-import sys
-import os
 import json
+import os
+import sys
+import threading
 from unittest.mock import MagicMock, patch
 
 # Dynamic path resolution to backend root
@@ -1611,7 +1612,7 @@ def test_run_full_analysis_quota_error_propagates_actionable_message(mock_depend
     err = HookDiscoveryQuotaError(model_name="gemini-3.8-flash", raw_error="429 RESOURCE_EXHAUSTED")
     with patch.object(
         coordinator.hook_discovery_engine,
-        "get_or_discover_hooks",
+        "discover_from_transcript",
         side_effect=err,
     ):
         coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=quota123", "id")
@@ -1667,7 +1668,7 @@ def test_run_full_analysis_503_high_demand_sets_provider_error_detail(mock_depen
     )
     with patch.object(
         coordinator.hook_discovery_engine,
-        "get_or_discover_hooks",
+        "discover_from_transcript",
         side_effect=err,
     ):
         coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=busy123", "id")
@@ -1717,7 +1718,7 @@ def test_run_full_analysis_zero_usable_hooks_sets_output_error_detail(mock_depen
 
     with patch.object(
         coordinator.hook_discovery_engine,
-        "get_or_discover_hooks",
+        "discover_from_transcript",
         return_value=[],
     ):
         coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=empty123", "id")
@@ -1727,6 +1728,362 @@ def test_run_full_analysis_zero_usable_hooks_sets_output_error_detail(mock_depen
     assert summary["error_detail"]["origin"] == "output"
     assert summary["error_detail"]["code"] == "no_hooks_found"
     assert "Gemini failed to generate hooks from the transcript" not in summary["error"]
+
+
+def test_run_full_analysis_overlaps_360p_download_with_gemini_and_checks_cache_once(mock_dependencies, tmp_path):
+    """360p download and Gemini hook discovery run concurrently after a single cached-video lookup."""
+    from core.genai_client import MockGenAIClient
+    from core.hook_discovery_engine import HookDiscoveryEngine
+    from core.media_transcoder import FakeMediaAdapter, MediaTranscoder
+
+    adapter = FakeMediaAdapter()
+    transcoder = MediaTranscoder(adapter=adapter)
+    barrier = threading.Barrier(2, timeout=2.0)
+
+    class OverlapMockGenAIClient(MockGenAIClient):
+        def generate_json(
+            self,
+            prompt: str,
+            model_name: str,
+            response_schema=None,
+            temperature=None,
+        ) -> str:
+            barrier.wait()
+            return super().generate_json(
+                prompt,
+                model_name,
+                response_schema=response_schema,
+                temperature=temperature,
+            )
+
+    video_dir = tmp_path / "[Mock Channel] Overlap_overlap1234"
+    video_dir.mkdir()
+    preview_path = video_dir / "preview.mp4"
+    gemini_payload = json.dumps([
+        {
+            "start": 0.0,
+            "end": 35.0,
+            "duration_seconds": 35.0,
+            "transcript_quote": "Opening overlapped hook.",
+            "theme": "Overlapped Hook",
+            "virality_score": 91,
+            "virality_reason": "Strong lead",
+        }
+    ])
+    engine = HookDiscoveryEngine(
+        genai_client=OverlapMockGenAIClient(gemini_payload),
+        media_transcoder=transcoder,
+    )
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+        hook_discovery_engine=engine,
+    )
+    coordinator.run_source_download = MagicMock()
+
+    job_id = "job_overlap"
+    coordinator.jobs[job_id] = {
+        "status": "queued",
+        "url": "https://youtube.com/watch?v=overlap1234",
+        "video_info": None,
+        "full_video_path": None,
+        "hooks": None,
+        "error": None,
+    }
+
+    mock_dependencies["youtube_client"].extract_video_id.return_value = "overlap1234"
+    mock_dependencies["youtube_client"].fetch_transcript.return_value = [
+        {"text": "Opening", "start": 0.0, "duration": 10.0},
+        {"text": "overlapped", "start": 10.0, "duration": 12.0},
+        {"text": "hook.", "start": 22.0, "duration": 15.0},
+    ]
+    mock_dependencies["asset_repository"].get_cached_video.return_value = None
+
+    def concurrent_download(url, quality="1080p", force_download=False, progress_callback=None):
+        barrier.wait()
+        preview_path.write_text("preview bytes")
+        return {
+            "video_id": "overlap1234",
+            "file_path": str(preview_path),
+            "duration": 60.0,
+            "fps": 30.0,
+            "folder_name": "[Mock Channel] Overlap_overlap1234",
+        }
+
+    mock_dependencies["asset_repository"].get_or_create_source.side_effect = concurrent_download
+
+    coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=overlap1234", "id", force_reanalyze=False)
+
+    assert mock_dependencies["asset_repository"].get_cached_video.call_count == 1
+    assert coordinator.jobs[job_id]["status"] == "hooks_ready"
+    assert (video_dir / "youtube-transcript.json").exists()
+    assert (video_dir / "hooks.json").exists()
+    assert (video_dir / "thumb_0.jpg").exists()
+    hooks = coordinator.jobs[job_id]["hooks"]
+    assert len(hooks) == 1
+    assert hooks[0]["thumbnail_url"] == "/assets/sources/[Mock Channel] Overlap_overlap1234/thumb_0.jpg"
+
+
+def test_run_full_analysis_advances_status_and_caches_transcript_before_gemini_finishes(mock_dependencies, tmp_path):
+    """When 360p download completes while Gemini is still running, status becomes generating_hooks and transcript caches early."""
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+    )
+    coordinator.run_source_download = MagicMock()
+
+    job_id = "job_early_status"
+    coordinator.jobs[job_id] = {
+        "status": "queued",
+        "url": "https://youtube.com/watch?v=early123456",
+        "video_info": None,
+        "full_video_path": None,
+        "hooks": None,
+        "error": None,
+    }
+
+    video_dir = tmp_path / "video_early123456"
+    video_dir.mkdir()
+    preview_path = video_dir / "preview.mp4"
+    preview_path.write_text("preview")
+
+    mock_dependencies["youtube_client"].extract_video_id.return_value = "early123456"
+    mock_dependencies["youtube_client"].fetch_transcript.return_value = [
+        {"text": "Early transcript", "start": 0.0, "duration": 20.0}
+    ]
+    mock_dependencies["asset_repository"].get_cached_video.return_value = None
+    mock_dependencies["asset_repository"].get_or_create_source.return_value = {
+        "file_path": str(preview_path),
+        "duration": 60.0,
+        "fps": 30.0,
+        "folder_name": "video_early123456",
+    }
+
+    gemini_entered = threading.Event()
+    release_gemini = threading.Event()
+    observed_status_before_gemini_finishes = {}
+
+    def slow_discover(*args, **kwargs):
+        gemini_entered.set()
+        assert release_gemini.wait(timeout=2.0)
+        return [{"start": 0.0, "end": 20.0, "theme": "Early Hook"}]
+
+    with patch.object(coordinator.hook_discovery_engine, "discover_from_transcript", side_effect=slow_discover):
+        worker = threading.Thread(
+            target=coordinator.run_full_analysis,
+            args=(job_id, "https://youtube.com/watch?v=early123456", "id"),
+        )
+        worker.start()
+        assert gemini_entered.wait(timeout=2.0)
+
+        # Poll briefly for coordinator to observe the completed 360p download and transition status
+        deadline = threading.Event()
+        for _ in range(100):
+            job = coordinator.jobs.get_job(job_id)
+            if job and job.get("status") == "generating_hooks" and (video_dir / "youtube-transcript.json").exists():
+                observed_status_before_gemini_finishes["status"] = job.get("status")
+                observed_status_before_gemini_finishes["transcript_cached"] = True
+                break
+            deadline.wait(0.01)
+
+        release_gemini.set()
+        worker.join(timeout=2.0)
+
+    assert observed_status_before_gemini_finishes == {
+        "status": "generating_hooks",
+        "transcript_cached": True,
+    }
+    assert coordinator.jobs[job_id]["status"] == "hooks_ready"
+
+
+def test_run_full_analysis_joins_gemini_on_download_failure(mock_dependencies):
+    """360p download failure still joins the in-flight Gemini future cleanly before setting error status."""
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+    )
+
+    mock_dependencies["youtube_client"].extract_video_id.return_value = "err12345678"
+    mock_dependencies["youtube_client"].fetch_transcript.return_value = [
+        {"text": "Transcript segment", "start": 0.0, "duration": 20.0}
+    ]
+    mock_dependencies["asset_repository"].get_cached_video.return_value = None
+    mock_dependencies["asset_repository"].get_or_create_source.return_value = None
+
+    gemini_finished = threading.Event()
+
+    def slow_discover_succeeds(*args, **kwargs):
+        threading.Event().wait(0.05)
+        gemini_finished.set()
+        return [{"start": 0.0, "end": 20.0, "theme": "Late Hook"}]
+
+    job_id = "job_dl_fail"
+    coordinator.jobs[job_id] = {"status": "queued", "url": "https://youtube.com/watch?v=err12345678", "error": None}
+
+    with patch.object(coordinator.hook_discovery_engine, "discover_from_transcript", side_effect=slow_discover_succeeds):
+        coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=err12345678", "id")
+
+    assert gemini_finished.is_set()
+    assert coordinator.jobs[job_id]["status"] == "error"
+    assert coordinator.jobs[job_id]["error"] == "Failed to download preview video"
+
+
+def test_run_full_analysis_preserves_transcript_when_gemini_fails(mock_dependencies, tmp_path):
+    """When 360p download succeeds and Gemini raises HookDiscoveryError, youtube-transcript.json stays cached."""
+    from core.hook_discovery_engine import HookDiscoveryQuotaError
+
+    coordinator = ClipWorkflowCoordinator(
+        job_store=mock_dependencies["job_store"],
+        asset_repository=mock_dependencies["asset_repository"],
+        youtube_client=mock_dependencies["youtube_client"],
+        speech_transcriber=mock_dependencies["speech_transcriber"],
+        prompt_repository=mock_dependencies["prompt_repository"],
+        config_store=mock_dependencies["config_store"],
+    )
+
+    mock_dependencies["youtube_client"].extract_video_id.return_value = "err12345678"
+    mock_dependencies["youtube_client"].fetch_transcript.return_value = [
+        {"text": "Transcript segment", "start": 0.0, "duration": 20.0}
+    ]
+    mock_dependencies["asset_repository"].get_cached_video.return_value = None
+
+    video_dir = tmp_path / "video_gem_fail"
+    video_dir.mkdir()
+    preview_path = video_dir / "preview.mp4"
+    preview_path.write_text("preview")
+    mock_dependencies["asset_repository"].get_or_create_source.return_value = {
+        "file_path": str(preview_path),
+        "duration": 60.0,
+        "fps": 30.0,
+        "folder_name": "video_gem_fail",
+    }
+
+    job_id = "job_gem_fail"
+    coordinator.jobs[job_id] = {"status": "queued", "url": "https://youtube.com/watch?v=err12345678", "error": None}
+    err = HookDiscoveryQuotaError(model_name="gemini-3.5-flash-lite", raw_error="429 RESOURCE_EXHAUSTED")
+
+    with patch.object(coordinator.hook_discovery_engine, "discover_from_transcript", side_effect=err):
+        coordinator.run_full_analysis(job_id, "https://youtube.com/watch?v=err12345678", "id")
+
+    assert (video_dir / "youtube-transcript.json").exists()
+    assert coordinator.jobs[job_id]["status"] == "error"
+    assert coordinator.jobs[job_id]["error_detail"]["code"] == "quota_exceeded"
+
+
+def test_end_to_end_pipeline_single_info_fetch_and_folder_continuity_with_real_repo(tmp_path):
+    """Fresh ingestion + 1080p prefetch executes 1 metadata extraction, keeps added_at/folder, and reaches ready."""
+    from core.asset_repository import AssetRepository
+    from core.genai_client import MockGenAIClient
+    from core.hook_discovery_engine import HookDiscoveryEngine
+    from core.media_transcoder import FakeMediaAdapter, MediaTranscoder
+    from core.youtube_client import MockYouTubeClient
+
+    class CountingMockYouTubeClient(MockYouTubeClient):
+        def __init__(self):
+            super().__init__(
+                mock_info={
+                    "title": "End to End Video",
+                    "id": "e2e12345678",
+                    "channel": "Real Repo Channel",
+                    "duration": 90.0,
+                },
+                mock_transcript=[
+                    {"start": 0.0, "duration": 20.0, "text": "Hook sentence one."},
+                    {"start": 20.0, "duration": 20.0, "text": "Hook sentence two."},
+                ],
+            )
+            self.info_calls = 0
+
+        def extract_video_id(self, url: str) -> str:
+            return "e2e12345678"
+
+        def get_video_info_fast(self, url: str) -> dict:
+            self.info_calls += 1
+            return super().get_video_info_fast(url)
+
+        def download_video(self, url: str, target_dir: str, quality: str = "1080p", progress_callback=None) -> None:
+            os.makedirs(target_dir, exist_ok=True)
+            filename = "preview.mp4" if quality == "360p" else "full.mp4"
+            with open(os.path.join(target_dir, filename), "w", encoding="utf-8") as f:
+                f.write(f"mock-{quality}")
+            super().download_video(url, target_dir, quality=quality, progress_callback=progress_callback)
+
+    yt_client = CountingMockYouTubeClient()
+    media_adapter = FakeMediaAdapter()
+    media_adapter.default_duration = 90.0
+    transcoder = MediaTranscoder(adapter=media_adapter)
+    repo = AssetRepository(output_dir=str(tmp_path), youtube_client=yt_client, media_transcoder=transcoder)
+    genai = MockGenAIClient(json.dumps([
+        {
+            "start": 0.0,
+            "end": 35.0,
+            "duration_seconds": 35.0,
+            "transcript_quote": "Hook sentence one. Hook sentence two.",
+            "theme": "E2E Hook",
+            "virality_score": 88,
+            "virality_reason": "Clear opener",
+        }
+    ]))
+    engine = HookDiscoveryEngine(genai_client=genai, media_transcoder=transcoder)
+    store = InMemoryJobStore()
+    prompt_repo = MagicMock()
+    config_store = MagicMock()
+    config_store.get.return_value = None
+
+    coordinator = ClipWorkflowCoordinator(
+        job_store=store,
+        asset_repository=repo,
+        youtube_client=yt_client,
+        speech_transcriber=MagicMock(),
+        prompt_repository=prompt_repo,
+        config_store=config_store,
+        hook_discovery_engine=engine,
+    )
+
+    allow_prefetch = threading.Event()
+    prefetch_done = threading.Event()
+    orig_run_source_download = coordinator.run_source_download
+
+    def gated_run_source_download(*args, **kwargs):
+        assert allow_prefetch.wait(timeout=3.0)
+        try:
+            return orig_run_source_download(*args, **kwargs)
+        finally:
+            prefetch_done.set()
+
+    coordinator.run_source_download = gated_run_source_download
+
+    url = "https://youtube.com/watch?v=e2e12345678"
+    job_id = "job_e2e"
+    store.create_job(job_id, {"status": "queued", "url": url, "error": None})
+
+    coordinator.run_full_analysis(job_id, url, "id")
+
+    assert store[job_id]["status"] == "hooks_ready"
+    preview_added_at = store[job_id]["video_info"]["added_at"]
+    preview_folder = store[job_id]["video_info"]["folder_name"]
+
+    allow_prefetch.set()
+    assert prefetch_done.wait(timeout=3.0)
+    assert yt_client.info_calls == 1
+    assert store[job_id]["status"] == "ready"
+    assert store[job_id]["video_info"]["folder_name"] == preview_folder
+    assert store[job_id]["video_info"]["added_at"] == preview_added_at
+    assert store[job_id]["video_info"]["hd_ready"] is True
+    assert (tmp_path / "sources" / preview_folder / "hooks.json").exists()
+    assert (tmp_path / "sources" / preview_folder / "youtube-transcript.json").exists()
 
 
 

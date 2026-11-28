@@ -1,7 +1,12 @@
+import copy
+import math
 import os
 import re
+import threading
+import time
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any
+from collections import OrderedDict
+from typing import Any, Callable, Dict, List, Optional, Tuple
 import yt_dlp
 
 class AbstractYouTubeClient(ABC):
@@ -12,7 +17,7 @@ class AbstractYouTubeClient(ABC):
 
     @abstractmethod
     def get_video_info_fast(self, url: str) -> dict:
-        """Get video title and ID without downloading."""
+        """Get video title, ID, channel, and duration without downloading."""
         pass
 
     @abstractmethod
@@ -27,8 +32,78 @@ class AbstractYouTubeClient(ABC):
 
 
 class YouTubeClient(AbstractYouTubeClient):
-    def __init__(self, cookie_path: Optional[str] = None):
+    def __init__(
+        self,
+        cookie_path: Optional[str] = None,
+        info_cache_ttl_seconds: float = 600.0,
+        info_cache_max_entries: int = 32,
+        clock: Optional[Callable[[], float]] = None,
+    ):
         self.cookie_path = cookie_path
+        self._info_cache_ttl = max(0.0, float(info_cache_ttl_seconds))
+        self._info_cache_max_entries = max(1, int(info_cache_max_entries))
+        self._clock: Callable[[], float] = clock or time.monotonic
+        self._info_cache_lock = threading.Lock()
+        self._info_cache: OrderedDict[Tuple[str, Optional[str]], Tuple[float, Dict[str, Any]]] = OrderedDict()
+
+    def _resolve_cookiefile(self) -> Optional[str]:
+        return self.cookie_path if self.cookie_path and os.path.exists(self.cookie_path) else None
+
+    def _cache_key(self, url: str, cookiefile: Optional[str]) -> Tuple[str, Optional[str]]:
+        return (self.extract_video_id(url) or url, cookiefile)
+
+    @staticmethod
+    def _parse_duration(value: Any) -> Optional[float]:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        parsed = float(value)
+        return parsed if math.isfinite(parsed) and parsed > 0.0 else None
+
+    def _store_cached_ie_result(self, key: Tuple[str, Optional[str]], ie_result: Dict[str, Any]) -> None:
+        """Cache a deep copy of raw yt-dlp extraction data because process_ie_result mutates dicts in place."""
+        snapshot = copy.deepcopy(ie_result)
+        now = self._clock()
+        with self._info_cache_lock:
+            self._info_cache[key] = (now, snapshot)
+            self._info_cache.move_to_end(key)
+            while len(self._info_cache) > self._info_cache_max_entries:
+                self._info_cache.popitem(last=False)
+
+    def _get_cached_ie_result(self, url: str, cookiefile: Optional[str]) -> Optional[Dict[str, Any]]:
+        key = self._cache_key(url, cookiefile)
+        with self._info_cache_lock:
+            cached = self._info_cache.get(key)
+            if cached is None:
+                return None
+            stored_at, raw_ie = cached
+            if (self._clock() - stored_at) > self._info_cache_ttl:
+                self._info_cache.pop(key, None)
+                return None
+            self._info_cache.move_to_end(key)
+            return copy.deepcopy(raw_ie)
+
+    def _evict_cached_ie_result(self, url: str, cookiefile: Optional[str]) -> None:
+        key = self._cache_key(url, cookiefile)
+        with self._info_cache_lock:
+            removed = self._info_cache.pop(key, None)
+            if removed is None:
+                return
+            resolved_id = removed[1].get("id")
+            if isinstance(resolved_id, str) and resolved_id:
+                stale_keys = [
+                    k for k, (_, payload) in self._info_cache.items()
+                    if k[1] == cookiefile and (k[0] == resolved_id or payload.get("id") == resolved_id)
+                ]
+                for stale_key in stale_keys:
+                    self._info_cache.pop(stale_key, None)
+
+    def _empty_video_info(self, url: str) -> dict:
+        return {
+            "title": "Unknown",
+            "id": self.extract_video_id(url),
+            "channel": "Unknown Channel",
+            "duration": None,
+        }
 
     def extract_video_id(self, url: str) -> Optional[str]:
         """Extract YouTube video ID from URL."""
@@ -44,25 +119,45 @@ class YouTubeClient(AbstractYouTubeClient):
         return None
 
     def get_video_info_fast(self, url: str) -> dict:
-        """Get video title and ID without downloading."""
+        """Get video title, ID, channel, and duration without downloading, caching raw extraction for download reuse."""
+        cookiefile = self._resolve_cookiefile()
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
-            'cookiefile': self.cookie_path if self.cookie_path and os.path.exists(self.cookie_path) else None,
+            'noplaylist': True,
+            'cookiefile': cookiefile,
         }
         opts: Any = ydl_opts
         with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl_any: Any = ydl
             try:
-                info = ydl.extract_info(url, download=False)
+                raw_info: Any = ydl_any.extract_info(url, download=False, process=False)
+                if not isinstance(raw_info, dict):
+                    return self._empty_video_info(url)
+
+                if raw_info.get("_type") in (None, "video"):
+                    info: Dict[str, Any] = raw_info
+                    formats = raw_info.get("formats")
+                    if isinstance(formats, list) and len(formats) > 0:
+                        primary_key = self._cache_key(url, cookiefile)
+                        self._store_cached_ie_result(primary_key, info)
+                        resolved_id = raw_info.get("id")
+                        if isinstance(resolved_id, str) and resolved_id and resolved_id != primary_key[0]:
+                            self._store_cached_ie_result((resolved_id, cookiefile), info)
+                else:
+                    resolved = ydl_any.process_ie_result(raw_info, download=False)
+                    info = resolved if isinstance(resolved, dict) else {}
+
                 channel = info.get("channel") or info.get("uploader") or "Unknown Channel"
                 return {
                     "title": info.get("title", "Unknown"),
-                    "id": info.get("id", self.extract_video_id(url)),
-                    "channel": channel
+                    "id": info.get("id") or self.extract_video_id(url),
+                    "channel": channel,
+                    "duration": self._parse_duration(info.get("duration")),
                 }
             except Exception as e:
                 print(f"[youtube-client] Info Extraction Error: {e}")
-                return {"title": "Unknown", "id": self.extract_video_id(url), "channel": "Unknown Channel"}
+                return self._empty_video_info(url)
 
     def fetch_transcript(self, video_id: str) -> list:
         """Fetch transcript and segment into snappy word-level structure."""
@@ -136,13 +231,14 @@ class YouTubeClient(AbstractYouTubeClient):
         else:
             format_spec = "bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=1080]+bestaudio/best"
 
+        cookiefile = self._resolve_cookiefile()
         ydl_opts = {
             'format': format_spec,
             'merge_output_format': 'mp4',
             'outtmpl': os.path.join(target_dir, f"{filename_prefix}.%(ext)s"),
-            'cookiefile': self.cookie_path if self.cookie_path and os.path.exists(self.cookie_path) else None,
+            'cookiefile': cookiefile,
             'quiet': False,
-            'no_playlist': True,
+            'noplaylist': True,
         }
 
         if progress_callback:
@@ -180,10 +276,20 @@ class YouTubeClient(AbstractYouTubeClient):
                             print(f"[youtube-client] Progress callback error: {pe}")
             ydl_opts['progress_hooks'] = [hook]
 
+        cached_ie = self._get_cached_ie_result(url, cookiefile)
         opts: Any = ydl_opts
         with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl_any: Any = ydl
+            if cached_ie is not None:
+                try:
+                    ydl_any.process_ie_result(cached_ie, download=True)
+                    return
+                except Exception as cache_err:
+                    print(f"[youtube-client] Cached extraction replay failed, re-extracting: {cache_err}")
+                    self._evict_cached_ie_result(url, cookiefile)
+
             try:
-                ydl.download([url])
+                ydl_any.download([url])
             except Exception as e:
                 print(f"[youtube-client] Download Error: {e}")
                 raise RuntimeError(f"YouTube Download Error: {e}")
@@ -207,7 +313,8 @@ class MockYouTubeClient(AbstractYouTubeClient):
         return {
             "title": self.mock_info.get("title", "Mock Video"),
             "id": self.mock_info.get("id", self.extract_video_id(url)),
-            "channel": self.mock_info.get("channel", "Mock Channel")
+            "channel": self.mock_info.get("channel", "Mock Channel"),
+            "duration": self.mock_info.get("duration"),
         }
 
     def fetch_transcript(self, video_id: str) -> list:

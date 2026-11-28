@@ -203,6 +203,10 @@ class HookDiscoveryEngine:
 
         return normalized
 
+    def group_transcript_segments(self, transcript_segments: list) -> list:
+        """Normalize word timings and group transcript segments into sentence windows."""
+        return self._group_words_into_sentences(transcript_segments)
+
     def _group_words_into_sentences(self, segments: list, max_words: int = 15, max_silence: float = 1.5) -> list:
         normalized_words = self._normalize_monotonic_words(segments)
         grouped = []
@@ -681,6 +685,47 @@ class HookDiscoveryEngine:
             raise last_error
         raise invalid_response_error(active_model)
 
+    def finalize_discovered_hooks(
+        self,
+        raw_hooks: list,
+        video_info: dict,
+        options: Optional[HookDiscoveryOptions] = None,
+        grouped_segments: Optional[list] = None,
+    ) -> List[Dict[str, Any]]:
+        """Clamp discovered hooks to video duration, extract thumbnails, and persist hooks.json atomically."""
+        if not raw_hooks:
+            return []
+
+        opts = options or HookDiscoveryOptions()
+        sanitized = self.sanitize_and_prepare_hooks(
+            raw_hooks,
+            video_info,
+            max_duration=opts.max_duration,
+            grouped_segments=grouped_segments,
+        )
+        if not sanitized:
+            return []
+
+        cache_path = self._get_cache_path(video_info)
+        if cache_path:
+            tmp_cache = f"{cache_path}.{uuid.uuid4().hex}.tmp"
+            try:
+                with self._cache_lock:
+                    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+                    with open(tmp_cache, "w", encoding="utf-8") as f:
+                        json.dump(sanitized, f, ensure_ascii=False, indent=2)
+                    os.replace(tmp_cache, cache_path)
+                print(f"[hook-discovery-engine] Saved {len(sanitized)} hooks to cache: {cache_path}")
+            except Exception as e:
+                if os.path.exists(tmp_cache):
+                    try:
+                        os.remove(tmp_cache)
+                    except OSError:
+                        pass
+                print(f"[hook-discovery-engine] Failed to save hooks to cache: {e}")
+
+        return sanitized
+
     def get_or_discover_hooks(
         self,
         video_info: dict,
@@ -704,35 +749,19 @@ class HookDiscoveryEngine:
             return []
 
         opts = options or HookDiscoveryOptions()
-        grouped_segments = self._group_words_into_sentences(transcript_segments)
+        grouped_segments = self.group_transcript_segments(transcript_segments)
         raw_hooks = self.discover_from_transcript(
             transcript_segments,
             video_info=video_info,
             options=opts,
             grouped_segments=grouped_segments,
         )
-        if not raw_hooks:
-            return []
-
-        sanitized = self.sanitize_and_prepare_hooks(
+        return self.finalize_discovered_hooks(
             raw_hooks,
             video_info,
-            max_duration=opts.max_duration,
+            options=opts,
             grouped_segments=grouped_segments,
         )
-
-        if cache_path:
-            try:
-                os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-                tmp_cache = f"{cache_path}.{uuid.uuid4().hex}.tmp"
-                with open(tmp_cache, "w", encoding="utf-8") as f:
-                    json.dump(sanitized, f, ensure_ascii=False, indent=2)
-                os.replace(tmp_cache, cache_path)
-                print(f"[hook-discovery-engine] Saved {len(sanitized)} hooks to cache: {cache_path}")
-            except Exception as e:
-                print(f"[hook-discovery-engine] Failed to save hooks to cache: {e}")
-
-        return sanitized
 
     def sanitize_hooks(
         self,
