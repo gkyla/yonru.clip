@@ -30,6 +30,188 @@ import {
 export { computeViewportFraming, TimelineFramingIndex };
 export type { CropMapEntry, ViewportFramingParams, ViewportFramingResult };
 
+export const LANDSCAPE_BLUR_SCALE_DIVISOR = 8;
+export const LANDSCAPE_BLUR_OVERSCAN = 1.08;
+
+export interface LandscapeBlurSpec {
+  blurWidth: number;
+  blurHeight: number;
+  scaledBlurRadius: number;
+  sourceWidth: number;
+  sourceHeight: number;
+  drawX: number;
+  drawY: number;
+  drawWidth: number;
+  drawHeight: number;
+}
+
+export interface LandscapeBlurSpecParams {
+  containerWidth: number;
+  containerHeight: number;
+  sourceWidth: number;
+  sourceHeight: number;
+  blurRadius?: number;
+}
+
+export interface DrawLandscapeBlurFrameParams {
+  containerWidth: number;
+  containerHeight: number;
+  blurRadius?: number;
+  fallbackSourceWidth?: number;
+  fallbackSourceHeight?: number;
+  cachedCtx?: CanvasRenderingContext2D | null;
+}
+
+export interface DrawLandscapeBlurFrameResult {
+  drawn: boolean;
+  ctx: CanvasRenderingContext2D | null;
+  spec: LandscapeBlurSpec;
+}
+
+function resolveBlurSourceDimensions(
+  source: CanvasImageSource,
+  fallbackWidth: number,
+  fallbackHeight: number
+): { width: number; height: number } {
+  if (
+    'videoWidth' in source &&
+    'videoHeight' in source &&
+    typeof source.videoWidth === 'number' &&
+    typeof source.videoHeight === 'number' &&
+    source.videoWidth > 0 &&
+    source.videoHeight > 0
+  ) {
+    return { width: source.videoWidth, height: source.videoHeight };
+  }
+  if (
+    'naturalWidth' in source &&
+    'naturalHeight' in source &&
+    typeof source.naturalWidth === 'number' &&
+    typeof source.naturalHeight === 'number' &&
+    source.naturalWidth > 0 &&
+    source.naturalHeight > 0
+  ) {
+    return { width: source.naturalWidth, height: source.naturalHeight };
+  }
+  if (
+    'displayWidth' in source &&
+    'displayHeight' in source &&
+    typeof source.displayWidth === 'number' &&
+    typeof source.displayHeight === 'number' &&
+    source.displayWidth > 0 &&
+    source.displayHeight > 0
+  ) {
+    return { width: source.displayWidth, height: source.displayHeight };
+  }
+  if (
+    'width' in source &&
+    'height' in source &&
+    typeof source.width === 'number' &&
+    typeof source.height === 'number' &&
+    source.width > 0 &&
+    source.height > 0
+  ) {
+    return { width: source.width, height: source.height };
+  }
+  return {
+    width: fallbackWidth > 0 ? fallbackWidth : 1920,
+    height: fallbackHeight > 0 ? fallbackHeight : 1080
+  };
+}
+
+/**
+ * Compute 1/8-scale cover-overscanned blur geometry shared between interactive preview
+ * and headless Remotion export.
+ */
+export function computeLandscapeBlurSpec(
+  params: LandscapeBlurSpecParams
+): LandscapeBlurSpec {
+  const blurWidth = Math.max(
+    1,
+    Math.round(params.containerWidth / LANDSCAPE_BLUR_SCALE_DIVISOR)
+  );
+  const blurHeight = Math.max(
+    1,
+    Math.round(params.containerHeight / LANDSCAPE_BLUR_SCALE_DIVISOR)
+  );
+  const sourceWidth = params.sourceWidth > 0 ? params.sourceWidth : 1920;
+  const sourceHeight = params.sourceHeight > 0 ? params.sourceHeight : 1080;
+  const effectiveBlurRadius = Math.max(1, params.blurRadius ?? 25);
+  const scaledBlurRadius = Math.max(
+    1,
+    Math.round(effectiveBlurRadius / LANDSCAPE_BLUR_SCALE_DIVISOR)
+  );
+  const coverScale =
+    Math.max(blurWidth / sourceWidth, blurHeight / sourceHeight) *
+    LANDSCAPE_BLUR_OVERSCAN;
+  const drawWidth = sourceWidth * coverScale;
+  const drawHeight = sourceHeight * coverScale;
+  const drawX = (blurWidth - drawWidth) / 2;
+  const drawY = (blurHeight - drawHeight) / 2;
+
+  return {
+    blurWidth,
+    blurHeight,
+    scaledBlurRadius,
+    sourceWidth,
+    sourceHeight,
+    drawX,
+    drawY,
+    drawWidth,
+    drawHeight
+  };
+}
+
+/**
+ * Draw a blurred 1/8-scale cover background onto a reusable canvas for any
+ * CanvasImageSource (HTMLVideoElement, HTMLImageElement, HTMLCanvasElement, ImageBitmap).
+ */
+export function drawLandscapeBlurFrame(
+  canvas: HTMLCanvasElement,
+  source: CanvasImageSource,
+  params: DrawLandscapeBlurFrameParams
+): DrawLandscapeBlurFrameResult {
+  const dims = resolveBlurSourceDimensions(
+    source,
+    params.fallbackSourceWidth ?? 1920,
+    params.fallbackSourceHeight ?? 1080
+  );
+  const spec = computeLandscapeBlurSpec({
+    containerWidth: params.containerWidth,
+    containerHeight: params.containerHeight,
+    sourceWidth: dims.width,
+    sourceHeight: dims.height,
+    blurRadius: params.blurRadius
+  });
+
+  if (canvas.width !== spec.blurWidth || canvas.height !== spec.blurHeight) {
+    canvas.width = spec.blurWidth;
+    canvas.height = spec.blurHeight;
+  }
+
+  const blurCtx = params.cachedCtx ?? canvas.getContext('2d', { alpha: false });
+  if (!blurCtx) {
+    return { drawn: false, ctx: null, spec };
+  }
+
+  blurCtx.save();
+  blurCtx.filter = `blur(${spec.scaledBlurRadius}px)`;
+  blurCtx.drawImage(
+    source,
+    0,
+    0,
+    spec.sourceWidth,
+    spec.sourceHeight,
+    spec.drawX,
+    spec.drawY,
+    spec.drawWidth,
+    spec.drawHeight
+  );
+  blurCtx.restore();
+
+  return { drawn: true, ctx: blurCtx, spec };
+}
+
 export interface CanvasVideoCompositorProps {
   videoSrc: string;
   volume: number | ((frame: number) => number);
@@ -270,52 +452,30 @@ const CanvasVideoCompositorInner: React.FC<CanvasVideoCompositorProps> = ({
         if (landscapeBackground === 'blur') {
           try {
             // 1. Draw blurred video onto cached 1/8-scale offscreen canvas with 8% overscan
-            const blurW = Math.max(1, Math.round(CONTAINER_W / 8));
-            const blurH = Math.max(1, Math.round(CONTAINER_H / 8));
             let blurCanvas = blurCanvasRef.current;
             if (!blurCanvas) {
               blurCanvas = document.createElement('canvas');
-              blurCanvas.width = blurW;
-              blurCanvas.height = blurH;
               blurCanvasRef.current = blurCanvas;
-              blurCtxRef.current = blurCanvas.getContext('2d', {
-                alpha: false
-              });
-            } else if (
-              blurCanvas.width !== blurW ||
-              blurCanvas.height !== blurH
-            ) {
-              blurCanvas.width = blurW;
-              blurCanvas.height = blurH;
             }
-            const blurCtx =
-              blurCtxRef.current ??
-              (blurCtxRef.current = blurCanvas.getContext('2d', {
-                alpha: false
-              }));
+            const blurResult = drawLandscapeBlurFrame(blurCanvas, video, {
+              containerWidth: CONTAINER_W,
+              containerHeight: CONTAINER_H,
+              blurRadius: landscapeBlurRadius,
+              fallbackSourceWidth: vW,
+              fallbackSourceHeight: vH,
+              cachedCtx: blurCtxRef.current
+            });
+            blurCtxRef.current = blurResult.ctx;
 
-            if (blurCtx) {
-              const blurRad = Math.max(1, landscapeBlurRadius ?? 25);
-              const scaledBlurRad = Math.max(1, Math.round(blurRad / 8));
-              const coverScale = Math.max(blurW / vW, blurH / vH) * 1.08;
-              const bgW = vW * coverScale;
-              const bgH = vH * coverScale;
-              const bgX = (blurW - bgW) / 2;
-              const bgY = (blurH - bgH) / 2;
-
-              blurCtx.save();
-              blurCtx.filter = `blur(${scaledBlurRad}px)`;
-              blurCtx.drawImage(video, 0, 0, vW, vH, bgX, bgY, bgW, bgH);
-              blurCtx.restore();
-
+            if (blurResult.drawn) {
               ctx.save();
               ctx.imageSmoothingEnabled = true;
               ctx.drawImage(
                 blurCanvas,
                 0,
                 0,
-                blurW,
-                blurH,
+                blurResult.spec.blurWidth,
+                blurResult.spec.blurHeight,
                 0,
                 0,
                 CONTAINER_W,

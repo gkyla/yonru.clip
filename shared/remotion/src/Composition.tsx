@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import {
   AbsoluteFill,
   OffthreadVideo,
@@ -12,11 +12,17 @@ import {
   useRemotionEnvironment
 } from 'remotion';
 import { AnimatedSubtitles } from './AnimatedSubtitles';
-import { CanvasVideoCompositor } from './CanvasVideoCompositor';
+import {
+  CanvasVideoCompositor,
+  computeLandscapeBlurSpec,
+  drawLandscapeBlurFrame
+} from './CanvasVideoCompositor';
 import { TimelineFrameRetention } from './TimelineFrameRetention';
 import {
+  createCensoredAudioIndex,
   createTimelineFramingIndex,
   createTimelineSegmentIndex,
+  indexTimelineTextLayers,
   type TimelineFramingIndex,
   type TimelineSegmentIndex
 } from './TimelineFramingIndex';
@@ -47,6 +53,8 @@ interface HeadlessMediaViewportsProps {
   PANEL_H: number;
   videoDisplayW: number;
   videoDisplayH: number;
+  rawSourceW?: number;
+  sourceHeight?: number;
 }
 
 const HeadlessMediaViewports: React.FC<HeadlessMediaViewportsProps> = ({
@@ -65,7 +73,9 @@ const HeadlessMediaViewports: React.FC<HeadlessMediaViewportsProps> = ({
   CONTAINER_H,
   PANEL_H,
   videoDisplayW,
-  videoDisplayH
+  videoDisplayH,
+  rawSourceW = 1920,
+  sourceHeight = 1080
 }) => {
   const localFrame = useCurrentFrame();
   const segmentMediaTime =
@@ -78,10 +88,60 @@ const HeadlessMediaViewports: React.FC<HeadlessMediaViewportsProps> = ({
   const segFraming = framingIndex.computeFraming(segmentMediaTime);
   const segIsSplit = segFraming.isSplitActive;
 
+  const useLandscapeBlur = isLandscape && landscapeBackground === 'blur';
+  const blurSpec = computeLandscapeBlurSpec({
+    containerWidth: CONTAINER_W,
+    containerHeight: CONTAINER_H,
+    sourceWidth: rawSourceW,
+    sourceHeight,
+    blurRadius: landscapeBlurRadius
+  });
+  const blurCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const blurCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const blurConfig = {
+    enabled: useLandscapeBlur,
+    containerWidth: CONTAINER_W,
+    containerHeight: CONTAINER_H,
+    blurRadius: landscapeBlurRadius,
+    fallbackSourceWidth: rawSourceW,
+    fallbackSourceHeight: sourceHeight
+  };
+  const blurConfigRef = useRef(blurConfig);
+  blurConfigRef.current = blurConfig;
+
+  const setBlurCanvasRef = useCallback((el: HTMLCanvasElement | null) => {
+    if (blurCanvasRef.current !== el) {
+      blurCanvasRef.current = el;
+      blurCtxRef.current = null;
+    }
+  }, []);
+
+  // Keep referentially stable so Remotion <OffthreadVideo>/<Img> never re-runs its decode effect
+  const handleBlurVideoFrame = useCallback((frame: CanvasImageSource) => {
+    const cfg = blurConfigRef.current;
+    const canvas = blurCanvasRef.current;
+    if (!cfg.enabled || !canvas) {
+      return;
+    }
+    try {
+      const result = drawLandscapeBlurFrame(canvas, frame, {
+        containerWidth: cfg.containerWidth,
+        containerHeight: cfg.containerHeight,
+        blurRadius: cfg.blurRadius,
+        fallbackSourceWidth: cfg.fallbackSourceWidth,
+        fallbackSourceHeight: cfg.fallbackSourceHeight,
+        cachedCtx: blurCtxRef.current
+      });
+      blurCtxRef.current = result.ctx;
+    } catch {
+      // Ignored if frame source cannot be drawn
+    }
+  }, []);
+
   return (
     <AbsoluteFill style={OVERFLOW_HIDDEN_STYLE}>
-      {/* Landscape Blurred Video Background (Headless Render parity) */}
-      {isLandscape && landscapeBackground === 'blur' && (
+      {/* Landscape Blurred Video Background (Unified 1/8-scale Canvas) */}
+      {useLandscapeBlur && (
         <div
           style={{
             position: 'absolute',
@@ -90,25 +150,19 @@ const HeadlessMediaViewports: React.FC<HeadlessMediaViewportsProps> = ({
             width: `${CONTAINER_W}px`,
             height: `${CONTAINER_H}px`,
             overflow: 'hidden',
+            backgroundColor: '#000000',
             zIndex: 0
           }}
         >
-          <OffthreadVideo
-            src={videoSrc}
-            volume={0}
-            muted={true}
-            startFrom={mediaStartFrame}
-            endAt={
-              durationFrames
-                ? (mediaStartFrame ?? 0) + durationFrames
-                : undefined
-            }
+          <canvas
+            ref={setBlurCanvasRef}
+            data-testid="headless-landscape-blur-canvas"
+            width={blurSpec.blurWidth}
+            height={blurSpec.blurHeight}
             style={{
               width: `${CONTAINER_W}px`,
               height: `${CONTAINER_H}px`,
-              objectFit: 'cover',
-              transform: 'scale(1.08)',
-              filter: `blur(${Math.max(1, landscapeBlurRadius || 25)}px)`
+              display: 'block'
             }}
           />
           {(landscapeDarkness ?? 35) > 0 && (
@@ -142,6 +196,7 @@ const HeadlessMediaViewports: React.FC<HeadlessMediaViewportsProps> = ({
         <OffthreadVideo
           src={videoSrc}
           volume={frameVolume}
+          onVideoFrame={useLandscapeBlur ? handleBlurVideoFrame : undefined}
           startFrom={mediaStartFrame}
           endAt={
             durationFrames ? (mediaStartFrame ?? 0) + durationFrames : undefined
@@ -422,92 +477,106 @@ function getTextOverlayShadow(item: TimelineTextOverlayItem): string {
   return 'none';
 }
 
-interface ActiveTextOverlaysProps {
+interface TimelineTextLayerCardProps {
+  item: TimelineTextOverlayItem;
+  zIndex: number;
+}
+
+const TimelineTextLayerCard: React.FC<TimelineTextLayerCardProps> = React.memo(
+  ({ item, zIndex }) => {
+    const effectiveStrokeWidth = item.showStroke ? (item.strokeWidth ?? 5) : 0;
+    const hasOutline = Boolean(item.showStroke) && effectiveStrokeWidth > 0;
+
+    return (
+      <AbsoluteFill
+        style={{
+          zIndex,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          pointerEvents: 'none'
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            left: `${item.x}px`,
+            top: `${item.y}px`,
+            color: item.color || '#FFFFFF',
+            fontSize: `${item.fontSize || 80}px`,
+            fontFamily: getFont(item.font || 'Outfit'),
+            fontWeight: item.fontWeight || 900,
+            fontStyle: item.fontStyle || 'normal',
+            textDecoration: item.textDecoration || 'none',
+            textTransform: item.textTransform || 'none',
+            textAlign: item.textAlign || 'center',
+            letterSpacing: `${item.letterSpacing !== undefined ? item.letterSpacing : 0}px`,
+            wordSpacing: `${item.wordSpacing !== undefined ? item.wordSpacing : 0}px`,
+            lineHeight: item.lineHeight !== undefined ? item.lineHeight : 1.1,
+            opacity: item.opacity !== undefined ? item.opacity : 1.0,
+            // No transform: Konva label config resets offset to {x:0,y:0} on every
+            // reactive update, so stored coordinates are top-left based, not center.
+            whiteSpace: 'pre-wrap',
+            maxWidth: '900px',
+            // Background Box
+            backgroundColor: getTextOverlayBgColor(item),
+            padding: `${item.showBackground ? (item.backgroundPadding !== undefined ? item.backgroundPadding : 15) : 15}px`,
+            borderRadius: item.showBackground
+              ? `${item.backgroundRoundness !== undefined ? item.backgroundRoundness : 10}px`
+              : 0,
+            display: 'inline-block',
+            width: 'fit-content',
+            // Text Outline
+            paintOrder: hasOutline ? 'stroke fill' : undefined,
+            WebkitTextStroke: hasOutline
+              ? `${effectiveStrokeWidth * 2}px ${item.strokeColor || '#000000'}`
+              : undefined,
+            // Text Shadow / Glow
+            textShadow: getTextOverlayShadow(item)
+          }}
+        >
+          {item.content || ''}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+);
+TimelineTextLayerCard.displayName = 'TimelineTextLayerCard';
+
+interface TimelineTextLayersProps {
   timelineTextItems: readonly TimelineTextOverlayItem[];
   fps: number;
 }
 
-const ActiveTextOverlays: React.FC<ActiveTextOverlaysProps> = ({
-  timelineTextItems,
-  fps
-}) => {
-  const mainVideoFrame = useCurrentFrame();
-  const currentTime = Math.max(0, mainVideoFrame) / fps;
-  const activeTextItems = timelineTextItems.filter(
-    item =>
-      currentTime >= item.start && currentTime < item.start + item.duration
-  );
+const TimelineTextLayers: React.FC<TimelineTextLayersProps> = React.memo(
+  ({ timelineTextItems, fps }) => {
+    const layers = useMemo(
+      () => indexTimelineTextLayers(timelineTextItems, fps),
+      [timelineTextItems, fps]
+    );
 
-  if (activeTextItems.length === 0) {
-    return null;
-  }
+    if (layers.length === 0) {
+      return null;
+    }
 
-  return (
-    <>
-      {activeTextItems.map((item, idx) => {
-        const effectiveStrokeWidth = item.showStroke
-          ? (item.strokeWidth ?? 5)
-          : 0;
-        const hasOutline = Boolean(item.showStroke) && effectiveStrokeWidth > 0;
-
-        return (
-          <AbsoluteFill
-            key={item.id}
-            style={{
-              zIndex: 21 + idx,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              pointerEvents: 'none'
-            }}
+    return (
+      <>
+        {layers.map(layer => (
+          <Sequence
+            key={layer.key}
+            from={layer.startFrame}
+            durationInFrames={layer.durationFrames}
+            layout="none"
+            name={`TextLayer-${layer.key}`}
           >
-            <div
-              style={{
-                position: 'absolute',
-                left: `${item.x}px`,
-                top: `${item.y}px`,
-                color: item.color || '#FFFFFF',
-                fontSize: `${item.fontSize || 80}px`,
-                fontFamily: getFont(item.font || 'Outfit'),
-                fontWeight: item.fontWeight || 900,
-                fontStyle: item.fontStyle || 'normal',
-                textDecoration: item.textDecoration || 'none',
-                textTransform: item.textTransform || 'none',
-                textAlign: item.textAlign || 'center',
-                letterSpacing: `${item.letterSpacing !== undefined ? item.letterSpacing : 0}px`,
-                wordSpacing: `${item.wordSpacing !== undefined ? item.wordSpacing : 0}px`,
-                lineHeight:
-                  item.lineHeight !== undefined ? item.lineHeight : 1.1,
-                opacity: item.opacity !== undefined ? item.opacity : 1.0,
-                // No transform: Konva label config resets offset to {x:0,y:0} on every
-                // reactive update, so stored coordinates are top-left based, not center.
-                whiteSpace: 'pre-wrap',
-                maxWidth: '900px',
-                // Background Box
-                backgroundColor: getTextOverlayBgColor(item),
-                padding: `${item.showBackground ? (item.backgroundPadding !== undefined ? item.backgroundPadding : 15) : 15}px`,
-                borderRadius: item.showBackground
-                  ? `${item.backgroundRoundness !== undefined ? item.backgroundRoundness : 10}px`
-                  : 0,
-                display: 'inline-block',
-                width: 'fit-content',
-                // Text Outline
-                paintOrder: hasOutline ? 'stroke fill' : undefined,
-                WebkitTextStroke: hasOutline
-                  ? `${effectiveStrokeWidth * 2}px ${item.strokeColor || '#000000'}`
-                  : undefined,
-                // Text Shadow / Glow
-                textShadow: getTextOverlayShadow(item)
-              }}
-            >
-              {item.content || ''}
-            </div>
-          </AbsoluteFill>
-        );
-      })}
-    </>
-  );
-};
+            <TimelineTextLayerCard item={layer.item} zIndex={layer.zIndex} />
+          </Sequence>
+        ))}
+      </>
+    );
+  }
+);
+TimelineTextLayers.displayName = 'TimelineTextLayers';
 
 function transformText(text: string, transform?: string): string {
   if (!text) return '';
@@ -517,6 +586,17 @@ function transformText(text: string, transform?: string): string {
     return text.replace(/\b\w/g, char => char.toUpperCase());
   }
   return text;
+}
+
+function resolveMediaSrc(rawSrc: string | undefined): string {
+  if (!rawSrc) return '';
+  const isDirectUrl =
+    rawSrc.startsWith('http://') ||
+    rawSrc.startsWith('https://') ||
+    rawSrc.startsWith('blob:') ||
+    rawSrc.startsWith('data:') ||
+    rawSrc.startsWith('/');
+  return isDirectUrl ? rawSrc : staticFile(rawSrc);
 }
 
 export const YonruClip: React.FC<YonruClipProps> = ({
@@ -578,82 +658,36 @@ export const YonruClip: React.FC<YonruClipProps> = ({
   // Automated Micro-Envelope (15ms zero-crossing) & Frame-Locked Volume Ducking
   const baseVolume = volume;
 
-  // Normalize & merge overlapping or contiguous censored segments to prevent double-bleep audio phasing
-  const mergedCensoredSegments = useMemo(() => {
-    if (!censoredSegments || censoredSegments.length === 0) return [];
-    const valid = censoredSegments
-      .filter(
-        s =>
-          s &&
-          typeof s.start === 'number' &&
-          typeof s.duration === 'number' &&
-          s.duration > 0
-      )
-      .map(s => ({
-        start: Math.round(s.start * 1000) / 1000,
-        duration: Math.round(s.duration * 1000) / 1000
-      }))
-      .sort((a, b) => a.start - b.start);
-
-    const first = valid[0];
-    if (!first) return [];
-
-    const merged: Array<{ start: number; duration: number }> = [];
-    let current = { ...first };
-
-    for (let i = 1; i < valid.length; i++) {
-      const next = valid[i];
-      if (!next) continue;
-      const currentEnd =
-        Math.round((current.start + current.duration) * 1000) / 1000;
-      if (next.start <= currentEnd + 0.005) {
-        const nextEnd = Math.round((next.start + next.duration) * 1000) / 1000;
-        const newEnd = Math.max(currentEnd, nextEnd);
-        current.duration = Math.round((newEnd - current.start) * 1000) / 1000;
-      } else {
-        merged.push(current);
-        current = { ...next };
-      }
-    }
-    merged.push(current);
-    return merged;
-  }, [censoredSegments]);
-
-  const frameVolume = useMemo(() => {
-    if (mergedCensoredSegments.length === 0) {
-      return baseVolume;
-    }
-    return (f: number) => {
-      const time = Math.max(0, f - thumbnailFrames) / fps;
-      const fadeSec = 0.015; // 15ms internal micro-envelope
-
-      for (const seg of mergedCensoredSegments) {
-        if (time >= seg.start && time <= seg.start + seg.duration) {
-          if (time < seg.start + fadeSec) {
-            const factor = (time - seg.start) / fadeSec;
-            return baseVolume * (1 - factor);
-          }
-          if (time > seg.start + seg.duration - fadeSec) {
-            const factor =
-              (time - (seg.start + seg.duration - fadeSec)) / fadeSec;
-            return baseVolume * factor;
-          }
-          return 0;
-        }
-      }
-      return baseVolume;
-    };
-  }, [mergedCensoredSegments, baseVolume, thumbnailFrames, fps]);
-
   const isUrl =
     videoPath &&
     (videoPath.startsWith('http') || videoPath.startsWith('blob:'));
   const videoSrc = videoPath ? (isUrl ? videoPath : staticFile(videoPath)) : '';
+  const resolvedBleepAudioSrc = useMemo(
+    () => resolveMediaSrc(bleepAudioSrc),
+    [bleepAudioSrc]
+  );
 
   // Pre-index contiguous video segments and frame windows once per clip edit
   const segmentIndex = useMemo(
     () => createTimelineSegmentIndex(timelineVideoItems, fps),
     [timelineVideoItems, fps]
+  );
+
+  // Normalize/merge censored intervals once and anchor ducking + bleeps to MainVideo coordinates
+  const censoredAudioIndex = useMemo(
+    () => createCensoredAudioIndex(censoredSegments, fps),
+    [censoredSegments, fps]
+  );
+  const defaultSegmentVolume = useMemo(
+    () => censoredAudioIndex.createSegmentVolume(baseVolume, 0),
+    [censoredAudioIndex, baseVolume]
+  );
+  const segmentVolumes = useMemo(
+    () =>
+      segmentIndex.windows.map(({ window }) =>
+        censoredAudioIndex.createSegmentVolume(baseVolume, window.startFrame)
+      ),
+    [segmentIndex, censoredAudioIndex, baseVolume]
   );
 
   // Exact math from VideoPreview.vue to guarantee 1:1 match
@@ -795,7 +829,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   mediaStartFrame={window.mediaStartFrame}
                   fps={fps}
                   videoSrc={videoSrc}
-                  frameVolume={frameVolume}
+                  frameVolume={segmentVolumes[idx] ?? defaultSegmentVolume}
                   CONTAINER_W={CONTAINER_W}
                   CONTAINER_H={CONTAINER_H}
                   PANEL_H={PANEL_H}
@@ -814,7 +848,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
               <AbsoluteFill style={Z_INDEX_1_OVERFLOW_HIDDEN_STYLE}>
                 <CanvasVideoCompositor
                   videoSrc={videoSrc}
-                  volume={frameVolume}
+                  volume={defaultSegmentVolume}
                   fps={fps}
                   CONTAINER_W={CONTAINER_W}
                   CONTAINER_H={CONTAINER_H}
@@ -847,7 +881,7 @@ export const YonruClip: React.FC<YonruClipProps> = ({
               >
                 <HeadlessMediaViewports
                   videoSrc={videoSrc}
-                  frameVolume={frameVolume}
+                  frameVolume={segmentVolumes[idx] ?? defaultSegmentVolume}
                   mediaStartFrame={window.mediaStartFrame}
                   durationFrames={window.durationFrames}
                   fps={fps}
@@ -862,13 +896,15 @@ export const YonruClip: React.FC<YonruClipProps> = ({
                   PANEL_H={PANEL_H}
                   videoDisplayW={videoDisplayW}
                   videoDisplayH={videoDisplayH}
+                  rawSourceW={rawSourceW}
+                  sourceHeight={sourceHeight}
                 />
               </Sequence>
             ))
           ) : (
             <HeadlessMediaViewports
               videoSrc={videoSrc}
-              frameVolume={frameVolume}
+              frameVolume={defaultSegmentVolume}
               fps={fps}
               segmentIndex={segmentIndex}
               framingIndex={framingIndex}
@@ -881,6 +917,8 @@ export const YonruClip: React.FC<YonruClipProps> = ({
               PANEL_H={PANEL_H}
               videoDisplayW={videoDisplayW}
               videoDisplayH={videoDisplayH}
+              rawSourceW={rawSourceW}
+              sourceHeight={sourceHeight}
             />
           ))}
 
@@ -901,43 +939,26 @@ export const YonruClip: React.FC<YonruClipProps> = ({
 
         {/* Timeline Text layers (ordered bottom-to-top so upper tracks paint above lower tracks) */}
         {timelineTextItems.length > 0 && (
-          <ActiveTextOverlays timelineTextItems={timelineTextItems} fps={fps} />
+          <TimelineTextLayers timelineTextItems={timelineTextItems} fps={fps} />
         )}
 
         {/* Frame-Locked Censorship Bleep Audio Layers */}
-        {bleepAudioSrc &&
-          mergedCensoredSegments.map((seg, idx) => {
-            const segStartFrame = thumbnailFrames + Math.round(seg.start * fps);
-            const segDurationFrames = Math.max(
-              1,
-              Math.round(seg.duration * fps)
-            );
-            return (
-              <Sequence
-                key={`bleep-${idx}-${seg.start}`}
-                from={segStartFrame}
-                durationInFrames={segDurationFrames}
-                name={`Bleep-${idx}`}
-              >
-                <Audio src={bleepAudioSrc} loop volume={1} />
-              </Sequence>
-            );
-          })}
+        {resolvedBleepAudioSrc &&
+          censoredAudioIndex.bleepWindows.map((win, idx) => (
+            <Sequence
+              key={`bleep-${idx}-${win.startFrame}`}
+              from={win.startFrame}
+              durationInFrames={win.durationFrames}
+              name={`Bleep-${idx}`}
+            >
+              <Audio src={resolvedBleepAudioSrc} loop volume={1} />
+            </Sequence>
+          ))}
       </Sequence>
 
       {/* Global Span Timeline Audio layers */}
       {timelineAudioItems.map(item => {
-        const rawSrc = item.src || '';
-        const isDirectUrl =
-          rawSrc.startsWith('http') ||
-          rawSrc.startsWith('blob:') ||
-          rawSrc.startsWith('data:') ||
-          rawSrc.startsWith('/');
-        const resolvedAudioSrc = rawSrc
-          ? isDirectUrl
-            ? rawSrc
-            : staticFile(rawSrc)
-          : '';
+        const resolvedAudioSrc = resolveMediaSrc(item.src || '');
         return (
           <Sequence
             key={item.id}

@@ -89,6 +89,19 @@ export function getSegmentFrameWindow(
   };
 }
 
+function hasFinitePositiveDuration(
+  entry: { start?: unknown; duration?: unknown } | null | undefined
+): entry is { start: number; duration: number } {
+  return Boolean(
+    entry &&
+    typeof entry.start === 'number' &&
+    Number.isFinite(entry.start) &&
+    typeof entry.duration === 'number' &&
+    Number.isFinite(entry.duration) &&
+    entry.duration > 0
+  );
+}
+
 export function coalesceContiguousVideoSegments<
   T extends TimelineVideoSegmentBounds
 >(items: readonly T[] | undefined, contiguityEpsilon: number = 0.005): T[] {
@@ -97,15 +110,7 @@ export function coalesceContiguousVideoSegments<
   }
 
   const validSorted = items
-    .filter(
-      item =>
-        item &&
-        typeof item.start === 'number' &&
-        Number.isFinite(item.start) &&
-        typeof item.duration === 'number' &&
-        Number.isFinite(item.duration) &&
-        item.duration > 0
-    )
+    .filter(hasFinitePositiveDuration)
     .slice()
     .sort((a, b) => a.start - b.start);
 
@@ -748,7 +753,7 @@ function resolveFramingWithIndex(
   let top_x = c.manualTop ?? c.fallbackX;
   let bottom_x = c.manualBottom ?? c.fallbackX;
 
-  if (cropIndex.length > 0) {
+  if (!c.isLandscape && cropIndex.length > 0) {
     const prevIdx = cropIndex.findPrevIndex(targetTime);
     const prevEntry = prevIdx >= 0 ? cropIndex.getAtIndex(prevIdx) : undefined;
     const nextEntry =
@@ -837,7 +842,7 @@ export class TimelineFramingIndex {
   }
 
   computeFraming(targetTime: number): ViewportFramingResult {
-    if (!this.hasCropMap) {
+    if (this.constants.isLandscape || !this.hasCropMap) {
       return this.staticResult;
     }
     return resolveFramingWithIndex(targetTime, this.cropIndex, this.constants);
@@ -1069,4 +1074,260 @@ export function createSubtitleChunkIndex(
   wordTimings?: readonly SubtitleWord[]
 ): SubtitleChunkIndex {
   return new SubtitleChunkIndex(chunks, wordTimings);
+}
+
+export const CENSORED_MERGE_TOLERANCE_SEC = 0.005;
+export const CENSORED_FADE_SEC = 0.015;
+
+export interface CensoredAudioSegment {
+  start: number;
+  duration: number;
+}
+
+export interface CensoredBleepWindow {
+  readonly start: number;
+  readonly duration: number;
+  readonly end: number;
+  readonly startFrame: number;
+  readonly durationFrames: number;
+}
+
+export interface TimelineTextLayerBounds {
+  id?: string | number;
+  start: number;
+  duration: number;
+}
+
+export interface IndexedTimelineTextLayer<
+  T extends TimelineTextLayerBounds = TimelineTextLayerBounds
+> {
+  readonly key: string;
+  readonly item: T;
+  readonly startFrame: number;
+  readonly durationFrames: number;
+  readonly zIndex: number;
+}
+
+/**
+ * Normalize, clamp negative starts to 0, sort, and merge overlapping or contiguous
+ * censored segments within 5ms to prevent double-bleep phasing across preview and headless render.
+ */
+export function mergeCensoredSegments(
+  segments: ReadonlyArray<CensoredAudioSegment> | undefined
+): CensoredAudioSegment[] {
+  if (!segments || segments.length === 0) {
+    return [];
+  }
+
+  const valid: CensoredAudioSegment[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    const s = segments[i];
+    if (!hasFinitePositiveDuration(s)) {
+      continue;
+    }
+    const clampedStart = Math.max(0, s.start);
+    const clampedDuration = s.start < 0 ? s.duration + s.start : s.duration;
+    const start = Math.round(clampedStart * 1000) / 1000;
+    const duration = Math.round(clampedDuration * 1000) / 1000;
+    if (duration > 0) {
+      valid.push({ start, duration });
+    }
+  }
+
+  if (valid.length === 0) {
+    return [];
+  }
+
+  valid.sort((a, b) => a.start - b.start);
+
+  const first = valid[0];
+  if (!first) {
+    return [];
+  }
+
+  const merged: CensoredAudioSegment[] = [{ ...first }];
+  for (let i = 1; i < valid.length; i++) {
+    const current = merged[merged.length - 1];
+    const next = valid[i];
+    if (!current || !next) {
+      continue;
+    }
+    const currentEnd =
+      Math.round((current.start + current.duration) * 1000) / 1000;
+    if (next.start <= currentEnd + CENSORED_MERGE_TOLERANCE_SEC) {
+      const nextEnd = Math.round((next.start + next.duration) * 1000) / 1000;
+      const newEnd = Math.max(currentEnd, nextEnd);
+      current.duration = Math.round((newEnd - current.start) * 1000) / 1000;
+    } else {
+      merged.push({ ...next });
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * Pre-indexed frame-locked censorship store aligning MainVideo-relative bleep windows
+ * and per-segment volume ducking curves across Cover Slides and jump-cut video segments.
+ */
+export class CensoredAudioIndex {
+  readonly fps: number;
+  readonly segments: readonly CensoredAudioSegment[];
+  readonly bleepWindows: readonly CensoredBleepWindow[];
+  readonly isEmpty: boolean;
+
+  private cursor = 0;
+
+  constructor(
+    segments: ReadonlyArray<CensoredAudioSegment> | undefined,
+    fps: number
+  ) {
+    this.fps = Number.isFinite(fps) && fps > 0 ? fps : 30;
+    const merged = mergeCensoredSegments(segments);
+    this.segments = merged;
+    this.isEmpty = merged.length === 0;
+    this.bleepWindows = merged.map(seg => {
+      const end = Math.round((seg.start + seg.duration) * 1000) / 1000;
+      const startFrame = Math.max(0, Math.round(seg.start * this.fps));
+      const endFrame = Math.round(end * this.fps);
+      return {
+        start: seg.start,
+        duration: seg.duration,
+        end,
+        startFrame,
+        durationFrames: Math.max(1, endFrame - startFrame)
+      };
+    });
+  }
+
+  private windowContainsTime(idx: number, timeSec: number): boolean {
+    const win = this.bleepWindows[idx];
+    return Boolean(win && timeSec >= win.start && timeSec <= win.end);
+  }
+
+  private findSegmentAtTime(timeSec: number): CensoredBleepWindow | null {
+    const n = this.bleepWindows.length;
+    if (n === 0 || !Number.isFinite(timeSec)) {
+      return null;
+    }
+
+    const c = this.cursor;
+    if (c >= 0 && c < n) {
+      if (this.windowContainsTime(c, timeSec)) {
+        return this.bleepWindows[c] ?? null;
+      }
+      if (c + 1 < n && this.windowContainsTime(c + 1, timeSec)) {
+        this.cursor = c + 1;
+        return this.bleepWindows[c + 1] ?? null;
+      }
+      if (c - 1 >= 0 && this.windowContainsTime(c - 1, timeSec)) {
+        this.cursor = c - 1;
+        return this.bleepWindows[c - 1] ?? null;
+      }
+    }
+
+    const first = this.bleepWindows[0];
+    if (!first || timeSec < first.start) {
+      return null;
+    }
+
+    let lo = 0;
+    let hi = n - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >>> 1;
+      const entry = this.bleepWindows[mid];
+      if (entry && entry.start <= timeSec) {
+        lo = mid;
+      } else {
+        hi = mid - 1;
+      }
+    }
+
+    const candidate = this.bleepWindows[lo];
+    if (candidate && timeSec <= candidate.end) {
+      this.cursor = lo;
+      return candidate;
+    }
+    return null;
+  }
+
+  resolveVolumeAtTime(timeSec: number, baseVolume: number): number {
+    const seg = this.findSegmentAtTime(timeSec);
+    if (!seg) {
+      return baseVolume;
+    }
+    const fadeSec = Math.min(CENSORED_FADE_SEC, seg.duration / 2);
+    if (fadeSec <= 0) {
+      return 0;
+    }
+    if (timeSec < seg.start + fadeSec) {
+      return baseVolume * (1 - (timeSec - seg.start) / fadeSec);
+    }
+    if (timeSec > seg.end - fadeSec) {
+      return baseVolume * ((timeSec - (seg.end - fadeSec)) / fadeSec);
+    }
+    return 0;
+  }
+
+  createSegmentVolume(
+    baseVolume: number,
+    segmentStartFrame: number = 0
+  ): number | ((localFrame: number) => number) {
+    if (this.isEmpty) {
+      return baseVolume;
+    }
+    const offsetFrames = Number.isFinite(segmentStartFrame)
+      ? segmentStartFrame
+      : 0;
+    return (localFrame: number) => {
+      const safeLocal = Number.isFinite(localFrame) ? localFrame : 0;
+      const mainVideoFrame = Math.max(0, offsetFrames + safeLocal);
+      return this.resolveVolumeAtTime(mainVideoFrame / this.fps, baseVolume);
+    };
+  }
+}
+
+export function createCensoredAudioIndex(
+  segments: ReadonlyArray<CensoredAudioSegment> | undefined,
+  fps: number
+): CensoredAudioIndex {
+  return new CensoredAudioIndex(segments, fps);
+}
+
+/**
+ * Convert timeline text items into MainVideo-relative Sequence frame windows,
+ * skipping invalid/zero-frame entries that would throw in Remotion's <Sequence>.
+ */
+export function indexTimelineTextLayers<T extends TimelineTextLayerBounds>(
+  items: readonly T[] | undefined,
+  fps: number
+): IndexedTimelineTextLayer<T>[] {
+  if (!items || items.length === 0) {
+    return [];
+  }
+  const safeFps = Number.isFinite(fps) && fps > 0 ? fps : 30;
+  const layers: IndexedTimelineTextLayer<T>[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item || !hasFinitePositiveDuration(item)) {
+      continue;
+    }
+    const startFrame = Math.max(0, Math.round(item.start * safeFps));
+    const endFrame = Math.round((item.start + item.duration) * safeFps);
+    const durationFrames = endFrame - startFrame;
+    if (!Number.isFinite(durationFrames) || durationFrames <= 0) {
+      continue;
+    }
+    const rawId =
+      item.id !== undefined && item.id !== null ? String(item.id) : '';
+    const key = rawId.length > 0 ? rawId : `text-${i}`;
+    layers.push({
+      key,
+      item,
+      startFrame,
+      durationFrames,
+      zIndex: 21 + i
+    });
+  }
+  return layers;
 }

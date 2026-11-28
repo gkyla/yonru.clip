@@ -511,33 +511,233 @@ class TestRenderEngine(unittest.TestCase):
 
     def test_render_composition_audio_censorship_props(self):
         import tempfile
-        temp_dir = tempfile.mkdtemp()
-        temp_video = os.path.join(temp_dir, "dummy_censor.mp4")
-        with open(temp_video, "w") as f:
-            f.write("dummy video content")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_video = os.path.join(temp_dir, "dummy_censor.mp4")
+            pub_dir = os.path.join(temp_dir, "public")
+            static_audio_dir = os.path.join(temp_dir, "static_audio")
+            os.makedirs(static_audio_dir, exist_ok=True)
+            bleep_src = os.path.join(static_audio_dir, "bleep.wav")
+            with open(temp_video, "wb") as f:
+                f.write(b"dummy video content")
+            with open(bleep_src, "wb") as f:
+                f.write(b"BLEEP_WAV_BYTES")
 
-        try:
             comp = RenderComposition(
                 original_video=temp_video,
                 crop_center_x=960,
                 clip_duration=2.0,
                 fps=30.0,
                 censored_segments=[{"start": 0.5, "duration": 0.8, "word": "badword"}],
-                bleep_audio_src="/audio/bleep.wav"
+                bleep_audio_src="/audio/bleep.wav",
             )
             self.assertEqual(len(comp.censored_segments), 1)
             self.assertEqual(comp.bleep_audio_src, "/audio/bleep.wav")
 
-            with StagedRenderContext(comp, "test_censor.mp4", output_dir=temp_dir) as ctx:
+            staged_bleep_path = None
+            with StagedRenderContext(
+                comp,
+                "test_censor.mp4",
+                output_dir=temp_dir,
+                public_dir=pub_dir,
+                static_audio_dir=static_audio_dir,
+            ) as ctx:
                 self.assertIsNotNone(ctx.props_path)
                 assert ctx.props_path is not None
                 with open(ctx.props_path, "r", encoding="utf-8") as f:
                     props = json.load(f)
                 self.assertEqual(len(props.get("censoredSegments", [])), 1)
                 self.assertEqual(props.get("censoredSegments")[0]["word"], "badword")
-                self.assertEqual(props.get("bleepAudioSrc"), "/audio/bleep.wav")
-        finally:
-            shutil.rmtree(temp_dir)
+                expected_name = "bleep_test_censor.mp4_bleep.wav"
+                self.assertEqual(props.get("bleepAudioSrc"), expected_name)
+                staged_bleep_path = os.path.join(pub_dir, expected_name)
+                self.assertTrue(os.path.isfile(staged_bleep_path))
+                self.assertEqual(os.stat(staged_bleep_path).st_ino, os.stat(bleep_src).st_ino)
+                with open(staged_bleep_path, "rb") as bf:
+                    self.assertEqual(bf.read(), b"BLEEP_WAV_BYTES")
+
+            assert staged_bleep_path is not None
+            self.assertFalse(os.path.exists(staged_bleep_path))
+            self.assertTrue(os.path.isfile(bleep_src))
+
+            # Default static_audio_dir resolves repo frontend/public/audio/bleep.wav
+            with StagedRenderContext(
+                comp,
+                "test_default_censor.mp4",
+                output_dir=temp_dir,
+                public_dir=pub_dir,
+            ) as default_ctx:
+                assert default_ctx.props_path is not None
+                with open(default_ctx.props_path, "r", encoding="utf-8") as f:
+                    default_props = json.load(f)
+                self.assertEqual(default_props.get("bleepAudioSrc"), "bleep_test_default_censor.mp4_bleep.wav")
+                default_staged = os.path.join(pub_dir, "bleep_test_default_censor.mp4_bleep.wav")
+                self.assertTrue(os.path.isfile(default_staged))
+            self.assertFalse(os.path.exists(os.path.join(pub_dir, "bleep_test_default_censor.mp4_bleep.wav")))
+
+    def test_staged_render_context_bleep_data_uri_and_audio_library(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_video = os.path.join(temp_dir, "vid.mp4")
+            pub_dir = os.path.join(temp_dir, "public")
+            audio_lib_dir = os.path.join(temp_dir, "audio_library")
+            os.makedirs(audio_lib_dir, exist_ok=True)
+            custom_beep = os.path.join(audio_lib_dir, "custom_beep.mp3")
+            with open(temp_video, "wb") as f:
+                f.write(b"VIDEO")
+            with open(custom_beep, "wb") as f:
+                f.write(b"CUSTOM_MP3_BYTES")
+
+            # 1. data: URI passes through untouched
+            data_uri = "data:audio/wav;base64,UklGRg=="
+            data_comp = RenderComposition(
+                original_video=temp_video,
+                crop_center_x=960,
+                clip_duration=2.0,
+                fps=30.0,
+                bleep_audio_src=data_uri,
+            )
+            with StagedRenderContext(
+                data_comp,
+                "test_data.mp4",
+                output_dir=temp_dir,
+                public_dir=pub_dir,
+            ) as ctx:
+                self.assertEqual(ctx.staged_audio_paths, [])
+                assert ctx.props_path is not None
+                with open(ctx.props_path, "r", encoding="utf-8") as f:
+                    props = json.load(f)
+                self.assertEqual(props.get("bleepAudioSrc"), data_uri)
+
+            # 2. /assets/audio_library/<file> stages cleanly and cleans up
+            lib_comp = RenderComposition(
+                original_video=temp_video,
+                crop_center_x=960,
+                clip_duration=2.0,
+                fps=30.0,
+                bleep_audio_src="/assets/audio_library/custom_beep.mp3?t=123",
+            )
+            with StagedRenderContext(
+                lib_comp,
+                "test_lib.mp4",
+                output_dir=temp_dir,
+                public_dir=pub_dir,
+                audio_library_dir=audio_lib_dir,
+            ) as ctx:
+                expected_name = "bleep_test_lib.mp4_custom_beep.mp3"
+                staged_path = os.path.join(pub_dir, expected_name)
+                self.assertIn(staged_path, ctx.staged_audio_paths)
+                self.assertTrue(os.path.isfile(staged_path))
+                assert ctx.props_path is not None
+                with open(ctx.props_path, "r", encoding="utf-8") as f:
+                    props = json.load(f)
+                self.assertEqual(props.get("bleepAudioSrc"), expected_name)
+            self.assertFalse(os.path.exists(os.path.join(pub_dir, "bleep_test_lib.mp4_custom_beep.mp3")))
+
+    def test_staged_render_context_bleep_missing_and_traversal_fallback(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_video = os.path.join(temp_dir, "vid.mp4")
+            pub_dir = os.path.join(temp_dir, "public")
+            static_audio_dir = os.path.join(temp_dir, "static_audio")
+            nested_dir = os.path.join(static_audio_dir, "nested")
+            os.makedirs(nested_dir, exist_ok=True)
+            outside_secret = os.path.join(temp_dir, "secret.wav")
+            symlink_escape = os.path.join(static_audio_dir, "escape.wav")
+            with open(temp_video, "wb") as f:
+                f.write(b"VIDEO")
+            with open(outside_secret, "wb") as f:
+                f.write(b"SECRET")
+            with open(os.path.join(nested_dir, "bleep.wav"), "wb") as f:
+                f.write(b"NESTED")
+            os.symlink(outside_secret, symlink_escape)
+
+            for bad_src in [
+                "/audio/missing.wav",
+                "/audio/../../etc/passwd",
+                "/audio/nested/bleep.wav",
+                "/assets/audio_library/../../secret.wav",
+                "/audio/escape.wav",
+                "/unknown/bleep.wav",
+            ]:
+                comp = RenderComposition(
+                    original_video=temp_video,
+                    crop_center_x=960,
+                    clip_duration=2.0,
+                    fps=30.0,
+                    bleep_audio_src=bad_src,
+                )
+                with StagedRenderContext(
+                    comp,
+                    "test_bad.mp4",
+                    output_dir=temp_dir,
+                    public_dir=pub_dir,
+                    static_audio_dir=static_audio_dir,
+                    audio_library_dir=os.path.join(temp_dir, "audio_lib"),
+                ) as ctx:
+                    self.assertEqual(ctx.staged_audio_paths, [])
+                    assert ctx.props_path is not None
+                    with open(ctx.props_path, "r", encoding="utf-8") as f:
+                        props = json.load(f)
+                    self.assertIsNone(props.get("bleepAudioSrc"), f"Expected fallback None for {bad_src}")
+
+    def test_coordinator_stage_render_context_forwards_static_audio_dir_and_bundle_hash_ignores_bleep(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            remotion_dir = self._create_temp_remotion_project(temp_dir)
+            out_dir = os.path.join(temp_dir, "output")
+            static_audio_dir = os.path.join(temp_dir, "static_audio")
+            os.makedirs(static_audio_dir, exist_ok=True)
+            with open(os.path.join(static_audio_dir, "bleep.wav"), "wb") as f:
+                f.write(b"COORD_BLEEP")
+            temp_video = os.path.join(temp_dir, "vid.mp4")
+            with open(temp_video, "wb") as f:
+                f.write(b"VIDEO")
+
+            hash_before = RenderPipelineCoordinator._compute_remotion_bundle_hash(remotion_dir)
+            os.makedirs(os.path.join(remotion_dir, "public"), exist_ok=True)
+            with open(os.path.join(remotion_dir, "public", "bleep_clip_bleep.wav"), "wb") as f:
+                f.write(b"TRANSIENT")
+            hash_after = RenderPipelineCoordinator._compute_remotion_bundle_hash(remotion_dir)
+            self.assertEqual(hash_before, hash_after)
+
+            observed_props = {}
+
+            def run_handler(cmd, cwd, _env, _cancel_event):
+                if "bundle" in cmd:
+                    bundle_path = os.path.join(cwd or remotion_dir, ".bundle")
+                    os.makedirs(bundle_path, exist_ok=True)
+                    with open(os.path.join(bundle_path, "index.html"), "w", encoding="utf-8") as bf:
+                        bf.write("<html></html>")
+                elif "render" in cmd:
+                    props_file = cmd[cmd.index("--props") + 1]
+                    with open(props_file, "r", encoding="utf-8") as pf:
+                        observed_props.update(json.load(pf))
+                    staged_path = os.path.join(cwd or remotion_dir, ".bundle", "public", observed_props["bleepAudioSrc"])
+                    self.assertTrue(os.path.isfile(staged_path))
+                return RemotionRunResult(returncode=0)
+
+            coordinator = RenderPipelineCoordinator(
+                output_dir=out_dir,
+                remotion_dir=remotion_dir,
+                static_audio_dir=static_audio_dir,
+                media_transcoder=MediaTranscoder(adapter=FakeMediaAdapter()),
+                process_adapter=FakeRemotionAdapter(run_handler=run_handler),
+                hardware_profiler=HardwareProfiler(FakeHardwareMetricsSource()),
+            )
+            comp = RenderComposition(
+                original_video=temp_video,
+                crop_center_x=960,
+                clip_duration=2.0,
+                fps=30.0,
+                bleep_audio_src="/audio/bleep.wav",
+            )
+            with patch.object(coordinator, "resolve_remotion_command", return_value=["remotion"]):
+                out_path = coordinator.render(comp, "coord.mp4")
+            self.assertEqual(out_path, os.path.join(out_dir, "coord.mp4"))
+            self.assertEqual(observed_props.get("bleepAudioSrc"), "bleep_coord.mp4_bleep.wav")
+            self.assertFalse(
+                os.path.exists(os.path.join(remotion_dir, ".bundle", "public", "bleep_coord.mp4_bleep.wav"))
+            )
 
     def test_resolve_remotion_command_local_bin_exists(self):
         with patch("os.path.isfile", return_value=True):
